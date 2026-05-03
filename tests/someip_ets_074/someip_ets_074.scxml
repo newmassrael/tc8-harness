@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_074: Wrong_Interface_Version.
+
+  Tester sends echoUINT8 (METHOD-ID 0x0008) with the SOME/IP header
+  Interface Version field corrupted from 0x01 to 0xFF (ets.fidl
+  declares version.major == 1). Per PRS_SOMEIP_00053 / 00058 / 00190
+  / 00191 the DUT must return Error Message WRONG_INTERFACE_VERSION
+  or ignore the request. Reuses ETS_001's lenient 4-path verdict
+  pattern (Error Response, non-zero return_code, or silent ignore;
+  only normal echo with return_code 0x00 lands on fail).
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
+    Phase 2 (listening_phase2): Error Response, non-zero return_code, or
+            silent drop → pass; return_code 0x00 echo → fail.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_074"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0008 and captured.message_type == 0x81"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0008 and captured.message_type == 0x80 and captured.return_code != 0x00"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0008 and captured.message_type == 0x80 and captured.return_code == 0x00"
+                target="fail_phase2_dut_accepted_wrong_iface_version"/>
+    <transition event="phase2_deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_dut_accepted_wrong_iface_version">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_returned_ok_response_for_wrong_interface_version"}</content>
+    </donedata>
+  </final>
+</scxml>

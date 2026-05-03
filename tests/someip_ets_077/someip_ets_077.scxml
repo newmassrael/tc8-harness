@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_077: Wrong_Service_ID.
+
+  Tester sends a SOME/IP Method Request with the Service ID corrupted
+  to 0x9999 (unknown service). Per PRS_SOMEIP_00190 / 00191 the DUT
+  must return Error Message UNKNOWN_SERVICE or ignore the request.
+  vsomeip's routing manager silent-drops requests for unknown
+  service IDs at the routing layer; the lenient 4-path verdict
+  accepts deadline (silent ignore), Error Response on the wrong
+  service_id, or Method Response with non-zero return_code as pass;
+  Method Response with return_code 0x00 on EITHER the wrong (echoed)
+  or genuine service_id is fail.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1
+            (the genuine service the DUT advertises is unaffected).
+    Phase 2 (listening_phase2): Lenient 4-path verdict watching ANY
+            non-SD service_id with method_id 0x0008.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_077"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id != 0xFFFF and captured.method_id == 0x0008 and captured.message_type == 0x81"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id != 0xFFFF and captured.method_id == 0x0008 and captured.message_type == 0x80 and captured.return_code != 0x00"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id != 0xFFFF and captured.method_id == 0x0008 and captured.message_type == 0x80 and captured.return_code == 0x00"
+                target="fail_phase2_dut_accepted_wrong_service_id"/>
+    <transition event="phase2_deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_dut_accepted_wrong_service_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_returned_ok_response_for_wrong_service_id"}</content>
+    </donedata>
+  </final>
+</scxml>

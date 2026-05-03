@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.1.20 SOMEIPSRV_FORMAT_20: Length of Type 2 Entries shall
+  be 16 bytes. Structurally this means the entries-array length on an
+  SD message carrying a Type 2 entry (0x06 subscribe / 0x07 ack/nack)
+  is a positive multiple of 16. The TESTER emits a SubscribeEventgroup
+  to trigger the DUT's Type 2 reply, then observes the array length.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_format_20"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries_len >= 16 and (captured.sd_entries_len % 16) == 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

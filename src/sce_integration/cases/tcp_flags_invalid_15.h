@@ -1,0 +1,372 @@
+#pragma once
+
+#include <array>
+#include <chrono>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <unistd.h>
+
+#include <sys/socket.h>
+
+#include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/test_runner.h"
+#include "stimulus/tcp_segment_builder.h"
+
+#include "tcp_flags_invalid_15_sm.h"
+
+namespace tc8::sce::cases {
+
+using TcpFlagsInvalid15SM = ::SCE::Generated::tcp_flags_invalid_15::tcp_flags_invalid_15;
+
+}  // namespace tc8::sce::cases
+
+namespace tc8::sce {
+
+template <>
+struct TestCaseTraits<cases::TcpFlagsInvalid15SM>
+    : TcpAnyBase<cases::TcpFlagsInvalid15SM> {
+    static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_15";
+    static constexpr std::string_view kSpecSection  = "4.8.6.6";
+    static constexpr std::string_view kDescription  =
+        "TCP in any state other than CLOSED, SYN-SENT and LISTEN MUST "
+        "ignore a RST segment with OTW SEQ number (RFC 793 §3.9 p69 "
+        "Event Processing). 8 spec iterations exercise wst ∈ "
+        "{SYN-RCVD, EST, FW1, FW2, CW, CLOSING, LA, TW}";
+
+    // Each phase drives DUT to its target state, then raw-injects a
+    // RST with seq = snd_nxt + kOutOfWindowSeqOffset (16 MB past
+    // tester's expected seq, well outside Linux's plausible
+    // window-scale ceiling). The 3 s absence window per phase
+    // observes whether DUT emits any RST or pure ACK on the
+    // 4-tuple — both are wire-observable spec violations. The narrow
+    // guard tolerates DUT FIN+ACK retransmits in states where tester
+    // AckDrop pins DUT (FW1 / LA) without false-firing.
+    //
+    // Phase port-quad map (phase 1 passive, 2..8 active):
+    //   1 SYN-RCVD: (kBasicsListenPort, kBasicsTesterPort)
+    //   2 EST:      (kBasicsActiveLocalPort + 0, kBasicsActiveRemotePort + 0)
+    //   3 FW1:      (kBasicsActiveLocalPort + 1, kBasicsActiveRemotePort + 1)
+    //   4 FW2:      (kBasicsActiveLocalPort + 2, kBasicsActiveRemotePort + 2)
+    //   5 CW:       (kBasicsActiveLocalPort + 3, kBasicsActiveRemotePort + 3)
+    //   6 CLOSING:  (kBasicsActiveLocalPort + 4, kBasicsActiveRemotePort + 4)
+    //   7 LA:       (kBasicsActiveLocalPort + 5, kBasicsActiveRemotePort + 5)
+    //   8 TW:       (kBasicsActiveLocalPort + 6, kBasicsActiveRemotePort + 6)
+    //
+    // Phase 1 fires synchronously before kickStimulus returns (its
+    // first observation state is SCXML's initial state). Phases 2..8
+    // schedule via `scheduleAfterStateEntry` so each phase's
+    // stimulus only runs when SCXML lands in the corresponding
+    // listening_pN_handshake_ack state — required because the prior
+    // phase's 3 s absence is wall-clock; a synchronous all-phases-up-
+    // front stimulus would queue all events into pcap before SCXML
+    // reaches state pN, then SCXML would walk the prior absence and
+    // find the queue empty.
+    //
+    // TesterAutoRstDrop covers phase 1's stimulus body (SYN-RCVD
+    // passive listen — DUT SYN+ACK lands on the unbound tester port,
+    // eliciting tester-kernel auto-RST that would race-kill the
+    // request_sock before our OTW RST inject). RstDrop dtor at
+    // stimulus end is benign: phase 1 absence guard tolerates DUT
+    // SYN+ACK retransmits (SYN flag set; not pure ACK / RST).
+    //
+    // TesterAutoAckDrop scopes inside phase 3 (FW1) and phase 7 (LA)
+    // lambdas — function-scoped is incompatible with phase 4 (FW2
+    // depends on tester-kernel auto-ACK to advance DUT past FW1) and
+    // phase 8 (driveTcpToTimeWaitFw2 depends on tester-kernel
+    // auto-ACK during prelude). Phase 6 (CLOSING) installs its own
+    // AckDrop because driveCloseToClosing requires caller scope.
+    static void stimulus(Captured& /*c*/,
+                         const ::tc8::TestConfig& cfg,
+                         std::string_view iface,
+                         IStimulusScheduler& scheduler) {
+        using namespace ::tc8::sce::tcp;
+        std::this_thread::sleep_for(kTcpUtBootWait);
+
+        {
+            TesterAutoRstDrop rst_drop(cfg);
+            (void)rst_drop;
+            runPhase1SynRecv(cfg, iface);
+        }
+
+        ::tc8::TestConfig cfg_copy = cfg;
+        std::string       iface_str(iface);
+
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_p2_handshake_ack),
+            [cfg_copy, iface_str]() {
+                runPhase2Established(cfg_copy, iface_str);
+            });
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_p3_handshake_ack),
+            [cfg_copy, iface_str]() {
+                runPhase3FinWait1(cfg_copy, iface_str);
+            });
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_p4_handshake_ack),
+            [cfg_copy, iface_str]() {
+                runPhase4FinWait2(cfg_copy, iface_str);
+            });
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_p5_handshake_ack),
+            [cfg_copy, iface_str]() {
+                runPhase5CloseWait(cfg_copy, iface_str);
+            });
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_p6_handshake_ack),
+            [cfg_copy, iface_str]() {
+                runPhase6Closing(cfg_copy, iface_str);
+            });
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_p7_handshake_ack),
+            [cfg_copy, iface_str]() {
+                runPhase7LastAck(cfg_copy, iface_str);
+            });
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_p8_handshake_ack),
+            [cfg_copy, iface_str]() {
+                runPhase8TimeWait(cfg_copy, iface_str);
+            });
+    }
+
+    static std::string_view verdictFor(State s) {
+        switch (s) {
+            case State::Pass:                                return "pass";
+            case State::Fail_p1_no_dut_synack:               return "fail:no_dut_synack_phase1_syn_rcvd";
+            case State::Fail_p1_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_syn_rcvd";
+            case State::Fail_p2_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase2_est";
+            case State::Fail_p2_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_est";
+            case State::Fail_p3_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase3_fw1";
+            case State::Fail_p3_no_dut_fin:                  return "fail:no_dut_fin_phase3_fw1";
+            case State::Fail_p3_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_fw1";
+            case State::Fail_p4_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase4_fw2";
+            case State::Fail_p4_no_dut_fin:                  return "fail:no_dut_fin_phase4_fw2";
+            case State::Fail_p4_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_fw2";
+            case State::Fail_p5_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase5_cw";
+            case State::Fail_p5_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase5_cw";
+            case State::Fail_p5_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_cw";
+            case State::Fail_p6_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase6_closing";
+            case State::Fail_p6_no_dut_fin:                  return "fail:no_dut_fin_phase6_closing";
+            case State::Fail_p6_no_closing_ack:              return "fail:no_dut_closing_ack_phase6_closing";
+            case State::Fail_p6_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_closing";
+            case State::Fail_p7_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase7_la";
+            case State::Fail_p7_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase7_la";
+            case State::Fail_p7_no_dut_fin:                  return "fail:no_dut_fin_phase7_la";
+            case State::Fail_p7_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_la";
+            case State::Fail_p8_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase8_tw";
+            case State::Fail_p8_no_dut_fin:                  return "fail:no_dut_fin_phase8_tw";
+            case State::Fail_p8_no_tw_ack:                   return "fail:no_dut_tw_ack_phase8_tw";
+            case State::Fail_p8_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_tw";
+            default:                                         return "running";
+        }
+    }
+
+private:
+    static void emitOtwRst(const ::tc8::TestConfig& cfg,
+                           std::string_view iface,
+                           std::uint16_t src_port,
+                           std::uint16_t dst_port,
+                           std::uint32_t seq_base,
+                           std::uint32_t ack_value) {
+        ::tc8::stimulus::TcpSegmentSpec rst{};
+        rst.src_port = src_port;
+        rst.dst_port = dst_port;
+        rst.seq_num  = seq_base + ::tc8::sce::tcp::kOutOfWindowSeqOffset;
+        rst.ack_num  = ack_value;
+        rst.flags    = ::tc8::stimulus::kTcpFlagRst | ::tc8::stimulus::kTcpFlagAck;
+        ::tc8::sce::tcp::emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, rst,
+                                      /*initial_wait=*/std::chrono::milliseconds(0));
+    }
+
+    static void runPhase1SynRecv(const ::tc8::TestConfig& cfg,
+                                 std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t listen_port = kBasicsListenPort;
+        const std::uint16_t tester_port = kBasicsTesterPort;
+
+        sendOpenTcpSocketPassiveRequest(cfg, iface, cfg.arp.dut_real_mac,
+                                        /*req_id=*/1, listen_port);
+        std::this_thread::sleep_for(kTcpUtRpcWait);
+
+        auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_port);
+
+        ::tc8::stimulus::TcpSegmentSpec syn{};
+        syn.src_port = tester_port;
+        syn.dst_port = listen_port;
+        syn.seq_num  = kTesterInitialSeq;
+        syn.ack_num  = 0U;
+        syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
+        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn);
+
+        const auto synack = snippet.tryCapture(std::chrono::milliseconds(500));
+        if (synack.has_value()) {
+            emitOtwRst(cfg, iface, tester_port, listen_port,
+                       /*seq_base=*/kTesterInitialSeq + 1U,
+                       /*ack_value=*/synack->seq_num + 1U);
+        }
+    }
+
+    static void runPhase2Established(const ::tc8::TestConfig& cfg,
+                                     std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 0U;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + 0U;
+
+        auto listener = driveActiveOpenEstablished(
+            cfg, iface, cfg.arp.dut_real_mac, /*open_req_id=*/3,
+            local_port, remote_port);
+        const int tester_fd = listener.acceptOne();
+        if (tester_fd < 0) return;
+        const auto seq_range = queryTcpSeqRange(tester_fd);
+        if (seq_range.has_value()) {
+            emitOtwRst(cfg, iface, remote_port, local_port,
+                       seq_range->snd_nxt, seq_range->rcv_nxt);
+        }
+        silentlyCloseTesterFd(tester_fd);
+    }
+
+    static void runPhase3FinWait1(const ::tc8::TestConfig& cfg,
+                                  std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 1U;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + 1U;
+
+        TesterAutoAckDrop ack_drop(cfg);
+        (void)ack_drop;
+
+        auto listener = driveActiveOpenEstablished(
+            cfg, iface, cfg.arp.dut_real_mac, /*open_req_id=*/5,
+            local_port, remote_port);
+        const int tester_fd = listener.acceptOne();
+        if (tester_fd < 0) return;
+        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+                                  /*close_req_id=*/6, /*socket_id=*/3);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        const auto seq_range = queryTcpSeqRange(tester_fd);
+        if (seq_range.has_value()) {
+            emitOtwRst(cfg, iface, remote_port, local_port,
+                       seq_range->snd_nxt, seq_range->rcv_nxt - 1U);
+        }
+        silentlyCloseTesterFd(tester_fd);
+    }
+
+    static void runPhase4FinWait2(const ::tc8::TestConfig& cfg,
+                                  std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 2U;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + 2U;
+
+        auto listener = driveActiveOpenEstablished(
+            cfg, iface, cfg.arp.dut_real_mac, /*open_req_id=*/7,
+            local_port, remote_port);
+        const int tester_fd = listener.acceptOne();
+        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+                                  /*close_req_id=*/8, /*socket_id=*/4);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        if (tester_fd < 0) return;
+        const auto seq_range = queryTcpSeqRange(tester_fd);
+        if (seq_range.has_value()) {
+            emitOtwRst(cfg, iface, remote_port, local_port,
+                       seq_range->snd_nxt, seq_range->rcv_nxt);
+        }
+        silentlyCloseTesterFd(tester_fd);
+    }
+
+    static void runPhase5CloseWait(const ::tc8::TestConfig& cfg,
+                                   std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 3U;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + 3U;
+
+        auto listener = driveActiveOpenEstablished(
+            cfg, iface, cfg.arp.dut_real_mac, /*open_req_id=*/9,
+            local_port, remote_port);
+        const int tester_fd = listener.acceptOne();
+        if (tester_fd < 0) return;
+        ::shutdown(tester_fd, SHUT_WR);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        const auto seq_range = queryTcpSeqRange(tester_fd);
+        if (seq_range.has_value()) {
+            emitOtwRst(cfg, iface, remote_port, local_port,
+                       seq_range->snd_nxt, seq_range->rcv_nxt);
+        }
+        silentlyCloseTesterFd(tester_fd);
+    }
+
+    static void runPhase6Closing(const ::tc8::TestConfig& cfg,
+                                 std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 4U;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + 4U;
+
+        TesterAutoAckDrop ack_drop(cfg);
+        (void)ack_drop;
+
+        auto listener = driveActiveOpenEstablished(
+            cfg, iface, cfg.arp.dut_real_mac, /*open_req_id=*/11,
+            local_port, remote_port);
+        const int tester_fd = listener.acceptOne();
+        if (tester_fd < 0) return;
+        const auto info = driveCloseToClosing(
+            cfg, iface, cfg.arp.dut_real_mac, tester_fd,
+            /*close_req_id=*/12, /*socket_id=*/6,
+            local_port, remote_port);
+        if (info.ok) {
+            emitOtwRst(cfg, iface, remote_port, local_port,
+                       info.tester_seq_post_fin,
+                       info.tester_ack_post_fin - 1U);
+        }
+        silentlyCloseTesterFd(tester_fd);
+    }
+
+    static void runPhase7LastAck(const ::tc8::TestConfig& cfg,
+                                 std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 5U;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + 5U;
+
+        TesterAutoAckDrop ack_drop(cfg);
+        (void)ack_drop;
+
+        auto listener = driveActiveOpenEstablished(
+            cfg, iface, cfg.arp.dut_real_mac, /*open_req_id=*/13,
+            local_port, remote_port);
+        const int tester_fd = listener.acceptOne();
+        if (tester_fd < 0) return;
+        ::shutdown(tester_fd, SHUT_WR);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+                                  /*close_req_id=*/14, /*socket_id=*/7);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        const auto seq_range = queryTcpSeqRange(tester_fd);
+        if (seq_range.has_value()) {
+            emitOtwRst(cfg, iface, remote_port, local_port,
+                       seq_range->snd_nxt, seq_range->rcv_nxt - 1U);
+        }
+        silentlyCloseTesterFd(tester_fd);
+    }
+
+    static void runPhase8TimeWait(const ::tc8::TestConfig& cfg,
+                                  std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 6U;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + 6U;
+
+        const auto info = driveTcpToTimeWaitFw2(
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/15, /*close_req_id=*/16, /*socket_id=*/8,
+            local_port, remote_port);
+        if (info.ok) {
+            emitOtwRst(cfg, iface, remote_port, local_port,
+                       info.tester_seq_post_fin,
+                       info.tester_ack_post_fin);
+        }
+    }
+};
+
+}  // namespace tc8::sce
+
+TC8_REGISTER_CASE(::tc8::sce::cases::TcpFlagsInvalid15SM, tcp_flags_invalid_15)

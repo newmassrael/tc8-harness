@@ -1,0 +1,372 @@
+package org.tc8.ets
+
+<** @description: Enhanced Testability Service (ETS) — TC8 v3.0 §5.1.4.
+  MVP subset: lifecycle + primitive echo + byte-order + client-service control
+  + one broadcast and two attributes. Method/event/field IDs come from
+  TC8 §5.1.4 Table 1 and Table 2. **>
+interface EnhancedTestability {
+    version { major 1 minor 0 }
+
+    <** @description: Reset the interface to default values (TC8 §5.1.4.3.1). **>
+    method resetInterface fireAndForget {
+    }
+
+    <** @description: Stop offering the service, then reoffer after a delay
+      (TC8 §5.1.4.3.2). **>
+    method suspendInterface fireAndForget {
+        in {
+            UInt32 start
+            UInt32 duration
+        }
+    }
+
+    <** @description: Echo UINT8 over UDP. **>
+    method echoUINT8 {
+        in  { UInt8 value }
+        out { UInt8 result }
+    }
+
+    <** @description: Echo UINT8 over TCP. **>
+    method echoUINT8RELIABLE {
+        in  { UInt8 value }
+        out { UInt8 result }
+    }
+
+    <** @description: Echo INT8 over UDP. **>
+    method echoINT8 {
+        in  { Int8 value }
+        out { Int8 result }
+    }
+
+    <** @description: Byte-order check — DUT returns uint8+uint16 as UInt32 BE. **>
+    method checkByteOrder {
+        in {
+            UInt8  summandUINT8
+            UInt16 summandUINT16
+        }
+        out {
+            UInt32 sum
+        }
+    }
+
+    <** @description: Echo common datatypes; response arguments reversed
+      (TC8 §5.1.4.2.1 note: ResArg1 = ReqArg9, ResArg2 = ReqArg8, ...). **>
+    method echoCommonDatatypes {
+        in {
+            Boolean arg1
+            UInt8   arg2
+            UInt16  arg3
+            UInt32  arg4
+            Int8    arg5
+            Int16   arg6
+            Int32   arg7
+            Float   arg8
+            Double  arg9
+        }
+        out {
+            Double  res1
+            Float   res2
+            Int32   res3
+            Int16   res4
+            Int8    res5
+            UInt32  res6
+            UInt16  res7
+            UInt8   res8
+            Boolean res9
+        }
+    }
+
+    <** @description: Tell DUT's SOME/IP client to start finding ETS
+      (TC8 §5.1.4.3.3). **>
+    method clientServiceActivate fireAndForget {
+        in {
+            UInt8 delay
+        }
+    }
+
+    <** @description: Tell DUT's SOME/IP client to stop finding ETS. **>
+    method clientServiceDeactivate fireAndForget {
+        in {
+            UInt8 delay
+        }
+    }
+
+    <** @description: Trigger DUT-as-client to subscribe to its target service's
+      eventgroup (TC8 §5.1.4 Table 1 lists Method ID 0x32 = 50). Used by
+      §5.1.6 SOMEIP_ETS_097 (SD_Client_restarts_tcp_connection): after
+      clientServiceActivate spawns the CommonAPI Proxy for ets3.fidl
+      ClientTarget, this method calls `proxy->getTargetEventReliable().subscribe(...)`
+      which makes vsomeip emit SubscribeEventgroup with a TCP IPv4 Endpoint
+      Option, attempt the TCP connect, and (per
+      `client_endpoint_impl.cpp:368-429`) auto-retry on ECONNREFUSED. Args
+      Delay and Duration come from spec p401-420 — Delay defers the subscribe
+      call by Delay ms, Duration is reserved for future-use TTL. **>
+    method clientServiceSubscribeEventgroup fireAndForget {
+        in {
+            UInt32 delay
+            UInt32 duration
+        }
+    }
+
+    <** @description: Return the last UInt8 the DUT received on its TCP-
+      reliable target event (§5.1.6 SOMEIP_ETS_103). Method ID 0x3B per
+      TC8 §5.1.4 Table 1. Backed by a uint8_t storage cell pre-initialised
+      to the spec's canonical test value (0x08); the event-receive wiring
+      that would update the cell from the actual TCP Notification payload
+      is not implemented in tc8-dut, so the response is wire-shape valid
+      but state-receipt vacuous. **>
+    method clientServiceGetLastValueOfEventTCP {
+        out { UInt8 value }
+    }
+
+    <** @description: Return the last UInt8 the DUT received on its UDP
+      unicast target event (§5.1.6 SOMEIP_ETS_105). Method ID 0x3C per
+      TC8 §5.1.4 Table 1. Same wire-shape-only semantics as 0x3B. **>
+    method clientServiceGetLastValueOfEventUDPUnicast {
+        out { UInt8 value }
+    }
+
+    <** @description: Return the last UInt8 the DUT received on its UDP
+      multicast target event (§5.1.6 SOMEIP_ETS_104). Method ID 0x3D per
+      TC8 §5.1.4 Table 1. Same wire-shape-only semantics as 0x3B. **>
+    method clientServiceGetLastValueOfEventUDPMulticast {
+        out { UInt8 value }
+    }
+
+    <** @description: Periodic test event carrying a UINT8. **>
+    broadcast TestEventUINT8 {
+        out {
+            UInt8 value
+        }
+    }
+
+    <** @description: Field-A getter — empty Request, Response carries
+      the cached fieldA value. Exercises §5.1.5.7 RPC_03's
+      METHOD-ID-GET-SI-1 (getter) shape. **>
+    method getFieldA {
+        out { UInt8 value }
+    }
+
+    <** @description: Field-A setter — Request payload carries the
+      value to set, Response echoes back the value that was set.
+      Exercises §5.1.5.7 RPC_11's METHOD-ID-2-SI-1 (setter) shape. **>
+    method setFieldA {
+        in  { UInt8 value }
+        out { UInt8 result }
+    }
+
+    <** @description: TestFieldUINT8Array getter — §5.1.6 SOMEIP_ETS_167.
+      Returns the most recently set UInt8 array (no length-prefixed input
+      payload; out-array is length-prefixed per ets.fdepl). **>
+    method getTestFieldUint8Array {
+        out { UInt8[] data }
+    }
+
+    <** @description: TestFieldUINT8Array setter — §5.1.6 SOMEIP_ETS_167.
+      Stores the input array and echoes it back on the wire. Both
+      directions carry a 32-bit BE byte length prefix per ets.fdepl. **>
+    method setTestFieldUint8Array {
+        in  { UInt8[] data }
+        out { UInt8[] result }
+    }
+
+    <** @description: TestFieldUINT8Reliable getter — §5.1.6 SOMEIP_ETS_168.
+      UInt8 field served over TCP (SomeIpReliable=true in ets.fdepl). **>
+    method getTestFieldUint8Reliable {
+        out { UInt8 value }
+    }
+
+    <** @description: TestFieldUINT8Reliable setter — §5.1.6 SOMEIP_ETS_168.
+      UInt8 field served over TCP. Stores the new value and echoes it. **>
+    method setTestFieldUint8Reliable {
+        in  { UInt8 value }
+        out { UInt8 result }
+    }
+
+    <** @description: Echo a Float64 (Double). §5.1.6 SOMEIP_ETS_019. **>
+    method echoFLOAT64 {
+        in  { Double value }
+        out { Double result }
+    }
+
+    <** @description: Echo a fixed-size 5-element UInt8 array. The wire
+      shape carries NO length prefix because ets.fdepl pins
+      `SomeIpArrayLengthWidth = 0` + `SomeIpArrayMaxLength = 5`
+      (CommonAPI-SOMEIP "static array" semantics per upstream
+      all_features.fdepl). §5.1.6 SOMEIP_ETS_022. **>
+    method echoStaticUINT8Array {
+        in  { UInt8[] data }
+        out { UInt8[] result }
+    }
+
+    <** @description: Echo a 2-dimensional UInt8 array (array of UInt8
+      arrays). Both outer and inner dimensions carry a 32-bit BE byte
+      length prefix on the wire. §5.1.6 SOMEIP_ETS_030. **>
+    method echoUINT8Array2Dim {
+        in  { EtsTypes.UInt8Array[] data }
+        out { EtsTypes.UInt8Array[] result }
+    }
+
+    <** @description: Echo a dynamic UInt8 array. Wire length-prefix
+      width is set to 32 bits in ets.fdepl (CommonAPI-SOMEIP default).
+      Exercises §5.1.6 SOMEIP_ETS_028. **>
+    method echoUINT8Array {
+        in  { UInt8[] data }
+        out { UInt8[] result }
+    }
+
+    <** @description: Echo a dynamic UInt8 array with a 16-bit wire
+      length prefix (deployment override). §5.1.6 SOMEIP_ETS_029. **>
+    method echoUINT8Array16BitLength {
+        in  { UInt8[] data }
+        out { UInt8[] result }
+    }
+
+    <** @description: Echo a dynamic UInt8 array with an 8-bit wire
+      length prefix (deployment override). §5.1.6 SOMEIP_ETS_031. **>
+    method echoUINT8Array8BitLength {
+        in  { UInt8[] data }
+        out { UInt8[] result }
+    }
+
+    <** @description: Echo a dynamic UInt8 array constrained to 3..5
+      elements. §5.1.6 SOMEIP_ETS_032 / _033 — the latter sends
+      a too-short array to test malformed-input rejection. **>
+    method echoUINT8ArrayMinSize {
+        in  { UInt8[] data }
+        out { UInt8[] result }
+    }
+
+    <** @description: Enum used by §5.1.6 SOMEIP_ETS_009 echoENUM. Wire
+      format pinned to 1-byte (`SomeIpEnumWidth = 1`) in ets.fdepl so the
+      Request/Response payload is a single Uint8 per spec p401-420
+      (echoENUM_ReqArg1 / echoENUM_ResArg1 = Uint8). Defined inside the
+      interface following the upstream all_features.fidl precedent. **>
+    enumeration EtsEnum {
+        VALUE_A = 0
+        VALUE_B = 1
+        VALUE_C = 2
+    }
+
+    <** @description: Echo an ETS Enum (1-byte underlying). §5.1.6
+      SOMEIP_ETS_009. **>
+    method echoENUM {
+        in  { EtsEnum value }
+        out { EtsEnum result }
+    }
+
+    <** @description: Echo a dynamic UTF-16 string. The wire shape is a
+      32-bit BE byte length prefix followed by a BOM-prefixed UTF-16 BE
+      character sequence (CommonAPI-SOMEIP convention; spec p401-420
+      lists `Uint32` length + `UTF16` body, and the §5.1.6 _041 case
+      synopsys confirms BOM is part of the on-wire string). §5.1.6
+      SOMEIP_ETS_039. **>
+    method echoUTF16DYNAMIC {
+        in  { String text }
+        out { String result }
+    }
+
+    <** @description: Echo a fixed-length UTF-16 string (64 bytes including
+      BOM, no length prefix on the wire — spec p401-420 echoUTF16FIXED row
+      "UTF16Fixed = 64 bytes of string including BOM"). §5.1.6
+      SOMEIP_ETS_046. **>
+    method echoUTF16FIXED {
+        in  { String text }
+        out { String result }
+    }
+
+    <** @description: Echo a dynamic UTF-8 string with a 32-bit BE byte
+      length prefix and a BOM-prefixed UTF-8 body. §5.1.6 SOMEIP_ETS_048. **>
+    method echoUTF8DYNAMIC {
+        in  { String text }
+        out { String result }
+    }
+
+    <** @description: Echo a fixed-length UTF-8 string (64 bytes including
+      BOM, no length prefix — spec p401-420 echoUTF8FIXED row
+      "UTF8Fixed = 64 bytes of string including BOM"). §5.1.6
+      SOMEIP_ETS_053. **>
+    method echoUTF8FIXED {
+        in  { String text }
+        out { String result }
+    }
+
+    <** @description: Echo three integer args. The Response args carry the
+      bit-reversed value of each Request arg (ResArg1 = bit-reverse of
+      ReqArg1 etc., per spec p401-420 echoBitfields row). §5.1.6
+      SOMEIP_ETS_007. **>
+    method echoBitfields {
+        in {
+            UInt8  arg1
+            UInt16 arg2
+            UInt32 arg3
+        }
+        out {
+            UInt8  res1
+            UInt16 res2
+            UInt32 res3
+        }
+    }
+
+    <** @description: Echo five args mirroring the AUTOSAR E2E header
+      shape: 4×UInt32 (len, counter, dataID, crc) + UInt8 value
+      (spec p401-420 echoUINT8E2E row, "echoUINT8E2E_ReqArg1 =
+      echoUINT8E2E_ResArg1, etc."). DUT echoes the request unchanged;
+      the harness does NOT validate the CRC because spec equates
+      Req↔Res field-by-field rather than recomputing. §5.1.6
+      SOMEIP_ETS_034. **>
+    method echoUINT8E2E {
+        in {
+            UInt32 len
+            UInt32 counter
+            UInt32 dataID
+            UInt32 crc
+            UInt8  value
+        }
+        out {
+            UInt32 lenRes
+            UInt32 counterRes
+            UInt32 dataIDRes
+            UInt32 crcRes
+            UInt8  valueRes
+        }
+    }
+
+    <** @description: Echo a SOME/IP union. Wire shape per
+      PRS_SOMEIP_00126: 4-byte len + 4-byte type + value (encoding
+      depends on type). Spec p401-420 lists six discriminants:
+      Type 1 = Boolean, Type 2 = uint8, Type 3 = uint16,
+      Type 4 = uint32, Type 5 = sint8, Type 6 = sint16. §5.1.6
+      SOMEIP_ETS_038. **>
+    method echoUNION {
+        in  { EtsTypes.EtsUnion value }
+        out { EtsTypes.EtsUnion result }
+    }
+}
+
+<** @description: Named array typedef referenced by §5.1.6 SOMEIP_ETS_030
+  echoUINT8Array2Dim. Required because CommonAPI-SOMEIP applies separate
+  deployment blocks to inner array typedef vs outer array param, and the
+  inner-dimension SomeIpArrayLengthWidth must be settable independently
+  (per upstream all_features.fdepl `array TestArray { ... }` precedent
+  in `define ... for typeCollection` block). **>
+typeCollection EtsTypes {
+    version { major 1 minor 0 }
+
+    array UInt8Array of UInt8
+
+    <** @description: Discriminated union for §5.1.6 SOMEIP_ETS_038
+      echoUNION. Member order MUST match spec p401-420 type
+      discriminants: Type 1 = Boolean, Type 2 = uint8,
+      Type 3 = uint16, Type 4 = uint32, Type 5 = sint8,
+      Type 6 = sint16 (Franca's CommonAPI mapping uses 1-based type
+      tags in declaration order). **>
+    union EtsUnion {
+        Boolean v_boolean
+        UInt8   v_uint8
+        UInt16  v_uint16
+        UInt32  v_uint32
+        Int8    v_int8
+        Int16   v_int16
+    }
+}

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.1 IPV4_AUTOCONF_INTRO_01: Link-Local address configurability
+  condition (in presence of operable routable address) — RFC 3927 §1.9
+  "When an operable routable address is available on an interface, the
+  host SHOULD NOT also assign an IPv4 Link-Local address on that interface."
+
+  Spec Test Procedure (tc8_p141-p160.txt: INTRO_01):
+    1-2.  DUT bring-up + DHCP client configure.
+    3.    TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
+    4.    DUT: Sends DHCPDISCOVER Message
+    5.    TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER (lease=<ParamListenTime>*3)
+    6.    TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
+    7.    DUT: Sends DHCPREQUEST Message
+    8.    TESTER:DHCP Server <SERVER-1> Sends DHCPACK   (lease=<ParamListenTime>*3)
+    9.    TESTER: Listens up to <ParamListenTime> for ARP Request with target
+                   in <LINK-LOCAL-NET-ADDR> (= 169.254/16)
+    10.   DUT: Does not send ARP Request Message
+  Pass criteria: 4 + 7 + (NO ARP Probe target in 169.254/16) within window.
+
+  Stimulus (ipv4_autoconf_intro_01.h trait):
+    OpStartDhcpClient kicks the DUT lifecycle. State-entry observers fire
+    OFFER on Listening_for_request entry and ACK on
+    Listening_for_no_arp_probe entry — same observer pattern as
+    DHCPV4_CLIENT_SUMMARY_01 / PROTOCOL_03, with ParamListenTime*3 lease.
+    The 4 s no-arp-probe absence window is generous against fast-envelope
+    ParamListenTime (5 s spec default) — a compliant DUT (tc8-dut firmware
+    does not have an LL fallback hooked into Dhcpv4Client) will never
+    emit a Probe; an LL-leaking DUT would trip the prefix guard.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_intro_01"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpAndDhcpv4Captured"
+               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpAndDhcpv4Expected"
+               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="deadline_exceeded" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.op == 1
+                      and captured.dhcpv4.message_type == 3
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_no_arp_probe"/>
+    <transition event="deadline_exceeded" target="fail_no_request"/>
+  </state>
+
+  <state id="listening_for_no_arp_probe">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.is_arp_probe()"
+                target="fail_dut_emitted_ll_probe"/>
+    <transition event="deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_emitted_ll_probe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_link_local_arp_probe_despite_routable_lease"}</content>
+    </donedata>
+  </final>
+</scxml>

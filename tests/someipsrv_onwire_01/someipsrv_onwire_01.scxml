@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.6.1 SOMEIPSRV_ONWIRE_01: For the Response and Error
+  message the IP addresses and port number of the transport protocol
+  shall match the Request message. Tester invokes echoUINT8 (METHOD-
+  ID-1-SI-1 = 0x0008); pass requires the matched Response carries:
+
+    * src_ip   == expected.dut_iface_ip      (DUT iface IP)
+    * src_port == expected.udp_port          (SERVICE-ID-1 UDP port)
+
+  The dst half (tester IP + ephemeral source port the kernel picked
+  for the Request) is kernel-routing responsibility — return path is
+  determined by the Request's source address — and is implicitly
+  verified by the Response arriving at all. Asserting only the DUT-
+  controlled src half keeps the test deterministic without committing
+  to a fixed tester source-port binding.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_onwire_01"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/someipsrv_rpc_field_check.sce-template.xml"
+           phase2_filter="captured.service_id == expected.service_id and captured.message_type == 0x80"
+           pass_expr="captured.src_ip == expected.dut_iface_ip and captured.src_port == expected.udp_port"
+           fail_state="fail_phase2_response_transport_mismatch"
+           fail_reason="response_src_endpoint_did_not_match_dut_service_endpoint"/>
+</scxml>

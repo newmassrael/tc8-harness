@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.1 DHCPV4_CLIENT_SUMMARY_02: Discard DHCPOFFER messages
+  whose xid does not match the most recent DHCPDISCOVER (RFC 2131
+  §4.3.1, MUST).
+
+  Spec Test Procedure (tc8_p221-p240.txt: SUMMARY_02):
+    1-4. DUT bring-up + DUT emits DHCPDISCOVER with xid = extractedXID.
+    6.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER with
+         xid = extractedXID + 1 (mismatched).
+    7.   TESTER:DHCP Server <SERVER-2> Sends DHCPOFFER with
+         xid = extractedXID (matched).
+    9.   DUT: Sends DHCPREQUEST.
+    10.  TESTER: Verify received DHCPREQUEST contains Option 54 =
+         <SERVER2-IP-ADDRESS> (not SERVER-1).
+  Pass: 4 + 9 + 10.
+
+  Two server emuls fire on Listening_for_request entry: SERVER-1 with
+  `xid_offset=+1` (mismatched), SERVER-2 with `xid_offset=0` and
+  distinct `server_id_be` (matched). The DUT silently discards the
+  mismatched OFFER per RFC 2131 §4.3.1 and selects SERVER-2; the
+  pass guard reads `expected.second_server_id_be`.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_summary_02"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
+           pass_expr="captured.option_be32_equals(54, expected.second_server_id_be)"
+           fail_state="fail_request_selected_mismatched_server"
+           fail_reason="dut_dhcp_request_did_not_select_second_server"/>
+</scxml>

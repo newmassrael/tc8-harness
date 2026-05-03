@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPV4_REASSEMBLY_06: DUT does not reassemble fragments
+  when no first fragment (offset=0) is sent. TESTER injects two IP
+  fragments at offsets 1 (MF=1) and 2 (MF=0) — the bucket has body
+  slices for octets 8..23 but no offset=0 head, so a conformant DUT
+  (RFC 791 §3.2) cannot derive the IP/ICMP header region from any
+  fragment and must hold the partial datagram until the reassembly
+  timer expires; never deliver to ICMP, never emit an Echo Reply.
+
+  Body shared with §4.3 ICMP absence cases via
+  icmpv4_negative_absence. Dispatch narrows to type=0 Echo Reply.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_06"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_replied_without_first_fragment"/>
+</scxml>

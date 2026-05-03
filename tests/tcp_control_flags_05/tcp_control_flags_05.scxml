@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.19 TCP_CONTROL_FLAGS_05: DUT receives a TCP packet with
+  the URG flag set and replies with an ACK whose ack_num is the
+  expected value (RFC 4413 §4.2.4 / RFC 793 §3.7 Urgent Pointer).
+
+  v3.0 Test Procedure (p403):
+    1. TESTER: Bring DUT to ESTABLISHED state.
+    2. TESTER: Send a TCP packet with URG being set to DUT.
+    3. DUT:    Sends an ACK with the expected Ack Number.
+
+  Mechanism (active-OPEN handshake + raw-inject URG segment):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+140,
+       kBasicsActiveRemotePort+140).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt.
+    4. Tester raw-injects URG+PSH+ACK with seq=snd_nxt, ack=rcv_nxt
+       (in-window), urgent_pointer=payload_len, and a 4 B payload.
+       DUT receives the segment; per RFC 793 §3.9 it replies with a
+       pure ACK whose ack_num covers the payload bytes.
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — observe the DUT-emitted handshake
+      third-leg pure ACK on the active-OPEN port quad.
+    * listening_urg_ack — observe DUT pure ACK acknowledging the
+      raw-injected URG segment. Pass guard checks
+      ack_num == captured.expected_ack_num populated from the
+      stimulus snapshot (= injected_seq + payload_len).
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands on
+  fail_no_handshake_ack via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_control_flags_05"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset)"
+                target="listening_urg_ack"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_urg_ack">
+    <onentry>
+      <send event="deadline_urg_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset) and captured.ack_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset) and captured.ack_num != captured.expected_ack_num"
+                target="fail_wrong_ack_num"/>
+    <transition event="deadline_urg_ack" target="fail_no_urg_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_urg_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_urg_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_ack_num">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_urg_payload"}</content>
+    </donedata>
+  </final>
+</scxml>

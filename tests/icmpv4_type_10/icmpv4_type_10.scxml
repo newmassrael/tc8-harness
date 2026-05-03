@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_10: ICMP checksum is checked. Tester sends
+  an Echo Request whose ICMP checksum has one bit flipped; a
+  conformant DUT (Linux per RFC 1122 §3.2.2) silently drops the frame
+  and must not emit an Echo Reply.
+
+  Body shared with ICMPV4_TYPE_16 via sce:template
+  (tests/_templates/icmpv4_negative_absence.sce-template.xml).
+  Dispatch filters to type=0 (Echo Reply) so the tester's own
+  outbound Echo Request never self-triggers the fail path.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_10"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_replied_to_bad_checksum"/>
+</scxml>

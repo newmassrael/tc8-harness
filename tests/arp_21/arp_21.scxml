@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_21: ARP Request reception (Hardware Type wrong).
+  Tester injects a Request with hw_type=ARP_HARDWARE_TYPE_UNKNOWN; per
+  RFC 826 §"Packet Reception" the DUT must drop the packet and emit no
+  Reply. Absence pattern — pass on deadline, fail on observation of a
+  DUT-emitted Reply (opcode==2 and sender_hw==dut_iface_mac).
+
+  Listen window 3 s mirrors §4.2.4.1 ARP_03/05; relies on
+  TestRunner::tick() pumping the scheduled `deadline_exceeded` event.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_21"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
+                target="fail_unexpected_reply"/>
+    <transition event="deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_replied_to_malformed_request"}</content>
+    </donedata>
+  </final>
+</scxml>

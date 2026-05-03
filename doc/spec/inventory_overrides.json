@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json. expected:false marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred against the Linux DUT). Cases that the Linux DUT fails because of platform-specific RFC deviations are NOT in this file — they are kept active and verdict as fail with the deviation cited in the fail reason, so a strict-RFC DUT under the same harness lands on pass. Hiding Linux-DUT failures here would misreport spec coverage as gaps.",
+  "overrides": {
+  }
+}

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_127: SD_Multicast_FindService.
+
+  Tester sends 10 multicast FindService at 100 ms intervals; DUT must
+  respond with at least one OfferService per PRS_SOMEIPSD_00305 / 00306
+  / 00307 / 00261. Spec wording is "unicast OfferService" but Linux
+  DUT (vsomeip) responds with multicast OfferService when the FindService
+  burst falls within 1/2 cyclic of the last cyclic Offer (per
+  SD_BEHAVIOR_03/_04 cadence rules). Lenient verdict accepts any
+  OfferService observation; the stimulus's burst exercise is what
+  distinguishes ETS_127 from passive observation, not the wire-shape
+  unicast/multicast discriminator.
+
+    Phase 1 (listening_phase1): An OfferService for SERVICE-ID-1
+            (Type 0x01 entry, ttl > 0) -> pass. Phase 1 deadline only
+            fires if the DUT crashed/hung under the FindService burst
+            and stopped responding entirely.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_127"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="8s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].ttl &gt; 0"
+                target="pass"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

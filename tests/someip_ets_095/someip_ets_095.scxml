@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_095: SD_Check_subscribe_eventgroup_ttl_expired.
+
+  Tester subscribes to eg 0x02 with ttl = 3 seconds, observes the
+  Ack, then waits past ttl expiry. After expiry the DUT must NOT
+  send any further events on that eventgroup. tc8-dut's dut_main
+  fires TestEventUINT8 every 250 ms to currently-subscribed clients
+  via CommonAPI; once vsomeip drops the subscription on ttl expiry
+  the cyclic firing stops reaching the tester.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1
+            with sd_ipv4_endpoint_count >= 1.
+    Phase 2 (listening_phase2): SubscribeEventgroupAck on eg 0x02
+            with ttl > 0. ttl == 0 -> Nack -> fail.
+    Phase 3a (listening_phase3_wait_expiry): 4 s window covering
+            the 3 s ttl plus a 1 s margin. Notifications during
+            this window are expected (subscription is still alive)
+            and discarded (no matching transition).
+    Phase 3b (listening_phase3_absence_check): 2 s absence window
+            after expiry. ANY Notification on SERVICE-ID-1 with
+            method_id MSB set (TestEventUINT8 = 0x8001) -> fail.
+            Deadline -> pass.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_095"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count >= 1"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_with_endpoint"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0002"
+                target="listening_phase3_wait_expiry"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0"
+                target="fail_phase2_subscribe_nacked"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe_ack"/>
+  </state>
+
+  <state id="listening_phase3_wait_expiry">
+    <onentry>
+      <send event="phase3a_deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="phase3a_deadline_exceeded" target="listening_phase3_absence_check"/>
+  </state>
+
+  <state id="listening_phase3_absence_check">
+    <onentry>
+      <send event="phase3b_deadline_exceeded" delay="2s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and (captured.method_id &amp; 0x8000) == 0x8000"
+                target="fail_phase3_event_after_ttl_expiry"/>
+    <transition event="phase3b_deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer_with_endpoint">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_subscribe_nacked">
+    <donedata>
+      <content>{"verdict":"fail","reason":"subscribe_eventgroup_nacked_ttl_zero"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_subscribe_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_subscribe_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_event_after_ttl_expiry">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_event_after_subscription_ttl_expired"}</content>
+    </donedata>
+  </final>
+</scxml>

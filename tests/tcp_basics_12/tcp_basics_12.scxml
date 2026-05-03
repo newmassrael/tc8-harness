@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_12: TCP MUST move on to CLOSED state from
+  TIME-WAIT state after a timeout of 2*MSL, where TIME-WAIT is
+  reached through CLOSING state. Derived from RFC 793 §3.2 p23
+  Terminology (MUST).
+
+  v3.0 Test Procedure (p281-p300.txt:775):
+    1. TESTER: Cause the DUT to move on to CLOSING state
+    2. TESTER: Send ACK for the FIN just received from the DUT
+    3. TESTER: Send a FIN after 2*MSL + 20%
+    4. DUT:    Send a RST segment (DUT in CLOSED state)
+
+  Prelude mechanism — see tcp_basics_14 SCXML preamble for the
+  full CLOSING-path walkthrough (driveCloseToTimeWaitClosing
+  with TesterAutoAckDrop scoped inside, raw-inject FIN+ACK pair
+  driving DUT FW1 → CLOSING → TIME-WAIT, TCP_REPAIR-silent close
+  on tester fd). After TIME-WAIT entry the trait waits
+  kTimeWaitFullWait (72 s) before raw-injecting the replay FIN —
+  Linux's TIME-WAIT timer has fired by then and the closed-port
+  RST falls out of `tcp_v4_send_reset` per RFC 793 §3.4.
+
+  See tests/_templates/tcp_time_wait_4state.sce-template.xml for
+  the shared 4-state observation chain (incl. the COUPLING NOTE
+  pairing the 78s replay deadline below to kTimeWaitFullWait in
+  src/sce_integration/tcp_pilot_common.h).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_12"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_time_wait_4state.sce-template.xml"
+           mid_label="closing_ack"
+           mid_fail_reason="no_dut_ack_in_closing_transition"
+           replay_label="replay_rst"
+           replay_method="is_dut_rst"
+           replay_deadline="78s"
+           replay_fail_reason="no_dut_rst_after_2msl_post_time_wait_via_closing"/>
+</scxml>

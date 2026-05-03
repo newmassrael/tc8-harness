@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_09: TCP, in CLOSE-WAIT, CLOSING
+  or LAST-ACK state, MUST not change state after receiving a FIN
+  segment with ACK flag set. Derived from RFC 793 §3.9 p75 Event
+  Processing (MUST).
+
+  v3.0 Test Procedure (p345) lists 3 iterations:
+    * CASE 1: <wst> = CLOSE-WAIT;  <Ack number> = valid Ack no
+    * CASE 2: <wst> = CLOSING;     <Ack number> = invalid (not
+                                                  acking DUT FIN)
+    * CASE 3: <wst> = LAST-ACK;    <Ack number> = invalid (not
+                                                  acking DUT FIN)
+
+  ## Linux 6.5 dispatch
+
+  Phase 1 CW: dup FIN+ACK with valid ack (= DUT.snd_nxt). DUT
+  in CW received original tester FIN, ack'd it, advanced rcv_nxt.
+  The dup FIN's seq < rcv_nxt → tcp_validate_incoming SEQ check
+  is "old data" → drop or quick-ack. The "valid" ACK matches
+  DUT.snd_nxt (DUT hasn't sent any FIN yet because UT did not
+  call close), so tcp_ack just consumes a dup ACK silently. State
+  stays CW. DUT may emit a dup-ACK retransmit but does not emit
+  FIN (CW→LA only on UT close, which we don't call).
+
+  Phase 2 CLOSING: dup FIN+ACK with INVALID ack (= rcv_nxt - 1
+  via driveCloseToClosing's info.tester_ack_post_fin - 1). DUT in
+  CLOSING awaits ack of own FIN. Invalid ack → tcp_rcv_state_process
+  invokes tcp_send_challenge_ack per RFC 5961. DUT may emit pure
+  ACK (challenge) but state stays CLOSING (CLOSING→TW transition
+  needs valid ack). DUT may also retransmit its own FIN per its
+  retransmit timer — also tolerated.
+
+  Phase 3 LA: dup FIN+ACK with INVALID ack (= seq_range->rcv_nxt
+  - 1). Same dispatch as phase 2 CLOSING: challenge ACK + state
+  stays LA. DUT FIN retx per its retransmit timer is tolerated.
+
+  ## Per-phase absence guard polarity
+
+    * Phase 1 CW (3 s): fail on DUT FIN+ACK or DUT RST. CW→LA
+      would emit FIN; CW→CLOSED would emit RST. Pure ACK retx
+      tolerated.
+    * Phase 2 CLOSING (3 s): fail on DUT RST. DUT FIN+ACK retx
+      tolerated (Linux retx of own FIN, unrelated to dup-FIN
+      response). DUT pure ACK (challenge) tolerated.
+    * Phase 3 LA (3 s): fail on DUT RST. DUT FIN+ACK retx
+      tolerated. DUT pure ACK (challenge) tolerated.
+
+  ## Stimulus phasing
+
+  Phase 1 fires synchronously in stimulus body. Phases 2..3
+  schedule via scheduleAfterStateEntry (multi-phase-absence
+  pattern, FLAGS_INVALID_15-style).
+
+  Per-phase port quads (cluster collision dodge):
+    * Phase 1 CW:      (kBasicsActiveLocalPort + 57, +57)
+    * Phase 2 CLOSING: (+58)
+    * Phase 3 LA:      (+59)
+
+  Negative IP-flip path: phase 1 src_ip-conjunct unreachable on
+  initial state, lands on fail_p1_no_handshake_ack at the 5 s
+  deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_09"
+       datamodel="null"
+       initial="listening_p1_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <!-- Phase 1: CLOSE-WAIT on (kBasicsActiveLocalPort + 57, kBasicsActiveRemotePort + 57) -->
+  <state id="listening_p1_handshake_ack">
+    <onentry><send event="deadline_p1_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 57U)"
+                target="listening_p1_close_wait_ack"/>
+    <transition event="deadline_p1_handshake_ack" target="fail_p1_no_handshake_ack"/>
+  </state>
+  <state id="listening_p1_close_wait_ack">
+    <onentry><send event="deadline_p1_close_wait_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 57U)"
+                target="listening_p1_absence"/>
+    <transition event="deadline_p1_close_wait_ack" target="fail_p1_no_close_wait_ack"/>
+  </state>
+  <state id="listening_p1_absence">
+    <onentry><send event="deadline_p1_absence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 57U) or captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 57U)"
+                target="fail_p1_unexpected_state_change"/>
+    <transition event="deadline_p1_absence" target="listening_p2_handshake_ack"/>
+  </state>
+
+  <!-- Phase 2: CLOSING on (kBasicsActiveLocalPort + 58, kBasicsActiveRemotePort + 58) -->
+  <state id="listening_p2_handshake_ack">
+    <onentry><send event="deadline_p2_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 58U)"
+                target="listening_p2_dut_fin"/>
+    <transition event="deadline_p2_handshake_ack" target="fail_p2_no_handshake_ack"/>
+  </state>
+  <state id="listening_p2_dut_fin">
+    <onentry><send event="deadline_p2_dut_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 58U)"
+                target="listening_p2_closing_ack"/>
+    <transition event="deadline_p2_dut_fin" target="fail_p2_no_dut_fin"/>
+  </state>
+  <state id="listening_p2_closing_ack">
+    <onentry><send event="deadline_p2_closing_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 58U)"
+                target="listening_p2_absence"/>
+    <transition event="deadline_p2_closing_ack" target="fail_p2_no_closing_ack"/>
+  </state>
+  <state id="listening_p2_absence">
+    <onentry><send event="deadline_p2_absence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 58U)"
+                target="fail_p2_unexpected_state_change"/>
+    <transition event="deadline_p2_absence" target="listening_p3_handshake_ack"/>
+  </state>
+
+  <!-- Phase 3: LAST-ACK on (kBasicsActiveLocalPort + 59, kBasicsActiveRemotePort + 59) -->
+  <state id="listening_p3_handshake_ack">
+    <onentry><send event="deadline_p3_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 59U)"
+                target="listening_p3_close_wait_ack"/>
+    <transition event="deadline_p3_handshake_ack" target="fail_p3_no_handshake_ack"/>
+  </state>
+  <state id="listening_p3_close_wait_ack">
+    <onentry><send event="deadline_p3_close_wait_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 59U)"
+                target="listening_p3_dut_fin"/>
+    <transition event="deadline_p3_close_wait_ack" target="fail_p3_no_close_wait_ack"/>
+  </state>
+  <state id="listening_p3_dut_fin">
+    <onentry><send event="deadline_p3_dut_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 59U)"
+                target="listening_p3_absence"/>
+    <transition event="deadline_p3_dut_fin" target="fail_p3_no_dut_fin"/>
+  </state>
+  <state id="listening_p3_absence">
+    <onentry><send event="deadline_p3_absence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 59U)"
+                target="fail_p3_unexpected_state_change"/>
+    <transition event="deadline_p3_absence" target="pass"/>
+  </state>
+
+  <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
+
+  <final id="fail_p1_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1_cw"}</content></donedata></final>
+  <final id="fail_p1_no_close_wait_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_close_wait_ack_phase1_cw"}</content></donedata></final>
+  <final id="fail_p1_unexpected_state_change"><donedata><content>{"verdict":"fail","reason":"dut_state_changed_after_dup_fin_ack_in_cw"}</content></donedata></final>
+
+  <final id="fail_p2_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2_closing"}</content></donedata></final>
+  <final id="fail_p2_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase2_closing"}</content></donedata></final>
+  <final id="fail_p2_no_closing_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_closing_ack_phase2_closing"}</content></donedata></final>
+  <final id="fail_p2_unexpected_state_change"><donedata><content>{"verdict":"fail","reason":"dut_emitted_rst_after_dup_fin_ack_in_closing"}</content></donedata></final>
+
+  <final id="fail_p3_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase3_la"}</content></donedata></final>
+  <final id="fail_p3_no_close_wait_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_close_wait_ack_phase3_la"}</content></donedata></final>
+  <final id="fail_p3_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase3_la"}</content></donedata></final>
+  <final id="fail_p3_unexpected_state_change"><donedata><content>{"verdict":"fail","reason":"dut_emitted_rst_after_dup_fin_ack_in_la"}</content></donedata></final>
+</scxml>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_49: ARP timeout (busy).
+  "It may be desirable to have table aging and/or timeouts. (Note: TESTER
+   expects DUT to delete a Dynamic ARP Cache Entry even if it is being
+   used.)"
+
+  Spec sequence:
+    Step 3: TESTER injects ARP Request → DUT cache populated MAC1.
+    Step 7: DUT sends UDP1 with eth_dst=MAC1 (cache REACHABLE).
+    Step 11: After half timeout, DUT sends UDP2 with eth_dst=MAC1
+             (cache still has lladdr — Linux's STALE/DELAY both keep
+             the existing entry usable).
+    Step 15: After full timeout, DUT sends ARP Request (cache forgotten).
+
+  Three states walk the {UDP1, UDP2, ARP-Request} wire sequence. The
+  in-between USE-while-cached behavior is the "busy" aspect — the
+  DUT must still expire the entry on schedule despite the traffic.
+
+  Linux backstop: smoke-test.sh sets delay_first_probe_time=1 +
+  ucast_solicit=0 so the DELAY entered at first USE proceeds to
+  PROBE → broadcast ARP after 1 s. stim2 (second Subscribe) fires
+  before that PROBE, preserving the UDP1 → UDP2 → ARP wire order.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_49"
+       datamodel="null"
+       initial="wait_udp1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="wait_udp1">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
+                target="wait_udp2"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac"
+                target="fail_udp1_wrong_eth_dst"/>
+    <transition event="deadline_exceeded" target="fail_no_udp1"/>
+  </state>
+
+  <state id="wait_udp2">
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
+                target="wait_arp_request"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac"
+                target="fail_udp2_wrong_eth_dst"/>
+    <transition event="deadline_exceeded" target="fail_no_udp2"/>
+  </state>
+
+  <state id="wait_arp_request">
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.sender_proto_ip == expected.dut_iface_ip and captured.target_proto_ip == expected.tester_ip"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_no_arp_request_after_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_udp1_wrong_eth_dst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"first_udp_eth_dst_not_learned_mac"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_udp2_wrong_eth_dst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"second_udp_eth_dst_not_learned_mac"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_udp1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_first_udp_after_cache_learning"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_udp2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_second_udp_in_busy_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_arp_request_after_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_arp_request_after_cache_timeout"}</content>
+    </donedata>
+  </final>
+</scxml>

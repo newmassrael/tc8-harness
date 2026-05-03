@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_094: SD_Check_Reboot_Detection_Server_Side.
+
+  The DUT has to detect a reboot of the Tester. Stimulus chain:
+    1) Boot FindService → DUT cyclic OfferService observed.
+    2) Boot SubscribeEventgroup eg 0x02 → DUT Ack + cyclic
+       TestEventUINT8 (Notification on method 0x8001) starts flowing.
+    3) Scheduler emits FindService (sid=0x05, reboot=1) on listening_phase4
+       entry — first FS, no reboot detection (sid 5 > prior 2). DUT
+       continues sending TestEventUINT8.
+    4) Scheduler emits FindService (sid=0x05, reboot=1) again on
+       listening_phase5_drain entry — second FS with same sid triggers
+       vsomeip's reboot detection (PRS_SOMEIPSD_00157 + impl rule
+       `is_reboot`: old_rb=1 && new_rb=1 && old_sid (5) >= new_sid (5)).
+       vsomeip then `expire_subscriptions(_sender)` → DUT stops sending
+       TestEventUINT8 to the tester.
+
+  Phases:
+    1 (listening_phase1, 6 s): OfferService for SERVICE-ID-1 with
+      sd_ipv4_endpoint_count >= 1.
+    2 (listening_phase2, 6 s): SubscribeEventgroupAck on eg 0x02 (Type
+      0x07 entry, ttl > 0). ttl == 0 -> Nack -> fail.
+    3 (listening_phase3, 4 s): TestEventUINT8 Notification (method
+      0x8001, message_type 0x02, service_id == expected.service_id) —
+      "DUT sends TestEventUint8" post-Subscribe.
+    4 (listening_phase4_settle, 500 ms): state-entry observer fires
+      FindService #1 (sid=5, rb=1). The 500 ms timer-driven advance
+      to listening_phase4_observe ensures the runner ticks once with
+      phase4_settle as the current state — without this gate, fast
+      back-to-back cyclic events (250 ms cadence) skip phase4 entirely
+      between two pcap_dispatch drains and the observer never matches.
+    5 (listening_phase4_observe, 5 s): TestEventUINT8 Notification —
+      "DUT continues sending TestEventUint8" after first FindService.
+    6 (listening_phase5_drain, 1500 ms): state-entry observer fires
+      FindService #2 (sid=5, rb=1) → vsomeip reboot detection
+      (`is_reboot` rule: old_rb=1 && new_rb=1 && old_sid (5) >=
+      new_sid (5) → expire_subscriptions). Notifications arriving in
+      the drain window are ignored (events already in flight at the
+      moment vsomeip processed the reboot).
+    7 (listening_phase6_absence, 4 s): NO TestEventUINT8 on method
+      0x8001 — deadline = pass terminal; any Notification = fail.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_094"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count >= 1"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_with_endpoint"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id"
+                target="listening_phase3"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0"
+                target="fail_phase2_subscribe_nacked"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe_ack"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8001"
+                target="listening_phase4_settle"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_event_post_subscribe"/>
+  </state>
+
+  <state id="listening_phase4_settle">
+    <onentry>
+      <send event="phase4_settle_deadline" delay="500ms"/>
+    </onentry>
+    <transition event="phase4_settle_deadline" target="listening_phase4_observe"/>
+  </state>
+
+  <state id="listening_phase4_observe">
+    <onentry>
+      <send event="phase4_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8001"
+                target="listening_phase5_drain"/>
+    <transition event="phase4_deadline_exceeded" target="fail_phase4_no_event_post_first_find"/>
+  </state>
+
+  <state id="listening_phase5_drain">
+    <onentry>
+      <send event="phase5_drain_deadline" delay="1500ms"/>
+    </onentry>
+    <transition event="phase5_drain_deadline" target="listening_phase6_absence"/>
+  </state>
+
+  <state id="listening_phase6_absence">
+    <onentry>
+      <send event="phase6_absence_deadline" delay="4s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8001"
+                target="fail_phase6_event_post_reboot"/>
+    <transition event="phase6_absence_deadline" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer_with_endpoint">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_subscribe_nacked">
+    <donedata>
+      <content>{"verdict":"fail","reason":"subscribe_eventgroup_nacked_ttl_zero"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_subscribe_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_subscribe_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_event_post_subscribe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_test_event_uint8_post_subscribe_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_no_event_post_first_find">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_test_event_uint8_post_first_findservice_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase6_event_post_reboot">
+    <donedata>
+      <content>{"verdict":"fail","reason":"test_event_uint8_observed_after_simulated_reboot"}</content>
+    </donedata>
+  </final>
+</scxml>

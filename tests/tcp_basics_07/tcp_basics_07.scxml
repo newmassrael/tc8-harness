@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_07: from SYN-SENT state, the DUT's TCP MUST
+  emit an ACK and transition to ESTABLISHED on receipt of SYN,ACK.
+  Derived from RFC 793 §3.2 p23 Terminology.
+
+  v3.0 Test Procedure (p281-p300.txt:587):
+    1. TESTER: Cause DUT to move on to SYN-SENT — UT
+               OpOpenTcpSocket(Active) initiates the connect().
+    2. TESTER: Send a SYN,ACK — falls out of the tester-side kernel
+               listener's accept-path automatically.
+    3. DUT:    Send ACK — observed on pcap.
+    4. TESTER: Verify DUT ESTABLISHED — UT OpQueryTcpEstablished
+               reads `tcp_info.tcpi_state` off the active fd.
+
+  Pass guard (one tcp_observed edge — the third-leg ACK):
+    * src/dst/ports — DUT-origin segment to tester listener
+    * (flags & SYN) == 0 — distinguishes from the first-leg SYN
+    * (flags & FIN) == 0 — distinguishes from later close-FIN+ACK
+    * (flags & RST) == 0 — would reject from incoming SYN,ACK if the
+                           DUT's connect() failed and emitted a RST
+                           instead of an ACK; conservative carve-out
+    * (flags & ACK) != 0 — spec-mandated ACK control bit
+    * captured.ut_established == 0x01 — ESTABLISHED reached
+
+  fail_not_established splits the failure surface so smoke-test can
+  triage between "wire-level ACK was wrong" (no listening match →
+  fail_timeout) and "wire-level ACK was correct but the kernel never
+  flipped to ESTABLISHED" (impossible on Linux given a clean ACK but
+  spec-required as a separate diagnostic — same shape as BASICS_02).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_07"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0 and captured.ut_established == 0x01"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0 and captured.ut_established == 0x00"
+                target="fail_not_established"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_not_established">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_reach_established"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

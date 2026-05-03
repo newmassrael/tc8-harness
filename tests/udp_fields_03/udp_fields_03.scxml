@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_FIELDS_03: DUT accepts a UDP datagram whose Source
+  Port field is 0 (RFC 768 'Fields' MUST — "If not used, a value of
+  zero is inserted").
+
+  Test Procedure (p181-p200.txt:647):
+    1. DUT CONFIGURE: Listen on <unusedUDPDstPort1> on <DIface-0>.
+    3. TESTER: Send UDP with Source Port=0 to DUT:<unusedUDPDstPort1>.
+    4. TESTER: Verify via UT that DUT received with Source Port==0.
+
+  Mapping: <unusedUDPDstPort1>=kDataPort (20000). Stimulus injects UDP
+  with src_port=0; DUT data listener accepts (Linux's UDP layer treats
+  Source Port=0 as a wildcard, not a drop trigger). UT GetReceivedUdp
+  returns received=1.
+
+  Reuses ipv4_udp_ut_presence with expected_received=1.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_fields_03"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="1"
+           fail_reason_wrong_receipt="dut_did_not_receive_zero_source_port_udp"
+           fail_reason_timeout="no_ut_confirmation_for_zero_source_port"/>
+</scxml>

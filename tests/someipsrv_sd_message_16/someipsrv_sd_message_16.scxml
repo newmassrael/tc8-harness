@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.16 SOMEIPSRV_SD_MESSAGE_16: When a Subscribe carries an
+  UNKNOWN-SERVICE-ID, the DUT shall Nack with TTL=0 and shall echo the
+  Service ID from the Subscribe being answered (TR_SOMEIP §6.7.4.2.4).
+  Sentinel UNKNOWN-SERVICE-ID = 0xFFFE; the Nack's entry[0].service_id
+  must be 0xFFFE (the value the harness sent).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_16"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x07"
+           pass_expr="captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].service_id == ::tc8::sd_test_unknown::kServiceId"
+           fail_state="fail_service_id"
+           fail_reason="nack_entry_service_id_not_unknown_sentinel"/>
+</scxml>

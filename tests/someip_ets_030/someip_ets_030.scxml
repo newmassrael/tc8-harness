@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_030: echoUINT8Array2Dim.
+
+  Tester sends echoUINT8Array2Dim (METHOD-ID 0x0035) Method Request
+  with a 2-dimensional UInt8 array on the wire. Both outer and inner
+  arrays carry a 32-bit BE byte length prefix per ets.fdepl
+  `SomeIpArrayLengthWidth = 4` on each axis.
+
+  Stimulus = 2 sub-arrays each holding 1 UInt8 element:
+    Inner #1 = [00 00 00 01] [0x42]              = 5 bytes
+    Inner #2 = [00 00 00 01] [0x43]              = 5 bytes
+    Outer    = [00 00 00 0A] {Inner #1, Inner #2} = 4 + 10 = 14 bytes
+
+  payload_len = 14 (within the 16-byte capture cap).
+
+  DUT echoes the entire wire shape back unchanged.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
+    Phase 2 (listening_phase2): Method Response (msg_type 0x80,
+            return_code 0x00) on method_id 0x0035 with payload_len == 14
+            and bytes matching the request -> pass.
+            Any other Response shape on the same method_id -> fail.
+            No Response within the deadline -> fail.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_030"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0035 and captured.return_code == 0x00 and captured.payload_len == 14 and captured.payload_bytes[0] == 0x00 and captured.payload_bytes[1] == 0x00 and captured.payload_bytes[2] == 0x00 and captured.payload_bytes[3] == 0x0A and captured.payload_bytes[4] == 0x00 and captured.payload_bytes[5] == 0x00 and captured.payload_bytes[6] == 0x00 and captured.payload_bytes[7] == 0x01 and captured.payload_bytes[8] == 0x42 and captured.payload_bytes[9] == 0x00 and captured.payload_bytes[10] == 0x00 and captured.payload_bytes[11] == 0x00 and captured.payload_bytes[12] == 0x01 and captured.payload_bytes[13] == 0x43"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0035 and captured.message_type == 0x80 and (captured.payload_len != 14 or captured.payload_bytes[3] != 0x0A or captured.payload_bytes[8] != 0x42 or captured.payload_bytes[13] != 0x43)"
+                target="fail_phase2_array2dim_echo_mismatch"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_array2dim_echo_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_array2dim_response_did_not_match_request"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_method_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

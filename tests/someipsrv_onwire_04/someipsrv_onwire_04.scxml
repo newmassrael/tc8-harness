@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.6.4 SOMEIPSRV_ONWIRE_04: Request IDs may be reused as
+  soon as the Response arrived. Tester sends two Method Requests
+  carrying the SAME Request ID (client_id 0xCAFE, session_id 0x1234)
+  and expects the DUT to reply to BOTH — i.e. the DUT must NOT silently
+  dedupe the second Request as a stale duplicate.
+
+    Phase 1 (listening_phase1, 6 s): DUT emits OfferService.
+    Phase 2 (listening_phase2, 5 s): first Response (msg_type 0x80,
+            session_id 0x1234) arrives.
+    Phase 3 (listening_phase3, 5 s): second Response (same session_id,
+            from the second Request) arrives. Pass requires both.
+
+  Three discrete deadline event names (s1/s2/s3) prevent leftover-
+  deadline leakage across phases (a single shared `deadline_exceeded`
+  would let phase 1's leftover fire phase 2 / 3's transition).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_onwire_04"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="s1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="s1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="s2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.client_id == 0xCAFE and captured.session_id == 0x1234"
+                target="listening_phase3"/>
+    <transition event="s2_deadline_exceeded" target="fail_phase2_no_first_response"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="s3_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.client_id == 0xCAFE and captured.session_id == 0x1234"
+                target="pass"/>
+    <transition event="s3_deadline_exceeded" target="fail_phase3_no_second_response"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_first_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_first_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_second_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silently_dropped_second_request_with_reused_request_id"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_02: TCP MUST NOT change state on
+  receiving an unacceptable RST in SYN-RCVD state. Derived from RFC
+  793 §3.4 p33 Establishing a connection (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:294):
+    1. TESTER: Cause DUT SYN-RCVD via passive open + tester SYN.
+    2. TESTER: Send a RST with a SEQ outside the receive window.
+    3. DUT:    Ignore the unacceptable RST.
+    4. TESTER: Verify DUT remains in SYN-RCVD state.
+
+  Mechanism (raw-inject SYN + out-of-window RST + absence-of-DUT-RST
+  observation):
+    a. UT OpOpenTcpSocket(Passive, dut_port=12345) arms the listener.
+    b. tester raw-inject SYN(src=49152, seq=ISN_t)        → DUT SYN+ACK.
+    c. tester raw-inject RST(src=49152, seq=ISN_t+1+OTW)  — out-of-window.
+    d. SCXML waits 3 s for any DUT-origin RST.
+    e. UT close.
+
+  Step (c)'s OTW SEQ violates RFC 793 §3.9 p70's RCV.NXT-relative
+  acceptability test. Linux's `tcp_check_req` checks the RST against
+  the embryonic socket's expected next-byte (= ISN_t + 1) and discards
+  the segment when the SEQ is far outside that window. The DUT's
+  syn-recv state is preserved.
+
+  Pass guard structure — two listening states walked in sequence:
+    listening_first_synack — match DUT-origin SYN+ACK on the first
+        connection's port quad. Once consumed, transit to absence.
+    listening_absence — wait 3 s for any DUT-origin RST. The
+        deadline_exceeded edge lands on `pass`. Linux's syn-recv
+        SYN+ACK retransmits (which carry SYN+ACK flags, NOT RST)
+        do NOT match the absence-fail conjunct and silently fall
+        through; the DUT keeping syn-recv alive is exactly the
+        expected behavior.
+
+  Absence-fail discriminates on `(flags & RST) != 0` — only a DUT-
+  emitted RST in the listen window violates the spec. Absence
+  deadline 3 s instead of 5 s: Linux's first SYN+ACK retransmit
+  fires at ~1 s and a (hypothetical) DUT bug emitting RST in
+  response to bad RST would do so within the same scheduling
+  window, so 3 s is a tight-but-sufficient absence proof without
+  expanding the per-case wall-time budget.
+
+  Per-state fail terminals (fail_timeout_first_synack /
+  fail_unexpected_rst). Negative smoke flips
+  `ipv4.dut_iface_ip=10.99.99.99` → src_ip-conjunct unreachable in
+  state 1 → fail_timeout_first_synack.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_02"
+       datamodel="null"
+       initial="listening_first_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_synack">
+    <onentry>
+      <send event="deadline_first" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_absence"/>
+    <transition event="deadline_first" target="fail_timeout_first_synack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="fail_unexpected_rst"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_first_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_to_first_tester_syn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_rst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_rst_after_unacceptable_rst"}</content>
+    </donedata>
+  </final>
+</scxml>

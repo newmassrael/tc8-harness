@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_06: the client times out and
+  retransmits DHCPDISCOVER if no DHCPOFFER arrives (RFC 2131 §3.1, MUST).
+
+  Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_06):
+    1-2. DUT bring-up + DHCP client.
+    3.   TESTER:DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
+    4.   DUT: Sends DHCPDISCOVER Message.   ← 1st DISCOVER
+    5.   TESTER:DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
+    6.   DUT: Sends DHCPDISCOVER Message.   ← retransmission
+  Pass: 4 + 6 (two DUT DISCOVERs observed).
+
+  No OFFER injection — the absence of a server reply forces the DUT's
+  retransmission path. Pilot uses retry_count=2 + retry_interval_ms=1000
+  + offer_wait_ms=2000 (`emitStartDhcpClientWithRetransmission`), so the
+  observed sequence is DISCOVER#1 → 2 s timeout → 1 s retry sleep →
+  DISCOVER#2 → 2 s timeout (DUT then aborts; the harness only needs to
+  see #1 and #2).
+
+  Listening windows:
+    listening_for_first_discover  (deadline 6 s, covers pilot bootstrap +
+                                   1.5 s initial wait + DISCOVER#1)
+    listening_for_second_discover (deadline 8 s = retry_sleep 1 s +
+                                   2nd offer_wait 2 s + retry_sleep 1 s +
+                                   3rd offer_wait 2 s on the abort path +
+                                   2 s tolerance — 3 s margin over the
+                                   3 s nominal delta to DISCOVER#2)
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_allocating_06"
+       datamodel="null"
+       initial="listening_for_first_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_first_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_second_discover"/>
+    <transition event="deadline_exceeded" target="fail_no_first_discover"/>
+  </state>
+
+  <state id="listening_for_second_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_no_resend"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_resend">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_retransmission"}</content>
+    </donedata>
+  </final>
+</scxml>

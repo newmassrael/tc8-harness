@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.2 TCP_CHECKSUM_02: Receiver TCP MUST check the checksum
+  in any incoming segment and MUST NOT acknowledge in case of an
+  error. Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST), RFC
+  793 §3.1 p16 Header.
+
+  v3.0 Test Procedure (p301-p320.txt:161):
+    1. TESTER: Cause DUT to move on to ESTABLISHED state at <wnp>.
+    2. TESTER: Send a data segment with incorrect checksum.
+    3. DUT:    Do not send ACK.
+
+  Mechanism (active-OPEN handshake + raw-inject incorrect-checksum
+  DATA, absence-pass):
+    1. Tester arms auxiliary listener, drives DUT active OPEN via UT
+       OpOpenTcpSocket(Active). Linux completes the 3-way handshake.
+    2. Tester accept()'s, then queries the connected fd's snd_nxt /
+       rcv_nxt via TCP_REPAIR mode + TCP_QUEUE_SEQ. Without these
+       in-window SEQ/ACK values, an out-of-window raw segment would
+       be dropped by the DUT for window violation, not checksum —
+       the absence pass would be a false positive.
+    3. Tester crafts a TCP DATA segment with the learned SEQ/ACK,
+       small payload, and `corrupt_tcp_checksum = true` flipping the
+       low bit post-compute. Inject via AF_PACKET SOCK_RAW.
+    4. DUT's `tcp_v4_rcv` validates the pseudo-header checksum,
+       discards the segment, emits NO ACK.
+    5. Tester does NOT close the connection in stimulus — a close-
+       driven FIN exchange would generate DUT-origin pure-ACK segs
+       that match the absence-fail guard's flag profile and
+       false-fail the case. Connection cleanup is deferred to
+       process exit.
+    6. SCXML's listen window expires without observing the post-DATA
+       ACK — `deadline_exceeded` lands on `pass`.
+
+  Absence-pass shape — the verdict polarity is INVERTED relative to
+  most cases: deadline_exceeded → pass, observation → fail. This is
+  the same shape as §4.2.4.1 ARP_03/05 (pre-cache absence) and
+  §4.3.3.2 ICMPV4_TYPE_04 (ipfrag_time absence), surfaced here for
+  TCP for the first time.
+
+  Pass criterion: NO DUT-origin pure-ACK whose ack_num would
+  acknowledge the corrupt DATA arrives within the 5 s window. The
+  handshake's third-leg ACK is also a DUT-origin pure-ACK and lands
+  BEFORE the raw inject (since stimulus orders handshake → query →
+  inject sequentially); to keep the absence assertion crisp, the
+  guard discriminates by `ack_num > 0` and additionally requires the
+  payload-acknowledging form. Linux's third-leg ACK ack_num is the
+  tester's ISN_t+1 (un-corrupt-DATA-relevant); a spurious DUT ACK
+  to the corrupt DATA would carry ack_num = ISN_t+1+payload_len.
+
+  Two-state design avoids a false absence-pass:
+    listening_handshake_ack — consume the handshake third-leg
+                                       ACK so the next listen window
+                                       only sees post-handshake DUT
+                                       traffic.
+    listening_absence              — wait 5 s; pass on
+                                       deadline_exceeded, fail on any
+                                       DUT-origin pure-ACK (any post-
+                                       handshake ACK indicates DUT
+                                       processed the corrupt DATA,
+                                       contradicting the spec).
+
+  Guard flag mask (both states):
+    * (flags & ACK) != 0                 — DUT pure-ACK
+    * (flags & SYN) == 0                 — not first/second leg
+    * (flags & FIN) == 0                 — not piggybacked close
+    * (flags & RST) == 0                 — not process-exit RST+ACK
+    * payload_len == 0                    — pure ACK, not piggybacked DATA
+
+  Iteration coverage: spec lists no explicit iteration table; one
+  stimulus run is sufficient.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_checksum_02"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_exceeded_handshake" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_absence"/>
+    <transition event="deadline_exceeded_handshake" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_exceeded_absence" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="fail_unexpected_ack"/>
+    <transition event="deadline_exceeded_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_acked_corrupt_checksum_data"}</content>
+    </donedata>
+  </final>
+</scxml>

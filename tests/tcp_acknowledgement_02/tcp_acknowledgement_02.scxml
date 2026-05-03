@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.18 TCP_ACKNOWLEDGEMENT_02: DUT accepts an ACK
+  piggybacked with the next transmit packet (RFC 793 §3.9). When
+  DUT receives a TCP packet containing the ACK flag and a payload,
+  it replies with a pure ACK acknowledging the payload.
+
+  v3.0 Test Procedure (p400):
+    1. TESTER: Bring DUT to ESTABLISHED state.
+    2. TESTER: Send sendTCPPacket on udpPort to request a TCP packet
+               from the DUT.
+    3. DUT:    Sends a TCP packet with the expected Sequence Number.
+    4. TESTER: Send an ACK with a payload (piggybacked).
+    5. DUT:    Sends an ACK with the expected Ack Number.
+
+  Mechanism (active-OPEN handshake + UT-driven DUT data + raw-inject
+  piggyback ACK+data):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+130,
+       kBasicsActiveRemotePort+130).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. UT OpSendTcpData(socket_id=1, payload=4 B). DUT writes the
+       bytes onto the connected fd; the tester kernel auto-ACKs and
+       advances rcv_nxt by 4.
+    4. Settle for tester kernel auto-ACK (150 ms grace), then
+       queryTcpSeqRange snapshots the post-data tester snd_nxt /
+       rcv_nxt.
+    5. Tester raw-injects PSH+ACK with seq=snd_nxt, ack=rcv_nxt
+       (acknowledges DUT data, satisfying piggyback semantics) and
+       a 4 B payload. DUT receives the in-window data segment and
+       replies pure ACK with ack_num = snd_nxt + 4.
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — observe the DUT-emitted handshake
+      third-leg pure ACK on the active-OPEN port quad. The DUT
+      data segment emitted in step 3 has payload_len > 0 and
+      naturally fails is_pure_dut_ack, so the chain advances only
+      on the third-leg ACK.
+    * listening_data_ack — observe DUT pure ACK acknowledging the
+      raw-injected piggyback payload. Pass guard checks
+      ack_num == captured.expected_ack_num populated from the
+      stimulus snapshot.
+
+  Negative flip (smoke-test negative arm): ipv4.dut_iface_ip=
+  10.99.99.99 makes is_pure_dut_ack(...)'s src_ip conjunct
+  unreachable; case lands on fail_no_handshake_ack via the 5 s
+  phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_acknowledgement_02"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpAck02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpAck02LocalOffset)"
+                target="listening_data_ack"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpAck02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpAck02LocalOffset) and captured.ack_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpAck02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpAck02LocalOffset) and captured.ack_num != captured.expected_ack_num"
+                target="fail_wrong_ack_num"/>
+    <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_data_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_piggyback_data"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_ack_num">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_piggyback_payload"}</content>
+    </donedata>
+  </final>
+</scxml>

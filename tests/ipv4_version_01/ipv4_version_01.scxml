@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.4 IPv4_VERSION_01: DUT accepts an IPv4 packet carrying a
+  Version field value of 4. Derived from RFC 791 section 3.1,
+  RFC 1122 section 3.2.1.1.
+
+  Stimulus: TESTER sends an ICMPv4 Echo Request with the canonical
+  version=4 header (pilot default — no override). Pass when the DUT
+  replies. Distinct from IPV4_VERSION_03 which observes the DUT's
+  reply-side Version field; this case observes the DUT's receive-side
+  acceptance.
+
+  Body shared with IPV4_HEADER_03 / IPV4_TTL_05 via sce:template
+  (tests/_templates/ipv4_positive_reply.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_version_01"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_positive_reply.sce-template.xml"/>
+</scxml>

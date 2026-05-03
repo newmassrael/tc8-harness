@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.4 SOMEIPSRV_SD_MESSAGE_04: When a tester FindService asks
+  for a specific major version (Major Version=SERVICE-ID-1-MAJ-VER), the
+  DUT's OfferService entry shall carry the configured value
+  (TR_SOMEIP_00351). Same field-invariant as SD_MESSAGE_03 — the spec
+  partitions the {any vs. specific} axis on the *Find* side; the *Offer*
+  always carries the configured value either way. Cyclic OfferService
+  is sufficient evidence.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_04"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x01"
+           pass_expr="captured.sd_entries[0].major_version == expected.major_version"
+           fail_state="fail_major_version"
+           fail_reason="offer_entry_major_version_mismatch"/>
+</scxml>

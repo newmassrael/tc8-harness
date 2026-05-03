@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.X TCP_HEADER_09: DUT discards TCP packet whose Checksum
+  field is zero. Derived from RFC 793 §3.1 (TCP checksum is
+  mandatory, no zero-sentinel as in UDP/RFC 768).
+
+  v3.0 Test Procedure (p393):
+    1. TESTER: Bring DUT to 'ESTABLISHED' state.
+    2. TESTER: Send a TCP packet with Checksum = 0 and Sequence
+               Number = <SEQ>.
+    3. DUT:    Discards the TCP packet and sends no ACK back.
+
+  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
+  inject in-window data with force_zero_tcp_checksum + 3 s absence
+  of any DUT pure ACK on the EST 4-tuple.
+
+  Linux 6.5 dispatch: tcp_v4_rcv → tcp_checksum_complete computes
+  the pseudo-header sum and compares against the segment's checksum
+  field. With force_zero set, the field is 0x0000 while the actual
+  computed sum is non-zero (any plausible payload + headers); the
+  comparison fails and tcp_inq_hint discards. The EST socket sees
+  no segment, no DUT ACK fires.
+
+  Two-state SCXML chain: handshake_ack observation gates 3 s
+  absence; negative-flip lands on no_handshake_ack.
+
+  Port-quad — kBasicsActiveLocalPort + 37 / +37.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_09"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 37U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 37U)"
+                target="listening_absence"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 37U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 37U)"
+                target="fail_unexpected_ack"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_acked_segment_with_zero_checksum"}</content>
+    </donedata>
+  </final>
+</scxml>

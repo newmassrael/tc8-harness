@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_15: ARP request sending (Destination IP Address
+  correct). The DUT's emitted ARP Request must carry Target Protocol
+  Address = the address the DUT is trying to resolve, i.e. the tester
+  (HOST-1) IPv4 address. The configured IP is supplied via CLI option
+  expect arp.tester_ip=172.16.0.1 and lands in expected.tester_ip
+  (network byte order). Comparison against captured.target_proto_ip is
+  byte-order symmetric since both sides are in network byte order.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_15"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.target_proto_ip == expected.tester_ip"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.target_proto_ip != expected.tester_ip"
+                target="fail_target_ip"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_target_ip">
+    <donedata>
+      <content>{"verdict":"fail","reason":"target_proto_ip_not_tester"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_FIELDS_02: DUT-emitted UDP datagram carries the
+  caller-specified Destination Port (RFC 768 'Fields' MUST). Spec
+  prelude steps 1-3 inject an inbound UDP from the tester then
+  TriggerSendUdp tells the DUT to emit a reply with
+  dst_port=<unusedUDPSrcPort>; only the egress dst_port is asserted.
+
+  Mapping: <unusedUDPSrcPort> = 20001 (kDataPeerPort).
+  TriggerSendUdp(src_port=20002 to disambiguate from FIELDS_01,
+  dst=tester_ip:20001, payload=8 B). SCXML asserts
+  captured.dst_port == 20001.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_fields_02"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="captured.dst_port == 20001 and captured.src_port == 20002"
+           fail_state="fail_wrong_dst_port"
+           fail_reason="dut_emitted_udp_with_wrong_dst_port"/>
+</scxml>

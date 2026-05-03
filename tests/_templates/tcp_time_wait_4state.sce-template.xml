@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.8.6.1 TCP TIME-WAIT 4-state observation chain — shared body for
+  BASICS_11/12 (post-2*MSL closed-port RST) and BASICS_13/14 (within-
+  2*MSL TIME-WAIT survival ACK).
+
+  All four cases reach the spec-target observation (state 4) through
+  the same 3-state prelude — handshake third-leg ACK → close-elicited
+  DUT FIN → DUT pure ACK acknowledging the tester's transition-driving
+  segment. The latter is either tester FIN (BASICS_11/13 FW2 path) or
+  tester FIN with non-acking ack (BASICS_12/14 CLOSING path); both
+  appear identically on the wire as a DUT pure ACK on the same port
+  quad, so the SCXML guard is shape-shared. The semantic distinction
+  surfaces only in the per-case `mid_label` parameter (state id /
+  fail terminal id / fail reason text).
+
+  Replay observation (state 4) varies per case along three axes:
+    * `replay_label` — `replay_ack` (BASICS_13/14) | `replay_rst` (BASICS_11/12)
+    * `replay_method` — TcpCaptured member predicate
+        `is_pure_dut_ack` (BASICS_13/14) |
+        `is_dut_rst` (BASICS_11/12)
+    * `replay_deadline` — `5s` (within-2*MSL replay; observation lands
+                          immediately after state-entry observer fires) |
+                         `78s` (post-2*MSL replay; covers the 72 s
+                          wall-time wait plus 6 s observation margin —
+                          paired with `kTimeWaitFullWait` in
+                          `src/sce_integration/tcp_pilot_common.h`)
+
+  COUPLING NOTE: the `78s` deadline above is paired with
+  `kTimeWaitFullWait` (currently 72 s) in tcp_pilot_common.h.
+  Because SCXML `<send delay>` accepts string literals only there
+  is no symbolic bridge between the C++ constant and the SCXML
+  attribute; bumping `kTimeWaitFullWait` requires a paired edit to
+  every BASICS_11/12 consumer (which set replay_deadline="78s").
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="tcp_time_wait_4state">
+
+  <sce:param name="mid_label" required="true"/>
+  <sce:param name="mid_fail_reason" required="true"/>
+  <sce:param name="replay_label" required="true"/>
+  <sce:param name="replay_method" required="true"/>
+  <sce:param name="replay_deadline" required="true"/>
+  <sce:param name="replay_fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_close_fin"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_close_fin">
+    <onentry>
+      <send event="deadline_close_fin" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_{$mid_label}"/>
+    <transition event="deadline_close_fin" target="fail_no_close_fin"/>
+  </state>
+
+  <state id="listening_{$mid_label}">
+    <onentry>
+      <send event="deadline_{$mid_label}" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_{$replay_label}"/>
+    <transition event="deadline_{$mid_label}" target="fail_no_{$mid_label}"/>
+  </state>
+
+  <state id="listening_{$replay_label}">
+    <onentry>
+      <send event="deadline_{$replay_label}" delay="{$replay_deadline}"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.{$replay_method}(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="pass"/>
+    <transition event="deadline_{$replay_label}" target="fail_no_{$replay_label}"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_close_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_close_fin"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_{$mid_label}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$mid_fail_reason}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_{$replay_label}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$replay_fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

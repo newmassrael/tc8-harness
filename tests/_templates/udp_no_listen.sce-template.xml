@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.6.5.6 UDP_INTRODUCTION_03: TESTER sends a UDP datagram to a port
+  on the DUT for which no LISTEN call is pending; per RFC 1122 §4.1.3.1
+  the DUT SHOULD emit an ICMP Port Unreachable (type=3 code=3) reply.
+
+  Stimulus is UDP-only (the tester injects on a port no tc8-dut listener
+  binds — picks `<unusedUDPDstPort1>=20999`, disjoint from kDataPort
+  20000 and ut::kPort 30600). Observation is ICMP-only — `BpfGroup::Icmpv4`
+  filter catches the DUT-emitted Type 3 Code 3 reply.
+
+    * pass — DUT emits ICMP type=3 code=3 with src_addr == DUT.
+    * fail_wrong_icmp — DUT emits ICMP from the right address but with
+      a different type/code (e.g. Echo Reply, Time Exceeded).
+    * fail_timeout — no DUT-origin ICMP within the listen window
+      (Linux's ICMP rate-limiter caps but the first error after a
+      cold case-start is unimpeded).
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="udp_no_listen">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.type == 3 and captured.code == 3"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and (captured.type != 3 or captured.code != 3)"
+                target="fail_wrong_icmp"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_icmp">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_non_port_unreachable_icmp"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_icmp_port_unreachable_within_listen_window"}</content>
+    </donedata>
+  </final>
+</sce:template>

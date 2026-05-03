@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.6 IPv4_FRAGMENTS_05: DUT-originated UDP datagram carries
+  MF=0 and Fragment Offset=0 (unfragmented). Derived from RFC 791 §3.2
+  p25 "unfragmented datagram has all zero fragmentation information."
+
+  v3.0 Test Procedure (p121-p140.txt:425): TESTER causes DUT to send a
+  UDP Message from DIface-0 with specified src/dst IP and src/dst UDP
+  ports. Tester listens for up to <ListenTime> s on DIface-0 and
+  verifies the received packet's IP flags (MF=0) and Fragment Offset
+  (=0).
+
+  Mechanism (§4.8.5 Upper Tester over separate UDP port):
+    1. Tester emits UT TriggerSendUdp(src_port=20001,
+       dst_ip=<tester_ip>, dst_port=20000, payload=8 B Data) to
+       DUT:30600.
+    2. tc8-dut's UT server binds a transient socket to
+       (iface_ip:20001), sendto(tester:20000, 8 B payload).
+    3. The kernel emits one IPv4/UDP datagram — 8 B payload is well
+       below MTU so fragmentation is not induced.
+    4. SCXML observes the DUT-origin datagram, asserts
+       captured.src_ip == expected.dut_iface_ip AND
+       captured.src_port == 20001 AND captured.dst_port == 20000 AND
+       (captured.ip_flags & 0x01) == 0  (MF bit clear) AND
+       captured.ip_fragment_offset == 0.
+
+  `ip_flags` is the libtins-exposed 3-bit Reserved/DF/MF field
+  (RFC 791 §3.1 byte[6] bits 0-2). MF sits in bit 0 of that 3-bit
+  value; the guard uses bitwise AND so the DF bit (if the DUT kernel
+  sets it) does not false-fail.
+
+  Note: the SCXML also observes the Confirmation (has_ut_response=true)
+  and the tester's own UT request; both fail the src_port/dst_port
+  conjunct and are silently ignored. Spec §4.8.5 lets the UT channel
+  share BPF scope with the data channel — no BPF narrow required.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_fragments_05"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::UdpCaptured"
+               cpp:include="sce_integration/udp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.src_port == 20001 and captured.dst_port == 20000 and (captured.ip_flags &amp; 0x01) == 0 and captured.ip_fragment_offset == 0"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.src_port == 20001 and captured.dst_port == 20000 and ((captured.ip_flags &amp; 0x01) != 0 or captured.ip_fragment_offset != 0)"
+                target="fail_fragmented"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_fragmented">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_udp_with_nonzero_fragment_fields"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_originated_udp_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

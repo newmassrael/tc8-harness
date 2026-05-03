@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.8 TCP_CLOSING_13: TCP, in CLOSED state, MUST ignore a
+  RST control message. Derived from RFC 793 §3.9 p65 Event Processing
+  (MUST).
+
+  v3.0 Test Procedure (p354):
+    1. TESTER: Send a RST control message
+    2. DUT:    Do not send any response
+    3. TESTER: Verify that the DUT remains in CLOSED state
+
+  Mechanism (no DUT-side socket):
+    * The 4-tuple is (kBasicsTesterPort + 80, kBasicsClosedPort) —
+      kBasicsClosedPort (54321) is the well-known unbound DUT port,
+      tester source +80 is reserved for the §4.8.6.8 closed-port
+      cluster (well clear of FP_08 phase 2's +71 and FP_05/_02's
+      +72..+76). Tester raw-injects a single RST segment with
+      kTesterInitialSeq.
+    * Linux dispatch: net/ipv4/tcp_ipv4.c::tcp_v4_rcv looks up the
+      4-tuple via __inet_lookup_skb, finds no socket, falls into
+      `no_tcp_socket:` which checks `if (th->rst) goto discard_it`.
+      No segment is emitted in response — RFC 793 §3.9 conformant.
+    * SCXML opens a 3 s absence window on the reverse 4-tuple
+      (DUT→tester). Any DUT segment matching the 4-tuple — RST,
+      ACK, anything — fails the case. Default-7 s case timeout
+      easily covers kTcpUtBootWait (1.5 s) + 0 s stimulus + 3 s
+      window.
+
+  Negative IP-flip path: src_ip-conjunct on the absence guard
+  becomes unreachable. Spec-conformant DUT silence drives the
+  absence-deadline arm directly into pass on the negative branch
+  too, so this case has no negative row in smoke-test.sh — same
+  class as the §4.4 / §4.3 absence-only cases (no load-bearing
+  expectation knob a CLI override could move out of reach without
+  also breaking the positive premise).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_closing_13"
+       datamodel="null"
+       initial="listening_absence">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 80U"
+                target="fail_unexpected_response"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_rst_in_closed"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,47 @@
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOMEIP_deployment_spec.fdepl"
+import "ets3.fidl"
+
+// §5.1.6 SOMEIP_ETS_097 target service. SERVICE-ID 0xF4E9 picked to stay
+// clear of SERVICE-ID-1 (0xF4E7) and SERVICE-ID-2 (0xF4E8). Eventgroup
+// 0x000A carries one TCP-reliable broadcast — the SubscribeEventgroup
+// emitted by the DUT-side Proxy will carry an IPv4 Endpoint Option with
+// l4proto = 0x06 (TCP), which is exactly the wire shape ETS_097 needs to
+// trigger the tester's refuse-then-accept TCP behaviour.
+define org.genivi.commonapi.someip.deployment for interface org.tc8.ets3.ClientTarget {
+    SomeIpServiceID = 0xF4E9
+
+    broadcast TargetEventReliable {
+        SomeIpEventID = 0x8001
+        SomeIpEventGroups = { 0x000A }
+        SomeIpReliable = true
+    }
+
+    // §5.1.6 SOMEIP_ETS_082 — UDP-unreliable companion event under
+    // eventgroup 0x000B so the DUT-side proxy can subscribe via UDP and
+    // emit a SubscribeEventgroup whose IPv4 Endpoint Option carries
+    // l4proto = 0x11 (UDP). Selected at runtime via the
+    // TC8_DUT_CLIENT_MODE_UDP env var inside ClientModeProxyRunner.
+    broadcast TargetEventUnreliable {
+        SomeIpEventID = 0x8002
+        SomeIpEventGroups = { 0x000B }
+        SomeIpReliable = false
+    }
+}
+
+// Client-side fdepl provider block — InstanceId binds the CommonAPI
+// instance string ("ETS3_TARGET") to SomeIpInstanceID 0x0001 so the DUT's
+// `runtime->buildProxy<ClientTargetProxy>(domain, "ETS3_TARGET")` resolves
+// to the SOME/IP service identifier. SomeIpUnicastAddress + ports here are
+// CommonAPI documentation defaults; the actual remote endpoint is learnt at
+// runtime from the OfferService the tester emits.
+define org.genivi.commonapi.someip.deployment for provider as Service {
+    instance org.tc8.ets3.ClientTarget {
+        InstanceId = "ETS3_TARGET"
+
+        SomeIpInstanceID = 0x0001
+
+        SomeIpUnicastAddress = "172.16.0.1"
+        SomeIpReliableUnicastPort = 30509
+        SomeIpUnreliableUnicastPort = 30510
+    }
+}

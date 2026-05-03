@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_14: ARP request sending (Source IP Address check).
+  The DUT's emitted ARP Request must carry Sender Protocol Address =
+  the DUT interface's IPv4 address. The configured IP is supplied via
+  CLI option expect arp.dut_iface_ip=172.16.0.2 and lands in
+  expected.dut_iface_ip (network byte order). Comparison against
+  captured.sender_proto_ip is byte-order symmetric since both sides are
+  in network byte order.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_14"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_proto_ip == expected.dut_iface_ip"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_proto_ip != expected.dut_iface_ip"
+                target="fail_sender_ip"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_sender_ip">
+    <donedata>
+      <content>{"verdict":"fail","reason":"sender_proto_ip_not_dut_iface"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

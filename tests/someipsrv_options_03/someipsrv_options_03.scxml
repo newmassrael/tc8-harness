@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.5.3 SOMEIPSRV_OPTIONS_03: First Reserved field of the IPv4
+  Endpoint Option (the byte preceding the IPv4 Address field) shall be
+  0x00 per SWS_SD_00211. Asserts the field on both the UDP and TCP
+  Endpoint Options vsomeip emits in OfferService — addressed by L4
+  protocol axis so the assertion is stable against option ordering.
+
+  Presence gate: `sd_has_option_with_l4` is checked for both axes
+  before reading `sd_first_option_with_l4(...).reserved1`. Without
+  the gate, a missing axis would resolve to the empty-fallback
+  SdOption (reserved1=0) and trivially pass — masking a regression
+  where vsomeip drops one transport's IPv4 Endpoint Option.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_options_03"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="captured.sd_option_count &gt;= 1"
+           entry_type="0x01"
+           pass_expr="captured.sd_has_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kUdp) and captured.sd_has_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kTcp) and captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kUdp).reserved1 == 0x00 and captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kTcp).reserved1 == 0x00"
+           fail_state="fail_reserved1"
+           fail_reason="ipv4_endpoint_first_reserved_nonzero"/>
+</scxml>

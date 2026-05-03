@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_02: TCP in LISTEN state MUST send
+  RST in response to an incoming segment carrying ACK and remain in
+  the same state, where the RST's SEQ number is taken from SEG.ACK.
+  Derived from RFC 793 §3.9 p65 Event Processing (MUST).
+
+  v3.0 Test Procedure (p321-p340.txt:234):
+    1. TESTER: Cause DUT to LISTEN on a well-known port.
+    2. TESTER: Send a segment with SYN and ACK.
+    3. DUT:    Send a RST whose SEQ equals incoming SEG.ACK.
+    4. TESTER: Verify DUT remains in LISTEN.
+
+  Mechanism (passive listen + raw-inject SYN+ACK + DUT-RST seq
+  observation + LISTEN-survival post-probe):
+    a. UT OpOpenTcpSocket(Passive, dut_port=kBasicsListenPort)
+       arms the listener.
+    b. tester raw-inject SYN+ACK(src=kBasicsTesterPort,
+       seq=kTesterInitialSeq, ack=kFlagsInvalid02ProbeAck) — the
+       spec-asserted invalid segment.
+    c. SCXML phase 1 (listening_for_rst) waits 5 s for a DUT-emitted
+       RST on the listen-port quad whose SEQ equals
+       kFlagsInvalid02ProbeAck (the spec-mandated SEG.ACK echo).
+    d. tester raw-inject SYN(src=kBasicsTesterPort + 1) — a normal
+       handshake-opening probe on a fresh tester source port.
+    e. SCXML phase 2 (listening_phase2_synack) waits 5 s for the
+       DUT's SYN+ACK on (kBasicsListenPort, kBasicsTesterPort + 1).
+       Observing it directly proves spec step 4 ("Verify DUT remains
+       in LISTEN"): a DUT that mis-routed the SYN portion of phase
+       1's SYN+ACK out of LISTEN would have either advanced state or
+       torn the listener down, and would not respond to a fresh SYN
+       on a new tester quad with a SYN+ACK.
+    f. UT close.
+
+  Both phases' DUT replies are captured during synchronous stimulus
+  and queued into the pcap buffer before TestRunner::start() arms
+  the SCXML. The poll loop then drains them in arrival order:
+  phase 1's RST first (matches listening_for_rst's pass guard,
+  transitions to listening_phase2_synack), then phase 2's SYN+ACK
+  (matches the new state's pass guard). No detached-thread phasing
+  needed — the spec-asserted observation in phase 1 is a positive
+  RST emission, not an absence window, so the queue ordering carries
+  the test through both phases without wall-time-coupled waits.
+
+  Distinct tester source ports per phase isolate the two pass
+  observations: phase 1's SYN-RCVD never actually spawns (Linux
+  routes SYN+ACK→LISTEN through tcp_v4_send_reset before any child-
+  socket allocation), but the dst_port discrimination in the phase-2
+  guard would still hold against any retransmits if a buggy DUT
+  emitted them.
+
+  Linux behaviour reference — net/ipv4/tcp_input.c
+  tcp_rcv_state_process(TCP_LISTEN): `if (th->ack) return 1;`
+  causes tcp_v4_rcv to fall into tcp_v4_send_reset, which emits
+  RST(seq=incoming.ack, ack=incoming.seq+seg.len). Linux conforms
+  to RFC 793 §3.9 p65 here. The SYN bit on the incoming segment
+  does not gate the RST path — tcp_rcv_state_process branches on
+  ACK first, so SYN+ACK and bare ACK reach the same code. After
+  tcp_v4_send_reset returns, the LISTEN socket's state is
+  unchanged: that invariant is what phase 2's positive SYN+ACK
+  observation now verifies on the wire instead of trusting it
+  implicitly.
+
+  Pass guard discriminates on `(flags & RST) != 0` AND `seq_num ==
+  kFlagsInvalid02ProbeAck`. Splitting the wrong-seq fail from
+  fail_timeout keeps the diagnostic granular: a DUT that emits
+  RST but mirrors tester SEQ instead of tester ACK lands on
+  fail_wrong_seq, while a DUT that stays silent lands on
+  fail_timeout. Negative smoke flips ipv4.dut_iface_ip → src_ip-
+  conjunct unreachable on every transition → fail_timeout (phase 1
+  trips first; phase 2 is never reached).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_02"
+       datamodel="null"
+       initial="listening_for_rst">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_for_rst">
+    <onentry>
+      <send event="deadline" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == ::tc8::sce::tcp::kFlagsInvalid02ProbeAck"
+                target="listening_phase2_synack"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != ::tc8::sce::tcp::kFlagsInvalid02ProbeAck"
+                target="fail_wrong_seq"/>
+    <transition event="deadline" target="fail_timeout"/>
+  </state>
+
+  <state id="listening_phase2_synack">
+    <onentry>
+      <send event="deadline_p2" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == (::tc8::sce::tcp::kBasicsTesterPort + 1U) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="pass"/>
+    <transition event="deadline_p2" target="fail_p2_no_synack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_seg_ack_in_listen"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_syn_ack_in_listen"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p2_no_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"listen_socket_did_not_survive_rst_emission"}</content>
+    </donedata>
+  </final>
+</scxml>

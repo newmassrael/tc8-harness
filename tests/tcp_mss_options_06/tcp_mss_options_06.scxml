@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_06: TCP MUST be able to receive an MSS
+  option in a SYN segment and calculate the effective send segment
+  size appropriately. Derived from RFC 1122 §4.2.2.6 p85 (MUST).
+
+  v3.0 Test Procedure (p359):
+    1. TESTER: Cause DUT to move on to LISTEN.
+    2. TESTER: Send SYN with MSS option Mv.
+    3. DUT:    Send SYN,ACK.
+    4. TESTER: Send ACK.
+    5. TESTER: Cause DUT to issue SEND with size >= max(MSS).
+    6. DUT:    Send data segment(s).
+    7. TESTER: Verify the first received segment has size = min(MSS).
+
+  Iterations:
+    1. Mv smaller than DUT MSS — first segment size = Mv.
+    2. Mv larger  than DUT MSS — first segment size = DUT MSS.
+
+  Concrete values:
+    Phase 1: Mv=200,   DUT MSS=1460 (veth MTU 1500 → 1500-40),
+             expected first segment payload_len = 200.
+    Phase 2: Mv=2000,  DUT MSS=1460,
+             expected first segment payload_len = 1460.
+
+  Mechanism per phase:
+    - UT OpOpenTcpSocket(passive, listen_port_phaseN) — socket_id N.
+    - driveRawPassiveHandshake with SYN options [02 04 hi lo]
+      encoding kind=2 length=4 MSS=Mv — Linux sets the connection's
+      tp->rx_opt.mss_clamp accordingly.
+    - UT OpSendTcpDataPattern(socket_id=N, pattern, total_len=4000)
+      — bulk write through tc8-dut's accepted_fd; Linux's TCP
+      stack segments the payload at min(advertised, DUT_MSS).
+    - Outer TesterAutoRstDrop scope keeps tester-kernel RSTs
+      against the orphaned 4-tuple suppressed during the data flow.
+
+  Pass guard: per-phase tcp_observed where the DUT-emitted data
+  segment's payload_len equals the expected min(Mv, DUT_MSS). Non-
+  data segments (handshake ACK / FIN) match no transition and are
+  silently passed over. A wrong-size segment lands on the per-phase
+  fail terminal so triage identifies the divergent iteration.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_06"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort06a) and captured.payload_len == 200U"
+                target="listening_phase2"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort06a) and captured.payload_len != 200U"
+                target="fail_wrong_size_phase1"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase1"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06b, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort06b) and captured.payload_len == 1460U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06b, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort06b) and captured.payload_len != 1460U"
+                target="fail_wrong_size_phase2"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase2"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_size_phase1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase1_segment_size_not_advertised_mss_200"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_size_phase2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase2_segment_size_not_dut_mss_1460"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_data_segment_phase1_mv200"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_data_segment_phase2_mv2000"}</content>
+    </donedata>
+  </final>
+</scxml>

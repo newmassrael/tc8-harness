@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_01: TCP MUST ignore an incoming
+  segment with RST flag in LISTEN state. Derived from RFC 793 §3.9
+  p65 Event Processing (MUST).
+
+  v3.0 Test Procedure (p321-p340.txt:202):
+    1. TESTER: Cause DUT to LISTEN on a well-known port.
+    2. TESTER: Send a segment with SYN and RST.
+    3. DUT:    Send no response.
+    4. TESTER: Verify DUT remains in LISTEN.
+
+  Mechanism (passive listen + handshake-baseline + spec-asserted
+  SYN+RST + 3 s absence window + LISTEN-survival post-probe):
+    a. UT OpOpenTcpSocket(Passive, dut_port=kBasicsListenPort)
+       arms the listener.
+    b. tester raw-inject SYN(src=kBasicsTesterPort)            → DUT SYN+ACK.
+       The handshake-baseline observation proves "DUT in LISTEN"
+       at the start of the spec-tested step.
+    c. tester raw-inject SYN+RST(src=kBasicsTesterPort + 1)    — the
+       spec-asserted invalid segment.
+    d. SCXML phase 2 (listening_absence) waits 3 s for any DUT-
+       origin response on phase 2's 4-tuple. Absence proves
+       "ignore" — a non-conformant DUT would either emit a SYN+ACK
+       (treating the SYN portion of SYN+RST as a connection request)
+       or emit a RST (mis-handling the RST). Either lands on
+       fail_unexpected_response_to_syn_rst.
+    e. tester raw-inject SYN(src=kBasicsTesterPort + 2)        — the
+       LISTEN-survival post-probe, sent on a fresh tester source
+       port from an `IStimulusScheduler` observer that fires the
+       moment SCXML transitions into `listening_phase3_synack`
+       (i.e. after this state's `deadline_absence` timer has
+       transitioned the SM).
+    f. SCXML phase 3 (listening_phase3_synack) waits 5 s for the
+       DUT's SYN+ACK on (kBasicsListenPort, kBasicsTesterPort + 2).
+       Observing it directly proves spec step 4 ("Verify DUT remains
+       in LISTEN") on the wire: a DUT that mis-handled SYN+RST by
+       tearing down the LISTEN socket would not respond to the
+       phase-3 SYN with a SYN+ACK, landing on fail_p3_no_synack.
+    g. UT close (queued alongside phase 3, fires from the same
+       state-entry observer).
+
+  Phase-3 phasing — `kickStimulus` runs synchronously and pcap
+  events captured during it are buffered until TestRunner::start()
+  arms the SCXML; the poll loop then drains them in arrival order.
+  If phase 3 were sent synchronously in the same stimulus block,
+  its DUT SYN+ACK would land in the queue alongside phase 1's and
+  be drained while SCXML was still in `listening_absence` (whose
+  guard keys on dst_port == kBasicsTesterPort + 1, not + 2),
+  silently consumed, and never observed by phase 3's state. Hence
+  the state-entry-driven phasing — same shape as §4.4.4.6
+  FRAGMENTS_02 (compound absence + positive).
+
+  Distinct tester source ports per phase isolate phase-1's SYN-RCVD
+  4-tuple from phase 2's absence guard AND phase 3's pass guard:
+  Linux's syn-recv socket on (kBasicsTesterPort, kBasicsListenPort)
+  retransmits SYN+ACK at ~1 s intervals, all carrying
+  dst_port=kBasicsTesterPort. Those retransmits do not match either
+  the phase-2 (dst_port == kBasicsTesterPort + 1) or phase-3
+  (dst_port == kBasicsTesterPort + 2) guard, so they are silently
+  ignored. Without the per-phase port split, phase-1 retransmits
+  would either false-fail phase 2 (absence guard hit) or false-pass
+  phase 3 (SYN+ACK on the wrong quad satisfying the LISTEN-survival
+  observation).
+
+  Linux behaviour reference — net/ipv4/tcp_input.c
+  tcp_rcv_state_process(TCP_LISTEN): `if (th->rst) goto discard;`
+  fires before the SYN-processing branch, so SYN+RST is silently
+  dropped at the LISTEN socket without spawning a SYN-RCVD child.
+  Linux therefore conforms to RFC 793 §3.9 p65 here, and the
+  phase-3 SYN+ACK observation is the wire-level positive evidence
+  that the LISTEN socket survived the SYN+RST.
+
+  Per-state fail terminals (fail_timeout_first_synack /
+  fail_unexpected_response_to_syn_rst / fail_p3_no_synack).
+  Negative smoke flips `ipv4.dut_iface_ip=10.99.99.99` → phase-1's
+  src_ip-conjunct unreachable → fail_timeout_first_synack (phase 2
+  and 3 are never reached on the negative path).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_01"
+       datamodel="null"
+       initial="listening_first_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_synack">
+    <onentry>
+      <send event="deadline_first" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_absence"/>
+    <transition event="deadline_first" target="fail_timeout_first_synack"/>
+  </state>
+
+  <state id="listening_absence">
+    <!--
+      Absence window: 3 s of silence on (kBasicsListenPort,
+      kBasicsTesterPort + 1) is the spec-asserted "ignore" evidence.
+      The phase-3 stimulus is registered by the trait as a
+      state-entry observer on `listening_phase3_synack` (see
+      `IStimulusScheduler::scheduleAfterStateEntry` in
+      src/sce_integration/test_runner.h), so it fires the moment
+      the SCXML transitions out of this state via deadline_absence
+      — no wall-time duplication between the SCXML deadline here
+      and the C++ stimulus side.
+    -->
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == (::tc8::sce::tcp::kBasicsTesterPort + 1U)"
+                target="fail_unexpected_response_to_syn_rst"/>
+    <transition event="deadline_absence" target="listening_phase3_synack"/>
+  </state>
+
+  <state id="listening_phase3_synack">
+    <onentry>
+      <send event="deadline_p3" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == (::tc8::sce::tcp::kBasicsTesterPort + 2U) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="pass"/>
+    <transition event="deadline_p3" target="fail_p3_no_synack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_first_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_to_first_tester_syn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_response_to_syn_rst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_after_syn_rst_in_listen"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p3_no_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"listen_socket_did_not_survive_syn_rst"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.5 DHCPV4_CLIENT_USAGE_01:
+    "A client with multiple network interfaces must use DHCP through
+     each interface independently to obtain configuration information
+     parameters for those separate interfaces" (RFC 2131 §3.6, MUST).
+
+  Spec Test Procedure (tc8_p241-p260.txt: USAGE_01):
+    1.  DUT CONFIGURE DHCP Client on <DIface-0>
+    2.  DUT CONFIGURE DHCP Client on <DIface-1>
+    3.  TESTER bring up <DIface-0>
+    4.  TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
+    5.  DUT: Sends DHCPDISCOVER (#1)        — chaddr captured to <extractedChaddr>
+    6.  TESTER extract chaddr.
+    7.  TESTER bring up <DIface-1>
+    8.  TESTER:DHCP Server <SERVER-1> Listens on <DIface-1>
+    9.  DUT: Sends DHCPDISCOVER (#2)        — chaddr#2 != chaddr#1
+    10. TESTER verify chaddr field is not set to extractedChaddr.
+  Pass: 5 + 9 + (chaddr#2 != extractedChaddr).
+
+  Topology 2 (tc8_p221-p240.txt:162-183) — distinct broadcast domains
+  N0 (DIface-0) and N1 (DIface-1). The harness opens TWO `PcapSource`
+  instances (one per tester veth) and merges them into a single
+  pipeline; SCXML sees a time-ordered stream where DISCOVER#1 arrives
+  before DISCOVER#2 because the trait fires the second
+  `OpStartDhcpClient(iface_index=1)` only after the first DISCOVER
+  observation advances state s1 → s2.
+
+  s1 (listening_for_d0_discover):
+    - On DUT-emit DHCPDISCOVER: snapshot chaddr → discover_chaddr_snapshot,
+      transition to s2 (state-entry observer fires
+      OpStartDhcpClient(iface_index=1) on s2 entry).
+    - Deadline → fail_no_d0_discover.
+
+  s2 (listening_for_d1_discover):
+    - On DUT-emit DHCPDISCOVER with chaddr_differs_from_snapshot: pass.
+    - On DUT-emit DHCPDISCOVER with SAME chaddr: fail_chaddr_collision
+      (spec MUST violation — both ifaces would impersonate one client).
+    - Deadline → fail_no_d1_discover.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_usage_01"
+       datamodel="null"
+       initial="listening_for_d0_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_d0_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d1_discover"/>
+    <transition event="s1_deadline" target="fail_no_d0_discover"/>
+  </state>
+
+  <state id="listening_for_d1_discover">
+    <onentry>
+      <send event="s2_deadline" delay="6s"/>
+    </onentry>
+    <!--
+      Order matters in the cond list: same-chaddr-second-DISCOVER MUST
+      collide on its own dedicated transition BEFORE the chaddr-differs
+      pass, so a buggy DUT emitting two DISCOVERs with one shared MAC
+      lands fail_chaddr_collision (spec violation) instead of running
+      the deadline. SCXML evaluates `<transition>` siblings in document
+      order; the collision rule wins on tie.
+    -->
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and not captured.chaddr_differs_from_snapshot()
+                      and captured.discover_chaddr_snapshot_taken"
+                target="fail_chaddr_collision"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_differs_from_snapshot()"
+                target="pass"/>
+    <transition event="s2_deadline" target="fail_no_d1_discover"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_d0_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_on_diface_0"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_d1_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_on_diface_1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_chaddr_collision">
+    <donedata>
+      <content>{"verdict":"fail","reason":"diface_0_and_diface_1_share_same_chaddr"}</content>
+    </donedata>
+  </final>
+</scxml>

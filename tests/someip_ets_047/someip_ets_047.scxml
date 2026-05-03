@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_047: echoUTF16FIXED_with_odd_number.
+
+  Tester sends echoUTF16FIXED (METHOD-ID 0x0014) Method Request whose
+  payload is the ETS_046 baseline (64 raw bytes — BOM + 'h' + 'i' +
+  UTF-16 null + 56 B zero padding) plus 1 trailing 0xFF byte = 65
+  bytes total. ets.fdepl pins SomeIpStringLengthWidth = 0 +
+  SomeIpStringLength = 64, so CommonAPI reads exactly 64 bytes of
+  string content; the 65th byte sits past the fixed frame and is
+  discarded. The DUT echo handler returns the C++ std::string("hi"),
+  which CommonAPI re-serialises as the canonical 64-byte fixed frame
+  — without the trailing odd byte (per Pass Criteria spec p571-580
+  "DUT: returns method response message with odd number after the
+  termination and without the additional byte"). Pass cond mirrors
+  ETS_046's canonical 64-byte echo invariant.
+
+  Wire layout (request, 65 bytes payload):
+    [FE FF]                         BOM
+    [00 68]                         'h'
+    [00 69]                         'i'
+    [00 00]                         UTF-16 null terminator
+    [00 ... 00] (56 bytes)          zero padding to 64 B fixed frame
+    [FF]                            65th odd byte (DUT discards)
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_047"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0014 and captured.return_code == 0x00 and captured.payload_len == 64 and captured.payload_bytes[0] == 0xFE and captured.payload_bytes[1] == 0xFF and captured.payload_bytes[2] == 0x00 and captured.payload_bytes[3] == 0x68 and captured.payload_bytes[4] == 0x00 and captured.payload_bytes[5] == 0x69 and captured.payload_bytes[6] == 0x00 and captured.payload_bytes[7] == 0x00"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0014 and captured.message_type == 0x80 and (captured.payload_len != 64 or captured.payload_bytes[0] != 0xFE or captured.payload_bytes[1] != 0xFF or captured.payload_bytes[3] != 0x68 or captured.payload_bytes[5] != 0x69)"
+                target="fail_phase2_utf16_fixed_echo_mismatch"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_utf16_fixed_echo_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_utf16_fixed_response_did_not_match_request"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_method_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

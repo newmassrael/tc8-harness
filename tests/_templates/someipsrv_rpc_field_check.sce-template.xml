@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §5.1.5.6 SOMEIPSRV_ONWIRE + §5.1.5.7 SOMEIPSRV_RPC RPC field-invariant
+  template — two-phase shape shared by every Method Response / Error
+  field check.
+
+    Phase 1 (listening_phase1, 6 s deadline):
+      DUT emits OfferService for SERVICE-ID-1 in response to the tester's
+      FindService stimulus. SD entry type 0x01, sd_entries[0].service_id
+      == expected.service_id.
+
+    Phase 2 (listening_phase2, 5 s deadline):
+      A SOME/IP frame arrives whose `{$phase2_filter}` matches the per-case
+      shape (Response service_id + msg_type 0x80, or Error service_id +
+      msg_type 0x81). Two branches:
+        * pass — `{$pass_expr}` also holds.
+        * `{$fail_state}` — filter matched but the field predicate failed.
+                            Distinct from the deadline branch so verdict
+                            logs separate "wrong field" from "no response
+                            at all".
+        * fail_phase2_no_response — deadline expired before any matching
+                            frame arrived.
+
+  The two stimuli are issued sequentially by the case's TestCaseTraits::
+  stimulus(): emitFindServiceBoot first (so phase 1 closes naturally),
+  then emitMethodRequestAfter once the OfferService cycle is well
+  underway. Pcap captures both directions on veth-tester so the tester's
+  own Method Request frame also fires `someip_notification`; phase 2's
+  message_type filter (0x80 / 0x81) drops the Request (0x00) silently.
+
+  Per-case `phase2_filter` reads:
+    * Response cases: "captured.service_id == expected.service_id and
+                       captured.message_type == 0x80"
+    * Error cases:    "captured.service_id == ... and
+                       captured.message_type == 0x81"
+  ONWIRE_10 substitutes the UNKNOWN-SERVICE-ID sentinel for the
+  service_id half (the DUT's Error echoes the unknown value).
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="someipsrv_rpc_field_check">
+
+  <sce:param name="phase2_filter" required="true"/>
+  <sce:param name="pass_expr"     required="true"/>
+  <sce:param name="fail_state"    required="true"/>
+  <sce:param name="fail_reason"   required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:({$phase2_filter}) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:({$phase2_filter}) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+</sce:template>

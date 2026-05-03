@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.5.7 SOMEIPSRV_OPTIONS_07: Port Number field of the IPv4
+  Endpoint Option shall carry the configured UDP port for the service
+  (SWS_SD_00215). The expected value is injected via the smoke-test
+  `udp_port` expectation key (30502 for service 0xF4E7).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_options_07"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="captured.sd_option_count &gt;= 1"
+           entry_type="0x01"
+           pass_expr="captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kUdp).port == expected.udp_port"
+           fail_state="fail_port"
+           fail_reason="ipv4_endpoint_udp_port_mismatch"/>
+</scxml>

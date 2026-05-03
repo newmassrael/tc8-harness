@@ -1,0 +1,445 @@
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOMEIP_deployment_spec.fdepl"
+import "ets.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface org.tc8.ets.EnhancedTestability {
+    SomeIpServiceID = 0xF4E7
+
+    method resetInterface {
+        SomeIpMethodID = 0x01
+        SomeIpReliable = false
+    }
+
+    method suspendInterface {
+        SomeIpMethodID = 0x02
+        SomeIpReliable = false
+    }
+
+    method echoUINT8 {
+        SomeIpMethodID = 0x08
+        SomeIpReliable = false
+    }
+
+    method echoUINT8RELIABLE {
+        SomeIpMethodID = 0x0A
+        SomeIpReliable = true
+    }
+
+    method echoINT8 {
+        SomeIpMethodID = 0x0E
+        SomeIpReliable = false
+    }
+
+    method checkByteOrder {
+        SomeIpMethodID = 0x1F
+        SomeIpReliable = false
+    }
+
+    method echoCommonDatatypes {
+        SomeIpMethodID = 0x23
+        SomeIpReliable = false
+    }
+
+    method clientServiceActivate {
+        SomeIpMethodID = 0x2F
+        SomeIpReliable = false
+    }
+
+    method clientServiceDeactivate {
+        SomeIpMethodID = 0x30
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_097 — Method ID 0x32 (50) per TC8 §5.1.4 Table 1.
+    // Fire&Forget: tester sends a Request without expecting a Response.
+    method clientServiceSubscribeEventgroup {
+        SomeIpMethodID = 0x32
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_103 — Method ID 0x3B (59) per TC8 §5.1.4 Table 1.
+    method clientServiceGetLastValueOfEventTCP {
+        SomeIpMethodID = 0x3B
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_105 — Method ID 0x3C (60) per TC8 §5.1.4 Table 1.
+    method clientServiceGetLastValueOfEventUDPUnicast {
+        SomeIpMethodID = 0x3C
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_104 — Method ID 0x3D (61) per TC8 §5.1.4 Table 1.
+    method clientServiceGetLastValueOfEventUDPMulticast {
+        SomeIpMethodID = 0x3D
+        SomeIpReliable = false
+    }
+
+    broadcast TestEventUINT8 {
+        SomeIpEventID = 0x8001
+        // Eventgroup 0x0008 is the multicast-configured group used by
+        // §5.1.5.5 OPTIONS_08..14 + §5.1.5.3 SD_MESSAGE_13 — its
+        // matching `eventgroups` entry in dut/dut_service/vsomeip.json
+        // declares a multicast endpoint, so SubscribeEventgroupAck
+        // for 0x0008 carries an IPv4 Multicast Option (type 0x14).
+        // 0x0002 + 0x0005 + 0x0006 stay unicast (no multicast field) so
+        // §5.1.5.5 BASIC_03's existing subscription path is unaffected.
+        // Eventgroup 0x0006 is required for §5.1.6 SOMEIP_ETS_088
+        // multi-entry SubscribeEventgroup (spec lists eg 0x02 / 0x05 /
+        // 0x06); without an entry here vsomeip silent-drops the
+        // 0x06 entry as "unknown eventgroup".
+        SomeIpEventGroups = { 0x0002, 0x0005, 0x0006, 0x0008 }
+        SomeIpReliable = false
+    }
+
+    method getFieldA {
+        SomeIpMethodID = 0x40
+        SomeIpReliable = false
+    }
+
+    // SomeIpMethodID = 0x42 because spec table 1 (p401-420) reserves
+    // 0x41 for echoBitfields. setFieldA was added as a non-spec helper
+    // for §5.1.5.7 RPC_11; relocating it leaves 0x41 free for the
+    // spec-canonical echoBitfields binding below.
+    method setFieldA {
+        SomeIpMethodID = 0x42
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_167 — TestFieldUINT8Array. Spec p414 Table 2 reserves
+    // Method IDs 0x28 (Getter) / 0x29 (Setter). Both directions carry a
+    // 32-bit BE byte length prefix on the wire (CommonAPI-SOMEIP default).
+    method getTestFieldUint8Array {
+        SomeIpMethodID = 0x28
+        SomeIpReliable = false
+    }
+
+    method setTestFieldUint8Array {
+        SomeIpMethodID = 0x29
+        SomeIpReliable = false
+        in {
+            data {
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+        out {
+            result {
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_168 — TestFieldUINT8Reliable. Spec p414 Table 2
+    // reserves Method IDs 0x2A (Getter) / 0x2B (Setter); SomeIpReliable=true
+    // routes both Method Requests over the TCP unicast endpoint
+    // (SomeIpReliableUnicastPort = 30501 in the provider block below).
+    method getTestFieldUint8Reliable {
+        SomeIpMethodID = 0x2A
+        SomeIpReliable = true
+    }
+
+    method setTestFieldUint8Reliable {
+        SomeIpMethodID = 0x2B
+        SomeIpReliable = true
+    }
+
+    method echoFLOAT64 {
+        SomeIpMethodID = 0x12
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_022 — `SomeIpArrayLengthWidth = 0` switches the
+    // wire format to a fixed-size array (no length prefix); the size is
+    // taken from `SomeIpArrayMaxLength` per upstream all_features.fdepl
+    // block-comment ("If SomeIpArrayLengthWidth == 0, the array has
+    // SomeIpArrayMaxLength elements").
+    method echoStaticUINT8Array {
+        SomeIpMethodID = 0x36
+        SomeIpReliable = false
+        in {
+            data {
+                SomeIpArrayMinLength = 5
+                SomeIpArrayMaxLength = 5
+                SomeIpArrayLengthWidth = 0
+            }
+        }
+        out {
+            result {
+                SomeIpArrayMinLength = 5
+                SomeIpArrayMaxLength = 5
+                SomeIpArrayLengthWidth = 0
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_030 — outer array dimension's length width set
+    // here; inner UInt8Array element typedef gets its own width via the
+    // `define ... for typeCollection org.tc8.ets.EtsTypes` block below.
+    method echoUINT8Array2Dim {
+        SomeIpMethodID = 0x35
+        SomeIpReliable = false
+        in {
+            data {
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+        out {
+            result {
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+    }
+
+    method echoUINT8Array {
+        SomeIpMethodID = 0x09
+        SomeIpReliable = false
+        in {
+            data {
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+        out {
+            result {
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+    }
+
+    method echoUINT8Array16BitLength {
+        SomeIpMethodID = 0x3F
+        SomeIpReliable = false
+        in {
+            data {
+                SomeIpArrayLengthWidth = 2
+            }
+        }
+        out {
+            result {
+                SomeIpArrayLengthWidth = 2
+            }
+        }
+    }
+
+    method echoUINT8Array8BitLength {
+        SomeIpMethodID = 0x3E
+        SomeIpReliable = false
+        in {
+            data {
+                SomeIpArrayLengthWidth = 1
+            }
+        }
+        out {
+            result {
+                SomeIpArrayLengthWidth = 1
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_032/_033 — spec mandates 3..5 element range,
+    // but CommonAPI-SOMEIP ignores SomeIpArrayMin/MaxLength when
+    // SomeIpArrayLengthWidth != 0 (per upstream all_features.fdepl
+    // documentation). We keep width=4 for wire compatibility with
+    // the spec-canonical 32-bit prefix. The MinSize enforcement
+    // axis is therefore not testable on a CommonAPI-on-vsomeip Linux
+    // DUT — _033 still passes via the malformed-length rejection
+    // path (length_override mismatch with UDP datagram size).
+    method echoUINT8ArrayMinSize {
+        SomeIpMethodID = 0x37
+        SomeIpReliable = false
+        in {
+            data {
+                SomeIpArrayMinLength = 3
+                SomeIpArrayMaxLength = 5
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+        out {
+            result {
+                SomeIpArrayMinLength = 3
+                SomeIpArrayMaxLength = 5
+                SomeIpArrayLengthWidth = 4
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_009 — single-byte enum wire format (UInt8 per
+    // spec table p401-420). SomeIpEnumWidth = 1 sets the on-wire byte
+    // count; SomeIpEnumBitWidth = 8 sets the active bits within those
+    // bytes. Pattern lifted from upstream all_features.fdepl
+    // `enumeration Enumeration1` block (with width adjusted from 2 to
+    // match the spec's Uint8 wire shape).
+    enumeration EtsEnum {
+        SomeIpEnumWidth = 1
+        SomeIpEnumBitWidth = 8
+    }
+
+    method echoENUM {
+        SomeIpMethodID = 0x17
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_039 — UTF-16 BE encoding with 32-bit length-
+    // width prefix. CommonAPI-SOMEIP serialises the BOM as part of the
+    // on-wire string (per upstream all_features.fdepl `out.return_struct
+    // .#struct.another_nested_struct.#struct.final_member` block setting
+    // `utf16be` + `SomeIpStringLengthWidth = 4`, and the spec §5.1.6
+    // _041 synopsys explicitly references "incomplete BOM" in the wire
+    // payload).
+    method echoUTF16DYNAMIC {
+        SomeIpMethodID = 0x16
+        SomeIpReliable = false
+        in {
+            text {
+                SomeIpStringEncoding = utf16be
+                SomeIpStringLengthWidth = 4
+            }
+        }
+        out {
+            result {
+                SomeIpStringEncoding = utf16be
+                SomeIpStringLengthWidth = 4
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_046 — fixed 64-byte UTF-16 BE string. Wire carries
+    // no length prefix; the field's byte count is taken from
+    // `SomeIpStringLength = 64` per upstream all_features.fdepl block-
+    // comment ("If LengthWidth == 0, the length of the string has
+    // StringLength bytes").
+    method echoUTF16FIXED {
+        SomeIpMethodID = 0x14
+        SomeIpReliable = false
+        in {
+            text {
+                SomeIpStringEncoding = utf16be
+                SomeIpStringLength = 64
+                SomeIpStringLengthWidth = 0
+            }
+        }
+        out {
+            result {
+                SomeIpStringEncoding = utf16be
+                SomeIpStringLength = 64
+                SomeIpStringLengthWidth = 0
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_048 — dynamic UTF-8 string with 32-bit BE byte
+    // length prefix. Wire shape: [len_BE Uint32][BOM EF BB BF][chars][0x00]
+    // (CommonAPI's UTF-8 deserializer requires a single trailing 0x00 per
+    // capicxx-someip-runtime InputStream.cpp:251).
+    method echoUTF8DYNAMIC {
+        SomeIpMethodID = 0x15
+        SomeIpReliable = false
+        in {
+            text {
+                SomeIpStringEncoding = utf8
+                SomeIpStringLengthWidth = 4
+            }
+        }
+        out {
+            result {
+                SomeIpStringEncoding = utf8
+                SomeIpStringLengthWidth = 4
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_053 — fixed 64-byte UTF-8 string. Wire shape:
+    // [BOM EF BB BF][chars][0x00][zero pad]. No length prefix.
+    method echoUTF8FIXED {
+        SomeIpMethodID = 0x13
+        SomeIpReliable = false
+        in {
+            text {
+                SomeIpStringEncoding = utf8
+                SomeIpStringLength = 64
+                SomeIpStringLengthWidth = 0
+            }
+        }
+        out {
+            result {
+                SomeIpStringEncoding = utf8
+                SomeIpStringLength = 64
+                SomeIpStringLengthWidth = 0
+            }
+        }
+    }
+
+    // §5.1.6 SOMEIP_ETS_007 — echoBitfields. Wire payload is three
+    // independent integers (UInt8 + UInt16 + UInt32 = 7 bytes). The
+    // CommonAPI-SOMEIP fdepl plugin does not (yet) accept
+    // SomeIpBitFieldType keys (upstream all_features.fdepl shows the
+    // bitfield axis only on struct-internal bindings, not on plain
+    // method args), so we model the spec's "bitfield-style" wire as
+    // separate UIntN args and let the DUT-side override perform the
+    // bit-reversal in C++.
+    method echoBitfields {
+        SomeIpMethodID = 0x41
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_034 — echoUINT8E2E. Wire payload is 4×UInt32
+    // (len, counter, dataID, crc) + UInt8 value = 17 bytes. The four
+    // E2E header fields are modelled as plain UInt32 args; the DUT
+    // does not recompute CRC because spec equates Req↔Res field-by-
+    // field rather than mandating an E2E plugin (PRS_SOMEIP_00065 is
+    // about the framing, not the CRC algorithm).
+    method echoUINT8E2E {
+        SomeIpMethodID = 0x0B
+        SomeIpReliable = false
+    }
+
+    // §5.1.6 SOMEIP_ETS_038 — echoUNION. CommonAPI-SOMEIP runtime's
+    // VariantDeployment defaults (capicxx-someip-runtime
+    // include/CommonAPI/SomeIP/Deployment.hpp:95-113) match the spec
+    // wire shape exactly: unionLengthWidth = 4, unionTypeWidth = 4,
+    // unionDefaultOrder = true (length first, type second). The fdepl
+    // plugin does not expose SomeIpUnion* keys (upstream
+    // all_features.fdepl notes "TODO: unions"), so no per-param
+    // binding block is added — codegen falls back to runtime
+    // defaults.
+    method echoUNION {
+        SomeIpMethodID = 0x19
+        SomeIpReliable = false
+    }
+}
+
+// §5.1.6 SOMEIP_ETS_030 inner-array typedef deployment. Pinned to a
+// 32-bit BE byte length prefix matching the spec p401-420 wire shape
+// for echoUINT8Array2Dim_ReqArg2's per-sub-array Uint32 length field.
+define org.genivi.commonapi.someip.deployment for typeCollection org.tc8.ets.EtsTypes {
+    array UInt8Array {
+        SomeIpArrayLengthWidth = 4
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for provider as Service {
+    instance org.tc8.ets.EnhancedTestability {
+        InstanceId = "ETS"
+
+        SomeIpInstanceID = 0x0001
+
+        SomeIpUnicastAddress = "172.16.0.2"
+        SomeIpReliableUnicastPort = 30501
+        SomeIpUnreliableUnicastPort = 30502
+    }
+
+    // SERVICE-ID-1 second instance, used by §5.1.5.3 SD_MESSAGE_01/_02
+    // and §5.1.5.7 RPC_14/_17 (multi-instance same-service axis).
+    // Distinct UDP/TCP ports satisfy RPC_14's "different instances of
+    // same Service different port" assertion. Only registered at runtime
+    // when TC8_DUT_INSTANCE_2=1; otherwise vsomeip rejects the
+    // registerService call because the corresponding services[] entry
+    // is absent from vsomeip.json.
+    instance org.tc8.ets.EnhancedTestability {
+        InstanceId = "ETS2"
+
+        SomeIpInstanceID = 0x0002
+
+        SomeIpUnicastAddress = "172.16.0.2"
+        SomeIpReliableUnicastPort = 30503
+        SomeIpUnreliableUnicastPort = 30504
+    }
+}

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_48: ARP timeout (idle).
+  "If no packets are received from a host for a suitable length of time,
+   the address resolution entry is forgotten."
+
+  Spec sequence:
+    Step 3: TESTER injects ARP Request (populates DUT cache with MAC1).
+    Step 7: DUT sends UDP with eth_dst=MAC1 (cache hit after first
+            Subscribe stimulus).
+    Step 11: After <DYNAMIC-ARP-CACHE-TIMEOUT>, cache is forgotten.
+             Subsequent Subscribe forces DUT to re-ARP — DUT emits its
+             own broadcast Request.
+
+  SCXML observes the two-phase outcome sequentially. Stimulus is fully
+  self-contained: cache timers are compressed via smoke-test.sh's
+  per-case sysctl toggle (base_reachable_time_ms=500, gc_stale_time=1,
+  gc_thresh1=0) so the 3 s inter-subscribe sleep fits within the test
+  budget.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_48"
+       datamodel="null"
+       initial="wait_udp1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="wait_udp1">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
+                target="wait_arp_request"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac"
+                target="fail_udp1_wrong_eth_dst"/>
+    <transition event="deadline_exceeded" target="fail_no_udp1"/>
+  </state>
+
+  <state id="wait_arp_request">
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.sender_proto_ip == expected.dut_iface_ip and captured.target_proto_ip == expected.tester_ip"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_no_arp_request_after_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_udp1_wrong_eth_dst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"first_udp_eth_dst_not_learned_mac"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_udp1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_first_udp_after_cache_learning"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_arp_request_after_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_arp_request_after_cache_timeout"}</content>
+    </donedata>
+  </final>
+</scxml>

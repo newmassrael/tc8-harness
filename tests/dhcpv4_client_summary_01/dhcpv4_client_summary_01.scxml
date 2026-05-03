@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.1 DHCPV4_CLIENT_SUMMARY_01: A DHCP Client Listens on
+  UDP port 68 (RFC 2131 §4.1).
+
+  Spec Test Procedure (tc8_p221-p240.txt: SUMMARY_01):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
+    4.   DUT: Sends DHCPDISCOVER Message
+    5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER Message
+    6.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
+    7.   DUT: Sends DHCPREQUEST Message
+  Pass criteria: 4 (DUT sends DISCOVER) AND 7 (DUT sends REQUEST).
+
+  Stimulus: OpStartDhcpClient (0x10) kicks the tc8-dut full lifecycle
+  state machine; the tester state-entry observer fires DHCPOFFER on
+  Listening_for_request entry to drive the DUT into the REQUESTING
+  state. ACK is not required for the verdict — REQUEST observation
+  is the pass criterion.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_summary_01"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="deadline_exceeded" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.op == 1
+                      and captured.message_type == 3
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_no_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+</scxml>

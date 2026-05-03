@@ -1,0 +1,70 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+# SCE Forge: Auto-generated from Extended SCXML (sce:kind="validator")
+# Runtime: {{ runtime_dep }}
+# Do not edit — regenerate from the source SCXML file.
+
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+from dataclasses import dataclass
+
+
+@dataclass
+class ValidationResult:
+    valid: bool
+    reason: str
+
+
+class {{ struct_name }}:
+    def __init__(self) -> None:
+{% for pv in prev_vars %}
+{% if pv.is_float %}
+        self.{{ pv.name }} = 0.0
+{% else %}
+        self.{{ pv.name }} = 0
+{% endif %}
+{% endfor %}
+{% if imports %}
+        # Imported kinds (cross-file composition)
+{% for imp in imports %}
+        self.{{ imp.member_name }}: {{ imp.member_type }} = {{ imp.member_type }}()
+{% endfor %}
+{% endif %}
+{# `imports` is the stateful-only subset; `all_imports` contains stateless
+   imports that only emit module-level statements. So if there are no
+   prev_vars and no stateful imports, the __init__ body is empty and needs
+   `pass` to stay valid Python — regardless of whether stateless imports exist. #}
+{% if not prev_vars and not imports %}
+        pass
+{% endif %}
+
+    def validate(self, {{ params }}) -> ValidationResult:
+{% for rule in range_rules %}
+{% if rule.has_min and rule.has_max %}
+        if {{ rule.id }} < {{ rule.min }} or {{ rule.id }} > {{ rule.max }}:
+            return ValidationResult(False, "{{ rule.reason_id }}_out_of_range")
+{% elif rule.has_min %}
+        if {{ rule.id }} < {{ rule.min }}:
+            return ValidationResult(False, "{{ rule.reason_id }}_out_of_range")
+{% elif rule.has_max %}
+        if {{ rule.id }} > {{ rule.max }}:
+            return ValidationResult(False, "{{ rule.reason_id }}_out_of_range")
+{% endif %}
+{% endfor %}
+{% for rule in roc_rules %}
+        delta = abs({{ rule.id }} - self.{{ rule.prev_name }})
+        if delta > {{ rule.max_delta }}:
+            return ValidationResult(False, "{{ rule.reason_id }}_rate_of_change_exceeded")
+{% endfor %}
+{% if plausibility_expr %}
+        if not ({{ plausibility_expr }}):
+            return ValidationResult(False, "plausibility_failed")
+{% endif %}
+{% for pv in prev_vars %}
+        self.{{ pv.name }} = {{ pv.id }}
+{% endfor %}
+        return ValidationResult(True, "")

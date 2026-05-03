@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_01: The client broadcasts a
+  DHCPDISCOVER message on its local physical subnet (RFC 2131 §3.1).
+
+  Spec Test Procedure (tc8_p221-p240.txt: ALLOCATING_01):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER listens (no server reply — this case observes only the
+         DUT-emitted DISCOVER's destination IP).
+    4.   DUT: Sends DHCPDISCOVER Message
+    5.   TESTER: Verify received DISCOVER's Destination IP Address
+         field is set to <IP-BROADCAST-ADDRESS> (255.255.255.255).
+
+  Same single-DISCOVER stimulus shape as PROTOCOL_01/02 / SUMMARY_04 /
+  CONSTRUCTING_MESSAGES_01/03. The pass criterion is the
+  `dst_ip_is_broadcast()` predicate which is NBO equality against the
+  limited broadcast 0xFFFFFFFF.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_allocating_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.dst_ip_is_broadcast()"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and !captured.dst_ip_is_broadcast()"
+                target="fail_dst_ip_not_broadcast"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dst_ip_not_broadcast">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_dst_ip_not_broadcast"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.X TCP_HEADER_01: DUT generates a TCP packet containing
+  valid header field values. Derived from RFC 793 §3.1 Header Format.
+
+  v3.0 Test Procedure (p385):
+    1. TESTER: Bring DUT to 'ESTABLISHED' state.
+    2. TESTER: Send <generateTCPSegment> request — UT OpSendTcpData.
+    3. DUT:    Sends a data segment containing valid header values.
+
+  Mechanism (active-OPEN handshake + UT OpSendTcpData):
+    1. Tester opens auxiliary listener on kBasicsActiveRemotePort+30
+       and drives DUT active OPEN via UT OpOpenTcpSocket(Active).
+       Linux completes the 3-way handshake; DUT enters ESTABLISHED.
+    2. Tester issues UT OpSendTcpData carrying a small fixed payload.
+       tc8-dut writes the bytes via ::send(); Linux frames them into
+       one outbound DATA segment.
+    3. SCXML observes the DUT-emitted DATA segment and asserts the
+       header is well-formed: data_offset >= 5 (RFC 793 §3.1 minimum
+       header is 20 B = 5 words), checksum is RFC 793 §3.1 valid, and
+       payload_len > 0 (distinguishes the spec-asserted DATA segment
+       from the handshake third-leg ACK).
+
+  Pass guard conjuncts (one tcp_observed edge):
+    * captured.src_ip   == expected.dut_iface_ip      — DUT-origin
+    * captured.dst_ip   == expected.tester_ip
+    * captured.src_port == kBasicsActiveLocalPort + 30
+    * captured.dst_port == kBasicsActiveRemotePort + 30
+    * captured.payload_len > 0                        — DATA segment
+    * captured.data_offset >= 5                       — RFC 793 §3.1
+    * captured.tcp_checksum_valid()                   — RFC 793 §3.1
+
+  Negative smoke (ipv4.dut_iface_ip flip): the src_ip conjunct becomes
+  unreachable so the listening state's deadline_exceeded transition
+  fires → fail_timeout. Same shape as CHECKSUM_03's negative arm.
+
+  Port-quad selection — kBasicsActiveLocalPort + 30 / +30: clear of
+  §15's +0..+6 and §03..06's +20..+25 active-OPEN cluster, leaves the
+  +30..+38 block reserved for the §4.8.6.X TCP_HEADER 9-case cluster.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 30U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 30U and captured.payload_len &gt; 0 and captured.data_offset &gt;= 5 and captured.tcp_checksum_valid()"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 30U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 30U and captured.payload_len &gt; 0 and (captured.data_offset &lt; 5 or not captured.tcp_checksum_valid())"
+                target="fail_bad_header"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_bad_header">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_segment_with_invalid_header"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_data_segment_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.1 IPv4_HEADER_09: DUT discards a packet whose Total Length
+  field is bigger than the actual transmitted data. Derived from RFC 791
+  section 3.1 p13 (Internet Header Format MUST).
+
+  Stimulus: TESTER injects ICMPv4 Echo Request with Total Length=48 on
+  the wire, while actual L3 payload is 28 bytes (20 IP + 8 ICMP).
+  Kernel detects skb->len < iph->tot_len, silently drops.
+
+  Body shared with HEADER_02 / 04 / 08, CHECKSUM_02, ADDRESSING_03 via
+  sce:template (tests/_templates/ipv4_negative_absence.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_header_09"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_negative_absence.sce-template.xml"
+           fail_reason="dut_replied_despite_tot_len_gt_actual"/>
+</scxml>

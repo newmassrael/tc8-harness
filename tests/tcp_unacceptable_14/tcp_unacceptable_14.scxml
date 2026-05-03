@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_14: TCP in CLOSE-WAIT state MUST
+  return an empty acknowledgment with proper SEQ and ACK numbers
+  after receiving a segment with out-of-window SEQ or unacceptable
+  ACK, and remain in CLOSE-WAIT. Derived from RFC 793 §3.4 p37
+  Establishing a Connection (MUST).
+
+  v3.0 Test Procedure (p321-p340.txt:23), two iterations:
+    * CASE 1: data segment with out-of-window SEQ.
+    * CASE 2: data segment with unacceptable ACK number.
+
+  Mechanism per phase: active-OPEN handshake → ESTABLISHED → tester
+  shutdown(SHUT_WR) emits FIN → DUT auto-ACK enters CLOSE-WAIT →
+  query tester SEQ/ACK → raw-inject corrupt segment → DUT empty ACK.
+
+  Three DUT-origin pure ACKs per phase reach the SCXML on
+  tcp_observed:
+    1. handshake third-leg ACK (ack = ISN_t + 1)
+    2. close-elicited auto-ACK to tester FIN (ack = ISN_t + 2)
+    3. data-elicited ACK to corrupt segment (the spec-asserted edge)
+
+  All three carry the same flag profile (pure ACK, payload=0), so
+  the SCXML walks them in arrival order via three consecutive
+  consume-transit edges per phase. 6 states total across 2 phases.
+
+  Per-phase port quads identical to UNACCEPTABLE_04 (49500/23456
+  vs 49501/23457) — same active-OPEN scaffold, just an extra
+  shutdown(SHUT_WR) step before the corrupt-segment inject.
+
+  Per-state fail terminals split between the three sub-edges so
+  smoke-test triage identifies which edge the DUT failed to emit.
+  Negative smoke flips ipv4.dut_iface_ip → first state's
+  src_ip-conjunct unreachable → fail_p1_no_handshake_ack.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_14"
+       datamodel="null"
+       initial="listening_p1_handshake">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_p1_handshake">
+    <onentry>
+      <send event="deadline_p1_handshake" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_p1_close"/>
+    <transition event="deadline_p1_handshake" target="fail_p1_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_p1_close">
+    <onentry>
+      <send event="deadline_p1_close" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_p1_data_ack"/>
+    <transition event="deadline_p1_close" target="fail_p1_no_close_ack"/>
+  </state>
+
+  <state id="listening_p1_data_ack">
+    <onentry>
+      <send event="deadline_p1_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_p2_handshake"/>
+    <transition event="deadline_p1_data_ack" target="fail_p1_no_data_ack"/>
+  </state>
+
+  <state id="listening_p2_handshake">
+    <onentry>
+      <send event="deadline_p2_handshake" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                target="listening_p2_close"/>
+    <transition event="deadline_p2_handshake" target="fail_p2_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_p2_close">
+    <onentry>
+      <send event="deadline_p2_close" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                target="listening_p2_data_ack"/>
+    <transition event="deadline_p2_close" target="fail_p2_no_close_ack"/>
+  </state>
+
+  <state id="listening_p2_data_ack">
+    <onentry>
+      <send event="deadline_p2_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                target="pass"/>
+    <transition event="deadline_p2_data_ack" target="fail_p2_no_data_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p1_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p1_no_close_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_close_ack_phase1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p1_no_data_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_close_wait"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p2_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p2_no_close_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_close_ack_phase2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p2_no_data_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_unacceptable_ack_close_wait"}</content>
+    </donedata>
+  </final>
+</scxml>

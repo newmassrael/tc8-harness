@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_03: TCP MUST send a RST after
+  receiving an unacceptable ACK in SYN-RCVD state. Derived from RFC
+  793 §3.4 p35 Establishing a Connection (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:328):
+    1. TESTER: Cause DUT SYN-RCVD via passive open + tester SYN.
+    2. TESTER: Send a segment with an unacceptable ACK number.
+    3. DUT:    Send a RST.
+
+  Mechanism (raw-inject SYN + pcap-snippet ISN_d learning + ACK with
+  bad ack number):
+    a. UT OpOpenTcpSocket(Passive, dut_port=12345) arms the listener.
+    b. Stimulus opens TcpFrameSnippet on iface, BPF-filtered to the
+       DUT-emitted SYN+ACK. The snippet handle is created BEFORE the
+       upstream SYN inject so the SYN+ACK is buffered in pcap's
+       kernel ring regardless of stimulus scheduling.
+    c. tester raw-inject SYN(src=49152, seq=ISN_t)        → DUT SYN+ACK.
+    d. snippet.tryCapture(500 ms)                         → ISN_d.
+    e. tester raw-inject ACK(src=49152, ack=ISN_d + LARGE_OFFSET).
+       The ACK acknowledges a byte the DUT has not sent — RFC 793
+       §3.4 p35 marks this "unacceptable" and Linux's
+       `tcp_check_req` reaches `tcp_v4_send_reset` for the response.
+    f. UT close.
+
+  Pass guard structure — single-state listen window observing a
+  DUT-origin RST on the port quad (12345 ↔ 49152). The earlier DUT
+  SYN+ACK from step (c) does not match (flag profile lacks RST), so
+  the SCXML does not need a separate consumer for it.
+
+  Per-state fail terminal (fail_timeout). Negative smoke flips
+  `ipv4.dut_iface_ip=10.99.99.99` → src_ip-conjunct unreachable →
+  fail_timeout.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_03"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_unacceptable_ack_in_syn_recv"}</content>
+    </donedata>
+  </final>
+</scxml>

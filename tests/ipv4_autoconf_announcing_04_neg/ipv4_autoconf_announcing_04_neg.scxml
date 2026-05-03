@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.3 IPv4_AUTOCONF_ANNOUNCING_04 negative — closes the
+  self-reference trap on the positive _04 case. tc8-dut emits
+  Announces via OpStartLLAutoconfBuggy(flavor=AnnounceTargetHwNonzero):
+  the first Announce's ARP target_hw is set to a non-zero locally-
+  administered sentinel, violating RFC 3927 §2.4 (target_hw SHOULD = 0).
+
+  Pass = inverted pass_expr matched (target_hw not all zero).
+  fail_compliant_emit = harness silently accepted the buggy DUT.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_announcing_04_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_linklocal_announce_field.sce-template.xml"
+           pass_expr="!(captured.target_hw_is_zero())"
+           fail_state="fail_compliant_emit"
+           fail_reason="dut_emitted_compliant_announce_despite_target_hw_nonzero_flavor"/>
+</scxml>

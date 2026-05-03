@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.2 TCP_CHECKSUM_01: Receiver TCP MUST check the checksum
+  in any incoming segment and MUST acknowledge in case of no error.
+  Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST), RFC 793
+  §3.1 p16 Header.
+
+  v3.0 Test Procedure (p301-p320.txt:128):
+    1. TESTER: Cause DUT to move on to ESTABLISHED state at <wnp>.
+    2. TESTER: Send a data segment with correct checksum.
+    3. DUT:    Send ACK.
+
+  Mechanism (active-OPEN handshake + tester kernel ::send DATA):
+    1. Tester arms auxiliary listener and drives DUT active OPEN via
+       UT OpOpenTcpSocket(Active). Linux completes the 3-way handshake
+       end-to-end on both sides.
+    2. Tester accept()'s the queued connection so it owns a userland
+       fd to drive the DATA segment.
+    3. Tester writes a small payload via ::send(); the kernel emits
+       one DATA+ACK segment with a correct RFC 793 §3.1 checksum.
+    4. DUT receives the segment, validates checksum (passes), emits
+       an ACK acknowledging the byte range — the spec-asserted ACK.
+
+  Two DUT-origin pure-ACK segments cross the listen window (same
+  conjuncts on both):
+    * handshake third-leg ACK — emitted by DUT immediately after
+      receiving the tester kernel's SYN+ACK.
+    * DATA-elicited ACK       — emitted by DUT after processing the
+      tester's DATA segment (acks the byte range).
+
+  A naive single-state guard would PASS on the handshake third-leg
+  ACK and silently miss the spec-asserted assertion. The 2-state
+  chain consumes the handshake ACK first (listening_handshake_ack)
+  and only passes on the DATA-elicited ACK (listening_data_ack);
+  this way the case verdict is bound to the `correct-checksum DATA →
+  ACK` invariant, not the handshake's RFC 793 §3.4 third-leg.
+
+  Pass guard conjuncts (each phase, one tcp_observed edge):
+    * captured.src_ip   == expected.dut_iface_ip       — DUT-origin
+    * captured.dst_ip   == expected.tester_ip
+    * captured.src_port == kBasicsActiveLocalPort (49500)
+    * captured.dst_port == kBasicsActiveRemotePort (23456)
+    * (captured.flags & ACK) != 0
+    * (captured.flags & SYN) == 0                     — not handshake first/second leg
+    * (captured.flags & FIN) == 0                     — not close-FIN
+    * (captured.flags & RST) == 0                     — not process-exit RST+ACK
+    * captured.payload_len == 0                        — pure ACK
+
+  Iteration coverage: spec lists no explicit iteration table; one
+  stimulus run with one DATA segment is sufficient.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_checksum_01"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_exceeded_handshake" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_data_ack"/>
+    <transition event="deadline_exceeded_handshake" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_exceeded_data" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="pass"/>
+    <transition event="deadline_exceeded_data" target="fail_no_data_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_data_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_correct_checksum_data"}</content>
+    </donedata>
+  </final>
+</scxml>

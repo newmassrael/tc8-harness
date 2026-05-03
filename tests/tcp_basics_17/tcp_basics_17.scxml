@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_17: TCP MUST support simultaneous OPEN
+  attempts. Derived from RFC 1122 §4.2.2.10 p87 Simultaneous Open
+  Attempts (MUST).
+
+  v3.0 Test Procedure (p303):
+    1. TESTER: Cause DUT to issue active OPEN — UT
+               OpOpenTcpSocket(Active).
+    2. DUT:    Send a SYN.
+    3. TESTER: Send a SYN simultaneously.
+    4. DUT:    Send SYN,ACK in reply.
+    5. TESTER: Send SYN,ACK in reply to the SYN received from the DUT.
+    6. DUT:    Send ACK.
+    7. TESTER: Verify DUT moves on to ESTABLISHED state.
+
+  Mechanism (single iteration):
+    - TesterAutoRstDrop scoped — tester kernel has no socket on the
+      4-tuple, so any inbound SYN/SYN+ACK from the DUT would normally
+      elicit RST.
+    - TcpFrameSnippet learns DUT's ISN_d from the active-OPEN SYN.
+    - Raw-inject SYN (no ACK, no other flags) src=remote_port,
+      dst=local_port, seq=tester_isn. Linux's
+      `tcp_rcv_synsent_state_process` recognises the SYN-only segment
+      against a SYN-SENT socket and triggers the RFC 793 §3.4
+      simultaneous-OPEN path — DUT transitions SYN-SENT → SYN-RCVD
+      and emits SYN+ACK with seq=ISN_d, ack=tester_isn+1.
+    - Raw-inject ACK with seq=tester_isn+1, ack=ISN_d+1. DUT TCB
+      transitions SYN-RCVD → ESTABLISHED.
+    - tc8-dut's connect() unblocks; accepted_fd is set; UT
+      OpQueryTcpEstablished returns 0x01.
+
+  Pass guard: tcp_observed where DUT-emitted SYN+ACK matches the
+  4-tuple AND ut_established == 0x01. The SYN+ACK is the structurally
+  unique signature of the simultaneous-open path — a normal active
+  OPEN never emits a SYN+ACK from the DUT side. Together with the
+  ESTABLISHED-state confirmation, the pair proves Pass Criteria
+  steps 4 and 7.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_17"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics17LocalOffset) and captured.dst_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics17LocalOffset) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ut_established == 0x01"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics17LocalOffset) and captured.dst_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics17LocalOffset) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ut_established == 0x00"
+                target="fail_not_established"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_not_established">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_reach_established_after_simultaneous_open"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_to_simultaneous_syn"}</content>
+    </donedata>
+  </final>
+</scxml>

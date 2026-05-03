@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.5.6.3 ANNOUNCING cluster — DUT-emitted ARP Announcement field
+  invariant. Each consumer asserts a single Announce-shape field while
+  reusing the same listening-state envelope.
+
+  Filter:  captured.opcode == 1
+           and captured.eth_src == expected.dut_iface_mac
+           and captured.sender_proto_ip != 0
+           — i.e. DUT-emitted opcode-1 ARP with non-zero sender_ip,
+           which is the §4.5 wire-shape that distinguishes an Announce
+           (RFC 3927 §2.4: sender_ip == target_ip == announced address)
+           from a Probe (RFC 3927 §2.1.1: sender_proto_ip == 0). Probes
+           flow through with cond=false on both transitions and are
+           silently dropped; the FIRST DUT-MAC opcode-1 frame with
+           non-zero sender_ip is Announce 1. The full
+           `is_arp_announce()` predicate is NOT used in the filter
+           because _02 (sender_ip == target_ip == LL) and _03
+           (sender_hw == DUT MAC) would degenerate into tautologies if
+           folded into the gating condition.
+
+  Pass:    filter and ({$pass_expr})
+  Fail:    filter and !({$pass_expr})  →  {$fail_state}
+  Timeout: deadline_exceeded            →  fail_no_announce_after_probes
+
+  Single `{$pass_expr}` param per the ipv4_linklocal_probe_field
+  precedent. 4 s deadline matches the fast envelope: Announce 1 lands
+  ~1.4 s after stimulus call (1.5 s initial wait + 200 ms dhcp_timeout
+  + 200 ms PROBE_WAIT + ~600 ms 3 Probes + 200 ms ANNOUNCE_WAIT).
+  Cadence case (_06) carries its own SCXML at RFC defaults with a 12 s
+  deadline.
+
+  Smoke-test prerequisite: `dut/env/smoke-test.sh` pins the
+  <DUT_MAC, tester_ip> neigh entry NUD_PERMANENT for
+  IPV4_AUTOCONF_ANNOUNCING_* so the kernel-side ARP Request that
+  resolves tester_ip during UT-Confirmation reply doesn't satisfy the
+  loose filter (sender_ip != 0) and pollute the listening state.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_linklocal_announce_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and captured.sender_proto_ip != 0 and ({$pass_expr})"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and captured.sender_proto_ip != 0 and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="fail_no_announce_after_probes"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_announce_after_probes">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_announce_after_probes"}</content>
+    </donedata>
+  </final>
+</sce:template>

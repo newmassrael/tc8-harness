@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.13 SOMEIPSRV_SD_MESSAGE_13: SubscribeEventgroupAck entry
+  type (0x07) echoes Service ID, Instance ID, Major Version, Eventgroup
+  ID, TTL, and Reserved fields from the Subscribe being answered
+  (TR_SOMEIP_00388). Tester emits Subscribe(eventgroup=0x0008,
+  ttl=0xFFFFFF), expects DUT Ack to carry the same TTL plus echoed
+  identity. Reserved | Counter occupies bytes 12..13 (Type 2 layout):
+  spec asserts Reserved (upper 12 bits) is zero, and a fresh Subscribe
+  carries Counter (lower 4 bits) zero — vsomeip echoes both back, so
+  reserved_counter == 0 is the strict shape (mirroring SD_MESSAGE_15's
+  Nack-side check).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_13"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x07"
+           pass_expr="captured.sd_entries[0].ttl == 0xFFFFFF and captured.sd_entries[0].reserved_counter == 0 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == expected.instance_id and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id and captured.sd_entries[0].major_version == expected.major_version"
+           fail_state="fail_ack_field"
+           fail_reason="subscribe_ack_field_mismatch"/>
+</scxml>

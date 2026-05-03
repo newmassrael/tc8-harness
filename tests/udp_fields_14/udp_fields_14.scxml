@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_FIELDS_14: DUT-emitted UDP datagram with an even
+  payload size carries a valid checksum without pad processing
+  (RFC 768 'Fields' MUST). Mapping <udpUserDataSize>=100 — well
+  within MTU, exactly aligned to 2-byte boundaries so the pseudo-
+  header sum needs no trailing pad.
+
+  Same shape as FIELDS_13 (assert non-zero checksum on a DUT-egress
+  datagram); the difference is the payload-size parity carried by the
+  trait stimulus. Distinguishing src_port (20013 vs 20014) so the
+  same SCXML body cannot false-cross-match.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_fields_14"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="captured.src_port == 20014 and captured.dst_port == 20000 and captured.checksum != 0 and captured.pseudo_header_checksum_valid()"
+           fail_state="fail_invalid_checksum"
+           fail_reason="dut_emitted_udp_with_invalid_pseudo_header_checksum_on_unpadded_payload"/>
+</scxml>

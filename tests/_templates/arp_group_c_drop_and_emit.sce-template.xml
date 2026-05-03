@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.2 Phase 3b Group C sub-shape 1 body: the DUT rejects a malformed
+  ARP frame (dropped at RFC 826 ar$hrd / ar$pro / target_ip check) so the
+  cache is not populated. Follow-up Subscribe stimulus provokes DUT
+  unicast UDP egress, and a conformant DUT must emit its own ARP Request
+  first to resolve the tester's MAC.
+
+  Shared body for ARP_22 / ARP_28 / ARP_38. Call sites differ only in
+  the per-case top XML comment narrative and the <scxml name="...">
+  attribute — both live on the thin-shell side. See
+  tests/arp_22/arp_22.scxml for an example consumer.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_group_c_drop_and_emit">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
+                target="fail_udp_used_injected_mac"/>
+    <transition event="deadline_exceeded" target="fail_no_dut_arp_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_udp_used_injected_mac">
+    <donedata>
+      <content>{"verdict":"fail","reason":"udp_eth_dst_matched_dropped_frame_mac"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_arp_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+</sce:template>

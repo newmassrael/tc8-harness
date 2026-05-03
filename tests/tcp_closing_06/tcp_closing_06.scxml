@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.8 TCP_CLOSING_06: TCP, in ESTABLISHED state, MUST send a
+  FIN segment when the local user issues a CLOSE call. Derived from
+  RFC 793 §3.5 p38 Closing a Connection (MUST).
+
+  v3.0 Test Procedure (p350):
+    1. TESTER: Take DUT to ESTABLISHED state
+    2. TESTER: Cause DUT side application to issue a CLOSE call
+    3. DUT:    Send a FIN
+
+  Mechanism (active-OPEN handshake → UT close → observe DUT FIN):
+    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
+      + 70, kBasicsActiveRemotePort + 70). DUT-emitted third-leg
+      pure ACK lands on listening_handshake_ack proving DUT in EST.
+      Port quad +70 reserves the §4.8.6.8 active-OPEN block (clear
+      of FP cluster's +50..+63).
+    * UT OpCloseTcpSocket on socket_id=1; DUT's tcp_close path
+      enqueues a FIN+ACK on the connection. The tester kernel sees
+      the DUT FIN and would normally auto-ACK it (entering FW2
+      → TW), but no further state observation is needed — the spec
+      assertion is "DUT sent a FIN", which lands on
+      listening_dut_fin → pass.
+
+  SCXML chain (2 listening states + 2 fail terminals + pass):
+    handshake_ack → dut_fin → pass
+
+  Total positive envelope ≈ kTcpUtBootWait (1.5 s) + handshake
+  (~50 ms) + UT close RPC + DUT FIN observation. Default-7 s case
+  timeout fits comfortably.
+
+  Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
+  becomes unreachable, lands on fail_no_handshake_ack at the 5 s
+  deadline + ~2 s prelude wall-time ≈ 8 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_closing_06"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 70U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 70U)"
+                target="listening_dut_fin"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_fin">
+    <onentry><send event="deadline_dut_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 70U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 70U)"
+                target="pass"/>
+    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_no_dut_fin">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_close_fin"}</content></donedata>
+  </final>
+</scxml>

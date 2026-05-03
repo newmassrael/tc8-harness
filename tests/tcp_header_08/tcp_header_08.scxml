@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.X TCP_HEADER_08: DUT discards TCP packet whose Data
+  Offset field carries a value greater than the actual segment
+  length. Derived from RFC 793 §3.1.
+
+  v3.0 Test Procedure (p392):
+    1. TESTER: Bring DUT to 'ESTABLISHED' state.
+    2. TESTER: Send a TCP packet with Data Offset value greater than 5.
+    3. DUT:    Discards the TCP packet.
+
+  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
+  inject in-window data with data_offset_override=15 (the maximum
+  4-bit encoding = 60 B header) but only ~24 B of actual segment
+  bytes + 3 s absence of any DUT pure ACK on the EST 4-tuple.
+
+  Linux 6.5 dispatch: tcp_v4_rcv (net/ipv4/tcp_ipv4.c) calls
+    if (!pskb_may_pull(skb, th->doff * 4))
+        goto discard_it;
+  pskb_may_pull returns 0 when the announced header length exceeds
+  the actual frame payload bytes; the segment is dropped before
+  socket lookup, no DUT ACK fires.
+
+  Two-state SCXML chain: handshake_ack observation gates entry
+  into 3 s absence; negative-flip lands on no_handshake_ack.
+
+  Port-quad — kBasicsActiveLocalPort + 36 / +36.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_08"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 36U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 36U)"
+                target="listening_absence"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 36U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 36U)"
+                target="fail_unexpected_ack"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_acked_segment_with_oversize_data_offset"}</content>
+    </donedata>
+  </final>
+</scxml>

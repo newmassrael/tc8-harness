@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.1 IPv4_HEADER_03: the DUT's IPv4 packet carries a Source
+  Address equal to one of its defined IPv4 addresses.
+
+  The pass guard IS the src_addr check; a DUT reply with a non-DUT
+  source address is indistinguishable at this layer from the tester
+  stimulus (which also has a non-DUT src_addr). fail_timeout therefore
+  covers both "DUT emitted nothing" and "DUT emitted with an unexpected
+  src_addr". The negative-mode row flips `ipv4.dut_iface_ip` to a value
+  the DUT never emits, which takes the pass path out of reach.
+
+  Body shared with IPV4_TTL_05 / IPV4_VERSION_01 via sce:template
+  (tests/_templates/ipv4_positive_reply.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_header_03"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_positive_reply.sce-template.xml"/>
+</scxml>

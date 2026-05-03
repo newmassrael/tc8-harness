@@ -1,0 +1,44 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="interpolation")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+package com.sce.generated.{{ package }}
+
+{% if is_bilinear %}
+import com.sce.forge.runtime.bilinear
+{% else %}
+import com.sce.forge.runtime.linear
+{% endif %}
+
+object {{ struct_name }} {
+{% for axis in axes %}
+    private val {{ axis.var_name }} = doubleArrayOf({% for bp in axis.breakpoints %}{{ bp }}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endfor %}
+{% if is_bilinear %}
+    private val VALUES = arrayOf(
+{% for r in range(rows) %}
+        doubleArrayOf({% for c in range(cols) %}{{ values[r * cols + c] }}{% if not loop.last %}, {% endif %}{% endfor %}){% if not loop.last %},{% endif %}
+
+{% endfor %}
+    )
+{% else %}
+    private val VALUES = doubleArrayOf({% for v in values %}{{ v }}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
+
+    fun lookup({{ params }}): {{ output_type }} {
+{% if is_bilinear %}
+        return bilinear(
+            {{ axes[0].var_name }}, {{ axes[1].var_name }}, VALUES,
+            {{ axes[0].input_id }}.toDouble(), {{ axes[1].input_id }}.toDouble()
+        )
+{% else %}
+        return linear(
+            {{ axes[0].var_name }}, VALUES,
+            {{ axes[0].input_id }}.toDouble()
+        )
+{% endif %}
+    }
+}

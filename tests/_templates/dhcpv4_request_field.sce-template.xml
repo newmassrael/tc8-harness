@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7 DHCPv4 client REQUEST shape invariant cluster — DUT-emitted
+  DHCPREQUEST (after the tester's injected OFFER) carries a single
+  per-case wire-shape invariant. Each consumer asserts the invariant
+  while reusing the same DISCOVER → REQUEST listening envelope.
+
+  Filter:  is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac).
+           OFFER (op=2, message_type=2) is filtered out by `is_dhcp_request()`
+           which requires op=1 AND message_type=3, so the injected OFFER
+           never satisfies the second listening state's guards.
+
+  Pass:    filter and ({$pass_expr})  →  pass
+  Fail:    filter and !({$pass_expr}) →  {$fail_state}
+  Timeout: deadline_exceeded          →  fail_no_request
+
+  Lifecycle (matches PROTOCOL_03 / SUMMARY_01):
+    listening_for_discover (deadline 6s)
+      on dhcp_observed: is_dhcp_discover + chaddr_match
+        → listening_for_request
+      on deadline → fail_no_discover
+    listening_for_request (deadline 4s, OFFER fired on entry by trait)
+      on dhcp_observed: is_dhcp_request + chaddr_match + pass_expr
+        → pass
+      on dhcp_observed: is_dhcp_request + chaddr_match + !pass_expr
+        → {$fail_state}
+      on deadline → fail_no_request
+
+  Two `{$pass_expr}` + `{$fail_state}` + `{$fail_reason}` params per the
+  ipv4_linklocal_probe_field precedent — the SCE substitution is
+  textual paste so `!`, `(`, `)` survive while a raw `<` wouldn't.
+  Compound REQUEST predicates that would otherwise smuggle special
+  chars belong as `Dhcpv4Captured` member methods (same convention
+  as `chaddr_matches_dut_mac`).
+
+  4 s deadline on listening_for_request: tc8-dut Dhcpv4Client emits
+  REQUEST within ~30 ms of receiving OFFER (cf. S3 INTRO_01 pcap
+  evidence: REQUEST 26 ms after OFFER). 4 s gives generous margin.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_request_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="deadline_exceeded" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="fail_no_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

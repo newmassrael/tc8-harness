@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.4 IPv4 2-state discard-on-malformed shape: TESTER sends a
+  deliberately malformed ICMPv4 Echo Request, the DUT's kernel silently
+  discards it, the SCXML asserts no DUT-originated Echo Reply arrives
+  within the listen window.
+
+    * pass — listen window expires with no IPv4 frame whose src_addr
+      matches the DUT iface IP (the tester's own ingress Echo Request
+      is visible but carries src_addr == tester_ip, so it never matches
+      the fail guard).
+    * fail_dut_replied — DUT emitted an IPv4 frame within the window,
+      meaning the malformed stimulus was not dropped. Reason string is
+      per-case via {$fail_reason} so grep-based smoke triage can tell
+      which invariant the DUT violated without reading the SCXML id.
+
+  Shared body for ipv4_header_02 / 04 / 08 / 09, ipv4_checksum_02,
+  ipv4_addressing_03, ipv4_version_04. Call sites differ only in which
+  stimulus override is passed at the traits layer and the fail_reason
+  string — the SCXML shape is identical because every spec row's pass
+  criterion is the same: "DUT does not send an ICMPv4 Echo Reply".
+
+  src_addr guard: the listener sees the tester's own Echo Request too
+  (carries src_addr == expected.tester_ip). Filtering on
+  `captured.src_addr == expected.dut_iface_ip` so only DUT-originated
+  frames can reach fail_dut_replied — tester-originated frames are
+  silently ignored, same pattern as ipv4_field_check.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_negative_absence">
+
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Ipv4Captured"
+               cpp:include="sce_integration/ipv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="ipv4_observed"
+                cond="cpp:captured.src_addr == expected.dut_iface_ip"
+                target="fail_dut_replied"/>
+    <transition event="deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_replied">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

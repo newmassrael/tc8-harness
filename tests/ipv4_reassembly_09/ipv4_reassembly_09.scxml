@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPV4_REASSEMBLY_09: DUT discards a single-fragment Echo
+  Request whose MF=1 (More Fragments). The fragment carries the full
+  16 B Echo Request body in the offset=0 slot but advertises that more
+  fragments are coming; with no offset>0 fragment ever arriving, a
+  conformant DUT (RFC 791 §3.2) must hold the partial datagram in its
+  reassembly buffer and silently discard after the timer expires —
+  never deliver to ICMP, never emit an Echo Reply.
+
+  Body shared with §4.3 ICMP absence cases via
+  icmpv4_negative_absence. Dispatch narrows to type=0 Echo Reply so
+  the tester's own outbound MF=1 fragment never self-triggers the
+  fail path.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_09"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_replied_to_single_mf1_fragment"/>
+</scxml>

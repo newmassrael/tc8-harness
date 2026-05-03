@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.7.13 SOMEIPSRV_RPC_13: Different services may share the
+  same transport-layer port (TR_SOMEIP_00163 — Multiple Service-Instances).
+  The wire-level invariant verified here is that the OfferService SD
+  message advertises SERVICE-ID-1 (0xF4E7) and SERVICE-ID-2 (0xF4E8) with
+  the same UDP port across their IPv4 Endpoint Options. The shared-port
+  vsomeip variant declares both services on UDP 30502 / TCP 30501; vsomeip
+  handles the shared-endpoint binding internally.
+
+  Same multi-service plumbing as RPC_01/_02 but with the
+  vsomeip-multi-service-shared-port.json variant — gated by
+  TC8_DUT_SERVICE_2=1 and the smoke-test CASE_VSOMEIP_VARIANT map.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_rpc_13"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 2 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[1].type == 0x01 and ((captured.sd_entries[0].service_id == 0xF4E7 and captured.sd_entries[1].service_id == ::tc8::someipsrv_si2::kServiceId) or (captured.sd_entries[0].service_id == ::tc8::someipsrv_si2::kServiceId and captured.sd_entries[1].service_id == 0xF4E7)) and captured.sd_ipv4_endpoint_count &gt;= 1 and captured.sd_distinct_endpoint_ports_for_l4(::tc8::sd_l4_proto::kUdp) == 1"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 2 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[1].type == 0x01 and ((captured.sd_entries[0].service_id == 0xF4E7 and captured.sd_entries[1].service_id == ::tc8::someipsrv_si2::kServiceId) or (captured.sd_entries[0].service_id == ::tc8::someipsrv_si2::kServiceId and captured.sd_entries[1].service_id == 0xF4E7)) and captured.sd_distinct_endpoint_ports_for_l4(::tc8::sd_l4_proto::kUdp) &gt;= 2"
+                target="fail_distinct_udp_ports"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_distinct_udp_ports">
+    <donedata>
+      <content>{"verdict":"fail","reason":"two_services_advertise_distinct_udp_ports_not_shared"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_qualifying_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

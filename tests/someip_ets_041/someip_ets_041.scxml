@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_041: echoUTF16DYNAMIC_length_too_short_for_malformed_String.
+
+  Two-step multi-phase scenario per spec p571-580. Tester sends a
+  valid 132-byte UTF-16 BE Request first (length prefix 0x80,
+  declared 128 bytes follow = BOM + 62 'H' chars + UTF-16 null) and
+  expects a normal echo. Tester then sends a malformed Request with
+  the same 132-byte wire shape EXCEPT the 4-byte string-length
+  prefix is corrupted to 0x02 — claims only 2 bytes follow, so the
+  DUT's CommonAPI deserializer reads only the BOM and finds no UTF-16
+  null terminator within those 2 bytes -> errorOccurred_ trips ->
+  Error Response (msg_type 0x81 + return_code 0x09 E_MALFORMED_MESSAGE)
+  per PRS_SOMEIP_00372 + PRS_SOMEIP_00087. SOME/IP Length stays
+  self-consistent (8 + 132 = 140) so the frame reaches CommonAPI.
+
+  Two requests are emitted with explicit session_id pinning:
+    - 1st request: session_id 0x0001, valid wire (string length 0x80)
+    - 2nd request: session_id 0x0002, malformed wire (string length 0x02)
+  Each Response is verdicted in its own phase via session_id.
+
+  Phase 1: SD OfferService observation.
+  Phase 2: Method Response on session_id 0x0001 with return_code 0x00
+           and payload_len 132 -> advance to phase 3. No Response /
+           wrong shape -> fail.
+  Phase 3: lenient verdict on session_id 0x0002. Error Response,
+           non-zero return_code, OR deadline (silent ignore) -> pass.
+           OK Response with return_code 0x00 -> fail (DUT accepted
+           malformed).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_041"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0016 and captured.session_id == 0x0001 and captured.return_code == 0x00 and captured.payload_len == 132 and captured.payload_bytes[3] == 0x80 and captured.payload_bytes[4] == 0xFE and captured.payload_bytes[5] == 0xFF and captured.payload_bytes[6] == 0x00 and captured.payload_bytes[7] == 0x48"
+                target="listening_phase3"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_valid_echo"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0016 and captured.session_id == 0x0002 and captured.message_type == 0x81"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0016 and captured.session_id == 0x0002 and captured.message_type == 0x80 and captured.return_code != 0x00"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0016 and captured.session_id == 0x0002 and captured.message_type == 0x80 and captured.return_code == 0x00"
+                target="fail_phase3_dut_accepted_malformed"/>
+    <transition event="phase3_deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_valid_echo">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_echo_valid_first_request"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_dut_accepted_malformed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_returned_ok_response_for_truncated_inner_string_length"}</content>
+    </donedata>
+  </final>
+</scxml>

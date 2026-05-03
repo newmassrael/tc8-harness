@@ -1,0 +1,428 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{# ── W3C SCXML 6.4: Invoke lifecycle helpers (per-SM) ────────────────
+   Mirrors `tools/codegen/templates/invoke_methods.jinja2` (cpp) — the
+   C11 emitter inlines a focused subset (defer queue + child SM struct
+   embed + macrostep-end execute hook + onexit cancel/destroy +
+   cross-machine `#_parent` dispatch + `<param>` / `namelist` value
+   transfer).
+
+   T3 lock-in: per-SM logic emitted into `_sm.c`. Cross-SM types
+   (`sce_invoke_pending_queue_t`) live in `sce-c-runtime/include/sce/invoke.h`
+   as static inline helpers — no .c source.                             #}
+
+{% set _ns = namespace(any_child_parent_send=false) %}
+{% for invoke_info in model.invokes | scxml %}
+{% if invoke_info.child_has_send_to_parent %}
+{% set _ns.any_child_parent_send = true %}
+{% endif %}
+{% endfor %}
+
+{% if _ns.any_child_parent_send %}
+{# ── dispatch_external_by_name ───────────────────────────────────────
+   W3C SCXML 6.4: child-to-parent event routing shim. Children spawned
+   via `<invoke>` whose body contains `<send target="#_parent">` invoke
+   this function through their `parent_dispatch` fn pointer (stamped on
+   the child SM struct at `execute_pending_invokes` time). The shim
+   converts the event-name string to this SM's event enum and enqueues
+   onto the external queue, mirroring the parent-template parameter
+   shape the cpp backend uses for the same routing.
+
+   Event names absent from this SM's enum (events the analyzer's
+   `collect_child_to_parent_events` pass did not promote because no
+   `<send target="#_parent">` in any registered child fixture used them)
+   silently drop. Wildcard `event="*"` parent transitions still match
+   any of the promoted names because the dispatch goes through the
+   regular external queue, which the macrostep evaluates against every
+   transition's matcher (W3C SCXML 3.13). The empty NULL-guard handles
+   defensive callers — production children always pass a valid name. #}
+static void {{ model.name }}_dispatch_external_by_name(void *opaque, const char *name, const char *invoke_id, const char *event_data) {
+    if (opaque == NULL || name == NULL) {
+        return;
+    }
+    {{ model.name }}_t *sm = ({{ model.name }}_t *)opaque;
+    {{ model.name }}_event_with_meta_t evt;
+    memset(&evt, 0, sizeof(evt));
+    if (invoke_id != NULL) {
+        strncpy(evt.invoke_id, invoke_id, (size_t)SCE_MAX_ID_LEN - 1u);
+        evt.invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+    }
+    /* W3C SCXML 6.4 (test233): copy child-supplied `<send><param>` Lua-
+       source string into `event_with_meta_t.data`. The dequeue path
+       loads it into the parent's L state as `_event.data` before
+       transition matching + finalize. NULL or empty `event_data` leaves
+       the slot zero-initialised so the dequeue's empty-string check
+       skips the load — same observable as cpp `EventWithMetadata{event,
+       data=""}` in the no-param send-to-parent shape. */
+    if (event_data != NULL && event_data[0] != '\0') {
+        strncpy(evt.data, event_data, (size_t)SCE_MAX_DATA_LEN - 1u);
+        evt.data[(size_t)SCE_MAX_DATA_LEN - 1u] = '\0';
+    }
+    {% for ev_name in model.events | sort %}
+    if (strcmp(name, "{{ ev_name }}") == 0) {
+        evt.event = {{ model.name | upper }}_EVENT_{{ ev_name | upper | replace('.', '_') | replace('-', '_') }};
+        {{ model.name }}_raise_external(sm, &evt);
+        return;
+    }
+    {% endfor %}
+}
+{% endif %}
+
+{# ── execute_pending_invokes ─────────────────────────────────────────
+   Drain the parent's pending queue at macrostep end. For each pending:
+     1. Initialize the embedded child SM (its onentry runs; if its initial
+        is a top-level <final>, it reaches the final state immediately).
+     2. Mark the child as active (so destroy/cancel can reclaim).
+     3. Check `is_in_final_state` — when the child has already reached
+        a top-level <final> (e.g. inline content whose only state is
+        <final>), raise the parent's `done.invoke` event (W3C 6.3.1)
+        onto the external queue.
+   Cross-SM event routing for children whose initial onentry sends to
+   the parent (`<send target="#_parent">`) — and the parent→child tick
+   loop those children require to reach final asynchronously — is the
+   surface the next lift phase extends here. #}
+static void {{ model.name }}_execute_pending_invokes({{ model.name }}_t *sm) {
+    if (sm->pending_invokes.count == 0) {
+        return;
+    }
+
+    /* W3C SCXML 6.4: cpp `InvokeHelper::executePendingInvokes` copies the
+       pending vector before iterating — child init may push more events
+       (via <send target="#_parent">) but won't recurse into pending
+       since <invoke> in the child's onentry would push to the child's
+       own pending queue, not the parent's. C11 mirrors with a snapshot
+       count + clear-up-front. */
+    int n = sm->pending_invokes.count;
+    sce_invoke_pending_t snapshot[SCE_MAX_INVOKES];
+    for (int i = 0; i < n; ++i) {
+        snapshot[i] = sm->pending_invokes.entries[i];
+    }
+    sce_invoke_pending_clear(&sm->pending_invokes);
+
+    for (int i = 0; i < n; ++i) {
+        const sce_invoke_pending_t *p = &snapshot[i];
+
+        {% for state_id, state in model.states | dictsort %}
+        {% for invoke_info in state.invokes | scxml %}
+        if (p->state == (int){{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }}
+            && p->invoke_idx == {{ loop.index0 }}) {
+            {% if invoke_info.namelist %}
+            {# W3C SCXML 6.4 / test554: a namelist name not declared in the
+               parent's `<datamodel>` is an evaluation error — cpp
+               `InvokeExecutor::startInvoke` (sce/src/runtime/InvokeExecutor.cpp:425-432)
+               aborts the spawn via `destroySession + return ""`, propagating
+               error.execution upstream. Parent vars are statically known
+               at codegen time (model.variables), so the membership check
+               folds to a compile-time predicate. The `loop.first` arm
+               emits the error.execution raise + skip-spawn (`continue`)
+               exactly once on the first undeclared name — subsequent
+               undeclared names produce no output (the spawn is already
+               aborted). The param/namelist transfer block below stays
+               unreachable for this iteration. #}
+            {% set _parent_var_ids = model.variables | map(attribute='id') | list %}
+            {% for _ns_name in invoke_info.namelist.split() if _ns_name not in _parent_var_ids %}
+            {% if loop.first %}
+            /* W3C SCXML 6.4 (test554): namelist references undeclared
+               parent var `{{ _ns_name }}` — abort spawn and raise
+               error.execution per cpp `InvokeExecutor`. */
+            {
+                {{ model.name }}_event_with_meta_t _err_evt;
+                memset(&_err_evt, 0, sizeof(_err_evt));
+                _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+                {{ model.name }}_raise(sm, &_err_evt);
+            }
+            continue;
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            /* W3C SCXML 6.4: spawn child {{ invoke_info.child_name }}
+               (invoke id `{{ invoke_info.invoke_id }}` in state `{{ state_id }}`). */
+            {% if invoke_info.child_has_send_to_parent %}
+            /* W3C SCXML 6.4 (test191/338): stamp parent-routing fields
+               BEFORE the configuration entry walk by passing them
+               through `_init_with_parent`. `<onentry><send target="#_parent">`
+               in the child runs during `enter_state_recursive` inside
+               this call, so a NULL `parent_dispatch` would silently
+               drop the event. Fixtures whose child only routes to
+               `#_parent` from inside `<transition>` bodies (test226/
+               240/241/243/244/245/276) are unaffected by the stamp
+               ordering — those sends fire later from the macrostep
+               loop below — but the unified `_init_with_parent` entry
+               point keeps a single child-SM init shape. */
+            {{ invoke_info.child_name }}_init_with_parent(
+                &sm->child_{{ invoke_info.field_suffix }},
+                sm,
+                {{ model.name }}_dispatch_external_by_name,
+                p->invoke_id);
+            {% else %}
+            {{ invoke_info.child_name }}_init(&sm->child_{{ invoke_info.field_suffix }});
+            {% endif %}
+            sm->child_{{ invoke_info.field_suffix }}_active = true;
+            /* W3C SCXML 6.3.1: persist the spawn-time invoke id so
+               `_drive_active_children` can stamp `done.invoke.invoke_id`
+               for async-final children whose own SM struct does not
+               carry an `invoke_id` slot (test247-shape children with
+               no `<send target="#_parent">`). */
+            strncpy(sm->child_{{ invoke_info.field_suffix }}_invoke_id, p->invoke_id,
+                    (size_t)SCE_MAX_ID_LEN - 1u);
+            sm->child_{{ invoke_info.field_suffix }}_invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            {% if invoke_info.child_needs_script_engine and (invoke_info.params or invoke_info.namelist) %}
+            /* W3C SCXML 6.4.1 (test226/240/241/243/244/245/276):
+               `<param>` and `namelist` value passing. Evaluate each
+               param's `expr` (or read each namelist name's binding)
+               on the parent's `lua_State` so the value lands on
+               `sm->L`'s top of stack, then transfer to the child's
+               `lua_State` as a global under the param/namelist name —
+               overriding the `<data expr=...>` defaults that the
+               child's `_init` already seeded. The cpp backend mirrors
+               this shape via `child->setParamInScriptEngine(name, expr)`
+               (`tools/codegen/templates/invoke_methods.jinja2:118-128`)
+               but transfers the expr STRING for re-evaluation in the
+               child's engine; C11 evaluates parent-side because each
+               generated SM owns its own Lua state and a parent-side
+               variable name is undefined in the child's state. For
+               literal exprs (the entire W3C corpus param/namelist
+               surface) both shapes converge on the same observable.
+
+               Names not declared in the child's `<datamodel>` skip
+               the transfer (test245: namelist Var2 with no child
+               <data id="Var2"> stays unbound) — mirrors cpp's
+               `DatamodelValidationHelper::isVariableDeclaredInChild`
+               filter at `invoke_methods.jinja2:102-104`. */
+            {% if invoke_info.params %}
+            {% for param in invoke_info.params %}
+            {% if invoke_info.child_datamodel_vars and param.name in invoke_info.child_datamodel_vars %}
+            /* `<param name="{{ param.name }}" expr="{{ param.expr | escape_c }}"/>` */
+            if (luaL_dostring(sm->L,
+                "return ({{ param.expr | to_lua_expr | escape_c }})") == 0) {
+{{ se.lua_xfer_top_to_child("sm->L", "sm->child_" ~ invoke_info.field_suffix ~ ".L", param.name) }}
+            } else {
+                lua_pop(sm->L, 1);
+            }
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            {% if invoke_info.namelist %}
+            {% for ns_name in invoke_info.namelist.split() %}
+            {% if invoke_info.child_datamodel_vars and ns_name in invoke_info.child_datamodel_vars %}
+            /* namelist `{{ ns_name }}` */
+            lua_getglobal(sm->L, "{{ ns_name }}");
+{{ se.lua_xfer_top_to_child("sm->L", "sm->child_" ~ invoke_info.field_suffix ~ ".L", ns_name) }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            {% endif %}
+            {% if invoke_info.child_has_send_to_parent %}
+            /* W3C SCXML 6.4: drive the child's deferred macrostep loop
+               now that param/namelist have been applied and parent
+               routing is live. The bound (16) is a safety net — the
+               W3C corpus' Phase-3 children reach `<final>` in one
+               macrostep (single eventless transition + send-to-parent
+               + enter subFinal). The first iteration that observes
+               `is_in_final_state` exits before calling `_step` again
+               so a child that finalised during init's entry walk
+               (test247-style sync-final) costs zero `_step` calls. */
+            for (int _step_n = 0; _step_n < 16; ++_step_n) {
+                if ({{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+                    break;
+                }
+                {{ invoke_info.child_name }}_step(&sm->child_{{ invoke_info.field_suffix }});
+            }
+            {% endif %}
+            /* The child's `_init` runs the configuration entry walk and
+               onentry actions of its initial state. When the initial is
+               a top-level <final> (test247), is_in_final_state returns
+               true at this point and we synthesise `done.invoke`
+               immediately so the parent's next dequeue drains it. */
+            if ({{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+                {% if invoke_info.child_has_send_to_parent %}
+                /* W3C SCXML 3.4 (test236): run `<onexit>` on every
+                   still-active child state BEFORE raising `done.invoke`
+                   so a `<final>` with `<onexit><send target="#_parent">`
+                   gets its verdict event onto the parent's external
+                   queue ahead of the completion event. Children whose
+                   own SCXML never sends to `#_parent` (test247-shape:
+                   pure `<final>` with no exit body) skip the helper —
+                   they have no `_finalize_session` symbol to call. */
+                {{ invoke_info.child_name }}_finalize_session(&sm->child_{{ invoke_info.field_suffix }});
+                {% endif %}
+                {{ model.name }}_event_with_meta_t _done_evt;
+                memset(&_done_evt, 0, sizeof(_done_evt));
+                /* W3C SCXML 6.4 / 6.3.1 (test235): when the parent has a
+                   `done.invoke.<id>` transition (used_done_invoke_events
+                   contains the specific name), `use_specific_event` is
+                   set on the invoke and the spec-mirror raise emits the
+                   `_<id>` enum variant. Otherwise the generic
+                   `done.invoke` enum carries the event (test247). cpp
+                   `invoke_methods.jinja2:160` makes the same choice via
+                   the `Event::Done_invoke_<id>` vs `Event::Done_invoke`
+                   ternary. */
+                _done_evt.event = {% if invoke_info.use_specific_event %}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+                strncpy(_done_evt.invoke_id, p->invoke_id, (size_t)SCE_MAX_ID_LEN - 1u);
+                _done_evt.invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+                {{ model.name }}_raise_external(sm, &_done_evt);
+            }
+            continue;
+        }
+        {% endfor %}
+        {% for invoke_info in state.invokes | hybrid %}
+        if (p->state == (int){{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }}
+            && p->invoke_idx == {{ (state.invokes | scxml | length) + loop.index0 }}) {
+            /* W3C SCXML 6.4 (test216/530): hybrid invoke — evaluate
+               srcexpr/contentexpr at runtime (validation only) before
+               spawning the pre-generated AOT child stub. cpp
+               `invoke_methods.jinja2:179-249` is the equivalent. The
+               evaluated value is intentionally not consumed: the
+               W3C contract checked here is "evaluation succeeds at
+               invoke-fire time", not "evaluated string drives child
+               selection" — child SM identity is fixed at codegen time
+               by sce-build's `generate_hybrid_child_scxmls`. */
+            {% if model.needs_script_engine %}
+            {% if invoke_info.srcexpr %}
+            /* W3C SCXML 6.4.3: srcexpr eval-validation. */
+            if (luaL_dostring(sm->L,
+                "return ({{ invoke_info.srcexpr | to_lua_expr | escape_c }})") != 0) {
+                lua_pop(sm->L, 1);
+                {{ model.name }}_event_with_meta_t _err_evt;
+                memset(&_err_evt, 0, sizeof(_err_evt));
+                _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+                {{ model.name }}_raise(sm, &_err_evt);
+                continue;
+            }
+            lua_pop(sm->L, 1);
+            {% elif invoke_info.contentexpr %}
+            /* W3C SCXML 6.4.4: contentexpr eval-validation. */
+            if (luaL_dostring(sm->L,
+                "return ({{ invoke_info.contentexpr | to_lua_expr | escape_c }})") != 0) {
+                lua_pop(sm->L, 1);
+                {{ model.name }}_event_with_meta_t _err_evt;
+                memset(&_err_evt, 0, sizeof(_err_evt));
+                _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+                {{ model.name }}_raise(sm, &_err_evt);
+                continue;
+            }
+            lua_pop(sm->L, 1);
+            {% endif %}
+            {% endif %}
+            /* W3C SCXML 6.4: spawn pre-generated AOT stub child
+               `{{ invoke_info.child_name }}` (initial=`<final>` so the
+               child reaches its final state during `_init`'s entry
+               walk and the immediate-final raise below fires
+               `done.invoke` synchronously). */
+            {{ invoke_info.child_name }}_init(&sm->child_{{ invoke_info.field_suffix }});
+            sm->child_{{ invoke_info.field_suffix }}_active = true;
+            strncpy(sm->child_{{ invoke_info.field_suffix }}_invoke_id, p->invoke_id,
+                    (size_t)SCE_MAX_ID_LEN - 1u);
+            sm->child_{{ invoke_info.field_suffix }}_invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            if ({{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+                {{ model.name }}_event_with_meta_t _done_evt;
+                memset(&_done_evt, 0, sizeof(_done_evt));
+                _done_evt.event = {% if invoke_info.use_specific_event %}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+                strncpy(_done_evt.invoke_id, p->invoke_id, (size_t)SCE_MAX_ID_LEN - 1u);
+                _done_evt.invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+                {{ model.name }}_raise_external(sm, &_done_evt);
+            }
+            continue;
+        }
+        {% endfor %}
+        {% endfor %}
+    }
+}
+
+{# ── drive_active_children ───────────────────────────────────────────
+   W3C SCXML 6.4: drive every active child's macrostep so the parent's
+   `<send target="#_<invokeid>" event="X">` lower (which enqueued onto
+   the child's external queue) gets drained on the next call cycle.
+   When a child reaches its top-level `<final>` here we synthesise
+   `done.invoke` onto the parent's external queue — same shape as the
+   sync-final raise in `execute_pending_invokes`. The parent's `_step`
+   calls this AFTER `process_event_queues` and `execute_pending_invokes`
+   so any sends the child raises during its own step (`<send target=
+   "#_parent">` from a transition body) land on the parent's external
+   queue in time for the next macrostep iteration to dequeue them. #}
+static void {{ model.name }}_drive_active_children({{ model.name }}_t *sm) {
+    {% for state_id, state in model.states | dictsort %}
+    {% for invoke_info in state.invokes | hybrid %}
+    /* W3C SCXML 6.4 (test216/530): hybrid stub children always reach
+       `<final>` during `_init` (initial="final" by construction in
+       `generate_hybrid_child_scxmls`), so the active flag will already
+       be paired with `is_in_final_state == true` on entry. The only
+       reason to drive them is defensive — a future stub that defers
+       finalisation would land here. The trivial-stub fast path below
+       no-ops gracefully. */
+    if (sm->child_{{ invoke_info.field_suffix }}_active
+        && !{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+        {{ invoke_info.child_name }}_step(&sm->child_{{ invoke_info.field_suffix }});
+        if ({{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+            {{ model.name }}_event_with_meta_t _done_evt;
+            memset(&_done_evt, 0, sizeof(_done_evt));
+            _done_evt.event = {% if invoke_info.use_specific_event %}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+            strncpy(_done_evt.invoke_id, sm->child_{{ invoke_info.field_suffix }}_invoke_id,
+                    (size_t)SCE_MAX_ID_LEN - 1u);
+            _done_evt.invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            {{ model.name }}_raise_external(sm, &_done_evt);
+        }
+    }
+    {% endfor %}
+    {% for invoke_info in state.invokes | scxml %}
+    if (sm->child_{{ invoke_info.field_suffix }}_active
+        && !{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+        {% if invoke_info.child_needs_event_scheduler %}
+        /* W3C SCXML 6.2 (test207): the child carries `<send delay>`
+           in its own session, so call its `_tick` (which promotes
+           elapsed scheduled events onto its internal queue, then
+           runs a macrostep). Driving `_step` alone would never
+           dispatch the child's delayed events. */
+        {{ invoke_info.child_name }}_tick(&sm->child_{{ invoke_info.field_suffix }});
+        {% else %}
+        {{ invoke_info.child_name }}_step(&sm->child_{{ invoke_info.field_suffix }});
+        {% endif %}
+        if ({{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+            {% if invoke_info.child_has_send_to_parent %}
+            /* W3C SCXML 3.4 (test236-shape async-final): mirror the
+               sync-final exit walk so `<onexit>` of the just-entered
+               final state runs before `done.invoke`. */
+            {{ invoke_info.child_name }}_finalize_session(&sm->child_{{ invoke_info.field_suffix }});
+            {% endif %}
+            /* W3C SCXML 6.4 / 6.3.1: child completed asynchronously
+               (post-init parent→child message drove it to <final>).
+               Raise done.invoke with the spawn-time invoke_id stamped
+               by `execute_pending_invokes`. The send-to-parent body
+               of the child's terminal transition has already enqueued
+               onto sm's external queue — done.invoke lands AFTER it
+               (FIFO) so a parent that has both a verdict-event
+               transition and a `done.invoke → fail` net (test192/253)
+               drains the verdict event first. */
+            {{ model.name }}_event_with_meta_t _done_evt;
+            memset(&_done_evt, 0, sizeof(_done_evt));
+            _done_evt.event = {% if invoke_info.use_specific_event %}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+            strncpy(_done_evt.invoke_id, sm->child_{{ invoke_info.field_suffix }}_invoke_id,
+                    (size_t)SCE_MAX_ID_LEN - 1u);
+            _done_evt.invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            {{ model.name }}_raise_external(sm, &_done_evt);
+        }
+    }
+    {% endfor %}
+    {% endfor %}
+}
+
+{# ── destroy_active_children ──────────────────────────────────────────
+   Called from `_destroy` to reclaim any children still active.
+   Idempotent on already-destroyed children (active flag gate). #}
+static void {{ model.name }}_destroy_active_children({{ model.name }}_t *sm) {
+    {% for state_id, state in model.states | dictsort %}
+    {% for invoke_info in state.invokes | scxml %}
+    if (sm->child_{{ invoke_info.field_suffix }}_active) {
+        {{ invoke_info.child_name }}_destroy(&sm->child_{{ invoke_info.field_suffix }});
+        sm->child_{{ invoke_info.field_suffix }}_active = false;
+    }
+    {% endfor %}
+    {% for invoke_info in state.invokes | hybrid %}
+    if (sm->child_{{ invoke_info.field_suffix }}_active) {
+        {{ invoke_info.child_name }}_destroy(&sm->child_{{ invoke_info.field_suffix }});
+        sm->child_{{ invoke_info.field_suffix }}_active = false;
+    }
+    {% endfor %}
+    {% endfor %}
+}

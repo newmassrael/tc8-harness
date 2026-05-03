@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPV4_REASSEMBLY_07: DUT does not reassemble fragments
+  when an internal fragment is missing. TESTER injects fragment 0
+  (offset=0, MF=1) and fragment 2 (offset=2, MF=0) but skips
+  fragment 1 (offset=1). The bucket carries bytes 0..7 (ICMP header)
+  and 16..23, leaving a hole at octets 8..15 — a conformant DUT
+  (RFC 791 §3.2) holds the partial datagram, the reassembly timer
+  expires, the bucket is freed, no Echo Reply.
+
+  Body shared with §4.3 ICMP absence cases via
+  icmpv4_negative_absence. Dispatch narrows to type=0 Echo Reply.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_07"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_replied_with_internal_gap"/>
+</scxml>

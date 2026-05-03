@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.1 IPv4_HEADER_05: All hosts must accept datagrams of up
+  to 576 octets (RFC 791 §3.1 MUST). Tester injects an ICMP Echo
+  Request with IP Total Length=576 and 548 B Data; DUT replies; SCXML
+  asserts the reply's payload_len == 548 (the DUT didn't truncate the
+  echoed data).
+
+  Test Procedure (p101-p120.txt:484):
+    1. TESTER: Send ICMP Echo Request, IP Total Length=576, 556 B
+       payload after IP header (8 B ICMP header + 548 B data).
+    3. DUT: Send ICMP Echo Reply.
+    4. TESTER: Verify Identifier, Sequence Number, and Data of Reply
+       match Request.
+
+  payload_len = 548 (libtins-side post-ICMP-header wire size). echo_id
+  + echo_seq match the harness's stimulus literals via
+  expected.echo_id / expected.echo_seq.
+
+  Note: 576 octets is well under the 1500 B MTU, so the datagram
+  travels as a single non-fragmented IP packet — no fragmentation
+  helper needed.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_header_05"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq and captured.echo_payload_matches_index_pattern(548)"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.payload_len != 548"
+                target="fail_payload_truncated"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.payload_len == 548 and !captured.echo_payload_matches_index_pattern(548)"
+                target="fail_payload_mismatch"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_payload_truncated">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_truncated_576_byte_datagram_data"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_payload_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_echoed_576_byte_data_with_wrong_bytes"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_echo_reply_for_576_byte_datagram"}</content>
+    </donedata>
+  </final>
+</scxml>

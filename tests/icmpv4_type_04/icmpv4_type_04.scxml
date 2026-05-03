@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_04: If fragment zero is not available,
+  no Time Exceeded message need be sent at all (RFC 792 p7). TESTER
+  sends a single IP fragment with MF=0, offset > 0, carrying what
+  would be the last half of an ICMP packet; fragment 0 is never
+  sent. After the DUT's IP fragment reassembly timer expires the
+  DUT MUST NOT emit Time Exceeded because fragment 0 is absent.
+
+  Body shared with icmpv4_type_05/10/16 + icmpv4_error_03/04/05
+  via sce:template. Dispatch narrows to type=11 (Time Exceeded) —
+  the only reply type whose presence would fail the case.
+
+  Stimulus blocks for `post_send_wait` seconds (default 30 s to
+  cover Linux `net.ipv4.ipfrag_time`) BEFORE returning, so
+  TestRunner arms the SCXML 3 s listen window only AFTER the DUT's
+  reassembly timer has elapsed. That window catches any post-
+  timeout Time Exceeded emission without eroding the absence-
+  verdict's coverage. `CASE_TIMEOUT_SEC[ICMPV4_TYPE_04]` in
+  smoke-test.sh widens the harness watchdog accordingly.
+
+  No negative smoke row: absence-shape; any expectation flip also
+  lands on timeout → fake-positive verdict. Shared limitation with
+  TYPE_05/10/16 and ERROR_03/04/05.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_04"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_sent_time_exceeded_for_missing_fragment_zero"/>
+</scxml>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_46: ARP Response (Hardware Type check). The Reply
+  must carry hw_type = ARP_HARDWARE_ETHERNET (0x0001) per RFC 826 for a
+  10Mbit Ethernet binding. The expected value is the RFC constant, not
+  a CLI-supplied identity, so it is hardcoded in the SCXML guard.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_46"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.hw_type == 1"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.hw_type != 1"
+                target="fail_hw_type_not_eth"/>
+    <transition event="deadline_exceeded" target="fail_no_reply"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_hw_type_not_eth">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reply_hw_type_not_ethernet"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

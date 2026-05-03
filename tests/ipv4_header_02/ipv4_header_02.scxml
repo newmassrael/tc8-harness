@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.1 IPv4_HEADER_02: DUT silently discards an IPv4 packet
+  whose Header Length field indicates a value less than 20 bytes
+  (IHL < 5 32-bit words). Derived from RFC 791 section 3.1.
+
+  Stimulus: TESTER injects an ICMPv4 Echo Request with IHL=4 (16-byte
+  header claim). A conformant DUT drops on the iph->ihl < 5 check
+  before routing; no Echo Reply reaches the tester.
+
+  Body shared with HEADER_04 / 08 / 09, CHECKSUM_02, ADDRESSING_03 via
+  sce:template (tests/_templates/ipv4_negative_absence.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_header_02"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_negative_absence.sce-template.xml"
+           fail_reason="dut_replied_despite_ihl_lt_5"/>
+</scxml>

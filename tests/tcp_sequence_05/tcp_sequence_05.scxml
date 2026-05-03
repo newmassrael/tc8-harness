@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.17 TCP_SEQUENCE_05: from ESTABLISHED, the DUT MUST
+  acknowledge each tester data segment with a cumulative ACK whose
+  ack_num covers the bytes received so far (RFC 793 §3.4 p27 ACK
+  generation, §3.7 p41 Receiving a Segment).
+
+  v3.0 Test Procedure (p381-p400.txt:689-692):
+    1. TESTER: Bring DUT to ESTABLISHED state.
+    2. TESTER: Send several TCP packets with Sequence Number
+               correctly incremented.
+    3. DUT:    Sends an ACK for every received packet with the
+               expected Ack Numbers.
+
+  Mechanism:
+    driveRawPassiveHandshake on listen 13165 / tester +165 brings DUT
+    to ESTABLISHED with tester snd_nxt = kTesterInitialSeq + 1. The
+    stimulus then emits three 4-byte PSH+ACK segments at 100 ms gaps
+    so each lands inside Linux's quickack window post-handshake
+    (delayed ACK is suppressed for the first few segments). DUT
+    cumulative ACKs progress through:
+      kTesterInitialSeq + 5  (after seg 1, payload [0xC0..0xFE])
+      kTesterInitialSeq + 9  (after seg 2)
+      kTesterInitialSeq + 13 (after seg 3)
+
+  Pass chain: 3 sequential listening states, each waiting for a pure
+  DUT ACK on the listen tuple with strict equality on ack_num. The
+  4-tuple match (src_ip, dst_ip, src_port, dst_port) plus
+  payload_len == 0 + ACK only flags isolate the case from any
+  ambient stray ACKs.
+
+  Linux-quickack DUT assumption (and non-Linux DUT caveat):
+    Strict "1 ACK per segment" cadence relies on Linux quickack
+    being ON for the first ~16 segments post-handshake. A DUT
+    honouring RFC 1122 §4.2.3.2 delayed ACK (≤500 ms coalescing) MAY
+    legally combine 2-3 segments into a single cumulative ACK; under
+    that policy the SCXML chain would land at fail_timeout_seg2 or
+    seg3 — a spurious fail driven by test-design, not a true
+    conformance gap. To make the case robust against arbitrary
+    delayed-ACK DUTs, raise the inter-segment gap in the trait to
+    >500 ms (current 100 ms × 3 = 300 ms is safe only against
+    quickack-style stacks). The 100 ms choice trades non-Linux
+    robustness for ~1.5 s wall-time savings. Spec text "ACK for every
+    received TCP Segments" is ambiguous as to whether each segment
+    must elicit a *separate* ACK or whether cumulative coverage
+    suffices; this case interprets strict per-segment.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_sequence_05"
+       datamodel="null"
+       initial="listen_seg1_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listen_seg1_ack">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 5U"
+                target="listen_seg2_ack"/>
+    <transition event="deadline_exceeded" target="fail_timeout_seg1"/>
+  </state>
+
+  <state id="listen_seg2_ack">
+    <onentry>
+      <send event="deadline_exceeded_2" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 9U"
+                target="listen_seg3_ack"/>
+    <transition event="deadline_exceeded_2" target="fail_timeout_seg2"/>
+  </state>
+
+  <state id="listen_seg3_ack">
+    <onentry>
+      <send event="deadline_exceeded_3" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 13U"
+                target="pass"/>
+    <transition event="deadline_exceeded_3" target="fail_timeout_seg3"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_seg1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_seg2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_seg3">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg3"}</content>
+    </donedata>
+  </final>
+</scxml>

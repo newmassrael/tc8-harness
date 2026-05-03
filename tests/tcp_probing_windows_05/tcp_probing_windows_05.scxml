@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.12 TCP_PROBING_WINDOWS_05: TCP SHOULD send the first zero
+  window probe when the receiver window size remains zero for the
+  retransmission timeout period (RFC 1122 §4.2.2.17 p92 — RFC 793 §3.7
+  page 42 SHOULD).
+
+  v3.0 Test Procedure (p377):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
+    2. TESTER: Cause the application on the DUT-side to issue a SEND
+               request for data segments.
+    3. DUT:    Send the data segment.
+    4. TESTER: Send ACK declaring a zero window.
+    5. TESTER: Cause the application on the DUT-side to issue another
+               SEND request for data segment.
+    6. DUT:    Send a zero window probe after some delay.
+    7. TESTER: Verify that the probe has been sent by the DUT after
+               waiting for at least the retransmission timeout.
+
+  Mechanism (active-OPEN handshake + small SEND + zero-window ACK +
+  second SEND + probe observation):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+150,
+       kBasicsActiveRemotePort+150).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt. seg1_seq
+       (= rcv_nxt) is the seq Linux will assign to the first DUT
+       data segment.
+    4. TesterAutoAckDrop suppresses tester-kernel auto-ACKs so the
+       harness retains full control over ACK injection (otherwise a
+       full-window kernel ACK to seg1 would race ahead of the
+       harness's window=0 ACK and the DUT would never enter persist
+       mode).
+    5. UT OpSendTcpData(socket_id=1, payload=N B) — DUT emits seg1.
+    6. Settle ~150 ms; raw-inject ACK at seg1_seq+N with `window=0`.
+       DUT advances snd_una to seg1_seq+N, sets snd_wnd=0, and
+       starts the persist timer.
+    7. UT OpSendTcpData(socket_id=1, payload=M B) — Linux enqueues
+       M bytes; snd_wnd=0 prevents transmission. Probe-fire await.
+    8. After Linux's first persist RTO (~200 ms..1 s on a fresh
+       connection — TCP_RTO_MIN=200 ms baseline scaled by srtt),
+       `tcp_send_probe0` → `tcp_xmit_probe_skb(sk, 0)` emits a
+       0-byte ACK at seq = snd_una - 1. `payload_len == 0`, so the
+       probe matches `is_pure_dut_ack` (not `is_dut_data_segment`).
+
+    Captured.expected_ack_num is preloaded with the spec-conformant
+    probe seq (= seg1_seq + N - 1 = snd_una_post_ack - 1). The
+    handshake third-leg ACK (also a pure DUT ACK) carries seq =
+    seg1_seq, which is structurally distinct from the probe seq, so
+    a stray handshake-ACK observation cannot satisfy the probe-pass
+    guard.
+
+  Two-state SCXML chain:
+    * listening_seg1   — observe seg1 (DUT data segment with
+      payload>0).
+    * listening_probe  — observe DUT pure ACK with `seq_num ==
+      captured.expected_ack_num` (= snd_una - 1). 6 s deadline
+      covers Linux's first-probe RTO with comfortable margin
+      (TCP_RTO_MIN 200 ms .. RTO_MAX 120 s; on a fresh local-veth
+      connection without RTT samples the initial RTO is typically
+      ~200 ms..1 s).
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_seg1 via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_probing_windows_05"
+       datamodel="null"
+       initial="listening_seg1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_seg1">
+    <onentry>
+      <send event="deadline_seg1" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset)"
+                target="listening_probe"/>
+    <transition event="deadline_seg1" target="fail_no_seg1"/>
+  </state>
+
+  <state id="listening_probe">
+    <onentry>
+      <send event="deadline_probe" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset) and captured.seq_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="deadline_probe" target="fail_no_zero_window_probe"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_seg1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_zero_window_probe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_within_rto_window"}</content>
+    </donedata>
+  </final>
+</scxml>

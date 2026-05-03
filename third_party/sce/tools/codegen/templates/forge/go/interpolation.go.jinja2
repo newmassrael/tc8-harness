@@ -1,0 +1,37 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="interpolation")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+package {{ package }}
+
+import "github.com/newmassrael/sce-forge-runtime/interpolation"
+
+{% for axis in axes %}
+var {{ axis.var_name }} = []float64{ {% for bp in axis.breakpoints %}{{ bp }}{% if not loop.last %}, {% endif %}{% endfor %} }
+{% endfor %}
+{% if is_bilinear %}
+var values = [][]float64{
+{% for r in range(rows) %}
+	{ {% for c in range(cols) %}{{ values[r * cols + c] }}{% if not loop.last %}, {% endif %}{% endfor %} },
+{% endfor %}
+}
+{% else %}
+var values = []float64{ {% for v in values %}{{ v }}{% if not loop.last %}, {% endif %}{% endfor %} }
+{% endif %}
+
+func Lookup({{ params }}) {{ output_type }} {
+{% if is_bilinear %}
+	return interpolation.Bilinear(
+		{{ axes[0].var_name }}, {{ axes[1].var_name }}, values,
+		float64({{ axes[0].input_id }}), float64({{ axes[1].input_id }}),
+	)
+{% else %}
+	return interpolation.Linear(
+		{{ axes[0].var_name }}, values,
+		float64({{ axes[0].input_id }}),
+	)
+{% endif %}
+}

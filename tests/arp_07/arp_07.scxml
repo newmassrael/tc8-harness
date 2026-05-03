@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_07: ARP request sending (ARP request send on missing
+  entry). With the DUT's ARP cache cleared, when the DUT tries to emit a
+  unicast packet to the tester it must first ARP-resolve the tester's IP
+  by broadcasting an ARP Request. setup-netns.sh flushes the DUT's neigh
+  table after the reachability ping, so cache-miss is the steady-state
+  precondition; the harness then sends a FindService stimulus to provoke
+  a unicast OfferService reply, which is what triggers the ARP Request.
+
+  The case passes on observation of any ARP Request frame; an ARP frame
+  with a non-Request opcode is an explicit conformance failure.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_07"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode != 1"
+                target="fail_opcode"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_opcode">
+    <donedata>
+      <content>{"verdict":"fail","reason":"first_arp_was_not_request"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

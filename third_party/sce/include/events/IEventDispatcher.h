@@ -1,0 +1,227 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
+
+#pragma once
+
+#include "EventDescriptor.h"
+#include "IEventTarget.h"
+#include <chrono>
+#include <functional>
+#include <future>
+#include <string>
+
+namespace SCE {
+
+// Forward declarations
+struct EventDescriptor;
+class IEventTarget;
+
+/**
+ * @brief Callback type for event execution
+ *
+ * Called when scheduled events are ready for execution.
+ * Parameters: EventDescriptor (includes logicalExecuteTime for FIFO), IEventTarget, sendId
+ * Returns: true if execution succeeded
+ */
+using EventExecutionCallback =
+    std::function<bool(const EventDescriptor &, std::shared_ptr<IEventTarget>, const std::string &)>;
+
+/**
+ * @brief Interface for dispatching SCXML events
+ *
+ * Provides high-level event sending capabilities with support for
+ * delayed delivery, cancellation, and various target types.
+ * Follows the Command pattern for flexible event handling.
+ */
+class IEventDispatcher {
+public:
+    virtual ~IEventDispatcher() = default;
+
+    /**
+     * @brief Send an event immediately
+     * @param event Event descriptor containing all event information
+     * @return Future with send result including assigned sendId
+     */
+    virtual std::future<SendResult> sendEvent(const EventDescriptor &event) = 0;
+
+    /**
+     * @brief Send an event with delay
+     * @param event Event descriptor
+     * @param delay Delay before sending
+     * @return Future with send result including assigned sendId
+     */
+    virtual std::future<SendResult> sendEventDelayed(const EventDescriptor &event, std::chrono::milliseconds delay) = 0;
+
+    /**
+     * @brief Cancel a previously scheduled event
+     * @param sendId Send ID returned from sendEvent or sendEventDelayed
+     * @param sessionId Session ID for cross-session isolation (empty = no session check)
+     * @return true if event was successfully cancelled
+     */
+    virtual bool cancelEvent(const std::string &sendId, const std::string &sessionId = "") = 0;
+
+    /**
+     * @brief Check if an event is still pending
+     * @param sendId Send ID to check
+     * @return true if event is scheduled but not yet sent
+     */
+    virtual bool isEventPending(const std::string &sendId) const = 0;
+
+    /**
+     * @brief Get dispatcher statistics for monitoring
+     * @return Statistics string (sent count, pending count, etc.)
+     */
+    virtual std::string getStatistics() const = 0;
+
+    /**
+     * @brief Shutdown the dispatcher and cancel all pending events
+     */
+    virtual void shutdown() = 0;
+
+    /**
+     * @brief Cancel all events for a specific session (W3C SCXML 6.2 compliance)
+     * @param sessionId Session whose events should be cancelled
+     * @return Number of events cancelled
+     */
+    virtual size_t cancelEventsForSession(const std::string &sessionId) = 0;
+};
+
+/**
+ * @brief Information about a scheduled event for debugging/visualization
+ *
+ * Used by interactive debugger to display pending delayed events.
+ * Includes complete EventDescriptor fields for accurate snapshot restoration.
+ *
+ * W3C SCXML 6.2: Contains all information needed to recreate scheduled event.
+ */
+struct ScheduledEventInfo {
+    std::string eventName;
+    std::string sendId;
+    std::chrono::milliseconds remainingTime;
+    std::chrono::milliseconds originalDelay;  // Original delay for step backward restoration
+    std::string sessionId;
+
+    // W3C SCXML 6.2: Complete EventDescriptor fields for restoration
+    std::string targetUri;                                   // Target URI from EventDescriptor
+    std::string eventType;                                   // Event type (scxml, platform, etc.)
+    std::string eventData;                                   // Event data payload
+    std::string content;                                     // HTTP body content (W3C SCXML C.2)
+    std::map<std::string, std::vector<std::string>> params;  // W3C SCXML 6.2: param name-value pairs
+};
+
+/**
+ * @brief Interface for event scheduling
+ *
+ * Handles delayed event delivery with cancellation support.
+ * Separated from IEventDispatcher for better testability.
+ */
+/**
+ * @brief Scheduler execution mode for Interactive vs Normal operation
+ *
+ * W3C SCXML 3.13: Interactive mode requires manual control of event processing
+ * for time-travel debugging, while normal mode uses automatic timer-based execution.
+ */
+enum class SchedulerMode {
+    AUTOMATIC,  ///< Normal mode: scheduled events automatically poll when ready (timer-based)
+    MANUAL      ///< Interactive mode: scheduled events poll only when explicitly requested
+};
+
+class IEventScheduler {
+public:
+    virtual ~IEventScheduler() = default;
+
+    /**
+     * @brief Schedule an event for future delivery
+     * @param event Event to schedule
+     * @param delay Delay before delivery
+     * @param target Event target for delivery
+     * @param sendId Optional send ID (auto-generated if empty)
+     * @param sessionId Session ID that created this event (for cancellation on session termination)
+     * @return Future containing the assigned send ID
+     */
+    virtual std::future<std::string> scheduleEvent(const EventDescriptor &event, std::chrono::milliseconds delay,
+                                                   std::shared_ptr<IEventTarget> target, const std::string &sendId = "",
+                                                   const std::string &sessionId = "") = 0;
+
+    /**
+     * @brief Cancel a scheduled event
+     * @param sendId Send ID of the event to cancel
+     * @param sessionId Session ID for cross-session isolation (empty = no session check)
+     * @return true if event was found and cancelled
+     */
+    virtual bool cancelEvent(const std::string &sendId, const std::string &sessionId = "") = 0;
+
+    /**
+     * @brief Cancel all scheduled events for a specific session
+     * @param sessionId Session ID whose events should be cancelled
+     * @return Number of events that were cancelled
+     */
+    virtual size_t cancelEventsForSession(const std::string &sessionId) = 0;
+
+    /**
+     * @brief Check if an event is still scheduled
+     * @param scheduleId Schedule ID to check
+     * @return true if event is scheduled but not yet delivered
+     */
+    virtual bool hasEvent(const std::string &sendId) const = 0;
+
+    /**
+     * @brief Get number of currently scheduled events
+     * @return Count of pending scheduled events
+     */
+    virtual size_t getScheduledEventCount() const = 0;
+
+    /**
+     * @brief Shutdown scheduler and cancel all pending events
+     * @param waitForCompletion Whether to wait for running events to complete
+     */
+    virtual void shutdown(bool waitForCompletion = true) = 0;
+
+    /**
+     * @brief Check if scheduler is currently running
+     * @return true if scheduler is active
+     */
+    virtual bool isRunning() const = 0;
+
+    /**
+     * @brief Get list of currently scheduled events (for debugging/visualization)
+     *
+     * Returns information about all pending scheduled events, including
+     * remaining time until execution. Used by interactive debugger to
+     * visualize delayed send operations.
+     *
+     * @return Vector of ScheduledEventInfo structures
+     */
+    virtual std::vector<ScheduledEventInfo> getScheduledEvents() const = 0;
+
+    /**
+     * @brief Set scheduler execution mode
+     *
+     * W3C SCXML 3.13: Interactive mode disables automatic polling to support
+     * time-travel debugging. Normal mode enables automatic timer-based polling.
+     *
+     * @param mode AUTOMATIC for normal execution, MANUAL for interactive debugging
+     */
+    virtual void setMode(SchedulerMode mode) = 0;
+
+    /**
+     * @brief Get current scheduler execution mode
+     *
+     * @return Current SchedulerMode
+     */
+    virtual SchedulerMode getMode() const = 0;
+
+    /**
+     * @brief Force poll scheduled events regardless of mode (for interactive debugging)
+     *
+     * W3C SCXML 3.13: In MANUAL mode, automatic polling is disabled via poll().
+     * Interactive debugger uses forcePoll() to explicitly step through scheduled events.
+     *
+     * @return Number of events processed
+     */
+    virtual size_t forcePoll() = 0;
+};
+
+;
+
+}  // namespace SCE

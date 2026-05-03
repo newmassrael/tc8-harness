@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.17 TCP_SEQUENCE_03: from LISTEN, the DUT MUST accept a SYN
+  carrying Sequence Number = 0 and emit SYN,ACK with ack_num == 1
+  (RFC 793 §3.1 p13: ISN may be any 32-bit value; zero is legal).
+
+  v3.0 Test Procedure (p381-p400.txt:614-617):
+    1. TESTER: Bring DUT to state LISTEN.
+    2. TESTER: Send a SYN with the Sequence Number equal to 0.
+    3. DUT:    Sends an SYN,ACK with an ACK Number equal to 1.
+
+  Mechanism: same shape as SEQUENCE_01 with `tester_isn = 0U`. The
+  driveRawPassiveHandshake helper carries the override. The SCXML
+  guard expects `captured.ack_num == 1U`.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_sequence_03"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpSequence03ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpSequence03TesterSrcPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == 1U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpSequence03ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpSequence03TesterSrcPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num != 1U"
+                target="fail_wrong_ack_num"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_ack_num">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_synack_ack_num_not_1_for_zero_isn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

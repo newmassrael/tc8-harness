@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.3 IPv4_TTL_01: a host MUST NOT send a datagram with a
+  Time-to-Live value of zero (RFC 1122 section 3.2.1.7). Pass when the
+  DUT's ICMP Echo Reply IPv4 header carries TTL > 0.
+
+  Body shared with IPV4_HEADER_01 / IPV4_VERSION_03 via sce:template
+  (see tests/_templates/ipv4_field_check.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_ttl_01"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_field_check.sce-template.xml"
+           pass_expr="captured.ttl &gt; 0"
+           fail_state="fail_ttl"
+           fail_reason="ipv4_ttl_is_zero"/>
+</scxml>

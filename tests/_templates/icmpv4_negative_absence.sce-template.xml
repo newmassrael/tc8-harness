@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.3 ICMPv4 2-state no-reply shape: TESTER injects an ICMP message
+  the DUT should not act on (bad checksum, deprecated message type,
+  unknown type, etc.), the SCXML asserts no DUT-origin reply arrives
+  within the listen window.
+
+    * pass — listen window expires with no qualifying icmp_observed
+      event raised.
+    * fail_dut_replied — a DUT-origin ICMP frame matching the traits'
+      dispatch filter arrived within the window. Reason string via
+      {$fail_reason} so grep-based smoke triage can distinguish which
+      invariant the DUT violated without reading the SCXML id.
+
+  Shared body for icmpv4_type_10 (bad checksum — dispatch narrows to
+  type=0 Echo Reply), icmpv4_type_16 (Information Request — dispatch
+  narrows to type=16), and icmpv4_error_05 (unknown ICMP type —
+  dispatchAnyIcmpFrame, no type narrowing).
+
+  The fail-transition guard `captured.src_ip == expected.dut_iface_ip`
+  filters out the tester's own outbound ICMP frame (which the BPF
+  "icmp" filter also catches). TYPE_10/16 don't strictly need this
+  filter because their dispatch helpers already exclude tester frames
+  by reply-type narrowing, but ERROR_05's dispatchAnyIcmpFrame has no
+  type filter — the src_ip conjunct is its sole line of defense. The
+  guard is a no-op for the narrowed consumers (their dispatch never
+  raises icmp_observed on tester frames), so hosting it in the
+  template keeps the absence shape uniform without regressing the
+  existing cases.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="icmpv4_negative_absence">
+
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip"
+                target="fail_dut_replied"/>
+    <transition event="deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_replied">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

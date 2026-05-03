@@ -1,0 +1,70 @@
+Subject: Relax return_code validation on incoming Requests
+
+vsomeip's is_valid_return_code() is a whitelist that drops any incoming
+SOME/IP message whose return_code byte is outside {0x00..0x0A, 0x20..0x5E}.
+SOME/IP defines return_code semantics only for Response/Error message
+types — for Requests the byte is reserved/undefined.
+
+TC8 §5.1.5.7 SOMEIPSRV_RPC_07/_08 verify that the DUT ignores the value
+of the return_code byte on incoming Method Requests (RPC_07 sends 0xC0,
+RPC_08 sends 0x01 then 0x1F). Upstream vsomeip drops the request at the
+endpoint before the dispatcher sees it, so the spec assertion is
+unobservable on a Linux DUT.
+
+This patch gates the is_valid_return_code() check at both server-endpoint
+call sites (UDP + TCP) on the message type: requests skip the check,
+responses/errors/notifications still go through the existing whitelist.
+
+Affects:
+  implementation/endpoints/src/udp_server_endpoint_impl.cpp
+  implementation/endpoints/src/tcp_server_endpoint_impl.cpp
+Index: vsomeip/implementation/endpoints/src/tcp_server_endpoint_impl.cpp
+===================================================================
+--- vsomeip.orig/implementation/endpoints/src/tcp_server_endpoint_impl.cpp
++++ vsomeip/implementation/endpoints/src/tcp_server_endpoint_impl.cpp
+@@ -752,8 +752,9 @@ void tcp_server_endpoint_impl::connectio
+                         && (recv_buffer_[its_iteration_gap + VSOMEIP_PROTOCOL_VERSION_POS] != VSOMEIP_PROTOCOL_VERSION
+                             || !utility::is_valid_message_type(
+                                     static_cast<message_type_e>(recv_buffer_[its_iteration_gap + VSOMEIP_MESSAGE_TYPE_POS]))
+-                            || !utility::is_valid_return_code(
+-                                    static_cast<return_code_e>(recv_buffer_[its_iteration_gap + VSOMEIP_RETURN_CODE_POS])))) {
++                            || (static_cast<message_type_e>(recv_buffer_[its_iteration_gap + VSOMEIP_MESSAGE_TYPE_POS]) != message_type_e::MT_REQUEST
++                                && !utility::is_valid_return_code(
++                                    static_cast<return_code_e>(recv_buffer_[its_iteration_gap + VSOMEIP_RETURN_CODE_POS]))))) {
+                         if (recv_buffer_[its_iteration_gap + VSOMEIP_PROTOCOL_VERSION_POS] != VSOMEIP_PROTOCOL_VERSION) {
+                             VSOMEIP_ERROR_P << instance_name_ << "Wrong protocol version: 0x"
+                                             << hex2(recv_buffer_[its_iteration_gap + VSOMEIP_PROTOCOL_VERSION_POS])
+@@ -771,7 +772,8 @@ void tcp_server_endpoint_impl::connectio
+                                             << hex2(recv_buffer_[its_iteration_gap + VSOMEIP_MESSAGE_TYPE_POS])
+                                             << " local: " << get_address_port_local() << " remote: " << get_address_port_remote()
+                                             << ". Closing connection due to missing/broken data TCP stream.";
+-                        } else if (!utility::is_valid_return_code(
++                        } else if (static_cast<message_type_e>(recv_buffer_[its_iteration_gap + VSOMEIP_MESSAGE_TYPE_POS]) != message_type_e::MT_REQUEST
++                                   && !utility::is_valid_return_code(
+                                            static_cast<return_code_e>(recv_buffer_[its_iteration_gap + VSOMEIP_RETURN_CODE_POS]))) {
+                             VSOMEIP_ERROR_P << instance_name_ << "Invalid return code: 0x"
+                                             << hex2(recv_buffer_[its_iteration_gap + VSOMEIP_RETURN_CODE_POS])
+Index: vsomeip/implementation/endpoints/src/udp_server_endpoint_impl.cpp
+===================================================================
+--- vsomeip.orig/implementation/endpoints/src/udp_server_endpoint_impl.cpp
++++ vsomeip/implementation/endpoints/src/udp_server_endpoint_impl.cpp
+@@ -647,7 +647,8 @@ void udp_server_endpoint_impl::on_messag
+                     if (current_message_size > VSOMEIP_RETURN_CODE_POS
+                         && (_buffer[i + VSOMEIP_PROTOCOL_VERSION_POS] != VSOMEIP_PROTOCOL_VERSION
+                             || !utility::is_valid_message_type(tp::tp::tp_flag_unset(_buffer[i + VSOMEIP_MESSAGE_TYPE_POS]))
+-                            || !utility::is_valid_return_code(static_cast<return_code_e>(_buffer[i + VSOMEIP_RETURN_CODE_POS]))
++                            || (static_cast<message_type_e>(tp::tp::tp_flag_unset(_buffer[i + VSOMEIP_MESSAGE_TYPE_POS])) != message_type_e::MT_REQUEST
++                                && !utility::is_valid_return_code(static_cast<return_code_e>(_buffer[i + VSOMEIP_RETURN_CODE_POS])))
+                             || (tp::tp::tp_flag_is_set(_buffer[i + VSOMEIP_MESSAGE_TYPE_POS])
+                                 && get_local_port() == configuration_->get_sd_port()))) {
+                         if (_buffer[i + VSOMEIP_PROTOCOL_VERSION_POS] != VSOMEIP_PROTOCOL_VERSION) {
+@@ -662,7 +663,8 @@ void udp_server_endpoint_impl::on_messag
+                             VSOMEIP_ERROR_P << instance_name_ << "Invalid message type: 0x" << hex2(_buffer[i + VSOMEIP_MESSAGE_TYPE_POS])
+                                             << " local: " << get_address_port_local_unlocked() << " remote: " << its_remote_address << ":"
+                                             << its_remote_port;
+-                        } else if (!utility::is_valid_return_code(static_cast<return_code_e>(_buffer[i + VSOMEIP_RETURN_CODE_POS]))) {
++                        } else if (static_cast<message_type_e>(tp::tp::tp_flag_unset(_buffer[i + VSOMEIP_MESSAGE_TYPE_POS])) != message_type_e::MT_REQUEST
++                                   && !utility::is_valid_return_code(static_cast<return_code_e>(_buffer[i + VSOMEIP_RETURN_CODE_POS]))) {
+                             VSOMEIP_ERROR_P << instance_name_ << "Invalid return code: 0x" << hex2(_buffer[i + VSOMEIP_RETURN_CODE_POS])
+                                             << " local: " << get_address_port_local_unlocked() << " remote: " << its_remote_address << ":"
+                                             << its_remote_port;

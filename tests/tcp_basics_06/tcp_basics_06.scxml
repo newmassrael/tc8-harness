@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_06: in CLOSED state, on an active OPEN call
+  the DUT's TCP MUST emit a SYN. Derived from RFC 793 §3.2 p23
+  Terminology.
+
+  v3.0 Test Procedure (p281-p300.txt:558):
+    1. TESTER: Cause the application on the DUT-side to issue an
+               active OPEN call.
+    2. DUT:    Send a SYN.
+
+  Mechanism (§4.8.5 Upper Tester active-open + tester auxiliary
+  listener):
+    1. Tester UT OpOpenTcpSocket(Active, dut_local_port=49500,
+       remote=tester_ip:23456). tc8-dut binds (iface_ip, 49500),
+       calls connect() to the tester endpoint on a worker thread.
+    2. Tester `TesterTcpListener` is up on port 23456 so the DUT's
+       SYN reaches a real listener and the kernel completes the
+       handshake (rather than tester-kernel responding RST under
+       `tcp_v4_send_reset`). The auxiliary listener exists for the
+       benefit of the kernel's handshake plumbing — the spec
+       assertion is on the DUT-emitted SYN, not on whether the
+       tester accepts.
+    3. SCXML observes the DUT-emitted SYN on tcp_observed (BPF
+       filter scopes to tcp).
+
+  Pass guard conjuncts (one tcp_observed edge):
+    * captured.src_ip   == expected.dut_iface_ip   — DUT-origin
+    * captured.dst_ip   == expected.tester_ip      — addressed back
+    * captured.src_port == kBasicsActiveLocalPort (49500) — pinned bind
+    * captured.dst_port == kBasicsActiveRemotePort (23456)
+    * (captured.flags & SYN) != 0
+    * (captured.flags & ACK) == 0  — pure SYN, not SYN+ACK; rules
+                                     out a misrouted handshake reply
+
+  Tester-origin segments (the kernel's SYN+ACK reply during handshake)
+  reach tcp_observed but match no transition because their src_ip is
+  the tester not the DUT — the same src_ip-conjunct filtering pattern
+  used by the BASICS_04/05 listening_phase chain and §4.3 ICMP cases.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_06"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) == 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

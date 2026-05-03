@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.12 TCP_PROBING_WINDOWS_06: TCP SHOULD increase exponentially
+  the interval between successive zero-window probes (RFC 1122
+  §4.2.2.17 p92 — RFC 793 §3.7 page 42 SHOULD).
+
+  v3.0 Test Procedure (p378):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
+    2. TESTER: Cause the application on the DUT-side to issue a SEND
+               request for data segments.
+    3. DUT:    Send the data segment.
+    4. TESTER: Send ACK declaring a zero window.
+    5. TESTER: Cause the application on the DUT-side to issue another
+               SEND request for data segment.
+    6. DUT:    Keep sending zero window probes after some delays.
+    7. TESTER: Verify that the delays between successive probes
+               increases continually.
+
+  Mechanism (active-OPEN handshake + small SEND + zero-window ACK +
+  second SEND + observe 3 successive probes — no per-probe ACK):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+152,
+       kBasicsActiveRemotePort+152).
+    2. Tester listener.acceptOne(); queryTcpSeqRange snapshots the
+       post-handshake tester snd_nxt / rcv_nxt.
+    3. TesterAutoAckDrop suppresses tester-kernel auto-ACKs.
+    4. UT OpSendTcpData(N B) → DUT seg1.
+    5. Settle ~150 ms; raw-inject ACK at seg1_seq+N with `window=0`.
+    6. UT OpSendTcpData(M B) — bytes queue behind snd_wnd=0.
+    7. Linux's persist path emits zero-window probes via
+       `tcp_send_probe0` at exponentially-doubled intervals because
+       no probe is ACKed (each probe-fire increments
+       `icsk_backoff`). Inter-probe intervals: RTO0, 2*RTO0, 4*RTO0
+       (TCP_RTO_MIN=200 ms baseline).
+
+    Spec-strict verification of "delays increases continually" is
+    enforced via `frame_delta_us()` on the captured context (the
+    timestamp surface added in tandem with §4.8.6.11 RETRANSMISSION_TO
+    landings). probe2's transition guards on `frame_delta_us >
+    300000` (rejects ≤ 200 ms linear once probe1 has anchored the
+    initial probe RTO at Linux's TCP_RTO_MIN baseline); probe3
+    guards on `frame_delta_us > 600000` (rejects ≤ 400 ms linear
+    after probe2 ≥ 300 ms). Linux's `tcp_send_probe0` path
+    increments `icsk_backoff` and doubles `icsk_rto` on every probe
+    fire — yielding 200 / 400 / 800 ms inter-frame deltas — so the
+    canonical Linux behaviour comfortably clears every gate while a
+    DUT with constant-interval probe timing fails the strict bounds
+    starting at probe2.
+
+    Captured.expected_ack_num is preloaded with `snd_una_post_ack -
+    1` (the spec-conformant probe seq); all 3 probe-listening states
+    gate on `is_pure_dut_ack(...) and seq_num == expected_ack_num`.
+
+  Four-state SCXML chain:
+    * listening_seg1     — observe seg1 (DUT data segment).
+    * listening_probe1   — 4 s deadline (Linux first-probe RTO ~200 ms).
+    * listening_probe2   — 4 s deadline (~400 ms doubled interval).
+    * listening_probe3   — 6 s deadline (~800 ms doubled interval).
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_seg1 via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_probing_windows_06"
+       datamodel="null"
+       initial="listening_seg1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_seg1">
+    <onentry>
+      <send event="deadline_seg1" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset)"
+                target="listening_probe1"/>
+    <transition event="deadline_seg1" target="fail_no_seg1"/>
+  </state>
+
+  <state id="listening_probe1">
+    <onentry>
+      <send event="deadline_probe1" delay="4s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num"
+                target="listening_probe2"/>
+    <transition event="deadline_probe1" target="fail_no_probe1"/>
+  </state>
+
+  <state id="listening_probe2">
+    <onentry>
+      <send event="deadline_probe2" delay="4s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &gt; 300000"
+                target="listening_probe3"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &lt;= 300000"
+                target="fail_probe2_not_doubled"/>
+    <transition event="deadline_probe2" target="fail_no_probe2"/>
+  </state>
+
+  <state id="listening_probe3">
+    <onentry>
+      <send event="deadline_probe3" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &gt; 600000"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &lt;= 600000"
+                target="fail_probe3_not_doubled"/>
+    <transition event="deadline_probe3" target="fail_no_probe3"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_seg1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_probe1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_probe2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_probe3">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_3"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_probe2_not_doubled">
+    <donedata>
+      <content>{"verdict":"fail","reason":"probe2_delta_not_greater_than_initial_probe_rto"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_probe3_not_doubled">
+    <donedata>
+      <content>{"verdict":"fail","reason":"probe3_delta_not_greater_than_probe2_lower_bound"}</content>
+    </donedata>
+  </final>
+</scxml>

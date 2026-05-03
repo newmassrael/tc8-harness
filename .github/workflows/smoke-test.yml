@@ -1,0 +1,124 @@
+name: smoke-test
+
+on:
+  # Self-hosted runner: do NOT trigger on pull_request from public
+  # forks — that would let an attacker run arbitrary code on the
+  # runner host by submitting a malicious workflow patch in a PR.
+  # Only maintainer-controlled triggers (push to main, manual
+  # dispatch) are allowed. PR review for fork contributions falls
+  # back to the hosted build-test workflow.
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  # dorny/test-reporter@v1 creates per-job check runs to surface
+  # JUnit failures inline on the commit page; that needs the
+  # `checks: write` scope. Without it the publish step exits 1
+  # even when every smoke case passed.
+  checks: write
+
+jobs:
+  smoke:
+    name: dut/env/smoke-test.sh (--workers 4) on self-hosted [netns]
+    # Self-hosted runner with the `netns` label provisioned for veth-pair
+    # bring-up + sudo NOPASSWD for /home/<runner>/tc8-harness/dut/env/smoke-test.sh.
+    # See README.md §CI for setup notes.
+    #
+    # `--workers 4` is the production CI configuration. The earlier
+    # workers=1 strategy was a temporary workaround for a deterministic
+    # TCP_RETRANSMISSION_TO_03 flake under parallel load — the kernel's
+    # high-resolution retx timer fires later than expected when system
+    # CPU is saturated by 4 concurrent workers. Phase 9 replaced the
+    # case's pcap-timing observation with a kernel-side TCP_INFO poll
+    # (OpQueryTcpInfo, opcode 0x13) that is timing-noise-tolerant by
+    # construction; the workaround was retired alongside the fix.
+    runs-on: [self-hosted, netns]
+    # Cold build (vsomeip rebuild + 543 SCXML codegen + harness +
+    # tc8-dut + unit tests) plus 549-case positive smoke plus
+    # negative curated set on a mid-tier developer machine totals
+    # ~90 min. Subsequent runs reuse cmake incremental + actions/cache
+    # so they fit in ~25 min — we set the cap high enough for the cold
+    # path and rely on the test logic to hard-fail rather than the
+    # timer to bound runtime.
+    timeout-minutes: 120
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply vsomeip patch series + reinstall (idempotent)
+        # Re-runs `scripts/setup-vsomeip.sh` so the runner's vsomeip
+        # install always matches `third_party/vsomeip` HEAD + the
+        # checked-in `patches/vsomeip/series`. Without this, RPC_07/_08
+        # (which depend on patches/vsomeip/0001-relax-return-code-on-requests)
+        # would silently regress whenever the submodule SHA or patch
+        # series changes between PRs.
+        #
+        # NOPASSWD requirement: extend /etc/sudoers.d/tc8-runner so the
+        # runner can invoke
+        # /opt/actions-runner/_work/tc8-harness/tc8-harness/scripts/setup-vsomeip.sh
+        # (and the inner `sudo cmake --install`) without interactive
+        # auth. See README §CI for the full sudoers fragment.
+        run: sudo -n ./scripts/setup-vsomeip.sh
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTC8_SCE_FIND_PACKAGE=OFF
+      - name: Build harness + tc8-dut
+        run: cmake --build build -j4
+
+      - name: Run positive smoke (--workers 4 + JUnit)
+        # `--exclude-deferred` strips harness cases marked
+        # expected:false in doc/spec/inventory_overrides.json (today
+        # empty — by project policy, Linux-DUT-deviation failures stay
+        # active so a strict-RFC DUT under the same harness lands on
+        # pass and the spec coverage report remains honest).
+        #
+        # The grep -v below excludes 4 cases that always fail on a
+        # Linux DUT due to known kernel deviations from the spec's
+        # MUST/SHOULD requirements. CI green here therefore means "no
+        # regression in cases the Linux DUT is capable of passing."
+        # See:
+        #   - reference_linux_ip_reassembly_deviations.md
+        #     (REASSEMBLY_11/_13: ipfrag_time + post-CVE-2018-5391
+        #     overlap drop)
+        #   - reference_linux_syn_data_rto_deviations.md
+        #     (RETRANSMISSION_TO_08/_09: tcp_rto_max=120s ≠ spec 2*MSL=60s)
+        # When the harness later runs against a strict-RFC DUT, drop
+        # this filter — the cases land green there.
+        run: |
+          mkdir -p reports
+          sudo -n dut/env/smoke-test.sh \
+            --workers 4 \
+            --junit-xml reports/junit-smoke-positive.xml \
+            $(./build/tc8-harness test --list-cases --exclude-deferred \
+              | awk '/^  [A-Z]/{print $1}' \
+              | grep -vE '^(IPV4_REASSEMBLY_(11|13)|TCP_RETRANSMISSION_TO_(08|09))$')
+
+      - name: Run negative curated set (--workers 4)
+        run: |
+          sudo -n dut/env/smoke-test.sh \
+            --workers 4 \
+            --junit-xml reports/junit-smoke-negative.xml \
+            --negative
+
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-reports
+          path: reports/
+
+      - name: Publish JUnit summary to PR
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: tc8 smoke
+          path: reports/junit-*.xml
+          reporter: java-junit

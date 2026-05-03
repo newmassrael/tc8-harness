@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_35: ARP cache merge on Response-then-Request. Same
+  pass/fail structure as ARP_32; only the tester-side stimulus differs.
+
+  Body shared with ARP_32 / ARP_33 / ARP_34 via sce:template (single
+  source of truth — see
+  tests/_templates/arp_group_c_cache_merge_second_mac.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_35"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_group_c_cache_merge_second_mac.sce-template.xml"/>
+</scxml>

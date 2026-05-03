@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.1.19 SOMEIPSRV_FORMAT_19: After the TESTER emits a
+  SubscribeEventgroup (entry type 0x06) to the DUT, the DUT's response
+  shall be a Type 2 entry — SubscribeEventgroupAck (0x07) or
+  SubscribeEventgroupNack (0x07, ttl=0). Per spec: "0x07 to encode
+  SubscribeEventgroupAck and SubscribeEventgroupNack". This case
+  verifies the DUT emits such a Type 2 entry in reply.
+
+  The Subscribe is emitted by the harness via the
+  TestCaseTraits<Format19SM>::stimulus() hook; this SCXML only verifies
+  the DUT's reply. Pcap captures both directions on veth-tester, so our
+  own outgoing Subscribe (type 0x06) also fires `someip_notification`;
+  its transition has no match and the event is consumed without state
+  change until the DUT's type 0x07 arrives.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_format_19"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

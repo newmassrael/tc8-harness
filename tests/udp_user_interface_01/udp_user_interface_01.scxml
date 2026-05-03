@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_01: A user interface should allow the
+  creation of new receive ports (RFC 768 'User Interface' MUST). Tester
+  drives DUT via the §4.8.5 OpCreateUdpReceivePorts opcode (0x14)
+  asking for 10 receive ports; tc8-dut binds 10 SOCK_DGRAM sockets to
+  (INADDR_ANY, ephemeral port=0) and replies with the actual_count
+  successfully bound. Pass guard: ut_create_actual_count == 10.
+
+  3-state inline (no template) — sole consumer of the 0x94 response
+  shape. The opcode + status guard mirrors udp_ut_received_check but
+  pivots on a different captured field.
+
+  BPF: BpfGroup::Udp. SD multicast (UDP 30490) reaches the pipeline
+  but fails has_ut_response (gate: src_port == ut::kPort = 30600), so
+  it cannot drive any transition.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::UdpCaptured"
+               cpp:include="sce_integration/udp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count == 10"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count != 10"
+                target="fail_wrong_port_count"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_port_count">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_create_requested_receive_port_count"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_ut_confirmation_for_create_udp_receive_ports"}</content>
+    </donedata>
+  </final>
+</scxml>

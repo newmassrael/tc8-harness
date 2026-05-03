@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.7 DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_12:
+    "The retransmission delay should be doubled with subsequent
+     retransmissions, up to a maximum of 64 seconds"
+    (RFC 2131 §4.1, MUST).
+
+  Spec body (tc8_p241-p260.txt: CONSTRUCTING_MESSAGES_12):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER: DHCP Server Listens for (64+32+16+8+4+2+1+Tol) s on
+         <DIface-0> WITHOUT replying.
+    4.   DUT: Sends multiple DHCPDISCOVER Messages.
+    5.   TESTER: Verify time interval between last two DHCPDISCOVERs
+         < (64 + ToleranceTime) s.
+
+  Fast-envelope compression: real-spec wall (~127 s) blows the smoke-
+  test budget. The trait drives DUT firmware with retx_first_ms=200,
+  retx_cap_ms=3200, retx_jitter_ms=100 — the cap-doubling fixpoint
+  lands at the 6th DISCOVER (~6.2 s wall) so this SCXML observes one
+  cap interval. Spec invariant ("doubling reaches a saturation
+  ceiling") is preserved; the absolute ceiling value is harness-
+  pinned (3200 ms instead of 64 000 ms).
+
+  Six-state lifecycle tracks DISCOVER count via state advance — each
+  transition moves the SM one step further along the retx schedule.
+  The s5 → s6 transition adds `frame_delta_within_us(0, cap_ms +
+  jitter_ms)` to verify the 5→6 interval is at the cap, satisfying
+  the spec's "< (64 + Tol)" upper-bound assertion under the
+  fast-envelope scaling.
+
+  Per-state deadline event names (s1..s6) follow the post-S6a
+  per-state deadline convention.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_constructing_messages_12"
+       datamodel="null"
+       initial="listening_for_d1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_d1">
+    <onentry>
+      <send event="s1_deadline" delay="3s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d2"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_d2">
+    <onentry>
+      <send event="s2_deadline" delay="2s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d3"/>
+    <transition event="s2_deadline" target="fail_no_discover_2"/>
+  </state>
+
+  <state id="listening_for_d3">
+    <onentry>
+      <send event="s3_deadline" delay="2s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d4"/>
+    <transition event="s3_deadline" target="fail_no_discover_3"/>
+  </state>
+
+  <state id="listening_for_d4">
+    <onentry>
+      <send event="s4_deadline" delay="3s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d5"/>
+    <transition event="s4_deadline" target="fail_no_discover_4"/>
+  </state>
+
+  <state id="listening_for_d5">
+    <onentry>
+      <send event="s5_deadline" delay="5s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d6"/>
+    <transition event="s5_deadline" target="fail_no_discover_5"/>
+  </state>
+
+  <state id="listening_for_d6">
+    <onentry>
+      <send event="s6_deadline" delay="5s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.frame_delta_within_us(0, 4200000)"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and not captured.frame_delta_within_us(0, 4200000)"
+                target="fail_cap_exceeded"/>
+    <transition event="s6_deadline" target="fail_no_discover_6"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover_2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover_3">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_3"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover_4">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_4"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover_5">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_5"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover_6">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_6"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_cap_exceeded">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_retx_interval_exceeds_cap"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.X TCP_HEADER_11: DUT discards a SYN segment whose IP
+  Destination Address is a multicast address. Derived from
+  RFC 1122 §4.2.3.10 p104 (TCP MUST silently discard a SYN
+  addressed to broadcast or multicast).
+
+  v3.0 Test Procedure (p394):
+    1. TESTER: Bring DUT to 'ESTABLISHED' state.
+    2. TESTER: Send a SYN with IP Destination Address =
+               <multicastAddress>.
+    3. DUT:    Discards the TCP packet silently.
+
+  Mechanism: Active-OPEN to ESTABLISHED on
+  (kBasicsActiveLocalPort+38, kBasicsActiveRemotePort+38) — this
+  serves the negative-flip handle (state 1 observes DUT
+  handshake third-leg ACK; src_ip flip makes it unreachable).
+  Then raw-inject SYN with IP dst = 224.0.0.1 (all-hosts
+  multicast) + L2 dst = 01:00:5E:00:00:01 (RFC 1112 multicast
+  MAC) targeting kBasicsActiveLocalPort+38 + 3 s absence of any
+  DUT segment on the EST 4-tuple.
+
+  Linux 6.5 dispatch: eth_type_trans classifies frames with the
+  01:00:5E/24 multicast L2 dst as PACKET_MULTICAST. tcp_v4_rcv's
+  first guard `if (skb->pkt_type != PACKET_HOST) goto discard_it`
+  silently drops; the segment never reaches the connected EST
+  socket or the listening kernel state. See
+  reference_icmp_packet_host_gate.md TCP section.
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — DUT pure ACK from active-OPEN
+      handshake on the EST 4-tuple. Negative-flip handle: src_ip
+      conjunct unreachable on ipv4.dut_iface_ip=10.99.99.99.
+    * listening_absence — 3 s window for any DUT pure ACK on the
+      EST 4-tuple. The multicast SYN cannot trigger any DUT
+      egress on the EST quad (PACKET_HOST gate fires first), so
+      pass on deadline_absence.
+
+  Port-quad — kBasicsActiveLocalPort + 38 / +38.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_11"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 38U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 38U)"
+                target="listening_absence"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 38U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 38U)"
+                target="fail_unexpected_ack"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_acked_multicast_syn"}</content>
+    </donedata>
+  </final>
+</scxml>

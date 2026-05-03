@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_12: ICMP Timestamp Reply identifier and
+  sequence field handling.
+
+  Spec body (TC8 v3.0 p103, Reference: RFC 792 p17 Timestamp or
+  Timestamp Reply Message, MAY):
+    "The identifier and sequence number may be used by the echo sender
+     to aid in matching the replies with the requests."
+
+  Stimulus (TESTER → DUT, type=13 ICMP Timestamp Request):
+    - IP Source Address       = host-1
+    - IP Destination Address  = DUT
+    - Identifier              = <idfr>
+    - Sequence Number         = <seqno>
+
+  Pass criteria (DUT → TESTER, type=14 ICMP Timestamp Reply):
+    - Identifier              = <idfr>     (echoed verbatim)
+    - Sequence Number         = <seqno>    (echoed verbatim)
+
+  The Identifier and Sequence Number occupy the same wire positions
+  in the Timestamp message as in the Echo message (RFC 792 p17 layout
+  matches p15 layout for those two slots), so `Icmpv4Captured::echo_id`
+  and `Icmpv4Captured::echo_seq` carry the values without a per-type
+  field. The CLI surface reuses `expect icmpv4.echo_id` /
+  `icmpv4.echo_seq` for the same drift-safety reason: one expectation
+  source feeds both Echo and Timestamp identity assertions, and
+  smoke-test.sh negative rows can flip either to prove the SCXML
+  conjunct is load-bearing.
+
+  Pass guard conjuncts captured.src_ip == expected.dut_iface_ip so the
+  negative smoke row can override icmpv4.dut_iface_ip and force the
+  pass path out of reach — same load-bearing pattern as TYPE_22 / TYPE_18.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_12"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.echo_id != expected.echo_id"
+                target="fail_id_mismatch"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.echo_seq != expected.echo_seq"
+                target="fail_seq_mismatch"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_id_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"timestamp_reply_identifier_not_echoed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_seq_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"timestamp_reply_sequence_not_echoed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_timestamp_reply_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

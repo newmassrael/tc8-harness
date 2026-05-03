@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_11: ICMP Timestamp Reply message content.
+
+  Spec body (TC8 v3.0 p102, Reference: RFC 792 p17 Timestamp or
+  Timestamp Reply Message, MAY):
+    "The data received (a timestamp) in the message is returned in the
+     reply together with an additional timestamp."
+
+  Stimulus (TESTER → DUT, type=13 ICMP Timestamp Request):
+    - IP Source Address       = host-1
+    - IP Destination Address  = DUT
+    - Originate Timestamp     = <origTimestampValue>
+    - Receive Timestamp       = 0
+
+  Pass criteria (DUT → TESTER, type=14 ICMP Timestamp Reply):
+    - Originate Timestamp     = <origTimestampValue>  (echoed verbatim)
+    - Receive Timestamp       != 0                    (DUT clock at recv)
+    - Transmit Timestamp      != 0                    (DUT clock at xmit)
+
+  The Originate literal is single-sourced via
+  `::tc8::stimulus::kIcmpTimestampOriginate`, which both the stimulus
+  builder and the SCXML pass guard reference. Receive / Transmit pass
+  guards check non-zero only — RFC 792 leaves the responder's clock
+  reading otherwise unconstrained, so an exact-value compare would
+  encode a clock model the spec does not assert.
+
+  Pass guard conjuncts captured.src_ip == expected.dut_iface_ip so the
+  negative smoke row can override icmpv4.dut_iface_ip and force the
+  pass path out of reach — same load-bearing pattern as TYPE_22 / TYPE_18.
+
+  Fail branches (highest specificity first; SCXML evaluates in order):
+    - fail_zero_receive    : originate matches, receive == 0
+    - fail_zero_transmit   : originate matches, receive != 0, transmit == 0
+    - fail_wrong_originate : originate != literal
+    - fail_timeout         : no Timestamp Reply within listen window
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_11"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.originate_timestamp == ::tc8::stimulus::kIcmpTimestampOriginate and captured.receive_timestamp != 0 and captured.transmit_timestamp != 0"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.originate_timestamp == ::tc8::stimulus::kIcmpTimestampOriginate and captured.receive_timestamp == 0"
+                target="fail_zero_receive"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.originate_timestamp == ::tc8::stimulus::kIcmpTimestampOriginate and captured.transmit_timestamp == 0"
+                target="fail_zero_transmit"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.originate_timestamp != ::tc8::stimulus::kIcmpTimestampOriginate"
+                target="fail_wrong_originate"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_zero_receive">
+    <donedata>
+      <content>{"verdict":"fail","reason":"timestamp_reply_receive_field_zero"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_zero_transmit">
+    <donedata>
+      <content>{"verdict":"fail","reason":"timestamp_reply_transmit_field_zero"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_originate">
+    <donedata>
+      <content>{"verdict":"fail","reason":"timestamp_reply_originate_not_echoed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_timestamp_reply_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

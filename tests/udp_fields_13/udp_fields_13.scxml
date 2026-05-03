@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_FIELDS_13: DUT-emitted UDP datagram with an odd
+  payload size carries a valid pseudo-header checksum — i.e. the
+  builder padded the payload with a zero octet for the one's-
+  complement sum without leaking the pad onto the wire (RFC 768
+  'Fields' MUST). The wire datagram remains 8 + payload bytes; only
+  the checksum compute folds in the trailing zero.
+
+  Mapping: <udpUserDataSize>=7 (odd), kPaddingProbe pattern. Linux's
+  UDP-tx checksum compute path follows RFC 768, so the resulting
+  cksum should validate when the harness reconstructs it. The
+  pipeline already validates by passing libtins's `udp->checksum()`
+  through; we assert the field is non-zero (the all-zero sentinel
+  signals "checksum not computed" per RFC 768, which Linux only emits
+  if checksum-tx is disabled — not the spec scenario here).
+
+  Note: a tighter assertion would re-run the pseudo-header sum
+  harness-side. Today's test relies on the dissector's libtins-level
+  validation (a non-zero captured.checksum + Linux's tx path == valid).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_fields_13"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="captured.dst_port == 20000 and captured.checksum != 0 and captured.pseudo_header_checksum_valid()"
+           fail_state="fail_invalid_checksum"
+           fail_reason="dut_emitted_udp_with_invalid_pseudo_header_checksum_on_padded_payload"/>
+</scxml>

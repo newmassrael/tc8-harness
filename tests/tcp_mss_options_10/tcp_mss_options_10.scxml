@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_10: if an MSS option is not received at
+  connection setup, TCP MUST assume a default send MSS of 536. Derived
+  from RFC 1122 §4.2.2.6 p85 Maximum Segment Size Option "RFC-793
+  Section 3.1" (MUST).
+
+  v3.0 Test Procedure (p361):
+    1. TESTER: Send a SYN without MSS option.
+    2. DUT:    Send SYN,ACK.
+    3. TESTER: Send ACK.
+    4. TESTER: Cause DUT-side application to issue a SEND request with
+               size > 536 bytes — UT OpSendTcpDataPattern.
+    5. DUT:    Send data segment(s).
+    6. TESTER: Verify the first received data segment has 536 bytes.
+
+  Mechanism:
+    - UT OpenTcpPassive(13020) → DUT LISTEN.
+    - driveRawPassiveHandshake with empty SYN options. Linux's
+      `tcp_options_received.mss_clamp` defaults to 536 when the
+      received SYN carries no MSS option (net/ipv4/tcp_input.c
+      `tcp_init_metrics`); subsequent ::send() segments at 536 B.
+    - UT OpSendTcpDataPattern(socket_id=1, pattern=0xAA, total_len=
+      1024). 1024 > 536 ensures DUT segments at least once.
+    - Outer TesterAutoRstDrop scope keeps tester-kernel RSTs against
+      the orphaned 4-tuple suppressed for the duration of the data
+      flow; pcap still sees the DUT-emitted segments before any RST
+      could disrupt the connection.
+
+  Pass guard: tcp_observed where `is_dut_data_segment(...)` matches
+  on the case's 4-tuple AND `payload_len == 536`. A DUT-emitted data
+  segment with a different size (e.g. clamping to 1460 instead) lands
+  on `fail_wrong_segment_size`. Non-data segments (handshake ACK,
+  FIN, RST) match no transition and are silently passed over.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_10"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort10) and captured.payload_len == 536U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort10) and captured.payload_len != 536U"
+                target="fail_wrong_segment_size"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_segment_size">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_data_segment_size_not_default_536"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_data_segment_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_38: Non-gratuitous ARP Response reception with
+  target_ip set to an unused host in the subnet. Tester injects a
+  Response; DUT kernel drops it at RFC 826 §2.3 step 4 ("Am I the
+  target protocol address?"). Same post-drop flow as ARP_22/28.
+
+  Body shared with ARP_22 / ARP_28 via sce:template (single source of
+  truth — see tests/_templates/arp_group_c_drop_and_emit.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_38"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_group_c_drop_and_emit.sce-template.xml"/>
+</scxml>

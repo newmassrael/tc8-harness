@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPV4_REASSEMBLY_04: DUT reassembles a 4-fragment Echo
+  Request received in the wrong order. TESTER sends fragments in
+  sequence (offset=0 MF=1, offset=2 MF=1, offset=1 MF=1, offset=3
+  MF=0) — frags 0/3 then 2 then 1 by 8-octet offset. A conformant
+  DUT (RFC 791 §3.2) reassembles using the offset key (not arrival
+  order), validates the ICMP checksum that was computed over the
+  full reassembled 32 B body (8 B header + 24 B payload), and emits
+  an Echo Reply mirroring id, seq, and data.
+
+  Pass criterion = type=0 Echo Reply with matching echo_id +
+  echo_seq + 24 B payload (kReassembly04EchoPayload). 3-way fail
+  split mirrors FRAGMENTS_01 for diagnostic granularity.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_04"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq and captured.echo_payload_equals(std::string_view(reinterpret_cast&lt;const char*&gt;(::tc8::sce::ipv4::reassembly::kReassembly04EchoPayload.data()), ::tc8::sce::ipv4::reassembly::kReassembly04EchoPayload.size()))"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id != expected.echo_id"
+                target="fail_echo_id"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_seq != expected.echo_seq"
+                target="fail_echo_seq"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0"
+                target="fail_data_mismatch"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_id_mismatch_after_unordered_reassembly"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_seq_mismatch_after_unordered_reassembly"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_data_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_unordered"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_echo_reply_after_unordered_reassembly"}</content>
+    </donedata>
+  </final>
+</scxml>

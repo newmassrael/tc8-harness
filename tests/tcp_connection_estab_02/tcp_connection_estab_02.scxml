@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.15 TCP_CONNECTION_ESTAB_02: the DUT MUST be able to open
+  multiple passive sockets and respond to a SYN on each of them with
+  a SYN,ACK (RFC 793 §3.4 multiple half-open transitions in parallel).
+
+  v3.0 Test Procedure (p381-p400.txt:115-121):
+    1. TESTER: <OpenMultipleTCPSocket(passive,3)>.
+    2. TESTER: Send 3 TCP segments with SYN to the 3 opened sockets.
+    3. DUT:    Opens 3 TCP passive sockets and sends 3 SYN,ACK
+               corresponding to the received SYNs.
+
+  Mechanism:
+    Three independent UT OpOpenTcpSocket(passive) requests on
+    13173/13174/13175 (tc8-dut binds three listeners). For each leg,
+    a raw-inject SYN(seq=kTesterInitialSeq) lands at its listener
+    from a distinct tester source port (+173/+174/+175).
+    TesterAutoRstDrop covers the three legs concurrently.
+
+  Pass chain: 3 sequential listening states, one per leg. SCXML
+  guards on (src_port == listen_portN, dst_port == tester_src_portN,
+  SYN+ACK bits, ack_num == kTesterInitialSeq + 1). Order is
+  (leg1, leg2, leg3) on the wire because the stimulus emits the SYNs
+  in that fixed order with 50 ms gaps; the SYN,ACKs land in matching
+  order.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_connection_estab_02"
+       datamodel="null"
+       initial="listen_leg1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listen_leg1">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab02ListenPort1 and captured.dst_port == ::tc8::sce::tcp::kTcpConnEstab02TesterSrcPort1 and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
+                target="listen_leg2"/>
+    <transition event="deadline_exceeded" target="fail_timeout_leg1"/>
+  </state>
+
+  <state id="listen_leg2">
+    <onentry>
+      <send event="deadline_exceeded_2" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab02ListenPort2 and captured.dst_port == ::tc8::sce::tcp::kTcpConnEstab02TesterSrcPort2 and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
+                target="listen_leg3"/>
+    <transition event="deadline_exceeded_2" target="fail_timeout_leg2"/>
+  </state>
+
+  <state id="listen_leg3">
+    <onentry>
+      <send event="deadline_exceeded_3" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab02ListenPort3 and captured.dst_port == ::tc8::sce::tcp::kTcpConnEstab02TesterSrcPort3 and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
+                target="pass"/>
+    <transition event="deadline_exceeded_3" target="fail_timeout_leg3"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_leg1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_for_leg1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_leg2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_for_leg2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_leg3">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_for_leg3"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_44: ARP Response (Sender IP Address check). Tester
+  injects an ARP Request; DUT must reply with the ARP sender_proto_ip
+  set to its own interface IP (RFC 826: "Swap protocol field, putting
+  the local protocol address in the sender field").
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_44"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.sender_proto_ip == expected.dut_iface_ip"
+                target="pass"/>
+    <!--
+      Fail guard filters by opcode==2 only; dropping the `sender_hw ==
+      expected.dut_iface_mac` conjunction so smoke-test negative rows
+      that override `arp.dut_iface_ip` (which flips the expected without
+      affecting the stimulus target_ip, via the arp.dut_real_ip split)
+      actually reach this branch. Same rationale as ARP_43.
+    -->
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_proto_ip != expected.dut_iface_ip"
+                target="fail_sender_ip_not_dut"/>
+    <transition event="deadline_exceeded" target="fail_no_reply"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_sender_ip_not_dut">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reply_sender_ip_not_dut_iface"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

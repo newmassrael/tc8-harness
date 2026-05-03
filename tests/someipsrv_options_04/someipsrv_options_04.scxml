@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.5.4 SOMEIPSRV_OPTIONS_04: IPv4-Address field of the IPv4
+  Endpoint Option shall carry the local IP of the relevant service
+  (SWS_SD_00212). Compares both UDP- and TCP-flavoured endpoint options
+  against the configured DUT-iface IP injected via the smoke-test
+  `dut_iface_ip` expectation key (dotted-decimal). Both options must
+  match; the spec text applies to every IPv4 Endpoint Option.
+
+  Presence gate: explicit `sd_has_option_with_l4` for both axes
+  before reading `.ipv4` keeps the assertion robust against a future
+  vsomeip change that drops one transport's option (the empty-fallback
+  ipv4=0 only mismatches a nonzero expected.dut_iface_ip today, but
+  the gate makes the test self-evidently sound regardless of the
+  expected value).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_options_04"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="captured.sd_option_count &gt;= 1"
+           entry_type="0x01"
+           pass_expr="captured.sd_has_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kUdp) and captured.sd_has_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kTcp) and captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kUdp).ipv4 == expected.dut_iface_ip and captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kTcp).ipv4 == expected.dut_iface_ip"
+           fail_state="fail_ipv4"
+           fail_reason="ipv4_endpoint_address_not_dut_iface_ip"/>
+</scxml>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_22: Gratuitous ARP Response reception with unknown
+  hw_type. Tester injects a malformed Response, DUT kernel drops it at
+  ar$hrd check (RFC 826 §2.3), so the cache is NOT populated. The
+  follow-up Subscribe stimulus provokes DUT unicast UDP egress, and a
+  conformant DUT must emit its own ARP Request first to resolve the
+  tester's MAC.
+
+  Pass = DUT-originated ARP Request observed with sender_hw = DUT iface
+  MAC. Fail paths:
+    * DUT's UDP egress carries `eth_dst == tester_mac` (= the injected
+      MAC, which means the malformed frame was wrongly accepted and
+      populated the cache). Guard only fires for UDP destined to the
+      tester — UDP egress to other peers is out of scope.
+    * Deadline fires with neither ARP Request nor matching UDP seen.
+
+  Body shared with ARP_28 / ARP_38 via sce:template (single source of
+  truth — see tests/_templates/arp_group_c_drop_and_emit.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_22"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_group_c_drop_and_emit.sce-template.xml"/>
+</scxml>

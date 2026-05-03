@@ -1,0 +1,110 @@
+#pragma once
+
+#include <array>
+#include <chrono>
+#include <cstdint>
+#include <string_view>
+#include <thread>
+#include <vector>
+
+#include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/test_runner.h"
+#include "stimulus/tcp_segment_builder.h"
+
+#include "tcp_sequence_05_sm.h"
+
+namespace tc8::sce::cases {
+
+using TcpSequence05SM =
+    ::SCE::Generated::tcp_sequence_05::tcp_sequence_05;
+
+}  // namespace tc8::sce::cases
+
+namespace tc8::sce {
+
+template <>
+struct TestCaseTraits<cases::TcpSequence05SM>
+    : TcpAnyBase<cases::TcpSequence05SM> {
+    static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_05";
+    static constexpr std::string_view kSpecSection  = "4.8.6.17";
+    static constexpr std::string_view kDescription  =
+        "From ESTABLISHED, DUT acknowledges each tester data segment "
+        "with a cumulative ACK at the expected Ack Number "
+        "(RFC 793 §3.4 / §3.7).";
+
+    static constexpr std::array<std::uint8_t, 4> kSegPayload = {
+        0xC0U, 0xDEU, 0xCAU, 0xFEU};
+    static constexpr std::uint32_t kSegLen =
+        static_cast<std::uint32_t>(kSegPayload.size());
+
+    static void stimulus(Captured& /*c*/,
+                         const ::tc8::TestConfig& cfg,
+                         std::string_view iface) {
+        using namespace ::tc8::sce::tcp;
+        std::this_thread::sleep_for(kTcpUtBootWait);
+
+        // The raw-injected tester source 4-tuple has no real kernel
+        // socket, so any post-handshake DUT-origin ACK landing on
+        // (tester_src_port, listen_port) would draw an auto-RST from
+        // the tester kernel — tearing the DUT's ESTABLISHED state down
+        // mid-segment-stream. driveRawPassiveHandshake's internal
+        // TesterAutoRstDrop scope is bounded to the handshake, so the
+        // SEQUENCE_05 trait holds an outer-scope drop covering all
+        // three data segments + their cumulative ACKs.
+        TesterAutoRstDrop rst_drop(cfg);
+
+        const auto info = driveRawPassiveHandshake(
+            cfg, iface, cfg.arp.dut_real_mac,
+            kTcpSequence05ListenPort,
+            std::vector<std::uint8_t>{},
+            kTcpSequence05TesterSrcPort,
+            /*open_req_id=*/1,
+            /*query_req_id=*/0,
+            /*socket_id=*/1,
+            /*capture_timeout=*/std::chrono::milliseconds(2000),
+            /*tester_isn=*/kTesterInitialSeq);
+        if (!info.ok) {
+            sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+                                       /*req_id=*/2, /*socket_id=*/1);
+            return;
+        }
+
+        // Three 4 B segments with 100 ms inter-arrival. Linux quickack
+        // is on for the first ~16 segments post-handshake so each
+        // elicits an immediate cumulative ACK without delayed-ACK
+        // coalescing.
+        std::uint32_t seg_seq = kTesterInitialSeq + 1U;
+        for (int i = 0; i < 3; ++i) {
+            ::tc8::stimulus::TcpSegmentSpec data{};
+            data.src_port = kTcpSequence05TesterSrcPort;
+            data.dst_port = kTcpSequence05ListenPort;
+            data.seq_num  = seg_seq;
+            data.ack_num  = info.dut_isn + 1U;
+            data.flags    = ::tc8::stimulus::kTcpFlagPsh
+                          | ::tc8::stimulus::kTcpFlagAck;
+            data.payload.assign(kSegPayload.begin(), kSegPayload.end());
+            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+                         /*initial_wait=*/std::chrono::milliseconds(0));
+            seg_seq += kSegLen;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+
+        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+                                   /*req_id=*/2, /*socket_id=*/1);
+    }
+
+    static std::string_view verdictFor(State s) {
+        switch (s) {
+            case State::Pass:                return "pass";
+            case State::Fail_timeout_seg1:   return "fail:no_dut_ack_for_seg1";
+            case State::Fail_timeout_seg2:   return "fail:no_dut_ack_for_seg2";
+            case State::Fail_timeout_seg3:   return "fail:no_dut_ack_for_seg3";
+            default:                         return "running";
+        }
+    }
+};
+
+}  // namespace tc8::sce
+
+TC8_REGISTER_CASE(::tc8::sce::cases::TcpSequence05SM, tcp_sequence_05)

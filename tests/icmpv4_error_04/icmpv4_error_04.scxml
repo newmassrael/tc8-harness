@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.1 ICMPv4_ERROR_04: ICMP error messages MUST NOT be sent
+  in response to a datagram destined to an IP broadcast. TESTER sends
+  an ICMP Echo Request to the limited broadcast address
+  (255.255.255.255) with a malformed Internet Timestamp option —
+  options parse would normally elicit a Parameter Problem (type=12),
+  but the broadcast-destination rule (RFC 1122 §3.2.2) overrides.
+
+  Body shared with icmpv4_type_05 / icmpv4_type_10 / icmpv4_type_16
+  / icmpv4_error_05 via sce:template. Dispatch narrows to type=12
+  (Parameter Problem) — any Echo Reply or other ICMP reply is
+  tolerated, only Parameter Problem within the listen window fails.
+
+  Kernel-side note: Linux's `icmp_send` gates error-class ICMP on
+  `skb->pkt_type == PACKET_HOST`, so the Eth-broadcast default for
+  the stimulus naturally suppresses Parameter Problem emission — the
+  test still exercises the DUT's behavioural invariant (spec-level
+  MUST-NOT), just via the kernel's broadcast-suppression path. See
+  `reference_icmp_packet_host_gate.md`.
+
+  No negative smoke row: absence-shape; any expectation flip also
+  lands on timeout → fake-positive verdict. Shared limitation with
+  TYPE_05/10/16 and ERROR_05.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_error_04"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_sent_parameter_problem_to_broadcast"/>
+</scxml>

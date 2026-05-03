@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.6 IPV4_FRAGMENTS_03: IP Reconstruct fragments, negative
+  test on source. DUT must NOT reassemble a fragment pair whose
+  Source Address fields differ. Tuple key includes src_addr, so
+  differing src places the two fragments in distinct buckets.
+
+  Phase 1: TESTER sends frag 0 (src=tester_ip) + frag 1
+  (src=kFragmentsHost2IpBe — different). Distinct buckets; neither
+  reassembles → no Echo Reply.
+  Phase 2: TESTER re-sends frag 1 with src=tester_ip, matching
+  frag 0's bucket A → DUT reassembles → Echo Reply.
+
+  Shared body with fragments_02 / fragments_04 via sce:template;
+  per-case fail reasons follow the ipv4_negative_absence pattern.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_fragments_03"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/ipv4_fragments_compound.sce-template.xml"
+           fail_reason_phase1="dut_reassembled_mismatched_src_fragments"
+           fail_reason_phase2_timeout="no_echo_reply_after_matched_src_retry"
+           fail_reason_phase2_echo_id="echo_id_mismatch_after_src_retry"
+           fail_reason_phase2_echo_seq="echo_seq_mismatch_after_src_retry"
+           fail_reason_phase2_data="reassembled_echo_data_mismatch_src_case"/>
+</scxml>

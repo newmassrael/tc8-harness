@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_05 negative — closes
+  the self-reference trap on the positive _05 case. tc8-dut emits
+  Probes via OpStartLLAutoconfBuggy(flavor=SenderHwWrong):
+  sender_hw = CA:FE:BA:BE:00:00 (locally-administered sentinel that
+  is NEVER the DUT iface MAC under any topology).
+
+  Pass = SCXML lands on fail_sender_hw_not_dut_iface_mac branch —
+  the violation is detected. fail_compliant_emit = tc8-dut ignored
+  the flavor byte, harness silently accepted the buggy DUT.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_address_selection_05_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_linklocal_probe_field.sce-template.xml"
+           pass_expr="captured.sender_hw != expected.dut_iface_mac"
+           fail_state="fail_compliant_emit"
+           fail_reason="dut_emitted_compliant_probe_despite_sender_hw_wrong_flavor"/>
+</scxml>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.4 IPv4_AUTOCONF_CONFLICT_11: ARP packets containing
+  Link-Local 'sender IP address' rule - I (RFC 3927 §2.5 MUST,
+  last paragraph). Tester injects an ARP Request from an alternate
+  link-local sender (AIFACE_LL) targeting the DUT's committed LL;
+  the DUT MUST emit an ARP Reply, and because the Reply's
+  sender_proto_ip is the DUT's own LL (∈ 169.254/16), it MUST be
+  sent via link-layer broadcast — not the RFC 826 default unicast.
+
+  Spec Test Procedure (tc8_p181-p200.txt:222..280):
+    1-6.  DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes.
+    7-8.  Tester reads target_ip from observed Probes, waits
+          ANNOUNCE_WAIT+ANNOUNCE_INTERVAL for DUT to claim.
+    9.    Tester emits ARP Request:
+          - sender_proto_ip = AIFACE_LL (expected.tester_linklocal_ip)
+          - target_proto_ip = DUT_LL (read from observed Probes)
+    11-12. DUT MUST emit ARP Reply with:
+          - sender_proto_ip = DUT_LL
+          - target_proto_ip = AIFACE_LL
+          - eth_dst = ETHERNET_BROADCAST_ADDR
+
+  Pass criterion: DUT-emitted ARP Reply (opcode 2) carrying
+  - sender_proto_ip == DUT's claimed LL          (spec step 12)
+  - target_proto_ip == AIFACE LL                  (spec step 12)
+  - eth_src == sender_hw == DUT MAC              (RFC 826)
+  - target_hw == tester MAC                      (RFC 826)
+  - eth_dst == broadcast                         (spec step 12,
+                                                  RFC 3927 §2.5 last)
+
+  This is the same broadcast-Reply contract that ADDRESS_SELECTION_16
+  asserts under §4.5.6.2; CONFLICT_11 covers it under §4.5.6.4 from
+  the AIFACE-LL-Request angle. Both rely on the tc8-dut responder's
+  RFC 3927 §2.5 last-MUST broadcast emit (linklocal_autoconf.cpp's
+  emitArpReply uses kEthBroadcast unconditionally).
+
+  Trait wiring (see ipv4_autoconf_conflict_11.h): identical 4-arg
+  shape as _16 — emit OpStartLLAutoconf fast envelope, then on
+  listening_post_claim entry the observer (a) issues
+  OpQueryLLAddress synchronously, (b) snapshots DUT_LL into
+  Captured, (c) emits the AIFACE-LL ARP Request. SCXML observes
+  the Reply via the standard 3-arg dispatchArpFrame helper.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_conflict_11"
+       datamodel="null"
+       initial="listening_pre_claim">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening_pre_claim">
+    <onentry>
+      <send event="claim_deadline" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce()"
+                target="listening_post_claim"/>
+    <transition event="claim_deadline" target="fail_no_claim_observed"/>
+  </state>
+
+  <state id="listening_post_claim">
+    <onentry>
+      <send event="reply_deadline" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_reply() and captured.sender_proto_ip == captured.expected_responder_sender_ip_be and captured.target_proto_ip == expected.tester_linklocal_ip and captured.expected_responder_sender_ip_be != 0 and captured.eth_src == expected.dut_iface_mac and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac and captured.is_eth_broadcast()"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_reply()"
+                target="fail_reply_wrong_fields"/>
+    <transition event="reply_deadline" target="fail_no_responder_reply"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_claim_observed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_announce_committed_link_local_address"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_responder_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_emit_arp_reply_for_claim_address"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_reply_wrong_fields">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst"}</content>
+    </donedata>
+  </final>
+</scxml>

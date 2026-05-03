@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.6 IPv4_AUTOCONF_NETWORK_PARTITIONS_01: Healing of Network
+  Partitions Hosts.
+
+  RFC 3927 §4 SHOULD: hosts SHOULD NOT send periodic gratuitous ARPs
+  for a link-local address. Despite the case title, the spec body's
+  Test Procedure does not simulate a partition heal — it merely
+  verifies that after a successful claim and an ordinary §2.5 ARP
+  exchange, the DUT remains silent and does not emit any
+  gratuitous-shape ARP Request.
+
+  Spec Test Procedure (tc8_p181-p200.txt:343..389):
+    1-7.   DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes
+           for tentative LL_DUT.
+    8.     Tester waits ANNOUNCE_WAIT+ANNOUNCE_INTERVAL — i.e. through
+           both Announces — for the DUT to commit.
+    9.     Tester emits ARP Request:
+           - sender_proto_ip = LL_TESTER (expected.tester_linklocal_ip)
+           - target_proto_ip = LL_DUT (read via OpQueryLLAddress)
+    10-11. DUT MUST emit ARP Reply (RFC 3927 §2.5 — same contract as
+           ADDRESS_SELECTION_16 / CONFLICT_11). The Reply is broadcast
+           per RFC 3927 §2.5 last MUST since sender_proto_ip is in
+           169.254/16.
+    12-13. Listen window (ParamListenTime) — DUT MUST NOT emit any
+           ARP Request whose sender_proto_ip == target_proto_ip ==
+           LL_DUT (the gratuitous-shape filter spec step 12 specifies).
+
+  Pass criterion (combined):
+    - DUT-emitted ARP Reply with correct fields (steps 10-11), AND
+    - absence of any gratuitous-shape ARP Request from DUT during
+      the post-Reply window (steps 12-13).
+
+  Two-Announce gating: the absence-window filter is "opcode 1 AND
+  sender_ip == target_ip == LL_DUT". RFC 3927 §2.4 Announces have
+  exactly that shape — so the SCXML waits through both Announces
+  (listening_pre_announce_1 → _2 → post_claim) before scheduling the
+  AIFACE-LL Request and entering listening_no_periodic. Without this
+  gate, Announce 2 (firing ANNOUNCE_INTERVAL = 200 ms after Announce
+  1) would land inside the post-Reply absence window and false-fail
+  the case.
+
+  Fast envelope wall budget:
+    1.5 s initial + 200 ms dhcp + 200 ms PROBE_WAIT + ~600 ms 3 Probes
+    + 200 ms ANNOUNCE_WAIT + 200 ms ANNOUNCE_INTERVAL = ~2.9 s before
+    Announce 2. Then UT-query (~tens of ms) + Request emit + ~50 ms
+    responder tick + 3 s no-periodic absence window = ~6 s total.
+    case_timeout 12 s carries comfortable margin.
+
+  Notes Derived from RFC 3927 p23 section 4 (SHOULD).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_network_partitions_01"
+       datamodel="null"
+       initial="listening_pre_announce_1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening_pre_announce_1">
+    <onentry>
+      <send event="claim_deadline" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce() and captured.eth_src == expected.dut_iface_mac"
+                target="listening_pre_announce_2"/>
+    <transition event="claim_deadline" target="fail_no_claim_observed"/>
+  </state>
+
+  <state id="listening_pre_announce_2">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce() and captured.eth_src == expected.dut_iface_mac"
+                target="listening_post_claim"/>
+    <transition event="claim_deadline" target="fail_only_one_announce"/>
+  </state>
+
+  <state id="listening_post_claim">
+    <onentry>
+      <send event="reply_deadline" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_reply() and captured.sender_proto_ip == captured.expected_responder_sender_ip_be and captured.target_proto_ip == expected.tester_linklocal_ip and captured.expected_responder_sender_ip_be != 0 and captured.eth_src == expected.dut_iface_mac and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac and captured.is_eth_broadcast()"
+                target="listening_no_periodic"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_reply()"
+                target="fail_reply_wrong_fields"/>
+    <transition event="reply_deadline" target="fail_no_responder_reply"/>
+  </state>
+
+  <state id="listening_no_periodic">
+    <onentry>
+      <send event="periodic_window_deadline" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and captured.sender_proto_ip == captured.expected_responder_sender_ip_be and captured.target_proto_ip == captured.expected_responder_sender_ip_be and captured.expected_responder_sender_ip_be != 0"
+                target="fail_periodic_gratuitous_arp"/>
+    <transition event="periodic_window_deadline" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_claim_observed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_announce_committed_link_local_address"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_only_one_announce">
+    <donedata>
+      <content>{"verdict":"fail","reason":"fewer_than_2_arp_announces_within_deadline"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_responder_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_emit_arp_reply_for_claim_address"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_reply_wrong_fields">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_periodic_gratuitous_arp">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_periodic_gratuitous_arp_for_committed_link_local"}</content>
+    </donedata>
+  </final>
+</scxml>

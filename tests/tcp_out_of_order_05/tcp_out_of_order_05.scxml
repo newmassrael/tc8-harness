@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.10 TCP_OUT_OF_ORDER_05: in a stream of full-sized
+  segments there SHOULD be an ACK for at least every second segment
+  (RFC 1122 §4.2.3.2 p96 — When to Send an ACK Segment, SHOULD).
+
+  v3.0 Test Procedure (p367):
+    1. TESTER: Cause the DUT to move on to full-window operation in
+               ESTABLISHED state.
+    2. TESTER: Send some number of full-sized segments to fill the
+               DUTs receive window buffer.
+    3. DUT:    Send ACKs for all the data segments.
+    4. TESTER: Verify that for every even number of data segments
+               sent the number of ACKs received is at least half of
+               that number.
+
+  Mechanism (active-OPEN handshake + 10× raw-inject MSS-sized
+  PSH+ACK + 5-ACK consume chain):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+147,
+       kBasicsActiveRemotePort+147).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt.
+    4. Tester raw-injects 10 consecutive 1460 B PSH+ACKs at S,
+       S+1460, S+2920, ... S+13140. 5 ms inter-segment pacing keeps
+       each kernel ACK on the wire in arrival order without pcap
+       dispatch coalescing them into a single snapshot.
+    5. DUT acknowledges either:
+         * quickack mode (post-handshake `pingpong=0`): 1 ACK per
+           segment = 10 ACKs;
+         * non-quickack: cumulative ACK every other segment per
+           RFC 1122 §4.2.3.2 stretchACK floor = 5 ACKs;
+         * mixed transition during the burst: somewhere in between.
+       All cases satisfy the spec's "at least half" floor (≥ 5
+       ACKs for 10 segments).
+
+  Six-state SCXML chain consumes the handshake third-leg ACK first,
+  then 5 distinct DUT pure ACKs (each guard matches `is_pure_dut_ack
+  (...)` on the active-OPEN quad — distinct ack_num values per ACK
+  are not needed because each phase consumes ONE ACK and the
+  underlying SCE event queue dispatches in arrival order). Falling
+  short of 5 ACKs deadlines in the corresponding `listening_ack_N`
+  phase and lands on `fail_insufficient_dut_acks`.
+
+  Per-phase deadlines: 5 s phase 1 (handshake), 1 s each subsequent
+  ACK consume. Total budget = 5 + 5*1 = 10 s SCXML, comfortably
+  above stimulus burst (≈50 ms) + Linux delayed-ACK timer
+  (≤ 200 ms) + pcap dispatch (~10 ms / phase).
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_handshake_ack via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_out_of_order_05"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
+                target="listening_ack_1"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_ack_1">
+    <onentry>
+      <send event="deadline_ack_1" delay="1s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
+                target="listening_ack_2"/>
+    <transition event="deadline_ack_1" target="fail_insufficient_dut_acks"/>
+  </state>
+
+  <state id="listening_ack_2">
+    <onentry>
+      <send event="deadline_ack_2" delay="1s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
+                target="listening_ack_3"/>
+    <transition event="deadline_ack_2" target="fail_insufficient_dut_acks"/>
+  </state>
+
+  <state id="listening_ack_3">
+    <onentry>
+      <send event="deadline_ack_3" delay="1s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
+                target="listening_ack_4"/>
+    <transition event="deadline_ack_3" target="fail_insufficient_dut_acks"/>
+  </state>
+
+  <state id="listening_ack_4">
+    <onentry>
+      <send event="deadline_ack_4" delay="1s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
+                target="listening_ack_5"/>
+    <transition event="deadline_ack_4" target="fail_insufficient_dut_acks"/>
+  </state>
+
+  <state id="listening_ack_5">
+    <onentry>
+      <send event="deadline_ack_5" delay="1s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
+                target="pass"/>
+    <transition event="deadline_ack_5" target="fail_insufficient_dut_acks"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_insufficient_dut_acks">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_fewer_than_5_acks_for_10_full_sized_segments"}</content>
+    </donedata>
+  </final>
+</scxml>

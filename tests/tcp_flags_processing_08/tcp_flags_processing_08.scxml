@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08: TCP, in CLOSED, LISTEN or
+  SYN-SENT state, MUST not process a FIN. Derived from RFC 793 §3.9
+  p75 Event Processing (MUST).
+
+  v3.0 Test Procedure (p344) lists 3 iterations:
+    * CASE 1: <wst> = CLOSED   → DUT MUST send RST
+    * CASE 2: <wst> = LISTEN   → DUT MUST NOT respond
+    * CASE 3: <wst> = SYN-SENT → DUT MUST NOT respond / retransmit SYN
+
+  Per-phase port quads (cluster collision dodge — see
+  reference_active_open_port_quad_collision.md):
+    * Phase 1: (kBasicsClosedPort, kBasicsTesterPort) — bare FIN
+      raw-injected to an unbound DUT port → Linux's tcp_v4_rcv finds
+      no socket → tcp_v4_send_reset emits RST(seq=0) per RFC 793 §3.9.
+      Same wire shape as BASICS_04 phase 2.
+    * Phase 2: (kBasicsListenPort + 14, kBasicsTesterPort + 71) —
+      UT OpOpenTcpSocket(passive, kBasicsListenPort + 14) drives DUT
+      into LISTEN; tester raw-inject bare FIN. Linux's
+      tcp_rcv_state_process LISTEN handler returns 0 (drop) for
+      non-SYN segments → DUT silent. 3 s absence guard catches any
+      DUT-emitted segment on the 4-tuple.
+    * Phase 3: (kBasicsActiveLocalPort + 52, kBasicsActiveRemotePort
+      + 52) — UT OpOpenTcpSocket(active) to an unbound tester port
+      drives DUT to SYN-SENT; TesterAutoRstDrop suppresses tester
+      kernel's auto-RST that would otherwise race-kill DUT's
+      SYN-SENT before the bare FIN arrives. Tester raw-inject bare
+      FIN (no ACK — Linux's tcp_rcv_synsent_state_process discards
+      non-ACK non-SYN non-RST silently). Absence guard tolerates
+      DUT SYN retransmits (RFC 793-mandated SYN-SENT timer behaviour
+      unrelated to the spec-targeted FIN response).
+
+  SCXML observation chain:
+    listening_p1_dut_rst (5 s, trigger DUT RST seq=0 on closed port)
+      → listening_p2_silence (3 s absence, DUT response → fail)
+      → listening_p3_dut_syn (5 s, DUT SYN positive trigger)
+      → listening_p3_silence (3 s absence, DUT RST/pure-ACK/FIN+ACK
+        on the 4-tuple → fail; DUT SYN retx tolerated)
+      → pass
+
+  Phase 3 absence guard explicitly excludes is_dut_syn so periodic
+  SYN retx (Linux base RTO 1 s) does not false-fire the spec-asserted
+  silence assertion.
+
+  Negative IP-flip path: phase 1 src_ip-conjunct unreachable, lands
+  on fail_p1_no_dut_rst at the 5 s deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_08"
+       datamodel="null"
+       initial="listening_p1_dut_rst">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_p1_dut_rst">
+    <onentry><send event="deadline_p1_dut_rst" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0"
+                target="listening_p2_silence"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
+                target="fail_p1_wrong_seq"/>
+    <transition event="deadline_p1_dut_rst" target="fail_p1_no_dut_rst"/>
+  </state>
+
+  <state id="listening_p2_silence">
+    <onentry><send event="deadline_p2_silence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 14U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 71U"
+                target="fail_p2_unexpected_response"/>
+    <transition event="deadline_p2_silence" target="listening_p3_dut_syn"/>
+  </state>
+
+  <state id="listening_p3_dut_syn">
+    <onentry><send event="deadline_p3_dut_syn" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                target="listening_p3_silence"/>
+    <transition event="deadline_p3_dut_syn" target="fail_p3_no_dut_syn"/>
+  </state>
+
+  <state id="listening_p3_silence">
+    <onentry><send event="deadline_p3_silence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U) or captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                target="fail_p3_unexpected_response"/>
+    <transition event="deadline_p3_silence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_p1_no_dut_rst">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_rst_to_fin_in_closed"}</content></donedata>
+  </final>
+
+  <final id="fail_p1_wrong_seq">
+    <donedata><content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_fin_in_closed"}</content></donedata>
+  </final>
+
+  <final id="fail_p2_unexpected_response">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_fin_in_listen"}</content></donedata>
+  </final>
+
+  <final id="fail_p3_no_dut_syn">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_syn_to_active_open_phase3"}</content></donedata>
+  </final>
+
+  <final id="fail_p3_unexpected_response">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_fin_in_syn_sent"}</content></donedata>
+  </final>
+</scxml>

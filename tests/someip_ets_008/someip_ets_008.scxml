@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_008: echoCommonDatatypes — DUT replies with
+  the same nine-tuple of common datatypes the Request carried, in
+  REVERSED order per ets.fidl §5.1.4.2.1 (res1=arg9, res2=arg8, ...).
+
+  CommonAPI default deployment serialises primitives back-to-back with
+  no alignment padding (verified from CommonAPI-SomeIP OutputStream
+  writeValue overloads: integer writers do not call align()). Request
+  payload layout (27 bytes):
+    Bool   arg1 @ 0
+    UInt8  arg2 @ 1
+    UInt16 arg3 @ 2..3
+    UInt32 arg4 @ 4..7
+    Int8   arg5 @ 8
+    Int16  arg6 @ 9..10
+    Int32  arg7 @ 11..14
+    Float  arg8 @ 15..18
+    Double arg9 @ 19..26
+
+  Stimulus picks all-zero arg1..arg8 and arg9 = 1.5 (Double BE
+  0x3FF8000000000000), so the Request payload's distinctive prefix
+  is at offset 19. The DUT echoes in reversed order — res1 = arg9 =
+  1.5 lands at Response payload offset 0..7. Pass criterion verifies
+  payload_bytes[0..7] match the Double 1.5 BE encoding and all
+  remaining bytes (covered by the 16-byte capture slot) stay 0x00 —
+  proving the DUT serialised res1 with the expected order AND that
+  arg2..arg8 echoed faithfully (all zero in, all zero out).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_008"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0023 and captured.return_code == 0x00 and captured.payload_len == 27 and captured.payload_bytes[0] == 0x3F and captured.payload_bytes[1] == 0xF8 and captured.payload_bytes[2] == 0x00 and captured.payload_bytes[3] == 0x00 and captured.payload_bytes[4] == 0x00 and captured.payload_bytes[5] == 0x00 and captured.payload_bytes[6] == 0x00 and captured.payload_bytes[7] == 0x00 and captured.payload_bytes[8] == 0x00 and captured.payload_bytes[9] == 0x00 and captured.payload_bytes[10] == 0x00 and captured.payload_bytes[11] == 0x00 and captured.payload_bytes[12] == 0x00 and captured.payload_bytes[13] == 0x00 and captured.payload_bytes[14] == 0x00 and captured.payload_bytes[15] == 0x00"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0023 and (captured.payload_len != 27 or captured.payload_bytes[0] != 0x3F or captured.payload_bytes[1] != 0xF8 or captured.payload_bytes[2] != 0x00 or captured.payload_bytes[7] != 0x00 or captured.payload_bytes[8] != 0x00 or captured.payload_bytes[15] != 0x00)"
+                target="fail_phase2_payload_mismatch"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_payload_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_common_datatypes_response_did_not_match_reversed_echo"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_method_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

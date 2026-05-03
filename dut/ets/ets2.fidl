@@ -1,0 +1,27 @@
+package org.tc8.ets2
+
+<** @description: Enhanced Testability Service #2 (ETS2) — TC8 v3.0 §5.1.5
+  multi-service axis (SERVICE-ID-2). Used by §5.1.5.7 RPC_01 (single TCP
+  connection for all methods across services), RPC_02 (single TCP
+  connection for all notifications), and RPC_13 (two services share the
+  same UDP port). Minimal surface: one UDP echo method and one broadcast
+  event so the multi-service plumbing has a working method-RPC and
+  notification-flow shape without mirroring the full ETS interface.
+**>
+interface EnhancedTestability2 {
+    version { major 1 minor 0 }
+
+    <** @description: Echo UINT8 over UDP — METHOD-ID-1-SI-2. **>
+    method echoUINT8 {
+        in  { UInt8 value }
+        out { UInt8 result }
+    }
+
+    <** @description: Periodic test event for RPC_02 Notification flow —
+      EVENT-ID-1-EG-ID-2 under EVENT-GROUP-ID-1-SI-2. **>
+    broadcast TestEventUINT8 {
+        out {
+            UInt8 value
+        }
+    }
+}

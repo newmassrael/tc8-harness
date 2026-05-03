@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_08: DUT-emitted ARP
+  Probe targets an IP in the 169.254/16 link-local prefix
+  (RFC 3927 §2.1, MUST).
+
+  Spec Test Procedure (tc8_p141-p160.txt:479..494):
+    1-4. DUT brings up iface and sends DHCPDISCOVER.
+    5-7. TESTER listens; verify the Network Address of the Target IP
+                          == LINK-LOCAL-NET-ADDR (169.254/16).
+
+  `ArpCaptured::target_proto_ip_in_link_local_prefix()` encapsulates
+  the prefix mask check (LE-host assumption documented on the
+  helper) so the SCXML guard stays a single member-method call —
+  also avoids putting a literal `&` in a template-substituted
+  attribute (`reference_sce_template_adoption.md` gotcha 3).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_address_selection_08"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_linklocal_probe_field.sce-template.xml"
+           pass_expr="captured.target_proto_ip_in_link_local_prefix()"
+           fail_state="fail_target_ip_outside_link_local_prefix"
+           fail_reason="arp_probe_target_ip_not_in_169_254_16"/>
+</scxml>

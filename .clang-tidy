@@ -1,0 +1,3 @@
+Checks: '-*, google-explicit-constructor, hicpp-explicit-conversions, misc-comment-before-brace'
+
+HeaderFilterRegex: '(^|/)tc8-harness/src/'

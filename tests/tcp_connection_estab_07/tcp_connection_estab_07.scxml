@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.15 TCP_CONNECTION_ESTAB_07: from ESTABLISHED, the DUT
+  MUST acknowledge a tester FIN, then on user Close request emit its
+  own FIN and reach CLOSED (RFC 793 §3.5 p39 Closing a Connection).
+
+  v3.0 Test Procedure (p381-p400.txt:196-203):
+    1. TESTER: Bring DUT to ESTABLISHED.
+    2. TESTER: Send a FIN packet.
+    3. DUT:    Sends an ACK packet.
+    4. DUT:    Sends a FIN packet and moves to CLOSED state.
+
+  Mechanism:
+    UT OpOpenTcpSocket(passive, 13179) brings DUT to LISTEN. Tester
+    kernel connect() completes the 3-way handshake. Tester
+    shutdown(SHUT_WR) on the connected fd emits FIN; DUT auto-ACKs
+    (CLOSE-WAIT). UT OpCloseTcpSocket then drives tc8-dut's close()
+    which emits the DUT-side FIN (LAST-ACK).
+
+  Pass chain: 2-state SCXML.
+    listen_dut_ack: pure ACK on the listen 4-tuple (ACK only).
+    listen_dut_fin: FIN+ACK on the listen 4-tuple.
+  Order matters: the post-handshake third-leg ACK comes from the
+  tester (src_ip == tester_ip) and is filtered out by the
+  `is_pure_dut_ack` 4-tuple guard. Likewise the kernel's auto-ACK to
+  tester FIN matches src_ip == dut_iface_ip and fires the listen_dut_
+  ack transition.
+
+  Linux-quickack DUT assumption (and non-Linux DUT caveat):
+    The case observes the DUT auto-ACK to tester FIN as a separate
+    segment from the DUT-side FIN. Linux's quickack mode (active for
+    the first ~16 segments post-handshake) emits the auto-ACK within
+    ~5 ms of recv-FIN; the 200 ms gap before UT close gives that ACK
+    plenty of time to land in pcap before the close()-driven FIN.
+    A DUT that combines tester-FIN-ACK with its own FIN into a single
+    FIN+ACK segment (RFC 793 §3.5 permits piggyback) would carry
+    `(flags & FIN) != 0` AND `(flags & ACK) != 0` simultaneously,
+    failing this case's phase 1 guard which requires
+    `(flags & FIN) == 0`. BASICS_03 inherits the same Linux assumption
+    from a single-ACK observation; this case extends it to the FIN
+    half. Failing on a non-Linux DUT under this scenario is a
+    test-design assumption, not a true conformance gap.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_connection_estab_07"
+       datamodel="null"
+       initial="listen_dut_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listen_dut_ack">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0"
+                target="listen_dut_fin"/>
+    <transition event="deadline_exceeded" target="fail_timeout_ack"/>
+  </state>
+
+  <state id="listen_dut_fin">
+    <onentry>
+      <send event="deadline_exceeded_2" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (captured.flags &amp; 0x01) != 0 and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0"
+                target="pass"/>
+    <transition event="deadline_exceeded_2" target="fail_timeout_fin"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_fin_after_close"}</content>
+    </donedata>
+  </final>
+</scxml>

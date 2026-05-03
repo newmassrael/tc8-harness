@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_03: from ESTABLISHED state, the DUT's TCP
+  MUST send an ACK in response to a FIN. Derived from RFC 793 §3.2
+  p23 Terminology (ESTABLISHED → CLOSE-WAIT via FIN reception).
+
+  v3.0 Test Procedure (p281-p300.txt:460):
+    1. TESTER: Cause DUT to move on to ESTABLISHED state at <wnp>.
+    2. TESTER: Send a FIN,ACK.
+    3. DUT:    Send ACK.
+
+  Mechanism (§4.8.5 Upper Tester + tester-side connect + shutdown):
+    1. Tester UT OpOpenTcpSocket(12345).
+    2. Tester connect(DUT:12345) — 3-way handshake completes.
+    3. Tester shutdown(SHUT_WR) — kernel emits FIN,ACK without closing
+       the fd (so the read side can still absorb the DUT's subsequent
+       FIN,ACK without RST-ing).
+    4. DUT kernel sends a bare-ACK in the ESTABLISHED → CLOSE-WAIT
+       transition. Observed via pcap.
+
+  Two DUT-origin segments pass the src_ip / src_port conjunct during
+  the stimulus:
+    * SYN,ACK during handshake (SYN=1, ACK=1) — guard does NOT match
+      because the SYN bit is set; SCXML stays in listening.
+    * Plain ACK in response to the tester FIN (SYN=0, FIN=0, ACK=1) —
+      pass guard matches, case lands on `pass`.
+
+  Pass guard conjuncts:
+    * captured.src_ip    == expected.dut_iface_ip
+    * captured.dst_ip    == expected.tester_ip
+    * captured.src_port  == 12345
+    * (captured.flags & ACK) != 0
+    * (captured.flags & SYN) == 0
+    * (captured.flags & FIN) == 0
+
+  Iteration coverage: spec lists only one iteration for BASICS_03.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_03"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x01) == 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

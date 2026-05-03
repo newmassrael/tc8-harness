@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_05: in CLOSED state, DUT's TCP stack MUST send
+  an RST whose SEQ field is taken from the incoming segment's ACK number,
+  in response to a segment containing ACK and not containing RST.
+  Derived from RFC 793 §3.9 p65 Event Processing (CLOSED-state arrival,
+  ACK-bearing branch).
+
+  v3.0 Test Procedure (p281-p300.txt:535) — two iterations:
+    1. CASE: flag set = SYN,ACK
+    2. CASE: flag set = ACK (bare)
+
+  Both iterations resolve through the `tcp_v4_send_reset` ACK-bearing
+  branch (`rep.th.seq = th->ack_seq`) but the spec mandates each is
+  exercised in turn. The traits inject the two stimuli sequentially
+  with a 200 ms inter-phase gap (`kTcpPilotPhaseGap`); pcap captures
+  the four wire frames (2 × tester probe + 2 × DUT RST) in order, and
+  this SCXML walks two listening states one DUT-RST observation at a
+  time.
+
+  Per-phase ACK literals are deliberately distinct
+  (kTesterPilotAckPhaseSynAck = 0xC0FFEE00, kTesterPilotAckPhaseAck =
+  0xDEADBEEF) so a buggy DUT that emits a single RST whose SEQ matches
+  one but not the other false-fails the OTHER phase rather than
+  silently masquerading. Same SEQ across phases would make a stuck-at
+  bug invisible.
+
+  Pass guard conjuncts (per-phase `expected_seq` differs):
+    * captured.src_ip   == expected.dut_iface_ip       — DUT-origin
+    * captured.dst_ip   == expected.tester_ip          — addressed back
+    * captured.src_port == kBasicsClosedPort (54321)   — provoked port
+    * captured.flags    & RST (0x04)                    — spec-mandated
+    * captured.seq_num  == <phase_ack_literal>         — spec "SEQ ←
+      incoming.ACK"
+
+  Per-phase fail_timeout reasons (`fail_no_rst_after_synack` /
+  `_after_ack`) let smoke-test triage identify which iteration the
+  DUT failed without re-reading the SCXML.
+
+  Phase deadlines: 5 s × 2 phases = 10 s upper bound. CASE_TIMEOUT_SEC
+  [TCP_BASICS_05]=12 absorbs stimulus wall-time (~400 ms) + the
+  worst-case 10 s SCXML window + margin.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_05"
+       datamodel="null"
+       initial="listening_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_synack">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0xC0FFEE00U"
+                target="listening_ack"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0xC0FFEE00U"
+                target="fail_wrong_seq_synack"/>
+    <transition event="deadline_exceeded" target="fail_timeout_synack"/>
+  </state>
+
+  <state id="listening_ack">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0xDEADBEEFU"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0xDEADBEEFU"
+                target="fail_wrong_seq_ack"/>
+    <transition event="deadline_exceeded" target="fail_timeout_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_synack_ack_literal"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_ack_phase_ack_literal"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_after_synack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_after_ack"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_152: SD_Session_ID_is_one_after_wrapping.
+
+  Per PRS_SOMEIPSD_00159 the DUT's outgoing SD session_id increments per
+  emitted SD entry (OfferService cyclic + SubscribeEventgroupAck) and on
+  wrap MUST skip 0, restarting at 1. The Tester forces the counter to
+  climb fast by bursting SubscribeEventgroup at ~480 acks/sec via a
+  background thread spawned from `kickStimulus` (see trait); the wrap
+  edge is observable on any DUT-emitted SD frame around session_id
+  0xFFFF → 0x0001.
+
+    Phase 1 (listening_phase1): first OfferService observation on the
+            configured SERVICE-ID-1. 6 s deadline matches the §5.1.6
+            BASIC_03 / ETS_086 phase-1 envelope.
+    Phase 2 (listening_phase2A ↔ listening_phase2B): alternating
+            self-target so the dispatch helper's state-change-gated
+            `prev_sd_session_id = session_id` snapshot fires on every
+            observed SD frame (a true single-state self-transition would
+            short-circuit the snapshot guard, leaving prev pinned at
+            phase 1's exit value). Pass cond fires when prev sits in the
+            top 256 IDs and current is in the bottom 16 — lenient bounds
+            against the wrap discontinuity.
+
+  Phase 2 deadline 180 s covers the ~140 s wall-time the burst needs to
+  traverse 65,535 acks (PM21 measured 480 acks/sec); 200 s smoke envelope
+  carries a 20 s margin.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_152"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2A"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2A">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="180s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.prev_sd_session_id &gt; 0xFF00 and captured.session_id &lt; 0x0010 and captured.session_id &gt; 0"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1"
+                target="listening_phase2B"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_wrap_observed"/>
+  </state>
+
+  <state id="listening_phase2B">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="180s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.prev_sd_session_id &gt; 0xFF00 and captured.session_id &lt; 0x0010 and captured.session_id &gt; 0"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1"
+                target="listening_phase2A"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_wrap_observed"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_wrap_observed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_session_id_wrap_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

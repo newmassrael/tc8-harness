@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared SCXML body for §4.5.6.2 ADDRESS_SELECTION_11/_12/_13. The
+  three cases differ only in the conflict-ARP wire shape the tester
+  injects (Request / Reply / Probe), which is selected by the
+  per-case trait. The state machine is identical:
+
+    listening (12 s deadline)
+      └ DUT-emitted Probe (is_arp_probe()) → await_repick
+      └ deadline → fail_no_initial_probe
+
+    await_repick (entered at probe1; trait observer fires conflict
+                  ARP injection on entry)
+      └ DUT-emitted Probe with target_proto_ip ≠ first probe's
+        → pass
+      └ deadline → fail_no_repick
+
+  The trait's dispatch helper snapshots the first probe's
+  target_proto_ip into `captured.first_probe_target_proto_ip` on
+  the listening → await_repick transition, so the re-pick guard has
+  a fixed reference value to compare against. RFC 3927 §2.2.1
+  mandates the re-pick after detection of any conflict ARP within
+  the probe window (PROBE_WAIT + 3 Probes + ANNOUNCE_WAIT).
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_linklocal_conflict_repick">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="12s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="await_repick"/>
+    <transition event="deadline_exceeded" target="fail_no_initial_probe"/>
+  </state>
+
+  <state id="await_repick">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()
+                      and captured.target_proto_ip != captured.first_probe_target_proto_ip"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_no_repick"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_initial_probe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_repick">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_repick_after_conflict_arp"}</content>
+    </donedata>
+  </final>
+</sce:template>

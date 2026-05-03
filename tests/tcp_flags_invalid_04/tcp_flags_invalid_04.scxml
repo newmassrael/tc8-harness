@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_04: TCP, in SYN-SENT state, MUST
+  ignore a RST control message. Derived from RFC 793 §3.9 p67 Event
+  Processing (MUST).
+
+  v3.0 Test Procedure (p329):
+    1. TESTER: Cause DUT to move on to SYN-SENT state
+    2. TESTER: Send a RST control message
+    3. DUT:    Do not send any response
+    4. TESTER: Verify that the DUT remains in SYN-SENT state
+
+  Mechanism (active-OPEN to unbound tester port + ISN_d learn +
+  spec-asserted bare RST + 3 s absence window):
+    a. TesterAutoRstDrop suppresses tester-kernel auto-RST so the
+       DUT-emitted SYN to the unbound tester port does not provoke
+       a kernel RST that would race-kill DUT's SYN-SENT before the
+       bare-RST inject lands.
+    b. UT OpOpenTcpSocket(Active) on (kBasicsActiveLocalPort,
+       kBasicsActiveRemotePort) — DUT issues SYN, enters SYN-SENT.
+    c. TcpFrameSnippet captures DUT-emitted pure SYN to learn ISN_d.
+    d. tester raw-injects pure RST (no ACK flag) with seq=ISN_d + 1.
+       The seq is set to the value DUT would consider in-window so
+       the segment is plausible at the IP layer; without the ACK
+       flag, RFC 793 §3.9 p67 mandates DUT MUST drop the segment
+       (an ACK-less RST in SYN-SENT carries no acknowledgment of
+       the outgoing SYN, so connection-reset cannot be authorized).
+    e. SCXML phase 1 (listening_dut_syn) confirms SYN-SENT entry.
+    f. SCXML phase 2 (listening_absence) waits 3 s for any DUT-
+       emitted RST or pure ACK on the same 4-tuple. DUT SYN
+       retransmits are tolerated (SYN bit set, matches neither
+       absence-fail predicate).
+
+  ## Linux 6.5 dispatch path
+
+  `tcp_rcv_synsent_state_process` (net/ipv4/tcp_input.c) checks
+  `if (!th->ack)` before reaching the RST branch. A bare RST falls
+  through to the segment-drop path without invoking
+  `tcp_send_active_reset` or `tcp_done` — the SYN-SENT TCB is
+  preserved, SYN retransmit cadence continues. RFC 793 §3.9 p67
+  conformant.
+
+  RstDrop scope = stimulus body only. After dtor fires, subsequent
+  SYN retransmits draw tester-kernel RST+ACK with ack=ISN_d+1
+  (acceptable), which Linux processes per RFC 793 §3.9 → CLOSED
+  silently. Same closed-via-tester-RST tail as FLAGS_INVALID_03 —
+  not part of the spec assertion but harmless to the absence guard.
+
+  ## Port-quad selection — kBasicsActiveLocalPort + 21 / +21
+
+  Same cross-case isolation rationale as FLAGS_INVALID_03: §15's
+  +0..+6 offsets leave tester-side TCP state on a single-worker
+  cluster run, and a fresh active-OPEN on the same tuple draws a
+  stray ACK that triggers RFC 793 §3.4 RST(seq=incoming.ack) from
+  the SYN-SENT DUT, false-firing this case's absence guard. +21
+  is clear of both §15 and FLAGS_INVALID_03 (+20).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_04"
+       datamodel="null"
+       initial="listening_dut_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_dut_syn">
+    <onentry>
+      <send event="deadline_dut_syn" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 21U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 21U)"
+                target="listening_absence"/>
+    <transition event="deadline_dut_syn" target="fail_no_dut_syn"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 21U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 21U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 21U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 21U)"
+                target="fail_unexpected_response"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_syn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_to_active_open"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_bare_rst_in_syn_sent"}</content>
+    </donedata>
+  </final>
+</scxml>

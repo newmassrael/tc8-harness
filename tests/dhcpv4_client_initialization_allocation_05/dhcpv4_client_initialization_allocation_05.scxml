@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_05:
+    "Any arriving DHCPACK messages must be silently discarded" (RFC 2131
+    §4.4.1, MUST — applies to the INIT / SELECTING phase before any
+    OFFER has been accepted; an early ACK has no DISCOVER it could be
+    answering and is therefore an out-of-order message).
+
+  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_05):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER:DHCP Server Listens.
+    4.   DUT: Sends DHCPDISCOVER.
+    5.   TESTER: Sends DHCPACK (no preceding OFFER).
+    6.   TESTER: Listens.
+    7.   DUT: Does NOT send DHCPREQUEST.
+  Pass: 4 + 7 (DUT silently discards stray ACK, no REQUEST).
+
+  Same lifecycle as INIT_ALLOC_04 (DISCOVER → absence window) — the
+  divergence is purely in the stimulus message_type (5 = ACK instead
+  of 2 = OFFER). The DUT's SELECTING-phase pollForReply filters by
+  expected_msg_type = 2 (OFFER), so the ACK is dropped at the parser
+  and the DUT never enters REQUESTING.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_05"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_no_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_no_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="fail_unexpected_request"/>
+    <transition event="s2_deadline" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_request_after_lone_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

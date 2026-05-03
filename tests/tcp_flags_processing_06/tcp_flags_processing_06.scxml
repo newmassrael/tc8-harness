@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_06: TCP, in TIME-WAIT state,
+  MUST acknowledge a retransmitted FIN and restart the 2*MSL
+  time-out. Derived from RFC 793 §3.9 p73 Event Processing (MUST).
+
+  v3.0 Test Procedure (p342):
+    1. TESTER: Cause DUT to TIME-WAIT
+    2. TESTER: Send the last FIN once more
+    3. DUT:    Send ACK for the retransmitted FIN
+    4. TESTER: Wait 1.5*MSL time
+    5. TESTER: Verify DUT remains in TIME-WAIT state
+
+  Mechanism:
+    * Prelude: tcp_pilot_common::driveTcpToTimeWaitFw2 (active-OPEN
+      handshake → UT close → tester kernel auto-ACK → tester
+      shutdown(WR) FIN → DUT pure ACK → DUT TIME-WAIT) on a unique
+      port quad (kBasicsActiveLocalPort + 51, kBasicsActiveRemotePort
+      + 51) chosen to dodge the §4.8 TIME-WAIT cluster's existing
+      reservations (BASICS_11/12/13/14, UNACC_13, FLAGS_INVALID_14
+      use the default +0 quad).
+    * Step 2 = first replay FIN (raw-inject, scheduled on entry to
+      listening_first_replay_ack).
+    * Step 3 = DUT pure ACK observation (listening_first_replay_ack).
+    * Step 4 = wall-time 45 s wait. Linux's TCP_TIMEWAIT_LEN = 60 s
+      (= 2*MSL → MSL = 30 s); spec's 1.5*MSL = 45 s. Scheduled via
+      scheduler.schedule(45 s) on entry to listening_second_replay_ack.
+      The first replay FIN restarted DUT's TW timer per RFC 793 §3.9,
+      so at t = 45 s post-restart the timer (60 s budget) is still
+      live.
+    * Step 5 = second replay FIN at t + 45 s. If TW survived, DUT
+      emits another pure ACK matching listening_second_replay_ack;
+      if TW expired, the (kBasicsActiveRemotePort + 51,
+      kBasicsActiveLocalPort + 51) 4-tuple no longer matches a kernel
+      socket and Linux's tcp_v4_send_reset emits closed-port RST,
+      missing the pure-ACK pass guard and landing on
+      fail_no_second_replay_ack.
+
+  SCXML chain (5 listening states + 5 fail terminals + pass):
+    handshake_ack → dut_fin → tester_fin_ack →
+      first_replay_ack → second_replay_ack → pass
+
+  listening_second_replay_ack deadline = 50 s (45 s wait + ~5 s
+  observation margin); other states use 5 s standard. Total positive
+  envelope ≈ kTcpUtBootWait (1.5 s) + prelude (~3 s) + 4 × 0.1 s
+  observed ACK latencies + 45 s wait + 0.1 s second ACK ≈ 50 s.
+  CASE_TIMEOUT_SEC=60.
+
+  Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
+  unreachable, lands on fail_no_handshake_ack at the 5 s deadline
+  + ~3 s prelude wall-time ≈ 10 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_06"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
+                target="listening_dut_fin"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_fin">
+    <onentry><send event="deadline_dut_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
+                target="listening_tester_fin_ack"/>
+    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
+  </state>
+
+  <state id="listening_tester_fin_ack">
+    <onentry><send event="deadline_tester_fin_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
+                target="listening_first_replay_ack"/>
+    <transition event="deadline_tester_fin_ack" target="fail_no_tester_fin_ack"/>
+  </state>
+
+  <state id="listening_first_replay_ack">
+    <onentry><send event="deadline_first_replay_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
+                target="listening_second_replay_ack"/>
+    <transition event="deadline_first_replay_ack" target="fail_no_first_replay_ack"/>
+  </state>
+
+  <state id="listening_second_replay_ack">
+    <onentry><send event="deadline_second_replay_ack" delay="50s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
+                target="pass"/>
+    <transition event="deadline_second_replay_ack" target="fail_no_second_replay_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_no_dut_fin">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_close_fin"}</content></donedata>
+  </final>
+
+  <final id="fail_no_tester_fin_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin"}</content></donedata>
+  </final>
+
+  <final id="fail_no_first_replay_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_first_replay_fin_in_time_wait"}</content></donedata>
+  </final>
+
+  <final id="fail_no_second_replay_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_second_replay_fin_after_1_5_msl"}</content></donedata>
+  </final>
+</scxml>

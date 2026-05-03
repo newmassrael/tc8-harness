@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.12 TCP_PROBING_WINDOWS_03: a sending TCP MUST be robust
+  against window shrinking — the "useable window" can become negative
+  when the receiver shrinks the advertised window after data has
+  already been transmitted; the DUT must not transmit new data while
+  usable window is negative (RFC 1122 §4.2.2.16 p91 Managing the
+  Window — RFC 793 §3.7 page 41 MUST).
+
+  v3.0 Test Procedure (p375):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
+    2. TESTER: Cause the application on the DUT-side to issue one
+               data SEND request.
+    3. DUT:    Send the data segment.
+    4. TESTER: Send the ACK.
+    5. TESTER: Cause the application on the DUT-side to issue two
+               more SEND calls for data segments.
+    6. DUT:    Send the data segments.
+    7. TESTER: Send ACK for the first segment with an updated window
+               value of zero.
+    8. TESTER: Cause the application on the DUT-side to issue a SEND
+               request for a data segment.
+    9. DUT:    Do not send the segment as the "useable window" is
+               negative.
+
+  Mechanism (active-OPEN handshake + 3 MSS-fill SENDs + window-shrink
+  ACK + 4th SEND absence guard):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+149,
+       kBasicsActiveRemotePort+149).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt. Captured `expected_ack_num` is preloaded
+       with seg2_seq (= S+MSS); `expected_ack_num_phase2` with
+       seg3_seq (= S+2*MSS). The seg4 boundary is seg3_seq + MSS
+       (= S+3*MSS); a DUT data segment with seq_num greater than
+       expected_ack_num_phase2 is the spec's prohibited "send past
+       negative usable window".
+    4. TesterAutoAckDrop suppresses tester-kernel auto-ACKs so the
+       harness retains full control over ACK injection.
+    5. UT OpSendTcpData(socket_id=1, payload=MSS B) — DUT emits
+       seg1 at seq=S.
+    6. Settle ~150 ms; raw-inject ACK at S+MSS with full window
+       (0xFFFF). DUT advances snd_una to S+MSS.
+    7. UT OpSendTcpData(MSS B) twice — DUT emits seg2 at seq=S+MSS
+       and seg3 at seq=S+2*MSS (each is full MSS so Nagle's small-
+       segment hold does not apply).
+    8. Settle ~150 ms; raw-inject ACK at S+2*MSS (acks seg2 only)
+       with `window=0`. DUT's snd_una advances to S+2*MSS,
+       snd_wnd=0; snd_nxt is still at S+3*MSS (seg3 outstanding).
+       Usable window = snd_una + snd_wnd - snd_nxt
+                     = (S+2*MSS) + 0 - (S+3*MSS) = -MSS. Negative.
+    9. UT OpSendTcpData(MSS B) — DUT must NOT emit seg4 (any
+       segment with seq >= S+3*MSS = beyond seg3's range) because
+       usable window is negative. Linux enters persist mode and
+       emits 0-byte zero-window probes (which carry no payload —
+       payload_len == 0 → not a data segment).
+
+  Four-state SCXML chain:
+    * listening_seg1     — observe seg1 (any DUT data segment on the
+      4-tuple); transition on first match.
+    * listening_seg2     — observe seg2 with seq_num ==
+      captured.expected_ack_num (= S+MSS).
+    * listening_seg3     — observe seg3 with seq_num ==
+      captured.expected_ack_num_phase2 (= S+2*MSS).
+    * absence_no_seg4    — 4 s window asserting no DUT data segment
+      with seq_num > captured.expected_ack_num_phase2 (a seg3
+      retransmit at seq == expected_ack_num_phase2 is tolerated and
+      does not satisfy the fail conjunct; only seq beyond seg3's
+      start counts as a forbidden "new segment past negative usable
+      window"). Pass on absence_done.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_seg1 via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_probing_windows_03"
+       datamodel="null"
+       initial="listening_seg1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_seg1">
+    <onentry>
+      <send event="deadline_seg1" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset)"
+                target="listening_seg2"/>
+    <transition event="deadline_seg1" target="fail_no_seg1"/>
+  </state>
+
+  <state id="listening_seg2">
+    <onentry>
+      <send event="deadline_seg2" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset) and captured.seq_num == captured.expected_ack_num"
+                target="listening_seg3"/>
+    <transition event="deadline_seg2" target="fail_no_seg2"/>
+  </state>
+
+  <state id="listening_seg3">
+    <onentry>
+      <send event="deadline_seg3" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset) and captured.seq_num == captured.expected_ack_num_phase2"
+                target="absence_no_seg4"/>
+    <transition event="deadline_seg3" target="fail_no_seg3"/>
+  </state>
+
+  <state id="absence_no_seg4">
+    <onentry>
+      <send event="absence_done" delay="4s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset) and captured.seq_num &gt; captured.expected_ack_num_phase2"
+                target="fail_dut_sent_past_shrunk_window"/>
+    <transition event="absence_done" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_seg1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_seg2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_second_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_seg3">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_third_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_sent_past_shrunk_window">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_sent_segment_past_shrunk_window_negative_usable_window_violation"}</content>
+    </donedata>
+  </final>
+</scxml>

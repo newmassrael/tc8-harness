@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.1.7 SOMEIPSRV_FORMAT_07: Reboot Flag bit (bit 7 of SD flags
+  byte) shall be '1' for first SD messages after reboot.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_format_07"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:(captured.sd_flags &amp; 0x80) == 0x80"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:(captured.sd_flags &amp; 0x80) == 0x00"
+                target="fail_reboot_flag"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_reboot_flag">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reboot_flag_not_set"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

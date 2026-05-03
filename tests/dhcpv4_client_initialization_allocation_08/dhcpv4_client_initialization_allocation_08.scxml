@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_08:
+    "The client SHOULD perform a check on the suggested address to
+     ensure that the address is not already in use ... the client must
+     fill in its own hardware address as the sender's hardware address,
+     and 0 as the sender's IP address" (RFC 2131 §4.4.1).
+
+  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_08):
+    1-2. DUT bring-up + DHCP client configure.
+    3-4. TESTER cause DUT to BOUND.
+    5.   TESTER:DHCP Server Listens.
+    6.   DUT: Sends ARP Request Message.
+    7.   TESTER: Verify ARP Request contains:
+            - Sender MAC = DUT iface MAC
+            - Sender IP  = 0
+            - Target IP  = SERVER1-IP-POOL-0-0 (= offered yiaddr)
+  Pass: 6 + 7.
+
+  Cross-protocol BPF (`ArpAndDhcpv4`) — observes both DHCP lifecycle
+  + post-BOUND ARP Probe. tc8-dut firmware opts into the Probe
+  sequence via `arp_probe_listen_ms = 1500`; trait passes that through
+  emitStartDhcpClient. State 4 deadline 8 s covers the 1.5 s pilot +
+  ~150 ms DISCOVER/OFFER/REQUEST/ACK + ~50 ms Probe emit budget.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_08"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpAndDhcpv4Captured"
+               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpAndDhcpv4Expected"
+               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_request()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_arp_probe"/>
+    <transition event="s2_deadline" target="fail_no_request"/>
+  </state>
+
+  <state id="listening_for_arp_probe">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.opcode == 1
+                      and !captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
+                target="fail_arp_probe_shape_mismatch"/>
+    <transition event="s3_deadline" target="fail_no_arp_probe"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_arp_probe_shape_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_arp_probe_field_mismatch"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_arp_probe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_arp_probe_after_bound"}</content>
+    </donedata>
+  </final>
+</scxml>

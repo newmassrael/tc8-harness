@@ -1,0 +1,28 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="condition")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+#pragma once
+#ifndef {{ guard }}
+#define {{ guard }}
+
+#include <cstdint>
+#include <string>
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+
+namespace SCE::Generated::{{ namespace }} {
+
+inline bool {{ func_name }}({{ params }}) {
+    return {{ expr }};
+}
+
+}  // namespace SCE::Generated::{{ namespace }}
+
+#endif  // {{ guard }}

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_071: Union_Length_too_long.
+
+  Tester sends echoUNION (METHOD-ID 0x0019) with the ETS_038 9-byte
+  Type 2 (uint8) baseline payload, but corrupts the inner union-length
+  prefix at payload bytes [0..3] from `00 00 00 01` to `00 00 00 80`
+  (claims 128 bytes of variant value follow the type tag, while only
+  1 byte is actually present). The SOME/IP Length header stays
+  self-consistent (8 + 9 = 17), so the frame reaches CommonAPI; the
+  Variant decoder reads `itsSize = 128`, walks past the actual buffer
+  end, trips errorOccurred_, and the dispatcher emits Error Response.
+  Per PRS_SOMEIP_00119/00126 pass shape is Error Response (msg_type
+  0x81), Method Response with non-zero return_code, OR silent ignore.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
+    Phase 2 (listening_phase2): Either an Error Response is observed
+            (pass), a Method Response with non-zero return_code (pass),
+            or no Response within the deadline (pass per Notes). A
+            normal echo Response with return_code 0x00 -> fail.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_071"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0019 and captured.message_type == 0x81"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0019 and captured.message_type == 0x80 and captured.return_code != 0x00"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0019 and captured.message_type == 0x80 and captured.return_code == 0x00"
+                target="fail_phase2_dut_accepted_malformed"/>
+    <transition event="phase2_deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_dut_accepted_malformed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_returned_ok_response_for_corrupt_union_length_field"}</content>
+    </donedata>
+  </final>
+</scxml>

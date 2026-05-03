@@ -1,0 +1,51 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+# SCE Forge: Auto-generated from Extended SCXML (sce:kind="lookup")
+# Runtime: {{ runtime_dep }}
+# Do not edit — regenerate from the source SCXML file.
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+{% if output_is_string %}
+
+from enum import Enum
+
+
+class {{ enum_name }}(Enum):
+{% for val in unique_values %}
+    {{ val }} = "{{ val }}"
+{% endfor %}
+
+
+def {{ func_name }}({{ input_id }}: {{ input_type }}) -> {{ enum_name }}:
+{% for group in entries_by_value %}
+{% if loop.first %}
+    if {{ group.condition }}:
+{% else %}
+    elif {{ group.condition }}:
+{% endif %}
+        return {{ enum_name }}.{{ group.value }}
+{% endfor %}
+    else:
+        return {{ enum_name }}.{{ default_value }}
+{% else %}
+
+from typing import Optional
+
+from sce_forge_runtime.lookup import lookup as _lookup
+
+_KEYS = [{{ keys_literal | join(", ") }}]
+_VALUES = [{{ values_literal | join(", ") }}]
+
+
+def {{ func_name }}({{ input_id }}: {{ input_type }}) -> {% if on_miss_error %}Optional[{{ value_type }}]{% else %}{{ value_type }}{% endif %}:
+{% if on_miss_error %}
+    return _lookup(_KEYS, _VALUES, {{ input_id }})
+{% else %}
+    result = _lookup(_KEYS, _VALUES, {{ input_id }})
+    return result if result is not None else {{ default_literal }}
+{% endif %}
+{% endif %}

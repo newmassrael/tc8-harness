@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.11 TCP_RETRANSMISSION_TO_03: Karn's algorithm — TCP MUST
+  preserve RTO doubling across an ACK that acknowledges a previously
+  retransmitted segment (RFC 1122 §4.2.3.1 p95 — RFC 6298 §3 / §5
+  step 5.3).
+
+  v3.0 Test Procedure (p368):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
+    2. TESTER: Cause an application on the DUT-side to issue a data
+               SEND request.
+    3. DUT:    Send the data segment.
+    4. TESTER: Do not send the ACK and cause the retransmission timer
+               on the DUT side to expire.
+    5. DUT:    Send the data segment once more.
+    6. TESTER: Note the retransmission time (RTO).
+    7. TESTER: Send an ACK just before the RTO occurs on DUT.
+    8. TESTER: Cause the application to issue SEND request for one
+               more data segment.
+    9. DUT:    Send the data segment.
+    10. TESTER: Do not send ACK.
+    11. DUT:    Retransmit the data segment.
+    12. TESTER: Verify that the retransmission timer value is twice
+                the value of RTO noted earlier (exponential backoff
+                only).
+
+  Mechanism (kernel-side TCP_INFO observation, two snapshots):
+    The earlier pcap-timing approach (observe retx1's wall delta vs.
+    retx2's wall delta) was deterministic at workers=1 but flaked
+    under workers=4 parallel load — pcap's SOFTIRQ delivery raced
+    the SCXML's deadline guards. Replacing the wire-timing assertions
+    with two synchronous OpQueryTcpInfo (0x13) reads off the DUT's
+    connected fd makes the verdict a function of kernel state, not
+    pcap delivery latency. Stimulus phases:
+
+    1. Active-OPEN handshake on +156 port quad; `queryTcpSeqRange`
+       snapshots tester snd_nxt / rcv_nxt for the Karn ACK.
+    2. `TesterAutoAckDrop` suppresses tester-kernel auto-ACKs so
+       seg1's RTO timer fires without tester interference. RACK and
+       TLP are disabled in dut_ns (mirrors RETRANSMISSION_TO_04 via
+       the smoke-test sysctl override) so `tcp_retransmit_timer`
+       follows the canonical out_reset_timer doubling path.
+    3. UT SEND seg1 → DUT data segment 1 (8 B).
+    4. Sleep 700 ms — Linux fires retx1 at TCP_RTO_MIN ≈ 200 ms,
+       doubles `icsk_rto` to ≈ 400 ms; retx2 may also fire at
+       +400 ms (doubling further to ≈ 800 ms) and either is
+       acceptable.
+    5. **Phase 1 snapshot**: `OpQueryTcpInfo` reads the DUT fd's
+       `struct tcp_info`. Pass criteria: `tcpi_retransmits >= 1`
+       (proves the kernel-side retx fired) AND `tcpi_rto >= 350 ms`
+       (proves doubling).
+    6. Raw-inject Karn-excluded ACK acknowledging seg1's 8 B. RFC
+       6298 §3 forbids the RTT estimator from sampling this round-
+       trip; §5.3 forbids resetting the retransmit timer.
+    7. UT SEND seg2 (8 B) → Linux's `tcp_event_new_data_sent` →
+       `tcp_rearm_rto` arms the new timer with the *current*
+       `icsk_rto` value. A Karn-correct DUT preserves the doubled
+       value; a Karn-violating DUT collapses to TCP_RTO_MIN baseline.
+    8. Sleep 150 ms — schedule-noise headroom; the timer arming is
+       sub-millisecond.
+    9. **Phase 2 snapshot**: `OpQueryTcpInfo` reads `tcpi_rto`.
+       Pass criterion: `tcpi_rto >= 350 ms` (Karn preserved).
+
+  SCXML shape — single state with a `<send delay="0ms"/>`-raised
+  evaluation event, multiple cond-keyed transitions; first matching
+  transition wins per W3C SCXML §3.13. Transitions are ordered fail-
+  first (handshake → query validity → numeric thresholds) so the
+  most-proximal cause short-circuits to its specific verdict before
+  falling through to pass. delay=0ms is the minimal scheduler tick
+  required to flush the stimulus-mutated `captured` into the cond
+  evaluator's view; pure eventless transitions are not used because
+  the SCE codegen consumes events into Event enum members and an
+  enum-less initial state would have no firing edge at all.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active-OPEN
+  handshake fail at `driveActiveOpenEstablished`; the stimulus
+  returns early without setting `ut_handshake_completed`, so the
+  SCXML's first cond fires and verdicts as
+  `fail:dut_handshake_did_not_complete`. (The earlier indirect
+  `phase1_tcp_info_query_failed` route misattributed the cause —
+  the handshake never happened, so describing the failure in
+  TCP_INFO terms was inaccurate.)
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_retransmission_to_03"
+       datamodel="null"
+       initial="evaluate_kernel_observations">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="evaluate_kernel_observations">
+    <onentry>
+      <send event="evaluate" delay="0ms"/>
+    </onentry>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_handshake_completed"
+                target="fail_handshake_did_not_complete"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p1_valid"
+                target="fail_phase1_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p2_valid"
+                target="fail_phase2_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
+                target="fail_no_phase1_retx"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 350000"
+                target="fail_initial_rto_not_doubled"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p2_rto_us &lt; 350000"
+                target="fail_doubling_not_preserved"/>
+    <transition event="evaluate" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_handshake_did_not_complete">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_phase1_retx">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_phase1_retransmit_observed_in_kernel"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_initial_rto_not_doubled">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_doubling_not_preserved">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase2_rto_not_doubled_karns_violation"}</content>
+    </donedata>
+  </final>
+</scxml>

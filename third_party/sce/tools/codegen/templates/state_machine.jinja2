@@ -1,0 +1,842 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{% include 'license_header.jinja2' %}
+
+#pragma once
+#include <cstdint>
+#include <string>
+#include <string_view>
+{% if model.needs_event_scheduler or model.needs_parent_template %}
+#include <chrono>
+{% endif %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.needs_script_engine %}
+#include <memory>
+{% endif %}
+{% if model.invokes | scxml or model.invokes | hybrid %}
+#include <unordered_map>
+{% endif %}
+{% for ctx in model.context_objects %}
+{% if ctx.cpp_include %}
+#include "{{ ctx.cpp_include }}"
+{% endif %}
+{% endfor %}
+#include "static/StaticExecutionEngine.h"
+{% if model.invokes | scxml or model.invokes | hybrid %}
+
+// W3C SCXML 6.4: Child state machine headers (all pure AOT)
+{% for invoke_info in model.invokes | scxml %}
+{% if invoke_info.child_name %}
+#include "{{ invoke_info.child_name }}_sm.h"
+{% endif %}
+{% endfor %}
+{% for invoke_info in model.invokes | hybrid %}
+{% if invoke_info.child_name %}
+#include "{{ invoke_info.child_name }}_sm.h"
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
+#include "core/InvokeHelper.h"
+{% endif %}
+{% if model.invokes | scxml or model.invokes | scxml_remote or model.invokes | hybrid %}
+#include "common/EventMetadataHelper.h"
+{% endif %}
+{% if model.invokes | scxml_remote %}
+// SCE_MESH.md §9.6 — remote `<invoke type="scxml">` lifecycle hooks
+// (onInvokeStarted / onInvokeDone) reference MeshEnvelope fields.
+#include "mesh/MeshEnvelope.h"
+#include "mesh/PatternKind.h"
+{% endif %}
+{% if model.needs_send_helper %}
+#include "common/SendHelper.h"
+#include "common/NamelistHelper.h"
+#include "common/DatamodelValidationHelper.h"
+{% endif %}
+{% if model.needs_script_engine %}
+#include "common/FinalizeHelper.h"
+{% endif %}
+{% if model.needs_event_scheduler %}
+#include "common/SendSchedulingHelper.h"
+{% endif %}
+#include "core/TransitionHelper.h"
+#include "core/HistoryHelper.h"
+#include "core/StateEntryHelper.h"
+#include "core/EntryExitHelper.h"
+{% if model.needs_event_matching_helper %}
+#include "core/EventMatchingHelper.h"
+{% endif %}
+{% if model.has_parallel_states %}
+#include "core/ParallelStateHelper.h"
+#include "core/ParallelExitEntryHelper.h"
+#include "core/ParallelTransitionHelper.h"
+#include "core/HierarchicalStateHelper.h"
+#include "core/ConflictResolutionHelper.h"
+#include "core/ParallelCompletionHelper.h"
+{% if model.partition_parallel_roles %}
+// SCE_MESH.md §14 rule 12 / §16.5 — distributed `<parallel>` runtime.
+#include "mesh/MeshEnvelope.h"
+#include "mesh/ParallelCompletionTracker.h"
+#include "mesh/PatternKind.h"
+#include "mesh/PayloadCodec.h"
+#include <functional>
+#include <stdexcept>
+#include <utility>
+{% if model.partition_barrier_timeouts %}
+// SCE_MESH.md §16.5 L3500 — barrier-timeout runtime surfaces
+// `error.communication` (reason `PARALLEL_BARRIER_TIMEOUT`) through
+// the PullScheduler-driven external queue.
+#include "mesh/CommunicationError.h"
+#include <chrono>
+#include <cstdint>
+#include <vector>
+{% endif %}
+{% endif %}
+{% endif %}
+#include "common/EventDataHelper.h"
+{% if model.needs_donedata_helper %}
+#include "common/DoneDataHelper.h"
+{% endif %}
+#include "common/InPredicateHelper.h"
+{% if model.invokes | mesh_rpc | selectattr('srcexpr') | list | length > 0 %}
+#include <regex>  // SCE_MESH.md §9.5 srcexpr shape check.
+{% endif %}
+{% if inline_kind_code %}
+#include <optional>
+#include <vector>
+#include <cstring>
+{% endif %}
+{% if model.needs_script_engine %}
+#include "common/DataModelInitHelper.h"
+#include "common/EventTypeHelper.h"
+{% if not inline_kind_code %}
+#include <optional>
+{% endif %}
+#include "common/Logger.h"
+#include "scripting/ScriptEngineProvider.h"
+#include "scripting/ScriptResultUtils.h"
+#include "common/AssignHelper.h"
+#include "common/AssignmentExecutionHelper.h"
+#include "common/ForeachValidator.h"
+#include "core/ForeachHelper.h"
+#include "common/GuardHelper.h"
+{% endif %}
+
+// Conditional debug logging for generated code
+#ifndef NDEBUG
+    #define AOT_DEBUG(...)  SCE_LOG_DEBUG(__VA_ARGS__)
+#else
+    // Debug logging disabled in release builds
+    #define AOT_DEBUG(...)
+#endif
+
+// Transition execution macro - compresses repetitive transition code
+#ifdef AOT_EXECUTE_TRANSITION
+#undef AOT_EXECUTE_TRANSITION
+#endif
+{% if model.has_parallel_states %}
+#define AOT_EXECUTE_TRANSITION(SRC, TGT, IDX, HAS_ACTIONS, IS_INTERNAL, IS_TARGETLESS) \
+    do { \
+        AOT_DEBUG("AOT processTransition: Transition matched in state {}", static_cast<int>(SRC)); \
+        lastTransitionSourceState_ = SRC; \
+        lastTransitionIsInternal_ = IS_INTERNAL; \
+        lastTransitionIsTargetless_ = IS_TARGETLESS; \
+        if (collectMode != nullptr) { \
+            AOT_DEBUG("AOT processTransition: Collecting transition {} -> {}", static_cast<int>(SRC), static_cast<int>(TGT)); \
+            collectMode->push_back(TransitionInfo(SRC, TGT, IDX, HAS_ACTIONS, IS_INTERNAL, IS_TARGETLESS)); \
+        } else { \
+            AOT_DEBUG("AOT processTransition: State transition {} -> {}", static_cast<int>(currentState), static_cast<int>(TGT)); \
+            currentState = TGT; \
+            transitionTaken = true; \
+        } \
+    } while(0)
+{% else %}
+#define AOT_EXECUTE_TRANSITION(SRC, TGT, IDX, HAS_ACTIONS, IS_INTERNAL, IS_TARGETLESS) \
+    do { \
+        AOT_DEBUG("AOT processTransition: Transition matched in state {} -> {}", static_cast<int>(SRC), static_cast<int>(TGT)); \
+        lastTransitionSourceState_ = SRC; \
+        lastTransitionIsInternal_ = IS_INTERNAL; \
+        lastTransitionIsTargetless_ = IS_TARGETLESS; \
+        currentState = TGT; \
+        transitionTaken = true; \
+    } while(0)
+{% endif %}
+
+{# ═══ Named Context: precompute template parameter/argument lists ═══ #}
+{# Contexts with cpp_type use concrete types (no template param needed).    #}
+{# Contexts without cpp_type use template parameters (duck typing).         #}
+{# _tpl_params/_tpl_args only contain template parameters, NOT concrete.    #}
+{# C++ template parameter lists — built with namespace() for cross-engine compat #}
+{% set _ns = namespace(tpl_params=[], tpl_args=[], sm_tpl_args=[], sm_tpl_params=[]) %}
+{% for ctx in model.context_objects %}
+{% if not ctx.cpp_type %}
+{% set _ns.tpl_params = _ns.tpl_params + ['typename ' + ctx.id | capitalize + 'T'] %}
+{% set _ns.tpl_args = _ns.tpl_args + [ctx.id | capitalize + 'T'] %}
+{% set _ns.sm_tpl_args = _ns.sm_tpl_args + [ctx.id | capitalize + 'T'] %}
+{% set _ns.sm_tpl_params = _ns.sm_tpl_params + ['typename ' + ctx.id | capitalize + 'T'] %}
+{% endif %}
+{% endfor %}
+{# SCE_MESH.md §9.6 codegen-shape seam — emit ParentStateMachine only
+   when the child is NOT used as a remote invoke worker. Remote workers
+   must be default-constructible for `ChildSessionAdapter<Engine>`; the
+   `<send target="#_parent">` emission in actions/send.jinja2 falls
+   through to `engine.performMeshSend("#_parent", ...)` which the
+   adapter's callback intercepts into wire-16 ChildEvent envelopes. #}
+{% if model.needs_parent_template %}
+{% set _ns.tpl_params = _ns.tpl_params + ['typename ParentStateMachine'] %}
+{% set _ns.tpl_args = _ns.tpl_args + ['ParentStateMachine'] %}
+{% set _ns.sm_tpl_args = _ns.sm_tpl_args + ['ParentStateMachine'] %}
+{% set _ns.sm_tpl_params = _ns.sm_tpl_params + ['typename ParentStateMachine'] %}
+{% endif %}
+{% if model.invokes | scxml or model.invokes | hybrid %}
+{% set _ns.tpl_params = _ns.tpl_params + ['typename SelfType'] %}
+{% set _ns.tpl_args = _ns.tpl_args + ['SelfType'] %}
+{# SelfType = fully qualified SM class (CRTP) #}
+{% if _ns.sm_tpl_args %}
+{% set _ns.sm_tpl_args = _ns.sm_tpl_args + [model.name + '<' + _ns.sm_tpl_args | join(', ') + '>'] %}
+{% else %}
+{% set _ns.sm_tpl_args = _ns.sm_tpl_args + [model.name] %}
+{% endif %}
+{% endif %}
+{% set _tpl_params = _ns.tpl_params %}
+{% set _tpl_args = _ns.tpl_args %}
+{% set _sm_tpl_args = _ns.sm_tpl_args %}
+{% set _sm_tpl_params = _ns.sm_tpl_params %}
+{% set _has_tpl = _tpl_params | length > 0 %}
+{% set _has_sm_tpl = _sm_tpl_params | length > 0 %}
+
+namespace SCE::Generated::{{ model.name }} {
+
+{# Forward declaration #}
+{% if _has_sm_tpl %}
+template <{{ _sm_tpl_params | join(', ') }}>
+{% endif %}
+class {{ model.name }};
+
+{# State enum #}
+enum class State : uint8_t {
+    {% for state_name in model.states | sort %}
+    {{ state_name | capitalize }}{{ "," if not loop.last }}
+    {% endfor %}
+};
+
+{# Event enum #}
+enum class Event : uint8_t {
+    NONE,  // W3C SCXML 6.2: Default event for scheduler polling (no semantic meaning)
+    {% for event_name in model.events | sort %}
+    {{ event_name | replace('.', '_') | replace('-', '_') | capitalize }}{{ "," if not loop.last }}
+    {% endfor %}
+};
+
+{% if model.has_parallel_states %}
+{# Transition descriptor for W3C SCXML Appendix D optimal transition set #}
+/**
+ * @brief Transition information for microstep execution
+ *
+ * W3C SCXML Appendix D: Optimal enabled transition set execution requires
+ * collecting all enabled transitions before executing any (atomic microstep).
+ */
+struct TransitionInfo {
+    State source;              // W3C SCXML 3.13: Source state of transition
+    State target;              // Target state of transition
+    int transitionIndex;       // Index of transition in source state (for executeTransitionActions)
+    bool hasActions;           // Whether transition has executable content
+    bool isInternal;           // W3C SCXML 3.13: Whether transition is type="internal"
+    bool isTargetless;         // W3C SCXML 5.9.2: Whether transition has no target (consumes event only)
+
+    TransitionInfo(State src, State tgt, int idx, bool actions, bool internal = false, bool targetless = false)
+        : source(src), target(tgt), transitionIndex(idx), hasActions(actions), isInternal(internal), isTargetless(targetless) {}
+};
+{% endif %}
+
+{# Policy class #}
+// State policy for {{ model.name }}
+{% if _has_tpl %}
+template <{{ _tpl_params | join(', ') }}>
+{% endif %}
+struct {{ model.name }}Policy {
+    using State = ::SCE::Generated::{{ model.name }}::State;
+    using Event = ::SCE::Generated::{{ model.name }}::Event;
+{% for ctx in model.context_objects %}
+    using {{ ctx.id | capitalize }}Type = {{ ctx.cpp_type if ctx.cpp_type else (ctx.id | capitalize + 'T') }};
+{% endfor %}
+
+    // W3C SCXML Appendix D: Flag indicating parallel state support
+    static constexpr bool HAS_PARALLEL_STATES = {{ 'true' if model.has_parallel_states else 'false' }};
+
+    // W3C SCXML 5.9: Flag indicating JSEngine requirement (ECMAScript expressions)
+    static constexpr bool NEEDS_SCRIPT_ENGINE = {{ 'true' if model.needs_script_engine else 'false' }};
+
+    {% if model.context_objects %}
+    // Named Context: individual pointers for dependency injection
+    {% for ctx in model.context_objects %}
+    {{ ctx.cpp_type if ctx.cpp_type else (ctx.id | capitalize + 'T') }}* {{ ctx.id }}_ = nullptr;
+    {% endfor %}
+    {% endif %}
+
+    {% if model.variables %}
+    // Datamodel variables
+    {% for var in model.variables %}
+    {% if var.type == 'int' %}
+    int {{ var.id }} = {{ var.expr if var.expr else '0' }};
+    {% elif var.type == 'string' %}
+    ::std::string {{ var.id }}{{ ' = ' + var.expr if var.expr else '' }};
+    {% elif var.type == 'bool' %}
+    bool {{ var.id }} = {{ var.expr if var.expr else 'false' }};
+    {% elif var.type == 'runtime' %}
+    // Runtime-evaluated variable (handled by JSEngine): {{ var.id }}
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+{% if inline_kind_code %}
+
+    // ── SCE Forge: Inline kind member functions ──────────────
+{{ inline_kind_code }}
+{% endif %}
+    {% if model.needs_parent_template %}
+
+    // W3C SCXML 6.2: Parent state machine pointer for #_parent support
+    ParentStateMachine* parent_ = nullptr;
+
+    // W3C SCXML 6.4.1: Invokeid for child-to-parent communication (test338)
+    ::std::string invokeId_;
+
+    // W3C SCXML 6.5: Child session ID for finalize origin matching (test233)
+    ::std::string childSessionId_;
+
+    // W3C SCXML 6.4.5: Delayed sends to parent scheduler (using SendSchedulingHelper)
+    // ARCHITECTURE.md Zero Duplication: Reuses SendSchedulingHelper (Single Source of Truth)
+    mutable ::SCE::PullScheduler<typename ParentStateMachine::Event> parentSendScheduler_;
+    {% endif %}
+
+    {# SCE_MESH.md §9.6.2 — a parent whose only `<invoke type="scxml">` is     #}
+    {# remote-mesh (rewritten by classifier to `remote_mesh_target`) still     #}
+    {# emits entry-block code that reads `sessionId_` when seeding each        #}
+    {# `activeInvokes_` ChildSession. `scxml_family` drops those invokes       #}
+    {# (it's the W3C-local filter), so the outbound-peers shape must be       #}
+    {# checked explicitly — matching the paired                              #}
+    {# `(model.invokes | scxml) or (model.invokes | scxml_remote)` idiom      #}
+    {# used across invoke_methods.jinja2. Same rationale below on             #}
+    {# executeExitActions static/non-static selection.                       #}
+    {% if model.needs_script_engine or model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
+    // Session ID for JSEngine/Invoke (lazy-initialized)
+    mutable ::std::optional<::std::string> sessionId_;
+    {% endif %}
+    {% if model.needs_script_engine %}
+    mutable bool scriptEngineInitialized_ = false;
+    {% endif %}
+    {% if model.invokes | scxml or model.invokes | hybrid %}
+    // W3C SCXML 6.4: Source SCXML file path for child invoke resolution
+    // Required for resolving relative child SCXML paths (e.g., "subflow.scxml")
+    mutable ::std::string scxmlSourcePath_ = "{{ model.scxml_source_path | replace('\\', '\\\\') }}";
+    {% endif %}
+    {% if model.needs_event_name %}
+    // W3C SCXML 5.10: Event name storage for _event.name access (test318)
+    mutable ::std::string pendingEventName_;
+    {% endif %}
+    {% if model.needs_event_data %}
+    // W3C SCXML 5.10: Event data storage for _event.data access
+    // Required for: <send> params, error.execution event data (W3C SCXML 5.3)
+    mutable ::std::string pendingEventData_;
+    {% endif %}
+    {% if model.needs_event_data %}
+    // W3C SCXML 5.5/C.1: Typed event data for engine-agnostic ScriptValue pipeline
+    mutable ::std::optional<ScriptValue> pendingEventTypedData_;
+    {% endif %}
+    {% if model.needs_event_type %}
+    // W3C SCXML 5.10.1: Event type storage for _event.type access (test331)
+    mutable ::std::string pendingEventType_;
+    {% endif %}
+    {% if model.needs_event_sendid %}
+    // W3C SCXML 5.10.1: Event sendid storage for _event.sendid access (test332)
+    mutable ::std::string pendingEventSendId_;
+    {% endif %}
+    {% if model.needs_event_origin %}
+    // W3C SCXML 5.10.1: Event origin storage for _event.origin access (test336)
+    mutable ::std::string pendingEventOrigin_;
+    {% endif %}
+    {% if model.needs_event_origintype %}
+    // W3C SCXML 5.10.1: Event origintype storage for _event.origintype access
+    mutable ::std::string pendingEventOriginType_;
+    {% endif %}
+    {% if model.needs_event_invokeid %}
+    // W3C SCXML 5.10.1: Event invokeid storage for _event.invokeid access (test338)
+    mutable ::std::string pendingEventInvokeId_;
+    {% endif %}
+    {% if model.needs_external_flag %}
+    // W3C SCXML 6.2: Flag to mark next event as external (from send)
+    mutable bool nextEventIsExternal_ = false;
+    {% endif %}
+    {% if model.invokes | scxml or model.invokes | hybrid %}
+    // W3C SCXML 6.4: Self-pointer for local child state machine creation
+    // (defer/cancel/execute pattern). Remote scxml invokes (§9.6) do not
+    // use this pointer — the child engine lives in the worker binary.
+    mutable SelfType* self_ = nullptr;
+
+    // W3C SCXML 5.10: Current event metadata (originSessionId for finalize)
+    mutable ::SCE::Core::EventMetadata currentEventMetadata_;
+    // W3C SCXML 6.4: Invoke child state machines (static and hybrid, all pure AOT)
+    {% for invoke_info in model.invokes | scxml %}
+    mutable std::shared_ptr<::SCE::Generated::{{ invoke_info.child_name }}::{{ invoke_info.child_name }}<SelfType>> child_{{ invoke_info.field_suffix }}_;
+    {% endfor %}
+    {% for invoke_info in model.invokes | hybrid %}
+    mutable std::shared_ptr<::SCE::Generated::{{ invoke_info.child_name }}::{{ invoke_info.child_name }}<SelfType>> child_{{ invoke_info.field_suffix }}_;
+    {% endfor %}
+    {% endif %}
+
+    {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
+    // W3C SCXML 6.4: Pending done.invoke flags for child completion
+    {% for invoke_info in model.invokes | scxml %}
+    mutable bool pendingDoneInvoke_{{ invoke_info.invoke_id }}_ = false;
+    {% endfor %}
+    {% for invoke_info in model.invokes | hybrid %}
+    mutable bool pendingDoneInvoke_{{ invoke_info.invoke_id }}_ = false;
+    {% endfor %}
+    {% for invoke_info in model.invokes | scxml_remote %}
+    mutable bool pendingDoneInvoke_{{ invoke_info.invoke_id }}_ = false;
+    {% endfor %}
+
+    // W3C SCXML 6.4: Child session tracking (shared across local, hybrid,
+    // and §9.6 remote scxml invokes)
+    struct ChildSession {
+        std::string sessionId;           // Child's session ID (local: parent.invokeId; remote: URI per §9.6.1 L1410)
+        std::string invokeId;            // Invoke element ID
+        std::string parentSessionId;     // Parent's session ID
+        bool autoforward = false;        // W3C 6.4.1: Autoforward events to child
+        std::string finalizeScript;      // W3C 6.5: Finalize handler script
+    };
+
+    {% endif %}
+    {% if model.invokes | mesh_rpc | selectattr('srcexpr') | list | length > 0 %}
+
+    // SCE_MESH.md §9.5 srcexpr: runtime-resolved source target, stashed at
+    // <invoke> entry so the paired <cancel> at state exit can re-use the
+    // same literal. Re-evaluating the expression on exit would re-observe
+    // the datamodel and could pick a different machine than the one the
+    // correlation entry was registered against. Declared outside the
+    // scxml/hybrid guard because mesh-rpc is an independent invoke kind —
+    // a document with only `<invoke type="sce:mesh-rpc" srcexpr="...">`
+    // still needs the stash field even though it has no SCXML-session
+    // child to track.
+    {% for invoke_info in model.invokes | mesh_rpc %}
+    {% if invoke_info.srcexpr %}
+    mutable std::string _mesh_resolved_src_{{ invoke_info.field_suffix }}_;
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+    {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
+
+    // W3C SCXML 6.4: Pending invoke structure for defer/cancel/execute pattern
+    // ARCHITECTURE.md Zero Duplication: Used with InvokeHelper (Single Source of Truth)
+    // Pattern: defer (onentry) → cancel (onexit) → execute (macrostep end)
+    struct PendingInvoke {
+        std::string invokeId;  // W3C SCXML 6.4.1: Unique invoke identifier
+        State state;           // State containing the invoke element
+    };
+
+    // Active child sessions indexed by invokeId (shared across local, hybrid,
+    // and SCE_MESH.md §9.6 remote scxml invokes — finalize/autoforward/cancel
+    // match by compile-time invoke_id regardless of whether the child engine
+    // lives in-process or on a remote worker).
+    mutable std::unordered_map<std::string, ChildSession> activeInvokes_;
+    // W3C SCXML 6.4: Pending invokes (deferred until macrostep end)
+    mutable std::vector<PendingInvoke> pendingInvokes_;
+    {% endif %}
+    {# W3C SCXML 6.2: Event scheduling handled by StaticExecutionEngine::scheduler_ #}
+    {# Policy-level eventScheduler_ removed - use engine.scheduleEvent() and engine.tick() #}
+    {% if model.history_states %}
+    // W3C SCXML 3.11: Runtime history tracking variables (matches Interpreter HistoryEntry)
+    {% for history_id, history_info in model.history_states | dictsort %}
+    mutable ::std::optional<::std::vector<State>> history_{{ history_id }};  // {{ history_info.type }} history for {{ history_info.parent }}
+    {% endfor %}
+    {% endif %}
+    {% if model.has_parallel_states or model.uses_in_predicate %}
+    // W3C SCXML 3.4/3.12.1: Configuration - active states for parallel states and In() predicate
+    // Tracks all currently active states (parallel regions can have multiple active states)
+    // Also required for In() predicate to check state membership
+    // Thread-safe: mutex protects access from JSEngine worker thread
+    mutable ::std::vector<State> activeStates_;
+    mutable ::std::mutex activeStatesMutex_;
+    {% endif %}
+
+    // W3C SCXML 3.13: Track last transition for deferred action execution
+    // W3C SCXML 3.4: Also needed for parallel states to track actual transition source
+    mutable State lastTransitionSourceState_{};
+{% if model.has_transition_actions %}
+    mutable size_t lastTransitionIndex_ = 0;
+    mutable bool hasTransitionActions_ = false;
+{% endif %}
+    mutable bool lastTransitionIsInternal_ = false;  // W3C SCXML 3.13: Track internal transition type
+    mutable bool lastTransitionIsTargetless_ = false;  // W3C SCXML 5.9.2: Track targetless transition (consumes event only)
+    // Default constructor (lazy initialization, no immediate resource allocation)
+    {{ model.name }}Policy() = default;
+
+    {% if model.has_parallel_states %}
+    // W3C SCXML 3.4/3.12.1: Get active states for parallel state configurations
+    // Thread-safe: Uses mutex to protect activeStates_ from concurrent access
+    std::vector<State> getActiveStates() const {
+        std::lock_guard<std::mutex> lock(activeStatesMutex_);
+        return activeStates_;
+    }
+    {% endif %}
+
+    {% if model.needs_script_engine or model.needs_parent_template %}
+    // Destructor: Clean up resources (RAII pattern)
+    ~{{ model.name }}Policy() {
+        {% if model.needs_parent_template %}
+        // W3C SCXML 6.4.5: Cancel all pending delayed sends to parent on child termination
+        // SimpleScheduler destructor automatically cleans up pending events
+        {% endif %}
+        {% if model.needs_script_engine or model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
+        if (sessionId_.has_value()) {
+            auto& scriptEngine = getScriptEngine();
+            scriptEngine.destroySession(sessionId_.value());
+        }
+        {% endif %}
+    }
+
+    // Prevent copy/move to maintain resource ownership
+    {{ model.name }}Policy(const {{ model.name }}Policy&) = delete;
+    {{ model.name }}Policy& operator=(const {{ model.name }}Policy&) = delete;
+    {{ model.name }}Policy({{ model.name }}Policy&&) = delete;
+    {{ model.name }}Policy& operator=({{ model.name }}Policy&&) = delete;
+    {% endif %}
+
+    [[nodiscard]] static constexpr State initialState() noexcept {
+        return State::{{ (model.initial_leaf if model.initial_leaf else model.initial) | capitalize }};
+    }
+
+    [[nodiscard]] static constexpr bool isFinalState(State state) noexcept {
+        switch (state) {
+        {% for state_id, state in model.states | dictsort %}
+        {% if state.is_final %}
+        case State::{{ state_id | capitalize }}:
+            return true;
+        {% endif %}
+        {% endfor %}
+        default:
+            return false;
+        }
+    }
+
+    // W3C SCXML 3.3: Parent state mapping (for HierarchicalStateHelper)
+    [[nodiscard]] static constexpr std::optional<State> getParent(State state) noexcept {
+        switch (state) {
+        {% for state_id, state in model.states | dictsort %}
+        {% if state.parent %}
+        case State::{{ state_id | capitalize }}:
+            return State::{{ state.parent | capitalize }};
+        {% endif %}
+        {% endfor %}
+        default:
+            return std::nullopt;  // Root state
+        }
+    }
+
+    // W3C SCXML 3.3: Check if state is compound (has initial child)
+    [[nodiscard]] static constexpr bool isCompoundState(State state) noexcept {
+        switch (state) {
+        {% for state_id, state in model.states | dictsort %}
+        {% if state.initial %}
+        case State::{{ state_id | capitalize }}:
+            return true;
+        {% endif %}
+        {% endfor %}
+        default:
+            return false;
+        }
+    }
+
+    // Method implementations in separate .inl file for readability
+    // All large method bodies (entry/exit actions, transitions, script engine, utilities)
+    // are generated into the .inl file and textually included here.
+#include "{{ inl_filename }}"
+};
+
+
+// User-facing state machine class
+{% if _has_sm_tpl %}
+template <{{ _sm_tpl_params | join(', ') }}>
+{% endif %}
+{% set _pol_inst = model.name + 'Policy' %}
+{% if _sm_tpl_args %}
+{% set _pol_inst = _pol_inst + '<' + _sm_tpl_args | join(', ') + '>' %}
+{% endif %}
+class {{ model.name }} : public ::SCE::Static::StaticExecutionEngine<{{ _pol_inst }}> {
+public:
+    // W3C SCXML: Policy type alias for test infrastructure
+    using PolicyType = {{ _pol_inst }};
+{% for ctx in model.context_objects %}
+    using {{ ctx.id | capitalize }}Type = typename PolicyType::{{ ctx.id | capitalize }}Type;
+{% endfor %}
+
+    // Hoist `EventWithMetadata` from the base engine so lambda bodies
+    // nested in this class (trackers, invoke-completion closures, mesh
+    // dispatch hooks) can write `EventWithMetadata(...)` directly
+    // without a local `using EngineBase = ...;` dependent-name dance.
+    using EventWithMetadata =
+        typename ::SCE::Static::StaticExecutionEngine<{{ _pol_inst }}>::EventWithMetadata;
+
+{% if model.context_objects or model.needs_parent_template %}
+    explicit {{ model.name }}(
+        {%- for ctx in model.context_objects %}{% if ctx.cpp_type %}{{ ctx.cpp_type }}{% else %}{{ ctx.id | capitalize }}T{% endif %}& {{ ctx.id }}{{ ', ' if not loop.last or model.needs_parent_template }}{% endfor %}
+        {%- if model.needs_parent_template %}ParentStateMachine* parent, const std::string& invokeId = "", const std::string& childSessionId = ""{% endif -%}
+    ) {
+        {% for ctx in model.context_objects %}
+        this->policy_.{{ ctx.id }}_ = &{{ ctx.id }};
+        {% endfor %}
+        {% if model.needs_parent_template %}
+        this->policy_.parent_ = parent;
+        this->policy_.invokeId_ = invokeId;
+        this->policy_.childSessionId_ = childSessionId;
+        {% endif %}
+        {% if model.invokes | scxml or model.invokes | hybrid %}
+        this->policy_.self_ = this;
+        {% endif %}
+    }
+{% elif model.invokes | scxml or model.invokes | hybrid or model.partition_parallel_roles %}
+    {{ model.name }}() {
+        {% if model.invokes | scxml or model.invokes | hybrid %}
+        this->policy_.self_ = this;
+        {% endif %}
+{# SCE_MESH.md §16.5: install the parallel-final dispatch hooks on the
+   base StaticExecutionEngine so the Policy can fire local-region
+   completions and NonRoot wire-21 sends without downcasting `engine`
+   (which is base-typed when called from `Policy::executeEntryActions`).
+   Each closure captures `this` so the per-`<parallel>` tracker and the
+   SM-side wire-21 callback (set by `TransportRouter`) remain SM
+   members; the base sees only `std::function`. #}
+{% set _has_root_ctor = namespace(v=false) %}
+{% set _has_nonroot_ctor = namespace(v=false) %}
+{% if model.partition_parallel_roles %}
+{% for _pid, _role in model.partition_parallel_roles | items %}
+{% if _role == 'Root' %}{% set _has_root_ctor.v = true %}{% endif %}
+{% if _role == 'NonRoot' %}{% set _has_nonroot_ctor.v = true %}{% endif %}
+{% endfor %}
+{% endif %}
+{% if _has_root_ctor.v %}
+        this->setParallelRegionLocalCompleteCallback(
+            [this](const std::string& parallel_id, const std::string& region_id) {
+{% for _pid, _role in model.partition_parallel_roles | items %}
+{% if _role == 'Root' %}
+                if (parallel_id == "{{ _pid }}") {
+                    this->tracker_{{ _pid }}_.onLocalRegionComplete(region_id);
+                    return;
+                }
+{% endif %}
+{% endfor %}
+            });
+{% endif %}
+{% if _has_nonroot_ctor.v %}
+        this->setParallelRegionRemoteSendCallback(
+            [this](const std::string& parallel_id, const std::string& region_id,
+                   const std::string& donedata) {
+                this->sendParallelRegionDone(parallel_id, region_id, donedata);
+            });
+{% endif %}
+    }
+{% else %}
+    {{ model.name }}() = default;
+{% endif %}
+
+{% if model.needs_script_engine %}
+    // W3C SCXML 6.4.1: Wrapper for setting invoke params (delegates to policy)
+    void setParamInScriptEngine(const std::string& paramName, const std::string& paramExpr) {
+        this->policy_.setParamInScriptEngine(paramName, paramExpr);
+    }
+{% endif %}
+
+{# ── SCE_MESH.md §14 rule 12 / §16.5 per-`<parallel>` role members ── #}
+{% set _role_stats = namespace(has_root=false, has_nonroot=false) %}
+{% if model.partition_parallel_roles %}
+{% for _pid, _role in model.partition_parallel_roles | items %}
+{% if _role == 'Root' %}{% set _role_stats.has_root = true %}{% endif %}
+{% if _role == 'NonRoot' %}{% set _role_stats.has_nonroot = true %}{% endif %}
+{% endfor %}
+{% endif %}
+{% if model.partition_parallel_roles %}
+{% for _pid, _role in model.partition_parallel_roles | items %}
+{% if _role == 'Root' %}
+    // SCE_MESH.md §14 rule 12 / §16.5 Root tracker for <parallel id="{{ _pid }}">.
+    // Public so the SM ctor's `setParallelRegionLocalCompleteCallback`
+    // closure (and the inbound wire-21 path in `onParallelRegionDone`)
+    // can call `tracker_{{ _pid }}_.onLocalRegionComplete(region_id)`.
+    // Expected region count is a compile-time constant baked in from
+    // `model.parallel_regions`.
+    //
+    // `EventWithMetadata` is hoisted at the SM class scope above
+    // (class-level `using` re-export); the lambda body below uses the
+    // unqualified name directly, avoiding the prior local
+    // `using EngineBase = ...;` dependent-name dance.
+    ::SCE::Mesh::ParallelCompletionTracker tracker_{{ _pid }}_ {
+        {{ model.parallel_regions[_pid] | length }},
+        [this]() {
+            AOT_DEBUG("§16.5 tracker fired for <parallel id=\"{{ _pid }}\">, raising done.state.{{ _pid }}");
+            this->raise(EventWithMetadata(PolicyType::Event::Done_state_{{ _pid }}));
+        }
+{% if _pid in model.partition_barrier_timeouts %}
+        ,
+        // SCE_MESH.md §16.5 L3500 barrier-timeout runtime for
+        // <parallel id="{{ _pid }}">. `timeout_ms` and the region
+        // roster are baked in from deploy.yaml + SCXML at codegen
+        // time. The arm callback schedules a one-shot
+        // `Event::Error_communication` through the base engine's
+        // PullScheduler; the cancel callback tears the scheduled
+        // entry down by its deterministic send-id. At fire time the
+        // scheduler pops the event onto the external queue, where
+        // the author's `<transition event="error.communication"
+        // cond="_event.data.reason == 'PARALLEL_BARRIER_TIMEOUT'">`
+        // picks it up. §16.7 row 6 pins the `_event.data` shape —
+        // `CommunicationError::toJsonBytes()` is the single-source
+        // JSON renderer.
+        ::SCE::Mesh::ParallelCompletionTracker::TimerHooks{
+            /* timeout_ms */ static_cast<std::uint64_t>({{ model.partition_barrier_timeouts[_pid] }}u),
+            /* expected_region_ids */ {
+{% for _region in model.parallel_regions[_pid] %}
+                std::string("{{ _region }}"){% if not loop.last %},{% endif %}
+{% endfor %}
+            },
+            /* arm */ [this](std::uint64_t timeout_ms, std::vector<std::string> missing_regions) {
+                ::SCE::Mesh::CommunicationError err;
+                err.reason = "PARALLEL_BARRIER_TIMEOUT";
+                err.parallel_id = std::string("{{ _pid }}");
+                err.missing_regions = std::move(missing_regions);
+                err.timeout_ms = timeout_ms;
+                const auto json_bytes = err.toJsonBytes();
+                this->scheduleEvent(
+                    PolicyType::Event::Error_communication,
+                    std::chrono::milliseconds(timeout_ms),
+                    /* sendId */ "__sce_barrier_timeout_{{ _pid }}",
+                    std::string(json_bytes.begin(), json_bytes.end()));
+            },
+            /* cancel */ [this]() {
+                this->cancelEvent("__sce_barrier_timeout_{{ _pid }}");
+            }
+        }
+{% endif %}
+    };
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if _role_stats.has_root %}
+    /// SCE_MESH.md §16.5 wire-21 receiver hook. `MeshDispatch::dispatchEnvelope`
+    /// probes this method via SFINAE — existence makes the SM eligible to
+    /// receive remote `ParallelRegionDone` envelopes into per-parallel
+    /// trackers. Dispatch is on the typed `env.parallel_id` (CBOR key 16)
+    /// with `env.region_id` (CBOR key 17) forwarded to the tracker — no
+    /// string concat / substr parsing on the hot path.
+    void onParallelRegionDone(const ::SCE::Mesh::MeshEnvelope& env) {
+        // §16.5 sender contract: both `parallel_id` and `region_id` are set
+        // on every wire-21 envelope. An envelope missing either field
+        // violates the contract and is dropped silently here.
+        if (!env.parallel_id.has_value() || !env.region_id.has_value()) return;
+        const std::string& parallel_id = *env.parallel_id;
+        const std::string& region_id = *env.region_id;
+{% if model.partition_parallel_roles %}
+{% for _pid, _role in model.partition_parallel_roles | items %}
+{% if _role == 'Root' %}
+        if (parallel_id == "{{ _pid }}") {
+            this->tracker_{{ _pid }}_.onRemoteRegionComplete(region_id);
+            return;
+        }
+{% endif %}
+{% endfor %}
+{% endif %}
+    }
+{% endif %}
+{% if model.invokes | scxml_remote %}
+    /// SCE_MESH.md §9.6.2 wire-15 SM-side entry point. `MeshDispatch::dispatchEnvelope`
+    /// probes this method via SFINAE (`HasInvokeStartedHook`); its presence
+    /// makes the SM eligible to consume `InvokeStarted` envelopes from its
+    /// worker peer(s). Forwards to the Policy which holds the `activeInvokes_`
+    /// table used by finalize / autoforward / cancel.
+    void onInvokeStarted(const ::SCE::Mesh::MeshEnvelope& env) {
+        this->policy_.onInvokeStarted(env);
+    }
+
+    /// SCE_MESH.md §9.6.2 wire-18 SM-side entry point. Symmetric to the
+    /// wire-15 hook. Forwards to the Policy's `onInvokeDone(env, engine)`
+    /// which raises `done.invoke.<id>` and retires the activeInvokes_ entry.
+    void onInvokeDone(const ::SCE::Mesh::MeshEnvelope& env) {
+        this->policy_.onInvokeDone(env, *this);
+    }
+{% endif %}
+{% if _role_stats.has_nonroot %}
+    /// SCE_MESH.md §14 rule 12 / §16.5 wire-21 sender hook. Called from a
+    /// non-root partition's region-final entry when that region enters
+    /// its `<final>` child. Constructs the `ParallelRegionDone` envelope
+    /// and forwards it to the root partition through the wire-21
+    /// callback installed by the generated `TransportRouter`.
+    ///
+    /// The callback owns the inter-partition transport binding (shm
+    /// channel for same-device deployments, custom_tcp for cross-device
+    /// — see SCE_MESH.md §14 rule 4 default). When unset (no router
+    /// constructed), the SM fails loudly so silent drops cannot mask a
+    /// missing wire-up; this guard preserves the §14 rule 12 atomic
+    /// bundle's "fail-loud not silent" invariant.
+    void sendParallelRegionDone(const std::string& parallel_id,
+                                const std::string& region_id,
+                                const std::string& donedata) {
+        ::SCE::Mesh::MeshEnvelope env;
+        env.pattern = ::SCE::Mesh::PatternKind::ParallelRegionDone;
+        // §16.5 sender contract — set BOTH typed fields. The root's
+        // inbound receiver silently drops any wire-21 envelope missing
+        // either field.
+        env.parallel_id = parallel_id;
+        env.region_id = region_id;
+        env.data.assign(donedata.begin(), donedata.end());
+        env.datacontenttype = ::SCE::Mesh::PayloadCodec::Json;
+        const std::string route_text = parallel_id + "/" + region_id;
+        if (parallel_region_done_callback_) {
+            if (parallel_region_done_callback_(env)) {
+                return;
+            }
+            throw std::runtime_error(
+                "SCE Mesh §16.5: ParallelRegionDone callback rejected envelope "
+                "(parallel_id/region_id=" + route_text + "). The wire-21 transport "
+                "(typically a per-partition shm channel) returned send=false; "
+                "back-pressure or a closed peer is the most common cause.");
+        }
+        throw std::runtime_error(
+            "SCE Mesh §16.5: non-root partition emitted ParallelRegionDone "
+            "(parallel_id/region_id=" + route_text + ") but no wire-21 callback was "
+            "installed on the SM. Construct the generated TransportRouter "
+            "for this partition before driving the SM into a region-final "
+            "state; the router installs the callback in its ctor.");
+    }
+
+    /// SCE_MESH.md §16.5 wire-21 callback installer. The generated
+    /// `TransportRouter` ctor calls this with a closure that picks the
+    /// outbound shm channel keyed on `env.parallel_id` (CBOR key 16).
+    /// Re-installing replaces any prior callback (last write wins) — the
+    /// router lifecycle is a strict superset of the SM's, so callers
+    /// normally install once.
+    void setParallelRegionDoneCallback(
+        std::function<bool(const ::SCE::Mesh::MeshEnvelope&)> cb) {
+        parallel_region_done_callback_ = std::move(cb);
+    }
+
+private:
+    std::function<bool(const ::SCE::Mesh::MeshEnvelope&)>
+        parallel_region_done_callback_;
+public:
+{% endif %}
+};
+
+// W3C SCXML: Compile-time StatePolicy interface verification
+// Ensures generated policy satisfies required concepts (see core/StatePolicyConcepts.h)
+{% if _has_tpl %}
+// Template class — concept verified at instantiation (cannot static_assert uninstantiated templates)
+{% else %}
+#if __cpp_concepts >= 202002L
+static_assert(::SCE::Core::EventNamingPolicy<{{ model.name }}Policy>,
+    "Generated {{ model.name }}Policy must satisfy EventNamingPolicy concept");
+{% if model.has_parallel_states %}
+static_assert(::SCE::Core::ParallelStatePolicy<{{ model.name }}Policy>,
+    "Generated {{ model.name }}Policy must satisfy ParallelStatePolicy concept (HAS_PARALLEL_STATES=true)");
+{% endif %}
+#endif
+{% endif %}
+
+} // namespace SCE::Generated::{{ model.name }}

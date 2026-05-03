@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_11: TCP, in ESTABLISHED state,
+  MUST ignore a duplicate ACK. Derived from RFC 793 §3.9 p72 Event
+  Processing (MUST).
+
+  v3.0 Test Procedure (p347):
+    1. TESTER: Cause DUT to move to ESTABLISHED state
+    2. TESTER: Send the last ACK once more
+    3. DUT:    Do not send any response
+    4. TESTER: Verify that the DUT remains in ESTABLISHED state
+
+  Stimulus drives DUT to ESTABLISHED via active-OPEN on a unique
+  port quad (kBasicsActiveLocalPort + 50, kBasicsActiveRemotePort
+  + 50) chosen to dodge §15 (+0..+6), §03..06 (+20..+25), §X.01
+  ..11 (+30..+38), §MSS_OPTIONS_11/12 (+40..+41) — see
+  reference_active_open_port_quad_collision.md. Stimulus then
+  raw-injects a duplicate of the post-handshake third-leg ACK
+  (seq = snd_nxt = ISN_t + 1, ack = rcv_nxt = ISN_d + 1, no
+  payload), the exact "send the last ACK once more" wire shape
+  the spec calls for. Linux's `tcp_ack` short-circuits a pure
+  dup ACK (snd_una unchanged, no SACK info, no payload,
+  no FIN/SYN) silently, so DUT must emit nothing on the 4-tuple.
+
+  ut_established conjunct on the handshake_ack pass guard pins
+  DUT in EST before the absence window opens; the stimulus
+  populates `captured.ut_established` synchronously via
+  queryTcpEstablishedSync prior to SCXML start, so the conjunct is
+  evaluated against an already-known value.
+
+  Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
+  is unreachable, lands on fail_no_handshake_ack at the 5 s
+  deadline. Total negative envelope ≈ 5 s + kTcpUtBootWait
+  + active-OPEN stimulus ≈ 8 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_11"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 50U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 50U) and captured.ut_established == 1U"
+                target="listening_silence"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_silence">
+    <onentry><send event="deadline_silence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 50U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 50U"
+                target="fail_unexpected_response"/>
+    <transition event="deadline_silence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_unexpected_response">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_duplicate_ack_in_est"}</content></donedata>
+  </final>
+</scxml>

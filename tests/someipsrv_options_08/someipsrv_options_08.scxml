@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.5.8 SOMEIPSRV_OPTIONS_08: Length field [16 bits] of the
+  IPv4 Multicast Option shall be 0x0009 (SWS_SD_00390). Driven by a
+  Subscribe to eventgroup 0x0008 (multicast-configured per
+  dut/dut_service/vsomeip.json); vsomeip's SubscribeEventgroupAck
+  carries an IPv4 Multicast Option whose Length field this case
+  asserts. presence_gate ensures the Ack actually carries a multicast
+  option before the field is read (otherwise the empty fallback
+  SdOption{} would resolve `.length == 0x0000`, masking a regression
+  where vsomeip drops the option).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_options_08"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="captured.sd_ipv4_multicast_count &gt;= 1"
+           entry_type="0x07"
+           pass_expr="captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Multicast, ::tc8::sd_l4_proto::kUdp).length == 0x0009"
+           fail_state="fail_length"
+           fail_reason="ipv4_multicast_option_length_mismatch"/>
+</scxml>

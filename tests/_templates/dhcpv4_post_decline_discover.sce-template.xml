@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.3 ALLOCATING_07/_08 lifecycle template:
+  DUT enters BOUND, emits ARP Probe, observes a tester-injected ARP
+  Reply asserting the offered IP, emits DHCPDECLINE, and restarts the
+  configuration process by emitting a fresh DHCPDISCOVER (RFC 2131
+  §3.1 first sentence MUST). Layered on top of the ALLOCATING_09
+  envelope plus a fifth listening state observing DISCOVER #2.
+
+  Lifecycle (state count = 5):
+    listening_for_discover (s1_deadline 6 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_first_request
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_arp_probe
+    listening_for_arp_probe (ACK injected on entry, s3_deadline 6 s)
+      on arp_observed: is_dhcp_arp_probe(offered_ip_be) → listening_for_decline
+    listening_for_decline (ARP conflict reply injected on entry,
+                            s4_deadline 4 s)
+      on dhcp_observed: is_dhcp_decline + chaddr_match
+                        + option_be32_equals(50, offered_ip_be)
+                        → listening_for_second_discover
+    listening_for_second_discover (no stimulus,
+                                    s5_deadline {$s5_deadline})
+      on dhcp_observed: is_discover + chaddr_match
+                        + ({$s5_extra_pass_cond}) → pass
+      on s5_deadline   → {$s5_fail_state}
+
+  Param contract:
+    * `s5_deadline`         — listen window for the restart DISCOVER.
+                              ALLOCATING_07: `4s` (instant restart).
+                              ALLOCATING_08: `13s` (covers [10, 11] s
+                              firmware desync + jitter).
+    * `s5_extra_pass_cond`  — extra cond AND'd with `is_discover` +
+                              `chaddr_match`. ALLOCATING_07: `true`
+                              (timing-free MUST). ALLOCATING_08:
+                              `captured.dhcpv4.decline_to_discover_within_us(9000000, 12000000)`
+                              (RFC 2131 §3.1 SHOULD second sentence).
+    * `s5_fail_state`       — final state name when s5 deadline fires.
+    * `s5_fail_reason`      — JSON `reason` string for the fail final.
+
+  Per-state deadline event names (s1..s5) match the precedent set by
+  `dhcpv4_post_bound_discover` / `dhcpv4_renewing_request_field` —
+  leftover deadlines from prior states cannot match later transitions
+  and short-circuit the verdict before DISCOVER #2.
+
+  Topology 4 wire-level reduction: STATIC-CLIENT-1 is just an ARP Reply
+  emitter on the DIface-0 broadcast domain — same shape as
+  INIT_ALLOC_09's `scheduleArpConflictReplyOnStateEntry` injection.
+  The trait wires both DHCP server emul (OFFER on s2 entry, ACK on s3
+  entry) and ARP conflict reply (on s4 entry); s5 listens with no
+  stimulus.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_post_decline_discover">
+
+  <sce:param name="s5_deadline"        required="true"/>
+  <sce:param name="s5_extra_pass_cond" required="true"/>
+  <sce:param name="s5_fail_state"      required="true"/>
+  <sce:param name="s5_fail_reason"     required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpAndDhcpv4Captured"
+               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpAndDhcpv4Expected"
+               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_request()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_arp_probe"/>
+    <transition event="s2_deadline" target="fail_no_request"/>
+  </state>
+
+  <state id="listening_for_arp_probe">
+    <onentry>
+      <send event="s3_deadline" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
+                target="listening_for_decline"/>
+    <transition event="s3_deadline" target="fail_no_arp_probe"/>
+  </state>
+
+  <state id="listening_for_decline">
+    <onentry>
+      <send event="s4_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_decline()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)
+                      and captured.dhcpv4.option_be32_equals(50, expected.dhcpv4.offered_ip_be)"
+                target="listening_for_second_discover"/>
+    <transition event="s4_deadline" target="fail_no_decline"/>
+  </state>
+
+  <state id="listening_for_second_discover">
+    <onentry>
+      <send event="s5_deadline" delay="{$s5_deadline}"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)
+                      and ({$s5_extra_pass_cond})"
+                target="pass"/>
+    <transition event="s5_deadline" target="{$s5_fail_state}"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_arp_probe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_arp_probe_after_bound"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_decline">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_decline_after_arp_conflict"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$s5_fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$s5_fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

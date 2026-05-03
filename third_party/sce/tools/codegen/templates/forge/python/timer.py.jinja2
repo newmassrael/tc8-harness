@@ -1,0 +1,49 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+# SCE Forge: Auto-generated from Extended SCXML (sce:kind="timer")
+# Runtime: {{ runtime_dep }}
+# Do not edit — regenerate from the source SCXML file.
+
+from abc import ABC, abstractmethod
+
+from sce_forge_runtime.timer import Timer
+
+
+class {{ struct_name }}Handler(ABC):
+    """Handler interface for [`{{ struct_name }}`]. The user implements these
+    methods on a state object and passes the instance to `{{ struct_name }}.__init__`.
+    Missing methods raise `TypeError` at handler instantiation time, so there
+    is no silent fallback.
+    """
+
+{% for cb in unique_callbacks %}
+    @abstractmethod
+    def fire_{{ cb.callback_snake }}(self) -> None: ...
+{% endfor %}
+
+
+class {{ struct_name }}:
+    def __init__(
+        self,
+        handler: {{ struct_name }}Handler,
+{% for timer in timers %}
+        {{ timer.id_snake }}_timer: Timer,
+{% endfor %}
+    ) -> None:
+        self._handler = handler
+{% for timer in timers %}
+        self._{{ timer.id_snake }}_timer = {{ timer.id_snake }}_timer
+{% endfor %}
+{% for timer in timers %}
+
+    def start_{{ timer.id_snake }}(self) -> None:
+{% if timer.is_periodic %}
+        self._{{ timer.id_snake }}_timer.start_periodic({{ timer.time_ms }}, self._handler.fire_{{ timer.callback_snake }})
+{% else %}
+        self._{{ timer.id_snake }}_timer.start_one_shot({{ timer.time_ms }}, self._handler.fire_{{ timer.callback_snake }})
+{% endif %}
+
+    def cancel_{{ timer.id_snake }}(self) -> None:
+        self._{{ timer.id_snake }}_timer.cancel()
+{% endfor %}

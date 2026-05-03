@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.1.28 SOMEIPSRV_FORMAT_28: Eventgroup ID field of the Type 2
+  entry shall carry the configured SdConsumedEventGroupID. The DUT's
+  Ack / Nack echoes the eventgroup ID from the incoming Subscribe, so
+  this is a round-trip check: we subscribe to expected.eventgroup_id,
+  the DUT replies carrying the same ID.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_format_28"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].eventgroup_id != expected.eventgroup_id"
+                target="fail_eventgroup_id"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_eventgroup_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"entry_eventgroup_id_mismatch"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

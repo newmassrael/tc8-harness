@@ -1,0 +1,24 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{# Validator kind — stateful validator.validate(args...) returning a data class whose fields are declared in `f.output`. #}
+        val spec = ref["{{ f.ref_section }}"]!!.jsonObject["{{ f.name }}"]!!.jsonObject
+        val validator = {{ f.name | to_pascal_case }}()
+        spec["sequence"]!!.jsonArray.forEachIndexed { i, step ->
+            val args = step.jsonObject["args"]!!.jsonArray
+{% for arg_ty in f.args %}
+            val arg{{ loop.index0 }} = {{ ("args[" ~ loop.index0 ~ "]") | kt_unmarshal(arg_ty) }}
+{% endfor %}
+            val expected = step.jsonObject["expected"]!!.jsonObject
+{% for field in f.output %}
+            val expected{{ field.name | to_pascal_case }} = {{ ('expected["' ~ field.name ~ '"]!!') | kt_unmarshal(field.type) }}
+{% endfor %}
+            val result = validator.validate({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %})
+{% for field in f.output %}
+{% if field.compare == "tolerance" %}
+            assertClose(result.{{ field.name | to_camel_case }}, expected{{ field.name | to_pascal_case }}, "{{ f.name }} step $i {{ field.name }}")
+{% else %}
+            assertEquals(expected{{ field.name | to_pascal_case }}, result.{{ field.name | to_camel_case }}, "{{ f.name }} step $i {{ field.name }}")
+{% endif %}
+{% endfor %}
+        }

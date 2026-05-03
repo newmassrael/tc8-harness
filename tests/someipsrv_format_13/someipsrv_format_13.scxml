@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.1.13 SOMEIPSRV_FORMAT_13: After the TESTER emits a
+  FindService (Service ID = SERVICE-ID-1), the DUT's solicited
+  OfferService Type 1 entry shall carry NumberOfOpt1 >= 1 —
+  the entry references at least one option in the first options run
+  (typically the UDP / TCP endpoint option).
+
+  The FindService is emitted by the harness via the
+  TestCaseTraits<Format13SM>::stimulus() hook; this SCXML only
+  verifies the DUT's reply.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_format_13"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].num_opt1 >= 1"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].num_opt1 == 0"
+                target="fail_num_opt1"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_num_opt1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"entry_number_of_opt1_zero"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

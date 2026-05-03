@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.3.9 SOMEIPSRV_SD_MESSAGE_09: The IP addresses and
+  port numbers of the Endpoint Options shall also be used for
+  transporting events and notification events. UDP variant: the source
+  address and source port of Notifications shall match the values
+  carried in the OfferService's IPv4 Endpoint Option
+  (TR_SOMEIP_00360 / TR_SOMEIP_00361).
+
+  Three-phase observation:
+    Phase 1 (listening_phase1): DUT emits an OfferService for
+      SERVICE-ID-1 with >= 1 IPv4 Endpoint Option.
+      `fillSomeIpCapturedFromFrame` caches the advertised UDP endpoint
+      port into `captured.cached_offer_endpoint_udp_port` for the
+      cross-phase check in phase 3.
+    Phase 2 (listening_phase2): DUT replies to the tester's
+      SubscribeEventgroup with a SubscribeEventgroupAck (entry type
+      0x07, ttl > 0).
+    Phase 3 (listening_phase3): DUT emits a Notification
+      (message_type=0x02) on the case's service id; pass guard
+      conjuncts on `captured.src_port ==
+      captured.cached_offer_endpoint_udp_port`.
+
+  Stimulus is a thin wrapper over BASIC_03's FindService +
+  SubscribeEventgroup boot — the wire-shape is identical, the
+  divergence is in the verdict axis (BASIC_03 asserts the Notification
+  method_id MSB; SD_MESSAGE_09 asserts the Notification UDP src_port
+  matches the OfferService Endpoint Option port).
+
+  The cache mechanism: `fillSomeIpCapturedFromFrame` updates
+  `cached_offer_endpoint_udp_port` only when the parsed frame is an
+  OfferService (sd_entries[0].type == 0x01) carrying a UDP IPv4
+  Endpoint Option (option type 0x04, l4_proto 0x11). Non-OfferService
+  frames leave the cache untouched, so the value learned in Phase 1's
+  OFFER observation persists through Phase 2's SubscribeAck and Phase
+  3's Notification observations.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_09"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count >= 1 and captured.cached_offer_endpoint_udp_port != 0"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_with_endpoint"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id"
+                target="listening_phase3"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0"
+                target="fail_phase2_subscribe_nacked"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe_ack"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.src_port == captured.cached_offer_endpoint_udp_port"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.src_port != captured.cached_offer_endpoint_udp_port"
+                target="fail_phase3_src_port_mismatch"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_notification"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer_with_endpoint">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_subscribe_nacked">
+    <donedata>
+      <content>{"verdict":"fail","reason":"subscribe_eventgroup_nacked_ttl_zero"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_subscribe_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_subscribe_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_notification">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_src_port_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"notification_src_port_does_not_match_offer_endpoint_port"}</content>
+    </donedata>
+  </final>
+</scxml>

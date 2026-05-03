@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_05: ARP entry learned on gratuitous ARP Response
+  (no ARP Request). Same absence pattern as ARP_03 but the tester
+  injects a gratuitous ARP Response (opcode 2, sender == target ==
+  <HOST-1-IP, MAC-ADDR1>, eth-dst broadcast). DUT must learn from the
+  gratuitous announcement — requires `net.ipv4.conf.<iface>.arp_accept=1`
+  on the DUT side (setup-netns.sh sets it).
+
+  Pass on deadline; fail on DUT-originated ARP Request.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_05"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <!--
+        3 s listen window — same absence-pattern timing rationale as
+        arp_03.scxml. See the comment there.
+      -->
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+                target="fail_unexpected_arp_request"/>
+    <transition event="deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_arp_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_arp_request_after_gratuitous_learning"}</content>
+    </donedata>
+  </final>
+</scxml>

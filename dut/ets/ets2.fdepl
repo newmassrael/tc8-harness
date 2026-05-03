@@ -1,0 +1,36 @@
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOMEIP_deployment_spec.fdepl"
+import "ets2.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface org.tc8.ets2.EnhancedTestability2 {
+    SomeIpServiceID = 0xF4E8
+
+    method echoUINT8 {
+        SomeIpMethodID = 0x08
+        SomeIpReliable = false
+    }
+
+    broadcast TestEventUINT8 {
+        SomeIpEventID = 0x8001
+        SomeIpEventGroups = { 0x0003 }
+        SomeIpReliable = false
+    }
+}
+
+// SomeIp{Reliable,Unreliable}UnicastPort here are the CommonAPI
+// client-side defaults — vsomeip's services[] block in the runtime
+// config (vsomeip-multi-service.json on the SI2 distinct-port
+// variant, vsomeip-multi-service-shared-port.json on the shared-port
+// variant) is the authoritative server-side bind. The fdepl values
+// match the distinct-port variant for documentation alignment;
+// shared-port runs override at the vsomeip layer (30502/30501).
+define org.genivi.commonapi.someip.deployment for provider as Service {
+    instance org.tc8.ets2.EnhancedTestability2 {
+        InstanceId = "ETS_SI2"
+
+        SomeIpInstanceID = 0x0001
+
+        SomeIpUnicastAddress = "172.16.0.2"
+        SomeIpReliableUnicastPort = 30505
+        SomeIpUnreliableUnicastPort = 30506
+    }
+}

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_08: in ESTABLISHED or CLOSE-WAIT state, a
+  CLOSE call MUST cause the DUT's TCP to emit a FIN. Derived from RFC
+  793 §3.2 p23 Terminology.
+
+  v3.0 Test Procedure (p281-p300.txt:623) — two iterations:
+    1. CASE: <wst> = ESTABLISHED
+    3. CASE: <wst> = CLOSE-WAIT
+
+  Each iteration shares the same pass criterion (DUT: Send a FIN) but
+  reaches the precondition state via a different procedure prefix:
+    * Phase 1 (ESTABLISHED): handshake → UT close → DUT FIN.
+    * Phase 2 (CLOSE-WAIT):  handshake → tester FIN → DUT auto-ACK
+                             (now CLOSE-WAIT) → UT close → DUT FIN.
+
+  Both phases use distinct port pairs (49500↔23456 vs 49501↔23457) so
+  residual frames from phase 1's teardown — particularly the tester's
+  RST when listener1's destructor closes the queued accepted connection
+  — never collide with phase 2's matching window. Phase 1 fully tears
+  down before phase 2 begins.
+
+  Pass guard conjuncts (identical across phases except port quad):
+    * captured.src_ip   == expected.dut_iface_ip
+    * captured.dst_ip   == expected.tester_ip
+    * captured.src_port == phase-specific local port
+    * captured.dst_port == phase-specific remote port
+    * (captured.flags & FIN) != 0 — spec-mandated FIN bit
+
+  Tester-origin segments and DUT non-FIN segments (handshake SYN/ACK,
+  CLOSE-WAIT auto-ACK in phase 2) reach tcp_observed but match no
+  transition on the active phase — silently passed over.
+
+  Per-phase fail_timeout terminals mirror the BASICS_04/05 split-fail
+  diagnostic granularity: a stuck-at phase-1 fault is distinguishable
+  from a phase-2 regression without re-reading the SCXML.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_08"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x01) != 0"
+                target="listening_phase2"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase1"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U and (captured.flags &amp; 0x01) != 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase2"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_fin_from_established"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_fin_from_close_wait"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.8 DHCPV4_CLIENT_REACQUISITION_08: if the lease expires
+  before the client receives a DHCPACK, the client moves to INIT state
+  and requests network initialization parameters (RFC 2131 §4.4.5).
+
+  Spec Test Procedure (tc8_p281-p300.txt: REACQUISITION_08):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
+         to DHCPCLIENT_STATE_BOUND.
+    4.   DUT: Transit finite state to DHCPCLIENT_STATE_BOUND.
+    5.   TESTER: Wait until (ParamLeaseTime + ParamToleranceTime).
+    6.   TESTER: DHCP Server <SERVER-1> Listens.
+    7.   DUT: Sends DHCPDISCOVER Message.
+  Pass: 4 + 7.
+
+  Trait registers OFFER + ACK on the first two listening states; state
+  4 (`Listening_for_second_discover`) is intentionally left without a
+  scheduled stimulus. Under the harness fast envelope (lease=6 s):
+    * State 3 entry → ACK ingest → DUT BOUND.
+    * BOUND + 3 s: T1 fires → DUT RENEWING REQUEST (state 3 → 4).
+    * State 4: T2 fires at +2 s → DUT REBINDING REQUEST (cond
+      `is_dhcp_request` does not satisfy `is_dhcp_discover`, state stays).
+    * State 4 + 3 s (= BOUND + 6 s): lease expires → DUT INIT return →
+      DHCPDISCOVER #2 → state 4 → pass.
+
+  Pass-criterion only requires the second DHCPDISCOVER observation; the
+  template's state 4 cond gates on `is_dhcp_discover` so the
+  intervening REBINDING REQUEST does not short-circuit the verdict.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_reacquisition_08"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_post_bound_discover.sce-template.xml"/>
+</scxml>

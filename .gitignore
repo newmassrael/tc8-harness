@@ -1,0 +1,5 @@
+build*/
+doc/spec/split/
+.serena/
+claudedocs/
+*.pdf

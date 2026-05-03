@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.8 DHCPV4_CLIENT_REACQUISITION_05: in RENEWING state, on no
+  ACK response, the client SHOULD wait one-half of the remaining time
+  until T2 before retransmitting the DHCPREQUEST (RFC 2131 §4.4.5).
+
+  Spec Test Procedure (tc8_p281-p300.txt: REACQUISITION_05):
+    8. TESTER: Verify time interval between two DHCPREQUEST messages
+       ∈ [(T2 - T1)/2 ± ParamToleranceTime].
+
+  Numeric bounds under retx envelope (kRetransmissionLeaseSeconds = 12 s):
+    * T1 = lease/2 = 6 s, T2 = lease*7/8 = 10 s.
+    * (T2 - T1)/2 = 2 s exact.
+    * ParamToleranceTime default = 1 s (spec §4.7.5).
+    * Bounds = [1 s, 3 s] = [1 000 000 us, 3 000 000 us].
+
+  Predicate: `captured.frame_delta_within_us(1000000, 3000000)`. The
+  template's state-3 → state-4 transition records the first RENEWING
+  REQUEST ts via the dispatcher's prev_observed_ts_us snapshot (state
+  advancement bookkeeping); state-4's pass cond reads `frame_delta_us`
+  against that landmark.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_reacquisition_05"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_renewing_retx_field.sce-template.xml"
+           pass_expr="captured.frame_delta_within_us(1000000, 3000000)"
+           fail_state="fail_renewing_retx_interval_out_of_bounds"
+           fail_reason="dut_renewing_retx_interval_out_of_bounds"/>
+</scxml>

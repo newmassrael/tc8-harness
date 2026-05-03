@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.1 ICMPv4_ERROR_03: ICMP error messages are only sent
+  about errors in handling fragment zero of fragmented datagrams.
+  TESTER sends a 2-fragment sequence (frag 0 with well-formed
+  length-12 Timestamp option + frag 1 with malformed length-10
+  Timestamp option); a conformant DUT does NOT emit Parameter
+  Problem because options on fragments with offset != 0 are never
+  parsed per RFC 791 §3.1.
+
+  Body shared with icmpv4_type_04/05/10/16 + icmpv4_error_04/05
+  via sce:template. Dispatch narrows to type=12 — same reply type
+  the ERROR_02 positive case observes, but here the absence is
+  the pass criterion and presence-from-DUT is the fail.
+
+  Rationale for unicast L2 stimulus despite absence shape: keeping
+  the L2 envelope symmetric with ERROR_02 ensures any DUT emission
+  of Parameter Problem here would be attributable solely to the
+  fragment-zero-vs-fragment-nonzero distinction under test, not to
+  a PACKET_HOST kernel-gate difference that would otherwise confound
+  both-cases-pass readings. See
+  `reference_icmp_packet_host_gate.md`.
+
+  No negative smoke row: absence-shape; any expectation flip also
+  lands on timeout → fake-positive verdict. Shared limitation with
+  TYPE_04/05/10/16 and ERROR_04/05.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_error_03"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_sent_parameter_problem_to_fragmented_sequence"/>
+</scxml>

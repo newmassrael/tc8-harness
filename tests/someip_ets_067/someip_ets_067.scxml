@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_067: UINT8Array_with_Length_0_strips_Payload.
+
+  Tester sends echoUINT8Array (METHOD-ID 0x0009) with the wire payload
+  set to a 32-bit BE length prefix of zero (4 bytes: 00 00 00 00) and
+  no array elements. Per PRS_SOMEIP_00375 / PRS_SOMEIP_00377 the DUT
+  must return a Method Response whose echoed UINT8Array is also empty
+  ("payload length zero").
+
+  CommonAPI-SOMEIP encodes the empty echoed array as the same 4-byte
+  zero length prefix on the response wire (no elements follow the
+  prefix), so the canonical Linux DUT response is msg_type 0x80 +
+  return_code 0x00 + payload_len == 4 with the four payload bytes all
+  zero. The cond accepts both shapes — strict zero-byte payload (true
+  "no payload") and the 4-byte length-prefix-only echo (CommonAPI
+  default) — to keep the verdict portable across DUT runtimes.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
+    Phase 2 (listening_phase2): Method Response on method_id 0x0009
+            with msg_type 0x80, return_code 0x00, and payload_len in
+            {0, 4}; if 4 bytes follow, all four are zero (the empty
+            UINT8Array length prefix). Any other shape -> fail.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_067"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0009 and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.payload_len == 0"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0009 and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.payload_len == 4 and captured.payload_bytes[0] == 0x00 and captured.payload_bytes[1] == 0x00 and captured.payload_bytes[2] == 0x00 and captured.payload_bytes[3] == 0x00"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0009 and captured.message_type == 0x80 and captured.return_code == 0x00"
+                target="fail_phase2_unexpected_payload"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_method_response_for_zero_length_array"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_unexpected_payload">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_response_payload_was_not_empty_array"}</content>
+    </donedata>
+  </final>
+</scxml>

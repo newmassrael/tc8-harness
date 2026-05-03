@@ -1,0 +1,56 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="observer")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+package {{ package }}
+
+import "github.com/newmassrael/sce-forge-runtime/observer"
+
+{% if has_event_domain %}
+// Event domain "{{ event_domain }}" is declared by the consuming module
+// (typically a statechart that aggregates events from multiple observers in
+// this domain). The user must provide a `{{ event_domain }}Tag` type and the
+// constants below in a shared package, then import them here. See
+// SCE_FORGE.md Section 4.11.
+type ForgeDomainTag = {{ event_domain }}Tag
+{% else %}
+// No sce:event-domain declared on this <scxml> root: the observer falls back
+// to a file-local domain. The resulting EventQueue type cannot be composed
+// with observers in other files. To enable cross-file composition, add
+// sce:event-domain="..." to the source SCXML. See SCE_FORGE.md Section 4.11.
+type ForgeDomainTag int
+
+const (
+{% for ev in events %}
+	ForgeDomainTag{{ ev }} ForgeDomainTag = {{ loop.index0 }}
+{% endfor %}
+)
+{% endif %}
+
+type {{ struct_name }} struct {
+{% for mon in monitors %}
+	{{ mon.id }} observer.ThresholdState
+{% endfor %}
+}
+
+func (o *{{ struct_name }}) Update({{ params }}) *observer.EventQueue[ForgeDomainTag] {
+	events := observer.NewEventQueue[ForgeDomainTag]()
+{% for mon in monitors %}
+	if o.{{ mon.id }}.EnterIf({{ mon.enter_expr }}) {
+		events.Push(ForgeDomainTag{{ mon.event_enter }})
+{% if mon.has_leave %}
+{% if mon.has_on_leave %}
+	} else if o.{{ mon.id }}.LeaveIf({{ mon.leave_expr }}) {
+		events.Push(ForgeDomainTag{{ mon.event_leave }})
+{% else %}
+	} else {
+		o.{{ mon.id }}.LeaveIf({{ mon.leave_expr }})
+{% endif %}
+{% endif %}
+	}
+{% endfor %}
+	return events
+}

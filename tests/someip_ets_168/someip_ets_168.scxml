@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_168: SD_TestFieldUINT8Reliable.
+
+  Tester drives the UInt8 reliable-field axis on Methods 0x2A (Getter) /
+  0x2B (Setter) over TCP:
+    1. getTestFieldUint8Reliable — observe Response with current value.
+    2. setTestFieldUint8Reliable(0x99) — observe Response payload 0x99.
+    3. getTestFieldUint8Reliable again — Response payload 0x99.
+
+  Per PRS_SOMEIPSD_00362 the DUT shall respond on the reliable transport
+  with the field value.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
+    Phase 2 (listening_phase2): first get Response (Method 0x2A,
+            message_type 0x80).
+    Phase 3 (listening_phase3): set Response (Method 0x2B,
+            message_type 0x80, payload_byte0 == 0x99).
+    Phase 4 (listening_phase4): post-set get Response (Method 0x2A,
+            message_type 0x80, payload_byte0 == 0x99).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_168"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x002A and captured.message_type == 0x80"
+                target="listening_phase3"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_initial_get"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x002B and captured.message_type == 0x80 and captured.payload_byte0 == 0x99"
+                target="listening_phase4"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_set_response"/>
+  </state>
+
+  <state id="listening_phase4">
+    <onentry>
+      <send event="phase4_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x002A and captured.message_type == 0x80 and captured.payload_byte0 == 0x99"
+                target="pass"/>
+    <transition event="phase4_deadline_exceeded" target="fail_phase4_no_post_set_get"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_initial_get">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_initial_get_reliable_response"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_set_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_set_reliable_response"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_no_post_set_get">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_post_set_get_reliable_response"}</content>
+    </donedata>
+  </final>
+</scxml>

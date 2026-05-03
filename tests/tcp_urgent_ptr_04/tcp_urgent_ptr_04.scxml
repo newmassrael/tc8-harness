@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.14 TCP_URGENT_PTR_04: data following the urgent pointer
+  (non-urgent data) MUST NOT be delivered to the user in the same
+  buffer with preceding urgent data (RFC 793 §3.7 Interfaces, p48).
+
+  v3.0 Test Procedure (p381):
+    1. TESTER: Cause DUT to move on to ESTABLISHED state.
+    2. TESTER: Send a data segment with URG flag set and urgent
+               pointer containing the offset for the SEQ number of
+               a byte that is not the last byte of this data segment.
+    3. DUT:    Receive the data segment and issue a signal to the
+               application that urgent data has arrived.
+    4. TESTER: Cause the application on the DUT-side to issue a
+               RECEIVE call with a data buffer having size equal to
+               the size of the incoming data segment.
+    5. DUT:    Return the RECEIVE call putting only the urgent data.
+
+  Mechanism (active-OPEN handshake + raw-inject URG segment + UT
+  OpReceiveTcpDataOob):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+142,
+       kBasicsActiveRemotePort+142).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt.
+    4. Tester raw-injects URG+PSH+ACK with seq=snd_nxt, ack=rcv_nxt
+       (in-window), urgent_pointer=3, and a 6 B payload "ABCDEF".
+       Linux's BSD interpretation (sysctl_tcp_stdurg=0 default)
+       places one urgent byte at urg_seq = seq + ptr - 1 = seq + 2,
+       which is payload offset 2 ('C'). The remaining 5 bytes
+       ("ABDEF" in normal-stream order, with 'C' lifted into the
+       OOB queue) sit on the receive queue for normal recv().
+    5. UT OpReceiveTcpDataOob(socket=1, expected_len=6, timeout=2000)
+       — tc8-dut calls recv(fd, buf, 6, MSG_OOB) and returns the
+       single urgent byte. Tester verifies received_len == 1 and
+       byte == 'C', then sets captured.ut_received_payload_len = 1.
+       The "buffer of size 6" satisfies spec step 4's "size equal
+       to the size of the incoming data segment"; the spec step 5
+       assertion is that the call returns only the 1 urgent byte
+       despite the 6 B buffer.
+    6. UT OpCloseTcpSocket cleans up the connection.
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — observe DUT third-leg pure ACK on
+      the active-OPEN port quad.
+    * listening_oob_check — 1 s deadline. ut_received_payload_len
+      == 1U signals that the OOB recv returned exactly the urgent
+      byte (spec pass criterion). The stimulus runs synchronously
+      before start(), so the field is already populated when the
+      SCXML enters this state; the deadline fires almost
+      immediately and the cond evaluates against the populated
+      value.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands on
+  fail_no_handshake_ack via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_urgent_ptr_04"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalOffset)"
+                target="listening_oob_check"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_oob_check">
+    <onentry>
+      <send event="deadline_oob_check" delay="1s"/>
+    </onentry>
+    <transition event="deadline_oob_check"
+                cond="cpp:captured.ut_received_payload_len == 1U"
+                target="pass"/>
+    <transition event="deadline_oob_check" target="fail_no_proper_urgent_data"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_proper_urgent_data">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_isolate_urgent_data"}</content>
+    </donedata>
+  </final>
+</scxml>

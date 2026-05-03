@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_05: DUT discards an ICMP Echo Request
+  carrying a malformed IP option header (Internet Timestamp with
+  length=10 over 8 B of option data, pointer=9). Per RFC 792 Parameter
+  Problem MUST, a conformant DUT detects the parameter problem and
+  drops the datagram without emitting an Echo Reply.
+
+  Body shared with icmpv4_type_10 / icmpv4_type_16 / icmpv4_error_05
+  / icmpv4_error_04 via sce:template
+  (tests/_templates/icmpv4_negative_absence.sce-template.xml).
+  Dispatch narrows to type=0 (Echo Reply) so the tester's own
+  outbound Echo Request never self-triggers the fail path; the
+  template's src_ip guard is redundant but harmless for narrowed
+  dispatch.
+
+  Stimulus is L2-unicast to `cfg.arp.dut_iface_mac` so the drop reason
+  is unambiguously IP-options malformation, not an Eth-broadcast
+  artefact. See `reference_icmp_packet_host_gate.md` — Linux's
+  Echo-Reply path does not gate on pkt_type, but unicast keeps the
+  test-semantic isolated to the invariant under test.
+
+  No negative smoke row: absence-shape, any expectation flip also
+  lands on timeout → fake-positive verdict. Shared limitation with
+  TYPE_10/16 and ERROR_05.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_05"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_replied_to_malformed_ip_options"/>
+</scxml>

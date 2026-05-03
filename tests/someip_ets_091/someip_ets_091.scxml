@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_091: SD_Check_OfferService_Request_ID_incrementation.
+
+  The DUT's regular cyclic OfferService Messages must increment the SD
+  Session-ID from one iteration to the next (PRS_SOMEIPSD_00154 / 00157 /
+  00355). Pure-observation case — no tester stimulus required beyond the
+  default FindServiceBoot envelope used elsewhere; the cyclic OfferService
+  cadence is what carries the session_id sequence.
+
+    Phase 1 (listening_phase1, 6 s): observe ANY OfferService entry on
+            SERVICE-ID-1 with sd_ipv4_endpoint_count >= 1. The fired
+            transition snapshots `prev_sd_session_id` via the
+            `_someipsrv_traits_base.h` dispatch hook.
+    Phase 2 (listening_phase2, 6 s): observe the NEXT OfferService entry
+            and assert `session_id > prev_sd_session_id`. The cadence
+            (vsomeip default cyclic_offer_delay = 1 s) keeps phase 2
+            inside the deadline; non-strict increase (e.g. wraparound
+            or replay) trips fail.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_091"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count &gt;= 1"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_with_endpoint"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.session_id &gt; captured.prev_sd_session_id"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.session_id &lt;= captured.prev_sd_session_id"
+                target="fail_phase2_session_id_did_not_increment"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_second_offer"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer_with_endpoint">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_session_id_did_not_increment">
+    <donedata>
+      <content>{"verdict":"fail","reason":"offer_service_session_id_did_not_increment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_second_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_second_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

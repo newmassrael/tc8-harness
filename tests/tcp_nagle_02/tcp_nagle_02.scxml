@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.13 TCP_NAGLE_02: TCP MUST implement the Nagle algorithm,
+  i.e. buffer all user data (regardless of PSH) until the outstanding
+  data has been acknowledged. Derived from RFC 1122 §4.2.3.4 p98.
+
+  v3.0 Test Procedure (p379):
+    1. TESTER: Cause DUT to move on to ESTABLISHED state.
+    2. TESTER: Cause the application on the DUT-side to issue a SEND
+               request for a segment.
+    3. DUT:    Send the data segment.
+    4. TESTER: Do not acknowledge the data.
+    5. TESTER: Cause the application to issue another SEND request
+               with the PSH bit (if possible to specify).
+    6. DUT:    Do not send the data segment.
+    7. TESTER: Acknowledge the previous data.
+    8. DUT:    Send the latter data segment.
+
+  Mechanism:
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+132,
+       kBasicsActiveRemotePort+132). Tester accept() pulls the
+       connection off the listen queue.
+    2. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt; rcv_nxt at this point equals DUT_ISN + 1
+       (= the spec-conformant seq_num of the 1st DUT data segment).
+       Captured.expected_ack_num is reused here as a "1st seg seq"
+       marker for the SCXML guards: a retransmit of seg 1 carries
+       seq == expected_ack_num and must not trigger Nagle violation;
+       a fresh seg 2 carries seq != expected_ack_num (advanced by
+       the seg 1 length).
+    3. TesterAutoAckDrop installs an iptables OUTPUT rule that
+       discards every tester-kernel pure ACK toward the DUT. Linux's
+       auto-ACK to the 1st data segment is therefore suppressed —
+       DUT sees its 1st seg as unacknowledged and Nagle becomes
+       active for the 2nd send.
+    4. UT OpSendTcpData(10 B). DUT writes 10 bytes; first segment
+       leaves the wire (matches state 1 transition).
+    5. UT OpSendTcpData(10 B) again. DUT MUST buffer (Nagle): no 2nd
+       segment until our injected ACK lands.
+    6. ~3.2 s stimulus sleep covers the SCXML absence window. Linux
+       retransmits the 1st seg at RTO ~1 s, ~3 s — these carry
+       seq == expected_ack_num and are absorbed by the absence guard.
+    7. Raw-inject pure ACK with seq=snd_nxt, ack=rcv_nxt+10. The ACK
+       takes the AF_PACKET path and bypasses the OUTPUT iptables
+       rule. DUT processes it, releases the 2nd buffered segment,
+       which lands on pcap.
+
+  Three-state SCXML chain:
+    * listening_first_data — observe the 1st DUT data segment on
+      the case 4-tuple. After match, captured.seq_num holds the 1st
+      seg's seq (== captured.expected_ack_num).
+    * absence_no_second_data — 3 s window asserting Nagle holds.
+      A retransmit of seg 1 (seq == expected_ack_num) does NOT match
+      the fail guard. A fresh seg 2 (seq != expected_ack_num) lands
+      on fail_dut_sent_second_segment_before_ack. Deadline advances
+      to state 3 where the post-ACK 2nd seg observation drives pass.
+    * listening_second_data — observe a DUT data segment with seq
+      != expected_ack_num (= the buffered 2nd seg, released after
+      our injected ACK). Pass.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_first_data via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_nagle_02"
+       datamodel="null"
+       initial="listening_first_data">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_data">
+    <onentry>
+      <send event="deadline_first_data" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle02LocalOffset)"
+                target="absence_no_second_data"/>
+    <transition event="deadline_first_data" target="fail_no_first_data"/>
+  </state>
+
+  <state id="absence_no_second_data">
+    <onentry>
+      <send event="absence_done" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle02LocalOffset) and captured.seq_num != captured.expected_ack_num"
+                target="fail_dut_sent_second_segment_before_ack"/>
+    <transition event="absence_done" target="listening_second_data"/>
+  </state>
+
+  <state id="listening_second_data">
+    <onentry>
+      <send event="deadline_second_data" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle02LocalOffset) and captured.seq_num != captured.expected_ack_num"
+                target="pass"/>
+    <transition event="deadline_second_data" target="fail_no_second_data"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_data">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_sent_second_segment_before_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_sent_second_segment_before_ack_nagle_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_second_data">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_second_data_segment_after_ack"}</content>
+    </donedata>
+  </final>
+</scxml>

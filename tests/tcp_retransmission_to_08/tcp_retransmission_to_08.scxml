@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §4.8.6.11 TCP_RETRANSMISSION_TO_08: TCP SHOULD use an
+  upper bound of 2*MSL of RTO for data segments. Derived from
+  RFC 1122 §4.2.3.1 p96 Retransmission Timeout Calculation (SHOULD).
+
+  Linux 6.5 caps RTO at TCP_RTO_MAX = HZ * 120 = 120 s in
+  net/ipv4/tcp.h, twice the spec's 2*MSL = 60 s (Linux MSL = 30 s,
+  TCP_TIMEWAIT_LEN/2). The kernel's RTO doubles past 60 s before
+  plateauing at 120 s; on a Linux DUT this case is expected to fail.
+  A strict-RFC DUT honouring the 2*MSL ceiling would pass.
+
+  Verdict ladder (kernel TCP_INFO snapshot computed by stimulus,
+  evaluate-pattern SCXML, dispatch=no-op):
+    1. `not ut_handshake_completed`        → fail_handshake_did_not_complete
+    2. `not ut_tcpi_p1_valid`              → fail_query_failed
+    3. `ut_tcpi_p1_retransmits == 0`       → fail_no_retx
+    4. `rto_us > 63_000_000`               → fail_rto_above_2msl_cap
+       (Linux RTO_MAX path, 120 s — exceeds spec's 60 s)
+    5. `rto_us < 57_000_000`               → fail_rto_below_2msl_cap
+       (Linux mid-doubling at observation budget cap, or any DUT
+        plateauing too low)
+    6. fall-through                        → pass (rto_us within
+       60 s ± 5%, the 2*MSL band)
+
+  Wall-time budget: 35 s. Linux's RTO doubling at this budget is
+  in the 25-50 s cumulative range with `tcpi_rto` in mid-doubling
+  (typically 6.4-25.6 s). The verdict at 35 s ladder cap will fall
+  on `fail_rto_below_2msl_cap` because Linux hasn't plateaued yet.
+  Reaching the 120 s plateau requires ~200 s wall-time and would
+  hit the case envelope cap before observing it.
+
+  Negative IP-flip: `driveActiveOpenEstablished` fails when
+  dut_iface_ip is mis-pointed; stimulus returns early without
+  setting `ut_handshake_completed`, so the SCXML's first cond fires
+  and verdicts as `fail:dut_handshake_did_not_complete`.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_retransmission_to_08"
+       datamodel="null"
+       initial="evaluate_kernel_observations">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="evaluate_kernel_observations">
+    <onentry>
+      <send event="evaluate" delay="0ms"/>
+    </onentry>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_handshake_completed"
+                target="fail_handshake_did_not_complete"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p1_valid"
+                target="fail_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
+                target="fail_no_retx"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &gt; 63000000"
+                target="fail_rto_above_2msl_cap"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 57000000"
+                target="fail_rto_below_2msl_cap"/>
+    <transition event="evaluate" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_handshake_did_not_complete">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"tcp_info_query_failed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_retx">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_retransmits_observed_in_kernel"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_rto_above_2msl_cap">
+    <donedata>
+      <content>{"verdict":"fail","reason":"rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_rto_below_2msl_cap">
+    <donedata>
+      <content>{"verdict":"fail","reason":"rto_below_2_msl_did_not_plateau_within_observation_budget"}</content>
+    </donedata>
+  </final>
+</scxml>

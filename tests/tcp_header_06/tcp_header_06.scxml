@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.X TCP_HEADER_06: DUT accepts a TCP packet whose Reserved
+  field carries a non-zero value (DUT MUST ignore the Reserved field).
+  Derived from RFC 4413 §4.2.3.
+
+  v3.0 Test Procedure (p390):
+    1. TESTER: Bring DUT to 'ESTABLISHED' state.
+    2. TESTER: Send a TCP packet with Reserved field different from zero.
+    3. DUT:    Send an ACK with the expected Ack Number.
+
+  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
+  inject in-window data with reserved_override=0xF (all 4 reserved
+  bits set) + observe DUT pure ACK with the expected ack_num. Linux's
+  tcp_v4_rcv does not validate the Reserved field — Wireshark renders
+  it as "Reserved: NS, ECN, ECN, ECN" but the kernel accepts the
+  segment regardless.
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — handshake third-leg observation.
+      Negative-flip handle on src_ip conjunct.
+    * listening_data_ack — DUT ACK acknowledging the payload despite
+      the non-zero Reserved nibble.
+
+  Port-quad — kBasicsActiveLocalPort + 34 / +34.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_06"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 34U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 34U)"
+                target="listening_data_ack"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 34U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 34U) and captured.ack_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 34U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 34U) and captured.ack_num != captured.expected_ack_num"
+                target="fail_wrong_ack_num"/>
+    <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_data_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_reserved_nonzero_data"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_ack_num">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload"}</content>
+    </donedata>
+  </final>
+</scxml>

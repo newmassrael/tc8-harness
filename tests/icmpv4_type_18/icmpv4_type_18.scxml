@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_18: DUT must reply with ICMP Destination
+  Unreachable / Protocol Unreachable (type=3, code=2) on receiving an
+  IPv4 packet whose Protocol field carries an unsupported value, per
+  RFC 1122 §3.2.2.1. TESTER sends an IPv4 packet with Protocol=253
+  (RFC 3692 experimental); the SCXML asserts a DUT-originated
+  type=3/code=2 reply arrives within the listen window.
+
+  Shape: positive field-check (not absence), so we do not reuse
+  icmpv4_negative_absence. The two field observations (type and code)
+  plus origin filter compose a 3-state machine with distinct fail
+  reasons for each failure mode:
+
+    * pass — DUT replies with type=3 AND code=2 from its own IP.
+    * fail_wrong_code — DUT replies type=3 but code is not 2 (would
+      indicate the DUT mis-classified the error; meaningful enough
+      to surface separately from "no reply at all").
+    * fail_timeout — no DUT-origin type=3 reply within the window.
+
+  Dispatch narrows to type=3 in icmpv4_pilot_common::dispatchIcmpFrame,
+  so the tester's own outbound frame (which carries a well-formed ICMP
+  Echo-shape body behind the overridden IPv4 protocol, so type=8 on
+  the wire) never reaches this SCXML. The src_ip conjunct defends
+  against a hypothetical second host emitting type=3 on the same wire
+  — not a concern on the tester/DUT veth pair but cheap to keep
+  symmetric with TYPE_22's pattern.
+
+  Template not extracted: TYPE_18 is the only positive-observation
+  ICMPv4 case in §4.3 today. ERROR_02/03/04 (Parameter Problem, type
+  12) share the "DUT emits error ICMP" shape but differ in the field
+  set observed; the right extraction point is after at least one of
+  them lands and the common invariants crystallize.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_18"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 3 and captured.code == 2 and captured.src_ip == expected.dut_iface_ip"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 3 and captured.code != 2 and captured.src_ip == expected.dut_iface_ip"
+                target="fail_wrong_code"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_code">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_icmp_code_not_protocol_unreachable"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dest_unreachable_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

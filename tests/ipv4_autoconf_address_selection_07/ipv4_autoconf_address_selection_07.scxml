@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_07: DUT-emitted ARP
+  Probe carries `target_hw` = 00:00:00:00:00:00 (RFC 3927 §2.2.1,
+  SHOULD). The target hardware address field of an ARP Probe is
+  ignored by receivers and conventionally zeroed.
+
+  Spec Test Procedure (tc8_p141-p160.txt:440..455):
+    1-4. DUT brings up iface and sends DHCPDISCOVER.
+    5-7. TESTER listens; verify Target HW Address == NULL-MAC-ADDRESS.
+
+  `ArpCaptured::target_hw_is_zero()` encapsulates the 6-byte zero
+  scan so the SCXML guard stays a single member-method call.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_address_selection_07"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_linklocal_probe_field.sce-template.xml"
+           pass_expr="captured.target_hw_is_zero()"
+           fail_state="fail_target_hw_not_zero"
+           fail_reason="arp_probe_target_hw_not_null_mac"/>
+</scxml>

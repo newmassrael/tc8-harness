@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.4.4.5 UDP-receipt presence/absence shape driven by §4.8.5 Upper
+  Tester Confirmation. Shared body for IPV4_ADDRESSING_01 (positive,
+  limited broadcast, expected_received=1) and IPV4_ADDRESSING_02
+  (negative, directed broadcast, expected_received=0).
+
+  The SCXML watches UdpFrame events and ignores any whose payload
+  does not decode as a UT response (captured.has_ut_response == false
+  handles the tester's own probe + UT request + any SOME/IP SD UDP
+  multicast that falls through the BPF). When a Confirmation arrives
+  for our GetReceivedUdp opcode (0x01 | 0x80 = 0x81), the
+  ut_received byte is the pass/fail hinge.
+
+    * pass — Confirmation says the DUT's application layer {$observed_desc},
+      matching the spec-prescribed outcome.
+    * fail_wrong_receipt — Confirmation says the opposite. Fires only
+      on GetReceivedUdp responses, so a TriggerSendUdp Confirmation
+      arriving in parallel (same-port UT session) is ignored.
+    * fail_timeout — no Confirmation within 5 s. Either the DUT's UT
+      channel is absent, or the tester's GetReceivedUdp request never
+      reached it.
+
+  The 5 s listen window encompasses: 200 ms tester stimulus wait +
+  UDP probe emit + 200 ms quiet before UT request + UT request emit
+  + tc8-dut log write + UT response emit + pcap delivery. Typical
+  in-netns round-trip is < 100 ms; 5 s absorbs CI scheduler jitter
+  with the same headroom the §4.4 IPv4 pilot uses.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_udp_ut_presence">
+
+  <sce:param name="expected_received"          required="true"/>
+  <sce:param name="fail_reason_wrong_receipt"  required="true"/>
+  <sce:param name="fail_reason_timeout"        required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::UdpCaptured"
+               cpp:include="sce_integration/udp_captured.h"/>
+
+  <!--
+    Declared for SCE's uniform two-arg state-machine constructor even
+    though the guard chain above reads only captured.* fields. The
+    UT Confirmation carries the "DUT received?" truth without a
+    per-case expected value; the ADDRESSING_01/02 polarity flip is
+    baked into the {$expected_received} template parameter instead.
+  -->
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == {$expected_received}"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received != {$expected_received}"
+                target="fail_wrong_receipt"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_receipt">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_wrong_receipt}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_timeout}"}</content>
+    </donedata>
+  </final>
+</sce:template>

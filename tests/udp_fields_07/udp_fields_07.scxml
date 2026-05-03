@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_FIELDS_07: DUT-emitted UDP datagram with no payload
+  carries Length field == 8 (header only).
+
+  TriggerSendUdp(src_port=20003, dst=tester_ip:20000, payload=0 B).
+  Linux's kernel emits an 8 B UDP datagram on the wire. The harness
+  packet pipeline emits UdpFrame for zero-payload UDP (the
+  libtins-RawPDU absence is tolerated downstream so this case can
+  observe the wire shape).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_fields_07"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="captured.src_port == 20003 and captured.dst_port == 20000 and captured.length == 8"
+           fail_state="fail_wrong_length"
+           fail_reason="dut_emitted_zero_data_udp_with_length_not_8"/>
+</scxml>

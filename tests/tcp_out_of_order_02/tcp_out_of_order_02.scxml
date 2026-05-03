@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.10 TCP_OUT_OF_ORDER_02: TCP SHOULD implement a delayed
+  ACK, but the delay MUST be less than 0.5 sec (RFC 1122 §4.2.3.2 p96
+  — When to Send an ACK Segment, SHOULD/MUST).
+
+  v3.0 Test Procedure (p365):
+    1. TESTER: Cause the DUT to move on to full-window operation in
+               ESTABLISHED state at <wnp>.
+    2. TESTER: Send two data segments consecutively without any delay.
+    3. DUT:    Send a single ACK for the data segments after a delay.
+    4. TESTER: Verify that the delay (subtracting the average round
+               trip time) is less than 0.5 sec.
+
+  Linux 6.5 deviation note (cumulative-ACK reading):
+    Spec step 3 says "Send a single ACK". Linux's quickack mode is on
+    immediately after the handshake (`pingpong=0` until enough ACKs
+    have been sent to flip into pingpong mode), so two consecutive
+    segments produce two pure ACKs — the first acks SEG0 alone, the
+    second is cumulative covering both. The harness interprets step 3
+    as "cumulative ack_num covering both segments arrives within
+    500 ms" rather than "exactly one ACK frame is emitted". Same
+    relaxed reading as OUT_OF_ORDER_03 (RFC 793 §3.9 intent vs.
+    SACK-induced dup-ACK literal). Pass guard's `ack_num ==
+    injected_seq + 2 * payload_len` equality short-circuits
+    intermediate ACKs (which carry the seg1-only ack_num) so the
+    transition only fires on the cumulative ACK.
+
+  Mechanism (active-OPEN handshake + 2× raw-inject small PSH+ACK):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+146,
+       kBasicsActiveRemotePort+146).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt.
+    4. Tester raw-injects two consecutive PSH+ACKs at S = snd_nxt
+       and S + 100, each carrying a 100 B payload. 100 B is small
+       enough to keep both segments well below MSS (so the spec's
+       "consecutively without any delay" intent is preserved at the
+       wire layer — no inter-segment pacing) and large enough to
+       exercise the cumulative-ACK code path.
+    5. DUT acknowledges:
+         SEG0 -> pure ACK with ack_num == S + 100   (intermediate),
+         SEG1 -> pure ACK with ack_num == S + 200   (cumulative).
+       In quickack mode both ACKs fire immediately; in pingpong mode
+       only the cumulative ACK fires after the delayed-ACK timer.
+       Either way, the cumulative ACK lands well under 500 ms on
+       localhost veth.
+
+  Three-state SCXML chain consumes the handshake third-leg ACK first,
+  then waits for the cumulative ACK with `ack_num ==
+  captured.expected_ack_num`. The intermediate seg0 ack (if emitted
+  by quickack) carries a different ack_num and stays queued until
+  the cumulative ACK satisfies the equality.
+
+  Timing: phase 2 deadline is 500 ms strict per spec MUST. Same
+  harness-floor headroom analysis as OUT_OF_ORDER_01.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_handshake_ack via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_out_of_order_02"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder02LocalOffset)"
+                target="listening_cumulative_ack"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_cumulative_ack">
+    <onentry>
+      <send event="deadline_cumulative_ack" delay="500ms"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder02LocalOffset) and captured.ack_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="deadline_cumulative_ack" target="fail_no_cumulative_ack_within_500ms"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_cumulative_ack_within_500ms">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_emit_cumulative_ack_for_two_segments_within_500ms"}</content>
+    </donedata>
+  </final>
+</scxml>

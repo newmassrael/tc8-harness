@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_06: TCP, in SYN-SENT state, MUST
+  drop a segment with neither SYN nor RST flag set and remain in the
+  same state (even if the ACK number is acceptable). Derived from
+  RFC 793 §3.9 p68 Event Processing (MUST).
+
+  v3.0 Test Procedure (p331) lists 2 iterations:
+    * CASE 1: <stp> = no data  (bare ACK, no payload)
+    * CASE 2: <stp> = data     (ACK with payload)
+  Both carry an acceptable ACK (= ISN_d + 1 in SYN-SENT) and have
+  neither SYN nor RST set.
+
+  Per phase the stimulus drives DUT into SYN-SENT via active-OPEN to
+  an unbound tester port (kBasicsActiveLocalPort + N ↔
+  kBasicsActiveRemotePort + N for N in 0..1) so each phase's
+  "remains in SYN-SENT" hold is per-phase and the absence guards
+  cannot cross-contaminate. ISN_d is learned via TcpFrameSnippet on
+  the DUT-emitted pure SYN; the injected probe carries
+  ack=ISN_d+1 (acceptable per RFC 793 §3.4).
+
+  Pass criterion (per spec step 4): "DUT does not send a SYN, ACK
+  and remains in SYN-SENT state". Operationally: the absence guard
+  catches DUT-emitted RST or pure ACK on the 4-tuple. DUT SYN
+  retransmits (Linux ~1 s cadence) are tolerated — the spec
+  explicitly allows the DUT to remain in SYN-SENT, which on Linux
+  means the SYN retransmit timer is not cancelled.
+
+  ## Phase phasing — scheduleAfterStateEntry
+
+  Same shape as FLAGS_INVALID_05 / _15. Phase 1 fires synchronously;
+  phase 2 schedules via
+  `scheduleAfterStateEntry(Listening_p2_dut_syn)` so its DUT SYN is
+  not queued behind phase 1's wall-clock absence.
+
+  ## Linux 6.5 dispatch path
+
+  `tcp_rcv_synsent_state_process` (net/ipv4/tcp_input.c) accepts the
+  ACK, finds `!th->rst` so skips the connection-reset branch, then
+  reaches `if (th->syn)` (line ~6432). For a segment with neither
+  SYN nor RST, the function falls through to the discard path
+  without invoking `tcp_send_active_reset`, `tcp_done`, or
+  `tcp_send_challenge_ack`. CASE 2's payload is dropped along with
+  the segment because Linux only buffers data after SYN-RCVD/EST is
+  established. SYN retransmit cadence continues. RFC 793 §3.9 p68
+  conformant.
+
+  ## Port-quad selection — kBasicsActiveLocalPort + 24 / +25
+
+  Cross-case isolation: §15's +0..+6 offsets leave tester-side TCP
+  state on a single-worker cluster run, and a fresh active-OPEN on
+  the same tuple draws a stray ACK that triggers RFC 793 §3.4
+  RST(seq=incoming.ack) from the SYN-SENT DUT, contaminating this
+  case's prelude. +24 / +25 are clear of §15 and FLAGS_INVALID_03/04/05.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_06"
+       datamodel="null"
+       initial="listening_p1_dut_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <!-- Phase 1: CASE 1 bare ACK on (kBasicsActiveLocalPort + 0,
+                                    kBasicsActiveRemotePort + 0) -->
+  <state id="listening_p1_dut_syn">
+    <onentry>
+      <send event="deadline_p1_dut_syn" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 24U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 24U)"
+                target="listening_p1_absence"/>
+    <transition event="deadline_p1_dut_syn" target="fail_p1_no_dut_syn"/>
+  </state>
+
+  <state id="listening_p1_absence">
+    <onentry>
+      <send event="deadline_p1_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 24U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 24U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 24U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 24U)"
+                target="fail_p1_unexpected_response"/>
+    <transition event="deadline_p1_absence" target="listening_p2_dut_syn"/>
+  </state>
+
+  <!-- Phase 2: CASE 2 ACK with payload on (kBasicsActiveLocalPort + 1,
+                                            kBasicsActiveRemotePort + 1) -->
+  <state id="listening_p2_dut_syn">
+    <onentry>
+      <send event="deadline_p2_dut_syn" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 25U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 25U)"
+                target="listening_p2_absence"/>
+    <transition event="deadline_p2_dut_syn" target="fail_p2_no_dut_syn"/>
+  </state>
+
+  <state id="listening_p2_absence">
+    <onentry>
+      <send event="deadline_p2_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 25U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 25U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 25U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 25U)"
+                target="fail_p2_unexpected_response"/>
+    <transition event="deadline_p2_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p1_no_dut_syn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_phase1_bare_ack"}</content>
+    </donedata>
+  </final>
+  <final id="fail_p1_unexpected_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_bare_ack_with_acceptable_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p2_no_dut_syn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_phase2_ack_with_payload"}</content>
+    </donedata>
+  </final>
+  <final id="fail_p2_unexpected_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_ack_with_payload_acceptable_ack"}</content>
+    </donedata>
+  </final>
+</scxml>

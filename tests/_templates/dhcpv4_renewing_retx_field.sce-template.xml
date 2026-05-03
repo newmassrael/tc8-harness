@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.3 ALLOCATING_10 / §4.7.6.8 REACQUISITION_05 retransmission
+  cluster — DUT-emitted RENEWING DHCPREQUEST retransmission per RFC
+  2131 §4.4.5 ("the client SHOULD wait one-half of the remaining time
+  until T2"). Pass criterion is observing TWO RENEWING REQUESTs from
+  the DUT, both IP-unicast to the server identifier; per-case
+  `pass_expr` adds the inter-request interval bound (REACQUISITION_05)
+  or is `true` for the simple count-only case (ALLOCATING_10).
+
+  Lifecycle (4 states):
+    listening_for_discover (s1_deadline 4 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_first_request
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match (SELECTING — dst is
+                        broadcast, so dst_ip_equals filter would skip
+                        and trip s2_deadline; we accept any REQUEST
+                        here because the only one possible inside the
+                        4-s window is the SELECTING REQUEST)
+                        → listening_for_renewing_request
+    listening_for_renewing_request (ACK injected on entry, s3_deadline 10 s)
+      on dhcp_observed: is_request + chaddr_match + dst_ip_equals
+                        (= first RENEWING REQUEST, IP-unicast)
+                        → listening_for_second_renewing_request
+    listening_for_second_renewing_request (s4_deadline 6 s)
+      on dhcp_observed: is_request + chaddr_match + dst_ip_equals
+                        + ({$pass_expr}) → pass
+      on dhcp_observed: is_request + chaddr_match + dst_ip_equals
+                        + !({$pass_expr}) → {$fail_state}
+      on s4_deadline → fail_no_second_renewing_request
+
+  Wall budget under retx envelope (kRetransmissionLeaseSeconds = 12 s):
+    BOUND ≈ 100 ms post-state-3 entry. T1 = 6 s post-BOUND → first
+    RENEWING REQUEST advances state 3 → 4. RFC 2131 §4.4.5 retx at
+    half remaining: (T2 - now) / 2 = 2 s → second RENEWING REQUEST at
+    state 4 entry + 2 s. s4_deadline 6 s leaves 4 s margin. Total wall
+    from state 3 entry ≈ 8 s.
+
+  The state-3 → state-4 cond uses `dst_ip_equals(expected.server_id_be)`
+  to scope to RENEWING (IP-unicast). The DUT's prior SELECTING REQUEST
+  had dst=255.255.255.255 — already consumed by the state-2 → state-3
+  transition before state 3 was entered, so it cannot leak through.
+
+  Per-state deadline event names s1/s2/s3/s4 prevent leftover deadline
+  leakage; same precedent as the S6a templates.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_renewing_retx_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="fail_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
+                target="listening_for_second_renewing_request"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_second_renewing_request">
+    <onentry>
+      <send event="s4_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="s4_deadline" target="fail_no_second_renewing_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_second_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_second_renewing_request_within_retx_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

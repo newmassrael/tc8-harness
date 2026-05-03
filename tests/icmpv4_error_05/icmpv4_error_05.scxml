@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.1 ICMPv4_ERROR_05: If an ICMP message of unknown type is
+  received, it MUST be silently discarded (RFC 1122 §3.2.2). TESTER
+  sends an ICMP message with an IANA-unassigned type; a conformant DUT
+  emits no ICMP frame in response.
+
+  Body shared with icmpv4_type_10 and icmpv4_type_16 via sce:template
+  (tests/_templates/icmpv4_negative_absence.sce-template.xml). The
+  template's src_ip conjunct on the fail transition is what makes the
+  shared body safe for this case: dispatch here uses
+  dispatchAnyIcmpFrame (no type narrowing per spec "any ICMP = fail"
+  invariant), so the tester's own outbound type=202 frame would
+  otherwise self-trigger fail_dut_replied. src_ip filtering at the
+  SCXML level excludes tester-origin frames uniformly.
+
+  No negative smoke row: the positive path is pass-on-timeout; any
+  expectation flip also lands on timeout (fail-guard goes out of
+  reach), yielding a fake-positive verdict. TYPE_10/16 share this
+  limitation.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_error_05"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_sent_icmp_to_unknown_type"/>
+</scxml>

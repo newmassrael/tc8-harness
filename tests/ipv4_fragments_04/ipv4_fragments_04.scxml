@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.6 IPV4_FRAGMENTS_04: IP Reconstruct fragments, negative
+  test on protocol. DUT must NOT reassemble a fragment pair whose
+  Protocol fields differ. Reassembly-bucket tuple includes protocol
+  byte; differing protocol places the two fragments in distinct
+  buckets.
+
+  Phase 1: TESTER sends frag 0 (proto=ICMP) + frag 1 (proto=TCP).
+  Distinct buckets; neither reassembles → no Echo Reply.
+  Phase 2: TESTER re-sends frag 1 with proto=ICMP, matching frag 0's
+  bucket → DUT reassembles → Echo Reply.
+
+  Shared body with fragments_02 / fragments_03 via sce:template.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_fragments_04"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/ipv4_fragments_compound.sce-template.xml"
+           fail_reason_phase1="dut_reassembled_mismatched_protocol_fragments"
+           fail_reason_phase2_timeout="no_echo_reply_after_matched_protocol_retry"
+           fail_reason_phase2_echo_id="echo_id_mismatch_after_protocol_retry"
+           fail_reason_phase2_echo_seq="echo_seq_mismatch_after_protocol_retry"
+           fail_reason_phase2_data="reassembled_echo_data_mismatch_protocol_case"/>
+</scxml>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_39: ARP learning (Request answers Request).
+  Spec sequence:
+    Step 4: DUT emits its own ARP Request (cache miss after first UDP-egress
+            provocation).
+    Step 5: TESTER injects ARP Request with sender_hw = MAC-ADDR2 to
+            populate DUT's cache via RFC 826 §2.3 reception.
+    Step 9: DUT emits UDP with Ethernet destination = MAC-ADDR2 (cache used).
+
+  DUT-Request guard tightened with sender_proto_ip == dut_iface_ip to
+  filter out DAD probes (sender_ip = 0) that could otherwise advance the
+  state prematurely on a freshly-brought-up interface.
+
+  Body shared with ARP_40 via sce:template (single source of truth —
+  see tests/_templates/arp_group_d_stateful_learning_observation.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_39"
+       datamodel="null"
+       initial="wait_dut_request">
+  <sce:use template="../_templates/arp_group_d_stateful_learning_observation.sce-template.xml"
+           mac_idx="2"/>
+</scxml>

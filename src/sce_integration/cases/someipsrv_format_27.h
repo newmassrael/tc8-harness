@@ -1,0 +1,52 @@
+#pragma once
+
+#include <string_view>
+
+#include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/test_runner.h"
+#include "stimulus/someip_sd_builder.h"
+
+#include "someipsrv_format_27_sm.h"
+
+namespace tc8::sce::cases {
+
+using Format27SM =
+    ::SCE::Generated::someipsrv_format_27::someipsrv_format_27;
+
+}  // namespace tc8::sce::cases
+
+namespace tc8::sce {
+
+// TC8 v3.0 §5.1.5.1.27 — Reserved field following the TTL in the
+// Type 2 entry (upper 12 bits of bytes 12..13) shall be zero. Guard
+// masks out the lower 4 bits (subscribe Counter).
+template <>
+struct TestCaseTraits<cases::Format27SM>
+    : SomeIpSdOnlyBase<cases::Format27SM> {
+    static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_27";
+    static constexpr std::string_view kSpecSection = "5.1.5.1.27";
+    static constexpr std::string_view kDescription =
+        "Type 2 entry Reserved field (upper 12 bits following TTL) shall be zero";
+
+    static void stimulus(Captured& /*c*/,
+                         const ::tc8::TestConfig& cfg,
+                         std::string_view iface) {
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface,
+            ::tc8::stimulus::SubscribeEventgroupTarget{},
+            cfg.stimulus_timing);
+    }
+
+    static std::string_view verdictFor(State s) {
+        switch (s) {
+            case State::Pass:                 return "pass";
+            case State::Fail_reserved_bits:   return "fail:entry_reserved_bits_nonzero";
+            case State::Fail_timeout:         return "fail:no_ack_within_listen_window";
+            default:                          return "running";
+        }
+    }
+};
+
+}  // namespace tc8::sce
+
+TC8_REGISTER_CASE(::tc8::sce::cases::Format27SM, someipsrv_format_27)

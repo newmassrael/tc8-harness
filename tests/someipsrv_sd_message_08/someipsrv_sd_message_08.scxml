@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.8 SOMEIPSRV_SD_MESSAGE_08: OfferService entries shall
+  always reference at least one IPv4 (or IPv6) Endpoint Option to signal
+  how the service is reachable (TR_SOMEIP_00357). Test variant verifies
+  the IPv4 axis: the Options Array of every OfferService shall carry
+  at least one IPv4 Endpoint Option (Type=0x04).
+
+  Cyclic OfferService is sufficient evidence — vsomeip emits two IPv4
+  Endpoint Options (UDP + TCP) per OfferService for service 0xF4E7.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_08"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x01"
+           pass_expr="captured.sd_ipv4_endpoint_count &gt;= 1"
+           fail_state="fail_endpoint_count"
+           fail_reason="offer_carries_no_ipv4_endpoint_option"/>
+</scxml>

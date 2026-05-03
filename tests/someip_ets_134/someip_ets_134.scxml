@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_134: SD_Option_Length_ends_past_Options_Array_Var_A.
+
+  Tester sends a SubscribeEventgroup with the SOME/IP Length field cut by
+  12 bytes AND OptionsLen cut by the same 12 bytes (so the declared options
+  array shrinks to 0 while the wire still carries one IPv4 Endpoint
+  option). Per PRS_SOMEIPSD_00274 / 00393 / PRS_SOMEIP_00042 the DUT must
+  Nack or ignore. Lenient verdict accepts both — vsomeip's parser usually
+  silent-drops on the bad-length-field gate before its SD layer can dispatch
+  a Nack.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
+    Phase 2 (listening_phase2): Type 0x07 entry on eg 0x0001 with
+            ttl == 0 (Nack) → pass.
+            Ack (ttl > 0) → fail. Deadline → pass (silent ignore).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_134"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id"
+                target="fail_phase2_dut_acked_malformed"/>
+    <transition event="phase2_deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_dut_acked_malformed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_acked_malformed_options_array_length"}</content>
+    </donedata>
+  </final>
+</scxml>

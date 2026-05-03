@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.5.6.2 ADDRESS_SELECTION cluster A — DUT-emitted ARP Probe field
+  invariant. Each consumer asserts a single Probe-shape field while
+  reusing the same listening-state envelope.
+
+  Filter:  captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac.
+           tc8-dut emits no other ARP traffic before its first Probe,
+           so the first DUT-MAC ARP Request is Probe1. Real-DUT
+           topology shares the same assumption — non-Probe ARP from
+           the DUT during LL-autoconf would itself be a violation.
+
+  Pass:    filter and ({$pass_expr})
+  Fail:    filter and !({$pass_expr})  →  {$fail_state}
+  Timeout: deadline_exceeded            →  fail_timeout
+
+  Single `{$pass_expr}` param per the ipv4_field_check precedent —
+  XML attribute values can't carry a raw `<`, so dual pass/fail
+  exprs would re-parse-fail after substitution. Negation via `!(...)`
+  is structurally robust because `!`, `(`, `)` survive the lexical
+  paste. Compound expressions are exposed as `ArpCaptured` member
+  methods so SCE codegen's `captured.X` rewrite covers them
+  identically to field access (`reference_sce_captured_arg.md`).
+
+  4 s deadline matches ADDRESS_SELECTION_03: first Probe lands ~1.9 s
+  after stimulus call (1.5 s initial wait + 200 ms dhcp_timeout +
+  200 ms PROBE_WAIT). Cadence cases (_09/_10) use RFC defaults and
+  carry their own SCXMLs with longer deadlines.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_linklocal_probe_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and ({$pass_expr})"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+    </donedata>
+  </final>
+</sce:template>

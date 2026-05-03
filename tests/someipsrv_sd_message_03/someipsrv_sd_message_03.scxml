@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.3 SOMEIPSRV_SD_MESSAGE_03: When a tester FindService asks
+  for any major version (Major Version=0xFF, TR_SOMEIP_00351), the DUT's
+  OfferService entry shall carry the configured SdServerServiceMajorVersion.
+
+  We don't emit a Find here — vsomeip's cyclic OfferService at
+  cyclic_offer_delay (~2 s) carries the same Major Version field, so the
+  invariant ("Major Version in Entry Array == SERVICE-ID-1-MAJ-VER")
+  holds on every cyclic emission. SERVICE-ID-1-MAJ-VER is injected via
+  expect major_version=&lt;n&gt; into expected.major_version (CLI key).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_03"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x01"
+           pass_expr="captured.sd_entries[0].major_version == expected.major_version"
+           fail_state="fail_major_version"
+           fail_reason="offer_entry_major_version_mismatch"/>
+</scxml>

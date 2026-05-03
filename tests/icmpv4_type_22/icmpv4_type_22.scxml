@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_22: A host must respond to all ICMP Echo
+  Requests by sending an ICMP Echo Reply back per RFC 792. Tester sends
+  an Echo Request with default payload; the SCXML asserts any DUT-
+  originated Echo Reply (type=0) arrives within the listen window.
+
+  Pass guard conjuncts captured.src_ip == expected.dut_iface_ip so the
+  negative smoke row can override icmpv4.dut_iface_ip and force the
+  pass path out of reach — the SCXML then lands on fail_timeout,
+  proving the src_ip filter is load-bearing. BPF group Icmpv4 already
+  filters SOME/IP SD multicast, but the src_ip conjunct also stops a
+  future multi-host wire from polluting the observation window.
+
+  This mirrors TYPE_09's shape minus the echo_id/echo_seq field check —
+  TYPE_22's spec row has no extra field observation beyond "DUT sends
+  Echo Reply", so the guard asserts presence plus origin.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_22"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_echo_reply_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

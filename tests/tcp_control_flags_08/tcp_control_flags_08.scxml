@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.19 TCP_CONTROL_FLAGS_08: Recovery from old duplicate SYN
+  (RFC 793 §3.4 figure 9, p33). An old duplicate SYN arrives at the
+  DUT in LISTEN. DUT responds with SYN,ACK and moves to SYN-RECEIVED.
+  The tester (acting as the legitimate connection holder) sends a RST
+  with seq selected to make the segment believable. DUT consumes the
+  RST and returns to LISTEN. A subsequent fresh SYN with a new ISN
+  triggers a second SYN,ACK exchange.
+
+  v3.0 Test Procedure (p404):
+    1. TESTER: Bring DUT to LISTEN.
+    2. TESTER: Send SYN with seq=SEQ1.
+    3. DUT:    Sends SYN,ACK with ack=SEQ1+1, moves to SYN-RECEIVED.
+    4. TESTER: Send SYN+RST with seq=SEQ1+1.
+    5. TESTER: Send SYN with seq=SEQ2.
+    6. DUT:    Sends SYN,ACK with ack=SEQ2+1.
+
+  Pass criteria: steps 3 and 6 — two distinct SYN,ACK observations
+  with the matching expected ack_num values.
+
+  Mechanism (passive listener + raw-inject probes):
+    1. UT OpOpenTcpSocket(passive, listen_port=kTcpControlFlags08
+       ListenPort) — DUT enters LISTEN.
+    2. RAII TesterAutoRstDrop installs an iptables OUTPUT-chain RST
+       drop so the tester kernel does not auto-RST the DUT-emitted
+       SYN,ACK before the test stimulus crafts its follow-up.
+    3. Raw-inject SYN with seq=kTcpControlFlags08Seq1 from
+       kTcpControlFlags08TesterSrcPort.
+    4. After ~500 ms (DUT SYN,ACK observed by SCXML), raw-inject
+       SYN+RST with seq=kTcpControlFlags08Seq1+1. Linux's RFC 5961
+       §3.2 RST handling on the SYN-RECEIVED 4-tuple matches when
+       seq == rcv.nxt — DUT closes the embryonic connection and
+       its passive listener returns to LISTEN.
+    5. After ~300 ms, raw-inject SYN with seq=kTcpControlFlags08Seq2
+       on the same 4-tuple. DUT (back in LISTEN) replies SYN,ACK
+       with ack=kTcpControlFlags08Seq2+1.
+    6. UT OpCloseTcpSocket cleans up the listener.
+
+  Two-state SCXML chain:
+    * listening_first_syn_ack — observe DUT SYN,ACK on
+      (src=listen_port, dst=tester_src_port) with ack=SEQ1+1.
+    * listening_second_syn_ack — observe DUT SYN,ACK on the same
+      4-tuple with ack=SEQ2+1.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the SYN,ACK
+  src_ip conjunct unreachable on phase 1; case lands on
+  fail_no_first_syn_ack via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_control_flags_08"
+       datamodel="null"
+       initial="listening_first_syn_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_syn_ack">
+    <onentry>
+      <send event="deadline_first_syn_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpControlFlags08TesterSrcPort and (captured.flags &amp; 0x12U) == 0x12U and (captured.flags &amp; 0x05U) == 0x00U and captured.ack_num == ::tc8::sce::tcp::kTcpControlFlags08Seq1 + 1U"
+                target="listening_second_syn_ack"/>
+    <transition event="deadline_first_syn_ack" target="fail_no_first_syn_ack"/>
+  </state>
+
+  <state id="listening_second_syn_ack">
+    <onentry>
+      <send event="deadline_second_syn_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpControlFlags08TesterSrcPort and (captured.flags &amp; 0x12U) == 0x12U and (captured.flags &amp; 0x05U) == 0x00U and captured.ack_num == ::tc8::sce::tcp::kTcpControlFlags08Seq2 + 1U"
+                target="pass"/>
+    <transition event="deadline_second_syn_ack" target="fail_no_second_syn_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_syn_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_ack_to_first_syn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_second_syn_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_ack_after_old_duplicate_recovery"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,198 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
+//
+// This file is part of SCE (SCXML Core Engine).
+//
+// Dual Licensed:
+// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 2. Commercial: For modifications (contact newmassrael@gmail.com)
+//
+// Commercial License:
+//   Individual: $5000 cumulative
+//   Enterprise: Contact for pricing
+//   Contact: https://github.com/newmassrael
+//
+// Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
+
+#include "backends/SpdlogBackend.h"
+#include <algorithm>
+#include <cstdlib>
+#include <filesystem>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+
+namespace SCE {
+
+SpdlogBackend::SpdlogBackend(const std::string &logDir, bool logToFile) {
+    if (logDir.empty() && !logToFile) {
+        // Default: console only
+        logger_ = spdlog::stdout_color_mt("SCE");
+        logger_->set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
+    } else {
+        // Console + file logging
+        std::vector<spdlog::sink_ptr> sinks;
+
+        // Console sink
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console_sink->set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
+        sinks.push_back(console_sink);
+
+        // File sink (if requested)
+        if (logToFile && !logDir.empty()) {
+            std::filesystem::create_directories(logDir);
+            std::filesystem::path logPath = std::filesystem::path(logDir) / "sce.log";
+
+            auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true);
+            file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] %v");
+            sinks.push_back(file_sink);
+        }
+
+        logger_ = std::make_shared<spdlog::logger>("SCE", sinks.begin(), sinks.end());
+        spdlog::register_logger(logger_);
+    }
+
+    // Default log level: off for WASM (JavaScript controls it), debug for native
+#ifdef __EMSCRIPTEN__
+    logger_->set_level(spdlog::level::off);  // WASM: Start silent, JavaScript enables via setSpdlogLevel()
+#else
+    logger_->set_level(spdlog::level::debug);  // Native: Default debug level
+#endif
+
+    // Check SPDLOG_LEVEL environment variable
+    const char *env_level = std::getenv("SPDLOG_LEVEL");
+    if (env_level) {
+        std::string level_str(env_level);
+        std::transform(level_str.begin(), level_str.end(), level_str.begin(), ::tolower);
+
+        if (level_str == "trace") {
+            logger_->set_level(spdlog::level::trace);
+        } else if (level_str == "debug") {
+            logger_->set_level(spdlog::level::debug);
+        } else if (level_str == "info") {
+            logger_->set_level(spdlog::level::info);
+        } else if (level_str == "warn" || level_str == "warning") {
+            logger_->set_level(spdlog::level::warn);
+        } else if (level_str == "err" || level_str == "error") {
+            logger_->set_level(spdlog::level::err);
+        } else if (level_str == "critical") {
+            logger_->set_level(spdlog::level::critical);
+        } else if (level_str == "off") {
+            logger_->set_level(spdlog::level::off);
+        }
+    }
+}
+
+void SpdlogBackend::log(LogLevel level, const std::string &message, [[maybe_unused]] const SCE::source_location &loc) {
+    if (logger_) {
+        logger_->log(convertLevel(level), message);
+    }
+}
+
+void SpdlogBackend::setLevel(LogLevel level) {
+    if (logger_) {
+        logger_->set_level(convertLevel(level));
+    }
+}
+
+bool SpdlogBackend::shouldLog(LogLevel level) const {
+    if (!logger_) {
+        return false;
+    }
+    // During capture, allow debug+ messages so SCE_LOG_DEBUG macros generate output
+    if (capturing_ && convertLevel(level) >= spdlog::level::debug) {
+        return true;
+    }
+    return logger_->should_log(convertLevel(level));
+}
+
+void SpdlogBackend::flush() {
+    if (logger_) {
+        logger_->flush();
+    }
+}
+
+void SpdlogBackend::startCapture() {
+    if (!logger_) {
+        return;
+    }
+
+    // Remove existing capture sink if any
+    stopCapture();
+
+    // Save the current logger level and lower it to debug so that
+    // debug messages pass through the logger to reach the capture sink.
+    // Existing sinks get their level set to the original level so
+    // console/file output remains unchanged.
+    preCaptureLevel_ = logger_->level();
+    capturing_ = true;
+
+    if (preCaptureLevel_ > spdlog::level::debug) {
+        // Set existing sinks to filter at the original level
+        for (auto &sink : logger_->sinks()) {
+            sink->set_level(preCaptureLevel_);
+        }
+        // Lower logger level to debug to let messages through
+        logger_->set_level(spdlog::level::debug);
+    }
+
+    // Create a new capture sink that captures at debug level
+    captureSink_ = std::make_shared<CaptureSinkMt>();
+    captureSink_->set_level(spdlog::level::debug);
+    captureSink_->set_pattern("[%H:%M:%S.%e] [%l] %v");
+
+    logger_->sinks().push_back(captureSink_);
+}
+
+void SpdlogBackend::stopCapture() {
+    if (!logger_ || !capturing_) {
+        return;
+    }
+
+    // Remove capture sink
+    if (captureSink_) {
+        auto &sinks = logger_->sinks();
+        sinks.erase(std::remove(sinks.begin(), sinks.end(), captureSink_), sinks.end());
+    }
+
+    // Restore original logger level and reset sink levels to trace (default)
+    logger_->set_level(preCaptureLevel_);
+    for (auto &sink : logger_->sinks()) {
+        sink->set_level(spdlog::level::trace);
+    }
+
+    capturing_ = false;
+}
+
+std::string SpdlogBackend::getCapturedLogs() {
+    if (!captureSink_) {
+        return {};
+    }
+
+    std::string logs = captureSink_->getBuffer();
+    captureSink_->clearBuffer();
+    captureSink_.reset();
+    return logs;
+}
+
+spdlog::level::level_enum SpdlogBackend::convertLevel(LogLevel level) const {
+    switch (level) {
+    case LogLevel::Trace:
+        return spdlog::level::trace;
+    case LogLevel::Debug:
+        return spdlog::level::debug;
+    case LogLevel::Info:
+        return spdlog::level::info;
+    case LogLevel::Warn:
+        return spdlog::level::warn;
+    case LogLevel::Error:
+        return spdlog::level::err;
+    case LogLevel::Critical:
+        return spdlog::level::critical;
+    case LogLevel::Off:
+        return spdlog::level::off;
+    default:
+        return spdlog::level::debug;
+    }
+}
+
+}  // namespace SCE

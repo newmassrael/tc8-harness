@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_09: if the client receives a
+  DHCPNAK message, the client restarts the configuration process
+  (RFC 2131 §3.1).
+
+  Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_09):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
+         to DHCPCLIENT_STATE_RENEWING.
+    4.   DUT: Transit finite state to DHCPCLIENT_STATE_RENEWING.
+    5.   TESTER: DHCP Server <SERVER-1> Listens.
+    6.   DUT: Sends DHCPREQUEST Message.
+    7.   TESTER: DHCP Server <SERVER-1> Sends DHCPNAK.
+    8.   TESTER: Listens (upto (10 + ParamToleranceTime) seconds).
+    9.   DUT: Sends DHCPDISCOVER Message.
+  Pass: 4 + 6 + 9.
+
+  Trait registers OFFER + ACK on the first two listening states, plus
+  DHCPNAK (msg_type=6) on `Listening_for_second_discover` entry —
+  which is reached after the DUT's RENEWING REQUEST. NAK ingest in
+  pollForReply triggers the runBoundPhaseMachine's INIT-return branch,
+  and runLoop emits the second DHCPDISCOVER.
+
+  The NAK builder (Dhcpv4FrameBuilder, message_type=6) force-zeroes
+  yiaddr and omits Option 51 / Option 1 per RFC 2131 §4.3.2.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_allocating_09"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_post_bound_discover.sce-template.xml"/>
+</scxml>

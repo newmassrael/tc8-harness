@@ -1,0 +1,79 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="observer")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+#pragma once
+#ifndef {{ guard }}
+#define {{ guard }}
+
+#include <cstdint>
+#include <sce/forge/observer.h>
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+
+namespace SCE::Generated::{{ namespace }} {
+
+{% if has_event_domain %}
+// Event domain "{{ event_domain }}" is declared by the consuming translation
+// unit (typically a statechart that aggregates events from multiple observers
+// in this domain). The user must provide a struct of the form:
+//
+//     struct {{ event_domain }} {
+//         enum Tag { {% for ev in events %}{{ ev }}{% if not loop.last %}, {% endif %}{% endfor %} /* aggregated across the whole domain */ };
+//     };
+//
+// before including this header. See SCE_FORGE.md §4.11.
+using ForgeDomain = ::{{ event_domain }};
+{% else %}
+// No sce:event-domain declared on this <scxml> root: the observer falls back
+// to a file-local domain. The resulting Event<> type cannot be composed with
+// other observers. To enable cross-file composition, add
+// sce:event-domain="..." to the source SCXML. See SCE_FORGE.md §4.11.
+struct ForgeDomain {
+    enum Tag {
+{% for ev in events %}
+        {{ ev }}{% if not loop.last %},{% endif %}
+
+{% endfor %}
+    };
+};
+{% endif %}
+
+class {{ struct_name }} {
+public:
+    SCE::Forge::EventQueue<ForgeDomain> update({{ params }}) {
+        SCE::Forge::EventQueue<ForgeDomain> events;
+{% for mon in monitors %}
+        if ({{ mon.id }}_.enterIf({{ mon.enter_expr }})) {
+            events.push(ForgeDomain::{{ mon.event_enter }});
+        }
+{% if mon.has_leave %}
+{% if mon.has_on_leave %}
+        else if ({{ mon.id }}_.leaveIf({{ mon.leave_expr }})) {
+            events.push(ForgeDomain::{{ mon.event_leave }});
+        }
+{% else %}
+        else {
+            {{ mon.id }}_.leaveIf({{ mon.leave_expr }});
+        }
+{% endif %}
+{% endif %}
+{% endfor %}
+        return events;
+    }
+
+private:
+{% for mon in monitors %}
+    SCE::Forge::ThresholdState {{ mon.id }}_;
+{% endfor %}
+};
+
+}  // namespace SCE::Generated::{{ namespace }}
+
+#endif  // {{ guard }}

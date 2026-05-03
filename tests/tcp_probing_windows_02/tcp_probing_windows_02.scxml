@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.12 TCP_PROBING_WINDOWS_02: the windows size MUST be
+  treated as an unsigned number (RFC 1122 §4.2.2.3 p83 Window Size —
+  RFC 793 §3.1 MUST).
+
+  v3.0 Test Procedure (p374):
+    1. TESTER: Cause the DUT to move on to SYN-RCVD state.
+    2. TESTER: Send ACK segment with a window size having the MSB set.
+    3. TESTER: Cause the application on the DUT-side to issue a SEND
+               request for a data segment.
+    4. DUT:    Send the data segment.
+
+  Pass criterion: DUT emits a data segment after receiving an
+  advertised window with the MSB set — i.e. the DUT honours
+  0x8000..0xFFFF as a positive 16-bit unsigned window (RFC 793
+  §3.1) rather than misinterpreting the high bit as a sign and
+  refusing to send (negative usable window).
+
+  Spec interpretation note (handshake variant):
+    Spec step 1 says "Cause the DUT to move on to SYN-RCVD state" —
+    the canonical setup for SYN-RCVD is passive listen + tester
+    raw-inject SYN. The MSB-set window then rides on the tester's
+    third-leg ACK. The §4.8 active-OPEN cluster relies on the
+    kernel-tester's connect() handshake which puts kernel-chosen
+    window values on the third-leg ACK (uncontrollable from
+    stimulus). The harness uses the §4.8 active-OPEN port-quad
+    pattern (consistent with FLAGS_PROCESSING / OUT_OF_ORDER /
+    URGENT_PTR siblings) and substitutes a post-handshake raw-
+    inject 1-byte data segment with `window=0x8000` to drive the
+    same RFC 793 §3.1 receive-side `tcp_ack_update_window` code
+    path. Linux processes the new data byte → `ack_seq` advances
+    → `snd_wl1` advances → `tp->snd_wnd = 0x8000`. The DUT's
+    advertised view of the tester's send window is now MSB-set;
+    the subsequent UT OpSendTcpData drives the DUT-side
+    application send, and the DUT must emit a data segment (within
+    `snd_wnd = 0x8000`).
+
+  Mechanism (active-OPEN handshake + window-update + UT SEND):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+148,
+       kBasicsActiveRemotePort+148).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt.
+    4. Tester raw-injects 1-byte PSH+ACK at S = snd_nxt with
+       `window=0x8000` (MSB set, treated as unsigned 32768).
+    5. Brief settle so the DUT processes the byte and updates its
+       view of the tester's send window before the UT SEND.
+    6. UT OpSendTcpData(socket_id=1, payload=4 B) — tc8-dut writes
+       to its connected fd; the kernel emits a PSH+ACK with the
+       4 B payload.
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — observe the DUT-emitted handshake
+      third-leg pure ACK on the active-OPEN port quad.
+    * listening_dut_data_segment — pass on DUT data segment with
+      `payload_len > 0`. The intermediate DUT pure ACK acking the
+      1-byte inject does not satisfy this guard (payload_len == 0)
+      and stays queued.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the
+  is_pure_dut_ack(...) src_ip conjunct unreachable; case lands on
+  fail_no_handshake_ack via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_probing_windows_02"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset)"
+                target="listening_dut_data_segment"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_data_segment">
+    <onentry>
+      <send event="deadline_dut_data_segment" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset) and captured.payload_len &gt; 0U"
+                target="pass"/>
+    <transition event="deadline_dut_data_segment" target="fail_no_dut_data_segment"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_data_segment">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_send_data_after_msb_set_window_advertisement"}</content>
+    </donedata>
+  </final>
+</scxml>

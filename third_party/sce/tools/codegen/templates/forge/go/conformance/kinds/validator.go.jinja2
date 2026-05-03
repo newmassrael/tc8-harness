@@ -1,0 +1,25 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{# Validator kind — stateful Validate(args...) returning a struct whose fields are declared in `f.output`. #}
+	steps := ref.validatorSteps(t, "{{ f.ref_section }}", "{{ f.name }}")
+	validator := {{ f.name }}.New{{ f.name | to_pascal_case }}()
+	type expectedShape struct {
+{% for field in f.output %}
+		{{ field.name | to_pascal_case }} {{ field.type | go_type }} `json:"{{ field.name }}"`
+{% endfor %}
+	}
+	for i, step := range steps {
+{% for arg_ty in f.args %}
+		var arg{{ loop.index0 }} {{ arg_ty | go_type }}
+		unmarshalOrFatal(t, step.Args[{{ loop.index0 }}], &arg{{ loop.index0 }}, "{{ f.name }} arg{{ loop.index0 }}")
+{% endfor %}
+		var expected expectedShape
+		unmarshalOrFatal(t, step.Expected, &expected, "{{ f.name }} expected")
+		result := validator.Validate({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %})
+{% for field in f.output %}
+		if result.{{ field.name | to_pascal_case }} != expected.{{ field.name | to_pascal_case }} {
+			t.Errorf("{{ f.name }} step %d {{ field.name }}: actual=%v expected=%v", i, result.{{ field.name | to_pascal_case }}, expected.{{ field.name | to_pascal_case }})
+		}
+{% endfor %}
+	}

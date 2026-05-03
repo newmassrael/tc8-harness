@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.17 SOMEIPSRV_SD_MESSAGE_17: When a Subscribe carries an
+  UNKNOWN-INSTANCE-ID (extractedInstID1+1, i.e. 0x0002 against the
+  configured 0x0001), the DUT shall Nack with TTL=0 and shall echo the
+  Instance ID from the Subscribe (TR_SOMEIP §6.7.4.2.4).
+  vsomeip Nacks any Subscribe for an unconfigured eventgroup, so the
+  echo holds whether the rejection reason is unknown-instance or
+  unknown-eventgroup.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_17"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x07"
+           pass_expr="captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].instance_id == expected.instance_id + 1"
+           fail_state="fail_instance_id"
+           fail_reason="nack_entry_instance_id_not_unknown_plus_one"/>
+</scxml>

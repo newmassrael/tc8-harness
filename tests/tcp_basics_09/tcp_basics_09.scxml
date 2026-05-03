@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_09: in LAST-ACK state, on receipt of the
+  ACK of its own FIN the DUT's TCP MUST move to CLOSED. Verification
+  per spec is observational: a subsequent non-RST segment to the now-
+  closed port must elicit a RST from the DUT — the RFC 793 §3.9 p65
+  CLOSED-state response, identical to BASICS_04. Derived from RFC 793
+  §3.2 p23 Terminology.
+
+  v3.0 Test Procedure (p281-p300.txt:654):
+    1. TESTER: Cause DUT to LAST-ACK — passive close from CLOSE-WAIT.
+    2. DUT:    Send FIN when entering LAST-ACK.
+    3. TESTER: Send ACK for the DUT's FIN — tester kernel auto-ACK.
+    4. TESTER: Send a non-RST segment to the (now-CLOSED) port.
+    5. DUT:    Send a RST — verifies CLOSED.
+
+  Pass criteria fold into a 2-state SCXML chain:
+    listening_fin: wait for DUT FIN+ACK on phase ports
+                   (the LAST-ACK entry marker, spec step 2)
+                   → listening_rst
+    listening_rst: wait for DUT RST on the closed-port quad
+                   (spec step 5) → pass
+
+  Distinguishing the two observation events requires distinct port
+  quads — the LAST-ACK FIN flows on (49500→23456) (the active-open
+  pair), while the closed-port RST is provoked by a raw-inject from
+  (49152→49500) and elicits a RST flowing (49500→49152). The dst_port
+  conjunct is what splits "DUT close FIN" from "DUT closed-port RST"
+  on the wire.
+
+  The tester-kernel ACK of the DUT's FIN — what actually causes the
+  LAST-ACK → CLOSED transition — is silent at the SCXML level (it is
+  a tester-origin segment and src_ip filter excludes it). The harness
+  proves the transition happened by the existence of the subsequent
+  RST: a DUT still in LAST-ACK would either drop or queue the closed-
+  port stimulus rather than RST it.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_09"
+       datamodel="null"
+       initial="listening_fin">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_fin">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x01) != 0"
+                target="listening_rst"/>
+    <transition event="deadline_exceeded" target="fail_timeout_fin"/>
+  </state>
+
+  <state id="listening_rst">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout_rst"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_fin_into_last_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_rst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_from_closed"}</content>
+    </donedata>
+  </final>
+</scxml>

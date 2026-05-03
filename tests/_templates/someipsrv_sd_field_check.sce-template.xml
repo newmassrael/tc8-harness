@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Unified §5.1.5 SOMEIPSRV SD field-check template — single 3-state shape
+  shared by §5.1.5.5 OPTIONS (options-array field invariants) and §5.1.5.3
+  SD_MESSAGE (entries-array field invariants).
+
+    * pass — first SD frame whose entries[0].type matches the per-case
+             entry-type filter, whose `{$presence_gate}` holds, AND that
+             satisfies `{$pass_expr}`.
+    * {$fail_state} — same prefix gates but the field predicate holds
+             false. Final-state ID is per-case so verdict logs carry a
+             meaningful suffix without an extra reason map.
+    * fail_timeout — no qualifying SD frame within 5 s.
+
+  Three filters apply on every transition (in this order, with `cpp:`
+  short-circuit semantics):
+    1. `captured.sd_entry_count &gt;= 1` — silently drops SD payloads
+       truncated short of the entries block; protects the entries[0]
+       index access that follows.
+    2. `captured.sd_entries[0].type == {$entry_type}` — narrows to the
+       per-case entry-type window. Smoke-test runs on an active tc8-dut,
+       so cyclic OfferService (0x01), echoed FindService (0x00), and
+       tester-emitted Subscribe (0x06, seen via pcap) all arrive; only
+       the configured entry-type window is admitted.
+    3. `{$presence_gate}` — per-case extra precondition. OPTIONS cases
+       supply `captured.sd_option_count &gt;= 1` so a SD payload truncated
+       short of the options block doesn't drive a misleading fail.
+       SD_MESSAGE cases that need no extra gate pass `true`.
+
+  The presence gate ANDs into BOTH the pass and fail branches so frames
+  that don't apply (e.g. an SD frame with no options block, for an
+  OPTIONS case) silently fall through to the next event rather than
+  triggering a false fail.
+
+  Consumers point `pass_expr` at any cond fragment that reads
+  `captured.sd_entries[i].FIELD` or `captured.sd_options[i].FIELD`
+  against `expected.FIELD` literals or values configured via the harness
+  expect CLI key. Helper accessors live in `tc8::SomeIpCaptured`
+  (sd_first_option_with_l4 / sd_has_option_with_l4 /
+  sd_ipv4_endpoint_count). Constants live in `tc8::sd_option_type::*`,
+  `tc8::sd_l4_proto::*` and `tc8::sd_test_unknown::*`.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="someipsrv_sd_field_check">
+
+  <sce:param name="entry_type"    required="true"/>
+  <sce:param name="presence_gate" required="true"/>
+  <sce:param name="pass_expr"     required="true"/>
+  <sce:param name="fail_state"    required="true"/>
+  <sce:param name="fail_reason"   required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == {$entry_type} and ({$presence_gate}) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == {$entry_type} and ({$presence_gate}) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_qualifying_sd_message_within_listen_window"}</content>
+    </donedata>
+  </final>
+</sce:template>

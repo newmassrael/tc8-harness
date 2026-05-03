@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_06:
+    "The DHCPREQUEST message contains the same 'xid' as the DHCPOFFER
+     message" (RFC 2131 §4.4.1, MUST).
+
+  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_06):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER:DHCP Server Listens on <DIface-0>.
+    4.   DUT: Sends DHCPDISCOVER.
+    5.   TESTER: Extracts the content of 'xid' field to <extractedXID>.
+    6.   TESTER: Sends DHCPOFFER with 'xid' = extractedXID.
+    7.   TESTER: Listens.
+    8.   DUT: Sends DHCPREQUEST.
+    9.   TESTER: Verify REQUEST 'xid' equals extractedXID.
+
+  Same SUMMARY_01 lifecycle (DISCOVER → OFFER → REQUEST). The harness
+  emul OFFER faithfully echoes the captured DISCOVER's xid, so REQUEST.xid
+  == DISCOVER.xid is equivalent to the spec's "REQUEST.xid == OFFER.xid"
+  assertion. Cross-message snapshot: `scheduleDiscoverSnapshotOnStateEntry`
+  registers `c.snapshotDiscoverFields()` to fire on the
+  listening_for_discover → listening_for_request transition, capturing
+  the DISCOVER xid before the dispatcher overwrites the wire-derived
+  block with the DUT's REQUEST. The pass-guard then evaluates
+  `xid_matches_discover()` against the captured REQUEST.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_06"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="deadline_exceeded" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.xid_matches_discover()"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and !captured.xid_matches_discover()"
+                target="fail_xid_mismatch"/>
+    <transition event="deadline_exceeded" target="fail_no_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_xid_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_request_xid_mismatch"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+</scxml>

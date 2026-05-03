@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_14: TCP MUST NOT move on to CLOSED state
+  from TIME-WAIT state before 2*MSL time expires, where TIME-WAIT
+  state is reached through CLOSING state. Derived from NEGATIVE
+  "RFC 793 §3.2 p23 Terminology" (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:50):
+    1. TESTER: Cause the DUT to move on to CLOSING state
+    2. TESTER: Send ACK for the FIN just received from the DUT
+       (DUT moves to TIME-WAIT state)
+    3. TESTER: Send a FIN within 2*MSL time
+    4. DUT:    Send ACK
+  Pass criterion: step 4 (DUT ACKs the within-2*MSL FIN replay,
+  proving TIME-WAIT survived).
+
+  Prelude mechanism (tcp_pilot_common::driveCloseToTimeWaitClosing
+  with TesterAutoAckDrop scoped inside): UT close drives DUT into
+  FIN-WAIT-1 with the tester kernel's pure-ACK auto-reply blocked
+  by iptables; tester then raw-injects FIN+ACK whose ack number
+  intentionally does NOT cover DUT FIN — DUT in FIN-WAIT-1 receives
+  a non-acking FIN and per RFC 793 §3.9 enters CLOSING (DUT also
+  emits a pure ACK acknowledging tester FIN). Tester then raw-
+  injects a second segment, an ACK that DOES ack DUT FIN, advancing
+  DUT silently CLOSING → TIME-WAIT. The helper TCP_REPAIR-closes
+  the tester accepted fd to free the 4-tuple without emitting a
+  second tester FIN.
+
+  See tests/_templates/tcp_time_wait_4state.sce-template.xml for
+  the shared 4-state observation chain. Per-case thin-shell binds
+  mid_label=closing_ack (CLOSING-path semantics — the DUT's ACK
+  this state observes responds to tester FIN driving the FW1 →
+  CLOSING transition, not the FW2 → TIME-WAIT transition the FW2
+  variants observe) and replay_label=replay_ack (within-2*MSL ACK
+  observation, 5s deadline).
+
+  Negative smoke flips ipv4.dut_iface_ip → first state's
+  src_ip-conjunct unreachable → fail_no_handshake_ack.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_14"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_time_wait_4state.sce-template.xml"
+           mid_label="closing_ack"
+           mid_fail_reason="no_dut_ack_in_closing_transition"
+           replay_label="replay_ack"
+           replay_method="is_pure_dut_ack"
+           replay_deadline="5s"
+           replay_fail_reason="no_dut_ack_to_replay_fin_in_time_wait_via_closing"/>
+</scxml>

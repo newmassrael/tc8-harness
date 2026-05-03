@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_40: ARP learning (Response answers Request).
+  Spec sequence:
+    Step 4: DUT emits its own ARP Request (cache miss after first UDP-egress
+            provocation).
+    Step 5: TESTER injects ARP Response with sender_hw = MAC-ADDR3,
+            target_hw = ETHERNET_BROADCAST_ADDR.
+    Step 9: DUT emits UDP with Ethernet destination = MAC-ADDR3.
+
+  Byte-sibling of arp_39.scxml (sub-shape "stateful learning observation"):
+  the only call-site differences are the case-id, the per-case XML
+  comment narrative, and mac_idx=3 (vs arp_39's mac_idx=2).
+
+  Body shared with ARP_39 via sce:template (single source of truth —
+  see tests/_templates/arp_group_d_stateful_learning_observation.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_40"
+       datamodel="null"
+       initial="wait_dut_request">
+  <sce:use template="../_templates/arp_group_d_stateful_learning_observation.sce-template.xml"
+           mac_idx="3"/>
+</scxml>

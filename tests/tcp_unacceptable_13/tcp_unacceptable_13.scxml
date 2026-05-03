@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_13: TCP, in TIME-WAIT state, MUST
+  return an ACK with proper SEQ and ACK numbers after receiving a
+  segment with out-of-window SEQ or unacceptable ACK number, and
+  remain in same state. Derived from RFC 793 §3.4 p37 (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:737), two iterations:
+    * CASE 1: data segment with out-of-window SEQ number.
+    * CASE 2: data segment with unacceptable ACK number.
+
+  Each phase reuses driveTcpToTimeWaitFw2 to drive DUT into
+  TIME-WAIT, then raw-injects a corrupt data segment from the
+  tester's TIME-WAIT-ed quad. DUT's tcp_timewait_state_process
+  responds with an empty ACK in either CASE; the connection
+  remains in TIME-WAIT.
+
+  See tests/_templates/tcp_time_wait_dual_phase_otw_probe.sce-template.xml
+  for the shared 8-state observation chain. Per-case thin-shell
+  binds the two probe-state fail reason strings — UNACCEPTABLE_13
+  distinguishes phase 1 (OTW SEQ) from phase 2 (unacceptable ACK)
+  semantically; the wire-level shape is identical (DUT pure ACK
+  on the per-phase port quad).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_13"
+       datamodel="null"
+       initial="listening_p1_handshake">
+  <sce:use template="../_templates/tcp_time_wait_dual_phase_otw_probe.sce-template.xml"
+           p1_probe_fail_reason="no_dut_ack_to_otw_seq_in_time_wait"
+           p2_probe_fail_reason="no_dut_ack_to_unacceptable_ack_in_time_wait"/>
+</scxml>

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_11: TCP, in CLOSING state, MUST
+  return an ACK with proper SEQ and ACK numbers after receiving a
+  segment with out-of-window SEQ or unacceptable ACK number, and
+  remain in same state. Derived from RFC 793 §3.4 p37 (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:653) lists two iterations:
+    * CASE 1: data segment with out-of-window SEQ number.
+    * CASE 2: data segment with an unacceptable ACK number.
+
+  Per-phase prelude (function-scoped TesterAutoAckDrop covers both
+  phases; pure-ACK iptables suppression keeps DUT pinned in
+  FIN-WAIT-1 long enough for the tester FIN+ACK injection to drive
+  it into CLOSING):
+    1. Active-OPEN handshake → ESTABLISHED (DUT third-leg ACK).
+    2. driveCloseToClosing — UT close (DUT FIN+ACK observed) →
+       queryTcpSeqRange → raw-inject tester FIN+ACK with non-acking
+       ack (rcv_nxt - 1) → DUT FW1 → CLOSING with DUT pure ACK
+       observation.
+    3. Raw-inject CASE-distinct corrupt segment.
+    4. silentlyCloseTesterFd (TCP_REPAIR + close).
+
+  Per phase the SCXML walks four DUT-origin observations:
+    1. handshake third-leg ACK (DUT pure ACK)
+    2. UT-close-elicited DUT FIN+ACK
+    3. CLOSING-transition DUT pure ACK
+    4. probe-elicited DUT empty ACK (Phase 1 only — see deviation)
+
+  ## Linux behaviour (CASE 2 observable in CLOSING)
+
+  Both phases pass on a Linux DUT. The pcap kernel ring upgrade
+  (commit c8caa79) provided enough buffer to capture the multi-
+  phase CLOSING-prelude wire trace, exposing that CASE 2 in
+  CLOSING IS observable (verified 2026-04-26): unacc-ACK with
+  in-window SEQ + payload elicits a DUT empty ACK on the same
+  4-tuple. CLOSING joins UNACCEPTABLE_09 (FIN-WAIT-1) and
+  UNACCEPTABLE_14 (CLOSE-WAIT) in honouring CASE 2.
+
+  This contradicts the prior single-iter rationale, which
+  extrapolated from sibling Linux deviations in ESTABLISHED
+  (UNACCEPTABLE_04), FIN-WAIT-2 (UNACCEPTABLE_10), and LAST-ACK
+  (UNACCEPTABLE_12). Those deviations are real (Linux's tcp_ack
+  short-circuits for `after(ack, snd_nxt)` in those paths), but
+  the CLOSING handler in tcp_rcv_state_process takes a different
+  branch — likely the data-with-in-window-SEQ path that emits a
+  dup-ACK independent of the segment's ACK validity. Empirical
+  evidence > extrapolation.
+
+  Phase 1 (CASE 1 OTW SEQ): Linux's tcp_validate_incoming sends
+  a challenge ACK for OTW SEQ regardless of state, before tcp_ack
+  runs.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_11"
+       datamodel="null"
+       initial="listening_p1_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_p1_handshake_ack">
+    <onentry><send event="deadline_p1_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_p1_close_fin"/>
+    <transition event="deadline_p1_handshake_ack" target="fail_p1_no_handshake_ack"/>
+  </state>
+  <state id="listening_p1_close_fin">
+    <onentry><send event="deadline_p1_close_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_p1_closing_ack"/>
+    <transition event="deadline_p1_close_fin" target="fail_p1_no_close_fin"/>
+  </state>
+  <state id="listening_p1_closing_ack">
+    <onentry><send event="deadline_p1_closing_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_p1_probe_ack"/>
+    <transition event="deadline_p1_closing_ack" target="fail_p1_no_closing_ack"/>
+  </state>
+  <state id="listening_p1_probe_ack">
+    <onentry><send event="deadline_p1_probe_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_p2_handshake_ack"/>
+    <transition event="deadline_p1_probe_ack" target="fail_p1_no_probe_ack"/>
+  </state>
+
+  <state id="listening_p2_handshake_ack">
+    <onentry><send event="deadline_p2_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                target="listening_p2_close_fin"/>
+    <transition event="deadline_p2_handshake_ack" target="fail_p2_no_handshake_ack"/>
+  </state>
+  <state id="listening_p2_close_fin">
+    <onentry><send event="deadline_p2_close_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                target="listening_p2_closing_ack"/>
+    <transition event="deadline_p2_close_fin" target="fail_p2_no_close_fin"/>
+  </state>
+  <state id="listening_p2_closing_ack">
+    <onentry><send event="deadline_p2_closing_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                target="listening_p2_probe_ack"/>
+    <transition event="deadline_p2_closing_ack" target="fail_p2_no_closing_ack"/>
+  </state>
+  <state id="listening_p2_probe_ack">
+    <onentry><send event="deadline_p2_probe_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                target="pass"/>
+    <transition event="deadline_p2_probe_ack" target="fail_p2_no_probe_ack"/>
+  </state>
+
+  <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
+
+  <final id="fail_p1_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1"}</content></donedata></final>
+  <final id="fail_p1_no_close_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_close_fin_phase1"}</content></donedata></final>
+  <final id="fail_p1_no_closing_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_ack_in_closing_transition_phase1"}</content></donedata></final>
+  <final id="fail_p1_no_probe_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_in_closing"}</content></donedata></final>
+
+  <final id="fail_p2_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2"}</content></donedata></final>
+  <final id="fail_p2_no_close_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_close_fin_phase2"}</content></donedata></final>
+  <final id="fail_p2_no_closing_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_ack_in_closing_transition_phase2"}</content></donedata></final>
+  <final id="fail_p2_no_probe_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_unacceptable_ack_in_closing"}</content></donedata></final>
+</scxml>

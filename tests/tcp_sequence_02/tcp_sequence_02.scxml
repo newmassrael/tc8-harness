@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.17 TCP_SEQUENCE_02: from SYN-SENT, the DUT MUST acknowledge
+  the tester's ISN by emitting an ACK with ack_num == tester_seq+1
+  (RFC 793 §3.4 p27 Three-Way Handshake step 3).
+
+  v3.0 Test Procedure (p381-p400.txt:580-583):
+    1. TESTER: Bring DUT to state SYN-SENT.
+    2. TESTER: Send a SYN,ACK with the Sequence Number equal to <ISN>.
+    3. DUT:    Sends an ACK with an ACK Number equal to <ISN>+1.
+
+  Mechanism:
+    UT OpOpenTcpSocket(active, +161 quad). DUT enters SYN-SENT and
+    emits SYN. TesterAutoRstDrop suppresses the tester kernel's
+    auto-RST against the unbound listener port. TcpFrameSnippet::
+    forDutSyn captures DUT's SYN to learn ISN_d. Tester raw-injects
+    SYN,ACK with seq=tester_isn, ack=ISN_d+1. DUT processes and emits
+    pure ACK with ack_num == tester_isn + 1 transitioning to
+    ESTABLISHED.
+
+  Pass guard observes the DUT pure ACK on the +161 active-OPEN tuple
+  (src_ip == dut_iface_ip, src_port == kBasicsActiveLocalPort + 161,
+  dst_port == kBasicsActiveRemotePort + 161, ACK set, SYN clear,
+  ack_num == kTesterInitialSeq + 1U). The handshake-emitted DUT SYN
+  carries ack_num == 0 by RFC 793 §3.4 — that frame is structurally
+  excluded by `(flags & SYN) == 0`.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_sequence_02"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x01) == 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x01) == 0 and captured.ack_num != ::tc8::sce::tcp::kTesterInitialSeq + 1U"
+                target="fail_wrong_ack_num"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_ack_num">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_tester_isn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_synack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.5 TCP_CALL_ABORT_03: For ABORT call in CLOSING / LAST-ACK
+  / TIME-WAIT state, TCP MUST respond with "ok" and enter CLOSED state.
+  Derived from RFC 793 §3.9 p62 Event Processing (MUST).
+
+  v3.0 Test Procedure (p325):
+    1. TESTER: Cause the DUT to move on to the <wst> state
+    2. TESTER: Cause the application on the DUT-side to issue an
+               ABORT call
+    3. DUT:    Issues an ABORT call
+    4. TESTER: Verify that the DUT responds with "ok" to the
+               application
+    5. TESTER: Verify that the DUT moves on to CLOSED state
+
+  Iterations: <wst> ∈ {CLOSING, LAST-ACK, TIME-WAIT}.
+
+  Mechanism (3 phases × distinct port quads):
+    * Phase 1 CLOSING (+91): driveCloseToClosing helper drives DUT
+      EST→FW1→CLOSING (caller-managed TesterAutoAckDrop). UT abort
+      → DUT RST egress (tcp_disconnect path).
+    * Phase 2 LAST-ACK (+92): TesterAutoAckDrop installed before
+      handshake → tester shutdown(WR) → DUT EST→CW (DUT acks tester
+      FIN). UT shutdownTcpSocketWr → DUT CW→LAST-ACK (DUT FIN egress;
+      AckDrop blocks tester auto-ACK so DUT stays in LAST-ACK). UT
+      abort → DUT RST.
+    * Phase 3 TIME-WAIT (+93): UT shutdownTcpSocketWr → DUT FIN →
+      tester auto-ACK → DUT FW1→FW2. Tester shutdown(WR) → tester
+      FIN → DUT FW2→TIME-WAIT (DUT pure ACK). UT abort on the TW
+      socket. Linux's TIME-WAIT bucket may not emit RST on close,
+      so verify-probe ACK is the wire-observable pass criterion.
+
+  Each phase ends with a verify-probe ACK on the killed 4-tuple (raw
+  inject scheduled on entry to listening_pN_verify_rst). The DUT-side
+  socket is gone, Linux's tcp_v4_send_reset emits a closed-port RST —
+  uniformly satisfies "DUT moves to CLOSED" across all three iters,
+  including TIME-WAIT where abort itself is silent.
+
+  Phase 1 stimulus runs INLINE in main stimulus body. Phases 2/3 are
+  deferred via scheduleAfterStateEntry to the matching pN_handshake_ack
+  state so the per-phase wire events arrive while the phase's
+  listening transitions are armed.
+
+  SCXML chain (9 listening states + 3 fail terminals + pass):
+    p1_handshake_ack → p1_settle (5 s absorb prelude+abort egress) →
+    p1_verify_rst (5 s; verify-probe ACK fired on entry, observe DUT
+    closed-port RST) →
+    p2_handshake_ack → p2_settle → p2_verify_rst →
+    p3_handshake_ack → p3_settle → p3_verify_rst → pass
+
+  Negative IP-flip path: src_ip-conjunct on listening_p1_handshake_ack
+  unreachable → fail_p1_no_handshake_ack.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_call_abort_03"
+       datamodel="null"
+       initial="listening_p1_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_p1_handshake_ack">
+    <onentry><send event="deadline_p1_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 91U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 91U)"
+                target="listening_p1_settle"/>
+    <transition event="deadline_p1_handshake_ack" target="fail_p1_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_p1_settle">
+    <onentry><send event="deadline_p1_settle" delay="5s"/></onentry>
+    <transition event="deadline_p1_settle" target="listening_p1_verify_rst"/>
+  </state>
+
+  <state id="listening_p1_verify_rst">
+    <onentry><send event="deadline_p1_verify_rst" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 91U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 91U)"
+                target="listening_p2_handshake_ack"/>
+    <transition event="deadline_p1_verify_rst" target="fail_p1_no_close"/>
+  </state>
+
+  <state id="listening_p2_handshake_ack">
+    <onentry><send event="deadline_p2_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 92U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 92U)"
+                target="listening_p2_settle"/>
+    <transition event="deadline_p2_handshake_ack" target="fail_p2_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_p2_settle">
+    <onentry><send event="deadline_p2_settle" delay="5s"/></onentry>
+    <transition event="deadline_p2_settle" target="listening_p2_verify_rst"/>
+  </state>
+
+  <state id="listening_p2_verify_rst">
+    <onentry><send event="deadline_p2_verify_rst" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 92U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 92U)"
+                target="listening_p3_handshake_ack"/>
+    <transition event="deadline_p2_verify_rst" target="fail_p2_no_close"/>
+  </state>
+
+  <state id="listening_p3_handshake_ack">
+    <onentry><send event="deadline_p3_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 93U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 93U)"
+                target="listening_p3_settle"/>
+    <transition event="deadline_p3_handshake_ack" target="fail_p3_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_p3_settle">
+    <onentry><send event="deadline_p3_settle" delay="5s"/></onentry>
+    <transition event="deadline_p3_settle" target="listening_p3_verify_rst"/>
+  </state>
+
+  <state id="listening_p3_verify_rst">
+    <onentry><send event="deadline_p3_verify_rst" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 93U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 93U)"
+                target="pass"/>
+    <transition event="deadline_p3_verify_rst" target="fail_p3_no_close"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_p1_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1_closing"}</content></donedata>
+  </final>
+
+  <final id="fail_p1_no_close">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_closing"}</content></donedata>
+  </final>
+
+  <final id="fail_p2_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2_last_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_p2_no_close">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_last_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_p3_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase3_time_wait"}</content></donedata>
+  </final>
+
+  <final id="fail_p3_no_close">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_time_wait"}</content></donedata>
+  </final>
+</scxml>

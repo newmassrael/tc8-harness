@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.4 IPv4 2-state positive-reply shape: TESTER sends an ICMPv4 Echo
+  Request (possibly with a field override that the spec says the DUT
+  MUST accept), the DUT replies, the SCXML asserts any DUT-originated
+  ICMPv4 frame arrives within the listen window.
+
+    * pass — DUT-originated Ipv4Frame observed (src_addr ==
+      expected.dut_iface_ip).
+    * fail_timeout — no DUT reply within the listen window.
+
+  Shared body for ipv4_header_03 / ipv4_ttl_05 / ipv4_version_01. These
+  are the §4.4 rows whose pass criterion is simply "DUT: Send ICMP
+  Echo Reply" with no extra field observation — the field being
+  observed IS the src_addr in HEADER_03, and the spec row's effective
+  assertion in TTL_05 / VERSION_01 is that the DUT accepts (replies to)
+  an otherwise-unusual stimulus.
+
+  The BPF group (`BpfGroup::Icmpv4`) restricts the pipeline to ICMP
+  packets so the DUT's SOME/IP SD UDP multicast does not trip the
+  pass guard — see ipv4_header_01.h for the extended rationale.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_positive_reply">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Ipv4Captured"
+               cpp:include="sce_integration/ipv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="ipv4_observed"
+                cond="cpp:captured.src_addr == expected.dut_iface_ip"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ipv4_packet_with_expected_source_address"}</content>
+    </donedata>
+  </final>
+</sce:template>

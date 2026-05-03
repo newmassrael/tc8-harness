@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.6 IPV4_FRAGMENTS_02: IP Reconstruct fragments, negative
+  test on id. DUT must NOT reassemble a fragment pair whose
+  Identification fields differ. RFC 791 §3.2 — the (src, dst, id,
+  protocol) tuple is the reassembly-bucket key; differing id places
+  the two fragments in distinct buckets and neither reassembles.
+
+  Phase 1: TESTER sends frag 0 (id=kFragmentsIpId1) + frag 1
+  (id=kFragmentsIpId2 — deliberately different). DUT stores frag 0
+  in bucket A (id1), frag 1 in bucket B (id2). Neither bucket has
+  both halves → no reassembly → no Echo Reply (listened for 2 s).
+  Phase 2: TESTER re-sends frag 1 with id=kFragmentsIpId1 —
+  completes bucket A → DUT reassembles → Echo Reply.
+
+  Body shared with fragments_03 / fragments_04 via sce:template;
+  this consumer's call-site injects fragments-02-specific fail
+  reason strings for grep-based smoke triage.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_fragments_02"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/ipv4_fragments_compound.sce-template.xml"
+           fail_reason_phase1="dut_reassembled_mismatched_id_fragments"
+           fail_reason_phase2_timeout="no_echo_reply_after_matched_id_retry"
+           fail_reason_phase2_echo_id="echo_id_mismatch_after_id_retry"
+           fail_reason_phase2_echo_seq="echo_seq_mismatch_after_id_retry"
+           fail_reason_phase2_data="reassembled_echo_data_mismatch_id_case"/>
+</scxml>

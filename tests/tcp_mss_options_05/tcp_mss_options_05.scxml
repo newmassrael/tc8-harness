@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_05: TCP MUST be prepared to handle an
+  illegal option length for MSS, in a SYN+ACK segment, without crashing.
+  Derived from RFC 1122 §4.2.2.5 p85 TCP Options "RFC-793 Section 3.1"
+  (MUST).
+
+  v3.0 Test Procedure (p358):
+    1. TESTER: Cause DUT-side application to issue an active OPEN call.
+    2. DUT:    Send a SYN.
+    3. TESTER: Send SYN,ACK with MSS option of illegal length ilen.
+    4. TESTER: Verify DUT has not crashed.
+
+  Iterations: ilen=0 (less than RFC 793 §3.1 MSS opsize=4) and ilen=5
+  (more than). Both encoded as a 2-phase compound on distinct port
+  quads.
+
+  Mechanism per phase:
+    - TesterAutoRstDrop scoped — tester kernel would otherwise emit RST
+      against the DUT's pure SYN to a port with no socket.
+    - TcpFrameSnippet learns DUT's ISN_d from the active-OPEN SYN.
+    - Raw-inject SYN+ACK with seq=tester_isn, ack=ISN_d+1, options
+      carrying the malformed MSS bytes.
+    - Linux's `tcp_parse_options` silently skips bad-length MSS
+      options and proceeds with the rest of the SYN+ACK; DUT TCB
+      transitions SYN-SENT → ESTABLISHED and emits the third-leg
+      pure ACK.
+
+  Pass guard: observe DUT-emitted pure ACK on each phase's 4-tuple.
+  Survive-only assertion — the third-leg ACK is the cardinal evidence
+  the DUT processed the malformed SYN+ACK without crashing or dropping
+  the connection.
+
+  Per-phase fail_timeout terminals mirror the BASICS_04/05 split-fail
+  diagnostic granularity: a stuck-at phase-1 fault is distinguishable
+  from a phase-2 regression.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_05"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions05Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions05Phase1LocalOffset))"
+                target="listening_phase2"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase1"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions05Phase2LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions05Phase2LocalOffset))"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase2"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_synack_with_ilen0_mss"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_synack_with_ilen5_mss"}</content>
+    </donedata>
+  </final>
+</scxml>

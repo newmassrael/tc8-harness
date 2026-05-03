@@ -1,0 +1,287 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="procedure")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+//
+// Event-driven state machine using ProcedurePolicy trait.
+// Supports <onentry>/<send>, event-driven <transition>, <assign>, <donedata>.
+// Pure decision trees (no events/sends) execute via Event::None transitions.
+{% if has_external_deps %}
+//
+// External dependencies (from sce:payload expressions — must be in scope):
+{% for expr in payload_exprs %}
+//   {{ expr }}
+{% endfor %}
+{% endif %}
+{% if all_imports %}
+
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+
+use std::collections::BTreeMap;
+use sce_forge_runtime::procedure::{
+    ProcedurePolicy, ProcedureRunResult, ProcedureServiceRequest, ProcedureServiceResponse,
+    run_procedure,
+};
+
+// ── State and Event enums ───────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// pub API: procedures expose State/Event enums and the policy struct as
+// downstream library types (SCE_FORGE.md §8 procedure). Generated code
+// keeps them pub so embedders can inspect transitions; the conformance
+// harness only ever observes the run_procedure() entrypoint, leaving the
+// other items dead from the test binary's perspective.
+#[allow(dead_code)]
+pub enum State {
+{% for s in state_enum %}
+    {{ s.name }} = {{ s.index }},
+{% endfor %}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// pub API: procedures expose State/Event enums and the policy struct as
+// downstream library types (SCE_FORGE.md §8 procedure). Generated code
+// keeps them pub so embedders can inspect transitions; the conformance
+// harness only ever observes the run_procedure() entrypoint, leaving the
+// other items dead from the test binary's perspective.
+#[allow(dead_code)]
+pub enum Event {
+    None = 0,
+{% for e in event_enum %}
+    {{ e.name }} = {{ e.index }},
+{% endfor %}
+}
+
+// ── Generated procedure policy ──────────────────────────────────
+
+// pub API: procedures expose State/Event enums and the policy struct as
+// downstream library types (SCE_FORGE.md §8 procedure). Generated code
+// keeps them pub so embedders can inspect transitions; the conformance
+// harness only ever observes the run_procedure() entrypoint, leaving the
+// other items dead from the test binary's perspective.
+#[allow(dead_code)]
+pub struct {{ struct_name }} {
+{% for f in input_fields %}
+    {{ f.id }}: {{ f.rs_type }},
+{% endfor %}
+{% for f in internal_fields %}
+    {{ f.id }}: {{ f.rs_type }},
+{% endfor %}
+{% if has_imports %}
+    // Imported kinds (cross-file composition)
+{% for imp in imports %}
+    pub {{ imp.member_name }}: {{ imp.member_type }},
+{% endfor %}
+{% endif %}
+    service_handler: Option<Box<dyn Fn(&ProcedureServiceRequest) -> ProcedureServiceResponse>>,
+{% for h in helper_fields %}
+    {{ h.id }}: {{ h.closure_type }},
+{% endfor %}
+    done_data: BTreeMap<String, String>,
+    pending_event_data: String,
+}
+
+// pub API: procedures expose State/Event enums and the policy struct as
+// downstream library types (SCE_FORGE.md §8 procedure). Generated code
+// keeps them pub so embedders can inspect transitions; the conformance
+// harness only ever observes the run_procedure() entrypoint, leaving the
+// other items dead from the test binary's perspective.
+#[allow(dead_code)]
+impl {{ struct_name }} {
+    pub fn new() -> Self {
+        Self {
+{% for f in input_fields %}
+            {{ f.id }}: {{ f.default_value }},
+{% endfor %}
+{% for f in internal_fields %}
+            {{ f.id }}: {{ f.default_value }},
+{% endfor %}
+{% if has_imports %}
+{% for imp in imports %}
+            {{ imp.member_name }}: {{ imp.member_type }}::new(),
+{% endfor %}
+{% endif %}
+            service_handler: None,
+{% for h in helper_fields %}
+            {{ h.id }}: {{ h.default_impl }},
+{% endfor %}
+            done_data: BTreeMap::new(),
+            pending_event_data: String::new(),
+        }
+    }
+
+    pub fn set_service_handler(
+        &mut self,
+        handler: impl Fn(&ProcedureServiceRequest) -> ProcedureServiceResponse + 'static,
+    ) {
+        self.service_handler = Some(Box::new(handler));
+    }
+
+{% for h in helper_fields %}
+    pub fn {{ h.setter_name }}(&mut self, f: {{ h.setter_param_type }}) {
+        self.{{ h.id }} = Box::new(f);
+    }
+
+{% endfor %}
+{% for f in input_fields %}
+    pub fn set_{{ f.setter_name }}(&mut self, value: {{ f.rs_param_type }}) {
+        self.{{ f.id }} = {{ f.setter_conv }};
+    }
+
+{% endfor %}
+    pub fn run_to_completion(&mut self) -> ProcedureRunResult {
+        run_procedure(self)
+    }
+}
+
+impl ProcedurePolicy for {{ struct_name }} {
+    type State = State;
+    type Event = Event;
+
+    fn none_event() -> Event { Event::None }
+    fn initial_state(&self) -> State { State::{{ initial_state }} }
+    fn is_final(state: State) -> bool {
+        matches!(state, {% for s in final_states %}State::{{ s.name }}{% if not loop.last %} | {% endif %}{% endfor %})
+    }
+    fn final_state_name(state: State) -> &'static str {
+        match state {
+{% for s in final_states %}
+            State::{{ s.name }} => "{{ s.id }}",
+{% endfor %}
+            _ => "",
+        }
+    }
+
+    fn set_pending_event_data(&mut self, data: String) {
+        self.pending_event_data = data;
+    }
+
+    fn done_data(&self) -> &BTreeMap<String, String> {
+        &self.done_data
+    }
+
+    fn execute_entry_actions(&mut self, state: State) -> (Event, String) {
+        match state {
+{% for s in states_with_entry %}
+            State::{{ s.name }} => {
+{% for send in s.sends %}
+                if let Some(ref handler) = self.service_handler {
+                    let req = ProcedureServiceRequest {
+                        service: "{{ send.service }}".to_string(),
+                        subfunc: {% if send.subfunc %}Some("{{ send.subfunc }}".to_string()){% else %}None{% endif %},
+                        addr: {% if send.has_addr %}Some(({{ send.addr_expr }}).to_string()){% else %}None{% endif %},
+                        payload: {% if send.payload %}Some({{ send.payload_expr }}){% else %}None{% endif %},
+                    };
+                    let resp = handler(&req);
+                    let event = if resp.success { Event::Ok } else { Event::Fail };
+                    return (event, resp.data);
+                }
+{% endfor %}
+            }
+{% endfor %}
+{% for s in final_states_with_donedata %}
+            State::{{ s.name }} => {
+{% for p in s.done_params %}
+                self.done_data.insert("{{ p.name }}".to_string(), {{ p.expr }}.to_string());
+{% endfor %}
+            }
+{% endfor %}
+            _ => {}
+        }
+        (Event::None, String::new())
+    }
+
+    fn process_transition(&self, state: State, event: Event) -> Option<(State, usize, bool)> {
+        match state {
+{% for s in non_final_states %}
+            State::{{ s.name }} => {
+{% for tr in s.transitions %}
+{% if tr.has_event %}
+                if event == Event::{{ tr.event_enum }} {
+{% if tr.has_cond %}
+                    if {{ tr.cond }} {
+                        return Some((State::{{ tr.target_name }}, {{ tr.index }}, {{ tr.has_assigns }}));
+                    }
+{% else %}
+                    return Some((State::{{ tr.target_name }}, {{ tr.index }}, {{ tr.has_assigns }}));
+{% endif %}
+                }
+{% else %}
+                if event == Event::None {
+{% if tr.has_cond %}
+                    if {{ tr.cond }} {
+                        return Some((State::{{ tr.target_name }}, {{ tr.index }}, {{ tr.has_assigns }}));
+                    }
+{% else %}
+                    return Some((State::{{ tr.target_name }}, {{ tr.index }}, {{ tr.has_assigns }}));
+{% endif %}
+                }
+{% endif %}
+{% endfor %}
+            }
+{% endfor %}
+            _ => {}
+        }
+        None
+    }
+
+    fn execute_transition_actions(&mut self, source: State, tr_index: usize) -> Option<Event> {
+        // Returns None for normal flow; Some(Event) when an assign-time
+        // check (RFC `claudedocs/rfc-forge-bytes-bounded.md` §3 B4 bytes
+        // cap violation) raises an internal event that the shared
+        // run_procedure() loop re-pumps through process_transition.
+        let _ = (source, tr_index);  // pacify unused-warning for empty bodies
+{% for s in states_with_assigns %}
+        if source == State::{{ s.name }} {
+{% for tr in s.assign_transitions %}
+            if tr_index == {{ tr.index }} {
+{% for a in tr.assigns %}
+{% if a.is_bytes_with_cap %}
+                {
+                    let _scope_tmp = {{ a.expr }};
+                    if _scope_tmp.len() > {{ a.cap }} {
+                        return Some(Event::ErrorExecution);
+                    }
+                    {{ a.location }} = _scope_tmp;
+                }
+{% else %}
+                {{ a.location }} = {{ a.expr }};
+{% endif %}
+{% endfor %}
+            }
+{% endfor %}
+        }
+{% endfor %}
+        None
+    }
+}
+
+// ── Convenience wrapper function ────────────────────────────────
+
+// pub API: procedures expose State/Event enums and the policy struct as
+// downstream library types (SCE_FORGE.md §8 procedure). Generated code
+// keeps them pub so embedders can inspect transitions; the conformance
+// harness only ever observes the run_procedure() entrypoint, leaving the
+// other items dead from the test binary's perspective.
+#[allow(dead_code)]
+pub fn execute(
+    handler: impl Fn(&ProcedureServiceRequest) -> ProcedureServiceResponse + 'static{% for h in helper_fields %},
+    {{ h.id }}: {{ h.setter_param_type }}{% endfor %}{% for f in input_fields %},
+    {{ f.param_name }}: {{ f.rs_param_type }}{% endfor %},
+) -> ProcedureRunResult {
+    let mut sm = {{ struct_name }}::new();
+    sm.set_service_handler(handler);
+{% for h in helper_fields %}
+    sm.{{ h.setter_name }}({{ h.id }});
+{% endfor %}
+{% for f in input_fields %}
+    sm.set_{{ f.setter_name }}({{ f.param_name }});
+{% endfor %}
+    sm.run_to_completion()
+}
+

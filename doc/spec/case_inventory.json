@@ -1,0 +1,3265 @@
+{
+  "schema_version": 1,
+  "generated_from": "doc/spec/split/*.txt (pdftotext -layout)",
+  "case_count": 543,
+  "cases": [
+    {
+      "case_id": "ARP_03",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 274
+    },
+    {
+      "case_id": "ARP_04",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 322
+    },
+    {
+      "case_id": "ARP_05",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 373
+    },
+    {
+      "case_id": "ARP_06",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 422
+    },
+    {
+      "case_id": "ARP_07",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 473
+    },
+    {
+      "case_id": "ARP_08",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 513
+    },
+    {
+      "case_id": "ARP_09",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 554
+    },
+    {
+      "case_id": "ARP_10",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 597
+    },
+    {
+      "case_id": "ARP_11",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 640
+    },
+    {
+      "case_id": "ARP_12",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 683
+    },
+    {
+      "case_id": "ARP_13",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 724
+    },
+    {
+      "case_id": "ARP_14",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 767
+    },
+    {
+      "case_id": "ARP_15",
+      "section": "4.2.4.1",
+      "split": "tc8_p041-p060",
+      "line": 808
+    },
+    {
+      "case_id": "ARP_16",
+      "section": "4.2.4.2",
+      "split": "tc8_p041-p060",
+      "line": 853
+    },
+    {
+      "case_id": "ARP_17",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 4
+    },
+    {
+      "case_id": "ARP_18",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 41
+    },
+    {
+      "case_id": "ARP_19",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 78
+    },
+    {
+      "case_id": "ARP_20",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 117
+    },
+    {
+      "case_id": "ARP_21",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 160
+    },
+    {
+      "case_id": "ARP_22",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 202
+    },
+    {
+      "case_id": "ARP_26",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 255
+    },
+    {
+      "case_id": "ARP_27",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 297
+    },
+    {
+      "case_id": "ARP_28",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 339
+    },
+    {
+      "case_id": "ARP_32",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 392
+    },
+    {
+      "case_id": "ARP_33",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 444
+    },
+    {
+      "case_id": "ARP_34",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 499
+    },
+    {
+      "case_id": "ARP_35",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 553
+    },
+    {
+      "case_id": "ARP_36",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 607
+    },
+    {
+      "case_id": "ARP_37",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 648
+    },
+    {
+      "case_id": "ARP_38",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 690
+    },
+    {
+      "case_id": "ARP_39",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 742
+    },
+    {
+      "case_id": "ARP_40",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 798
+    },
+    {
+      "case_id": "ARP_41",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 855
+    },
+    {
+      "case_id": "ARP_42",
+      "section": "4.2.4.2",
+      "split": "tc8_p061-p080",
+      "line": 894
+    },
+    {
+      "case_id": "ARP_43",
+      "section": "4.2.4.2",
+      "split": "tc8_p081-p100",
+      "line": 4
+    },
+    {
+      "case_id": "ARP_44",
+      "section": "4.2.4.2",
+      "split": "tc8_p081-p100",
+      "line": 44
+    },
+    {
+      "case_id": "ARP_45",
+      "section": "4.2.4.2",
+      "split": "tc8_p081-p100",
+      "line": 85
+    },
+    {
+      "case_id": "ARP_46",
+      "section": "4.2.4.2",
+      "split": "tc8_p081-p100",
+      "line": 141
+    },
+    {
+      "case_id": "ARP_47",
+      "section": "4.2.4.2",
+      "split": "tc8_p081-p100",
+      "line": 180
+    },
+    {
+      "case_id": "ARP_48",
+      "section": "4.2.4.2",
+      "split": "tc8_p081-p100",
+      "line": 218
+    },
+    {
+      "case_id": "ARP_49",
+      "section": "4.2.4.2",
+      "split": "tc8_p081-p100",
+      "line": 274
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_01",
+      "section": "4.7.6.3",
+      "split": "tc8_p221-p240",
+      "line": 729
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_03",
+      "section": "4.7.6.3",
+      "split": "tc8_p221-p240",
+      "line": 766
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_04",
+      "section": "4.7.6.3",
+      "split": "tc8_p221-p240",
+      "line": 815
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_05",
+      "section": "4.7.6.3",
+      "split": "tc8_p241-p260",
+      "line": 4
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_06",
+      "section": "4.7.6.3",
+      "split": "tc8_p241-p260",
+      "line": 56
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_07",
+      "section": "4.7.6.3",
+      "split": "tc8_p241-p260",
+      "line": 95
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_08",
+      "section": "4.7.6.3",
+      "split": "tc8_p241-p260",
+      "line": 147
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_09",
+      "section": "4.7.6.3",
+      "split": "tc8_p241-p260",
+      "line": 219
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_ALLOCATING_10",
+      "section": "4.7.6.3",
+      "split": "tc8_p241-p260",
+      "line": 262
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_01",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 401
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 442
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_03",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 487
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_04",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 527
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 567
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_06",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 620
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_12",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 700
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 744
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 386
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 456
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 493
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_04",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 533
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_05",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 576
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_06",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 613
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_08",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 656
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_09",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 707
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10",
+      "section": "4.7.6.7",
+      "split": "tc8_p261-p280",
+      "line": 757
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_PARAMETERS_04",
+      "section": "4.7.6.4",
+      "split": "tc8_p241-p260",
+      "line": 305
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_PROTOCOL_01",
+      "section": "4.7.6.2",
+      "split": "tc8_p221-p240",
+      "line": 605
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_PROTOCOL_02",
+      "section": "4.7.6.2",
+      "split": "tc8_p221-p240",
+      "line": 645
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_PROTOCOL_03",
+      "section": "4.7.6.2",
+      "split": "tc8_p221-p240",
+      "line": 686
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_01",
+      "section": "4.7.6.8",
+      "split": "tc8_p261-p280",
+      "line": 807
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_02",
+      "section": "4.7.6.8",
+      "split": "tc8_p261-p280",
+      "line": 852
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_03",
+      "section": "4.7.6.8",
+      "split": "tc8_p281-p300",
+      "line": 4
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_04",
+      "section": "4.7.6.8",
+      "split": "tc8_p281-p300",
+      "line": 57
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_05",
+      "section": "4.7.6.8",
+      "split": "tc8_p281-p300",
+      "line": 110
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_06",
+      "section": "4.7.6.8",
+      "split": "tc8_p281-p300",
+      "line": 166
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_07",
+      "section": "4.7.6.8",
+      "split": "tc8_p281-p300",
+      "line": 218
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REACQUISITION_08",
+      "section": "4.7.6.8",
+      "split": "tc8_p281-p300",
+      "line": 265
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_01",
+      "section": "4.7.6.6",
+      "split": "tc8_p241-p260",
+      "line": 814
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_02",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 4
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_06",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 56
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_07",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 102
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_08",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 148
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_09",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 196
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_10",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 242
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_11",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 288
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_REQUEST_12",
+      "section": "4.7.6.6",
+      "split": "tc8_p261-p280",
+      "line": 336
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_SUMMARY_01",
+      "section": "4.7.6.1",
+      "split": "tc8_p221-p240",
+      "line": 425
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_SUMMARY_02",
+      "section": "4.7.6.1",
+      "split": "tc8_p221-p240",
+      "line": 465
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_SUMMARY_03",
+      "section": "4.7.6.1",
+      "split": "tc8_p221-p240",
+      "line": 524
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_SUMMARY_04",
+      "section": "4.7.6.1",
+      "split": "tc8_p221-p240",
+      "line": 566
+    },
+    {
+      "case_id": "DHCPv4_CLIENT_USAGE_01",
+      "section": "4.7.6.5",
+      "split": "tc8_p241-p260",
+      "line": 354
+    },
+    {
+      "case_id": "ICMPv4_ERROR_02",
+      "section": "4.3.3.1",
+      "split": "tc8_p081-p100",
+      "line": 491
+    },
+    {
+      "case_id": "ICMPv4_ERROR_03",
+      "section": "4.3.3.1",
+      "split": "tc8_p081-p100",
+      "line": 541
+    },
+    {
+      "case_id": "ICMPv4_ERROR_04",
+      "section": "4.3.3.1",
+      "split": "tc8_p081-p100",
+      "line": 596
+    },
+    {
+      "case_id": "ICMPv4_ERROR_05",
+      "section": "4.3.3.1",
+      "split": "tc8_p081-p100",
+      "line": 629
+    },
+    {
+      "case_id": "ICMPv4_TYPE_04",
+      "section": "4.3.3.2",
+      "split": "tc8_p081-p100",
+      "line": 656
+    },
+    {
+      "case_id": "ICMPv4_TYPE_05",
+      "section": "4.3.3.2",
+      "split": "tc8_p081-p100",
+      "line": 687
+    },
+    {
+      "case_id": "ICMPv4_TYPE_08",
+      "section": "4.3.3.2",
+      "split": "tc8_p081-p100",
+      "line": 722
+    },
+    {
+      "case_id": "ICMPv4_TYPE_09",
+      "section": "4.3.3.2",
+      "split": "tc8_p081-p100",
+      "line": 751
+    },
+    {
+      "case_id": "ICMPv4_TYPE_10",
+      "section": "4.3.3.2",
+      "split": "tc8_p101-p120",
+      "line": 4
+    },
+    {
+      "case_id": "ICMPv4_TYPE_11",
+      "section": "4.3.3.2",
+      "split": "tc8_p101-p120",
+      "line": 34
+    },
+    {
+      "case_id": "ICMPv4_TYPE_12",
+      "section": "4.3.3.2",
+      "split": "tc8_p101-p120",
+      "line": 71
+    },
+    {
+      "case_id": "ICMPv4_TYPE_16",
+      "section": "4.3.3.2",
+      "split": "tc8_p101-p120",
+      "line": 108
+    },
+    {
+      "case_id": "ICMPv4_TYPE_18",
+      "section": "4.3.3.2",
+      "split": "tc8_p101-p120",
+      "line": 143
+    },
+    {
+      "case_id": "ICMPv4_TYPE_22",
+      "section": "4.3.3.2",
+      "split": "tc8_p101-p120",
+      "line": 163
+    },
+    {
+      "case_id": "IPv4_ADDRESSING_01",
+      "section": "4.4.4.5",
+      "split": "tc8_p121-p140",
+      "line": 35
+    },
+    {
+      "case_id": "IPv4_ADDRESSING_02",
+      "section": "4.4.4.5",
+      "split": "tc8_p121-p140",
+      "line": 66
+    },
+    {
+      "case_id": "IPv4_ADDRESSING_03",
+      "section": "4.4.4.5",
+      "split": "tc8_p121-p140",
+      "line": 90
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_01",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 256
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_03",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 294
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_05",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 344
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_06",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 387
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_07",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 430
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_08",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 469
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_09",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 504
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_10",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 546
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_11",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 627
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_12",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 681
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_13",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 735
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_14",
+      "section": "4.5.6.2",
+      "split": "tc8_p141-p160",
+      "line": 790
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_15",
+      "section": "4.5.6.2",
+      "split": "tc8_p161-p180",
+      "line": 166
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ADDRESS_SELECTION_16",
+      "section": "4.5.6.2",
+      "split": "tc8_p161-p180",
+      "line": 413
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ANNOUNCING_01",
+      "section": "4.5.6.3",
+      "split": "tc8_p161-p180",
+      "line": 468
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ANNOUNCING_02",
+      "section": "4.5.6.3",
+      "split": "tc8_p161-p180",
+      "line": 535
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ANNOUNCING_03",
+      "section": "4.5.6.3",
+      "split": "tc8_p161-p180",
+      "line": 591
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ANNOUNCING_04",
+      "section": "4.5.6.3",
+      "split": "tc8_p161-p180",
+      "line": 643
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ANNOUNCING_05",
+      "section": "4.5.6.3",
+      "split": "tc8_p161-p180",
+      "line": 695
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_ANNOUNCING_06",
+      "section": "4.5.6.3",
+      "split": "tc8_p161-p180",
+      "line": 745
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_CONFLICT_06",
+      "section": "4.5.6.4",
+      "split": "tc8_p161-p180",
+      "line": 822
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_CONFLICT_07",
+      "section": "4.5.6.4",
+      "split": "tc8_p161-p180",
+      "line": 896
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_CONFLICT_08",
+      "section": "4.5.6.4",
+      "split": "tc8_p181-p200",
+      "line": 22
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_CONFLICT_09",
+      "section": "4.5.6.4",
+      "split": "tc8_p181-p200",
+      "line": 96
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_CONFLICT_10",
+      "section": "4.5.6.4",
+      "split": "tc8_p181-p200",
+      "line": 170
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_CONFLICT_11",
+      "section": "4.5.6.4",
+      "split": "tc8_p181-p200",
+      "line": 222
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_INTRO_01",
+      "section": "4.5.6.1",
+      "split": "tc8_p141-p160",
+      "line": 187
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_LINKLOCAL_PACKETS_04",
+      "section": "4.5.6.5",
+      "split": "tc8_p181-p200",
+      "line": 291
+    },
+    {
+      "case_id": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01",
+      "section": "4.5.6.6",
+      "split": "tc8_p181-p200",
+      "line": 345
+    },
+    {
+      "case_id": "IPv4_CHECKSUM_02",
+      "section": "4.4.4.2",
+      "split": "tc8_p101-p120",
+      "line": 575
+    },
+    {
+      "case_id": "IPv4_CHECKSUM_05",
+      "section": "4.4.4.2",
+      "split": "tc8_p101-p120",
+      "line": 601
+    },
+    {
+      "case_id": "IPv4_FRAGMENTS_01",
+      "section": "4.4.4.6",
+      "split": "tc8_p121-p140",
+      "line": 121
+    },
+    {
+      "case_id": "IPv4_FRAGMENTS_02",
+      "section": "4.4.4.6",
+      "split": "tc8_p121-p140",
+      "line": 174
+    },
+    {
+      "case_id": "IPv4_FRAGMENTS_03",
+      "section": "4.4.4.6",
+      "split": "tc8_p121-p140",
+      "line": 254
+    },
+    {
+      "case_id": "IPv4_FRAGMENTS_04",
+      "section": "4.4.4.6",
+      "split": "tc8_p121-p140",
+      "line": 335
+    },
+    {
+      "case_id": "IPv4_FRAGMENTS_05",
+      "section": "4.4.4.6",
+      "split": "tc8_p121-p140",
+      "line": 415
+    },
+    {
+      "case_id": "IPv4_HEADER_01",
+      "section": "4.4.4.1",
+      "split": "tc8_p101-p120",
+      "line": 355
+    },
+    {
+      "case_id": "IPv4_HEADER_02",
+      "section": "4.4.4.1",
+      "split": "tc8_p101-p120",
+      "line": 390
+    },
+    {
+      "case_id": "IPv4_HEADER_03",
+      "section": "4.4.4.1",
+      "split": "tc8_p101-p120",
+      "line": 420
+    },
+    {
+      "case_id": "IPv4_HEADER_04",
+      "section": "4.4.4.1",
+      "split": "tc8_p101-p120",
+      "line": 453
+    },
+    {
+      "case_id": "IPv4_HEADER_05",
+      "section": "4.4.4.1",
+      "split": "tc8_p101-p120",
+      "line": 484
+    },
+    {
+      "case_id": "IPv4_HEADER_08",
+      "section": "4.4.4.1",
+      "split": "tc8_p101-p120",
+      "line": 515
+    },
+    {
+      "case_id": "IPv4_HEADER_09",
+      "section": "4.4.4.1",
+      "split": "tc8_p101-p120",
+      "line": 544
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_04",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 456
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_06",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 491
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_07",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 524
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_09",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 559
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_10",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 589
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_11",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 675
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_12",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 726
+    },
+    {
+      "case_id": "IPv4_REASSEMBLY_13",
+      "section": "4.4.4.7",
+      "split": "tc8_p121-p140",
+      "line": 777
+    },
+    {
+      "case_id": "IPv4_TTL_01",
+      "section": "4.4.4.3",
+      "split": "tc8_p101-p120",
+      "line": 646
+    },
+    {
+      "case_id": "IPv4_TTL_05",
+      "section": "4.4.4.3",
+      "split": "tc8_p101-p120",
+      "line": 663
+    },
+    {
+      "case_id": "IPv4_VERSION_01",
+      "section": "4.4.4.4",
+      "split": "tc8_p101-p120",
+      "line": 696
+    },
+    {
+      "case_id": "IPv4_VERSION_03",
+      "section": "4.4.4.4",
+      "split": "tc8_p101-p120",
+      "line": 719
+    },
+    {
+      "case_id": "IPv4_VERSION_04",
+      "section": "4.4.4.4",
+      "split": "tc8_p121-p140",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIPSRV_BASIC_01",
+      "section": "5.1.5.5",
+      "split": "tc8_p501-p520",
+      "line": 541
+    },
+    {
+      "case_id": "SOMEIPSRV_BASIC_02",
+      "section": "5.1.5.5",
+      "split": "tc8_p501-p520",
+      "line": 594
+    },
+    {
+      "case_id": "SOMEIPSRV_BASIC_03",
+      "section": "5.1.5.5",
+      "split": "tc8_p501-p520",
+      "line": 648
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_01",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 563
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_02",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 600
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_03",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 640
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_04",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 677
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_05",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 714
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_06",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 746
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_07",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 785
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_08",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 824
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_09",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 863
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_10",
+      "section": "5.1.5.1",
+      "split": "tc8_p421-p440",
+      "line": 901
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_11",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_12",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 46
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_13",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 92
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_14",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 139
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_15",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 182
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_16",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 233
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_17",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 282
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_18",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 330
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_19",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 379
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_20",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 438
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_21",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 498
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_23",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 558
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_24",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 618
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_25",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 679
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_26",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 751
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_27",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 824
+    },
+    {
+      "case_id": "SOMEIPSRV_FORMAT_28",
+      "section": "5.1.5.1",
+      "split": "tc8_p441-p460",
+      "line": 886
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_01",
+      "section": "5.1.5.6",
+      "split": "tc8_p501-p520",
+      "line": 752
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_02",
+      "section": "5.1.5.6",
+      "split": "tc8_p501-p520",
+      "line": 823
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_03",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_04",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 77
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_05",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 157
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_06",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 244
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_07",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 336
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_10",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 397
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_11",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 483
+    },
+    {
+      "case_id": "SOMEIPSRV_ONWIRE_12",
+      "section": "5.1.5.6",
+      "split": "tc8_p521-p540",
+      "line": 542
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_01",
+      "section": "5.1.5.2",
+      "split": "tc8_p441-p460",
+      "line": 945
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_02",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_03",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 49
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_04",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 99
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_05",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 151
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_06",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 199
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_07",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 248
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_08",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 300
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_09",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 360
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_10",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 423
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_11",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 489
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_12",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 563
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_13",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 638
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_14",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 712
+    },
+    {
+      "case_id": "SOMEIPSRV_OPTIONS_15",
+      "section": "5.1.5.2",
+      "split": "tc8_p461-p480",
+      "line": 785
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_01",
+      "section": "5.1.5.7",
+      "split": "tc8_p521-p540",
+      "line": 602
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_02",
+      "section": "5.1.5.7",
+      "split": "tc8_p521-p540",
+      "line": 661
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_03",
+      "section": "5.1.5.7",
+      "split": "tc8_p521-p540",
+      "line": 743
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_04",
+      "section": "5.1.5.7",
+      "split": "tc8_p521-p540",
+      "line": 819
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_05",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_06",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 64
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_07",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 139
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_08",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 200
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_09",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 288
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_10",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 363
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_11",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 425
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_13",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 503
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_14",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 608
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_17",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 718
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_18",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 834
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_19",
+      "section": "5.1.5.7",
+      "split": "tc8_p541-p560",
+      "line": 910
+    },
+    {
+      "case_id": "SOMEIPSRV_RPC_20",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 19
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_BEHAVIOR_01",
+      "section": "5.1.5.4",
+      "split": "tc8_p501-p520",
+      "line": 264
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_BEHAVIOR_02",
+      "section": "5.1.5.4",
+      "split": "tc8_p501-p520",
+      "line": 337
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_BEHAVIOR_03",
+      "section": "5.1.5.4",
+      "split": "tc8_p501-p520",
+      "line": 412
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_BEHAVIOR_04",
+      "section": "5.1.5.4",
+      "split": "tc8_p501-p520",
+      "line": 484
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_01",
+      "section": "5.1.5.3",
+      "split": "tc8_p461-p480",
+      "line": 836
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_02",
+      "section": "5.1.5.3",
+      "split": "tc8_p461-p480",
+      "line": 893
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_03",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 42
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_04",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 94
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_05",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 146
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_06",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 199
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_07",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 252
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_08",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 326
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_09",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 376
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_11",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 467
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_13",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 559
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_14",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 655
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_15",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 735
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_16",
+      "section": "5.1.5.3",
+      "split": "tc8_p481-p500",
+      "line": 832
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_17",
+      "section": "5.1.5.3",
+      "split": "tc8_p501-p520",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_18",
+      "section": "5.1.5.3",
+      "split": "tc8_p501-p520",
+      "line": 90
+    },
+    {
+      "case_id": "SOMEIPSRV_SD_MESSAGE_19",
+      "section": "5.1.5.3",
+      "split": "tc8_p501-p520",
+      "line": 176
+    },
+    {
+      "case_id": "SOMEIP_ETS_001",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 96
+    },
+    {
+      "case_id": "SOMEIP_ETS_002",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 118
+    },
+    {
+      "case_id": "SOMEIP_ETS_003",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 145
+    },
+    {
+      "case_id": "SOMEIP_ETS_004",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 167
+    },
+    {
+      "case_id": "SOMEIP_ETS_005",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 195
+    },
+    {
+      "case_id": "SOMEIP_ETS_007",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 215
+    },
+    {
+      "case_id": "SOMEIP_ETS_008",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 240
+    },
+    {
+      "case_id": "SOMEIP_ETS_009",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 262
+    },
+    {
+      "case_id": "SOMEIP_ETS_019",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 287
+    },
+    {
+      "case_id": "SOMEIP_ETS_021",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 306
+    },
+    {
+      "case_id": "SOMEIP_ETS_022",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 331
+    },
+    {
+      "case_id": "SOMEIP_ETS_027",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 353
+    },
+    {
+      "case_id": "SOMEIP_ETS_028",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 378
+    },
+    {
+      "case_id": "SOMEIP_ETS_029",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 400
+    },
+    {
+      "case_id": "SOMEIP_ETS_030",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 430
+    },
+    {
+      "case_id": "SOMEIP_ETS_031",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 452
+    },
+    {
+      "case_id": "SOMEIP_ETS_032",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 480
+    },
+    {
+      "case_id": "SOMEIP_ETS_033",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 502
+    },
+    {
+      "case_id": "SOMEIP_ETS_034",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 529
+    },
+    {
+      "case_id": "SOMEIP_ETS_035",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 551
+    },
+    {
+      "case_id": "SOMEIP_ETS_037",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 579
+    },
+    {
+      "case_id": "SOMEIP_ETS_038",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 597
+    },
+    {
+      "case_id": "SOMEIP_ETS_039",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 622
+    },
+    {
+      "case_id": "SOMEIP_ETS_040",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 646
+    },
+    {
+      "case_id": "SOMEIP_ETS_041",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 671
+    },
+    {
+      "case_id": "SOMEIP_ETS_042",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 744
+    },
+    {
+      "case_id": "SOMEIP_ETS_043",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 771
+    },
+    {
+      "case_id": "SOMEIP_ETS_044",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 793
+    },
+    {
+      "case_id": "SOMEIP_ETS_045",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 823
+    },
+    {
+      "case_id": "SOMEIP_ETS_046",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 842
+    },
+    {
+      "case_id": "SOMEIP_ETS_047",
+      "section": "5.1.5.7",
+      "split": "tc8_p561-p580",
+      "line": 869
+    },
+    {
+      "case_id": "SOMEIP_ETS_048",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIP_ETS_049",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 29
+    },
+    {
+      "case_id": "SOMEIP_ETS_050",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 54
+    },
+    {
+      "case_id": "SOMEIP_ETS_051",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 127
+    },
+    {
+      "case_id": "SOMEIP_ETS_052",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 153
+    },
+    {
+      "case_id": "SOMEIP_ETS_053",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 173
+    },
+    {
+      "case_id": "SOMEIP_ETS_054",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 197
+    },
+    {
+      "case_id": "SOMEIP_ETS_055",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 216
+    },
+    {
+      "case_id": "SOMEIP_ETS_058",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 242
+    },
+    {
+      "case_id": "SOMEIP_ETS_059",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 269
+    },
+    {
+      "case_id": "SOMEIP_ETS_060",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 308
+    },
+    {
+      "case_id": "SOMEIP_ETS_061",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 338
+    },
+    {
+      "case_id": "SOMEIP_ETS_063",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 363
+    },
+    {
+      "case_id": "SOMEIP_ETS_064",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 388
+    },
+    {
+      "case_id": "SOMEIP_ETS_065",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 406
+    },
+    {
+      "case_id": "SOMEIP_ETS_066",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 433
+    },
+    {
+      "case_id": "SOMEIP_ETS_067",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 452
+    },
+    {
+      "case_id": "SOMEIP_ETS_068",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 479
+    },
+    {
+      "case_id": "SOMEIP_ETS_069",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 501
+    },
+    {
+      "case_id": "SOMEIP_ETS_070",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 532
+    },
+    {
+      "case_id": "SOMEIP_ETS_071",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 558
+    },
+    {
+      "case_id": "SOMEIP_ETS_072",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 590
+    },
+    {
+      "case_id": "SOMEIP_ETS_073",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 616
+    },
+    {
+      "case_id": "SOMEIP_ETS_074",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 648
+    },
+    {
+      "case_id": "SOMEIP_ETS_075",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 682
+    },
+    {
+      "case_id": "SOMEIP_ETS_076",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 714
+    },
+    {
+      "case_id": "SOMEIP_ETS_077",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 748
+    },
+    {
+      "case_id": "SOMEIP_ETS_078",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 774
+    },
+    {
+      "case_id": "SOMEIP_ETS_081",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 804
+    },
+    {
+      "case_id": "SOMEIP_ETS_082",
+      "section": "5.1.5.7",
+      "split": "tc8_p581-p600",
+      "line": 851
+    },
+    {
+      "case_id": "SOMEIP_ETS_084",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIP_ETS_086",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 49
+    },
+    {
+      "case_id": "SOMEIP_ETS_087",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 87
+    },
+    {
+      "case_id": "SOMEIP_ETS_088",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 123
+    },
+    {
+      "case_id": "SOMEIP_ETS_089",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 155
+    },
+    {
+      "case_id": "SOMEIP_ETS_091",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 205
+    },
+    {
+      "case_id": "SOMEIP_ETS_092",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 230
+    },
+    {
+      "case_id": "SOMEIP_ETS_093",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 261
+    },
+    {
+      "case_id": "SOMEIP_ETS_094",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 348
+    },
+    {
+      "case_id": "SOMEIP_ETS_095",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 387
+    },
+    {
+      "case_id": "SOMEIP_ETS_096",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 422
+    },
+    {
+      "case_id": "SOMEIP_ETS_097",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 454
+    },
+    {
+      "case_id": "SOMEIP_ETS_098",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 495
+    },
+    {
+      "case_id": "SOMEIP_ETS_099",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 528
+    },
+    {
+      "case_id": "SOMEIP_ETS_100",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 563
+    },
+    {
+      "case_id": "SOMEIP_ETS_101",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 598
+    },
+    {
+      "case_id": "SOMEIP_ETS_103",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 638
+    },
+    {
+      "case_id": "SOMEIP_ETS_104",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 679
+    },
+    {
+      "case_id": "SOMEIP_ETS_105",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 723
+    },
+    {
+      "case_id": "SOMEIP_ETS_106",
+      "section": "5.1.5.7",
+      "split": "tc8_p601-p620",
+      "line": 767
+    },
+    {
+      "case_id": "SOMEIP_ETS_107",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIP_ETS_108",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 42
+    },
+    {
+      "case_id": "SOMEIP_ETS_109",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 79
+    },
+    {
+      "case_id": "SOMEIP_ETS_110",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 109
+    },
+    {
+      "case_id": "SOMEIP_ETS_111",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 141
+    },
+    {
+      "case_id": "SOMEIP_ETS_112",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 166
+    },
+    {
+      "case_id": "SOMEIP_ETS_113",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 194
+    },
+    {
+      "case_id": "SOMEIP_ETS_114",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 218
+    },
+    {
+      "case_id": "SOMEIP_ETS_115",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 246
+    },
+    {
+      "case_id": "SOMEIP_ETS_116",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 269
+    },
+    {
+      "case_id": "SOMEIP_ETS_117",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 297
+    },
+    {
+      "case_id": "SOMEIP_ETS_118",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 320
+    },
+    {
+      "case_id": "SOMEIP_ETS_119",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 348
+    },
+    {
+      "case_id": "SOMEIP_ETS_120",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 378
+    },
+    {
+      "case_id": "SOMEIP_ETS_121",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 413
+    },
+    {
+      "case_id": "SOMEIP_ETS_122",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 446
+    },
+    {
+      "case_id": "SOMEIP_ETS_123",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 468
+    },
+    {
+      "case_id": "SOMEIP_ETS_124",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 497
+    },
+    {
+      "case_id": "SOMEIP_ETS_125",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 520
+    },
+    {
+      "case_id": "SOMEIP_ETS_127",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 548
+    },
+    {
+      "case_id": "SOMEIP_ETS_128",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 579
+    },
+    {
+      "case_id": "SOMEIP_ETS_130",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 612
+    },
+    {
+      "case_id": "SOMEIP_ETS_134",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 641
+    },
+    {
+      "case_id": "SOMEIP_ETS_135",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 678
+    },
+    {
+      "case_id": "SOMEIP_ETS_136",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 708
+    },
+    {
+      "case_id": "SOMEIP_ETS_137",
+      "section": "5.1.5.7",
+      "split": "tc8_p621-p640",
+      "line": 738
+    },
+    {
+      "case_id": "SOMEIP_ETS_138",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIP_ETS_139",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 35
+    },
+    {
+      "case_id": "SOMEIP_ETS_140",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 59
+    },
+    {
+      "case_id": "SOMEIP_ETS_141",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 87
+    },
+    {
+      "case_id": "SOMEIP_ETS_142",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 109
+    },
+    {
+      "case_id": "SOMEIP_ETS_143",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 137
+    },
+    {
+      "case_id": "SOMEIP_ETS_144",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 159
+    },
+    {
+      "case_id": "SOMEIP_ETS_146",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 187
+    },
+    {
+      "case_id": "SOMEIP_ETS_147",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 225
+    },
+    {
+      "case_id": "SOMEIP_ETS_148",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 258
+    },
+    {
+      "case_id": "SOMEIP_ETS_149",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 290
+    },
+    {
+      "case_id": "SOMEIP_ETS_150",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 322
+    },
+    {
+      "case_id": "SOMEIP_ETS_151",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 358
+    },
+    {
+      "case_id": "SOMEIP_ETS_152",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 391
+    },
+    {
+      "case_id": "SOMEIP_ETS_153",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 420
+    },
+    {
+      "case_id": "SOMEIP_ETS_154",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 445
+    },
+    {
+      "case_id": "SOMEIP_ETS_155",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 471
+    },
+    {
+      "case_id": "SOMEIP_ETS_162",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 495
+    },
+    {
+      "case_id": "SOMEIP_ETS_163",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 522
+    },
+    {
+      "case_id": "SOMEIP_ETS_164",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 550
+    },
+    {
+      "case_id": "SOMEIP_ETS_166",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 598
+    },
+    {
+      "case_id": "SOMEIP_ETS_167",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 628
+    },
+    {
+      "case_id": "SOMEIP_ETS_168",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 660
+    },
+    {
+      "case_id": "SOMEIP_ETS_171",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 692
+    },
+    {
+      "case_id": "SOMEIP_ETS_173",
+      "section": "5.1.5.7",
+      "split": "tc8_p641-p660",
+      "line": 720
+    },
+    {
+      "case_id": "SOMEIP_ETS_174",
+      "section": "5.1.5.7",
+      "split": "tc8_p661-p664",
+      "line": 4
+    },
+    {
+      "case_id": "SOMEIP_ETS_175",
+      "section": "5.1.5.7",
+      "split": "tc8_p661-p664",
+      "line": 34
+    },
+    {
+      "case_id": "SOMEIP_ETS_176",
+      "section": "5.1.5.7",
+      "split": "tc8_p661-p664",
+      "line": 65
+    },
+    {
+      "case_id": "SOMEIP_ETS_177",
+      "section": "5.1.5.7",
+      "split": "tc8_p661-p664",
+      "line": 102
+    },
+    {
+      "case_id": "SOMEIP_ETS_178",
+      "section": "5.1.5.7",
+      "split": "tc8_p661-p664",
+      "line": 125
+    },
+    {
+      "case_id": "TCP_ACKNOWLEDGEMENT_02",
+      "section": "4.8.6.18",
+      "split": "tc8_p381-p400",
+      "line": 708
+    },
+    {
+      "case_id": "TCP_ACKNOWLEDGEMENT_03",
+      "section": "4.8.6.18",
+      "split": "tc8_p401-p420",
+      "line": 4
+    },
+    {
+      "case_id": "TCP_ACKNOWLEDGEMENT_04",
+      "section": "4.8.6.18",
+      "split": "tc8_p401-p420",
+      "line": 42
+    },
+    {
+      "case_id": "TCP_BASICS_01",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 399
+    },
+    {
+      "case_id": "TCP_BASICS_02",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 428
+    },
+    {
+      "case_id": "TCP_BASICS_03",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 460
+    },
+    {
+      "case_id": "TCP_BASICS_04",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 487
+    },
+    {
+      "case_id": "TCP_BASICS_05",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 521
+    },
+    {
+      "case_id": "TCP_BASICS_06",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 558
+    },
+    {
+      "case_id": "TCP_BASICS_07",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 587
+    },
+    {
+      "case_id": "TCP_BASICS_08",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 623
+    },
+    {
+      "case_id": "TCP_BASICS_09",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 654
+    },
+    {
+      "case_id": "TCP_BASICS_10",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 692
+    },
+    {
+      "case_id": "TCP_BASICS_11",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 723
+    },
+    {
+      "case_id": "TCP_BASICS_12",
+      "section": "4.8.6.1",
+      "split": "tc8_p281-p300",
+      "line": 761
+    },
+    {
+      "case_id": "TCP_BASICS_13",
+      "section": "4.8.6.1",
+      "split": "tc8_p301-p320",
+      "line": 4
+    },
+    {
+      "case_id": "TCP_BASICS_14",
+      "section": "4.8.6.1",
+      "split": "tc8_p301-p320",
+      "line": 39
+    },
+    {
+      "case_id": "TCP_BASICS_17",
+      "section": "4.8.6.1",
+      "split": "tc8_p301-p320",
+      "line": 73
+    },
+    {
+      "case_id": "TCP_CALL_ABORT_02",
+      "section": "4.8.6.5",
+      "split": "tc8_p321-p340",
+      "line": 130
+    },
+    {
+      "case_id": "TCP_CALL_ABORT_03",
+      "section": "4.8.6.5",
+      "split": "tc8_p321-p340",
+      "line": 162
+    },
+    {
+      "case_id": "TCP_CALL_RECEIVE_04",
+      "section": "4.8.6.4",
+      "split": "tc8_p321-p340",
+      "line": 49
+    },
+    {
+      "case_id": "TCP_CALL_RECEIVE_05",
+      "section": "4.8.6.4",
+      "split": "tc8_p321-p340",
+      "line": 90
+    },
+    {
+      "case_id": "TCP_CHECKSUM_01",
+      "section": "4.8.6.2",
+      "split": "tc8_p301-p320",
+      "line": 114
+    },
+    {
+      "case_id": "TCP_CHECKSUM_02",
+      "section": "4.8.6.2",
+      "split": "tc8_p301-p320",
+      "line": 147
+    },
+    {
+      "case_id": "TCP_CHECKSUM_03",
+      "section": "4.8.6.2",
+      "split": "tc8_p301-p320",
+      "line": 180
+    },
+    {
+      "case_id": "TCP_CHECKSUM_04",
+      "section": "4.8.6.2",
+      "split": "tc8_p301-p320",
+      "line": 216
+    },
+    {
+      "case_id": "TCP_CLOSING_03",
+      "section": "4.8.6.8",
+      "split": "tc8_p341-p360",
+      "line": 299
+    },
+    {
+      "case_id": "TCP_CLOSING_06",
+      "section": "4.8.6.8",
+      "split": "tc8_p341-p360",
+      "line": 331
+    },
+    {
+      "case_id": "TCP_CLOSING_07",
+      "section": "4.8.6.8",
+      "split": "tc8_p341-p360",
+      "line": 364
+    },
+    {
+      "case_id": "TCP_CLOSING_08",
+      "section": "4.8.6.8",
+      "split": "tc8_p341-p360",
+      "line": 403
+    },
+    {
+      "case_id": "TCP_CLOSING_09",
+      "section": "4.8.6.8",
+      "split": "tc8_p341-p360",
+      "line": 440
+    },
+    {
+      "case_id": "TCP_CLOSING_13",
+      "section": "4.8.6.8",
+      "split": "tc8_p341-p360",
+      "line": 478
+    },
+    {
+      "case_id": "TCP_CONNECTION_ESTAB_01",
+      "section": "4.8.6.15",
+      "split": "tc8_p381-p400",
+      "line": 50
+    },
+    {
+      "case_id": "TCP_CONNECTION_ESTAB_02",
+      "section": "4.8.6.15",
+      "split": "tc8_p381-p400",
+      "line": 91
+    },
+    {
+      "case_id": "TCP_CONNECTION_ESTAB_03",
+      "section": "4.8.6.15",
+      "split": "tc8_p381-p400",
+      "line": 135
+    },
+    {
+      "case_id": "TCP_CONNECTION_ESTAB_07",
+      "section": "4.8.6.15",
+      "split": "tc8_p381-p400",
+      "line": 180
+    },
+    {
+      "case_id": "TCP_CONTROL_FLAGS_05",
+      "section": "4.8.6.19",
+      "split": "tc8_p401-p420",
+      "line": 83
+    },
+    {
+      "case_id": "TCP_CONTROL_FLAGS_08",
+      "section": "4.8.6.19",
+      "split": "tc8_p401-p420",
+      "line": 120
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_01",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 202
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_02",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 234
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_03",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 271
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_04",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 306
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_05",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 338
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_06",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 376
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_07",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 413
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_08",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 453
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_09",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 493
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_10",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 533
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_11",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 573
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_12",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 613
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_13",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 653
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_14",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 693
+    },
+    {
+      "case_id": "TCP_FLAGS_INVALID_15",
+      "section": "4.8.6.6",
+      "split": "tc8_p321-p340",
+      "line": 731
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_02",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 6
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_05",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 44
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_06",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 75
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_07",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 112
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_08",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 149
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_09",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 187
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_10",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 224
+    },
+    {
+      "case_id": "TCP_FLAGS_PROCESSING_11",
+      "section": "4.8.6.7",
+      "split": "tc8_p341-p360",
+      "line": 265
+    },
+    {
+      "case_id": "TCP_HEADER_01",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 218
+    },
+    {
+      "case_id": "TCP_HEADER_02",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 252
+    },
+    {
+      "case_id": "TCP_HEADER_04",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 284
+    },
+    {
+      "case_id": "TCP_HEADER_05",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 322
+    },
+    {
+      "case_id": "TCP_HEADER_06",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 356
+    },
+    {
+      "case_id": "TCP_HEADER_07",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 392
+    },
+    {
+      "case_id": "TCP_HEADER_08",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 426
+    },
+    {
+      "case_id": "TCP_HEADER_09",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 460
+    },
+    {
+      "case_id": "TCP_HEADER_11",
+      "section": "4.8.6.16",
+      "split": "tc8_p381-p400",
+      "line": 494
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_01",
+      "section": "4.8.6.9",
+      "split": "tc8_p341-p360",
+      "line": 511
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_02",
+      "section": "4.8.6.9",
+      "split": "tc8_p341-p360",
+      "line": 545
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_03",
+      "section": "4.8.6.9",
+      "split": "tc8_p341-p360",
+      "line": 583
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_05",
+      "section": "4.8.6.9",
+      "split": "tc8_p341-p360",
+      "line": 616
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_06",
+      "section": "4.8.6.9",
+      "split": "tc8_p341-p360",
+      "line": 655
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_09",
+      "section": "4.8.6.9",
+      "split": "tc8_p341-p360",
+      "line": 696
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_10",
+      "section": "4.8.6.9",
+      "split": "tc8_p361-p380",
+      "line": 4
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_11",
+      "section": "4.8.6.9",
+      "split": "tc8_p361-p380",
+      "line": 48
+    },
+    {
+      "case_id": "TCP_MSS_OPTIONS_12",
+      "section": "4.8.6.9",
+      "split": "tc8_p361-p380",
+      "line": 83
+    },
+    {
+      "case_id": "TCP_NAGLE_02",
+      "section": "4.8.6.13",
+      "split": "tc8_p361-p380",
+      "line": 708
+    },
+    {
+      "case_id": "TCP_NAGLE_03",
+      "section": "4.8.6.13",
+      "split": "tc8_p361-p380",
+      "line": 748
+    },
+    {
+      "case_id": "TCP_OUT_OF_ORDER_01",
+      "section": "4.8.6.10",
+      "split": "tc8_p361-p380",
+      "line": 118
+    },
+    {
+      "case_id": "TCP_OUT_OF_ORDER_02",
+      "section": "4.8.6.10",
+      "split": "tc8_p361-p380",
+      "line": 151
+    },
+    {
+      "case_id": "TCP_OUT_OF_ORDER_03",
+      "section": "4.8.6.10",
+      "split": "tc8_p361-p380",
+      "line": 184
+    },
+    {
+      "case_id": "TCP_OUT_OF_ORDER_05",
+      "section": "4.8.6.10",
+      "split": "tc8_p361-p380",
+      "line": 222
+    },
+    {
+      "case_id": "TCP_PROBING_WINDOWS_02",
+      "section": "4.8.6.12",
+      "split": "tc8_p361-p380",
+      "line": 492
+    },
+    {
+      "case_id": "TCP_PROBING_WINDOWS_03",
+      "section": "4.8.6.12",
+      "split": "tc8_p361-p380",
+      "line": 523
+    },
+    {
+      "case_id": "TCP_PROBING_WINDOWS_04",
+      "section": "4.8.6.12",
+      "split": "tc8_p361-p380",
+      "line": 568
+    },
+    {
+      "case_id": "TCP_PROBING_WINDOWS_05",
+      "section": "4.8.6.12",
+      "split": "tc8_p361-p380",
+      "line": 616
+    },
+    {
+      "case_id": "TCP_PROBING_WINDOWS_06",
+      "section": "4.8.6.12",
+      "split": "tc8_p361-p380",
+      "line": 661
+    },
+    {
+      "case_id": "TCP_RETRANSMISSION_TO_03",
+      "section": "4.8.6.11",
+      "split": "tc8_p361-p380",
+      "line": 263
+    },
+    {
+      "case_id": "TCP_RETRANSMISSION_TO_04",
+      "section": "4.8.6.11",
+      "split": "tc8_p361-p380",
+      "line": 309
+    },
+    {
+      "case_id": "TCP_RETRANSMISSION_TO_05",
+      "section": "4.8.6.11",
+      "split": "tc8_p361-p380",
+      "line": 347
+    },
+    {
+      "case_id": "TCP_RETRANSMISSION_TO_06",
+      "section": "4.8.6.11",
+      "split": "tc8_p361-p380",
+      "line": 387
+    },
+    {
+      "case_id": "TCP_RETRANSMISSION_TO_08",
+      "section": "4.8.6.11",
+      "split": "tc8_p361-p380",
+      "line": 418
+    },
+    {
+      "case_id": "TCP_RETRANSMISSION_TO_09",
+      "section": "4.8.6.11",
+      "split": "tc8_p361-p380",
+      "line": 454
+    },
+    {
+      "case_id": "TCP_SEQUENCE_01",
+      "section": "4.8.6.17",
+      "split": "tc8_p381-p400",
+      "line": 526
+    },
+    {
+      "case_id": "TCP_SEQUENCE_02",
+      "section": "4.8.6.17",
+      "split": "tc8_p381-p400",
+      "line": 562
+    },
+    {
+      "case_id": "TCP_SEQUENCE_03",
+      "section": "4.8.6.17",
+      "split": "tc8_p381-p400",
+      "line": 598
+    },
+    {
+      "case_id": "TCP_SEQUENCE_04",
+      "section": "4.8.6.17",
+      "split": "tc8_p381-p400",
+      "line": 632
+    },
+    {
+      "case_id": "TCP_SEQUENCE_05",
+      "section": "4.8.6.17",
+      "split": "tc8_p381-p400",
+      "line": 672
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_01",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 261
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_02",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 294
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_03",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 328
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_04",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 357
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_05",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 401
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_06",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 440
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_07",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 473
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_08",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 506
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_09",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 546
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_10",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 590
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_11",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 634
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_12",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 678
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_13",
+      "section": "4.8.6.3",
+      "split": "tc8_p301-p320",
+      "line": 722
+    },
+    {
+      "case_id": "TCP_UNACCEPTABLE_14",
+      "section": "4.8.6.3",
+      "split": "tc8_p321-p340",
+      "line": 4
+    },
+    {
+      "case_id": "TCP_URGENT_PTR_04",
+      "section": "4.8.6.14",
+      "split": "tc8_p381-p400",
+      "line": 6
+    },
+    {
+      "case_id": "UDP_DatagramLength_01",
+      "section": "4.6.5.2",
+      "split": "tc8_p181-p200",
+      "line": 509
+    },
+    {
+      "case_id": "UDP_FIELDS_01",
+      "section": "4.6.5.4",
+      "split": "tc8_p181-p200",
+      "line": 574
+    },
+    {
+      "case_id": "UDP_FIELDS_02",
+      "section": "4.6.5.4",
+      "split": "tc8_p181-p200",
+      "line": 606
+    },
+    {
+      "case_id": "UDP_FIELDS_03",
+      "section": "4.6.5.4",
+      "split": "tc8_p181-p200",
+      "line": 647
+    },
+    {
+      "case_id": "UDP_FIELDS_04",
+      "section": "4.6.5.4",
+      "split": "tc8_p181-p200",
+      "line": 685
+    },
+    {
+      "case_id": "UDP_FIELDS_05",
+      "section": "4.6.5.4",
+      "split": "tc8_p181-p200",
+      "line": 731
+    },
+    {
+      "case_id": "UDP_FIELDS_06",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 4
+    },
+    {
+      "case_id": "UDP_FIELDS_07",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 35
+    },
+    {
+      "case_id": "UDP_FIELDS_08",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 66
+    },
+    {
+      "case_id": "UDP_FIELDS_09",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 97
+    },
+    {
+      "case_id": "UDP_FIELDS_10",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 128
+    },
+    {
+      "case_id": "UDP_FIELDS_12",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 159
+    },
+    {
+      "case_id": "UDP_FIELDS_13",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 192
+    },
+    {
+      "case_id": "UDP_FIELDS_14",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 224
+    },
+    {
+      "case_id": "UDP_FIELDS_15",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 256
+    },
+    {
+      "case_id": "UDP_FIELDS_16",
+      "section": "4.6.5.4",
+      "split": "tc8_p201-p220",
+      "line": 293
+    },
+    {
+      "case_id": "UDP_INTRODUCTION_01",
+      "section": "4.6.5.6",
+      "split": "tc8_p201-p220",
+      "line": 626
+    },
+    {
+      "case_id": "UDP_INTRODUCTION_02",
+      "section": "4.6.5.6",
+      "split": "tc8_p201-p220",
+      "line": 664
+    },
+    {
+      "case_id": "UDP_INTRODUCTION_03",
+      "section": "4.6.5.6",
+      "split": "tc8_p221-p240",
+      "line": 4
+    },
+    {
+      "case_id": "UDP_INVALID_ADDRESSES_01",
+      "section": "4.6.5.7",
+      "split": "tc8_p221-p240",
+      "line": 33
+    },
+    {
+      "case_id": "UDP_INVALID_ADDRESSES_02",
+      "section": "4.6.5.7",
+      "split": "tc8_p221-p240",
+      "line": 70
+    },
+    {
+      "case_id": "UDP_MessageFormat_02",
+      "section": "4.6.5.1",
+      "split": "tc8_p181-p200",
+      "line": 472
+    },
+    {
+      "case_id": "UDP_Padding_02",
+      "section": "4.6.5.3",
+      "split": "tc8_p181-p200",
+      "line": 541
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_01",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 336
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_02",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 368
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_03",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 408
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_04",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 448
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_05",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 488
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_06",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 522
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_07",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 556
+    },
+    {
+      "case_id": "UDP_USER_INTERFACE_08",
+      "section": "4.6.5.5",
+      "split": "tc8_p201-p220",
+      "line": 590
+    }
+  ]
+}

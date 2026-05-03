@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_06: TCP in ESTABLISHED state MUST send
+  an ACK indicating the correct SEQ number it expects, after receiving
+  a SYN with a SEQ number that is out of window. Derived from RFC 793
+  §3.4 p34 Establishing a Connection (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:440):
+    1. TESTER: Cause DUT ESTABLISHED via UT OpOpenTcpSocket(Active).
+    2. TESTER: Send SYN with SEQ outside the receive window.
+    3. DUT:    Send ACK indicating next expected SEQ number.
+
+  Mechanism: active-OPEN handshake → DUT in ESTABLISHED → tester
+  raw-injects an OTW-SEQ SYN. RFC 793 §3.9 p70 specifies that
+  unacceptable segments (out-of-window SEQ) elicit "only an empty
+  acknowledgment segment" — a pure ACK echoing rcv_nxt unchanged.
+  Linux's `tcp_data_queue` / `tcp_validate_incoming` discards the
+  segment after sending the duplicate-ACK reply.
+
+  Pass guard structure — two listening states walked in sequence:
+    listening_handshake_ack — consume the handshake third-leg ACK
+        (also a DUT pure-ACK with payload=0) so the post-stimulus
+        ACK matching is unambiguous.
+    listening_data_ack — pass on the next DUT pure-ACK on the active
+        port quad (49500 ↔ 23456). The DUT's response to OTW SYN
+        carries identical flag profile to the handshake ACK; the
+        2-state design is what distinguishes them by ordering.
+
+  Same 2-state shape as §4.8.6.2 CHECKSUM_01 — SCXML pass criteria
+  on a flag profile that the handshake third-leg also satisfies must
+  consume the handshake ACK first.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_06"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_data_ack"/>
+    <transition event="deadline_handshake" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="pass"/>
+    <transition event="deadline_data_ack" target="fail_no_otw_syn_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_otw_syn_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_syn"}</content>
+    </donedata>
+  </final>
+</scxml>

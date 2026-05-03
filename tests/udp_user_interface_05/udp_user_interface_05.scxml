@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_05: DUT-emitted UDP datagram carries
+  the caller-specified Source Port (RFC 768 'User Interface' MUST).
+  Structurally same as FIELDS_01 but parameterised on
+  <unusedUDPSrcPort>=20025 to avoid cross-case state and to pin a
+  distinct kCaseId for spec coverage scoring.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_05"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="captured.src_port == 20025"
+           fail_state="fail_wrong_src_port"
+           fail_reason="dut_emitted_udp_with_wrong_user_interface_src_port"/>
+</scxml>

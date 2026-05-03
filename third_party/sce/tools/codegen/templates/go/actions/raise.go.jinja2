@@ -1,0 +1,7 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{# W3C SCXML 3.8.1: Raise internal event #}
+{% if action.event %}
+	engine.Raise(sce.NewEventWithMetadata({{ machine_name }}Event{{ action.event | to_event_variant }}))
+{% endif %}

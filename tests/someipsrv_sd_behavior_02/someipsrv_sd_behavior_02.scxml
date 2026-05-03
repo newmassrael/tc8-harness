@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.4.2 SOMEIPSRV_SD_BEHAVIOR_02: In the Main Phase
+  OfferService messages shall be sent cyclically with the configured
+  cyclic_offer_delay (vsomeip.json default 2000 ms).
+
+  vsomeip §5.1 SD timeline (initial 50 ms + Repetition Phase 4 emits
+  finishing at 1450 ms): the next OfferService (first Main Phase Offer)
+  fires at ≈3450 ms, then every cyclic_offer_delay (2000 ms) onward.
+
+  Phase 1 (listening_pre_main, 4 s deadline): consume Repetition Phase
+  Offers until the deadline elapses. The deadline is what advances us
+  out of phase 1 — we explicitly do NOT transition on someip_notification
+  here, so any of the four pre-Main-Phase Offers (Offer #1..#4 at
+  50/250/650/1450 ms) is silently absorbed by SomeIpSdOnlyBase and
+  the deadline carries us into phase 2 at t≈4 s, which lies in the
+  middle of the first Main Phase cyclic gap (3450..5450 ms).
+
+  Phase 2 (listening_first_main, 3 s deadline): observe the first
+  cyclic Main Phase Offer arriving inside the 4 s..5.45 s wall window
+  (transitions on any SD OfferService).
+
+  Phase 3 (listening_second_main, 3 s deadline): observe the second
+  cyclic Main Phase Offer; assert frame_delta_us is within
+  cyclic_offer_delay ± ParamToleranceTime (2000 ms ± 200 ms =
+  [1_800_000, 2_200_000] microseconds).
+
+  Per-state deadline event names prevent leftover-deadline leakage.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_behavior_02"
+       datamodel="null"
+       initial="listening_pre_main">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_pre_main">
+    <onentry>
+      <send event="s1_pre_main_done" delay="4s"/>
+    </onentry>
+    <transition event="s1_pre_main_done" target="listening_first_main"/>
+  </state>
+
+  <state id="listening_first_main">
+    <onentry>
+      <send event="s2_deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_second_main"/>
+    <transition event="s2_deadline_exceeded" target="fail_phase2_no_first_main_offer"/>
+  </state>
+
+  <state id="listening_second_main">
+    <onentry>
+      <send event="s3_deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.frame_delta_us() &gt;= 1800000 and captured.frame_delta_us() &lt;= 2200000"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="fail_phase3_cyclic_out_of_tolerance"/>
+    <transition event="s3_deadline_exceeded" target="fail_phase3_no_second_main_offer"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_first_main_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_first_main_phase_offer_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_second_main_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_second_main_phase_offer_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_cyclic_out_of_tolerance">
+    <donedata>
+      <content>{"verdict":"fail","reason":"cyclic_offer_gap_not_within_cyclic_offer_delay_tolerance"}</content>
+    </donedata>
+  </final>
+</scxml>

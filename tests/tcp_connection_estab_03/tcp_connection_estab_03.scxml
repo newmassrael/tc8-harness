@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.15 TCP_CONNECTION_ESTAB_03: the DUT MUST be able to open
+  multiple active sockets and complete the 3-way handshake on each of
+  them — DUT emits SYN, receives SYN+ACK, replies with ACK
+  (RFC 793 §3.4 active OPEN, multiple in parallel).
+
+  v3.0 Test Procedure (p381-p400.txt:162-167):
+    1. TESTER: <OpenMultipleTCPSocket(active,3)>.
+    2. DUT:    Opens 3 TCP active sockets and emits 3 SYNs.
+    3. TESTER: Sends 3 TCP segments with SYN+ACK to each socket.
+    4. DUT:    Sends 3 TCP segments with ACK from each socket.
+
+  Mechanism:
+    Three independent UT OpOpenTcpSocket(active) on
+    (kBasicsActiveLocalPort + 176/177/178) ↔ (kBasicsActiveRemotePort
+    + 176/177/178). Each leg has a real tester listener so the kernel
+    completes the handshake automatically. Pass guard observes the
+    DUT's handshake third-leg ACK on each leg.
+
+  Pass chain: 3 sequential listening states. The third-leg ACK has
+  ACK set, SYN/FIN/RST clear, payload_len == 0 — the
+  `is_pure_dut_ack` member predicate on captured. Ordering is by
+  SCXML state progression; on the wire the three handshakes complete
+  in the order the DUT emits its SYNs (tc8-dut openTcpActive spawns
+  worker threads serially, with `kTcpUtRpcWait` between RPCs).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_connection_estab_03"
+       datamodel="null"
+       initial="listen_leg1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listen_leg1">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset1, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset1)"
+                target="listen_leg2"/>
+    <transition event="deadline_exceeded" target="fail_timeout_leg1"/>
+  </state>
+
+  <state id="listen_leg2">
+    <onentry>
+      <send event="deadline_exceeded_2" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset2, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset2)"
+                target="listen_leg3"/>
+    <transition event="deadline_exceeded_2" target="fail_timeout_leg2"/>
+  </state>
+
+  <state id="listen_leg3">
+    <onentry>
+      <send event="deadline_exceeded_3" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset3, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset3)"
+                target="pass"/>
+    <transition event="deadline_exceeded_3" target="fail_timeout_leg3"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_leg1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_leg2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_leg3">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg3"}</content>
+    </donedata>
+  </final>
+</scxml>

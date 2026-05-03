@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.3 IPv4_TTL_05: a host MUST NOT discard a datagram just
+  because it was received with TTL less than 2 (RFC 1122 section
+  3.2.1.7). Pass when the DUT replies to an Echo Request carrying
+  TTL=0.
+
+  Spec lists two iterations (<ttl>=0, <ttl>=1). This case covers the
+  ttl=0 iteration — the more pathological boundary. The ttl=1 case is
+  structurally identical to the pilot's default stimulus (which already
+  replies), so a dedicated SCXML for it would add no observational
+  power.
+
+  Body shared with IPV4_HEADER_03 / IPV4_VERSION_01 via sce:template
+  (tests/_templates/ipv4_positive_reply.sce-template.xml).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_ttl_05"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_positive_reply.sce-template.xml"/>
+</scxml>

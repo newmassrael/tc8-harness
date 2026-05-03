@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_09: TCP MUST be able to receive an MSS
+  option in a SYN,ACK segment and calculate the effective send segment
+  size appropriately. Derived from RFC 1122 §4.2.2.5 p85 (MUST).
+
+  v3.0 Test Procedure (p360):
+    1. TESTER: Cause DUT-side application to issue an OPEN call.
+    2. DUT:    Send a SYN.
+    3. TESTER: Send SYN,ACK with MSS option Mv.
+    4. DUT:    Send ACK.
+    5. TESTER: Cause DUT to issue SEND with size >= max(MSS).
+    6. DUT:    Send data segment(s).
+    7. TESTER: Verify the first received segment has size = min(MSS).
+
+  Iterations:
+    1. Mv smaller than DUT MSS — first segment size = Mv.
+    2. Mv larger  than DUT MSS — first segment size = DUT MSS.
+
+  Concrete values (DUT MSS = 1460 on veth MTU 1500):
+    Phase 1: Mv=200,  expected first segment payload_len = 200.
+    Phase 2: Mv=2000, expected first segment payload_len = 1460.
+
+  Mechanism per phase mirrors MSS_OPTIONS_06's passive variant but
+  flips the handshake direction:
+    - TesterAutoRstDrop scoped over the whole stimulus.
+    - UT OpOpenTcpSocket(active, local, remote) — DUT issues SYN.
+    - TcpFrameSnippet learns DUT's ISN_d.
+    - Raw-inject SYN+ACK seq=tester_isn, ack=ISN_d+1, options
+      [02 04 hi lo] encoding kind=2 length=4 MSS=Mv.
+    - DUT processes the SYN+ACK, emits third-leg ACK, reaches
+      ESTABLISHED. tc8-dut's connect() unblocks; accepted_fd is set.
+    - UT OpSendTcpDataPattern(socket_id, pattern, 4000) bulk-writes
+      4000 B; Linux segments at min(Mv, DUT_MSS).
+    - 200 ms grace lets the first segment land on pcap before the
+      teardown UT close.
+
+  Pass guard: per-phase tcp_observed where the DUT-emitted data
+  segment's payload_len matches the expected min(Mv, DUT_MSS) on the
+  case-specific 4-tuple.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_09"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset)) and captured.payload_len == 200U"
+                target="listening_phase2"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset)) and captured.payload_len != 200U"
+                target="fail_wrong_size_phase1"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase1"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase2LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase2LocalOffset)) and captured.payload_len == 1460U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase2LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase2LocalOffset)) and captured.payload_len != 1460U"
+                target="fail_wrong_size_phase2"/>
+    <transition event="deadline_exceeded" target="fail_timeout_phase2"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_size_phase1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase1_segment_size_not_advertised_mss_200"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_size_phase2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase2_segment_size_not_dut_mss_1460"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_data_segment_phase1_mv200"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_data_segment_phase2_mv2000"}</content>
+    </donedata>
+  </final>
+</scxml>

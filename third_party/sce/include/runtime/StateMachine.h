@@ -1,0 +1,840 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
+
+#pragma once
+
+#include "core/LogMacros.h"
+#include "core/HierarchicalStateHelper.h"
+#include "core/InvokeHelper.h"  // W3C SCXML 6.4: Shared invoke lifecycle logic (Zero Duplication)
+#include "events/IEventDispatcher.h"
+#include "model/IStateNode.h"
+#include "model/SCXMLModel.h"
+#include "runtime/DataModelInitializer.h"
+#include "runtime/HistoryManager.h"
+#include "runtime/HistoryStateAutoRegistrar.h"
+#include "runtime/IActionExecutor.h"
+#include "runtime/IExecutionContext.h"
+#include "runtime/InvokeExecutor.h"
+#include "runtime/StateHierarchyManager.h"
+#include "runtime/StateMachineEventRaiser.h"
+#include "runtime/TransitionDomainCalculator.h"
+#include "scripting/IScriptEngine.h"
+#include "states/ConcurrentStateTypes.h"  // W3C SCXML Appendix D.2: TransitionDescriptorString
+#include <atomic>
+#include <functional>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <set>
+#include <string>
+#include <vector>
+
+namespace SCE {
+
+class StateNode;
+class TransitionNode;
+class ActionExecutorImpl;  // Forward declaration for cached pointer optimization
+
+/**
+ * @brief Dummy policy struct for EntryExitHelper template instantiation
+ *
+ * EntryExitHelper requires a Policy template parameter for type mapping.
+ * For Interpreter engine, no state/event enums are needed (runtime strings).
+ * This empty struct satisfies template requirements while enabling Zero Duplication.
+ *
+ * ARCHITECTURE.md Compliance:
+ * - Zero Duplication: Enables Interpreter to share EntryExitHelper with AOT engine
+ * - Helper Pattern: Policy-based template design for cross-engine compatibility
+ */
+struct InterpreterPolicy {
+    // Empty struct - Interpreter uses runtime string-based state/event handling
+    // No compile-time enums needed (unlike AOT's generated Policy)
+};
+
+/**
+ * @brief SCXML-based State Machine Implementation
+ *
+ * This class provides a complete implementation of SCXML state machine
+ * with JavaScript integration for guards, actions, and data model.
+ */
+class StateMachine : public std::enable_shared_from_this<StateMachine> {
+public:
+    /**
+     * @brief State transition result structure
+     */
+    struct TransitionResult {
+        bool success = false;
+        std::string fromState;
+        std::string toState;
+        std::string eventName;
+        std::string errorMessage;
+
+        TransitionResult() = default;
+
+        TransitionResult(bool s) : success(s) {}
+
+        TransitionResult(bool s, const std::string &from, const std::string &to, const std::string &event)
+            : success(s), fromState(from), toState(to), eventName(event) {}
+    };
+
+    /**
+     * @brief W3C SCXML 3.13: Transition information for microstep execution
+     *
+     * Holds all information needed to execute a transition as part of a microstep.
+     * Multiple transitions execute atomically: exit all → execute all → enter all.
+     */
+    struct TransitionInfo {
+        IStateNode *sourceState;                      // Source state node
+        std::shared_ptr<ITransitionNode> transition;  // Transition node
+        std::string targetState;                      // Target state ID
+        std::vector<std::string> exitSet;             // States to exit (in order)
+
+        TransitionInfo(IStateNode *src, std::shared_ptr<ITransitionNode> trans, const std::string &target,
+                       const std::vector<std::string> &exits)
+            : sourceState(src), transition(trans), targetState(target), exitSet(exits) {}
+    };
+
+    /**
+     * @brief W3C SCXML 3.13: Exit set computation result
+     *
+     * Type alias to TransitionDomainCalculator::ExitSetResult (Single Source of Truth).
+     */
+    using ExitSetResult = TransitionDomainCalculator::ExitSetResult;
+
+    /**
+     * @brief Constructor with explicit script engine injection
+     * @param scriptEngine Script engine for expression evaluation and session management
+     * @param sessionId Pre-existing session ID (empty = auto-generate)
+     */
+    explicit StateMachine(IScriptEngine &scriptEngine, const std::string &sessionId = "");
+
+    /**
+     * @brief Destructor
+     */
+
+    /**
+     * @brief Get invoked child state machines for visualization
+     *
+     * Returns all active child state machines created via invoke elements.
+     * Used by visualization tools to display parent-child hierarchies.
+     *
+     * @return Vector of child StateMachine shared_ptrs (empty if no children)
+     */
+    std::vector<std::shared_ptr<StateMachine>> getInvokedChildren();
+
+    /**
+     * @brief Set session file path for invoke resolution (WASM)
+     *
+     * Registers the SCXML file path with JSEngine so invoke elements
+     * can resolve relative paths like src="file:child.scxml".
+     *
+     * @param filePath Absolute path to SCXML file (e.g., "/resources/226/test226.scxml")
+     */
+    void setSessionFilePath(const std::string &filePath);
+
+    ~StateMachine();
+
+    /**
+     * @brief Load SCXML document from file
+     * @param scxmlFile Path to SCXML file
+     * @return true if loaded successfully
+     */
+    bool loadSCXML(const std::string &scxmlFile);
+
+    /**
+     * @brief Load SCXML document from string
+     * @param scxmlContent SCXML content as string
+     * @return true if loaded successfully
+     */
+    bool loadSCXMLFromString(const std::string &scxmlContent);
+
+    /**
+     * @brief Create StateMachine instance from SCXML string (factory method)
+     *
+     * W3C SCXML 6.4: Hybrid invoke support - AOT parent creates Interpreter child at runtime
+     * ARCHITECTURE.md: Hybrid Strategy - contentexpr evaluates to SCXML string, this creates child
+     *
+     * @param scxmlContent SCXML content as string
+     * @param sessionId Optional session ID (for invoke scenarios)
+     * @return Shared pointer to StateMachine instance, or nullptr if parsing failed
+     *
+     * @example Hybrid Invoke Usage (AOT parent + Interpreter child)
+     * @code
+     * // AOT parent evaluates contentexpr via JSEngine
+     * auto scxmlStr = jsEngine.evaluateExpression(sessionId, "Var1").get().getValue<std::string>();
+     *
+     * // Create Interpreter child from SCXML string
+     * auto child = StateMachine::createFromSCXMLString(scxmlStr);
+     * if (child) {
+     *     child->setCompletionCallback([&engine]() { engine.raise(Event::Done_invoke); });
+     *     child->start();
+     * }
+     * @endcode
+     */
+    static std::shared_ptr<StateMachine> createFromSCXMLString(const std::string &scxmlContent,
+                                                               const std::string &sessionId = "");
+
+    /**
+     * @brief Create from SCXML string with explicit engine injection
+     */
+    static std::shared_ptr<StateMachine> createFromSCXMLString(IScriptEngine &scriptEngine,
+                                                               const std::string &scxmlContent,
+                                                               const std::string &sessionId = "");
+
+    /**
+     * @brief Load pre-parsed SCXML model directly
+     *
+     * This method is used by StaticCodeGenerator when dynamic invoke is detected.
+     * Instead of re-parsing the SCXML file, the already-parsed model is injected directly.
+     * This follows the Zero Duplication principle (ARCHITECTURE.md).
+     *
+     * @param model Pre-parsed SCXML model
+     * @return true if loaded successfully
+     */
+    bool loadModel(std::shared_ptr<SCXMLModel> model);
+
+    /**
+     * @brief Start the state machine
+     *
+     * @param autoProcessQueuedEvents If true (default), automatically process queued events after entering initial
+     * state. If false, queued events remain for manual processing (Interactive mode).
+     * @return true if started successfully
+     */
+    bool start(bool autoProcessQueuedEvents = true);
+
+    /**
+     * @brief Stop the state machine
+     */
+    void stop();
+
+    /**
+     * @brief Process an event
+     * @param eventName Name of the event to process
+     * @param eventData Optional event data (JSON string)
+     * @return Transition result
+     */
+    TransitionResult processEvent(const std::string &eventName, const std::string &eventData = "");
+
+    /**
+     * @brief Process an event with origin tracking for W3C SCXML finalize support
+     * @param eventName Name of the event to process
+     * @param eventData Optional event data (JSON string)
+     * @param originSessionId Session ID that originated this event (for finalize)
+     * @param sendId Send ID from failed send element (for error events)
+     * @param invokeId Invoke ID from invoked child process (test 338)
+     * @return Transition result
+     */
+    TransitionResult processEvent(const std::string &eventName, const std::string &eventData,
+                                  const std::string &originSessionId, const std::string &sendId = "",
+                                  const std::string &invokeId = "", const std::string &originType = "");
+
+    /**
+     * @brief Get current state ID
+     * @return Current state ID, empty if not started
+     */
+    std::string getCurrentState() const;
+
+    /**
+     * @brief Get all currently active states (for hierarchical states)
+     * @return Vector of active state IDs
+     */
+    std::vector<std::string> getActiveStates() const;
+
+    /**
+     * @brief Check if state machine is running
+     * @return true if running
+     */
+    bool isRunning() const;
+
+    /**
+     * @brief Check if a state is currently active
+     * @param stateId State ID to check
+     * @return true if state is active
+     */
+    bool isStateActive(const std::string &stateId) const;
+
+    /**
+     * @brief Check if the state machine is currently in a final state
+     * @return true if current state is a final state
+     */
+    bool isInFinalState() const;
+
+    /**
+     * @brief Get source state of last executed transition
+     *
+     * W3C SCXML 3.13: Interactive visualizer support for transition tracking
+     * Returns the source state of the most recently executed transition,
+     * including eventless transitions.
+     *
+     * @return Source state ID (empty if no transition executed yet)
+     */
+    std::string getLastTransitionSource() const;
+
+    /**
+     * @brief Get target state of last executed transition
+     *
+     * W3C SCXML 3.13: Interactive visualizer support for transition tracking
+     * Returns the target state of the most recently executed transition,
+     * including eventless transitions.
+     *
+     * @return Target state ID (empty if no transition executed yet)
+     */
+    std::string getLastTransitionTarget() const;
+
+    /**
+     * @brief Get enabled transitions from last event processing
+     *
+     * W3C SCXML Appendix D.2: Returns all transitions that were enabled before conflict resolution.
+     * For parallel states, this includes transitions from all regions that could fire for the event.
+     * Interactive visualizer support for showing transition conflict resolution process.
+     *
+     * @return Vector of enabled transition descriptors (empty if no parallel state processing occurred)
+     */
+    std::vector<TransitionDescriptorString> getLastEnabledTransitions() const;
+
+    /**
+     * @brief Get optimal transition set after conflict resolution
+     *
+     * W3C SCXML Appendix D.2: Returns transitions selected after applying conflict resolution algorithm.
+     * These are the transitions that were actually executed in the last microstep.
+     * Interactive visualizer support for showing which transitions were chosen.
+     *
+     * @return Vector of optimal transition descriptors (empty if no conflict resolution occurred)
+     */
+    std::vector<TransitionDescriptorString> getLastOptimalTransitions() const;
+
+    /**
+     * @brief Restore active states directly without executing onentry actions
+     *
+     * W3C SCXML 3.13: Time-travel debugging support for InteractiveTestRunner
+     * Restores state configuration from snapshot without side effects.
+     *
+     * ARCHITECTURE.md: Zero Duplication - Uses StateHierarchyManager infrastructure
+     * Only for debugging/visualization - NOT for production state machine execution
+     *
+     * @param states Vector of state IDs to activate (document order preserved)
+     */
+    void restoreActiveStatesDirectly(const std::vector<std::string> &states);
+
+    /**
+     * @brief Check if the initial state of the SCXML model is a final state
+     * @return true if the initial state is a final state
+     */
+    bool isInitialStateFinal() const;
+
+    /**
+     * @brief Bind C++ object for script engine access (engine-agnostic via GenericClassBinder)
+     * @param name Object name in script scope
+     * @param object Pointer to C++ object (must outlive the script engine session)
+     * @param registerMethods Callback to register methods via GenericClassBinder
+     *
+     * Example:
+     * @code
+     * Hardware hw;
+     * sm.bindObject("hardware", &hw, [](auto& binder) {
+     *     binder.def("getTemperature", &Hardware::getTemperature)
+     *           .def("setTemperature", &Hardware::setTemperature);
+     * });
+     * @endcode
+     */
+    template <typename T, typename RegisterFunc>
+    void bindObject(const std::string &name, T *object, RegisterFunc registerMethods);
+
+    /**
+     * @brief Get current event data (accessible from guards/actions)
+     * @return Current event data as JSON string
+     */
+    std::string getCurrentEventData() const;
+
+    /**
+     * @brief Get session ID for SCXML data model access
+     * @return Current session ID
+     */
+    const std::string &getSessionId() const;
+
+    /**
+     * @brief Get SCXML model
+     * @return SCXML model pointer
+     */
+    std::shared_ptr<SCXMLModel> getModel() const;
+
+    /**
+     * @brief Get state machine statistics
+     */
+    struct Statistics {
+        int totalTransitions = 0;
+        int totalEvents = 0;
+        int failedTransitions = 0;
+        std::string currentState;
+        bool isRunning = false;
+    };
+
+    Statistics getStatistics() const;
+
+    /**
+     * @brief Register a history state for tracking
+     * @param historyStateId ID of the history state
+     * @param parentStateId ID of the parent compound state
+     * @param type History type (SHALLOW or DEEP)
+     * @param defaultStateId Default state if no history available
+     * @return true if registration succeeded
+     */
+    bool registerHistoryState(const std::string &historyStateId, const std::string &parentStateId, HistoryType type,
+                              const std::string &defaultStateId = "");
+
+    /**
+     * @brief Check if a state ID represents a history state
+     * @param stateId State ID to check
+     * @return true if it's a history state
+     */
+    bool isHistoryState(const std::string &stateId) const;
+
+    /**
+     * @brief Clear all recorded history (for testing/reset purposes)
+     */
+    void clearAllHistory();
+
+    /**
+     * @brief Get history information for debugging
+     * @return Vector of all recorded history entries
+     */
+    std::vector<HistoryEntry> getHistoryEntries() const;
+
+    /**
+     * @brief Set EventDispatcher for delayed events and external targets
+     * @param eventDispatcher EventDispatcher instance for event handling
+     */
+    void setEventDispatcher(std::shared_ptr<IEventDispatcher> eventDispatcher);
+
+    /**
+     * @brief W3C SCXML 6.5: Set completion callback for top-level final state notification
+     *
+     * This callback is invoked when the StateMachine reaches a top-level final state,
+     * AFTER all onexit handlers have been executed. Used by invoke mechanism to
+     * generate done.invoke events per W3C SCXML specification.
+     *
+     * @param callback Function to call on completion (nullptr to clear)
+     */
+    using CompletionCallback = std::function<void()>;
+    void setCompletionCallback(CompletionCallback callback);
+
+    /**
+     * @brief W3C SCXML 5.5 + 6.3.1: JSON payload from the reached top-level
+     *        `<final>`'s `<donedata>`. Empty when no donedata was authored,
+     *        donedata evaluation failed, or the machine has not reached a
+     *        top-level final yet. Mirror of
+     *        `StaticExecutionEngine::donedataAtFinal()` on the AOT side;
+     *        consumed by `SCXMLInvokeHandler`'s completion callback to
+     *        populate `done.invoke.<id>._event.data`.
+     */
+    const std::string &donedataAtFinal() const {
+        return pendingDonedataAtFinal_;
+    }
+
+    /**
+     * @brief W3C SCXML 5.5 + B.2: Structured donedata paired with
+     *        `donedataAtFinal()`. Skipping the JSON round-trip when the
+     *        parent is in-process would require an impl-specific
+     *        `raiseEventWithPriority` path; the public `IEventRaiser`
+     *        5-arg `raiseEvent` used by `SCXMLInvokeHandler` re-hydrates
+     *        via `EventDataHelper::jsonStringToScriptValue` inside
+     *        `EventRaiserImpl::raiseEventWithPriority`, so callers that
+     *        use the interface can rely on `donedataAtFinal()` alone;
+     *        this getter exists for parity with the AOT shape and for
+     *        future impl-specific fast paths.
+     */
+    const std::optional<ScriptValue> &typedDonedataAtFinal() const {
+        return pendingTypedDonedataAtFinal_;
+    }
+
+    /**
+     * @brief Set EventRaiser for event processing
+     * @param eventRaiser EventRaiser instance for event handling
+     */
+    void setEventRaiser(std::shared_ptr<IEventRaiser> eventRaiser);
+
+    /**
+     * @brief Get EventDispatcher for access by child components
+     * @return Current EventDispatcher instance
+     */
+    std::shared_ptr<IEventDispatcher> getEventDispatcher() const;
+
+    /**
+     * @brief Get InvokeExecutor for invoke state capture/restore
+     * @return Pointer to InvokeExecutor instance
+     */
+    InvokeExecutor *getInvokeExecutor() const;
+
+    /**
+     * @brief Get the event raiser for queue introspection
+     * @return Shared pointer to the event raiser
+     */
+    std::shared_ptr<IEventRaiser> getEventRaiser() const {
+        return eventRaiser_;
+    }
+
+    /**
+     * @brief Raise an external event on the external event queue
+     *
+     * Delegates to EventRaiser's raiseExternalEvent for W3C SCXML compliant
+     * external event processing. External events are queued and processed
+     * at the next macrostep boundary.
+     *
+     * @param eventName Name of the event
+     * @param eventData Optional event data (JSON string)
+     * @return true if event was queued successfully, false if no EventRaiser available
+     */
+    bool raiseExternalEvent(const std::string &eventName, const std::string &eventData);
+
+    /**
+     * @brief Get the last error from SCXML loading/parsing
+     * @return Error detail string, empty if no error
+     */
+    const std::string &getLastLoadError() const { return lastLoadError_; }
+
+    /**
+     * @brief Restore state machine from snapshot (complete restoration)
+     *
+     * W3C SCXML 3.13: Time-travel debugging support for InteractiveTestRunner
+     * Handles all restoration requirements internally in correct order:
+     * 1. JavaScript environment initialization
+     * 2. State configuration restoration
+     * 3. Running state activation
+     *
+     * ARCHITECTURE.md: Zero Duplication - encapsulates restoration lifecycle
+     * to prevent temporal coupling and maintain Single Source of Truth
+     *
+     * @param states Vector of state IDs to activate (document order preserved)
+     * @return true if restoration succeeded, false on failure
+     *
+     * @note Thread Safety: NOT thread-safe. Caller must ensure no concurrent
+     *       state machine operations (start/stop/processEvent) during restoration.
+     * @note State Validity: Invalid state IDs in snapshot are silently skipped
+     *       by StateHierarchyManager. Check logs for restoration warnings.
+     * @note JS Environment: Idempotent - safe to call even if JS environment
+     *       already initialized (e.g., after start()).
+     */
+    bool restoreFromSnapshot(const std::vector<std::string> &states);
+
+    /**
+     * @brief Set restoration mode on all parallel regions (W3C SCXML 3.13)
+     *
+     * When enabled, prevents side effects (callbacks, event generation) during
+     * snapshot restoration. This ensures time-travel debugging maintains strict
+     * snapshot semantics without spurious events.
+     *
+     * @param restoring true to enable restoration mode, false to disable
+     */
+    void setRestoringSnapshotOnAllRegions(bool restoring);
+
+private:
+    /**
+     * @brief RAII guard for preventing invalid reentrant state entry calls
+     *
+     * Automatically manages isEnteringState_ flag with exception safety.
+     * Throws std::runtime_error if reentrant call detected.
+     */
+    class EnterStateGuard {
+    public:
+        EnterStateGuard(bool &enteringFlag, bool &processingEventFlag)
+            : enteringFlag_(enteringFlag), processingEventFlag_(processingEventFlag), shouldManage_(true),
+              isInvalid_(false) {
+            // Invalid reentrant call if already entering and not processing event
+            if (enteringFlag_ && !processingEventFlag_) {
+                // Don't manage flag, mark as invalid, but don't throw
+                // This matches original behavior: return true silently
+                shouldManage_ = false;
+                isInvalid_ = true;
+                return;
+            }
+
+            // Legitimate reentrant call during event processing - allow but don't re-set flag
+            if (enteringFlag_ && processingEventFlag_) {
+                shouldManage_ = false;  // Don't manage flag, it's already true
+            } else {
+                enteringFlag_ = true;  // First entry, set flag
+            }
+        }
+
+        ~EnterStateGuard() {
+            if (shouldManage_) {
+                enteringFlag_ = false;
+            }
+        }
+
+        bool isInvalidCall() const {
+            return isInvalid_;
+        }
+
+        // Manually release the guard before destructor
+        // Used before checkEventlessTransitions() to allow legitimate recursive calls
+        void release() {
+            if (shouldManage_) {
+                enteringFlag_ = false;
+                shouldManage_ = false;
+            }
+        }
+
+        // Prevent copying
+        EnterStateGuard(const EnterStateGuard &) = delete;
+        EnterStateGuard &operator=(const EnterStateGuard &) = delete;
+
+    private:
+        bool &enteringFlag_;
+        bool &processingEventFlag_;
+        bool shouldManage_;
+        bool isInvalid_;
+    };
+
+    /**
+     * @brief RAII guard for managing transition context flag
+     *
+     * Automatically sets inTransition_ flag on construction and clears it on destruction.
+     * Provides exception safety for transition context management.
+     */
+    class TransitionGuard {
+    public:
+        explicit TransitionGuard(bool &transitionFlag) : transitionFlag_(transitionFlag) {
+            transitionFlag_ = true;
+        }
+
+        ~TransitionGuard() {
+            transitionFlag_ = false;
+        }
+
+        // Prevent copying
+        TransitionGuard(const TransitionGuard &) = delete;
+        TransitionGuard &operator=(const TransitionGuard &) = delete;
+
+    private:
+        bool &transitionFlag_;
+    };
+
+    // W3C SCXML 3.3: RAII guard for batch processing to prevent recursive auto-processing
+    struct BatchProcessingGuard {
+        bool &flag_;
+
+        explicit BatchProcessingGuard(bool &flag) : flag_(flag) {
+            flag_ = true;
+        }
+
+        ~BatchProcessingGuard() {
+            flag_ = false;
+        }
+
+        // Prevent copying
+        BatchProcessingGuard(const BatchProcessingGuard &) = delete;
+        BatchProcessingGuard &operator=(const BatchProcessingGuard &) = delete;
+    };
+
+    // Core state - now delegated to StateHierarchyManager
+    // Removed: std::string currentState_ (use hierarchyManager_->getCurrentState())
+    // Removed: std::vector<std::string> activeStates_ (use hierarchyManager_->getActiveStates())
+    // Thread-safe: accessed from EventRaiser callback (main thread) and enterState() (worker threads)
+    std::atomic<bool> isRunning_{false};
+    bool isEnteringState_ = false;                 // Guard against reentrant enterState calls
+    bool isProcessingEvent_ = false;               // Track event processing context
+    bool autoProcessQueuedEvents_ = true;          // Interactive mode: disable auto-batch processing
+    bool isBatchProcessing_ = false;               // Track batch event processing to prevent recursive auto-processing
+    bool isEnteringInitialConfiguration_ = false;  // W3C SCXML 3.3: Track initial configuration entry
+    bool inTransition_ = false;                    // Track if we're in a transition context (for history recording)
+    std::string initialState_;
+
+    // W3C SCXML 3.13: Last executed transition tracking (for interactive visualizer)
+    std::string lastTransitionSource_{};
+    std::string lastTransitionTarget_{};
+
+    // W3C SCXML Appendix D.2: Conflict resolution transition tracking (for interactive visualizer)
+    std::vector<TransitionDescriptorString>
+        lastEnabledTransitions_{};  // All enabled transitions before conflict resolution
+    std::vector<TransitionDescriptorString> lastOptimalTransitions_{};  // Optimal set after conflict resolution
+
+    size_t eventlessRecursionDepth_ = 0;  // Track recursion depth for eventless transitions
+    size_t lastTransitionDepth_ = 0;      // Track depth where lastTransition was set
+
+    // SCXML model
+    std::shared_ptr<SCXMLModel> model_;
+
+    // Script engine integration
+    IScriptEngine &scriptEngine_;
+    std::string sessionId_;
+    std::string lastLoadError_;  // Parser error detail from loadSCXMLFromString
+    std::string currentEventData_;
+    std::string currentOriginSessionId_;  // W3C SCXML Test 252: Track origin for cancelled invoke filtering
+    bool jsEnvironmentReady_ = false;
+
+    // Action execution infrastructure
+    std::shared_ptr<IActionExecutor> actionExecutor_;
+    ActionExecutorImpl *cachedExecutorImpl_ = nullptr;  // Cached pointer to avoid dynamic_pointer_cast
+    std::shared_ptr<IExecutionContext> executionContext_;
+
+    // Hierarchical state management
+    std::unique_ptr<StateHierarchyManager> hierarchyManager_;
+
+    // History state management (SOLID architecture)
+    std::unique_ptr<HistoryManager> historyManager_;
+    std::unique_ptr<HistoryStateAutoRegistrar> historyAutoRegistrar_;
+
+    // W3C SCXML invoke execution (SOLID architecture)
+    std::unique_ptr<InvokeExecutor> invokeExecutor_;
+
+    // Event dispatching for delayed events and external targets
+    std::shared_ptr<IEventDispatcher> eventDispatcher_;
+
+    // EventRaiser for SCXML compliance mode control
+    std::shared_ptr<IEventRaiser> eventRaiser_;
+
+    // W3C SCXML 6.5: Completion callback for invoke done.invoke event
+    CompletionCallback completionCallback_;
+
+    // W3C SCXML 5.5 + 6.3.1: donedata payload captured when the machine
+    // enters a top-level `<final>`. Populated once per invocation by
+    // `enterState` before `completionCallback_` fires, mirroring
+    // `StaticExecutionEngine::stashDonedataAtFinal` on the AOT side.
+    // Consumed by `SCXMLInvokeHandler`'s completion callback to populate
+    // `done.invoke.<id>._event.data` (`donedataAtFinal()` getter).
+    std::string pendingDonedataAtFinal_;
+    std::optional<ScriptValue> pendingTypedDonedataAtFinal_;
+
+    // W3C SCXML 6.4: Pending invoke execution (deferred until macrostep end)
+    // Uses InvokeHelper for shared logic with AOT engine (ARCHITECTURE.md Zero Duplication)
+    struct PendingInvoke {
+        std::string invokeId;                 // Invoke ID (for InvokeHelper logging)
+        std::string state;                    // State ID (matches InvokeHelper template parameter)
+        std::shared_ptr<IInvokeNode> invoke;  // Single invoke node (not vector)
+    };
+
+    std::vector<PendingInvoke> pendingInvokes_;
+    std::recursive_mutex
+        pendingInvokesMutex_;  // Recursive: same-thread re-entry during child invoke initialization (W3C 6.4)
+
+    // W3C SCXML: Thread safety for StateHierarchyManager access from JSEngine worker thread
+    mutable std::mutex hierarchyManagerMutex_;  // Protects hierarchyManager_ read access
+
+    // CRITICAL: Mutex for processEvent execution synchronization (ASAN heap-use-after-free fix)
+    // Ensures destructor waits for any in-progress processEvent calls to complete
+    // before destroying StateMachine, preventing ProcessingEventGuard from accessing freed memory
+    // Thread-local depth tracking handles W3C SCXML nested event processing without recursive_mutex
+    std::mutex processEventMutex_;
+
+    // Statistics
+    mutable Statistics stats_;
+
+    // Helper methods
+
+    // W3C SCXML 5.3: Data model initialization (delegated to DataModelInitializer)
+    using DataItemInfo = DataModelInitializer::DataItemInfo;
+    std::unique_ptr<DataModelInitializer> dataModelInit_;
+
+    bool initializeFromModel();
+    void initializeHistoryManager();
+    void initializeHistoryAutoRegistrar();
+
+    // Parallel state completion handling
+    void handleParallelStateCompletion(const std::string &stateId);
+    void setupParallelStateCallbacks();
+
+    /**
+     * @brief Generate and queue done.state.{stateId} event (W3C SCXML 3.4)
+     * @param stateId State ID for which to generate the done event
+     */
+    void generateDoneStateEvent(const std::string &stateId);
+
+    /**
+     * @brief Setup and activate parallel state regions (W3C SCXML 3.3/3.4 compliance)
+     *
+     * Configures region callbacks and activates regions for proper event processing.
+     * This ensures regions can defer invokes, evaluate guards, and execute actions.
+     *
+     * @param parallelState Parallel state to setup and activate
+     * @param stateId State ID for logging
+     * @return true if successful, false on failure
+     */
+    bool setupAndActivateParallelState(ConcurrentStateNode *parallelState, const std::string &stateId);
+
+    bool evaluateCondition(const std::string &condition);
+    bool enterState(const std::string &stateId);
+    bool exitState(const std::string &stateId);
+
+    /**
+     * @brief W3C SCXML compliance: Check for eventless transitions on all active states
+     * @return true if an eventless transition was executed, false otherwise
+     */
+    bool checkEventlessTransitions();
+
+    /**
+     * @brief Execute a single transition directly without re-evaluating its condition
+     *
+     * This method is used when a transition's condition has already been evaluated
+     * to avoid side effects from re-evaluation (e.g., W3C test 444: ++var1).
+     *
+     * @param sourceState The state containing the transition
+     * @param transition The transition to execute
+     * @return true if the transition was executed successfully, false otherwise
+     */
+    bool executeTransitionDirect(IStateNode *sourceState, std::shared_ptr<ITransitionNode> transition);
+
+    /**
+     * @brief W3C SCXML 3.13: Execute transitions as a microstep
+     *
+     * Executes multiple transitions atomically with proper phasing:
+     * 1. Exit all source states (executing onexit actions)
+     * 2. Execute all transition actions in document order
+     * 3. Enter all target states (executing onentry actions)
+     *
+     * @param transitions Vector of transitions to execute
+     * @return true if all transitions executed successfully
+     */
+    bool executeTransitionMicrostep(const std::vector<TransitionInfo> &transitions);
+
+    // New IActionNode-based action execution methods
+    bool initializeActionExecutor();
+    bool executeActionNodes(const std::vector<std::shared_ptr<SCE::IActionNode>> &actions,
+                            bool processEventsAfter = true);
+    bool executeEntryActions(const std::string &stateId);
+    bool executeExitActions(const std::string &stateId);
+
+    // JavaScript environment lifecycle (internal use only)
+    bool ensureJSEnvironment();
+    bool setupJSEnvironment();
+    void updateStatistics();
+
+    // SCXML W3C compliant state transition processing
+    TransitionResult processStateTransitions(IStateNode *stateNode, const std::string &eventName,
+                                             const std::string &eventData);
+
+    // W3C SCXML transition domain and exit set computation (delegated to TransitionDomainCalculator)
+    std::unique_ptr<TransitionDomainCalculator> transitionDomain_;
+
+    std::string findLCA(const std::string &sourceStateId, const std::string &targetStateId) const;
+    ExitSetResult computeExitSet(const std::string &sourceStateId, const std::string &targetStateId) const;
+    int getStateDocumentPosition(const std::string &stateId) const;
+    std::vector<std::string> getProperAncestors(const std::string &stateId) const;
+    bool isDescendant(const std::string &stateId, const std::string &ancestorId) const;
+    std::vector<std::string> buildExitSetForDescendants(const std::string &ancestorState,
+                                                        bool excludeParallelChildren = true) const;
+
+    // W3C SCXML onentry action execution
+    void executeOnEntryActions(const std::string &stateId);
+
+    // Deferred invoke execution for W3C SCXML compliance
+    void deferInvokeExecution(const std::string &stateId, const std::vector<std::shared_ptr<IInvokeNode>> &invokes);
+    void executePendingInvokes();
+
+    // Helper method to reduce code duplication between isInFinalState() and isInitialStateFinal()
+    bool isStateInFinalState(const std::string &stateId) const;
+
+    // W3C SCXML 3.7 & 5.5: Compound state done.state event generation
+    void handleCompoundStateFinalChild(const std::string &finalStateId);
+    bool evaluateDoneData(const std::string &finalStateId, std::string &outEventData,
+                          std::optional<ScriptValue> &outTypedData);
+
+    // W3C SCXML 5.5: Helper methods moved to DoneDataHelper (Zero Duplication)
+};
+
+}  // namespace SCE
+
+// Engine-agnostic bindObject template implementation
+// Include StateMachineBindObject.h explicitly when using bindObject() with GenericClassBinder API.
+// Not auto-included to avoid coupling all StateMachine users to scripting headers.

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.5 IPv4_ADDRESSING_01: DUT accepts an IPv4 UDP packet whose
+  Destination Address is the Limited Broadcast address (255.255.255.255).
+  Derived from RFC 791 §3.2, RFC 1122 §3.2.1.3.
+
+  v3.0 Test Procedure (p001-p020.txt:478): TESTER sends a UDP Message
+  to <limitedBroadcastAddress>, then verifies via Upper Tester that
+  the DUT's application layer received it.
+
+  Mechanism (§4.8.5 UT over separate UDP port):
+    1. Tester emits UDP payload to 255.255.255.255:20000.
+    2. Tester emits UT GetReceivedUdp(listen_port=20000,
+       expected_dst_ip=255.255.255.255) to DUT:30600.
+    3. tc8-dut's UT server consults its data-listener log — a
+       populated slot with matching dst_ip means the datagram reached
+       the application layer.
+    4. tc8-dut emits UT Confirmation with ut_received=1.
+    5. SCXML observes the Confirmation on the wire, reaches `pass`.
+
+  Body shared with ipv4_addressing_02 via sce:template
+  (tests/_templates/ipv4_udp_ut_presence.sce-template.xml). The only
+  difference between the two cases is expected_received (1 vs 0) and
+  the fail-reason strings — the SCXML logic is symmetric.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_addressing_01"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="1"
+           fail_reason_wrong_receipt="dut_did_not_receive_limited_broadcast"
+           fail_reason_timeout="no_ut_confirmation_for_limited_broadcast"/>
+</scxml>

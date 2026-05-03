@@ -1,0 +1,31 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+# SCE Forge: Auto-generated from Extended SCXML (sce:kind="filter")
+# Runtime: {{ runtime_dep }}
+# Do not edit — regenerate from the source SCXML file.
+
+{% if filter_type == "moving_average" %}
+from sce_forge_runtime.filter import MovingAverage
+{% elif filter_type == "low_pass" %}
+from sce_forge_runtime.filter import LowPass
+{% elif filter_type == "debounce" %}
+from sce_forge_runtime.filter import Debounce
+{% endif %}
+
+
+class {{ struct_name }}:
+    def __init__(self) -> None:
+{% if filter_type == "moving_average" %}
+        self._impl = MovingAverage(window={{ window }})
+{% elif filter_type == "low_pass" %}
+        self._impl = LowPass(alpha={{ alpha }})
+{% elif filter_type == "debounce" %}
+        self._impl = Debounce(window={{ window }})
+{% endif %}
+
+    def update(self, {{ input_id }}: {{ input_type }}) -> {{ output_type }}:
+        return self._impl.update({{ output_type }}({{ input_id }}))
+
+    def reset(self) -> None:
+        self._impl.reset()

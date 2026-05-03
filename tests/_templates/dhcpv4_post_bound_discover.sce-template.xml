@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.3 ALLOCATING_09 / §4.7.6.8 REACQUISITION_08 lifecycle template:
+  DUT enters BOUND, then is forced back to INIT via either DHCPNAK
+  injection (ALLOC_09) or lease expiration (REACQ_08). Pass criterion is
+  the DUT-emitted second DHCPDISCOVER per RFC 2131 §3.1 (NAK path) and
+  §4.4.5 (lease-expiration path).
+
+  Lifecycle (state count = 4):
+    listening_for_discover (s1_deadline 6 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_first_request
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_renewing_request
+    listening_for_renewing_request (ACK injected on entry, s3_deadline 8 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_second_discover
+    listening_for_second_discover (per-trait stimulus on entry,
+                                    s4_deadline 10 s)
+      on dhcp_observed: is_discover + chaddr_match → pass
+      on dhcp_observed: is_request  + chaddr_match → stays (intervening
+                                                     REBINDING REQUEST
+                                                     in the REACQ_08
+                                                     timeline does not
+                                                     satisfy the cond)
+
+  State 4 stimulus contract is per-trait:
+    * ALLOC_09 trait registers `scheduleDhcpReplyOnStateEntry` with
+      message_type=6 (DHCPNAK) so the DUT's RENEWING REQUEST receives a
+      NAK and the runBoundPhaseMachine returns to INIT immediately.
+    * REACQ_08 trait registers no stimulus on state 4 entry; the DUT's
+      RENEWING REQUEST goes unanswered, T2 fires at +2 s, REBINDING
+      REQUEST also goes unanswered, lease expires at +3 s, and the
+      runBoundPhaseMachine returns to INIT on lease_end. The two
+      intervening REQUEST observations advance the cond's `is_request`
+      branch to itself (no state change) — only the eventual DISCOVER
+      #2 satisfies `is_discover`.
+
+  Wall budget under fast envelope (lease=6 s, T1=3 s, T2=5 s):
+    * ALLOC_09: state 4 entry → ~150 ms NAK ingest → DISCOVER #2 ≈
+                 200 ms; total ≈ state 3 entry + 3.3 s.
+    * REACQ_08: state 4 entry → +2 s (T2 fires, REBINDING REQUEST) →
+                 +1 s (lease_end) → INIT restart + DISCOVER #2 emit ≈
+                 3 s after state 4 entry; total ≈ state 3 entry + 6 s.
+  s4_deadline 10 s leaves 4 s margin for worker scheduling jitter.
+
+  Per-state deadline event names (s1/s2/s3/s4) match the precedent set
+  by `dhcpv4_renewing_request_field` and `dhcpv4_rebinding_request_field`
+  — leftover deadlines from prior states cannot match later transitions
+  and short-circuit the verdict before the second DISCOVER observation.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_post_bound_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="fail_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_second_discover"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_second_discover">
+    <onentry>
+      <send event="s4_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="pass"/>
+    <transition event="s4_deadline" target="fail_no_second_discover"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_second_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_second_discover_after_init_return"}</content>
+    </donedata>
+  </final>
+</sce:template>

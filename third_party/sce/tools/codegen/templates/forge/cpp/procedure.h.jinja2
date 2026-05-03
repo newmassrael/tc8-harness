@@ -1,0 +1,320 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="procedure")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+//
+// Event-driven state machine driven by SCE::Forge::run_procedure().
+// Supports <onentry>/<send>, event-driven <transition>, <assign>, <donedata>.
+// Pure decision trees (no events/sends) execute via Event::NONE transitions.
+{% if has_external_deps %}
+//
+// External dependencies (from sce:payload expressions — must be in scope):
+{% for expr in payload_exprs %}
+//   {{ expr }}
+{% endfor %}
+{% endif %}
+
+#pragma once
+#ifndef {{ guard }}
+#define {{ guard }}
+
+#include <cstdint>
+#include <cstddef>
+{% if helper_fields %}
+#include <functional>
+#include <stdexcept>
+{% endif %}
+#include <map>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "sce/forge/ProcedureServiceTypes.h"
+#include "sce/forge/ProcedureStateMachine.h"
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+
+namespace SCE::Generated::{{ namespace }} {
+
+// ── State and Event enums ────────────────────────────────────────
+
+enum class State : uint8_t {
+{% for s in state_enum %}
+    {{ s.name }} = {{ s.index }}{% if not loop.last %},{% endif %}
+
+{% endfor %}
+};
+
+enum class Event : uint8_t {
+    NONE = 0,
+{% for e in event_enum %}
+    {{ e.name }} = {{ e.index }}{% if not loop.last %},{% endif %}
+
+{% endfor %}
+};
+
+// ── State machine class ──────────────────────────────────────────
+
+class {{ class_name }} {
+public:
+    using State = ::SCE::Generated::{{ namespace }}::State;
+    using Event = ::SCE::Generated::{{ namespace }}::Event;
+
+    {{ class_name }}() = default;
+
+    // ── Public setters ───────────────────────────────────────────
+
+    /// Set the service handler for <send sce:service> actions.
+    void setServiceHandler(SCE::Forge::ProcedureServiceHandler handler) {
+        serviceHandler_ = std::move(handler);
+    }
+{% if helper_fields %}
+
+{% for h in helper_fields %}
+    /// Set the <sce:helper name="{{ h.id }}"> DI closure.
+    void set{{ h.setter_name }}({{ h.function_type }} fn) {
+        {{ h.member_name }} = std::move(fn);
+    }
+{% endfor %}
+{% endif %}
+
+    /// Set input parameters before calling runToCompletion().
+{% for f in input_fields %}
+    void set{{ f.setter_name }}({{ f.cpp_param_type }} value) {
+        {{ f.id }}_ = value;
+    }
+{% endfor %}
+
+    /// Run the procedure to completion (blocking). Delegates to the
+    /// shared event loop in sce-forge-runtime/cpp, which mirrors the
+    /// return-event shape used by Rust / Python / Kotlin / Go.
+    SCE::Forge::ProcedureRunResult runToCompletion() {
+        return SCE::Forge::run_procedure(*this);
+    }
+
+    // ── Static policy metadata ───────────────────────────────────
+
+    [[nodiscard]] static constexpr State initialState() noexcept {
+        return State::{{ initial_state }};
+    }
+
+    [[nodiscard]] static constexpr Event noneEvent() noexcept {
+        return Event::NONE;
+    }
+
+    [[nodiscard]] static constexpr bool isFinalState(State state) noexcept {
+        switch (state) {
+{% for s in final_states %}
+            case State::{{ s.name }}: return true;
+{% endfor %}
+            default: return false;
+        }
+    }
+
+    [[nodiscard]] static constexpr const char* finalStateName(State state) noexcept {
+        switch (state) {
+{% for s in final_states %}
+            case State::{{ s.name }}: return "{{ s.id }}";
+{% endfor %}
+            default: return "";
+        }
+    }
+
+    // ── Entry actions (service sends + done data) ────────────────
+    //
+    // Returns the event raised by this state's <send sce:service> (if
+    // any) along with its response data string, matching the shape of
+    // the Rust / Python / Kotlin / Go runtimes. A state without a send
+    // returns (Event::NONE, "") so that the loop falls through to
+    // eventless transitions.
+
+    std::pair<Event, std::string> executeEntryActions(State state) {
+        switch (state) {
+{% for s in states_with_entry %}
+            case State::{{ s.name }}: {
+{% for send in s.sends %}
+                // <send sce:service="{{ send.service }}"{{ ' sce:subfunc="' ~ send.subfunc ~ '"' if send.subfunc }}{{ ' sce:addr="..."' if send.has_addr }}>
+                if (serviceHandler_) {
+                    SCE::Forge::ProcedureServiceRequest req;
+                    req.service = "{{ send.service }}";
+{% if send.subfunc %}
+                    req.subfunc = std::string("{{ send.subfunc }}");
+{% endif %}
+{% if send.has_addr %}
+                    req.addr = std::to_string({{ send.addr_expr }});
+{% endif %}
+{% if send.payload %}
+                    req.payload = {{ send.payload_expr }};
+{% endif %}
+                    auto resp = serviceHandler_(req);
+                    return { resp.success ? Event::Ok : Event::Fail, resp.data };
+                }
+{% endfor %}
+                break;
+            }
+{% endfor %}
+{% for s in final_states_with_donedata %}
+            case State::{{ s.name }}: {
+                // <donedata>
+{% for p in s.done_params %}
+                doneData_["{{ p.name }}"] = {{ p.expr }};
+{% endfor %}
+                break;
+            }
+{% endfor %}
+            default:
+                break;
+        }
+        return { Event::NONE, std::string() };
+    }
+
+    // ── Transition processing ────────────────────────────────────
+    //
+    // Returns the next state, transition index, and whether the
+    // transition has <assign> actions, or std::nullopt if no
+    // transition fires. The caller applies assigns via
+    // executeTransitionActions(source, trIndex).
+
+    [[nodiscard]] std::optional<std::tuple<State, std::size_t, bool>>
+    processTransition(State state, Event event) const {
+        switch (state) {
+{% for s in non_final_states %}
+            case State::{{ s.name }}:
+{% for tr in s.transitions %}
+{% if tr.has_event %}
+                // Event-driven transition: event="{{ tr.event_name }}"
+                if (event == Event::{{ tr.event_enum }}) {
+{% if tr.has_cond %}
+                    if ({{ tr.cond }}) {
+                        return std::make_tuple(State::{{ tr.target_name }}, std::size_t{ {{ tr.index }} }, {{ tr.has_assigns | lower }});
+                    }
+{% else %}
+                    return std::make_tuple(State::{{ tr.target_name }}, std::size_t{ {{ tr.index }} }, {{ tr.has_assigns | lower }});
+{% endif %}
+                }
+{% else %}
+                // Eventless transition{% if tr.has_cond %} (guard: {{ tr.cond }}){% endif %}
+
+                if (event == Event::NONE) {
+{% if tr.has_cond %}
+                    if ({{ tr.cond }}) {
+                        return std::make_tuple(State::{{ tr.target_name }}, std::size_t{ {{ tr.index }} }, {{ tr.has_assigns | lower }});
+                    }
+{% else %}
+                    return std::make_tuple(State::{{ tr.target_name }}, std::size_t{ {{ tr.index }} }, {{ tr.has_assigns | lower }});
+{% endif %}
+                }
+{% endif %}
+{% endfor %}
+                return std::nullopt;
+{% endfor %}
+            default:
+                return std::nullopt;
+        }
+    }
+
+    // ── Transition actions (<assign> in transitions) ─────────────
+    //
+    // Returns std::nullopt for normal flow; std::optional<Event> with a
+    // value when an assign-time check (RFC `claudedocs/rfc-forge-bytes-bounded.md`
+    // §3 B4 bytes cap violation) raises an internal event. The shared
+    // run_procedure() loop re-processes the source state with that event
+    // so a fixture's `<transition event="error.execution">` can pick it up.
+
+    [[nodiscard]] std::optional<Event> executeTransitionActions([[maybe_unused]] State source, [[maybe_unused]] std::size_t trIndex) {
+{% for s in states_with_assigns %}
+        if (source == State::{{ s.name }}) {
+{% for tr in s.assign_transitions %}
+            if (trIndex == {{ tr.index }}) {
+{% for a in tr.assigns %}
+{% if a.is_bytes_with_cap %}
+                {
+                    auto _scope_tmp = {{ a.expr }};
+                    if (_scope_tmp.size() > {{ a.cap }}) {
+                        return Event::ErrorExecution;
+                    }
+                    {{ a.location }} = std::move(_scope_tmp);
+                }
+{% else %}
+                {{ a.location }} = {{ a.expr }};
+{% endif %}
+{% endfor %}
+            }
+{% endfor %}
+        }
+{% endfor %}
+        return std::nullopt;
+    }
+
+    // ── Engine-visible datamodel slots (called by run_procedure) ──
+
+    void setPendingEventData(std::string data) {
+        pendingEventData_ = std::move(data);
+    }
+
+    [[nodiscard]] const std::map<std::string, std::string>& doneData() const {
+        return doneData_;
+    }
+
+private:
+    // ── Datamodel members ────────────────────────────────────────
+{% for f in input_fields %}
+    {{ f.cpp_type }} {{ f.id }}_{};
+{% endfor %}
+{% for f in internal_fields %}
+    {{ f.cpp_type }} {{ f.id }}_{% if f.default_value %} = {{ f.default_value }}{% endif %};
+{% endfor %}
+{% if has_imports %}
+
+    // ── Imported kind members (cross-file composition) ──────────
+{% for imp in imports %}
+    {{ imp.member_type }} {{ imp.member_name }}{};
+{% endfor %}
+{% endif %}
+
+    // ── Service handler (for <send sce:service>) ─────────────────
+    SCE::Forge::ProcedureServiceHandler serviceHandler_;
+
+{% if helper_fields %}
+    // ── Helper DI closures (for <sce:helper> declarations) ───────
+    // Default-initialised to fail-fast throwing lambdas; the user must call
+    // the matching set*() setter before runToCompletion().
+{% for h in helper_fields %}
+    {{ h.function_type }} {{ h.member_name }} = {{ h.default_impl }};
+{% endfor %}
+
+{% endif %}
+    // ── Done data storage ────────────────────────────────────────
+    std::map<std::string, std::string> doneData_;
+
+    // ── W3C SCXML 5.10: _event.data binding ──────────────────────
+    std::string pendingEventData_;
+};
+
+// ── Convenience wrapper function ─────────────────────────────────
+
+inline SCE::Forge::ProcedureRunResult execute(
+    SCE::Forge::ProcedureServiceHandler handler{% for h in helper_fields %},
+    {{ h.function_type }} {{ h.id }}{% endfor %}{% for f in input_fields %},
+    {{ f.cpp_param_type }} {{ f.id }}{% endfor %}) {
+    {{ class_name }} sm;
+    sm.setServiceHandler(std::move(handler));
+{% for h in helper_fields %}
+    sm.set{{ h.setter_name }}(std::move({{ h.id }}));
+{% endfor %}
+{% for f in input_fields %}
+    sm.set{{ f.setter_name }}({{ f.id }});
+{% endfor %}
+    return sm.runToCompletion();
+}
+
+}  // namespace SCE::Generated::{{ namespace }}
+
+#endif  // {{ guard }}

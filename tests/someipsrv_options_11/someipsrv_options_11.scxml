@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.5.11 SOMEIPSRV_OPTIONS_11: IPv4-Address field [32 bits] of
+  the IPv4 Multicast Option shall be set to the multicast IP address
+  of the eventgroup (SWS_SD_00393). expected.mcast_ipv4 is supplied
+  via the harness expect mcast_ipv4=224.244.224.246 CLI key,
+  matching the multicast block in dut/dut_service/vsomeip.json's
+  eventgroup 0x0008. Stored NBO so the comparison against
+  sd_options[i].ipv4 (also NBO via memcpy) is byte-order safe.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_options_11"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="captured.sd_ipv4_multicast_count &gt;= 1"
+           entry_type="0x07"
+           pass_expr="captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Multicast, ::tc8::sd_l4_proto::kUdp).ipv4 == expected.mcast_ipv4"
+           fail_state="fail_ipv4"
+           fail_reason="ipv4_multicast_address_mismatch"/>
+</scxml>

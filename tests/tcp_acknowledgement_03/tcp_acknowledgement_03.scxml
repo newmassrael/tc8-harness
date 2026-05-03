@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.18 TCP_ACKNOWLEDGEMENT_03: when DUT has no data left to
+  send and receives a TCP packet, DUT sends an ACK with the expected
+  Ack Number. Derived from RFC 793 p74.
+
+  v3.0 Test Procedure (p401):
+    1. TESTER: Bring DUT to ESTABLISHED via a passive socket call.
+    2. TESTER: Send a TCP packet (with payload).
+    3. DUT:    Sends an ACK with the expected Ack Number.
+
+  Mechanism (passive-OPEN handshake + raw-inject in-window data):
+    1. UT OpOpenTcpSocket(passive, kTcpAck03ListenPort=13030).
+    2. driveRawPassiveHandshake (no MSS option) drives the DUT into
+       ESTABLISHED on (kTcpAck03ListenPort, kTcpAck03TesterSrcPort).
+       Handshake consumes 1 SEQ on each side.
+    3. Tester raw-injects PSH+ACK with seq=kTesterInitialSeq+1,
+       ack=info.dut_isn+1, and a 4 B payload.
+    4. Linux's tcp_rcv_established (delayed-ACK path or piggyback) emits
+       an ACK whose ack_num = kTesterInitialSeq + 1 + payload_len.
+
+  Pass guard: pure DUT ACK on the case 4-tuple with
+  captured.ack_num == captured.expected_ack_num. The stimulus populates
+  expected_ack_num before opening the SCXML window.
+
+  Single-state SCXML — the handshake third-leg is tester-side (raw-
+  injected ACK from kTesterInitialSeq+1) so the listen window opens
+  directly on the DUT-emitted data ACK.
+
+  Negative flip (smoke-test negative arm): ipv4.dut_iface_ip=10.99.99.99
+  makes captured.is_pure_dut_ack(...)'s src_ip conjunct unreachable, so
+  the case lands on fail_no_data_ack via the 5 s deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_acknowledgement_03"
+       datamodel="null"
+       initial="listening_data_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpAck03ListenPort, ::tc8::sce::tcp::kTcpAck03TesterSrcPort) and captured.ack_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpAck03ListenPort, ::tc8::sce::tcp::kTcpAck03TesterSrcPort) and captured.ack_num != captured.expected_ack_num"
+                target="fail_wrong_ack_num"/>
+    <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_data_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_data"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_ack_num">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload"}</content>
+    </donedata>
+  </final>
+</scxml>

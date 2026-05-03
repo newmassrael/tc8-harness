@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_13: TCP MUST NOT move on to CLOSED state
+  from TIME-WAIT state before 2*MSL time expires, where TIME-WAIT
+  state is reached through FINWAIT-2 state. Derived from NEGATIVE
+  "RFC 793 §3.2 p23 Terminology" (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:4):
+    1. TESTER: Cause the DUT to move on to FINWAIT-2 state
+    2. TESTER: Send a FIN
+    3. DUT:    Send ACK (DUT moves to TIME-WAIT state)
+    4. TESTER: Send a FIN within 2*MSL time
+    5. DUT:    Send ACK
+  Pass criterion: step 5 (DUT ACKs the within-2*MSL FIN replay,
+  proving TIME-WAIT survived).
+
+  Mechanism: tcp_pilot_common::driveTcpToTimeWaitFw2 chains
+  active-OPEN handshake → UT close (DUT FIN) → tester kernel
+  auto-ACK (DUT FW1 → FW2) → tester shutdown(WR) (tester FIN+ACK)
+  → DUT pure ACK (DUT FW2 → TIME-WAIT). Replay FIN raw-injected
+  via state-entry observer on Listening_replay_ack.
+
+  See tests/_templates/tcp_time_wait_4state.sce-template.xml for
+  the shared 4-state observation chain. Per-case thin-shell binds
+  mid_label=tester_fin_ack (FW2-path semantics) and replay_label
+  =replay_ack (within-2*MSL ACK observation, 5s deadline).
+
+  Negative smoke flips ipv4.dut_iface_ip → first state's
+  src_ip-conjunct unreachable → fail_no_handshake_ack.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_13"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_time_wait_4state.sce-template.xml"
+           mid_label="tester_fin_ack"
+           mid_fail_reason="no_dut_ack_to_tester_fin"
+           replay_label="replay_ack"
+           replay_method="is_pure_dut_ack"
+           replay_deadline="5s"
+           replay_fail_reason="no_dut_ack_to_replay_fin_in_time_wait"/>
+</scxml>

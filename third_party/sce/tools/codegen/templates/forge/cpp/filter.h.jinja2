@@ -1,0 +1,42 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="filter")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+#pragma once
+#ifndef {{ guard }}
+#define {{ guard }}
+
+#include <cstdint>
+#include <sce/forge/filter.h>
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+
+namespace SCE::Generated::{{ namespace }} {
+
+struct {{ struct_name }} {
+{% if filter_type == "moving_average" %}
+    SCE::Forge::MovingAverage<{{ output_type }}, {{ window }}> impl_;
+{% elif filter_type == "low_pass" %}
+    SCE::Forge::LowPass<{{ output_type }}> impl_{static_cast<{{ output_type }}>({{ alpha }})};
+{% elif filter_type == "debounce" %}
+    SCE::Forge::Debounce<{{ output_type }}, {{ window }}> impl_;
+{% endif %}
+
+    {{ output_type }} update({{ input_type }} {{ input_id }}) {
+        return impl_.update(static_cast<{{ output_type }}>({{ input_id }}));
+    }
+
+    void reset() {
+        impl_.reset();
+    }
+};
+
+}  // namespace SCE::Generated::{{ namespace }}
+
+#endif  // {{ guard }}

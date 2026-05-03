@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.4.4.6 IPv4 FRAGMENTS compound 2-phase shape: TESTER sends a
+  mismatched-tuple fragment pair (phase 1, observed for absence),
+  then re-sends frag 1 with the matched tuple (phase 2, observed for
+  DUT's Echo Reply with correct id/seq/data).
+
+  Phase 1 (listening_phase1 state, 2 s window):
+    * TESTER already sent both phase-1 fragments synchronously in the
+      traits stimulus (so pcap captured them before SCXML armed).
+    * A conformant DUT must NOT emit an Echo Reply — the tuple
+      mismatch (id / src / protocol depending on case) prevents
+      reassembly. Any DUT-origin ICMP during this window fires
+      fail_early_reply with {$fail_reason_phase1}.
+    * On phase_gap_done (2 s delay), transition to listening_phase2.
+
+  Phase 2 (listening_phase2 state, 3 s window):
+    * Traits stimulus registered a state-entry observer on this state
+      via IStimulusScheduler::scheduleAfterStateEntry; the runner
+      fires the observer the moment SCXML transitions in (i.e. the
+      same tick that processes phase_gap_done). The observer emits
+      frag 1 with the matched tuple. The DUT's reassembly buffer
+      still holds frag 0 from phase 1 — the matched frag 1 completes
+      the bucket → DUT reassembles → Echo Reply.
+    * Pass guard asserts type=0 Echo Reply with matching echo_id,
+      echo_seq, and data (kFragmentsEchoPayload, 8 B).
+    * 3-way fail split mirrors FRAGMENTS_01's diagnostic granularity:
+      a DUT-origin reply with correct type+src but mismatched
+      echo_id lands fail_echo_id (reason
+      {$fail_reason_phase2_echo_id}); mismatched echo_seq lands
+      fail_echo_seq ({$fail_reason_phase2_echo_seq}); mismatched
+      data lands fail_data_mismatch ({$fail_reason_phase2_data}).
+      Separate strings let grep-based smoke triage identify which
+      axis the DUT violated without re-reading the SCXML.
+    * deadline_exceeded fires fail_timeout with
+      {$fail_reason_phase2_timeout}.
+
+  src_ip guard on every icmp_observed transition filters the
+  TESTER's own outbound frames (their src_ip is tester_ip or
+  kFragmentsHost2IpBe, never dut_iface_ip), so the SCXML only reacts
+  to DUT-originated replies. Pattern mirrored from
+  icmpv4_negative_absence.
+
+  Phase 2 timing depends on the DUT's IP reassembly timer
+  (Linux `net.ipv4.ipfrag_time`, default 30 s). FRAGMENTS_02/03/04
+  leave the default untouched so frag 0's bucket is still alive
+  when phase 2's frag 1 arrives shortly after listening_phase2
+  entry. smoke-test.sh's ipfrag_time=3 toggle is ICMPV4_TYPE_04-only
+  — explicitly NOT applied to FRAGMENTS cases.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_fragments_compound">
+
+  <sce:param name="fail_reason_phase1" required="true"/>
+  <sce:param name="fail_reason_phase2_timeout" required="true"/>
+  <sce:param name="fail_reason_phase2_echo_id" required="true"/>
+  <sce:param name="fail_reason_phase2_echo_seq" required="true"/>
+  <sce:param name="fail_reason_phase2_data" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase_gap_done" delay="2s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
+                target="fail_early_reply"/>
+    <transition event="phase_gap_done" target="listening_phase2"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq and captured.echo_payload_equals(std::string_view(reinterpret_cast&lt;const char*&gt;(::tc8::sce::ipv4::fragments::kFragmentsEchoPayload.data()), ::tc8::sce::ipv4::fragments::kFragmentsEchoPayload.size()))"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id != expected.echo_id"
+                target="fail_echo_id"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_seq != expected.echo_seq"
+                target="fail_echo_seq"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
+                target="fail_data_mismatch"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_early_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase1}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_echo_id}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_echo_seq}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_data_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_data}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_timeout}"}</content>
+    </donedata>
+  </final>
+</sce:template>

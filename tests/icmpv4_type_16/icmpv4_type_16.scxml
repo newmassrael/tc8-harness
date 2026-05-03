@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_16: A host SHOULD NOT implement Information
+  Request / Reply per RFC 1122 §3.2.2.7. Tester sends an ICMP
+  Information Request (type=15); a conformant DUT must not emit an
+  Information Reply (type=16) within the listen window.
+
+  Body shared with ICMPV4_TYPE_10 via sce:template
+  (tests/_templates/icmpv4_negative_absence.sce-template.xml).
+  Dispatch filters to type=16 so the tester's own outbound type=15
+  never self-triggers the fail path.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_16"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"
+           fail_reason="dut_sent_information_reply"/>
+</scxml>

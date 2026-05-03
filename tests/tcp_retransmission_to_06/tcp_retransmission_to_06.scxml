@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.11 TCP_RETRANSMISSION_TO_06: TCP SHOULD use RTO = 1 sec
+  initially (RFC 6298 §2.1 SHOULD).
+
+  v3.0 Test Procedure (p371):
+    1. TESTER: Cause the application on the DUT-side to issue an
+               active OPEN call.
+    2. DUT:    Send a SYN.
+    3. TESTER: Do not send SYN,ACK.
+    4. DUT:    Retransmit the SYN segment after a timeout.
+    5. TESTER: Verify that the DUT used a timeout according to the
+               referenced RFC.
+
+  Mechanism (active-OPEN with no listener + tester-RST suppression +
+  observe SYN retransmit at the RFC 6298 initial RTO ≈ 1 s):
+    1. UT OpOpenTcpSocket(Active) targets a tester-side endpoint
+       that has no bound listener — Linux's tester kernel would
+       normally answer with RST since the destination port is
+       unbound.
+    2. `TesterAutoRstDrop` installs an iptables OUTPUT rule that
+       drops tester-emitted RST segments toward the DUT, so the
+       DUT's SYN goes unanswered. The rule is held alive past
+       stimulus return via a `shared_ptr` captured by a delayed
+       `scheduler.schedule` lambda — same pattern PROBING_WINDOWS_*
+       use to keep an iptables rule installed across the SCXML
+       listen window.
+    3. The DUT's `tcp_send_syn(... TCP_TIMEOUT_INIT)` schedules the
+       first retransmit at ~1 s (Linux 6.x, RFC 6298-conformant).
+
+  Strict timing assertion (`frame_delta_us`):
+    The retransmit-state guard conjuncts on
+    `frame_delta_us() > 800000 and frame_delta_us() < 1500000`. This
+    is the only wire-observable surface for "DUT used the referenced
+    RFC's RTO" — `prev_observed_ts_us` is auto-seeded by
+    `dispatchTcpFrame` when the first-SYN guard fires, so the delta
+    measured is strictly the RFC 6298 initial RTO. A DUT with
+    sub-second initial RTO (e.g. immediate retransmit on idle) fails
+    the lower bound; a DUT that delays past 1.5 s (e.g. linear-2 s
+    retry) fails the upper bound.
+
+  Two-state SCXML chain:
+    * listening_first_syn — observe the DUT's active-OPEN SYN.
+                            Deadline 5 s covers UT boot wait (1.5 s)
+                            + Active OpOpen RPC dispatch + DUT
+                            connect() spawn jitter on parallel
+                            workers.
+    * listening_syn_retx  — observe the SYN retransmit at the RFC
+                            6298 initial-RTO window. Deadline 2.5 s
+                            comfortably covers the upper-bound
+                            `frame_delta_us() < 1500000` and any
+                            scheduler jitter on a busy worker pool.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  `is_dut_syn(...)` 's src_ip conjunct unreachable; case lands on
+  fail_no_first_syn via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_retransmission_to_06"
+       datamodel="null"
+       initial="listening_first_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_syn">
+    <onentry>
+      <send event="deadline_first_syn" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset)"
+                target="listening_syn_retx"/>
+    <transition event="deadline_first_syn" target="fail_no_first_syn"/>
+  </state>
+
+  <state id="listening_syn_retx">
+    <onentry>
+      <send event="deadline_syn_retx" delay="2500ms"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset) and captured.frame_delta_us() &gt; 800000 and captured.frame_delta_us() &lt; 1500000"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset) and (captured.frame_delta_us() &lt;= 800000 or captured.frame_delta_us() &gt;= 1500000)"
+                target="fail_rto_out_of_window"/>
+    <transition event="deadline_syn_retx" target="fail_no_syn_retx"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_syn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_syn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_syn_retx">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_rto_out_of_window">
+    <donedata>
+      <content>{"verdict":"fail","reason":"syn_retransmit_rto_out_of_rfc6298_window"}</content>
+    </donedata>
+  </final>
+</scxml>

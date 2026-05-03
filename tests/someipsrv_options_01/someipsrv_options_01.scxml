@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.5.1 SOMEIPSRV_OPTIONS_01: the Length field of the IPv4
+  Endpoint Option in an OfferService SD message shall be 0x0009
+  (SWS_SD_00209). The vsomeip OfferService for service 0xF4E7 emits
+  one IPv4 Endpoint Option per advertised transport (UDP @ 30502,
+  TCP @ 30501); we accept the first OfferService whose Options Array
+  carries at least one IPv4 Endpoint Option AND whose helper-index
+  IPv4 Endpoint with L4=UDP has Length=0x0009. The TCP-flavoured one
+  is asserted symmetrically by SOMEIPSRV_OPTIONS_15 via the L4=0x06
+  axis, so verifying the UDP option here is enough to catch a
+  Length-field regression without coupling to vsomeip option ordering.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_options_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="captured.sd_option_count &gt;= 1"
+           entry_type="0x01"
+           pass_expr="captured.sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endpoint, ::tc8::sd_l4_proto::kUdp).length == 0x0009"
+           fail_state="fail_length"
+           fail_reason="ipv4_endpoint_length_not_0009"/>
+</scxml>

@@ -1,0 +1,37 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{# Procedure kind — execute(handler, args) with payload capture + bytewise oracle. #}
+        from sce_forge_runtime.procedure import ProcedureServiceResponse
+        for case in spec["cases"]:
+            args = case["args"]
+            expected = case["expected"]
+            handler_response_data = case.get("handler_response_data", "")
+            captured = []
+            def _handler(req, _captured=captured, _data=handler_response_data):
+                if req.payload is not None:
+                    _captured.append(list(req.payload))
+                return ProcedureServiceResponse(success=True, data=_data)
+{% for h in f.helpers_ordered %}
+{% if h.stub.kind == "xor_bytes" %}
+            # <sce:helper name="{{ h.name }}"> stub — XOR every byte with {{ h.stub.mask }}.
+            def _stub_{{ h.name }}(input_bytes):
+                return bytes(b ^ {{ h.stub.mask }} for b in input_bytes)
+{% endif %}
+{% endfor %}
+            result = {{ f.name }}.execute(_handler{% for h in f.helpers_ordered %}, _stub_{{ h.name }}{% endfor %}, *args)
+            self.assertEqual(
+                result.completed,
+                expected["completed"],
+                "{{ f.name }}.completed",
+            )
+            self.assertEqual(
+                result.final_state,
+                expected["final_state"],
+                "{{ f.name }}.final_state",
+            )
+            self.assertEqual(
+                captured,
+                expected.get("dispatched_payload_bytes", []),
+                "{{ f.name }}.dispatched_payload_bytes",
+            )

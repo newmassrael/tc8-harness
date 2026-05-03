@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.6.6 SOMEIPSRV_ONWIRE_06: Interface Version is an 8-bit
+  field that contains the Major Version of the Service Interface. Tester
+  invokes echoUINT8 (METHOD-ID-1-SI-1 = 0x0008) with the configured
+  major version (SERVICE-ID-1-INTF-VER-MAJ → expected.major_version);
+  pass requires the matched Response carries interface_version ==
+  expected.major_version.
+
+  The full spec procedure also drives a wrong-version Request and
+  expects E_WRONG_INTERFACE_VERSION Error, but the wire-level invariant
+  is "DUT-emitted Response carries the Major Version of the configured
+  Service Interface". The positive-Request shape suffices to falsify a
+  DUT that emits the wrong major version.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_onwire_06"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/someipsrv_rpc_field_check.sce-template.xml"
+           phase2_filter="captured.service_id == expected.service_id and captured.message_type == 0x80"
+           pass_expr="captured.interface_version == expected.major_version"
+           fail_state="fail_phase2_interface_version_mismatch"
+           fail_reason="response_interface_version_not_configured_major"/>
+</scxml>

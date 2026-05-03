@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared SCXML body for §4.5.6.4 CONFLICT_06..10 (RFC 3927 §2.5
+  always-cease defender lifecycle). The five cases differ only in
+  which conflict-ARP opcode pair the tester injects:
+    _06  Request, Request
+    _07  Reply,   Reply
+    _08  Request, Reply
+    _09  Reply,   Request
+    _10  Reply           (single-shot — RFC 3927 §2.5 MAY-immediate)
+  All five share the same observable contract:
+    DUT commits an LL → Announce (claim confirmation) → tester
+    injects conflicting ARP(s) sender=target=committed_LL → DUT
+    abandons the LL → DUT picks a NEW LL → DUT emits Probe with
+    target ≠ original LL.
+
+  The trait's stimulus closure (scheduleDefenderCeaseConflicts)
+  fires on entry to listening_post_claim:
+    1. queries DUT's committed LL via OpQueryLLAddress;
+    2. snapshots the LL into captured.expected_responder_sender_ip_be
+       so the post-cease re-pick guard has a stable reference;
+    3. emits the case-specific conflict ARP(s).
+
+  States:
+    listening_pre_claim (6 s deadline)
+      └ DUT Announce (is_arp_announce()) → listening_post_claim
+      └ deadline → fail_no_claim_observed
+
+    listening_post_claim (4 s deadline; observer fires conflicts on
+                          entry, including the synchronous LL query)
+      └ DUT Probe with target != snapshotted LL → pass
+      └ deadline → fail_no_reprobe
+
+  Wall budget for an always-cease DUT (fast envelope):
+    initial_wait 1.5 s + DHCP 200 ms + Phase 1 ~1.15 s = ~2.85 s →
+      Announce 1 (pre_claim → post_claim).
+    Observer: ~10 ms UT-query + emit. DUT cease tick: ~50 ms.
+    DUT Phase 1 (new LL): 200 ms probe_wait + Probe1 = ~250 ms.
+    Total to re-pick Probe1: ~3.15 s; SCXML budget pre+post = 10 s.
+
+  6 s pre_claim deadline tolerates DUT scheduling jitter (worker
+  thread wakeup + AF_PACKET RX delivery); 4 s post_claim deadline
+  tolerates a slow cease path (responder tick + worker wakeup +
+  Phase 1 entry on a busy parallel-worker host). is_arp_probe()
+  excludes Phase 2's straggling Announce-2 (still emits the OLD
+  LL) so the success transition only fires on the genuine new
+  Probe.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_linklocal_defender_cease">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening_pre_claim">
+    <onentry>
+      <send event="claim_deadline" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce()"
+                target="listening_post_claim"/>
+    <transition event="claim_deadline" target="fail_no_claim_observed"/>
+  </state>
+
+  <state id="listening_post_claim">
+    <onentry>
+      <send event="reprobe_deadline" delay="4s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe() and captured.expected_responder_sender_ip_be != 0 and captured.target_proto_ip != captured.expected_responder_sender_ip_be"
+                target="pass"/>
+    <transition event="reprobe_deadline" target="fail_no_reprobe"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_claim_observed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_announce_committed_link_local_address"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_reprobe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_reprobe_after_conflicting_arp"}</content>
+    </donedata>
+  </final>
+</sce:template>

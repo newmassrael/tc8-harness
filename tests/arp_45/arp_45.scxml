@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_45: ARP response (Target Hardware Address check).
+  Tester sends two ARP Requests to DUT with different sender_hw
+  (MAC-ADDR1, MAC-ADDR2) for the same sender_proto_ip. Linux DUT auto-
+  responds to each. Pass = first Reply's target_hw == MAC-ADDR1 AND
+  second Reply's target_hw == MAC-ADDR2, in that order.
+
+  Three states are intentional: folding both Reply checks into a single
+  state lets the second Reply race the first Reply's guard evaluation
+  (both arp_observed events can be in-queue simultaneously when pcap
+  drains after stimulus). Explicit sequencing ensures order-correctness.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_45"
+       datamodel="null"
+       initial="wait_resp_1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="wait_resp_1">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac"
+                target="wait_resp_2"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw != expected.tester_mac"
+                target="fail_wrong_target_hw_1"/>
+    <transition event="deadline_exceeded" target="fail_no_response_1"/>
+  </state>
+
+  <state id="wait_resp_2">
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac2"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw != expected.tester_mac2"
+                target="fail_wrong_target_hw_2"/>
+    <transition event="deadline_exceeded" target="fail_no_response_2"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_target_hw_1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"first_response_target_hw_not_mac1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_target_hw_2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"second_response_target_hw_not_mac2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_response_1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_first_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_response_2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_second_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

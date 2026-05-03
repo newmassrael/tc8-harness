@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.8 DHCPv4 REBINDING REQUEST shape invariant cluster — DUT-emitted
+  DHCPREQUEST in REBINDING state (T2 = lease * 7/8 per RFC 2131 §4.4.5)
+  carries a single per-case wire-shape invariant (Option 54 absent,
+  Option 50 absent, ciaddr filled, dst broadcast).
+
+  Lifecycle:
+    listening_for_discover (s1_deadline 6 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_first_request
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_renewing_request
+    listening_for_renewing_request (ACK injected on entry, s3_deadline 8 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_rebinding_request
+    listening_for_rebinding_request (no stimulus, s4_deadline 6 s)
+      on dhcp_observed: is_request + chaddr_match + pass_expr → pass
+      on dhcp_observed: is_request + chaddr_match + !pass_expr → {$fail_state}
+      on s4_deadline → fail_no_rebinding_request
+
+  Tester emul behaviour (registered by the trait):
+    state 2 entry → OFFER (lease_time_seconds = 6 → Option 51)
+    state 3 entry → ACK   (same lease)
+    state 4 entry → no stimulus — DUT's RENEWING REQUEST gets no ACK,
+                    so T2 fires at bound_at + 5.25 s and DUT emits the
+                    REBINDING REQUEST naturally.
+
+  Per-state deadline event names (s1/s2/s3/s4) prevent leftover
+  deadline_exceeded leakage: a single shared `deadline_exceeded` name
+  would let state 2's 4 s leftover match state 4's transition and
+  short-circuit the REBINDING window (state 2 leftover fires roughly
+  1 s after state 4 entry, well before T2). Distinct names scope each
+  transition to its own state's deadline.
+
+  Timing budget under the harness fast envelope: BOUND ≈ 100 ms after
+  state 3 entry. RENEWING REQUEST ≈ 3 s after BOUND (state 3 → 4).
+  REBINDING REQUEST ≈ 2 s after RENEWING (state 4 → pass; T2 = lease *
+  7/8 = 5 s integer-floor, so state 4 entry to REBINDING ≈ 2 s).
+  s4_deadline 6 s leaves 4 s margin for stimulus latency and pcap
+  dispatch jitter.
+
+  Sibling of `dhcpv4_renewing_request_field` (3-state). Splitting the
+  lifecycle into two templates keeps each shape's transitions linear —
+  one consumer-side `<sce:use>` selects the right phase. Compounding
+  both into one template via a `phase` param would force conditional
+  state targets and obscure each path's reading order.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_rebinding_request_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="fail_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
+                target="listening_for_rebinding_request"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_rebinding_request">
+    <onentry>
+      <send event="s4_deadline" delay="6s"/>
+    </onentry>
+    <!-- The dst_ip_is_broadcast filter discriminates the REBINDING
+         REQUEST (dst = 0xffffffff per RFC 2131 §4.4.5) from any
+         RENEWING-state retransmission (dst = server_id, IP-unicast)
+         that lands in this state under the runBoundPhaseMachine's
+         half-remaining retx schedule. Without the filter, a unicast
+         RENEWING retx fires either pass or fail on `pass_expr` —
+         semantically wrong because the spec's pass criterion is
+         the REBINDING REQUEST, not the RENEWING retransmission. -->
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast() and ({$pass_expr})"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast() and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="s4_deadline" target="fail_no_rebinding_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_after_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_rebinding_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rebinding_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

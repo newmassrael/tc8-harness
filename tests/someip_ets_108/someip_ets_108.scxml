@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_108: SD_Deregister_from_Eventgroup.
+
+  Tester subscribes to eg 0x05, observes Ack, sleeps 2.5 s (stimulus side),
+  then sends StopSubscribe. Per PRS_SOMEIPSD_00386 / 00388 / 00389 the DUT
+  must NOT route any further TestEventUINT8 Notification to the tester
+  after the Stop is processed (subscription removed).
+
+  4-state SCXML accounts for vsomeip's cyclic-broadcast lag: phase 3
+  silently consumes the in-flight initial-events while the stimulus wall-
+  time advances toward Stop emit; phase 4 is the strict absence window
+  that starts only after the Stop has propagated through vsomeip's
+  subscriber list.
+
+    Phase 1 (listening_phase1, 6 s): OfferService observation.
+    Phase 2 (listening_phase2, 5 s): Type 0x07 ttl > 0 Subscribe Ack.
+    Phase 3 (listening_phase3_grace, 3 s): grace window — Notifications
+            allowed (consumed silently); deadline transitions to phase 4.
+    Phase 4 (listening_phase4_absence, 5 s): strict absence — any
+            TestEventUINT8 Notification on SERVICE-ID-1 → fail; deadline →
+            pass.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_108"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id"
+                target="listening_phase3_grace"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe_ack"/>
+  </state>
+
+  <state id="listening_phase3_grace">
+    <onentry>
+      <send event="phase3_grace_done" delay="3s"/>
+    </onentry>
+    <transition event="phase3_grace_done" target="listening_phase4_absence"/>
+  </state>
+
+  <state id="listening_phase4_absence">
+    <onentry>
+      <send event="phase4_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x8001 and captured.message_type == 0x02"
+                target="fail_phase4_event_after_stop"/>
+    <transition event="phase4_deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_subscribe_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_subscribe_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_event_after_stop">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_broadcast_event_after_stop_subscribe"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.7.17 SOMEIPSRV_RPC_17: When a service is configured with
+  more than one instance, each instance has its own TCP connection
+  (TR_SOMEIP_00150 — TCP Binding). Three-phase observation:
+
+    Phase 1: OfferService SD message advertising 2 entries with distinct
+             instance_ids and 2 distinct TCP ports across IPv4 Endpoint
+             Options.
+    Phase 2: DUT's Method Response to instance 1 (sourced from TCP port
+             30501, the first instance's reliable endpoint).
+    Phase 3: DUT's Method Response to instance 2 (sourced from TCP port
+             30503, the second instance's reliable endpoint).
+
+  Stimulus chain: emitFindServiceBoot → emitMethodRequestTcpAfter (port
+  30501, methodID echoUINT8RELIABLE = 0x0A) → emitMethodRequestTcpAfter
+  (port 30503). Each TCP emit opens a fresh SOCK_STREAM, connects,
+  sends one SOME/IP message, dwells 300 ms for the Response, closes.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_rpc_17"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 2 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[1].type == 0x01 and captured.sd_entries[0].instance_id != captured.sd_entries[1].instance_id and captured.sd_distinct_endpoint_ports_for_l4(::tc8::sd_l4_proto::kTcp) &gt;= 2"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="8s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.method_id == 0x000A and captured.src_port == 30501"
+                target="listening_phase3"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response_from_instance_1"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="8s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.method_id == 0x000A and captured.src_port == 30503"
+                target="pass"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_response_from_instance_2"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_two_entry_offer_with_distinct_tcp_ports_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_response_from_instance_1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_response_from_instance_1_tcp_port_30501"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_response_from_instance_2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_response_from_instance_2_tcp_port_30503"}</content>
+    </donedata>
+  </final>
+</scxml>

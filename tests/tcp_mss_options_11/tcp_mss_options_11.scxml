@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_11: TCP MUST implement sending the MSS
+  option. Derived from RFC 1122 §4.2.2.6 p85 Maximum Segment Size
+  Option "RFC-793 Section 3.1" (MUST).
+
+  v3.0 Test Procedure (p362):
+    1. TESTER: Cause an application on the DUT-side to issue an OPEN
+               call.
+    2. DUT:    Send a SYN.
+    3. TESTER: Verify that received SYN contains MSS option.
+
+  Mechanism: same active-OPEN scaffold as TCP_BASICS_06 — UT
+  OpOpenTcpSocket(Active) drives tc8-dut connect() so DUT emits a
+  pure SYN on the wire. Pass guard adds `captured.mss > 0` to assert
+  the kind=2 MSS option was parsed from the segment's TCP options.
+  Linux always advertises the receive MSS in the initial SYN
+  (`tcp_v4_init_sock` → TCPOPT_MSS unconditional) so the assertion is
+  deterministic on a conformant DUT.
+
+  Port quad uses kBasicsActiveLocalPort + 40 / kBasicsActiveRemotePort
+  + 40 — first slot in the §4.8.6.9 MSS_OPTIONS reservation block
+  (+40..+48), one offset clear of the §4.8.6.X TCP_HEADER block
+  (+30..+38).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_11"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + 40U) and captured.dst_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + 40U) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) == 0 and captured.mss &gt; 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_with_mss_option"}</content>
+    </donedata>
+  </final>
+</scxml>

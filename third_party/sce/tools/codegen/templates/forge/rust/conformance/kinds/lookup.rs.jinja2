@@ -1,0 +1,45 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{% if f.output.type != "string" %}
+{# Lookup kind — finite key→value mapping. on_miss=error generates Option<V>
+   (unwrapped here since happy-path fixtures hit every key); on_miss=default
+   generates raw V via fallback (used as-is). #}
+{% if f.output.compare == "tolerance" %}
+    let tol = tolerance(&reference);
+{% endif %}
+    let spec = &reference["{{ f.ref_section }}"]["{{ f.name }}"];
+    for case in spec["cases"].as_array().expect("cases must be array") {
+{% for arg_ty in f.args %}
+        let arg{{ loop.index0 }} = {{ ("case[\"args\"][" ~ loop.index0 ~ "]") | rust_unmarshal(arg_ty) }};
+{% endfor %}
+        let expected = {{ "case[\"expected\"]" | rust_unmarshal(f.output.type) }};
+        let actual = fixtures::{{ f.name }}::{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %}){% if f.on_miss == "error" %}
+            .expect("happy-path lookup miss"){% endif %};
+{% if f.output.compare == "tolerance" %}
+        assert_close(actual, expected, tol, "{{ f.name }}");
+{% else %}
+        assert_eq!(actual, expected, "{{ f.name }}");
+{% endif %}
+    }
+{% else %}
+{# String-output lookup — enum→raw-value match. `#[derive(Debug)]` would
+   print the Rust variant ("Stop"), but the oracle stores the verbatim
+   SCXML mapping value ("STOP"). Per-variant match against
+   `f.enum_values` (raw SCXML values) routes back to the wire form so
+   the assertion compares apples-to-apples. #}
+    let spec = &reference["{{ f.ref_section }}"]["{{ f.name }}"];
+    for case in spec["cases"].as_array().expect("cases must be array") {
+{% for arg_ty in f.args %}
+        let arg{{ loop.index0 }} = {{ ("case[\"args\"][" ~ loop.index0 ~ "]") | rust_unmarshal(arg_ty) }};
+{% endfor %}
+        let expected = case["expected"].as_str().expect("expected string");
+        let actual = fixtures::{{ f.name }}::{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %});
+        let actual_str = match actual {
+{% for value in f.enum_values %}
+            fixtures::{{ f.name }}::{{ f.output_id | to_pascal_case }}::{{ value | to_rust_variant }} => "{{ value }}",
+{% endfor %}
+        };
+        assert_eq!(actual_str, expected, "{{ f.name }}");
+    }
+{% endif %}

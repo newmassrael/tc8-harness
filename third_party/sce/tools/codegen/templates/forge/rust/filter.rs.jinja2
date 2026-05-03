@@ -1,0 +1,52 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="filter")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+{% if filter_type == "moving_average" %}
+use sce_forge_runtime::filter::MovingAverage;
+{% elif filter_type == "low_pass" %}
+use sce_forge_runtime::filter::LowPass;
+{% elif filter_type == "debounce" %}
+use sce_forge_runtime::filter::Debounce;
+{% endif %}
+
+pub struct {{ struct_name }} {
+{% if filter_type == "moving_average" %}
+    impl_: MovingAverage<{{ output_type }}, {{ window }}>,
+{% elif filter_type == "low_pass" %}
+    impl_: LowPass<{{ output_type }}>,
+{% elif filter_type == "debounce" %}
+    impl_: Debounce<{{ output_type }}, {{ window }}>,
+{% endif %}
+}
+
+impl {{ struct_name }} {
+    pub fn new() -> Self {
+        Self {
+{% if filter_type == "low_pass" %}
+            impl_: LowPass::new({{ alpha }}_{{ output_type }}),
+{% elif filter_type == "moving_average" %}
+            impl_: MovingAverage::new(),
+{% elif filter_type == "debounce" %}
+            impl_: Debounce::new(),
+{% endif %}
+        }
+    }
+
+    pub fn update(&mut self, {{ input_id }}: {{ input_type }}) -> {{ output_type }} {
+        self.impl_.update({{ input_id }} as {{ output_type }})
+    }
+
+    pub fn reset(&mut self) {
+        self.impl_.reset();
+    }
+}
+
+impl Default for {{ struct_name }} {
+    fn default() -> Self {
+        Self::new()
+    }
+}

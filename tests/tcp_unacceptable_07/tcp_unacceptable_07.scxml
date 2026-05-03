@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_07: TCP in LISTEN state MUST send a
+  RST after receiving a spurious SYN,ACK. Derived from RFC 793 §3.4
+  p35 Establishing a Connection (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:473):
+    1. TESTER: Cause DUT LISTEN via UT OpOpenTcpSocket(Passive).
+    2. TESTER: Send a SYN,ACK.
+    3. DUT:    Send a RST.
+
+  Mechanism: a passive-listener DUT receives a SYN,ACK that
+  potentially corresponds to an old SYN it never sent. RFC 793 §3.4
+  p35 specifies that LISTEN-state TCP responds with RST. Linux's
+  `tcp_v4_do_rcv` reaches the LISTEN-arrival path
+  (`tcp_v4_send_reset`) for any segment carrying ACK without prior
+  SYN-RCVD context, emitting RST with SEQ derived from the incoming
+  ACK number (RFC 793 §3.4 p35).
+
+  Pass guard: single-state listen window observing a DUT-origin RST
+  on the (12345, 49152) port quad. The mismatched-tester-port
+  exclusion is implicit — only frames from the DUT to the tester's
+  injected source port match.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_07"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_synack"}</content>
+    </donedata>
+  </final>
+</scxml>

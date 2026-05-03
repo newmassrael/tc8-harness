@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_10: TCP in FIN-WAIT-2 state MUST
+  return an empty acknowledgment with proper SEQ and ACK numbers
+  after receiving a segment with out-of-window SEQ or unacceptable
+  ACK, and remain in FIN-WAIT-2. Derived from RFC 793 §3.4 p37
+  Establishing a Connection (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:609), two iterations:
+    * CASE 1: data segment with out-of-window SEQ.
+    * CASE 2: data segment with an unacceptable ACK number.
+
+  Linux DUT deviation — only CASE 1 is exercised here:
+    * CASE 1 OTW SEQ → Linux's `tcp_validate_incoming` reaches
+      the `out_of_window` path BEFORE entering state-specific
+      processing and schedules an empty ACK; observable on pcap.
+    * CASE 2 bad ACK in FIN-WAIT-2 emits an RST per Linux 6.5
+      `net/ipv4/tcp_minisocks.c::tcp_timewait_state_process` FW2
+      substate (line 130-135) — RFC 793 §3.4 spec violation, NOT
+      silent-drop. After UT close on a FW1 socket whose application
+      has close()d (no reader), Linux substitutes the full socket
+      with an inet_timewait mini-socket in FW2 substate; subsequent
+      payload-bearing non-FIN segments with in-window SEQ trip the
+      "new data after half-duplex close" branch:
+        if (!th->fin || end_seq != rcv_nxt + 1)
+            return TCP_TW_RST;
+      The caller (`tcp_v4_rcv` → `tcp_v4_send_reset`) then emits a
+      RST on the segment's 4-tuple. This is a third dispatch
+      behaviour distinct from EST (silent-drop via
+      `tcp_rcv_established` → `tcp_ack` short-circuit) and FW1 / CW
+      / CLOSING / LA (challenge-ACK via `tcp_rcv_state_process`
+      line 6562-6568); see reference_unacc_ack_dispatch memory.
+      UNACCEPTABLE_10 here covers only CASE 1; CASE 2 RST cannot
+      be tested as an "empty ACK" assertion against this kernel.
+      An earlier preamble revision claimed silent-drop here; the
+      pcap kernel ring upgrade (commit c8caa79) exposed the actual
+      RST emission and the source trace confirms.
+
+  Mechanism: active-OPEN handshake → ESTABLISHED → UT
+  OpCloseTcpSocket drives DUT into FIN-WAIT-1 → tester kernel
+  auto-ACKs DUT FIN (NOT suppressed — _10 deliberately allows the
+  collapse) → DUT advances to FIN-WAIT-2 → query tester SEQ/ACK →
+  raw-inject corrupt OTW-SEQ segment → DUT empty ACK on data path.
+
+  Three DUT-origin observations on tcp_observed:
+    1. handshake third-leg ACK (pure ACK, ack = ISN_t + 1)
+    2. close-elicited DUT FIN+ACK (UT close → FIN-WAIT-1; tester
+       ACK transitions DUT to FIN-WAIT-2)
+    3. data-elicited empty ACK to corrupt segment
+
+  Negative smoke flips ipv4.dut_iface_ip → first state's
+  src_ip-conjunct unreachable → fail_no_handshake_ack.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_10"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_dut_fin"/>
+    <transition event="deadline_handshake" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_fin">
+    <onentry>
+      <send event="deadline_dut_fin" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_data_ack"/>
+    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
+  </state>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="pass"/>
+    <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_fin_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_data_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_finwait2"}</content>
+    </donedata>
+  </final>
+</scxml>

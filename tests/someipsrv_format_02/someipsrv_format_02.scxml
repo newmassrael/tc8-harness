@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.1.2 SOMEIPSRV_FORMAT_02: After SD init, the Session ID for
+  messages sent by the local ECU shall be 0x0001.
+
+  Same shape as FORMAT_01 — the harness fills `captured` with the parsed
+  SOME/IP header and raises `someip_notification`; guards compare
+  session_id against the expected constant.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_format_02"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.session_id == 0x0001"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.session_id != 0x0001"
+                target="fail_session_id"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_session_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"session_id_not_0x0001"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

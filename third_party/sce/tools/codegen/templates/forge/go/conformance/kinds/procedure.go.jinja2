@@ -1,0 +1,53 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{# Procedure kind — Execute(handler, args) with payload capture + bytewise oracle. #}
+	cases := ref.procedureCases(t, "{{ f.ref_section }}", "{{ f.name }}")
+	for _, c := range cases {
+{% for arg_ty in f.args %}
+		var arg{{ loop.index0 }} {{ arg_ty | go_type }}
+		unmarshalOrFatal(t, c.Args[{{ loop.index0 }}], &arg{{ loop.index0 }}, "{{ f.name }} arg{{ loop.index0 }}")
+{% endfor %}
+		var expected struct {
+			Completed              bool    `json:"completed"`
+			FinalState             string  `json:"final_state"`
+			DispatchedPayloadBytes [][]int `json:"dispatched_payload_bytes"`
+		}
+		unmarshalOrFatal(t, c.Expected, &expected, "{{ f.name }} expected")
+		handlerResponseData := ""
+		if c.HandlerResponseData != nil {
+			handlerResponseData = *c.HandlerResponseData
+		}
+		var captured [][]int
+		handler := func(req forge.ProcedureServiceRequest) forge.ProcedureServiceResponse {
+			if req.Payload != nil {
+				asInts := make([]int, len(req.Payload))
+				for i, b := range req.Payload {
+					asInts[i] = int(b)
+				}
+				captured = append(captured, asInts)
+			}
+			return forge.ProcedureServiceResponse{Success: true, Data: handlerResponseData}
+		}
+{% for h in f.helpers_ordered %}
+{% if h.stub.kind == "xor_bytes" %}
+		// <sce:helper name="{{ h.name }}"> stub — XOR every byte with {{ h.stub.mask }}.
+		stub{{ h.name | to_pascal_case }} := func(input []byte) []byte {
+			output := make([]byte, len(input))
+			for i, b := range input {
+				output[i] = b ^ {{ h.stub.mask }}
+			}
+			return output
+		}
+{% endif %}
+{% endfor %}
+		result := {{ f.name }}.Execute(handler{% for h in f.helpers_ordered %}, stub{{ h.name | to_pascal_case }}{% endfor %}{% for arg_ty in f.args %}, arg{{ loop.index0 }}{% endfor %})
+		if result.Completed != expected.Completed || result.FinalState != expected.FinalState {
+			t.Errorf("{{ f.name }}: actual=(%v,%q) expected=(%v,%q)",
+				result.Completed, result.FinalState, expected.Completed, expected.FinalState)
+		}
+		if !reflect.DeepEqual(captured, expected.DispatchedPayloadBytes) {
+			t.Errorf("{{ f.name }}.dispatched_payload_bytes: actual=%v expected=%v",
+				captured, expected.DispatchedPayloadBytes)
+		}
+	}

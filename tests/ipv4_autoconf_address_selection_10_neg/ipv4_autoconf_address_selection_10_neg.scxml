@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_10 negative — closes
+  the self-reference trap on the positive _10 case. tc8-dut emits
+  Probes via OpStartLLAutoconf(probe_min=probe_max=100 ms): inter-
+  frame interval of 100 ms is well below the [PROBE_MIN-50 ms,
+  PROBE_MAX+50 ms] = [950 ms, 2050 ms] tolerance window the
+  positive _10 asserts.
+
+  Cadence violation does NOT need an OpStartLLAutoconfBuggy flavor:
+  the existing 0x0C opcode already parameterises probe_min /
+  probe_max, so a 100 ms / 100 ms call drives the violation through
+  data, not code path.
+
+  Pass = SCXML lands on fail_compliant_cadence (interval falls
+  inside the tolerance window) — wait, INVERTED for negative:
+  Pass = interval IS out of range (< 950 ms or > 2050 ms);
+  fail_compliant_cadence = interval was within RFC range, meaning
+  the timing knobs from OpStartLLAutoconf didn't take effect. The
+  envelope is shorter than positive _10 (Probe2 ~ 1.4 s + 100 ms,
+  not Probe2 ~ 1.4 s + 1-2 s) so a 6 s deadline is plenty.
+
+  Standalone SCXML — does NOT reuse the cluster A field-shape
+  template because cadence assertion uses frame_delta_us, not a
+  field invariant.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_address_selection_10_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="seen_1"/>
+    <transition event="deadline_exceeded" target="fail_no_probes"/>
+  </state>
+
+  <state id="seen_1">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe() and captured.frame_delta_us() &gt; 0 and (captured.frame_delta_us() &lt; 950000 or captured.frame_delta_us() &gt; 2050000)"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="fail_compliant_cadence"/>
+    <transition event="deadline_exceeded" target="fail_too_few_probes"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_probes">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_too_few_probes">
+    <donedata>
+      <content>{"verdict":"fail","reason":"fewer_than_2_arp_probes_within_deadline"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_cadence">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_compliant_cadence_despite_100ms_probe_min_max"}</content>
+    </donedata>
+  </final>
+</scxml>

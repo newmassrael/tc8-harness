@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.2 Phase 3c Group D body: "stateful learning observation" —
+  two-stage SCXML that watches DUT emit its own ARP Request (cache
+  miss provocation), then watches the follow-up UDP egress go to the
+  tester-injected MAC (cache populated via RFC 826 §2.3 reception).
+
+  Parameterised over mac_idx (2 for ARP_39 Request-form inject,
+  3 for ARP_40 Response-form inject). The param expands into the
+  ArpExpected field name (tester_mac{N}) and the fail-reason suffix
+  (udp_eth_dst_not_injected_mac{N}) — both sites keep the numeric
+  suffix the ArpExpected struct and the smoke-test negative rows
+  expect (src/sce_integration/arp_expected.h:42,46 and
+  dut/env/smoke-test.sh:833-834).
+
+  Call sites:
+    tests/arp_39/arp_39.scxml  (mac_idx=2, Request-form inject)
+    tests/arp_40/arp_40.scxml  (mac_idx=3, Response-form inject)
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_group_d_stateful_learning_observation">
+
+  <sce:param name="mac_idx" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="wait_dut_request">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.sender_proto_ip == expected.dut_iface_ip and captured.target_proto_ip == expected.tester_ip"
+                target="wait_udp"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip"
+                target="fail_udp_before_dut_request"/>
+    <transition event="deadline_exceeded" target="fail_no_dut_request"/>
+  </state>
+
+  <state id="wait_udp">
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac{$mac_idx}"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac{$mac_idx}"
+                target="fail_wrong_eth_dst"/>
+    <transition event="deadline_exceeded" target="fail_no_udp"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_arp_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_udp_before_dut_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"udp_egress_before_dut_arp_request"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_eth_dst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"udp_eth_dst_not_injected_mac{$mac_idx}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_udp">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_udp_after_arp_learning"}</content>
+    </donedata>
+  </final>
+</sce:template>

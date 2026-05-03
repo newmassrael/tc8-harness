@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_01:
+    "The client SHOULD wait a random time between one and ten seconds
+     to desynchronize the use of DHCP at startup" (RFC 2131 §4.4.1).
+
+  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_01):
+    1-2. DUT bring-up + DHCP client configure.
+    3-4. TESTER: cause DUT to transit to DHCPCLIENT_STATE_RENEWING.
+    5.   TESTER: Listens.
+    6.   DUT: Sends DHCPREQUEST.
+    7.   TESTER: Sends DHCPNAK.
+    8.   TESTER: Listens (upto (10 + ParamToleranceTime) seconds).
+    9.   DUT: Sends DHCPDISCOVER.
+    10/11. TESTER: Verify NAK→DISCOVER interval ∈
+           [1 - ParamToleranceTime, 10 + ParamToleranceTime] s.
+
+  Spec authors interpret the RFC 2131 §4.4.1 SHOULD random wait as
+  applying to the client-restart pivot (NAK in RENEWING → fresh
+  DISCOVER) rather than first-boot startup. tc8-dut implements this
+  via Params::nak_to_discover_min_ms / _max_ms; the INIT_ALLOC_01
+  trait sets these to [1000, 10000] ms so the runLoop draws
+  uniform_int(1, 10) seconds between init_restart and the next
+  DHCPDISCOVER emit.
+
+  Same lifecycle envelope as ALLOCATING_09 (DISCOVER → OFFER → REQUEST
+  → ACK → BOUND → RENEWING REQUEST → NAK → restart DISCOVER); the
+  divergence is the s4 pass criterion adding `nak_to_discover_within_us`
+  for the [1, 11] s timing window.
+
+  Wall budget: 1.5 s pilot + ~150 ms DISCOVER/OFFER/REQUEST/ACK + 3 s
+  T1 wait + ~50 ms RENEWING REQUEST → NAK + [1, 10] s desync wait +
+  ~50 ms restart DISCOVER ≈ [6, 15] s. case_timeout = 18 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_01"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="fail_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_second_discover"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_second_discover">
+    <onentry>
+      <send event="s4_deadline" delay="13s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.nak_to_discover_within_us(1000000, 11000000)"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and !captured.nak_to_discover_within_us(1000000, 11000000)"
+                target="fail_desync_out_of_range"/>
+    <transition event="s4_deadline" target="fail_no_second_discover"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_desync_out_of_range">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_nak_to_discover_outside_1_to_11_seconds"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_second_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_second_discover_after_init_return"}</content>
+    </donedata>
+  </final>
+</scxml>

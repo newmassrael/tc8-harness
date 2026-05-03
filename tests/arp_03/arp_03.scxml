@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_03: ARP entry learned on ARP Request (no ARP Request).
+  TESTER injects an ARP Request carrying <HOST-1-IP, MAC-ADDR1> so the DUT
+  populates its cache via RFC 826 §2.3 learning. The subsequent
+  Subscribe-Nack stimulus provokes DUT unicast UDP egress, which should
+  reuse the learned entry — the DUT must NOT emit its own ARP Request.
+
+  Pass criterion is absence: the deadline expires without an ARP Request
+  from the DUT. Observing `opcode == 1 && sender_hw == dut_iface_mac` is
+  the positive failure signal. The tester's own injected Request has
+  `sender_hw != dut_iface_mac` (it carries MAC-ADDR1 from arp_builder.h's
+  kTesterInjectedMac), and the DUT's reactive ARP Reply to that Request
+  has `opcode == 2` — both guard-miss and ignored.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_03"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <!--
+        3 s listen window. Shorter than Phase 1 cases (5 s) because this
+        absence pattern consumes the full deadline on pass — stimulus
+        wall time (~2.7 s) + deadline needs to fit inside smoke-test.sh's
+        `-t 7` harness timeout. Phase 1 cases transition early on the
+        first `arp_observed`, so their deadline is never fully paid.
+      -->
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+                target="fail_unexpected_arp_request"/>
+    <transition event="deadline_exceeded" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_arp_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_arp_request_after_cache_populated"}</content>
+    </donedata>
+  </final>
+</scxml>

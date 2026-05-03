@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.7.18 SOMEIPSRV_RPC_18: For request/response methods
+  the Error message shall copy the SOME/IP Message ID (Service ID +
+  Method ID) from the request. Tester sends a Request to
+  UNKNOWN-METHOD-ID-SI-1 (sentinel kMethodId = 0xFFFE); DUT replies
+  with SOMEIP_MSG_TYPE_ERROR (0x81); pass requires the Error frame's
+  service_id == SERVICE-ID-1 AND method_id == kMethodId.
+
+    Phase 1: DUT emits OfferService for SERVICE-ID-1.
+    Phase 2: 5 s window. Pass requires the matched Error. Fail
+             (id_mismatch) catches Error frames that arrived but with
+             a wrong service/method ID — distinct from the no-Error
+             timeout.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_rpc_18"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.message_type == 0x81 and captured.service_id == expected.service_id and captured.method_id == ::tc8::sd_test_unknown::kMethodId"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.message_type == 0x81 and (captured.service_id != expected.service_id or captured.method_id != ::tc8::sd_test_unknown::kMethodId)"
+                target="fail_phase2_id_mismatch"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_error"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_id_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"error_message_did_not_echo_request_message_id"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_error">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_error_message_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

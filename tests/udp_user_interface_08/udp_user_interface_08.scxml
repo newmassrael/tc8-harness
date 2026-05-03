@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_08: DUT-emitted UDP datagram carries
+  the caller-specified Destination IP Address (RFC 768 'User
+  Interface' MUST). Mapping <AIface-0-IP>=expected.tester_ip —
+  TriggerSendUdp(target_ip=tester_ip, target_port=...).
+
+  SCXML asserts captured.dst_ip == expected.tester_ip on the DUT-
+  origin frame (template's standard `src_ip == dut_iface_ip` filter
+  ensures we observe the DUT side). Distinct src_port (20028) for
+  cross-case attribution.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_08"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="captured.src_port == 20028 and captured.dst_ip == expected.tester_ip"
+           fail_state="fail_wrong_dst_ip"
+           fail_reason="dut_emitted_udp_with_wrong_user_interface_dst_ip"/>
+</scxml>

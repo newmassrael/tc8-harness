@@ -1,0 +1,925 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+{# RFC §5.J.1 — C11 script-engine helpers (lua_State* direct, no abstraction).
+
+   The C++/Rust/Go/Kotlin backends route script execution through an
+   IScriptEngine interface (ScriptEngineProvider in C++/Rust/Go,
+   ScriptEngineHost in Kotlin) so that a fixture-level test harness can
+   swap a mock engine. The C11 backend is AOT-only and bare-metal-bound:
+   the embedded target runs Lua 5.4 directly with no allocator hook, no
+   futures, no virtual dispatch. So this template emits raw lua C API
+   calls inline, and the abstraction layer that the other backends carry
+   never appears in the generated `_sm.c`.
+
+   Macros exported:
+     - lua_init_engine()         → create lua_State, openlibs, init datamodel
+     - lua_destroy_engine()      → close lua_State (idempotent, NULL-safe)
+     - lua_assign(loc, expr)     → execute "loc = (transpiled_expr)" chunk
+     - lua_eval_guard(cond, var) → set `var` (bool) to truthiness of cond
+     - lua_foreach_no_body(...)  → W3C 4.6 foreach with empty body (var decl
+                                   + iteration item/index without C body)
+     - lua_foreach_body_prologue / _iter / _epilogue → W3C 4.6 foreach with
+                                   a C-side body. Prologue caches the array
+                                   on lua global `_sce_foreach_arr` and
+                                   exposes its length on C local `_sce_n`;
+                                   _iter sets item/index for one iteration;
+                                   _epilogue clears the cache. Nested foreach
+                                   is intentionally left unsupported — the
+                                   fixed lua global name would collide; the
+                                   first nested fixture forces unique-id work.
+
+   Every macro takes the Lua state pointer as `sm->L`; the calling
+   template owns the surrounding block scope and any per-block error
+   handling. T3 lock-in (jinja2 inline) per c11_design_decisions.md —
+   no helper class, no shared .c file. #}
+
+{% macro lua_init_engine() %}
+    /* W3C SCXML 5.10: Open Lua state and register standard libraries. */
+    sm->L = luaL_newstate();
+    if (sm->L != NULL) {
+        luaL_openlibs(sm->L);
+        {% if model.needs_dom_helper %}
+        /* W3C SCXML B.2: install metatables for the host-side XML DOM
+           helper so subsequent `<data>` / `<send><content>` XML payloads
+           can construct DOM userdata via `sce_lua_dom_push_object`.
+           Mirrors cpp `LuaEngine::initializeSession` registerMetatable
+           hook (sce/src/scripting/LuaEngine.cpp:385). The helper is
+           defined in sce-c-tests/support/lua_dom_binding.c and lives
+           outside the C11 runtime — only fixtures flagged NEEDS_DOM
+           link against it. */
+        sce_lua_dom_register_metatable(sm->L);
+        {% endif %}
+        /* W3C SCXML 5.9 / 4.6: ECMAScript truthiness for transition cond
+           and <if cond>. Lua's native truthiness only treats nil/false as
+           falsy, but ECMAScript additionally treats 0, NaN, empty string,
+           null, and undefined as falsy — `lua_transformer::wrap_truthiness`
+           wraps cond expressions in `_scxml_truthy(...)` whenever the
+           expression is not already a Lua-comparable boolean (no
+           ==/~=/</>/etc), and that helper must exist in the lua state
+           before any cond is evaluated. Mirrors the C++ `LuaEngine.cpp`
+           lua_pushcfunction registration; we use a Lua-script definition
+           via luaL_dostring instead so the C11 backend stays free of
+           lua_CFunction trampolines (T3 lock-in: jinja2-inline only). */
+        (void)luaL_dostring(sm->L,
+            "function _scxml_truthy(v)\n"
+            "  if v == nil or v == false then return false end\n"
+            "  if type(v) == 'number' then return v ~= 0 and v == v end\n"
+            "  if type(v) == 'string' then return #v > 0 end\n"
+            "  return true\n"
+            "end");
+        /* W3C SCXML 5.4 / 4.6 (test457): ECMAScript `instanceof Array`
+           predicate for `<foreach array=...>` validation. Mirrors cpp
+           `LuaEngine.cpp:463-483` lua_pushcfunction — strict array check
+           (table with `__is_array` metatable, OR table with rawlen > 0).
+           Empty tables return false here; the foreach prologue separately
+           treats any table as a (possibly empty) array per cpp
+           `ForeachHelper.h:173-191` empty-table fallback. C11 lowers the
+           cfunction to a Lua-script via dostring (T3 lock-in: no
+           lua_CFunction trampolines). */
+        (void)luaL_dostring(sm->L,
+            "function _isArray(v)\n"
+            "  if type(v) ~= 'table' then return false end\n"
+            "  local mt = getmetatable(v)\n"
+            "  if mt and mt.__is_array ~= nil then return true end\n"
+            "  return #v > 0\n"
+            "end");
+        /* W3C SCXML B.2 (test460): ECMAScript `Array.concat` — produces a
+           new table (no mutation of inputs), so a foreach body's
+           `Var1 = [].concat(Var1, [4])` rebinds Var1 while the foreach
+           prologue's `_sce_foreach_arr` keeps referencing the original
+           array (shallow-copy iteration semantic per W3C 4.6). Mirrors
+           cpp `LuaEngine.cpp:519-539` lua_pushcfunction; C11 lowers via
+           Lua-script per T3 lock-in. */
+        (void)luaL_dostring(sm->L,
+            "function _concat(...)\n"
+            "  local result = {}\n"
+            "  local n = 0\n"
+            "  for _, arg in ipairs({...}) do\n"
+            "    if type(arg) == 'table' then\n"
+            "      for _, v in ipairs(arg) do\n"
+            "        n = n + 1\n"
+            "        result[n] = v\n"
+            "      end\n"
+            "    else\n"
+            "      n = n + 1\n"
+            "      result[n] = arg\n"
+            "    end\n"
+            "  end\n"
+            "  return result\n"
+            "end");
+        /* W3C SCXML B.2 (test224): ECMAScript `String.prototype.indexOf` /
+           `Array.prototype.indexOf` — returns the 0-based position of the
+           needle or `-1` when absent. `lua_transformer::wrap_method_calls`
+           rewrites `<obj>.indexOf(<arg>)` into `_indexOf(<obj>, <arg>)`,
+           so the helper must exist before any cond reaches the Lua state.
+           Mirrors cpp `LuaEngine.cpp:485-517` lua_pushcfunction (string
+           branch via `strstr`, array branch via raw-iter equality);
+           C11 lowers to `string.find(.., plain=true)` for strings and a
+           1-based ipairs walk for arrays per T3 lock-in (no lua_CFunction
+           trampolines). */
+        (void)luaL_dostring(sm->L,
+            "function _indexOf(obj, value)\n"
+            "  if type(obj) == 'string' and type(value) == 'string' then\n"
+            "    local s = string.find(obj, value, 1, true)\n"
+            "    if s then return s - 1 else return -1 end\n"
+            "  end\n"
+            "  if type(obj) ~= 'table' then return -1 end\n"
+            "  for i, v in ipairs(obj) do\n"
+            "    if v == value then return i - 1 end\n"
+            "  end\n"
+            "  return -1\n"
+            "end");
+        /* W3C SCXML 5.10: `_sessionid` is a read-only system variable bound
+           on startup. The C++ runtime carries a per-instance UUID (set via
+           `LuaEngine::setupSystemVariables`); the C11 backend is AOT-only
+           so we bake a deterministic per-machine value derived from
+           `model.name`. The W3C requirement is that `_sessionid` is bound
+           (non-nil) and remains the same value through the session — both
+           hold for any non-empty deterministic string. Read-only behaviour
+           is enforced at codegen time in `state_machine.c.jinja2`'s
+           emit_action assign branch (any <assign location> targeting a
+           reserved system variable lowers to error.execution rather than
+           a luaL_dostring), so the Lua state itself never sees a
+           re-binding attempt. */
+        (void)luaL_dostring(sm->L,
+            "_sessionid = '{{ model.name | escape_c }}_session'");
+        /* W3C SCXML 5.10: `_name` is the SCXML element's `name` attribute
+           (cpp `LuaEngine.cpp` calls this `sessionName`). Empty string
+           when the SCXML omits the attribute — still a valid Lua string
+           and therefore "bound" per W3C 5.10's typeof check. Same
+           read-only enforcement as _sessionid: the codegen-time assign
+           guard rejects <assign location="_name"> before any luaL_dostring
+           is invoked. */
+        (void)luaL_dostring(sm->L,
+            "_name = '{{ model.scxml_name | default('') | escape_c }}'");
+        /* W3C SCXML 5.10 + C.1 (test500/501/569): `_ioprocessors` is a
+           table of supported I/O processor descriptors keyed by alias.
+           Mirrors cpp `LuaEngine::setupSystemVariables`
+           (`sce/src/scripting/LuaEngine.cpp:1041-1046`): for each entry
+           in `ioProcessors` (cpp's `StateMachine.cpp:3107` seeds it as
+           `{"scxml"}`), build `_ioprocessors[proc] = {location = proc}`.
+           The C11 AOT-only profile mirrors that exact emit shape — the
+           literal `"scxml"` is bound non-nil so test500's typeof check
+           passes, and indexed access (`_ioprocessors['scxml'].location`)
+           returns a truthy string so test569's cond evaluates true.
+           Per-processor entries beyond `scxml` land when the first
+           additional-IO-processor fixture forces them. */
+        (void)luaL_dostring(sm->L,
+            "_ioprocessors = {scxml = {location = 'scxml'}}");
+        /* W3C SCXML 5.5 + 3.7: donedata stash slot. The final-state entry
+           emit in `state_machine.c.jinja2::execute_entry_actions` populates
+           `_pending_donedata` (string / number / table) right before
+           raising `done.state.<parent>`; the next dequeue's
+           `set_current_event` promotes it onto `_event.data` and resets it
+           to nil. The slot is initialised here so the lua-side promotion
+           chunk can read `_pending_donedata` even when no `<donedata>` ever
+           fires (lua undefined globals already evaluate as nil, but an
+           explicit init keeps the contract grep-able). Mirrors the cpp
+           `EventWithMetadata::data`/`typedData` carry-on-event shape; C11
+           swaps the per-event payload for a lua-side stash to avoid widening
+           every event_with_meta_t entry with a typed-value union. */
+        (void)luaL_dostring(sm->L, "_pending_donedata = nil");
+        {% if model.needs_donedata_helper or model.needs_namelist_helper %}
+        /* W3C SCXML 5.7 + C.1 (test343, test553): donedata `<param>` and
+           `<send namelist>` evaluation both need to detect ECMAScript
+           ReferenceError semantics — referencing an undeclared identifier
+           must raise error.execution per W3C 5.7 / 6.2. Lua's native
+           semantics return `nil` for undeclared globals, so we register
+           a `_scxml_declared` table mirroring cpp `LuaSessionContext::declaredVars`
+           (see `LuaEngine.cpp:99-118`, `isUndeclaredIdentifier`). Both the
+           donedata param evaluator and the namelist evaluator inspect
+           this set together with `rawget(_G, base)` — same two-source check
+           as cpp. The set spans top-level <data> and every state-local
+           <datamodel> entry so binding mode (early / late) is irrelevant
+           to membership; the lua values are placeholder booleans because
+           only the keys are read. Emitted only for fixtures that actually
+           use donedata or namelist (analyzer-pinned helper flags), so
+           non-using fixtures keep their lua init footprint unchanged. */
+        (void)luaL_dostring(sm->L,
+            "_scxml_declared = {"
+            {%- set ns = namespace(first=true) -%}
+            {%- for var in model.variables -%}
+            {%- if not ns.first %}", "{% endif -%}
+            "{{ var.id }} = true"
+            {%- set ns.first = false -%}
+            {%- endfor -%}
+            {%- for state_id, state in model.states | dictsort -%}
+            {%- if state.datamodel -%}
+            {%- for var in state.datamodel -%}
+            {%- if not ns.first %}", "{% endif -%}
+            "{{ var.id }} = true"
+            {%- set ns.first = false -%}
+            {%- endfor -%}
+            {%- endif -%}
+            {%- endfor -%}
+            "}");
+        {% endif %}
+        {% for var in model.variables %}
+        {% if var.expr %}
+        /* W3C SCXML 5.3: <data id="{{ var.id }}" expr="{{ var.expr | escape_c }}">.
+           On expression failure the data element is left undefined (lua nil)
+           and error.execution is queued so the SM can react. memset on the
+           SM struct in `_init` zero-initialised both queues before this
+           loop runs, so direct enqueue is safe at this point. */
+        if (luaL_dostring(sm->L,
+            "{{ var.id }} = ({{ var.expr | to_lua_expr | escape_c }})") != 0) {
+            lua_pop(sm->L, 1);
+            {{ model.name }}_event_with_meta_t _err_evt;
+            memset(&_err_evt, 0, sizeof(_err_evt));
+            _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+            {{ model.name }}_raise(sm, &_err_evt);
+        }
+        {% elif var.content %}
+        {% if (var.content | trim) is startingwith('<') %}
+        /* W3C SCXML B.2: inline `<data>` content begins with `<` →
+           construct an XML DOM object via the host-side helper. cpp
+           `DataModelInitHelper::initializeVariable` isXML branch
+           (sce/src/common/DataModelInitHelper.cpp:103-118) 1:1 mirror —
+           cpp's `setVariableAsDOM` lowers to `LuaDOMBinding::pushDOMObject
+           + lua_setglobal`, which is what `sce_lua_dom_push_object`
+           emits below. */
+        sce_lua_dom_push_object(sm->L, "{{ var.content | escape_c }}");
+        lua_setglobal(sm->L, "{{ var.id }}");
+        {% else %}
+        /* W3C SCXML 5.3/B.2: <data id="{{ var.id }}"> inline non-XML
+           content. cpp `DataModelInitHelper::initializeVariable`
+           (sce/src/common/DataModelInitHelper.cpp:80-156) dispatch: try
+           eval as expression; on Lua syntax/runtime failure, fall back
+           to a whitespace-normalized string. */
+        if (luaL_dostring(sm->L,
+            "{{ var.id }} = ({{ var.content | to_lua_expr | escape_c }})") != 0) {
+            lua_pop(sm->L, 1);
+            /* W3C SCXML B.2: eval failure → whitespace-normalized literal.
+               cpp `DataModelInitHelper.cpp:142-155` (normalizeWhitespace +
+               setVariable). */
+            lua_pushliteral(sm->L, "{{ var.content | normalize_ws | escape_c }}");
+            lua_setglobal(sm->L, "{{ var.id }}");
+        }
+        {% endif %}
+        {% elif var.src %}
+        /* W3C SCXML 5.2.2: <data id="{{ var.id }}" src="{{ var.src }}">.
+           C11 codegen-time file read (RFC §5.J.1 R3 zero-deps: no runtime
+           fopen in sce-c-runtime). Mirrors cpp
+           `DataModelInitHelper::initializeVariableFromSrc` (sce/src/common/
+           DataModelInitHelper.cpp:159-181), which loads the file and
+           dispatches to `initializeVariable` — the C11 codegen reads the
+           file via the `read_data_src` filter and threads the content
+           through the same isXML / eval / whitespace-fallback dispatch as
+           inline content. cmake's c11 fixture path copies the `.txt`
+           sidecar alongside the SCXML so the codegen-time read resolves
+           under ${SCE_C_GENERATED_DIR}. */
+        {%- set _src_content = var.src | read_data_src(model.scxml_base_path) %}
+        {% if (_src_content | trim) is startingwith('<') %}
+        /* W3C SCXML B.2: src= file's first non-WS char is `<` → DOM. */
+        sce_lua_dom_push_object(sm->L, "{{ _src_content | escape_c }}");
+        lua_setglobal(sm->L, "{{ var.id }}");
+        {% else %}
+        if (luaL_dostring(sm->L,
+            "{{ var.id }} = ({{ _src_content | to_lua_expr | escape_c }})") != 0) {
+            lua_pop(sm->L, 1);
+            lua_pushliteral(sm->L, "{{ _src_content | normalize_ws | escape_c }}");
+            lua_setglobal(sm->L, "{{ var.id }}");
+        }
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+        {% if model.binding == 'early' %}
+        {# W3C SCXML 5.3 early binding (default per parser.rs:378 unwrap_or("early")):
+           state-local <datamodel> variables initialise at startup so that any
+           state can read them before its own onentry runs. Mirrors the cpp
+           scriptengine_helpers.jinja2 early-binding loop (model.states |
+           dictsort + state.datamodel guard). The corresponding late-binding
+           emit is in `state_machine.c.jinja2::execute_entry_actions` so that
+           the per-state init runs on entry before the onentry blocks
+           (cpp `entry_exit_actions.jinja2:79-90` mirror).
+           Init-failure error.execution raise mirrors cpp
+           `DataModelInitHelper::initializeVariableFromExpr` errorCallback
+           (datamodel_macros.jinja2:22-24 lambda → engine.raise). The
+           top-level loop above and this state-local loop both lift to the
+           rc-checked shape (spec-mirror parity carve-out per
+           feedback_built_but_unconsumed.md — reference backend's branch is
+           the contract). No current corpus fixture has a state-local <data>
+           with an illegal expr (test277 only forces top-level), but cpp
+           emits the same lambda raise for both top-level and state-local
+           loops, so silent-drop here would be coincidence-match drift. #}
+        {% for state_id, state in model.states | dictsort %}
+        {% if state.datamodel %}
+        {% for var in state.datamodel %}
+        {% if var.expr %}
+        /* W3C SCXML 5.3 (early): state '{{ state_id }}' <data id="{{ var.id }}" expr="{{ var.expr | escape_c }}"> */
+        if (luaL_dostring(sm->L,
+            "{{ var.id }} = ({{ var.expr | to_lua_expr | escape_c }})") != 0) {
+            lua_pop(sm->L, 1);
+            {{ model.name }}_event_with_meta_t _err_evt;
+            memset(&_err_evt, 0, sizeof(_err_evt));
+            _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+            {{ model.name }}_raise(sm, &_err_evt);
+        }
+        {% elif var.content %}
+        {% if (var.content | trim) is startingwith('<') %}
+        /* W3C SCXML B.2 (early): state '{{ state_id }}' <data id="{{ var.id }}"> inline XML content → DOM. */
+        sce_lua_dom_push_object(sm->L, "{{ var.content | escape_c }}");
+        lua_setglobal(sm->L, "{{ var.id }}");
+        {% else %}
+        /* W3C SCXML 5.3/B.2 (early): state '{{ state_id }}' <data id="{{ var.id }}"> inline non-XML content. eval+whitespace-fallback per top-level branch above. */
+        if (luaL_dostring(sm->L,
+            "{{ var.id }} = ({{ var.content | to_lua_expr | escape_c }})") != 0) {
+            lua_pop(sm->L, 1);
+            lua_pushliteral(sm->L, "{{ var.content | normalize_ws | escape_c }}");
+            lua_setglobal(sm->L, "{{ var.id }}");
+        }
+        {% endif %}
+        {% elif var.src %}
+        /* W3C SCXML 5.2.2 (early): state '{{ state_id }}' <data id="{{ var.id }}" src="{{ var.src }}"> codegen-time file read. */
+        {%- set _src_content = var.src | read_data_src(model.scxml_base_path) %}
+        {% if (_src_content | trim) is startingwith('<') %}
+        sce_lua_dom_push_object(sm->L, "{{ _src_content | escape_c }}");
+        lua_setglobal(sm->L, "{{ var.id }}");
+        {% else %}
+        if (luaL_dostring(sm->L,
+            "{{ var.id }} = ({{ _src_content | to_lua_expr | escape_c }})") != 0) {
+            lua_pop(sm->L, 1);
+            lua_pushliteral(sm->L, "{{ _src_content | normalize_ws | escape_c }}");
+            lua_setglobal(sm->L, "{{ var.id }}");
+        }
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% if model.global_scripts %}
+        /* W3C SCXML 5.8: top-level <script> bodies execute at document
+           load time, after datamodel <data> initialisation and before any
+           state machine entry. Mirrors cpp `scriptengine_helpers.jinja2`
+           lines 165-179 (model.global_scripts loop): each script's content
+           routes through `to_lua_script` (compound assignment / increment /
+           array-literal / function-syntax transforms — distinct from the
+           expression-only `to_lua_expr` used for <data expr> / <assign expr>
+           because a script body can be a multi-statement chunk) and lands
+           in a luaL_dostring chunk. Chunk failure (load-time syntax error
+           or runtime trap) raises error.execution per W3C 5.10, mirroring
+           the cpp `engine.raise(typename Engine::EventWithMetadata(
+           Event::Error_execution, errorMsg))` shape. The
+           document-rejection path (parse_global_scripts setting
+           `model.document_rejected = true` on bad src) short-circuits at
+           the codegen entry boundary in `sce_codegen.rs:690-706` so this
+           loop only runs for fixtures whose scripts parsed successfully —
+           src loading failure never reaches the template. */
+        {% for script in model.global_scripts %}
+        if (luaL_dostring(sm->L,
+            "{{ script.content | to_lua_script | escape_c }}") != 0) {
+            lua_pop(sm->L, 1);
+            {{ model.name }}_event_with_meta_t _err_evt;
+            memset(&_err_evt, 0, sizeof(_err_evt));
+            _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+            {{ model.name }}_raise(sm, &_err_evt);
+        }
+        {% endfor %}
+        {% endif %}
+    }
+{% endmacro %}
+
+{# W3C SCXML 5.3 late binding: state-local <data> variables initialise on
+   the *entry* of the owning state, before any onentry markup runs. Called
+   from `state_machine.c.jinja2::execute_entry_actions` for each state with
+   `state.datamodel and model.binding == 'late'`. Mirrors cpp
+   `datamodel_macros.jinja2::initialize_state_datamodel` invoked from
+   `entry_exit_actions.jinja2:79-90`.
+
+   First-entry-only vs idempotent re-init: cpp's helper (and the lua-direct
+   emit here) re-initialises on every entry. The cpp side has no
+   first-entry flag in `DataModelInitHelper.h`, and `executeEntryActions`
+   is called every time the state is entered. C11 mirrors that — re-entry
+   to a state with a `<datamodel>` re-evaluates the init expressions.
+
+   Init-failure semantics: rc-checked, mirrors cpp
+   `DataModelInitHelper::initializeVariableFromExpr` errorCallback
+   (datamodel_macros.jinja2:22-24 lambda → engine.raise(Error_execution)).
+   Spec-mirror parity carve-out per feedback_built_but_unconsumed.md — the
+   reference backend's branch IS the contract, missing it would be silent
+   semantic drift / coincidence-match. No current corpus fixture has a
+   state-local <data> with an illegal expr that drives binding="late" (only
+   test307 has the shape and is a manual test), but cpp emits the same
+   lambda raise from both early and late call sites, so the C11 macro
+   matches that 1:1 regardless of differential corpus coverage. #}
+{% macro lua_init_state_datamodel(state, state_id) %}
+    {% for var in state.datamodel %}
+    {% if var.expr %}
+    /* W3C SCXML 5.3 (late): state '{{ state_id }}' <data id="{{ var.id }}" expr="{{ var.expr | escape_c }}"> */
+    if (luaL_dostring(sm->L,
+        "{{ var.id }} = ({{ var.expr | to_lua_expr | escape_c }})") != 0) {
+        lua_pop(sm->L, 1);
+        {{ model.name }}_event_with_meta_t _err_evt;
+        memset(&_err_evt, 0, sizeof(_err_evt));
+        _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+        {{ model.name }}_raise(sm, &_err_evt);
+    }
+    {% elif var.content %}
+    {% if (var.content | trim) is startingwith('<') %}
+    /* W3C SCXML B.2 (late): state '{{ state_id }}' <data id="{{ var.id }}"> inline XML content → DOM. */
+    sce_lua_dom_push_object(sm->L, "{{ var.content | escape_c }}");
+    lua_setglobal(sm->L, "{{ var.id }}");
+    {% else %}
+    /* W3C SCXML 5.3/B.2 (late): state '{{ state_id }}' <data id="{{ var.id }}"> inline non-XML content. eval+whitespace-fallback per top-level branch in the early-binding macro above. */
+    if (luaL_dostring(sm->L,
+        "{{ var.id }} = ({{ var.content | to_lua_expr | escape_c }})") != 0) {
+        lua_pop(sm->L, 1);
+        lua_pushliteral(sm->L, "{{ var.content | normalize_ws | escape_c }}");
+        lua_setglobal(sm->L, "{{ var.id }}");
+    }
+    {% endif %}
+    {% elif var.src %}
+    /* W3C SCXML 5.2.2 (late): state '{{ state_id }}' <data id="{{ var.id }}" src="{{ var.src }}"> codegen-time file read. */
+    {%- set _src_content = var.src | read_data_src(model.scxml_base_path) %}
+    {% if (_src_content | trim) is startingwith('<') %}
+    sce_lua_dom_push_object(sm->L, "{{ _src_content | escape_c }}");
+    lua_setglobal(sm->L, "{{ var.id }}");
+    {% else %}
+    if (luaL_dostring(sm->L,
+        "{{ var.id }} = ({{ _src_content | to_lua_expr | escape_c }})") != 0) {
+        lua_pop(sm->L, 1);
+        lua_pushliteral(sm->L, "{{ _src_content | normalize_ws | escape_c }}");
+        lua_setglobal(sm->L, "{{ var.id }}");
+    }
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+{% endmacro %}
+
+{% macro lua_destroy_engine() %}
+    if (sm->L != NULL) {
+        lua_close(sm->L);
+        sm->L = NULL;
+    }
+{% endmacro %}
+
+{# Emit a bounded block that assigns `loc = (expr)` via luaL_dostring.
+   On chunk failure (illegal location, illegal expression, type error)
+   the macro pops the lua error message off the stack and enqueues an
+   `error.execution` event onto the SM's internal queue — W3C SCXML 5.4
+   mandates that an unsuccessful <assign> raise this event so the
+   surrounding state's `transition event="error.execution"` can fire.
+   The raise emit shape is identical to the <raise> action emit in
+   `state_machine.c.jinja2::emit_action`; `_err_evt` is declared inside
+   the inner if-block scope so concurrent <assign>s in the same onentry
+   block do not collide. The EVENT_ERROR_EXECUTION enum value is always
+   present whenever this path runs — `analyzer.rs::apply_script_engine_implications`
+   injects "error.execution" into model.events for every fixture that
+   sets needs_script_engine, and any fixture using <assign> does. The
+   guard/eval failure on cond expressions remains silent-drop until a
+   negative-cond fixture forces it. #}
+{% macro lua_assign(loc, expr) %}
+    if (luaL_dostring(sm->L,
+        "{{ loc }} = ({{ expr | to_lua_expr | escape_c }})") != 0) {
+        lua_pop(sm->L, 1);
+        {{ model.name }}_event_with_meta_t _err_evt;
+        memset(&_err_evt, 0, sizeof(_err_evt));
+        _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+        {{ model.name }}_raise(sm, &_err_evt);
+    }
+{% endmacro %}
+
+{# In-foreach-body assign variant: same chunk as lua_assign, but the
+   luaL_dostring return value is checked and the enclosing C `for` loop
+   is broken on failure (W3C SCXML 4.6 — first error inside <foreach>
+   body must cease execution of the loop). On error the lua stack carries
+   the chunk's error message; pop it so the next caller sees a clean
+   stack. The surrounding-block-abort half of the W3C sentence (cease
+   "the block that contains it") is deferred until a fixture forces the
+   stricter semantics — test156's pass guard only needs loop break.
+   This emit path is reachable only when emit_action is invoked with
+   `in_foreach=true`; the standalone `lua_assign` path stays silent-drop
+   so existing fixtures (test147 outside <foreach>) are unaffected. #}
+{% macro lua_assign_in_foreach_body(loc, expr) %}
+    if (luaL_dostring(sm->L,
+        "{{ loc }} = ({{ expr | to_lua_expr | escape_c }})") != 0) {
+        lua_pop(sm->L, 1);
+        break;
+    }
+{% endmacro %}
+
+{# Emit a bounded block that evaluates `cond` and stores its truthiness in
+   `result_var` (must be `bool` and already declared by the caller). The
+   chunk returns the value, lua_toboolean lifts it, lua_pop drops the
+   stack slot.
+
+   W3C SCXML 5.9 (test344): "If a conditional expression cannot be
+   evaluated as a boolean value or its evaluation causes an error, the
+   SCXML processor MUST place the error 'error.execution' in the
+   internal event queue." On luaL_dostring failure (syntax error, runtime
+   trap, etc.) we pop the error message, raise error.execution, and leave
+   `result_var` at its initial false — mirrors cpp `LuaEngine::evaluateBoolean`
+   chunk-failure path (LuaEngine.cpp:~880, returns false + sets error
+   so the surrounding `process_transition` can route the error to a
+   handler). The success path is unchanged from the prior silent-drop
+   shape so cond expressions that legitimately evaluate to false (e.g.
+   test309's `cond="return"` racing with an unconditional fall-through
+   transition) keep producing the same observable: result_var stays
+   false, the next transition fires eventlessly before error.execution
+   is dequeued, and pass is reached. #}
+{% macro lua_eval_guard(cond, result_var) %}
+    {{ result_var }} = false;
+    if (luaL_dostring(sm->L,
+        "return ({{ cond | to_lua_guard | escape_c }})") == 0) {
+        {{ result_var }} = (bool)lua_toboolean(sm->L, -1);
+        lua_pop(sm->L, 1);
+    } else {
+        lua_pop(sm->L, 1);
+        {{ model.name }}_event_with_meta_t _err_evt;
+        memset(&_err_evt, 0, sizeof(_err_evt));
+        _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+        {{ model.name }}_raise(sm, &_err_evt);
+    }
+{% endmacro %}
+
+{# Emit a body-empty <foreach>: declare item (and optional index) on the Lua
+   datamodel, then iterate through `array` setting item/index each step.
+   W3C SCXML 4.6 mandates that even an empty foreach declares its item /
+   index variables (so a later state can test them via `typeof`).
+   Index is 0-based to mirror cpp `ForeachHelper::setForeachIterationVariables`
+   (size_t i passed verbatim). Non-array `array` values: the empty-body
+   variant proceeds silently — the no-body case has no observable
+   side-effect to raise about (item/index already set to nil), and the
+   first force fixture for a body-less foreach over a non-array would
+   need a separate raise lift. body-bearing foreach routes to the
+   prologue/iter/epilogue trio above (state_machine.c.jinja2 lines
+   233-256), never to this macro — the call-site `{% if action.actions %}`
+   guard is the single seam. #}
+{% macro lua_foreach_no_body(array, item, index) %}
+    (void)luaL_dostring(sm->L,
+        "{{ item }} = nil; "
+        {% if index %}"{{ index }} = nil; "{% endif %}
+        "do local _a = ({{ array | to_lua_expr | escape_c }}); "
+        "if _isArray(_a) or type(_a) == 'table' then "
+        "for _i, _v in ipairs(_a) do "
+        "{{ item }} = _v"
+        {% if index %}"; {{ index }} = _i - 1"{% endif %}
+        " end end end");
+{% endmacro %}
+
+{# Body-bearing foreach prologue: stash the array on `_sce_foreach_arr` and
+   the length on local `_sce_n`. Returns -1 for non-table values; the
+   caller's `if (_sce_n < 0) raise + return;` arm raises error.execution
+   per W3C 4.6 + 5.4 (mirrors cpp `ForeachHelper::evaluateForeachArray`
+   nullopt → caller raise). For tables that pass `_isArray` returns
+   `#_sce_foreach_arr`; for empty / dictionary-shaped tables (no integer
+   keys, rawlen 0) falls back to length 0 per cpp's empty-table
+   fallback at `ForeachHelper.h:173-191`. Caller declares the C-local
+   `_sce_n`. #}
+{% macro lua_foreach_body_prologue(array, item, index) %}
+    int _sce_n = -1;
+    if (luaL_dostring(sm->L,
+        "_sce_foreach_arr = ({{ array | to_lua_expr | escape_c }}); "
+        "if _isArray(_sce_foreach_arr) then return #_sce_foreach_arr "
+        "elseif type(_sce_foreach_arr) == 'table' then return 0 "
+        "else return -1 end") == 0) {
+        _sce_n = (int)lua_tointeger(sm->L, -1);
+    }
+    lua_pop(sm->L, 1);
+    /* W3C 4.6: declare item / index on the datamodel even for empty arrays. */
+    (void)luaL_dostring(sm->L,
+        "{{ item }} = nil"
+        {% if index %}"; {{ index }} = nil"{% endif %});
+{% endmacro %}
+
+{# Per-iteration update: set item to `_sce_foreach_arr[_i+1]` (lua is
+   1-based, W3C index is 0-based; the C loop counter `_i` is the W3C
+   index). Variable names come from the fixture; the snprintf buffer is
+   sized for the W3C corpus (≤ 32-char identifiers). On chunk failure
+   (e.g. illegal item identifier like `'continue'` triggering a Lua
+   syntax error) raise EVENT_ERROR_EXECUTION and `break` the C loop —
+   W3C 4.6 mandates loop termination on iteration failure. The
+   surrounding entry-block continues per the bb1c4503 carve-out
+   (W3C 4.6 surrounding-block-abort lifts with its own force fixture). #}
+{% macro lua_foreach_body_iter(item, index) %}
+    {
+        char _sce_buf[96];
+        (void)snprintf(_sce_buf, sizeof(_sce_buf),
+            "{{ item }} = _sce_foreach_arr[%d]"
+            {% if index %}"; {{ index }} = %d"{% endif %},
+            _i + 1{% if index %}, _i{% endif %});
+        if (luaL_dostring(sm->L, _sce_buf) != 0) {
+            lua_pop(sm->L, 1);
+            {{ model.name }}_event_with_meta_t _err_evt;
+            memset(&_err_evt, 0, sizeof(_err_evt));
+            _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+            {{ model.name }}_raise(sm, &_err_evt);
+            break;
+        }
+    }
+{% endmacro %}
+
+{# Tear down the cached array global so a sibling foreach in the same
+   onentry block does not pick up a stale reference. #}
+{% macro lua_foreach_body_epilogue() %}
+    (void)luaL_dostring(sm->L, "_sce_foreach_arr = nil");
+{% endmacro %}
+
+{# W3C SCXML 5.5: evaluate `<donedata><content expr="X"/></donedata>` and
+   stash the value on `_pending_donedata` so the next dequeue's
+   `set_current_event` can promote it onto `_event.data`. On chunk failure
+   the lua error is popped, `_pending_donedata` is reset to nil (W3C 5.5:
+   "Return empty data when evaluation fails"), and an `error.execution`
+   event is queued (W3C 5.10). Mirrors cpp `DoneDataHelper::evaluateContent`
+   — the cpp path returns `outEventData = ""` on failure but still emits
+   the done.state event; the C11 emit follows that same flow because the
+   structural-error short-circuit only applies to params, not content. #}
+{% macro lua_eval_donedata_content_expr(expr) %}
+    if (luaL_dostring(sm->L,
+        "_pending_donedata = ({{ expr | to_lua_expr | escape_c }})") != 0) {
+        lua_pop(sm->L, 1);
+        (void)luaL_dostring(sm->L, "_pending_donedata = nil");
+        {{ model.name }}_event_with_meta_t _err_evt;
+        memset(&_err_evt, 0, sizeof(_err_evt));
+        _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+        {{ model.name }}_raise(sm, &_err_evt);
+    }
+{% endmacro %}
+
+{# W3C SCXML 5.10 + 6.2 (test179, test562, test578): best-effort literal
+   `<send><content>BODY</content></send>` evaluator. Mirrors cpp
+   `EventDataHelper::jsonStringToScriptValue` (`sce/src/common/EventDataHelper.cpp:122-139`)
+   — cpp tries JSON parse on bodies that begin with a JSON-eligible
+   character (`{ [ " t f n digit -`) and falls back to the raw string
+   otherwise. The C11 emit follows the same shape inline:
+     1. capture the body as a Lua [[long-string]] (preserves embedded
+        whitespace/newlines, no escape gymnastics)
+     2. apply a JSON→Lua key-syntax shim (`"key":` → `["key"]=`) so
+        a JSON object/array becomes a valid Lua table literal
+     3. attempt `load("return (" .. _try .. ")")` + `pcall` — succeeds
+        for numeric/boolean/JSON-shape bodies (test179 numeric, test578
+        JSON object); the table/value lands on `_pending_donedata`
+     4. on parse failure, W3C 5.10 ECMAScript datamodel space-normalize
+        the body (collapse `%s+` to single space, trim) and use it as
+        the string payload (test562 plain text, JSON-with-syntax-error
+        also routes here). No `error.execution` raise — W3C distinguishes
+        literal `<content>` (best-effort parse, never fails) from
+        `<content expr="...">` (expression eval, raises on failure).
+   The body is required not to contain `]]` (would close the long
+   string prematurely); the W3C corpus has no such fixture, and the
+   first force fixture lifts the level via `[==[...]==]`. #}
+{% macro lua_send_content_literal(content) %}
+    {% if (content | trim) is startingwith('<') %}
+    /* W3C SCXML B.2 (test561): the literal `<content>` body's first
+       non-whitespace character is `<` — deliver it as an XML DOM
+       object on `_pending_donedata`, which the next dequeue's
+       `set_current_event` call promotes onto `_event.data`. Mirrors
+       cpp `LuaEngine::setCurrentEvent` first-char check
+       (sce/src/scripting/LuaEngine.cpp:1145-1149) — cpp parses event
+       data the same way at delivery time; C11 parses at send time and
+       carries the userdata through the registry-anchored
+       `_pending_donedata` slot, which still produces the correct
+       `_event.data` shape because Lua's `_event = {... data=...}`
+       construction stores any value type, including DOM userdata. */
+    sce_lua_dom_push_object(sm->L, "{{ content | escape_c }}");
+    lua_setglobal(sm->L, "_pending_donedata");
+    {% else %}
+    (void)luaL_dostring(sm->L,
+        "do "
+          "local _c = [[{{ content | escape_c }}]]; "
+          "local _try = _c:gsub('\"([^\"]*)\"%s*:', '[\"%1\"]='); "
+          "local _fn = load('return (' .. _try .. ')'); "
+          "local _ok = false; local _val = nil; "
+          "if _fn then _ok, _val = pcall(_fn) end; "
+          "if _ok then _pending_donedata = _val "
+          "else _pending_donedata = _c:gsub('%s+', ' '):match('^%s*(.-)%s*$') end "
+        "end");
+    {% endif %}
+{% endmacro %}
+
+{# W3C SCXML 5.7: evaluate one `<param name=N expr=X/>` (or location=X) and
+   set `_pending_donedata.N = (X)`. The caller emits `_pending_donedata = {}`
+   once before iterating so the table exists. On chunk failure W3C 5.7
+   says "ignore the failed param, continue with others"; the macro pops
+   the lua error and queues `error.execution` without aborting the loop.
+   Structural-error (empty location AND empty expr) is decided at codegen
+   time by the caller and never reaches this macro. The chosen-expression
+   precedence (location > expr) mirrors cpp's
+   `param.location if param.location else param.expr`.
+
+   ECMAScript ReferenceError detection (W3C 5.7, test343): cpp
+   `LuaEngine::evaluateExpressionInternal` (`LuaEngine.cpp:795`) detects
+   undeclared simple variables via `isUndeclaredSimpleVariable` and
+   returns `ScriptResult::createError("ReferenceError: ...")`, which
+   triggers the param-error `error.execution` raise upstream. C11 mirrors
+   that check inside the lua chunk: extract the base identifier of the
+   chosen expression (everything up to the first `.` / `[` / operator),
+   look it up in `_scxml_declared` (set up in `lua_init_engine` to mirror
+   cpp's `declaredVars`) and `rawget(_G, base)` (covers Lua standard
+   globals like `math` / `string` and any system var written via
+   `_xxx = ...`). Missing on both paths is undeclared → error → upstream
+   pcall catches it and the macro raises error.execution. The base
+   extraction uses lua's pattern `^[%a_][%w_]*` so multi-segment
+   expressions like `Var1.foo` only check the first segment, exactly
+   like cpp's `expr.substr(0, baseEnd)`. #}
+{% macro lua_eval_donedata_param_expr(param_name, chosen_expr) %}
+    if (luaL_dostring(sm->L,
+        "do "
+          "local _expr = '{{ chosen_expr | escape_c }}'; "
+          "local _base = _expr:match('^[%a_][%w_]*'); "
+          "if _base and not _scxml_declared[_base] and rawget(_G, _base) == nil then "
+            "error('ReferenceError: ' .. _base .. ' is not defined') "
+          "end; "
+          "_pending_donedata.{{ param_name }} = ({{ chosen_expr | to_lua_expr | escape_c }}) "
+        "end") != 0) {
+        lua_pop(sm->L, 1);
+        {{ model.name }}_event_with_meta_t _err_evt;
+        memset(&_err_evt, 0, sizeof(_err_evt));
+        _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+        {{ model.name }}_raise(sm, &_err_evt);
+    }
+{% endmacro %}
+
+{# W3C SCXML 6.2 + C.1 (test553): evaluate one whitespace-tokenised
+   namelist variable name, store its value on `_pending_donedata.<name>`,
+   and raise `error.execution` if the name is not declared in the
+   datamodel. Mirrors cpp `NamelistHelper::evaluateNamelist`
+   (`sce/include/common/NamelistHelper.h:88-131`) — cpp gates evaluation
+   on `hasVariable` (= `LuaSessionContext::declaredVars.contains(name)`)
+   and stops dispatch on the first miss. Lua's silent-nil-for-undeclared
+   semantic is bridged by the same two-source check the donedata param
+   evaluator uses: `_scxml_declared` (set up in `lua_init_engine` for
+   donedata + namelist consumers) + `rawget(_G, name)`. The macro
+   raises error.execution and `return;` so the surrounding entry/exit/
+   transition function aborts subsequent content per W3C 5.10. The
+   caller emits `_pending_donedata = {}` once before iterating and
+   dispatches the event after the loop completes — falling through
+   means every name resolved cleanly. #}
+{% macro lua_eval_namelist_var(var_name) %}
+    if (luaL_dostring(sm->L,
+        "do "
+          "if not _scxml_declared['{{ var_name | escape_c }}'] and "
+            "rawget(_G, '{{ var_name | escape_c }}') == nil then "
+            "error('namelist variable not declared: {{ var_name | escape_c }}') "
+          "end; "
+          "_pending_donedata.{{ var_name }} = ({{ var_name }}) "
+        "end") != 0) {
+        lua_pop(sm->L, 1);
+        (void)luaL_dostring(sm->L, "_pending_donedata = nil");
+        {{ model.name }}_event_with_meta_t _err_evt;
+        memset(&_err_evt, 0, sizeof(_err_evt));
+        _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
+        {{ model.name }}_raise(sm, &_err_evt);
+        return;
+    }
+{% endmacro %}
+
+{# Consumer-agnostic to-string evaluator: evaluate an arbitrary lua-side
+   expression and copy the resulting `tostring(...)` value into a
+   caller-owned char buffer (`out_buf`, capacity `out_cap`). Active
+   consumers: `<send eventexpr>` (W3C 6.2), `<send targetexpr>`,
+   `<send typeexpr>`, `<log expr>` (W3C 4.4), `<cancel sendidexpr>`
+   (W3C 6.3). The chunk pushes `tostring((expr))` onto the lua stack so
+   any value type (string / number / bool) coerces to its conventional
+   textual form before C reads it — mirrors cpp `ScriptResultUtils::resultToString`
+   semantics. On chunk failure the buffer is left empty and `out_ok`
+   becomes false; the caller is responsible for raising error.execution
+   and stopping the rest of the action per W3C 5.10. lua_pop runs
+   unconditionally so the stack is clean for the next caller. Buffer
+   cap is per-call-site (64 for short event names / target tokens, 256
+   for log payloads / typeexpr URIs); fixtures that exceed a cap raise
+   it locally without affecting other consumers. #}
+{% macro lua_eval_to_string(expr, out_buf, out_cap, out_ok) %}
+    {{ out_ok }} = false;
+    {{ out_buf }}[0] = '\0';
+    if (luaL_dostring(sm->L,
+        "return tostring(({{ expr | to_lua_expr | escape_c }}))") == 0) {
+        size_t _evt_len = 0u;
+        const char *_evt_str = lua_tolstring(sm->L, -1, &_evt_len);
+        if (_evt_str != NULL) {
+            if (_evt_len >= (size_t)({{ out_cap }})) {
+                _evt_len = (size_t)({{ out_cap }}) - 1u;
+            }
+            memcpy({{ out_buf }}, _evt_str, _evt_len);
+            {{ out_buf }}[_evt_len] = '\0';
+            {{ out_ok }} = true;
+        }
+    }
+    lua_pop(sm->L, 1);
+{% endmacro %}
+
+{# W3C SCXML 6.2 (test175): evaluate `<send delayexpr="...">` and parse the
+   resulting string into milliseconds, mirroring cpp
+   `SendSchedulingHelper::parseDelayString`. Grammar (parser.rs:2799):
+     - "Nms"   → N
+     - "Ns"    → N * 1000
+     - bare N  → N * 1000   (W3C corpus default)
+   Negative results, malformed strings, or non-numeric values yield -1 and
+   set `out_ok = false`; the caller raises `error.execution` per W3C 5.10.
+   The lua side performs the entire parse so the C side stays free of
+   `strtod` / locale concerns and inherits the same number grammar that
+   `to_lua_expr`'s expression-eval path would see for the inner value.
+   The chunk runs at the chunk top level (not inside a `do`/`function`
+   block) so `return` exits the chunk's pcall directly, matching
+   `lua_eval_to_string`'s pattern. #}
+{% macro lua_eval_delayexpr(expr, out_ms, out_ok) %}
+    {{ out_ok }} = false;
+    {{ out_ms }} = 0;
+    if (luaL_dostring(sm->L,
+        "local _s = tostring(({{ expr | to_lua_expr | escape_c }})); "
+        "local _n, _u = _s:match('^%s*([%d.]+)%s*(%a*)%s*$'); "
+        "if not _n then return -1 end; "
+        "local _v = tonumber(_n); "
+        "if not _v or _v < 0 then return -1 end; "
+        "if _u == 'ms' then return math.floor(_v) "
+        "elseif _u == 's' or _u == '' then return math.floor(_v * 1000) "
+        "end; "
+        "return -1") == 0) {
+        lua_Integer _ms = lua_tointeger(sm->L, -1);
+        if (_ms >= 0) {
+            {{ out_ms }} = (uint64_t)_ms;
+            {{ out_ok }} = true;
+        }
+    }
+    lua_pop(sm->L, 1);
+{% endmacro %}
+
+{# W3C SCXML 6.4 (test226/240/241/243/244/245/276): cross-Lua-state value
+   transfer for `<invoke><param>` / `<invoke namelist>`. Parent's
+   `execute_pending_invokes` evaluates the expression (for params) or reads
+   the global (for namelist) on its own `lua_State` so the value lands on
+   `src_L`'s top of stack; this macro copies that top value to `dst_L`'s
+   global table under `dst_name` and pops the source slot.
+
+   cpp `invoke_methods.jinja2:118-128` passes the param's expr STRING to the
+   child's script engine (`child->setParamInScriptEngine(name, expr)`) so
+   the child re-evaluates in its own context. C11 cannot mirror that shape:
+   each generated SM owns a dedicated `lua_State` per `_init`, so a string
+   that names a parent-side variable would be undefined in the child's
+   state. Instead we evaluate parent-side and transfer the value — which is
+   also closer to W3C 6.4.1's intent ("evaluate the expr in the calling
+   context"). For literal-expression W3C tests (all of test226/240/241/243
+   /244/245/276 use `expr="1"` or namelist names that resolve to integers),
+   both shapes converge on the same observable child datamodel.
+
+   Type dispatch covers the W3C corpus param/namelist value types: integer
+   / float (Lua number, distinguished via lua_isinteger so 0 stays an int
+   in the child datamodel), string, boolean. Non-primitives (table /
+   function / userdata) collapse to nil — no fixture in the W3C corpus
+   passes those; the first one forces a typed-payload helper. nil and
+   none transfer as nil. The pop on `src_L` keeps the parent's stack
+   balanced for sibling-param iteration. #}
+{% macro lua_xfer_top_to_child(src_L, dst_L, dst_name) %}
+        {
+            int _xfer_t = lua_type({{ src_L }}, -1);
+            if (_xfer_t == LUA_TBOOLEAN) {
+                lua_pushboolean({{ dst_L }}, lua_toboolean({{ src_L }}, -1));
+            } else if (_xfer_t == LUA_TNUMBER) {
+                if (lua_isinteger({{ src_L }}, -1)) {
+                    lua_pushinteger({{ dst_L }}, lua_tointeger({{ src_L }}, -1));
+                } else {
+                    lua_pushnumber({{ dst_L }}, lua_tonumber({{ src_L }}, -1));
+                }
+            } else if (_xfer_t == LUA_TSTRING) {
+                size_t _xfer_len = 0;
+                const char *_xfer_s = lua_tolstring({{ src_L }}, -1, &_xfer_len);
+                if (_xfer_s != NULL) {
+                    lua_pushlstring({{ dst_L }}, _xfer_s, _xfer_len);
+                } else {
+                    lua_pushnil({{ dst_L }});
+                }
+            } else {
+                lua_pushnil({{ dst_L }});
+            }
+            lua_setglobal({{ dst_L }}, "{{ dst_name }}");
+            lua_pop({{ src_L }}, 1);
+        }
+{% endmacro %}
+
+{# W3C SCXML 5.10 + 6.2: evaluate one `<send><param name=N expr=X/></send>`
+   and store the value as `_pending_donedata.{name} = (X)`. The caller emits
+   `_pending_donedata = {}` once before iterating so the table exists, and
+   the next dequeue's `set_current_event` promotes the table onto
+   `_event.data`.
+
+   Error semantics (W3C 6.2 ≠ 5.7): cpp `actions/send.jinja2` (lines 220-228,
+   488-505) on param-expr eval failure logs and pushes empty string — it does
+   NOT raise `error.execution`. This is the opposite of donedata's W3C 5.7
+   path (`lua_eval_donedata_param_expr`) which raises on failure. The C11
+   macro mirrors cpp send: silent-drop on chunk failure, set the slot to
+   empty string so subsequent reader code sees a defined-but-empty value.
+
+   Slot reuse: `_pending_donedata` is shared with the donedata path. Within
+   the same microstep, a state's `<send>` with params and that state's
+   `<donedata>` would last-write-wins on this slot, but the W3C corpus has
+   no fixture forcing both in one onentry (`done.state.<parent>` is raised
+   from a final state, not from a state that also issues `<send>`). The
+   first such fixture lifts the slot to a per-event table keyed on
+   `evt.send_id` (cpp's `EventWithMetadata::eventData` per-event carry
+   equivalent). Documented at the call site as well so the seam is grep-able.
+
+   No `_scxml_declared` ReferenceError check: cpp send does not invoke
+   `LuaEngine::isUndeclaredSimpleVariable` (`LuaEngine.cpp:99`) on send
+   params (only donedata params per W3C 5.7's structural-error semantics);
+   the macro stays free of that lookup so fixtures without `<donedata>` do
+   not need to declare `_scxml_declared`. #}
+{% macro lua_eval_send_param_expr(param_name, expr) %}
+    if (luaL_dostring(sm->L,
+        "_pending_donedata.{{ param_name }} = ({{ expr | to_lua_expr | escape_c }})") != 0) {
+        lua_pop(sm->L, 1);
+        (void)luaL_dostring(sm->L,
+            "_pending_donedata.{{ param_name }} = ''");
+    }
+{% endmacro %}

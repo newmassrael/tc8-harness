@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_10: TCP, in ESTABLISHED state, SHOULD
+  piggyback acknowledgement with a segment being transmitted (whenever
+  possible) without incurring undue delay. Derived from RFC 793 §3.9 p74
+  Event Processing (SHOULD).
+
+  v3.0 Test Procedure (p347):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
+    2. TESTER: Cause the application on the DUT-side to issue a SEND
+               call for data of size equal to the receive window of
+               TESTER.
+    3. DUT:    Send the data segment.
+    4. TESTER: Cause the application to issue one more SEND call for
+               data.
+    5. DUT:    Do not send this data segment.
+    6. TESTER: Send a data segment with ACK for the previous received
+               segment.
+    7. DUT:    Send the pending data segment piggybacking the
+               acknowledgement within 0.5 sec.
+
+  Mechanism (Nagle hold + raw-inject piggyback ACK+payload):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+144,
+       kBasicsActiveRemotePort+144).
+    2. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt; rcv_nxt at this point equals DUT_ISN + 1
+       (= seq of the 1st DUT data segment).
+       captured.expected_ack_num is reused as the 1st-seg-seq marker
+       so retransmits of seg 1 (seq == expected_ack_num) are absorbed
+       by the absence guard while a fresh seg 2 (seq != ...) trips it.
+    3. TesterAutoAckDrop installs an OUTPUT iptables rule that drops
+       every tester-kernel pure ACK toward the DUT. The 1st DUT data
+       segment therefore stays "outstanding unacked" — Linux Nagle
+       holds the 2nd small SEND because (unacked < MSS) AND (new send
+       < MSS).
+    4. UT OpSendTcpData(4 B). DUT writes 4 bytes; seg1 leaves the
+       wire (matches state 1 transition).
+    5. UT OpSendTcpData(4 B) again. DUT MUST buffer (Nagle).
+    6. captured.expected_ack_num_phase2 = injected_seq + 4 — the
+       cumulative ack the DUT's piggyback MUST carry to acknowledge
+       the tester-injected payload.
+    7. scheduleAfterStateEntry(Listening_piggyback): tester raw-injects
+       a single PSH+ACK with seq=tester_snd_nxt, ack=first_seg_seq+4
+       (acks DUT's seg 1 — opens the window) AND payload=4 B (the
+       tester's data segment to be piggyback-acked). Inject defers
+       until SCXML enters phase 3 so the absence guard in phase 2
+       can drain DUT seg 1 retransmits without seeing a fresh seg 2.
+
+  Three-state SCXML chain:
+    * listening_first_data — observe the 1st DUT data segment on the
+      case 4-tuple. After match, captured.seq_num holds the 1st seg's
+      seq (== captured.expected_ack_num).
+    * absence_no_second_before_ack — 3 s window asserting Nagle holds.
+      A retransmit of seg 1 (seq == expected_ack_num) is absorbed.
+      A fresh seg 2 (seq != expected_ack_num) lands on
+      fail_dut_sent_second_segment_before_ack. Deadline advances to
+      state 3, where scheduleAfterStateEntry fires the inject.
+    * listening_piggyback — observe a DUT data segment with payload
+      AND seq != expected_ack_num (= the buffered seg 2, released
+      after our injected piggyback) AND ack_num ==
+      expected_ack_num_phase2 (acknowledges the tester payload).
+      0.5 sec deadline per spec step 7. fail_wrong_piggyback_ack
+      catches the same fresh segment with the wrong cumulative ack
+      (= acked seg 1 but not the tester payload).
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_first_data via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_10"
+       datamodel="null"
+       initial="listening_first_data">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_data">
+    <onentry>
+      <send event="deadline_first_data" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset)"
+                target="absence_no_second_before_ack"/>
+    <transition event="deadline_first_data" target="fail_no_first_data"/>
+  </state>
+
+  <state id="absence_no_second_before_ack">
+    <onentry>
+      <send event="absence_done" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset) and captured.seq_num != captured.expected_ack_num"
+                target="fail_dut_sent_second_segment_before_ack"/>
+    <transition event="absence_done" target="listening_piggyback"/>
+  </state>
+
+  <state id="listening_piggyback">
+    <onentry>
+      <send event="deadline_piggyback" delay="500ms"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset) and captured.seq_num != captured.expected_ack_num and captured.ack_num == captured.expected_ack_num_phase2"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing10LocalOffset) and captured.seq_num != captured.expected_ack_num and captured.ack_num != captured.expected_ack_num_phase2"
+                target="fail_wrong_piggyback_ack"/>
+    <transition event="deadline_piggyback" target="fail_no_piggyback"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_data">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_sent_second_segment_before_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_sent_second_segment_before_piggyback_inject"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_piggyback">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_piggyback_segment_within_500ms"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_piggyback_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_piggyback_ack_num_does_not_acknowledge_tester_payload"}</content>
+    </donedata>
+  </final>
+</scxml>

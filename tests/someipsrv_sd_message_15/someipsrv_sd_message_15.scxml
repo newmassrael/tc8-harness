@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.15 SOMEIPSRV_SD_MESSAGE_15: SubscribeEventgroupNack shall
+  echo the Instance ID, Eventgroup ID, Major Version and Reserved fields
+  from the Subscribe being answered, and shall set TTL=0 (TR_SOMEIP
+  §6.7.4.2.4). The harness emits a SubscribeEventgroup with an
+  UNKNOWN-SERVICE-ID (0xFFFE) and the configured instance / eventgroup /
+  major version; the DUT's Nack must carry the configured echo on those
+  three axes plus the all-zero reserved/counter byte pair.
+
+  Configured echo values come from the harness expect CLI keys
+  (instance_id=0x0001, eventgroup_id=0x0001, major_version=1).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_15"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x07"
+           pass_expr="captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].instance_id == expected.instance_id and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id and captured.sd_entries[0].major_version == expected.major_version and captured.sd_entries[0].reserved_counter == 0"
+           fail_state="fail_echo_fields"
+           fail_reason="nack_entry_echo_fields_mismatch"/>
+</scxml>

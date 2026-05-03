@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.2 TCP_CHECKSUM_04: TCP MUST use clock-driven selection of
+  initial sequence numbers — the ISN MUST change across consecutive
+  active OPENs. Derived from RFC 1122 §4.2.2.9 p87 ISN Selection
+  (MUST), RFC 793 §3.3 p27 Sequence Numbers.
+
+  Despite the §4.8.6.2 "Checksum" section heading, this case asserts
+  ISN distinctness, not checksum correctness. The placement is a TC8
+  v3.0 spec quirk; the substantive RFC mapping is RFC 1122 §4.2.2.9.
+
+  v3.0 Test Procedure (p301-p320.txt:216):
+    1. TESTER: Cause DUT-side application to issue CONNECT (cycle 1).
+    2. DUT:    Send SYN.
+    3. TESTER: Send RST,ACK to take DUT to CLOSED state.
+    4. TESTER: Cause DUT-side CONNECT again (cycle 2).
+    5. DUT:    Send SYN.
+    6. TESTER: Verify SYN2.seq != SYN1.seq.
+
+  Mechanism (stimulus-driven verdict via synchronous TcpFrameSnippet
+  captures, dispatch=no-op):
+    Stimulus drives two consecutive UT OpOpenTcpSocket(Active) cycles
+    on the SAME 4-tuple. Cycle 1's SYN is aborted by the tester-
+    kernel auto-RST against an unbound destination port (Linux
+    `tcp_v4_send_reset` emits RST+ACK ack=ISN_d+1, an acceptable RST
+    for a SYN-SENT socket per RFC 793 §3.9 — this IS spec step 3).
+    The DUT-side socket then closes, the local port is released
+    (SO_REUSEADDR on the `openTcpActive` path), and cycle 2 binds the
+    same local port for the second active-OPEN.
+
+    Two `TcpFrameSnippet::forDutSyn(local_port)` private libpcap
+    handles capture each cycle's SYN seq directly. Stimulus populates
+    `captured.cycle1_isn`, `captured.cycle2_isn`, and the matching
+    `*_captured` sentinel bools, then returns. Wire-driven dispatch is
+    a no-op (`Traits::dispatch` returns immediately) — the verdict
+    falls out of the captured fields alone, so pcap-buffered SYN
+    frames flushed through the runner's main pipeline after stimulus
+    completes never disturb the SCXML's evaluation.
+
+    The earlier wire-driven SCXML guard ("transition on tcp_observed
+    SYN with `prior_isn != 0 ∧ seq != prior_isn`") raced
+    deterministically against TestRunner's stimulus-first lifecycle:
+    `kickStimulus` blocks until stimulus completes, populating
+    `prior_isn = SYN1.seq` BEFORE `start()` arms SCXML deadlines. The
+    pcap source buffers SYN1 during stimulus; when SCXML begins
+    consuming events post-`start`, the buffered SYN1 dispatches with
+    `prior_isn` already populated — `seq == prior_isn` triggers
+    `fail_isn_unchanged` on the cycle-1 SYN itself. The
+    evaluate-pattern (this file) sidesteps that race entirely.
+
+  Verdict ladder (first-match wins per W3C SCXML §3.13, fail-first):
+    1. `cycle1_isn_captured == false` → `fail_no_cycle1_isn`
+       (snippet timed out before SYN1 hit the wire — likely UT RPC
+       failure or a negative-flip path where dut_iface_ip is
+       mis-pointed).
+    2. `cycle2_isn_captured == false` → `fail_no_cycle2_isn`
+       (cycle 2's snippet timed out — same diagnostic).
+    3. `cycle1_isn == cycle2_isn` → `fail_isn_unchanged`
+       (RFC 1122 §4.2.2.9 violation — DUT reused the prior ISN).
+    4. fall-through → `pass`.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the
+  `forDutSyn` BPF filter (`src host <dut_iface_ip>`) unreachable on
+  every observed SYN; both snippets time out and the verdict lands
+  on `fail_no_cycle1_isn`. (The earliest-fail-first ordering means
+  cycle 2's matching failure is masked by cycle 1's, which is fine
+  — the failure surface is uniformly "no DUT SYN observable from
+  this case's vantage".)
+
+  ## Port-quad selection — kBasicsActiveLocalPort + 180 / +180
+
+  +180 sits clear of the §4.8 active-OPEN cluster (FLAGS_INVALID_03..06
+  at +20..+25, BASICS_17 at +120, ACK_02/04 at +130/+131,
+  NAGLE_02/03 at +132/+133, OUT_OF_ORDER + PROBING_WINDOWS +
+  RETRANSMISSION_TO at +143..+156, CONNECTION_ESTAB_03 at +176..+178)
+  per the active-open port-quad collision rules
+  (reference_active_open_port_quad_collision.md).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_checksum_04"
+       datamodel="null"
+       initial="evaluate_isn_observations">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="evaluate_isn_observations">
+    <onentry>
+      <send event="evaluate" delay="0ms"/>
+    </onentry>
+    <transition event="evaluate"
+                cond="cpp:not captured.cycle1_isn_captured"
+                target="fail_no_cycle1_isn"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.cycle2_isn_captured"
+                target="fail_no_cycle2_isn"/>
+    <transition event="evaluate"
+                cond="cpp:captured.cycle1_isn == captured.cycle2_isn"
+                target="fail_isn_unchanged"/>
+    <transition event="evaluate" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_cycle1_isn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"cycle1_syn_capture_timeout"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_cycle2_isn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"cycle2_syn_capture_timeout"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_isn_unchanged">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_reused_prior_isn_across_active_opens"}</content>
+    </donedata>
+  </final>
+</scxml>

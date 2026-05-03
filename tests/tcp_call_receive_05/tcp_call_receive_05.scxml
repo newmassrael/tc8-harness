@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.4 TCP_CALL_RECEIVE_05: For RECEIVE call in CLOSE-WAIT
+  state with data awaiting delivery, TCP MUST return the data to the
+  application. Derived from RFC 793 §3.9 p59 Event Processing (MUST).
+
+  v3.0 Test Procedure (p323):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state
+    2. TESTER: Send a data segment with FIN flag set
+    3. TESTER: Cause the application on the DUT-side to issue a
+               RECEIVE call
+    4. DUT:    Issues a RECEIVE call
+    5. TESTER: Verify that the DUT returns the data to the receiving
+               application
+
+  Mechanism (active-OPEN handshake → raw-injected PSH+FIN+ACK with
+  payload → DUT enters CW + acks data+FIN → UT recv drains the bytes
+  → 3 s remain-in-CW absence proves the application's RECEIVE call
+  obtained the data without disturbing the FSM):
+    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
+      + 94, kBasicsActiveRemotePort + 94); accept tester fd, snapshot
+      tester snd_nxt / rcv_nxt via queryTcpSeqRange.
+    * Spec inject: PSH+FIN+ACK with seq=snd_nxt, ack=rcv_nxt, 16 B
+      payload. Linux's tcp_data_queue accepts data, tcp_fin transitions
+      EST→CW, kernel emits pure ACK with ack=ISN_t+1+16+1 (data+FIN).
+    * UT OpReceiveTcpData drains the queued bytes; stimulus byte-
+      compares and writes captured.ut_received_payload_len = 16U on
+      match. captured.expected_ack_num pre-set to snd_nxt+17.
+    * Tester fd disposed via silentlyCloseTesterFd so DUT's
+      challenge-ack candidates land on a closed kernel socket; the
+      auxiliary tester listener stays alive only for the lifetime of
+      the stimulus body.
+
+  SCXML chain (4 listening states + 4 fail terminals + pass):
+    handshake_ack → dut_data_ack → remain_in_cw (3 s absence of
+    DUT FIN/RST conjuncted with ut_received_payload_len == 16U) →
+    pass
+
+  Pass criteria mapping:
+    * #5 (DUT returned data)  = listening_remain_in_cw deadline
+                                conjuncts ut_received_payload_len ==
+                                16U; sentinel 0xFFFFU otherwise.
+    Implicit: DUT's ack of the FIN+data segment (data_ack state)
+    must carry ack_num == expected_ack_num — proves the FIN+data
+    were processed end-to-end, not just the data half.
+
+  Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
+  unreachable, lands on fail_no_handshake_ack at the 5 s deadline +
+  ~2 s prelude wall-time ≈ 8 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_call_receive_05"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U)"
+                target="listening_dut_data_ack"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_data_ack">
+    <onentry><send event="deadline_dut_data_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U) and captured.ack_num == captured.expected_ack_num"
+                target="listening_remain_in_cw"/>
+    <transition event="deadline_dut_data_ack" target="fail_no_dut_data_ack"/>
+  </state>
+
+  <state id="listening_remain_in_cw">
+    <onentry><send event="deadline_remain_in_cw" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U)"
+                target="fail_dut_rst_in_cw"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U)"
+                target="fail_dut_fin_in_cw"/>
+    <transition event="deadline_remain_in_cw"
+                cond="cpp:captured.ut_received_payload_len == 16U"
+                target="pass"/>
+    <transition event="deadline_remain_in_cw" target="fail_no_proper_data"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_no_dut_data_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_received_fin_data_in_cw"}</content></donedata>
+  </final>
+
+  <final id="fail_dut_rst_in_cw">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_rst_in_cw"}</content></donedata>
+  </final>
+
+  <final id="fail_dut_fin_in_cw">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_fin_in_cw_without_close"}</content></donedata>
+  </final>
+
+  <final id="fail_no_proper_data">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_receive_proper_data_in_cw"}</content></donedata>
+  </final>
+</scxml>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.4 IPv4 3-state field-check shape: TESTER sends ICMPv4 Echo Request,
+  DUT replies, the SCXML observes one IPv4 header field on the reply.
+
+    * pass — DUT reply matches {$pass_expr}.
+    * {$fail_state} — DUT reply violates the field invariant.
+    * fail_timeout — no DUT reply within the listen window.
+
+  Shared body for ipv4_header_01 / ipv4_version_03 / ipv4_ttl_01. Each
+  call site supplies the three params below; everything else (context
+  declarations, src_addr filter, timeout) is uniform because the
+  underlying shape is identical.
+
+  Single-param design note: a natural shape would carry both pass_expr
+  and fail_expr, so each guard reads as a direct comparison. That breaks
+  because `<` is never legal as raw data in an XML attribute value —
+  lexical substitution of `captured.total_length < 20` into the second
+  `cond` attribute produces post-template SCXML that roxmltree refuses
+  to re-parse. `!({$pass_expr})` sidesteps the problem (C++ `!` is legal
+  in attribute values) at the cost of one layer of negation in the
+  generated guard. Semantically identical; structurally robust.
+
+  src_addr guard: the listener observes both the tester's own Echo
+  Request and the DUT's Echo Reply as ipv4_observed events. Every guard
+  conjuncts `captured.src_addr == expected.dut_iface_ip` so tester-
+  originated frames match neither pass nor fail — dispatch() has no
+  access to the expected context, so the filter lives here.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_field_check">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Ipv4Captured"
+               cpp:include="sce_integration/ipv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="ipv4_observed"
+                cond="cpp:captured.src_addr == expected.dut_iface_ip and ({$pass_expr})"
+                target="pass"/>
+    <transition event="ipv4_observed"
+                cond="cpp:captured.src_addr == expected.dut_iface_ip and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ipv4_packet_within_listen_window"}</content>
+    </donedata>
+  </final>
+</sce:template>

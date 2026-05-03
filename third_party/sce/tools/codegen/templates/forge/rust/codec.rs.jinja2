@@ -1,0 +1,442 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+use sce_forge_runtime::codec::{CodecError, SceCursor};
+{% if all_imports %}
+
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+{% if has_dma_aligned_fields -%}
+// RFC §5.B B3 DMA alignment primitive: structural drift detection.
+// Build-time validation already guaranteed `byte_offset % burst_align
+// == 0` and that all preceding fields are Fixed bit-size. These
+// `const _: () = assert!` declarations catch any future hand-edit to
+// the byte_offset that would break the wire-layout invariant.
+{% for field in fields %}{% if field.dma_burst_align -%}
+const _: () = assert!(
+    {{ field.byte_off }} % {{ field.dma_burst_align }} == 0,
+    "RFC §5.B B3: codec field '{{ field.id }}' offset must be {{ field.dma_burst_align }}-aligned"
+);
+{% endif %}{% endfor %}
+{% endif %}
+
+{% if has_variant %}
+// RFC §5.B variant primitive (B1-β): discriminated-union body for the
+// codec's tag-field suffix. Each arm wraps an imported codec's decoded
+// value; the optional Default arm preserves the runtime tag value
+// alongside its catch-all body.
+#[allow(dead_code)]
+pub enum {{ struct_name }}Variant {
+{% for arm in variant.arms %}
+    {{ arm.variant_name }}({{ arm.body_type }}),
+{% endfor %}
+{% if variant.default_arm %}
+    {{ variant.default_arm.variant_name }} {
+        tag: {{ variant.tag_native_type }},
+        body: {{ variant.default_arm.body_type }},
+    },
+{% endif %}
+}
+
+impl Default for {{ struct_name }}Variant {
+    fn default() -> Self {
+        // Default to the first declared arm's body — every imported
+        // codec is `#[derive(Default)]`, so this is infallible. A
+        // freshly-constructed envelope is overwritten by `decode()` or
+        // by an explicit user assignment before any `encode()` call.
+{% if variant.arms %}
+        Self::{{ variant.arms[0].variant_name }}({{ variant.arms[0].body_type }}::default())
+{% else %}
+        Self::{{ variant.default_arm.variant_name }} {
+            tag: 0,
+            body: {{ variant.default_arm.body_type }}::default(),
+        }
+{% endif %}
+    }
+}
+
+{% endif %}
+// pub API: codecs are intended for cross-crate consumption (SCE_FORGE.md
+// §6 codec). The kind-agnostic conformance harness only references a
+// subset of fixtures, so unused-but-pub fields/methods would otherwise
+// trigger dead_code on every codec build.
+#[allow(dead_code)]
+#[derive(Default)]
+pub struct {{ struct_name }} {
+{% for field in fields %}
+    pub {{ field.id }}: {{ field.rs_type }},
+{% endfor %}
+{% if has_variant %}
+    pub body: {{ struct_name }}Variant,
+{% endif %}
+}
+
+#[allow(dead_code)]
+impl {{ struct_name }} {
+    /// Construct an instance with every field zero-initialized via
+    /// [`Default`]. Generated procedure_l2 code stores codec instances
+    /// as owned members and needs an infallible constructor to
+    /// initialize them before any `encode()` or `decode()` call.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Decode the next frame from `cursor`. On success the cursor
+    /// advances past the consumed bytes; on `NeedMoreBytes` the cursor
+    /// is left untouched so the caller can resume after appending more
+    /// bytes (RFC §5.B L494-519).
+    pub fn decode(cursor: &mut SceCursor<'_>{{ parent_flags_param_decl }}) -> Result<Self, CodecError> {
+{% if has_parent_flags %}
+        // RFC §5.B B5-γ: `parent_flags` is the parent codec's flags
+        // carrier value, threaded through by the variant arm dispatcher.
+        // Body fields gated via `parent.<flag>` predicates read from
+        // this parameter; suppress unused-variable warnings when no
+        // gated field happens to consume it (defensive guard for
+        // codecs that declare `<sce:requires-parent-flags>` but
+        // don't yet wire any predicate to it).
+        let _ = parent_flags;
+{% endif %}
+{% if has_no_fields %}
+        // RFC §5.B B5-α empty body — nothing to read; the surrounding
+        // header byte (and the wire-protocol layer that demuxes it)
+        // already proved this codec was selected, so return the
+        // default-constructed envelope without touching the cursor.
+        let _ = cursor;
+        Ok(Self {})
+{% elif has_variant %}
+        // Decode fixed prefix (RFC §5.B variant primitive B1-β: fields
+        // sit before the variant suffix on the wire).
+        let raw = cursor.peek_slice({{ min_bytes }})?;
+{% for field in fields %}
+        let {{ field.id }} = {{ field.decode_expr }};
+{% endfor %}
+        cursor.advance({{ min_bytes }})?;
+        // Dispatch on the tag field; each arm decodes its body codec
+        // from the cursor. The default arm (when declared) carries the
+        // runtime tag value so encode can round-trip it back onto the
+        // wire.
+        let body = match {{ variant.tag_match_expr }} {
+{% for arm in variant.arms %}
+            {{ arm.value_literal }} => {{ struct_name }}Variant::{{ arm.variant_name }}({{ arm.body_type }}::decode(cursor{{ arm.body_parent_flags_arg }})?),
+{% endfor %}
+{% if variant.default_arm %}
+            other => {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} {
+                tag: other,
+                body: {{ variant.default_arm.body_type }}::decode(cursor{{ variant.default_arm.body_parent_flags_arg }})?,
+            },
+{% else %}
+            // Build-time `codec/variant-arm-unreachable` proves the
+            // arm set covers the tag domain without a default.
+            _ => unreachable!("variant exhaustiveness gated by codec/variant-arm-unreachable at parse time"),
+{% endif %}
+        };
+        Ok(Self {
+{% for field in fields %}
+            {{ field.id }},
+{% endfor %}
+            body,
+        })
+{% elif has_present_if_fields %}
+        // RFC §5.B B1-δ + B2-β present-if primitive: streaming decode
+        // advances the cursor per field. Gated fields wrap their
+        // read inside an `if predicate { Some(...) } else { None }`
+        // block computed at codegen time from the carrier field's
+        // flag bit. B2-β extends gated fields to Tail / LengthRef /
+        // Vle bit-sizes via dispatch inside `present_if_decode_stmt`.
+        // Per-field `is_repeat` / `is_tlv_chain` route Repeat / TLV
+        // chain fields to their dedicated helpers since present-if
+        // isn't allowed on `<sce:repeat>` / `<sce:tlv-chain>`.
+        // Note: this branch fires before has_vle_fields so a codec
+        // mixing VLE + present-if uses the unified streaming path.
+{% for field in fields %}
+{% if field.is_repeat %}
+        {{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+        {{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+        {{ field.embed_decode_stmt }}
+{% else %}
+        {{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+        Ok(Self {
+{% for field in fields %}
+            {{ field.id }},
+{% endfor %}
+        })
+{% elif has_vle_fields %}
+        // Streaming codec: each field reads its own bytes from the
+        // cursor (VLE = base-128 1..=ceil(N/7) bytes). No pre-peek of
+        // a fixed window; cursor advances per-field. RFC §5.B B4:
+        // per-field bit-size dispatch routes Fixed / LengthRef
+        // siblings of VLE fields through `present_if_decode_stmt`
+        // (predicate=None arms) — pure-VLE codecs stay byte-stable
+        // because the non-gated VLE arm there reuses
+        // `vle_decode_stmt` verbatim.
+{% for field in fields %}
+{% if field.is_repeat %}
+        {{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+        {{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+        {{ field.embed_decode_stmt }}
+{% else %}
+        {{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+        Ok(Self {
+{% for field in fields %}
+            {{ field.id }},
+{% endfor %}
+        })
+{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
+        // RFC §5.B B2 repeat / B3 TLV chain primitives: streaming
+        // decode mixes plain fixed-width reads (per-field via the
+        // present-if helper's non-gated arm) with repeat loops that
+        // iterate the imported codec's `decode()`. Repeat: bounded by
+        // `count_ref` (length-field) or cursor exhaustion (until-eof).
+        // TLV chain: bounded by `max_depth` with on-overflow check.
+        // Element bodies recurse into their own codec — each may
+        // itself surface NeedMoreBytes, unwinding the partial frame.
+{% for field in fields %}
+{% if field.is_repeat %}
+        {{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+        {{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+        {{ field.embed_decode_stmt }}
+{% else %}
+        {{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+        Ok(Self {
+{% for field in fields %}
+            {{ field.id }},
+{% endfor %}
+        })
+{% elif has_variable_fields %}
+        // Variable-length codec. RFC §5.B B3 stream-correct shape:
+        // a codec without `<sce:field sce:bit-size="tail">` consumes
+        // only `min_bytes + length_value` rather than the entire
+        // cursor remaining. Codecs WITH a tail field still consume
+        // to end (tail's definition forces it). The prior
+        // "consume entire cursor" behaviour deferred to "the first
+        // multi-frame consumer" — TLV chain (B3-α) is that consumer,
+        // so length-ref entry codecs now decode-iterably from a
+        // shared cursor without each entry eating the next entry's
+        // bytes.
+        let _frame_len = cursor.remaining();
+        if _frame_len < {{ min_bytes }} {
+            return Err(CodecError::NeedMoreBytes);
+        }
+        let raw = cursor.peek_slice(_frame_len)?;
+        let value = Self {
+{% for field in fields %}
+            {{ field.id }}: {{ field.decode_expr }},
+{% endfor %}
+        };
+{% if has_tail_fields %}
+        cursor.advance(_frame_len)?;
+{% else %}
+        // Stream-correct: advance only the bytes actually decoded.
+        // For each length-ref field, end = byte_off + raw[byte_off-1]
+        // value (length-field byte is read just before). Take the max
+        // across all length-ref fields; min_bytes is the lower bound.
+        let mut _consumed: usize = {{ min_bytes }};
+{% for field in fields %}
+{% if field.is_variable and field.bit_size_kind == "length-ref" %}
+        {
+            let _end = {{ field.byte_off }}usize + value.{{ field.id }}.len();
+            if _end > _consumed { _consumed = _end; }
+        }
+{% endif %}
+{% endfor %}
+        if _consumed > _frame_len {
+            return Err(CodecError::NeedMoreBytes);
+        }
+        cursor.advance(_consumed)?;
+{% endif %}
+        Ok(value)
+{% else %}
+        let raw = cursor.peek_slice({{ min_bytes }})?;
+        let value = Self {
+{% for field in fields %}
+            {{ field.id }}: {{ field.decode_expr }},
+{% endfor %}
+        };
+        cursor.advance({{ min_bytes }})?;
+        Ok(value)
+{% endif %}
+    }
+
+{% if has_flags %}
+    // RFC §5.B B1-γ + B5-α flags primitive: per-bit-range accessors over
+    // the carrier field. Single-bit (width=1) reads as bool; multi-bit
+    // (width>=2) reads as the smallest unsigned integer that fits the
+    // range. Setters mask + shift on the way in so out-of-range
+    // callers can't corrupt sibling bits. Wire layout is unchanged —
+    // the carrier still occupies its declared bytes.
+{% for field in fields %}
+{% if field.has_flags %}
+{% for fl in field.flags %}
+{% if fl.multi_bit %}
+    pub fn {{ fl.name_acc }}(&self) -> {{ fl.result_type }} {
+        (((self.{{ field.id }} >> {{ fl.bit }}) & ({{ fl.value_mask_literal }} as {{ field.rs_type }}))) as {{ fl.result_type }}
+    }
+
+    pub fn {{ fl.name_set }}(&mut self, v: {{ fl.result_type }}) {
+        let _mask: {{ field.rs_type }} = ({{ fl.value_mask_literal }} as {{ field.rs_type }}) << {{ fl.bit }};
+        let _val: {{ field.rs_type }} = ((v as {{ field.rs_type }}) & ({{ fl.value_mask_literal }} as {{ field.rs_type }})) << {{ fl.bit }};
+        self.{{ field.id }} = (self.{{ field.id }} & !_mask) | _val;
+    }
+
+{% else %}
+    pub fn {{ fl.name_acc }}(&self) -> bool {
+        (self.{{ field.id }} & {{ fl.mask_literal }}) != 0
+    }
+
+    pub fn {{ fl.name_set }}(&mut self, v: bool) {
+        if v {
+            self.{{ field.id }} |= {{ fl.mask_literal }};
+        } else {
+            self.{{ field.id }} &= !{{ fl.mask_literal }};
+        }
+    }
+
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+    pub fn encode(&self{{ parent_flags_param_decl }}) -> Vec<u8> {
+{% if has_parent_flags %}
+        // RFC §5.B B5-γ: see `decode` — same parameter, same suppress.
+        let _ = parent_flags;
+{% endif %}
+{% if has_no_fields %}
+        // RFC §5.B B5-α empty body — zero-byte payload (the surrounding
+        // wire-protocol header byte alone marks this codec on the wire).
+        Vec::new()
+{% elif has_variant %}
+        // Encode fixed prefix (tag field is part of the prefix). The
+        // tag value is read from the struct field, NOT derived from
+        // the body discriminant — keeping author-set msg_id / body in
+        // sync is the caller's responsibility (v1 keeps the layout
+        // simple; future extensions may auto-sync via a typed setter).
+        let mut r: Vec<u8> = Vec::with_capacity({{ max_bytes }});
+{% for expr in encode_exprs %}
+        r.push({{ expr }});
+{% endfor %}
+        // Append the active arm's encoded bytes.
+        match &self.body {
+{% for arm in variant.arms %}
+            {{ struct_name }}Variant::{{ arm.variant_name }}(b) => {
+                r.extend(b.encode({{ arm.body_parent_flags_arg_first }}));
+            }
+{% endfor %}
+{% if variant.default_arm %}
+            {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} { body, .. } => {
+                r.extend(body.encode({{ variant.default_arm.body_parent_flags_arg_first }}));
+            }
+{% endif %}
+        }
+        r
+{% elif has_present_if_fields %}
+        // RFC §5.B B1-δ + B2-β present-if encode: every field appends
+        // its bytes via a per-field block; gated fields skip the
+        // append when the optional is None. Per-field `is_repeat` /
+        // `is_tlv_chain` route Repeat / TLV chain fields to their
+        // dedicated helpers. Author keeps the carrier's flag bit and
+        // the optional's truth value in sync (trust contract, mirrors
+        // the variant primitive). Note: this branch fires before
+        // has_vle_fields so a codec mixing VLE + present-if uses the
+        // unified encode path.
+        let mut r: Vec<u8> = Vec::with_capacity({{ max_bytes }});
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+        r
+{% elif has_vle_fields %}
+        // RFC §5.B B4: per-field bit-size dispatch routes Fixed /
+        // LengthRef / Tail siblings of VLE fields through
+        // `present_if_encode_block` (predicate=None arms). Pure-VLE
+        // codecs stay byte-stable: the non-gated VLE arm there reuses
+        // `vle_encode_block` with the language-appropriate self/
+        // struct prefix.
+        let mut r: Vec<u8> = Vec::with_capacity({{ max_bytes }});
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+        r
+{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
+        // RFC §5.B B2 repeat / B3 TLV chain encode: fixed prefix
+        // fields append byte-by-byte; list fields iterate the host-
+        // language list and splice each element's encode() into the
+        // parent buffer. Author keeps the count field (repeat) /
+        // chain length (tlv-chain) consistent with the list length
+        // (same trust contract as variant tag/body).
+        let mut r: Vec<u8> = Vec::with_capacity({{ max_bytes }});
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+        r
+{% elif has_variable_fields %}
+        let mut r: Vec<u8> = Vec::with_capacity({{ max_bytes }});
+{% for expr in encode_exprs %}
+        r.push({{ expr }});
+{% endfor %}
+{% for field in fields %}
+{% if field.is_variable %}
+{% if has_dma_aligned_fields %}
+        // RFC §5.B B3 DMA padding: zero-fill any gap between the
+        // current write position and this field's authored byte
+        // offset (deterministic zeros on the wire so peers stay
+        // byte-compatible regardless of host allocator — RFC §5.B
+        // "wire layout, not host allocator").
+        while r.len() < {{ field.byte_off }} {
+            r.push(0);
+        }
+{% endif %}
+        r.extend_from_slice(&self.{{ field.id }});
+{% endif %}
+{% endfor %}
+        r
+{% else %}
+        vec![
+{% for expr in encode_exprs %}
+            {{ expr }},
+{% endfor %}
+        ]
+{% endif %}
+    }
+}

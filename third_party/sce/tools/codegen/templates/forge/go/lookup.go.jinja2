@@ -1,0 +1,61 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="lookup")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+package {{ package }}
+{% if output_is_string %}
+{% if all_imports %}
+
+import (
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+)
+{% endif %}
+
+// {{ enum_name }} represents the lookup output values.
+type {{ enum_name }} int
+
+const (
+{% for val in unique_values %}
+{% if loop.first %}
+	{{ enum_name }}{{ val }} {{ enum_name }} = iota
+{% else %}
+	{{ enum_name }}{{ val }}
+{% endif %}
+{% endfor %}
+)
+
+// {{ func_name }} maps {{ input_id }} to its corresponding {{ enum_name }}.
+func {{ func_name }}({{ input_id }} {{ input_type }}) {{ enum_name }} {
+	switch {{ input_id }} {
+{% for group in entries_by_value %}
+	case {{ group.keys | join(", ") }}:
+		return {{ enum_name }}{{ group.value }}
+{% endfor %}
+	default:
+		return {{ enum_name }}{{ default_value }}
+	}
+}
+{% else %}
+
+import "github.com/newmassrael/sce-forge-runtime/lookup"
+
+var keys = [{{ n }}]{{ input_type }}{ {{ keys_literal | join(", ") }} }
+var values = [{{ n }}]{{ value_type }}{ {{ values_literal | join(", ") }} }
+
+// {{ func_name }} returns the value paired with {{ input_id }}, or {% if on_miss_error %}(zero, false) on miss{% else %}{{ default_literal }} on miss{% endif %}.
+func {{ func_name }}({{ input_id }} {{ input_type }}) {% if on_miss_error %}({{ value_type }}, bool){% else %}{{ value_type }}{% endif %} {
+{% if on_miss_error %}
+	return lookup.Lookup(keys[:], values[:], {{ input_id }})
+{% else %}
+	if v, ok := lookup.Lookup(keys[:], values[:], {{ input_id }}); ok {
+		return v
+	}
+	return {{ default_literal }}
+{% endif %}
+}
+{% endif %}

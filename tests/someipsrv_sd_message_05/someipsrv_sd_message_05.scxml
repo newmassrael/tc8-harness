@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.5 SOMEIPSRV_SD_MESSAGE_05: When a tester FindService asks
+  for any minor version (Minor Version=0xFFFFFFFF, TR_SOMEIP_00351), the
+  DUT's OfferService entry shall carry the configured
+  SdServerServiceMinorVersion. Cyclic OfferService is sufficient evidence —
+  the field is independent of the Find direction. Configured value
+  injected via the harness expect minor_version=&lt;n&gt; CLI key.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_05"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x01"
+           pass_expr="captured.sd_entries[0].minor_version == expected.minor_version"
+           fail_state="fail_minor_version"
+           fail_reason="offer_entry_minor_version_mismatch"/>
+</scxml>

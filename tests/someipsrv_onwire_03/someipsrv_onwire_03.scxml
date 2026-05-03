@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.6.3 SOMEIPSRV_ONWIRE_03: When generating a Response,
+  the server shall copy the Request ID (16-bit Client ID + 16-bit
+  Session ID) from the Request to the Response. Tester sends a Method
+  Request with sentinel Request ID (Client ID = 0xCAFE, Session ID =
+  0x1234); pass requires the matched Response echoes both halves.
+
+  The sentinel values are picked far from the tester's default
+  (0x0000 / 0x0001) so a stale frame from a prior test session would
+  fail the check loudly rather than coincidentally pass.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_onwire_03"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/someipsrv_rpc_field_check.sce-template.xml"
+           phase2_filter="captured.service_id == expected.service_id and captured.message_type == 0x80"
+           pass_expr="captured.client_id == 0xCAFE and captured.session_id == 0x1234"
+           fail_state="fail_phase2_request_id_not_echoed"
+           fail_reason="response_request_id_did_not_echo_request"/>
+</scxml>

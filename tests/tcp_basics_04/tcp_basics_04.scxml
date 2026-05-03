@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_04: in CLOSED state, DUT's TCP stack MUST send
+  an RST with SEQ=0 in response to an incoming segment not containing
+  RST and ACK flags. Derived from RFC 793 §3.9 p65 Event Processing
+  (CLOSED-state segment arrival).
+
+  v3.0 Test Procedure (p281-p300.txt:501) — three iterations:
+    1. CASE: flag set = SYN
+    2. CASE: flag set = FIN
+    3. CASE: flag set = Data segment (no ACK, no RST; payload bytes)
+
+  All three iterations land on the same RFC 793 §3.9 rule and resolve
+  through the same kernel path (`tcp_v4_rcv` → `tcp_v4_send_reset`),
+  but spec literalism mandates each is exercised in turn. The traits
+  inject the three stimuli sequentially with a 200 ms inter-phase gap
+  (`kTcpPilotPhaseGap`); pcap captures the resulting six wire frames
+  (3 × tester probe + 3 × DUT RST) in order, and this SCXML walks
+  three listening states one DUT-RST observation at a time.
+
+  Pass guard conjuncts (identical across all three phases):
+    * captured.src_ip   == expected.dut_iface_ip    — DUT-origin frame
+    * captured.dst_ip   == expected.tester_ip       — addressed back
+    * captured.src_port == kBasicsClosedPort (54321) — provoked port
+    * captured.flags    & RST (0x04)                 — spec-mandated
+    * captured.seq_num  == 0                         — spec "zero SEQ"
+
+  Tester-origin probes (src_ip == tester_ip) reach this SCXML on the
+  same `tcp_observed` pump but match no transition in the active
+  listening_phaseK state, so they are silently passed over while the
+  state waits for the corresponding DUT RST. This is the same
+  src_ip-conjunct filtering pattern §4.3 ICMP cases use against
+  tester-origin Echo Requests.
+
+  Per-phase fail_wrong_seq_<phase> and fail_timeout_<phase> reasons let
+  smoke-test triage identify which iteration the DUT failed without
+  re-reading the SCXML — same diagnostic-granularity pattern as
+  `ipv4_fragments_compound`'s split echo_id / echo_seq / data fail
+  terminals. Splitting fail_wrong_seq per-phase (rather than sharing
+  one terminal across all 3 phases) symmetrises the failure surface
+  with fail_timeout and matches BASICS_05's per-phase
+  fail_wrong_seq_<phase> shape — the three iterations exercise three
+  distinct kernel arrival paths (SYN, FIN, Data), so a wrong-seq fault
+  in phase 2 is not interchangeable with one in phase 1 for root-cause
+  diagnosis even though both violate the same seq=0 assertion.
+
+  Phase deadlines: 5 s × 3 phases = 15 s upper bound. In practice the
+  DUT replies within milliseconds of each stimulus and the SCXML walks
+  to `pass` near the end of stimulus wall-time. The per-phase budget
+  matches single-phase BASICS_04's 5 s for parity; smoke-test.sh's
+  CASE_TIMEOUT_SEC[TCP_BASICS_04]=18 absorbs total stimulus wall-time
+  (~800 ms) + the worst-case 15 s SCXML window + handshake/teardown
+  margin.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_04"
+       datamodel="null"
+       initial="listening_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_syn">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0"
+                target="listening_fin"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
+                target="fail_wrong_seq_syn"/>
+    <transition event="deadline_exceeded" target="fail_timeout_syn"/>
+  </state>
+
+  <state id="listening_fin">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0"
+                target="listening_data"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
+                target="fail_wrong_seq_fin"/>
+    <transition event="deadline_exceeded" target="fail_timeout_fin"/>
+  </state>
+
+  <state id="listening_data">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
+                target="fail_wrong_seq_data"/>
+    <transition event="deadline_exceeded" target="fail_timeout_data"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq_syn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_syn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_fin"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq_data">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_data"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_syn">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_after_syn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_after_fin"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_data">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_after_data"}</content>
+    </donedata>
+  </final>
+</scxml>

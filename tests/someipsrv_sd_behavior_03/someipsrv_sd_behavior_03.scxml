@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.4.3 SOMEIPSRV_SD_BEHAVIOR_03: Server Answer Behavior —
+  if a unicast FindService (Unicast Flag = 1) arrives more than
+  ½ CYCLIC_OFFER_DELAY after the last sent OfferService, the DUT shall
+  answer with a multicast OfferService. (Per SOMEIPSD §6.7.5.2 /
+  TR_SOMEIP_00423.)
+
+  Stimulus (provided by `TestCaseTraits<...>::stimulus`):
+    - Schedule a unicast FindService (Unicast Flag = 1) emit at ~4500 ms.
+      That gives TOTAL_REP_INTV (~1.5 s) + 1× CYCLIC (~2 s) +
+      ½× CYCLIC (~1 s) of wall time so the last cyclic Offer is
+      reliably more than ½ CYCLIC ago when the Find arrives.
+
+  Phase 1 (listening_pre_find): deadline 5.5 s — long enough that the
+  scheduled stimulus has emitted and the DUT's reply is in flight. We
+  do not transition on someip_notification here so the pre-Find cyclic
+  Offer is silently dropped; deadline carries us into phase 2.
+
+  Phase 2 (listening_offer_reply): deadline 4 s. Pass on any DUT
+  OfferService whose dst_ip == expected.sd_multicast_ip (vsomeip
+  cyclic Offers and the solicited reply both qualify — the spec
+  invariant is "multicast destination", and it must hold for whichever
+  Main Phase Offer arrives next regardless of solicited vs. scheduled).
+  Fail on any OfferService whose dst_ip is unicast.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_behavior_03"
+       datamodel="null"
+       initial="listening_pre_find">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_pre_find">
+    <onentry>
+      <send event="s1_pre_find_done" delay="5500ms"/>
+    </onentry>
+    <transition event="s1_pre_find_done" target="listening_offer_reply"/>
+  </state>
+
+  <state id="listening_offer_reply">
+    <onentry>
+      <send event="s2_deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="fail_offer_not_multicast"/>
+    <transition event="s2_deadline_exceeded" target="fail_no_offer_after_unicast_find"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_offer_not_multicast">
+    <donedata>
+      <content>{"verdict":"fail","reason":"offer_dst_ip_not_multicast_after_unicast_find"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_offer_after_unicast_find">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_within_listen_window_after_unicast_find"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.18 SOMEIPSRV_SD_MESSAGE_18: When a Subscribe carries an
+  UNKNOWN-MAJOR-VERSION (SERVICE-ID-1-MAJ-VER+1, i.e. 2 against the
+  configured 1), the DUT shall Nack with TTL=0 and shall echo the
+  Major Version from the Subscribe (TR_SOMEIP §6.7.4.2.4).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_18"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x07"
+           pass_expr="captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].major_version == expected.major_version + 1"
+           fail_state="fail_major_version"
+           fail_reason="nack_entry_major_version_not_unknown_plus_one"/>
+</scxml>

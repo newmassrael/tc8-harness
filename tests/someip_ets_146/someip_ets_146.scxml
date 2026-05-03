@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_146: SD_ResetInterface.
+
+  Tester drives the field-axis chain:
+    1. getFieldA (Method 0x40)         — observe Response with initial value.
+    2. setFieldA(0xAA) (Method 0x42)   — observe Response with payload 0xAA.
+    3. resetInterface (Method 0x01)    — Fire&Forget; DUT clears fieldA_.
+    4. wait 3 s                        — per spec procedure.
+    5. getFieldA again                  — observe Response payload != 0xAA.
+
+  Per PRS_SOMEIPSD_00356 / PRS_SOMEIP_00170 the post-reset Response payload
+  must differ from the value the tester last set, demonstrating that the
+  DUT's reset wiped the field.
+
+    Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
+    Phase 2 (listening_phase2): first getFieldA Response (method_id 0x40,
+            message_type 0x80).
+    Phase 3 (listening_phase3): setFieldA Response (method_id 0x42,
+            message_type 0x80, payload_byte0 == 0xAA).
+    Phase 4 (listening_phase4): post-reset getFieldA Response (method_id
+            0x40, message_type 0x80, payload_byte0 != 0xAA).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_146"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80"
+                target="listening_phase3"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_initial_get"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_byte0 == 0xAA"
+                target="listening_phase4"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_set_response"/>
+  </state>
+
+  <state id="listening_phase4">
+    <onentry>
+      <send event="phase4_deadline_exceeded" delay="8s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_byte0 != 0xAA"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_byte0 == 0xAA"
+                target="fail_phase4_field_unchanged"/>
+    <transition event="phase4_deadline_exceeded" target="fail_phase4_no_post_reset_get"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_initial_get">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_initial_get_field_response"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_set_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_set_field_response_with_payload_aa"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_no_post_reset_get">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_post_reset_get_field_response"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_field_unchanged">
+    <donedata>
+      <content>{"verdict":"fail","reason":"post_reset_get_field_still_returns_aa"}</content>
+    </donedata>
+  </final>
+</scxml>

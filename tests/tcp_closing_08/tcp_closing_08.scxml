@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.8 TCP_CLOSING_08: TCP, in FIN-WAIT-2 state, MUST honour
+  RECEIVE calls and ACK incoming data while remaining in FIN-WAIT-2.
+  Derived from RFC 793 §3.5 p38 Closing a Connection (MUST). Spec
+  prerequisite: "Support of ETM Service Primitive SHUTDOWN" (p352).
+
+  v3.0 Test Procedure (p352):
+    1. TESTER: Take DUT to FIN-WAIT-2 state
+    2. TESTER: Cause DUT side application to issue a RECEIVE call
+    3. DUT:    Issue a RECEIVE call
+    4. TESTER: Send some data to DUT
+    5. DUT:    Send ACK of the received data
+    6. TESTER: Check that DUT receives proper data
+    7. TESTER: Check that DUT remains in FIN-WAIT-2 state
+
+  Mechanism (active-OPEN handshake → UT shutdown(WR) → tester kernel
+  ACK drives DUT to FW2 → raw inject 16 B data → DUT data ACK → UT
+  receive → byte-match → 3 s remain-in-FW2 absence):
+    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
+      + 74, kBasicsActiveRemotePort + 74); accept tester fd;
+      snapshot tester snd_nxt / rcv_nxt via queryTcpSeqRange BEFORE
+      shutdown so the captured rcv_nxt = ISN_d + 1 (pre-FIN).
+    * UT shutdown(WR) → DUT FIN+ACK egress. NO AckDrop iptables —
+      tester kernel's auto-ACK is wanted here so DUT transitions
+      FW1 → FW2.
+    * Raw inject PSH+ACK with seq=ISN_t+1 (in-window), ack=ISN_d+2
+      (acks DUT FIN — kernel already acked it; this is a benign
+      duplicate ACK), and 16-byte payload. DUT in FW2 processes
+      data, emits pure ACK with seq=ISN_d+2 and ack=ISN_t+1+16.
+    * UT OpReceiveTcpData drains the kernel-queued data; stimulus
+      compares bytes and writes captured.ut_received_payload_len.
+      captured.expected_ack_num = ISN_t+17 for the data-ACK guard.
+
+  SCXML chain (4 listening states + 4 fail terminals + pass):
+    handshake_ack → dut_fin → dut_data_ack → remain_in_fw2 → pass
+
+  Pass criteria mapping:
+    * #3 (RECEIVE issued)     = UT round-trip implicit; if tc8-dut
+                                 hadn't issued recv() the kernel
+                                 still ACKs the data (FW2 path) but
+                                 the bytes return empty → ut_received
+                                 _payload_len stays at the sentinel →
+                                 deadline transition lands on
+                                 fail_no_proper_data.
+    * #5 (DUT ACK of data)    = listening_dut_data_ack pure-ACK with
+                                 ack_num == expected_ack_num.
+    * #6 (proper data)        = remain_in_fw2's deadline transition
+                                 conjuncts ut_received_payload_len ==
+                                 16U.
+    * #7 (remain in FW2)      = remain_in_fw2 fail predicate fires
+                                 only on DUT FIN or RST. FW2 is
+                                 steady-state (no re-tx — tester
+                                 already ACKed the FIN), so DUT
+                                 stays silent for the 3 s window.
+
+  Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
+  unreachable, lands on fail_no_handshake_ack at the 5 s deadline +
+  ~2 s prelude wall-time ≈ 8 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_closing_08"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 74U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 74U)"
+                target="listening_dut_fin"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_fin">
+    <onentry><send event="deadline_dut_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 74U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 74U)"
+                target="listening_dut_data_ack"/>
+    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
+  </state>
+
+  <state id="listening_dut_data_ack">
+    <onentry><send event="deadline_dut_data_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 74U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 74U) and captured.ack_num == captured.expected_ack_num"
+                target="listening_remain_in_fw2"/>
+    <transition event="deadline_dut_data_ack" target="fail_no_dut_data_ack"/>
+  </state>
+
+  <state id="listening_remain_in_fw2">
+    <onentry><send event="deadline_remain_in_fw2" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 74U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 74U) or captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 74U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 74U)"
+                target="fail_dut_left_fw2"/>
+    <transition event="deadline_remain_in_fw2"
+                cond="cpp:captured.ut_received_payload_len == 16U"
+                target="pass"/>
+    <transition event="deadline_remain_in_fw2" target="fail_no_proper_data"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_no_dut_fin">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_close_fin"}</content></donedata>
+  </final>
+
+  <final id="fail_no_dut_data_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_received_data_in_fw2"}</content></donedata>
+  </final>
+
+  <final id="fail_dut_left_fw2">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_fin_or_rst_in_fw2"}</content></donedata>
+  </final>
+
+  <final id="fail_no_proper_data">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_receive_proper_data_in_fw2"}</content></donedata>
+  </final>
+</scxml>

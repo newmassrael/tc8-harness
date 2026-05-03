@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_10: the client times out and
+  retransmits the DHCPREQUEST message if the client receives neither a
+  DHCPACK or a DHCPNAK message (RFC 2131 §3.1).
+
+  Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_10):
+    3.   TESTER: Initialize server1 to offer IP Address Lease Time of
+         <HIGH-LEASE-TIME> seconds to the DUT.
+    4.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit to
+         DHCPCLIENT_STATE_RENEWING.
+    5.   DUT: Transit finite state to DHCPCLIENT_STATE_RENEWING.
+    6.   TESTER: Listens upto ((REMOTE-CLIENT1-T2 - REMOTE-CLIENT1-T1)
+         + ParamToleranceTime) seconds.
+    7.   DUT: Sends 2 DHCPREQUEST Messages.
+  Pass: 5 + 7.
+
+  Pass criterion is the COUNT of two RENEWING REQUESTs (no interval
+  predicate). Wire shape predicate `captured.is_dhcp_request() and
+  captured.dst_ip_equals(expected.server_id_be)` (filter to RENEWING)
+  is enforced by the template; per-case `pass_expr="true"` defers the
+  pass to the second observation alone.
+
+  Reuses `dhcpv4_renewing_retx_field` template + the same retx envelope
+  as REACQUISITION_05 (kRetransmissionLeaseSeconds = 12 s, T1=6 s,
+  T2=10 s). Second RENEWING REQUEST emitted at T1 + (T2-T1)/2 = 8 s
+  post-BOUND, well within the (T2-T1) + tol = 5 s spec listening
+  window.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_allocating_10"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_renewing_retx_field.sce-template.xml"
+           pass_expr="true"
+           fail_state="fail_unreachable"
+           fail_reason="unreachable_pass_expr_always_true"/>
+</scxml>

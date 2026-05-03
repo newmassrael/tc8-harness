@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.10 TCP_OUT_OF_ORDER_01: a full-sized segment MUST be
+  acknowledged within 0.5 sec (RFC 1122 §4.2.3.2 p96 — When to Send
+  an ACK Segment, MUST).
+
+  v3.0 Test Procedure (p365):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state at <wnp>.
+    2. TESTER: Send a full-sized segment.
+    3. DUT:    Send an ACK after some time.
+    4. TESTER: Verify that the delay in receiving the ACK
+               (subtracting the average round-trip-time) is less than
+               0.5 sec.
+
+  Mechanism (active-OPEN handshake + 1× raw-inject MSS-sized PSH+ACK):
+    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+145,
+       kBasicsActiveRemotePort+145).
+    2. Tester listener.acceptOne() pulls the kernel-completed
+       connection off the listen queue.
+    3. queryTcpSeqRange snapshots the post-handshake tester
+       snd_nxt / rcv_nxt.
+    4. Tester raw-injects ONE full-sized PSH+ACK at S = snd_nxt with
+       1460-byte payload (fits exactly in veth's 1500 B MTU after
+       IP/TCP header overhead — `Ethernet 14 + IP 20 + TCP 20 +
+       payload 1460 = 1514` but `MTU 1500` measures the L3 payload
+       only, so `IP 20 + TCP 20 + payload 1460 = 1500` ✓).
+    5. DUT's quickack mode (post-handshake `pingpong=0`) drives an
+       immediate pure ACK with `ack_num == S + 1460`.
+
+  Two DUT-origin pure-ACK segments cross the listen window (same
+  conjuncts on both):
+    * handshake third-leg ACK — emitted by DUT immediately after
+      receiving the tester kernel's SYN+ACK.
+    * data-elicited ACK       — emitted by DUT after processing the
+      tester's MSS-sized DATA segment (acks the byte range).
+
+  Two-state SCXML chain consumes the handshake ACK first
+  (listening_handshake_ack) and only passes on the DATA-elicited
+  ACK satisfying `ack_num == captured.expected_ack_num`. The
+  `expected_ack_num` field is populated by the stimulus from the
+  TCP_REPAIR snapshot — same idiom as OUT_OF_ORDER_03 / NAGLE_02.
+
+  Timing: phase 2 deadline is 500 ms strict per spec MUST. The
+  harness floor is localhost veth RTT (< 1 ms) + Linux's quickack
+  emission (< 1 ms) + pcap dispatch (~10 ms) — well under the
+  spec's 500 ms ceiling.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands
+  on fail_no_handshake_ack via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_out_of_order_01"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset)"
+                target="listening_data_ack"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_data_ack" delay="500ms"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset) and captured.ack_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="deadline_data_ack" target="fail_no_data_ack_within_500ms"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_data_ack_within_500ms">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_ack_full_sized_segment_within_500ms"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.7 SOMEIPSRV_SD_MESSAGE_07: TTL field of the OfferService
+  entry shall carry the configured service-instance lifetime
+  (TR_SOMEIP_00356). The spec body's lifetime-expiry sub-test (wait
+  TTL seconds, send a method request, expect no response) lives on a
+  separate observation surface (event/method flow) and is deferred —
+  this case verifies only the TTL field invariant, which catches any
+  regression in the configured-value pipeline. SERVICE-ID-1-TTL is
+  injected via the harness expect ttl=&lt;n&gt; CLI key.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_07"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="true"
+           entry_type="0x01"
+           pass_expr="captured.sd_entries[0].ttl == expected.ttl"
+           fail_state="fail_ttl"
+           fail_reason="offer_entry_ttl_mismatch"/>
+</scxml>

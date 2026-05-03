@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.6 UDP 3-state field-check shape: TESTER causes DUT to emit a UDP
+  datagram (via §4.8.5 OpTriggerSendUdp) and observes one or more
+  fields of the resulting wire frame.
+
+    * pass — DUT-emitted UDP matches {$pass_expr}.
+    * {$fail_state} — DUT-emitted UDP violates the field invariant.
+    * fail_timeout — no DUT-origin UDP within the listen window.
+
+  Mirror of `ipv4_field_check`. Single-param `pass_expr` design — the
+  fail-branch reads `!({$pass_expr})` so post-template SCXML never
+  carries a raw `<` inside an attribute value (see ipv4_field_check
+  comment). The src_ip filter (`captured.src_ip == expected.dut_iface_ip`)
+  is bundled into the conjunction so the template excludes the tester's
+  own UT request and the DUT's UT Confirmation (which carries
+  src_port == ut::kPort = 30600). Consumers asserting only ut::kPort-
+  based filters can pass `pass_expr` that overrides — but every §4.6.5.4
+  egress consumer wants src_ip == dut_iface_ip + a per-case field
+  predicate, which is the canonical shape captured here.
+
+  BPF: consumers use `BpfGroup::Udp` so vsomeip SD multicast (UDP 30490)
+  also reaches the pipeline. The src_ip + custom field conjunction
+  filters those out at the cond level — the SD frames originate from
+  the DUT but match neither the spec-mandated dst_port nor the
+  per-case length / checksum predicates.
+
+  UT-confirmation gate (`!captured.has_ut_response`): the DUT's UT
+  RPC server replies to every TriggerSendUdp request with a
+  Confirmation datagram (src_port=ut::kPort=30600, dst_ip=tester_ip).
+  Without an explicit gate that response would race the DUT-egress
+  UDP this template observes — and since it carries the wrong
+  src_port (30600 ≠ per-case spec port), it would land on the
+  fail branch first, masking the actual DUT egress that arrives
+  microseconds later. The UT-confirmation conjunct excludes those
+  frames from BOTH transitions so only the spec-mandated DUT-egress
+  reaches dispatch.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="udp_field_check">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::UdpCaptured"
+               cpp:include="sce_integration/udp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <!--
+      Both transitions narrow on `dst_ip == expected.tester_ip` so
+      vsomeip's SD multicast (UDP 30490 → 224.244.224.245) and any
+      other DUT-origin multicast traffic falls outside the
+      pass/fail dispatch — only stays in `listening` until the per-
+      case stimulus's dst-tester wire frame arrives.
+    -->
+    <transition event="udp_observed"
+                cond="cpp:!captured.has_ut_response and captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and ({$pass_expr})"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:!captured.has_ut_response and captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_originated_udp_within_listen_window"}</content>
+    </donedata>
+  </final>
+</sce:template>

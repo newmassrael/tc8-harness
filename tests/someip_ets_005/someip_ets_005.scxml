@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_005: checkByteOrder — DUT receives a UInt8
+  + UInt16 pair and replies with a UInt32 sum, all in network byte
+  order. Stimulus values UInt8 = 0x12, UInt16 = 0x3456 → sum = 0x3468.
+  Wire shape:
+    Request payload  (3 bytes BE): 0x12 0x34 0x56
+    Response payload (4 bytes BE): 0x00 0x00 0x34 0x68
+
+  Pass criterion verifies all 4 response payload bytes against the
+  expected sum — the strongest byte-order assertion the spec body
+  describes (DUT must read both inputs in BE and emit the sum in BE).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_005"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and captured.return_code == 0x00 and captured.payload_len == 4 and captured.payload_bytes[0] == 0x00 and captured.payload_bytes[1] == 0x00 and captured.payload_bytes[2] == 0x34 and captured.payload_bytes[3] == 0x68"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and (captured.payload_len != 4 or captured.payload_bytes[0] != 0x00 or captured.payload_bytes[1] != 0x00 or captured.payload_bytes[2] != 0x34 or captured.payload_bytes[3] != 0x68)"
+                target="fail_phase2_payload_mismatch"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_payload_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"check_byte_order_response_did_not_match_expected_uint32_sum"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_method_response_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

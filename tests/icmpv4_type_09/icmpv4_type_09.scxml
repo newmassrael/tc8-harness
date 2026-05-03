@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_09: ICMP Echo Reply identifier and sequence
+  number fields are echoed from the Echo Request. Tester sends an Echo
+  Request with a fixed identifier and sequence number; a conformant DUT
+  replies (type=0) with matching fields.
+
+  Expected values are injected via CLI option expect icmpv4.echo_id and
+  expect icmpv4.echo_seq from smoke-test.sh; the stimulus hardcodes the
+  matching literals (kIcmpEchoId / kIcmpEchoSeq) so the negative mode
+  flip one expectation alone to prove the fail path.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_09"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id != expected.echo_id"
+                target="fail_echo_id"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_seq != expected.echo_seq"
+                target="fail_echo_seq"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_id_mismatch"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_seq_mismatch"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_echo_reply_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

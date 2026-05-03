@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.6.2 SOMEIPSRV_ONWIRE_02: Method ID is a 16-bit field
+  whose most-significant bit shall be 0 in Request/Response messages
+  (the MSB is reserved for Notification/Event IDs, where it is 1). The
+  tester invokes echoUINT8 (METHOD-ID-1-SI-1 = 0x0008); pass requires
+  the matched Response carries (method_id &amp; 0x8000) == 0.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_onwire_02"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/someipsrv_rpc_field_check.sce-template.xml"
+           phase2_filter="captured.service_id == expected.service_id and captured.message_type == 0x80"
+           pass_expr="(captured.method_id &amp;amp; 0x8000) == 0"
+           fail_state="fail_phase2_method_id_msb_set"
+           fail_reason="response_method_id_top_bit_set"/>
+</scxml>

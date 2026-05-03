@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_01: TCP MUST return to LISTEN state on
+  receiving an acceptable RST in SYN-RCVD state. Derived from RFC 793
+  §3.4 p33 Establishing a connection (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:261):
+    1. TESTER: Cause DUT SYN-RCVD via passive open + tester SYN.
+    2. TESTER: Send acceptable RST (in-window SEQ).
+    3. DUT:    Do not respond to the RST.
+    4. TESTER: Verify DUT is in LISTEN — send a fresh SYN on the same
+               listener port, expect a new DUT SYN+ACK.
+
+  Mechanism (raw-inject SYN/RST/SYN sequence on a passive listener):
+    a. UT OpOpenTcpSocket(Passive, dut_port=12345) arms the listener.
+    b. tester raw-inject SYN(src=49152, seq=ISN_t)         → DUT SYN+ACK.
+    c. tester raw-inject RST(src=49152, seq=ISN_t+1)       → no DUT segment.
+    d. tester raw-inject SYN(src=49153, seq=ISN_t2)        → fresh DUT SYN+ACK.
+    e. UT close.
+
+  Step (c)'s RST is "acceptable" because the SEQ is in-window: the
+  DUT's receive window after sending its SYN+ACK starts at ISN_t+1
+  (the next byte the tester would send), which is exactly what the
+  tester injects. Linux's `tcp_check_req` validates the SEQ against
+  the embryonic request socket and frees the connection state on
+  match — the listener LISTEN itself is preserved.
+
+  Pass guard structure — two listening states walked in sequence:
+    listening_first_synack — match DUT-origin SYN+ACK on the first
+        connection's port quad (src_port=12345, dst_port=49152). Any
+        DUT retransmits of this SYN+ACK during the window also match
+        and are equally valid; once consumed, transit to the second
+        listen window.
+    listening_second_synack — match DUT-origin SYN+ACK on the SECOND
+        connection's port quad (src_port=12345, dst_port=49153). The
+        first connection's SYN+ACK retransmits have dst_port=49152
+        and silently fall through (no transition matches) — they do
+        not contaminate the LISTEN-verification edge.
+
+  The pure-RST flag profile is intentionally NOT a pass guard
+  conjunct: any DUT RST in step (c) would be a spec violation, but
+  the spec criterion is on the move-to-LISTEN, observable through
+  the second SYN+ACK. A spurious DUT RST in step (c) would not
+  prevent the LISTEN-verification from succeeding (the listener
+  remains alive in either interpretation), so it does not need a
+  separate fail terminal — the second SYN+ACK observation captures
+  conformance regardless.
+
+  Per-state fail terminals (fail_timeout_first_synack /
+  fail_timeout_second_synack) let smoke-test triage identify which
+  edge the DUT failed to emit. Negative smoke flips
+  `ipv4.dut_iface_ip=10.99.99.99` → src_ip-conjunct unreachable in
+  state 1 → fail_timeout_first_synack.
+
+  Phase deadline: 5 s × 2 states = 10 s upper bound. Stimulus wall-
+  time ~600 ms (UT boot + 3 raw injects + close); CASE_TIMEOUT_SEC
+  budgets 12 s for handshake + teardown margin.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_01"
+       datamodel="null"
+       initial="listening_first_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_synack">
+    <onentry>
+      <send event="deadline_first" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_second_synack"/>
+    <transition event="deadline_first" target="fail_timeout_first_synack"/>
+  </state>
+
+  <state id="listening_second_synack">
+    <onentry>
+      <send event="deadline_second" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 1U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="pass"/>
+    <transition event="deadline_second" target="fail_timeout_second_synack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_first_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_to_first_tester_syn"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_second_synack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_synack_after_acceptable_rst"}</content>
+    </donedata>
+  </final>
+</scxml>

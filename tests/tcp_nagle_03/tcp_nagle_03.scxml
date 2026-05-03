@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.13 TCP_NAGLE_03: TCP MUST implement Nagle, buffering all
+  user data (regardless of PSH) until the TCP can send a full-sized
+  segment. Derived from RFC 1122 §4.2.3.4 p98.
+
+  v3.0 Test Procedure (p380):
+    1. TESTER: Bring DUT to ESTABLISHED.
+    2. TESTER: Cause SEND for a data segment.
+    3. DUT:    Send the data segment.
+    4. TESTER: Do not acknowledge the data.
+    5. TESTER: Cause SEND with small size <ssz> with PSH bit.
+    6. DUT:    Do not send the data segment.
+    7. TESTER: Cause one more SEND with aggregate size = effective
+               send MSS.
+    8. DUT:    Send the aggregate data segment.
+
+  Mechanism (active-OPEN +133 quad + Nagle MSS-aggregate release):
+    1. driveActiveOpenEstablished. queryTcpSeqRange snapshots
+       rcv_nxt = DUT_ISN + 1; captured.expected_ack_num = first
+       seg seq for retransmit-vs-aggregate disambiguation.
+    2. shared_ptr<TesterAutoAckDrop> suppresses tester-kernel pure
+       ACKs to the DUT for the case lifetime (kept alive past
+       stimulus return via lambda capture in scheduled action).
+    3. UT OpSendTcpData(10 B). DUT writes seg 1; pcap captures it.
+    4. UT OpSendTcpData(10 B). Nagle holds: outstanding unacked +
+       payload < MSS → buffered.
+    5. UT OpSendTcpDataPattern(MSS - 10 = 1450 B). The cumulative
+       buffered (10 + 1450 = 1460 B = MSS) trips Linux's Nagle
+       full-segment exception in tcp_nagle_check; tcp_write_xmit
+       emits one MSS segment containing the aggregate of seg 2 +
+       seg 3.
+    6. The aggregate carries seq = first_seg_seq + 10 (advanced past
+       seg 1) and payload_len = MSS (1460 on a 1500 B veth MTU).
+
+  Two-state SCXML chain:
+    * listening_first_data — observe seg 1 on the case 4-tuple. Pass
+      to absence_or_aggregate.
+    * absence_or_aggregate — within the 6 s window, evaluate every
+      DUT data segment:
+        - payload_len > 100 AND seq != expected_ack_num → pass
+          (the aggregate, > MSS/2 in either direction).
+        - payload_len <= 100 AND seq != expected_ack_num → fail
+          (a small seg 2 leaked before the aggregate).
+        - retransmits of seg 1 (seq == expected_ack_num) are
+          absorbed by the second clause's seq mismatch requirement.
+        - deadline → fail_no_aggregate.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
+  is_dut_data_segment(...)'s src_ip conjunct unreachable; case
+  lands on fail_no_first_data via the 5 s phase-1 deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_nagle_03"
+       datamodel="null"
+       initial="listening_first_data">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_first_data">
+    <onentry>
+      <send event="deadline_first_data" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle03LocalOffset)"
+                target="absence_or_aggregate"/>
+    <transition event="deadline_first_data" target="fail_no_first_data"/>
+  </state>
+
+  <state id="absence_or_aggregate">
+    <onentry>
+      <send event="deadline_aggregate" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle03LocalOffset) and captured.seq_num != captured.expected_ack_num and captured.payload_len &gt; 100U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle03LocalOffset) and captured.seq_num != captured.expected_ack_num and captured.payload_len &lt;= 100U"
+                target="fail_dut_released_small_segment_before_aggregate"/>
+    <transition event="deadline_aggregate" target="fail_no_aggregate"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_data">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_released_small_segment_before_aggregate">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_released_small_segment_before_aggregate_nagle_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_aggregate">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_aggregate_segment_after_mss_fill"}</content>
+    </donedata>
+  </final>
+</scxml>

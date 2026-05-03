@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.8 REACQUISITION_06 retransmission cluster — DUT-emitted
+  REBINDING DHCPREQUEST retransmission per RFC 2131 §4.4.5 ("the
+  client SHOULD wait one-half of the remaining lease time"). Pass
+  criterion is observing TWO REBINDING REQUESTs from the DUT (both
+  IP-broadcast 255.255.255.255), and per-case `pass_expr` adds the
+  inter-request interval bound.
+
+  Lifecycle (5 states):
+    listening_for_discover (s1_deadline 4 s)
+      → listening_for_first_request on DUT DISCOVER
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      → listening_for_renewing_request on DUT SELECTING REQUEST
+    listening_for_renewing_request (ACK injected on entry, s3_deadline 10 s)
+      on dhcp_observed: is_request + chaddr_match + dst_ip_equals(server_id)
+                        (= first RENEWING REQUEST, IP-unicast — discriminates
+                        against the broadcast REBINDING that follows later)
+                        → listening_for_first_rebinding_request
+    listening_for_first_rebinding_request (s4_deadline 8 s)
+      on dhcp_observed: is_request + chaddr_match + dst_ip_is_broadcast
+                        (= first REBINDING REQUEST, T2 fired)
+                        → listening_for_second_rebinding_request
+      Note: the DUT's RENEWING-state retransmission (second RENEWING
+      REQUEST under §4.4.5) lands during this state. Its dst is the
+      server identifier (unicast), not broadcast — cond does not
+      satisfy → state stays. Only the eventual REBINDING REQUEST
+      (broadcast at T2) advances.
+    listening_for_second_rebinding_request (s5_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match + dst_ip_is_broadcast
+                        + ({$pass_expr}) → pass
+      on dhcp_observed: is_request + chaddr_match + dst_ip_is_broadcast
+                        + !({$pass_expr}) → {$fail_state}
+      on s5_deadline → fail_no_second_rebinding_request
+
+  Wall budget under retx envelope (kRetransmissionLeaseSeconds = 12 s):
+    BOUND at state-3 entry + ~100 ms. T1 = 6 s post-BOUND → first
+    RENEWING REQUEST (state 3 → 4). RENEWING retx at +2 s = 8 s
+    post-BOUND. T2 = 10 s post-BOUND → first REBINDING REQUEST
+    (state 4 → 5). REBINDING retx at +1 s = 11 s post-BOUND → state 5
+    → pass. s5_deadline 4 s scoped to the (lease − T2) = 2 s window.
+    Total wall from state 3 entry ≈ 11 s, fits the 18 s case_timeout
+    margin.
+
+  Per-state deadline event names s1/s2/s3/s4/s5 prevent leftover
+  deadline leakage.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_rebinding_retx_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="fail_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
+                target="listening_for_first_rebinding_request"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_first_rebinding_request">
+    <onentry>
+      <send event="s4_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast()"
+                target="listening_for_second_rebinding_request"/>
+    <transition event="s4_deadline" target="fail_no_first_rebinding_request"/>
+  </state>
+
+  <state id="listening_for_second_rebinding_request">
+    <onentry>
+      <send event="s5_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast() and ({$pass_expr})"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast() and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="s5_deadline" target="fail_no_second_rebinding_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_rebinding_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_first_rebinding_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_second_rebinding_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_second_rebinding_request_within_retx_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

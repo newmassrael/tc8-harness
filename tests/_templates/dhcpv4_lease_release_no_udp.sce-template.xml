@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.8 REACQUISITION_07 lifecycle template: after lease expiration
+  the client MUST stop using the released IP. tc8-dut's INIT-return
+  path (lease_end branch in runBoundPhaseMachine) clears
+  committed_lease_be_ and the next runLoop cycle re-emits
+  DHCPDISCOVER with src=0. Wire-level pass criterion is the absence
+  of any post-release REQUEST carrying the released ciaddr (= old
+  offered IP) — observed via `ciaddr_equals(expected.offered_ip_be)`.
+
+  Lifecycle (5 states):
+    listening_for_discover (s1_deadline 6 s)
+      → listening_for_first_request on DUT DISCOVER
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      → listening_for_renewing_request on DUT SELECTING REQUEST
+    listening_for_renewing_request (ACK injected on entry, s3_deadline 8 s)
+      → listening_for_lease_release on DUT REQUEST (RENEWING)
+    listening_for_lease_release (no stimulus, s4_deadline 8 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_no_unbound_request
+      Note: intervening RENEWING/REBINDING REQUESTs (RFC 2131 §4.4.5
+      retx halving) do not satisfy `is_dhcp_discover` — state stays.
+      Only the post-lease-end DHCPDISCOVER #2 (src=0, ciaddr=0)
+      advances.
+    listening_for_no_unbound_request (s5_deadline 3 s)
+      on dhcp_observed: is_request + chaddr_match + ciaddr_equals(offered_ip)
+                        → fail_dut_kept_released_ip
+      on s5_deadline → pass
+
+  Wall budget under fast envelope (kFastEnvelopeLeaseSeconds = 6 s):
+    BOUND ≈ 100 ms. T1 = 3 s, T2 = 5 s, lease_end = 6 s. State 4 entry
+    happens at first RENEWING REQUEST (~3 s post-BOUND); intervening
+    retx + REBINDING REQUEST + DISCOVER #2 spans state 4 + 5 ≈ 3 s.
+    s5_deadline 3 s gives the spec-mandated absence window. Total
+    wall ≈ 9-10 s, fits the 14 s case_timeout with margin.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_lease_release_no_udp">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="fail_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_lease_release"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_lease_release">
+    <onentry>
+      <send event="s4_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_no_unbound_request"/>
+    <transition event="s4_deadline" target="fail_no_lease_release"/>
+  </state>
+
+  <state id="listening_for_no_unbound_request">
+    <onentry>
+      <send event="s5_deadline" delay="3s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.ciaddr_equals(expected.offered_ip_be)"
+                target="fail_dut_kept_released_ip"/>
+    <transition event="s5_deadline" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_lease_release">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_lease_release_discover_after_lease_end"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_kept_released_ip">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_kept_released_ip_after_lease_expiry"}</content>
+    </donedata>
+  </final>
+</sce:template>

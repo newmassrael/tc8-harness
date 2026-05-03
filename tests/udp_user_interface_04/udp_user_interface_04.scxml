@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_04: receive operations return the
+  source IP address correctly (RFC 768 'User Interface' MUST). Tester
+  sends UDP from src_ip=<AIface-0-IP>=tester_ip; UT GetReceivedUdp
+  Confirmation surfaces the observed src_ip in the response trailer;
+  SCXML asserts ut_recv_src_ip == expected.tester_ip.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_04"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"
+           pass_expr="captured.ut_recv_src_ip == expected.tester_ip"
+           fail_reason_field="dut_received_udp_with_wrong_src_ip_in_confirmation"
+           fail_reason_timeout="no_ut_confirmation_for_src_ip_check"/>
+</scxml>

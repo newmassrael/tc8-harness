@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_01: TCP MUST be prepared to handle an
+  illegal option length for MSS in a SYN segment without crashing.
+  Derived from RFC 1122 §4.2.2.5 p85 TCP Options "RFC-793 Section
+  3.1" (MUST).
+
+  v3.0 Test Procedure (p355):
+    1. TESTER: Cause DUT to move on to LISTEN state at <wnp>.
+    2. TESTER: Send a SYN with MSS option having illegal length, ilen.
+    3. TESTER: Verify that the DUT has not crashed.
+
+    Test Iterations:
+      1. CASE: ilen = 0 (less than actual)
+      2. CASE: ilen = 5 (more than actual)
+
+  Mechanism: 3-phase compound stimulus, single observation phase:
+    Phase A (ilen=0): UT OpenTcpPassive listen_port_a + raw-inject
+                     SYN with options [0x02 0x00 0x01 0x01] (kind=2,
+                     length=0, NOP×2 padding to 4 B). UT close.
+    Phase B (ilen=5): UT OpenTcpPassive listen_port_b + raw-inject
+                     SYN with options [0x02 0x05 0xAA 0xBB 0xCC NOP×3]
+                     (kind=2, length=5 — three data bytes, illegal —
+                     NOP padding to 8 B). UT close.
+    Phase V (verify): driveRawPassiveHandshake on listen_port_v with
+                     well-formed options (single MSS=1460
+                     [0x02 0x04 0x05 0xB4]) + UT OpQueryTcpEstablished.
+
+  Pass guard (single tcp_observed edge): DUT-emitted SYN+ACK on the
+  verification port quad with captured.ut_established == 0x01. If
+  either malformed-iter SYN crashed the DUT, the verify-phase
+  handshake fails — UT RPC times out, no SYN+ACK arrives, and the
+  SCXML deadline expires on `no_dut_syn_ack_within_listen_window`.
+
+  Both malformed iterations are exercised before the single
+  verification, since "DUT not crashed" is a global state assertion;
+  the verification handshake succeeds iff the DUT survived BOTH
+  malformed inputs intact.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="8s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpMssOptionsListenPort01v and captured.dst_port == ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort01v and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ut_established == 0x01"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpMssOptionsListenPort01v and captured.dst_port == ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort01v and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ut_established == 0x00"
+                target="fail_not_established"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_not_established">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_reach_established"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.X TCP_HEADER_07: DUT discards TCP packet whose Data
+  Offset field carries an invalid non-zero value < 5. Derived from
+  RFC 793 §3.1 (minimum header is 20 B = 5 words).
+
+  v3.0 Test Procedure (p391):
+    1. TESTER: Bring DUT to 'ESTABLISHED' state.
+    2. TESTER: Send a TCP packet with Data Offset value less than 5.
+    3. DUT:    Discards the TCP packet.
+
+  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
+  inject in-window data with data_offset_override=4 + 3 s absence
+  of any DUT pure ACK on the EST 4-tuple.
+
+  Linux 6.5 dispatch path: tcp_v4_rcv (net/ipv4/tcp_ipv4.c) checks
+    if (th->doff < sizeof(struct tcphdr) / 4)
+        goto bad_packet;
+  with `bad_packet` incrementing TCP_MIB_INERRS and dropping the
+  segment without involving the connected socket. The EST socket
+  receives no signal and emits no ACK; the kernel does not generate
+  a RST either (bad_packet is silent).
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — handshake third-leg ACK observation
+      gates entry into the absence window (negative-flip handle on
+      the src_ip conjunct).
+    * listening_absence — 3 s window during which any DUT pure ACK
+      on the EST 4-tuple counts as fail. Linux's silent-drop path
+      means no DUT ACK fires; pass on deadline_absence.
+
+  Port-quad — kBasicsActiveLocalPort + 35 / +35.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_07"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 35U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 35U)"
+                target="listening_absence"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 35U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 35U)"
+                target="fail_unexpected_ack"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_acked_segment_with_invalid_data_offset"}</content>
+    </donedata>
+  </final>
+</scxml>

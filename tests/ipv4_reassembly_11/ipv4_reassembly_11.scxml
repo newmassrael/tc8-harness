@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPV4_REASSEMBLY_11: Check fragment with Large TTL value.
+  Per RFC 791 §3.2 "the waiting time will be increased if the Time to
+  Live in the arriving fragment is greater than the current timer
+  value." TESTER sends frag 0 (offset=0, MF=1, TTL=LargeTTLValue) and
+  waits MORE than ipIniReassembleTimeout before frag 1 (offset=1,
+  MF=0, TTL=LargeTTLValue). A conformant DUT extends the reassembly
+  timer because frag 0's high TTL exceeds the initial timer setting,
+  so the bucket is still alive when frag 1 arrives — DUT reassembles
+  and emits an Echo Reply mirroring id/seq/data.
+
+  Linux known-fail note: Linux uses a single static
+  `net.ipv4.ipfrag_time` for every reassembly bucket and ignores
+  per-fragment TTL — the RFC 791 §3.2 MAX(TLB, TTL) timer-extension
+  rule is unimplemented. The smoke-test.sh dut_ns toggle drops
+  `ipfrag_time` to 2 s (collapsing the spec's 15 s recommendation to
+  test-friendly seconds) and the case's 3 s inter-fragment wait
+  exceeds it. On Linux the bucket is purged (ip_expire) before frag 1
+  arrives, no Echo Reply lands, and the SCXML deadline fires →
+  fail:no_echo_reply_after_large_ttl_reassembly. The case stays in
+  tree (default smoke runs only CLI-positional cases, so this is not
+  a regression) for non-Linux DUTs whose stack honours the timer
+  extension — those will reassemble and pass on the same wire shape.
+
+  Pass criterion (strict-RFC 791 DUT) = type=0 Echo Reply with
+  matching echo_id + echo_seq + 8 B payload (kFragmentsEchoPayload
+  — same body shape as FRAGMENTS_01 / REASSEMBLY_12).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_11"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq and captured.echo_payload_equals(std::string_view(reinterpret_cast&lt;const char*&gt;(::tc8::sce::ipv4::fragments::kFragmentsEchoPayload.data()), ::tc8::sce::ipv4::fragments::kFragmentsEchoPayload.size()))"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id != expected.echo_id"
+                target="fail_echo_id"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_seq != expected.echo_seq"
+                target="fail_echo_seq"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0"
+                target="fail_data_mismatch"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_id_mismatch_after_large_ttl_reassembly"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_echo_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_seq_mismatch_after_large_ttl_reassembly"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_data_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_large_ttl"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_echo_reply_after_large_ttl_reassembly"}</content>
+    </donedata>
+  </final>
+</scxml>

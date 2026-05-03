@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_02: receive operations on the receive
+  port return the data octets correctly (RFC 768 'User Interface' MUST).
+  Tester sends UDP carrying <UDPDefaultData>=kUdpDefaultData (8 bytes
+  0x10 0x20 .. 0x80); UT GetReceivedUdp Confirmation echoes the bytes
+  back; SCXML asserts the first 8 B match.
+
+  Reuses udp_ut_received_check (3-state: received==1 + payload match).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_02"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"
+           pass_expr="captured.ut_recv_payload_len == 8 and captured.ut_recv_payload_first16[0] == 0x10 and captured.ut_recv_payload_first16[1] == 0x20 and captured.ut_recv_payload_first16[2] == 0x30 and captured.ut_recv_payload_first16[3] == 0x40 and captured.ut_recv_payload_first16[4] == 0x50 and captured.ut_recv_payload_first16[5] == 0x60 and captured.ut_recv_payload_first16[6] == 0x70 and captured.ut_recv_payload_first16[7] == 0x80"
+           fail_reason_field="dut_received_udp_with_wrong_payload_bytes"
+           fail_reason_timeout="no_ut_confirmation_for_payload_check"/>
+</scxml>

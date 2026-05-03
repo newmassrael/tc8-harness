@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.8 DHCPv4 RENEWING REQUEST shape invariant cluster — DUT-emitted
+  DHCPREQUEST in RENEWING state (T1 = lease/2 per RFC 2131 §4.4.5)
+  carries a single per-case wire-shape invariant (Option 54 absent,
+  Option 50 absent, ciaddr filled with bound IP, etc.).
+
+  Lifecycle:
+    listening_for_discover (s1_deadline 6 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_first_request
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_renewing_request
+    listening_for_renewing_request (ACK injected on entry, s3_deadline 8 s)
+      on dhcp_observed: is_request + chaddr_match + pass_expr → pass
+      on dhcp_observed: is_request + chaddr_match + !pass_expr → {$fail_state}
+      on s3_deadline → fail_no_renewing_request
+
+  The SELECTING REQUEST (carrying Option 50 + 54) consumes the state
+  2 → state 3 transition (no pass_expr) before the ACK hits state 3's
+  onentry, so its options never satisfy the pass/fail expressions.
+
+  Tester emul behaviour (registered by the trait via
+  `scheduleDhcpReplyOnStateEntry`):
+    state 2 entry → OFFER (lease_time_seconds = 6 → Option 51)
+    state 3 entry → ACK   (same lease — DUT parses Option 51 and arms T1)
+
+  Per-state deadline event names (s1/s2/s3) prevent leftover
+  deadline_exceeded leakage: SCXML scheduled `<send>` events fire at
+  the scheduled time regardless of whether the SM is still in the
+  origin state. With a single shared `deadline_exceeded` name, state 1
+  / state 2 leftovers would still match later states' transitions and
+  short-circuit the verdict before the RENEWING REQUEST observation.
+  Distinct names scope each transition to its own state's deadline.
+
+  Two `{$pass_expr}` + `{$fail_state}` + `{$fail_reason}` params per the
+  `dhcpv4_request_field` (S4) precedent — substitution is textual paste
+  so `!`, `(`, `)` survive while a raw `<` wouldn't. Compound RENEWING
+  predicates that would otherwise smuggle special chars belong as
+  `Dhcpv4Captured` member methods (`option_absent`, `ciaddr_equals`).
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_renewing_request_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="fail_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_first_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+    </donedata>
+  </final>
+</sce:template>

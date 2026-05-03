@@ -1,0 +1,73 @@
+#pragma once
+
+#include <chrono>
+#include <string_view>
+#include <vector>
+
+#include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/test_runner.h"
+#include "stimulus/someip_sd_builder.h"
+
+#include "someip_ets_088_sm.h"
+
+namespace tc8::sce::cases {
+
+using SomeipEts088SM = ::SCE::Generated::someip_ets_088::someip_ets_088;
+
+}  // namespace tc8::sce::cases
+
+namespace tc8::sce {
+
+// TC8 v3.0 §5.1.6 SOMEIP_ETS_088 — SD_Answer_multiple_subscribes_together.
+// Tester sends a single SD message carrying 3 Type 2 SubscribeEventgroup
+// entries (eg 0x02, 0x05, 0x06) via emitMultiSubscribeEventgroup. Per
+// PRS_SOMEIPSD_00263 the DUT must respond to each entry — Ack with
+// ttl > 0 for the configured eventgroups (0x02, 0x05) and Nack with
+// ttl == 0 for 0x06 (not in tc8-dut's vsomeip.json). Phase 2c
+// accepts any response on eg 0x06 (Ack OR Nack) per the lenient
+// spec invariant "DUT responds to each entry".
+template <>
+struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088SM> {
+    static constexpr std::string_view kCaseId      = "SOMEIP_ETS_088";
+    static constexpr std::string_view kSpecSection = "5.1.6";
+    static constexpr std::string_view kDescription =
+        "Multi-entry Subscribe (eg 0x02 + 0x05 + 0x06) — DUT acks/nacks each entry";
+
+    static void stimulus(Captured& /*c*/,
+                         const ::tc8::TestConfig& cfg,
+                         std::string_view iface) {
+        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                                             cfg.stimulus_timing);
+        std::vector<::tc8::stimulus::SubscribeEventgroupTarget> entries;
+        entries.reserve(3);
+
+        ::tc8::stimulus::SubscribeEventgroupTarget e1{};
+        e1.eventgroup_id = 0x0002;
+        entries.push_back(e1);
+
+        ::tc8::stimulus::SubscribeEventgroupTarget e2{};
+        e2.eventgroup_id = 0x0005;
+        entries.push_back(e2);
+
+        ::tc8::stimulus::SubscribeEventgroupTarget e3{};
+        e3.eventgroup_id = 0x0006;
+        entries.push_back(e3);
+
+        ::tc8::stimulus::emitMultiSubscribeEventgroup(iface, entries,
+                                                     std::chrono::milliseconds(500));
+    }
+
+    static std::string_view verdictFor(State s) {
+        switch (s) {
+            case State::Pass:                                   return "pass";
+            case State::Fail_phase1_no_offer_with_endpoint:     return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
+            case State::Fail_phase2_no_three_acks:              return "fail:no_bundled_subscribe_ack_for_eg_0x02_0x05_0x06";
+            default:                                            return "running";
+        }
+    }
+};
+
+}  // namespace tc8::sce
+
+TC8_REGISTER_CASE(::tc8::sce::cases::SomeipEts088SM, someip_ets_088)

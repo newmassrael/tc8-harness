@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.2 UDP_DatagramLength_01: DUT discards a truncated UDP
+  datagram (Length field smaller than the actual data coming from
+  the Ethernet frame). RFC 768 'Format' + automotive frame-integrity
+  requirement.
+
+  Stimulus: tester injects UDP with a Length-field override smaller
+  than 8 + payload — the wire bytes still carry full payload but the
+  Length slot misrepresents it. Linux's UDP layer drops on
+  `wire_remaining < length_field`-style decode failures. UT
+  GetReceivedUdp returns received=0.
+
+  Wire shape diverges from FIELDS_08 (truncated wire region) and
+  FIELDS_09 (length=0): this case keeps the wire well-formed but the
+  Length field strictly less than 8 + payload (here, length=8 with
+  4 B payload — Linux observes length<actual and drops).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_datagramlength_01"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="0"
+           fail_reason_wrong_receipt="dut_received_udp_with_length_smaller_than_actual"
+           fail_reason_timeout="no_ut_confirmation_for_length_short_discard"/>
+</scxml>

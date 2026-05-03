@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §5.1.5.3.1 SOMEIPSRV_SD_MESSAGE_01: When the DUT is configured with
+  Number Of Instances = 2 for SERVICE-ID-1, the OfferService SD message
+  shall carry two distinct OfferService entries, one per instance.
+  Verifies SD §6.7.4.1.1 (TR_SOMEIP_00351): Service Instance ID identifies
+  individual instances of a service.
+
+  The harness brings up tc8-dut with TC8_DUT_INSTANCE_2=1 +
+  vsomeip-multi-instance.json so vsomeip emits two OfferService entries
+  (instance 0x0001 + instance 0x0002). Per spec step 2, the tester sends
+  a FindService(instance_id=0xFFFF) — the dut also cyclically offers,
+  so any OfferService SD message with two entries satisfies the criterion.
+  Cond filter:
+    sd_entries[0].type == 0x01 (OfferService) gate, established by the
+    template prelude.
+    sd_entry_count &gt;= 2 — the multi-instance discriminator.
+    Both entries reference SERVICE-ID-1 and carry distinct instance_ids
+    (one is 0x0001, the other 0x0002).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_message_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
+           presence_gate="captured.sd_entry_count &gt;= 2"
+           entry_type="0x01"
+           pass_expr="captured.sd_entries[1].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[1].service_id == expected.service_id and captured.sd_entries[0].instance_id != captured.sd_entries[1].instance_id"
+           fail_state="fail_offer_entries"
+           fail_reason="offer_service_entries_not_two_distinct_instances"/>
+</scxml>

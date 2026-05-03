@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_082: ClientServiceActivate_Server_reboot_2.
+
+  UDP companion to ETS_081. After clientServiceActivate +
+  clientServiceSubscribeEventgroup the DUT proxy subscribes to the UDP-
+  unreliable target event on eventgroup 0x000B (selected at runtime via
+  TC8_DUT_CLIENT_MODE_UDP=1 in ClientModeProxyRunner). The tester emits
+  OfferService #1 with a UDP endpoint at port 30510; the DUT vsomeip
+  emits a SubscribeEventgroup carrying a UDP IPv4 Endpoint Option. After
+  the first wire Subscribe is observed, the trait fires a second
+  OfferService with a LOWER session_id AND a different UDP endpoint port
+  (30511, both rb=1) — vsomeip's `is_reboot` rule expires the previous
+  endpoint state and re-subscribes against the new tester endpoint per
+  PRS_SOMEIPSD_00385. The verdict observes a second wire Subscribe.
+
+  Stimulus chain (see src/sce_integration/cases/someip_ets_082.h):
+    1. emitFindServiceBoot — SERVICE-ID-1 server warm-up.
+    2. emitMethodRequestAfter(clientServiceActivate, 0x2F).
+    3. Sleep 800 ms (proxy buildProxy() registration delay).
+    4. emitMethodRequestAfter(clientServiceSubscribeEventgroup, 0x32) —
+       proxy subscribeUdp() under TC8_DUT_CLIENT_MODE_UDP=1.
+    5. emitOfferServiceMulticastWithEndpoint(ets3, UDP, port=30510,
+       sid=0x0A, rb=1).
+    6. State-entry observer on listening_phase3_second_subscribe fires
+       emitOfferServiceMulticastWithEndpoint(ets3, UDP, port=30511,
+       sid=0x05, rb=1) — vsomeip's `is_reboot` rule trips → DUT
+       re-subscribes with the new tester endpoint info.
+
+  Verdict (3-state):
+    Phase 1 (listening_phase1, 6 s): observe OfferService for
+            SERVICE-ID-1 (DUT's own server-side warm-up gate).
+    Phase 2 (listening_phase2_first_subscribe_seen, 12 s): observe
+            DUT-emitted SubscribeEventgroup (Type 0x06, ets3 0xF4E9,
+            ttl > 0) carrying an IPv4 Endpoint Option with l4_proto = UDP.
+    Phase 3 (listening_phase3_second_subscribe, 12 s): phase 3 onentry
+            fires the lower-sid OfferService; observe a second DUT
+            SubscribeEventgroup with the same UDP option shape.
+
+  Reference: PRS_SOMEIPSD_00385.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_082"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2_first_subscribe_seen"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2_first_subscribe_seen">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="12s"/>
+    </onentry>
+    <!-- DUT-emitted SubscribeEventgroup for ets3 (SERVICE-ID 0xF4E9),
+         Type 0x06, ttl > 0, with at least one IPv4 Endpoint Option
+         carrying l4_proto = UDP (0x11). -->
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_option_count >= 1 and captured.sd_options[0].type == 0x04 and captured.sd_options[0].l4_proto == 0x11"
+                target="listening_phase3_second_subscribe"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_first_subscribe"/>
+  </state>
+
+  <state id="listening_phase3_second_subscribe">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="12s"/>
+    </onentry>
+    <!-- Phase 3 onentry triggers the trait-side scheduleAfterStateEntry
+         callback that fires the reboot OfferService with a lower SD
+         session_id and a different tester UDP port. The DUT must
+         re-subscribe with the new endpoint info (PRS_SOMEIPSD_00385). -->
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_option_count >= 1 and captured.sd_options[0].type == 0x04 and captured.sd_options[0].l4_proto == 0x11"
+                target="pass"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_second_subscribe"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_first_subscribe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_subscribe_with_udp_option_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_second_subscribe">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_re_subscribe_after_simulated_server_reboot"}</content>
+    </donedata>
+  </final>
+</scxml>

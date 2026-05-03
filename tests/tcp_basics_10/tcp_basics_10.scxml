@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_10: in FINWAIT-1 or FINWAIT-2 state, the
+  DUT's TCP MUST send an ACK in response to a tester FIN. Derived from
+  RFC 793 §3.2 p23 Terminology.
+
+  v3.0 Test Procedure (p281-p300.txt:692) — two iterations:
+    1. CASE: <wst> = FINWAIT-1
+    2. CASE: <wst> = FINWAIT-2
+
+  Both iterations share the wire-observable assertion (DUT: Send ACK)
+  and reach the precondition state via the same procedure prefix
+  (handshake + DUT close + tester FIN). The only difference is the
+  pre-FIN delay — phase 1 issues the tester FIN immediately after UT
+  close so the tester's auto-ACK of DUT's FIN may race with the tester
+  FIN, leaving DUT in FINWAIT-1 internally; phase 2 waits for the
+  tester ACK to land at DUT (FINWAIT-2 confirmed) before issuing the
+  tester FIN.
+
+  Note: under a Linux tester kernel both phases collapse to the same
+  observable sequence at the wire level — Linux always emits the
+  auto-ACK of incoming FIN before the userland-driven FIN, so the DUT
+  is already in FINWAIT-2 by the time the tester FIN arrives. The two
+  phases are encoded for spec faithfulness; their FSM-internal
+  distinction would require iptables-driven ACK suppression, which is
+  beyond the scope of this case.
+
+  Each phase uses a 2-state sub-chain to distinguish the DUT's close
+  FIN (the marker that signals the procedure has reached the
+  FINWAIT-X state) from the spec-target ACK (the response to tester
+  FIN):
+
+    listening_pK_fin:    wait for DUT FIN+ACK on phase-K ports
+                         → listening_pK_ack
+    listening_pK_ack:    wait for DUT pure ACK (no FIN/SYN/RST) on
+                         the same ports → next phase or pass
+
+  Without the FIN-first marker the SCXML would match the handshake
+  third-leg ACK from the DUT and pass spuriously — same hazard
+  BASICS_07 dodges by querying ut_established (which has no off-the-
+  wire surrogate available here).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_10"
+       datamodel="null"
+       initial="listening_p1_fin">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_p1_fin">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x01) != 0"
+                target="listening_p1_ack"/>
+    <transition event="deadline_exceeded" target="fail_timeout_p1_fin"/>
+  </state>
+
+  <state id="listening_p1_ack">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_p2_fin"/>
+    <transition event="deadline_exceeded" target="fail_timeout_p1_ack"/>
+  </state>
+
+  <state id="listening_p2_fin">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U and (captured.flags &amp; 0x01) != 0"
+                target="listening_p2_ack"/>
+    <transition event="deadline_exceeded" target="fail_timeout_p2_fin"/>
+  </state>
+
+  <state id="listening_p2_ack">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout_p2_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_p1_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_close_fin_phase1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_p1_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase1"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_p2_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_close_fin_phase2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_p2_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase2"}</content>
+    </donedata>
+  </final>
+</scxml>

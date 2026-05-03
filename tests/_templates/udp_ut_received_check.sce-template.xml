@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.6.5.5 UDP_USER_INTERFACE 3-state UT-Confirmation field-check shape:
+  TESTER injects one UDP probe at the DUT's data port, then queries the
+  Upper Tester's GetReceivedUdp opcode whose response carries the DUT's
+  observed src_ip / src_port / payload bytes back to the harness.
+
+    * pass — Confirmation arrives with ut_opcode == 0x81, ut_status == 0,
+      ut_received == 1, AND {$pass_expr} (per-case predicate over the
+      `ut_recv_*` fields).
+    * fail_field_mismatch — Confirmation arrives correctly but
+      {$pass_expr} evaluates false (DUT received the datagram but the
+      harness's view of an asserted field disagrees).
+    * fail_timeout — no Confirmation within the 5 s listen window.
+
+  Distinct from `ipv4_udp_ut_presence` whose single hinge is
+  `ut_received == {$expected_received}`. UDP_USER_INTERFACE_02/_03/_04
+  need both `ut_received == 1` AND a second-axis assertion on the
+  payload / src_port / src_ip the DUT exposed in the Confirmation
+  trailer.
+
+  BPF: consumers use `BpfGroup::Udp`. SD multicast (UDP 30490) reaches
+  the pipeline but fails `has_ut_response` (the gate fires only on
+  src_port == ut::kPort = 30600), so SD frames cannot drive any
+  transition.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="udp_ut_received_check">
+
+  <sce:param name="pass_expr"               required="true"/>
+  <sce:param name="fail_reason_field"       required="true"/>
+  <sce:param name="fail_reason_timeout"     required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::UdpCaptured"
+               cpp:include="sce_integration/udp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and ({$pass_expr})"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and !({$pass_expr})"
+                target="fail_field_mismatch"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_field_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_field}"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason_timeout}"}</content>
+    </donedata>
+  </final>
+</sce:template>

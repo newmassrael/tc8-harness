@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.7 CONSTRUCTING_MESSAGES_05/_06 lifecycle template:
+  DUT runs the full DHCPv4 SELECTING → REQUESTING → BOUND lifecycle,
+  applies Option 3 (Router) carried via Option 52 overload (sname for
+  CM_05, file for CM_06) to the routing table, then emits a UDP
+  datagram to IP-UNUSED-ADDRESS through the gateway when externally
+  driven via OpTriggerSendUdp.
+
+  Lifecycle (state count = 3 listening + 4 finals):
+    listening_for_discover (s1_deadline 6 s)
+      on dhcp_observed: is_dhcp_discover + chaddr_match → listening_for_request
+    listening_for_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_dhcp_request + chaddr_match → listening_for_dut_udp
+    listening_for_dut_udp (ACK injected on entry + delayed
+                            OpTriggerSendUdp via scheduler.schedule(),
+                            s3_deadline 6 s)
+      on udp_observed: dst_ip == unused_routed_ip_be
+                       AND eth_src_equals(dut_iface_mac)
+                       AND eth_dst_equals(router_mac) → pass
+      on s3_deadline → fail_no_dut_udp
+
+  Zero-parameter template — both consumers (CM_05, CM_06) have
+  structurally identical pass criteria; the divergence between them
+  lives entirely in the trait `stimulus()` body (option_52_overload
+  byte value + which BOOTP region carries the Option 3 payload).
+
+  Per-state deadline event names (s1..s3) match the precedent set by
+  `dhcpv4_post_decline_discover` / `dhcpv4_renewing_request_field` —
+  leftover deadlines from prior states cannot match later transitions
+  and short-circuit the verdict before the DUT-UDP egress.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_router_option_egress">
+
+  <sce:context id="captured"
+               cpp:type="tc8::UdpAndDhcpv4Captured"
+               cpp:include="sce_integration/udp_and_dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::UdpAndDhcpv4Expected"
+               cpp:include="sce_integration/udp_and_dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="s1_deadline" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_request()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_dut_udp"/>
+    <transition event="s2_deadline" target="fail_no_request"/>
+  </state>
+
+  <state id="listening_for_dut_udp">
+    <onentry>
+      <send event="s3_deadline" delay="6s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.udp.dst_ip == expected.unused_routed_ip_be
+                      and captured.udp.eth_src_equals(expected.dhcpv4.dut_iface_mac)
+                      and captured.udp.eth_dst_equals(expected.router_mac)"
+                target="pass"/>
+    <transition event="s3_deadline" target="fail_no_dut_udp"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_udp">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_udp_to_unused_routed_ip_via_router_option"}</content>
+    </donedata>
+  </final>
+</sce:template>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.6.11 SOMEIPSRV_ONWIRE_11: The Return Code field signals
+  whether a Request was successfully processed. For a Normal Request /
+  Response (no error condition), the Response carries Return Code
+  E_OK (0x00). Tester invokes echoUINT8 (METHOD-ID-1-SI-1 = 0x0008);
+  pass requires the matched Response carries return_code == 0x00.
+
+  Cond is wire-equivalent to ONWIRE_07 (both verify Response shape
+  with msg_type=0x80 + return_code=0x00 on a normal Request) but the
+  spec axes differ: ONWIRE_07 is the Message Type axis (Request 0x00
+  → Response 0x80), ONWIRE_11 is the Return Code axis (E_OK on the
+  happy path). Both cases are present so a future DUT regression
+  affecting one axis but not the other surfaces under the matching
+  case_id rather than under a single "fail" flag.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_onwire_11"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/someipsrv_rpc_field_check.sce-template.xml"
+           phase2_filter="captured.service_id == expected.service_id and captured.message_type == 0x80"
+           pass_expr="captured.return_code == 0x00"
+           fail_state="fail_phase2_return_code_not_eok"
+           fail_reason="response_return_code_not_e_ok"/>
+</scxml>

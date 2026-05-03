@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.8 TCP_CLOSING_03: TCP SHOULD allow a received RST segment
+  to include data. Derived from RFC 1122 §4.2.2.12 p87 RST Segment
+  ("RFC-793 Section 3.4") (MUST per spec wording, SHOULD per RFC 1122).
+
+  v3.0 Test Procedure (p349):
+    1. TESTER: Cause the DUT to move on to ESTABLISHED state
+    2. TESTER: Send a RST segment containing some data
+    3. DUT:    Do not send any response
+    4. TESTER: Verify that the DUT is in CLOSED state
+
+  Mechanism (active-OPEN handshake → in-window RST with payload →
+  verify-probe ACK on killed 4-tuple → DUT RST as wire-observable
+  proof of CLOSED):
+    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
+      + 71, kBasicsActiveRemotePort + 71); accept tester fd, snapshot
+      tester snd_nxt / rcv_nxt via queryTcpSeqRange.
+    * Spec inject: raw-injected RST+ACK with seq=snd_nxt (in-window
+      per RFC 793 §3.4) AND a non-empty payload (16 bytes). Linux's
+      tcp_validate_incoming → tcp_reset(sk, skb) silently disposes
+      the socket; payload bytes are not delivered, no response is
+      emitted (RFC 793 §3.4 conformant).
+    * Verify probe: pure ACK on the same 4-tuple after a 100 ms
+      settle — the DUT-side socket is gone, so Linux's
+      tcp_v4_send_reset emits a closed-port RST. The DUT-emitted RST
+      is wire-observable proof that CLOSED was reached, sidestepping
+      Linux-internal tcp_close timing minutiae. Same pattern as
+      FLAGS_PROCESSING_02 phase 2 (EST RST→CLOSED, 0-byte RST).
+
+  SCXML chain (3 listening states + 3 fail terminals + pass):
+    handshake_ack → spec_silence (3 s absence after RST inject) →
+    verify_rst (verify-probe ACK draws DUT RST) → pass
+
+  spec_silence: a 3 s absence window between the RST inject and the
+  verify-probe ACK guards against any DUT response to the RST itself
+  (which the spec forbids). Transitions to verify_rst on deadline,
+  fails on any DUT segment on the 4-tuple. The verify-probe ACK is
+  not raised on the SCXML side — stimulus injects it on entry to
+  verify_rst via scheduleAfterStateEntry to avoid timing it by wall
+  clock.
+
+  Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
+  unreachable, lands on fail_no_handshake_ack at the 5 s deadline +
+  ~2 s prelude wall-time ≈ 8 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_closing_03"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 71U)"
+                target="listening_spec_silence"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_spec_silence">
+    <onentry><send event="deadline_spec_silence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 71U"
+                target="fail_dut_response_to_rst"/>
+    <transition event="deadline_spec_silence" target="listening_verify_rst"/>
+  </state>
+
+  <state id="listening_verify_rst">
+    <onentry><send event="deadline_verify_rst" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 71U)"
+                target="pass"/>
+    <transition event="deadline_verify_rst" target="fail_no_verify_rst"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  </final>
+
+  <final id="fail_dut_response_to_rst">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_rst_with_data_in_est"}</content></donedata>
+  </final>
+
+  <final id="fail_no_verify_rst">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_emit_rst_after_rst_with_data_in_est"}</content></donedata>
+  </final>
+</scxml>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.1 DHCPV4_CLIENT_SUMMARY_03: A DHCP client must accept
+  DHCP messages with an 'options' field of at least 312 octets, i.e.
+  receive messages of up to 576 octets total (RFC 2131 §2 / RFC 791
+  minimum reassembly).
+
+  Spec Test Procedure (tc8_p221-p240.txt: SUMMARY_03):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>.
+    4.   DUT: Sends DHCPDISCOVER Message.
+    5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER Message containing
+         additional PAD Options to make packet length set to 576.
+    6.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>.
+    7.   DUT: Sends DHCPREQUEST Message.
+  Pass: 4 + 7. The pass criterion is that the DUT successfully ingests
+  the 576-octet OFFER and emits the resulting REQUEST.
+
+  SCXML envelope identical to SUMMARY_01 — only the trait differs by
+  configuring `ip_datagram_total_bytes = 576` on the server emul so
+  the OFFER carries ~308 octets of PAD options before END.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_summary_03"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="deadline_exceeded" target="fail_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_no_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_discover">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_request">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_padded_offer"}</content>
+    </donedata>
+  </final>
+</scxml>

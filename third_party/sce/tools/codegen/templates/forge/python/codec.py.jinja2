@@ -1,0 +1,376 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+# SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
+# Runtime: {{ runtime_dep }}
+# Do not edit — regenerate from the source SCXML file.
+
+from __future__ import annotations
+
+from sce_forge_runtime.codec import CodecError, {{ "InvalidUtf8, " if has_string_fields else "" }}NeedMoreBytes, SceCursor{{ ", TlvChainOverflow" if has_tlv_chain_fields else "" }}
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+
+from dataclasses import dataclass{{ ", field" if has_variant or has_repeat_fields or has_tlv_chain_fields else "" }}
+from typing import Optional{{ ", List" if has_repeat_fields or has_tlv_chain_fields else "" }}
+
+
+{% if has_variant %}
+@dataclass
+class {{ struct_name }}Variant:
+    """RFC §5.B variant primitive (B1-β): discriminated-union body for
+    the codec's tag-field suffix. ``kind`` selects the active arm; the
+    matching ``Optional`` field carries the decoded body. ``default_tag``
+    preserves the runtime tag value when the default arm fires so encode
+    can round-trip it back onto the wire."""
+    # Default to the first declared arm (or "Default" when arms is empty)
+    # so a freshly-constructed envelope round-trips through encode without
+    # needing the caller to populate the body explicitly.
+{% if variant.arms %}
+    kind: str = "{{ variant.arms[0].variant_name }}"
+{% else %}
+    kind: str = "{{ variant.default_arm.variant_name }}"
+{% endif %}
+{% for arm in variant.arms %}
+    {{ arm.c_union_field }}: Optional[{{ arm.body_type }}] = None
+{% endfor %}
+{% if variant.default_arm %}
+    {{ variant.default_arm.c_union_field }}: Optional[{{ variant.default_arm.body_type }}] = None
+    default_tag: int = 0
+{% endif %}
+
+
+{% endif %}
+@dataclass
+class {{ struct_name }}:
+{% if has_no_fields %}
+    # RFC §5.B B5-α empty body — Python @dataclass tolerates zero
+    # fields; `pass` keeps the class body syntactically non-empty so
+    # methods below attach correctly.
+    pass
+{% else %}
+{% for field in fields %}
+    {{ field.id }}: {{ field.py_type }} = {{ field.default_value }}
+{% endfor %}
+{% if has_variant %}
+    body: {{ struct_name }}Variant = field(default_factory={{ struct_name }}Variant)
+{% endif %}
+{% endif %}
+
+    @classmethod
+    def decode(cls, cursor: SceCursor{{ parent_flags_param_decl }}) -> Optional[{{ struct_name }}]:
+        """Decode the next frame from ``cursor``. Returns ``None`` when
+        the cursor's tail is shorter than the declared minimum frame
+        (RFC §5.B L494-519); on success the cursor advances past the
+        consumed bytes. VLE codecs also return ``None`` on
+        ``VleWidthOverflow``."""
+{% if has_parent_flags %}
+        # RFC §5.B B5-γ: ``parent_flags`` is the parent codec's flags
+        # carrier value, threaded by the variant arm dispatcher. Body
+        # fields gated via ``parent.<flag>`` predicates read from this
+        # parameter; the ``_ = parent_flags`` defensive guard suppresses
+        # unused-variable warnings (mirrors Rust's ``let _ = parent_flags;``,
+        # Cpp's ``(void)parent_flags;`` defensive guards) for codecs
+        # that declare ``<sce:requires-parent-flags>`` without any
+        # consuming gated field.
+        _ = parent_flags
+{% endif %}
+{% if has_no_fields %}
+        # RFC §5.B B5-α empty body — zero-byte payload, no cursor work.
+        _ = cursor
+        return cls()
+{% elif has_variant %}
+        # Decode fixed prefix (RFC §5.B variant B1-β: fields before tag suffix).
+        try:
+            raw = cursor.peek_slice({{ min_bytes }})
+        except NeedMoreBytes:
+            return None
+{% for field in fields %}
+        {{ field.id }} = {{ field.decode_expr }}
+{% endfor %}
+        try:
+            cursor.advance({{ min_bytes }})
+        except NeedMoreBytes:
+            return None
+        # Dispatch on the tag field; each arm decodes its body codec
+        # from the cursor. The default arm (when declared) carries the
+        # runtime tag value so encode can round-trip it back onto the
+        # wire.
+        body = {{ struct_name }}Variant()
+{% for arm in variant.arms %}
+        {{ "if" if loop.first else "elif" }} {{ variant.tag_match_expr }} == {{ arm.value_literal }}:
+            body.kind = "{{ arm.variant_name }}"
+            _arm = {{ arm.body_type }}.decode(cursor{{ arm.body_parent_flags_arg }})
+            if _arm is None:
+                return None
+            body.{{ arm.c_union_field }} = _arm
+{% endfor %}
+        else:
+{% if variant.default_arm %}
+            body.kind = "{{ variant.default_arm.variant_name }}"
+            body.default_tag = {{ variant.tag_store_expr }}
+            _arm = {{ variant.default_arm.body_type }}.decode(cursor{{ variant.default_arm.body_parent_flags_arg }})
+            if _arm is None:
+                return None
+            body.{{ variant.default_arm.c_union_field }} = _arm
+{% else %}
+            # codec/variant-arm-unreachable rejected this case at parse time.
+            return None
+{% endif %}
+        return cls(
+{% for field in fields %}
+            {{ field.id }}={{ field.id }},
+{% endfor %}
+            body=body,
+        )
+{% elif has_present_if_fields %}
+        # RFC §5.B B1-δ + B2-β present-if primitive: streaming decode
+        # advances the cursor per field. Per-field statements live
+        # inside one outer `try:` block so the first peek/advance
+        # failure unwinds to a single `except NeedMoreBytes`. Per-
+        # field `is_repeat` routes Repeat fields to the dedicated
+        # helper. Branch fires before has_vle_fields so a codec mixing
+        # VLE + present-if uses the unified streaming path.
+        try:
+{% for field in fields %}
+{% if field.is_repeat %}
+            {{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+            {{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+            {{ field.embed_decode_stmt }}
+{% else %}
+            {{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+        except NeedMoreBytes:
+            return None
+        return cls(
+{% for field in fields %}
+            {{ field.id }}={{ field.id }},
+{% endfor %}
+        )
+{% elif has_vle_fields %}
+        # RFC §5.B B4: per-field bit-size dispatch routes Fixed /
+        # LengthRef siblings of VLE fields through
+        # `present_if_decode_stmt` (predicate=None arms). Pure-VLE
+        # codecs stay byte-stable.
+        try:
+{% for field in fields %}
+{% if field.is_repeat %}
+            {{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+            {{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+            {{ field.embed_decode_stmt }}
+{% else %}
+            {{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+        except CodecError:
+            return None
+        return cls(
+{% for field in fields %}
+            {{ field.id }}={{ field.id }},
+{% endfor %}
+        )
+{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
+        # RFC §5.B B2 repeat primitive: streaming decode mixes plain
+        # fixed-width reads (per-field via the present-if helper's
+        # non-gated arm) with `for _ in range(N)` / `while
+        # cursor.remaining() > 0` loops that iterate the imported
+        # codec's `decode()`. Element bodies recurse and may surface
+        # `None`, which propagates up via early `return None` from
+        # this outer `try:` block.
+        try:
+{% for field in fields %}
+{% if field.is_repeat %}
+            {{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+            {{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+            {{ field.embed_decode_stmt }}
+{% else %}
+            {{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+        except NeedMoreBytes:
+            return None
+        return cls(
+{% for field in fields %}
+            {{ field.id }}={{ field.id }},
+{% endfor %}
+        )
+{% elif has_variable_fields %}
+        try:
+            _frame_len = cursor.remaining()
+            if _frame_len < {{ min_bytes }}:
+                return None
+            raw = cursor.peek_slice(_frame_len)
+        except NeedMoreBytes:
+            return None
+        value = cls(
+{% for field in fields %}
+            {{ field.id }}={{ field.decode_expr }},
+{% endfor %}
+        )
+        try:
+            cursor.advance(_frame_len)
+        except NeedMoreBytes:
+            return None
+        return value
+{% else %}
+        try:
+            raw = cursor.peek_slice({{ min_bytes }})
+        except NeedMoreBytes:
+            return None
+        value = cls(
+{% for field in fields %}
+            {{ field.id }}={{ field.decode_expr }},
+{% endfor %}
+        )
+        try:
+            cursor.advance({{ min_bytes }})
+        except NeedMoreBytes:
+            return None
+        return value
+{% endif %}
+
+{% if has_flags %}
+    # RFC §5.B B1-γ + B5-α flags primitive: per-bit-range accessors over
+    # the carrier field. Single-bit (width=1) reads as bool; multi-bit
+    # (width>=2) reads as ``int`` (Python ints are unbounded, so a single
+    # ``int`` covers every result-type width). Setters mask + shift on
+    # the way in so out-of-range callers can't corrupt sibling bits.
+    # Plain methods (rather than @property) for API symmetry with
+    # Rust / Cpp / Kotlin / Go / C11. Wire layout is unchanged.
+{% for field in fields %}
+{% if field.has_flags %}
+{% for fl in field.flags %}
+{% if fl.multi_bit %}
+    def {{ fl.name_acc }}(self) -> int:
+        return (self.{{ field.id }} >> {{ fl.bit }}) & {{ fl.value_mask_literal }}
+
+    def {{ fl.name_set }}(self, v: int) -> None:
+        _shifted_mask = {{ fl.value_mask_literal }} << {{ fl.bit }}
+        _val = (v & {{ fl.value_mask_literal }}) << {{ fl.bit }}
+        self.{{ field.id }} = ((self.{{ field.id }} & ({{ field.py_carrier_max }} ^ _shifted_mask)) | _val) & {{ field.py_carrier_max }}
+
+{% else %}
+    def {{ fl.name_acc }}(self) -> bool:
+        return (self.{{ field.id }} & {{ fl.mask_literal }}) != 0
+
+    def {{ fl.name_set }}(self, v: bool) -> None:
+        if v:
+            self.{{ field.id }} = (self.{{ field.id }} | {{ fl.mask_literal }}) & {{ field.py_carrier_max }}
+        else:
+            self.{{ field.id }} = self.{{ field.id }} & ({{ field.py_carrier_max }} ^ {{ fl.mask_literal }})
+
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+    def encode(self{{ parent_flags_param_decl }}) -> bytes:
+{% if has_parent_flags %}
+        # RFC §5.B B5-γ: see ``decode`` — same parameter, same suppress.
+        _ = parent_flags
+{% endif %}
+{% if has_no_fields %}
+        # RFC §5.B B5-α empty body — zero-byte payload.
+        return b""
+{% elif has_variant %}
+        # Encode fixed prefix (tag field bytes are part of the prefix).
+        # The tag value is read from the struct field, NOT derived from
+        # the body discriminant — keeping author-set tag / body in sync
+        # is the caller's responsibility (v1 keeps the layout simple).
+        r = bytearray()
+{% for expr in encode_exprs %}
+        r.append({{ expr }})
+{% endfor %}
+        # Append the active arm body's encoded bytes.
+{% for arm in variant.arms %}
+        {{ "if" if loop.first else "elif" }} self.body.kind == "{{ arm.variant_name }}":
+            r.extend(self.body.{{ arm.c_union_field }}.encode({{ arm.body_parent_flags_arg_first }}))
+{% endfor %}
+{% if variant.default_arm %}
+        elif self.body.kind == "{{ variant.default_arm.variant_name }}":
+            r.extend(self.body.{{ variant.default_arm.c_union_field }}.encode({{ variant.default_arm.body_parent_flags_arg_first }}))
+{% endif %}
+        return bytes(r)
+{% elif has_present_if_fields %}
+        # RFC §5.B B1-δ + B2-β present-if encode: per-field byte
+        # append. Gated fields skip the append when the optional is
+        # `None`. Per-field `is_repeat` routes Repeat fields to the
+        # dedicated helper. Branch fires before has_vle_fields so a
+        # codec mixing VLE + present-if uses the unified encode path.
+        r = bytearray()
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+        return bytes(r)
+{% elif has_vle_fields %}
+        # RFC §5.B B4: per-field bit-size dispatch routes Fixed /
+        # LengthRef siblings of VLE fields through
+        # `present_if_encode_block` (predicate=None arms). Pure-VLE
+        # codecs stay byte-stable.
+        r = bytearray()
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+        return bytes(r)
+{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
+        # RFC §5.B B2 encode: fixed prefix appends byte-by-byte; repeat
+        # fields iterate `self.<id>` and extend the bytearray with each
+        # element's `encode()`. Author keeps count field == list length
+        # (trust contract).
+        r = bytearray()
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+        return bytes(r)
+{% elif has_variable_fields %}
+        r = bytearray()
+{% for expr in encode_exprs %}
+        r.append({{ expr }})
+{% endfor %}
+{% for field in fields %}
+{% if field.is_variable %}
+        r.extend(self.{{ field.id }})
+{% endif %}
+{% endfor %}
+        return bytes(r)
+{% else %}
+        return bytes([
+{% for expr in encode_exprs %}
+            {{ expr }},
+{% endfor %}
+        ])
+{% endif %}

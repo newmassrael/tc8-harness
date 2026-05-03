@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_01: from the LISTEN state, the DUT's TCP MUST
+  send a SYN,ACK in response to a SYN. Derived from RFC 793 §3.2 p23
+  Terminology (LISTEN-state acceptance).
+
+  v3.0 Test Procedure (p281-p300.txt:399):
+    1. TESTER: Cause DUT to move on to LISTEN state at a <wnp>.
+    2. TESTER: Send a SYN to DUT at <wnp>.
+    3. DUT: Send SYN,ACK.
+
+  Mechanism (§4.8.5 Upper Tester + tester-side connect):
+    1. Tester waits 1500 ms for tc8-dut UT server to bind port 30600.
+    2. Tester emits UT OpOpenTcpSocket(local_port=12345) → tc8-dut
+       creates a SOCK_STREAM, bind/listen on 12345, spawns acceptor.
+    3. Tester sleeps 100 ms for bind+listen+acceptor to be ready.
+    4. Tester calls connect(DUT:12345). The tester kernel emits SYN
+       (src_port=ephemeral, dst_port=12345); the DUT kernel replies
+       SYN,ACK; the tester kernel completes the handshake with ACK.
+    5. Tester captures the DUT's SYN,ACK via pcap; SCXML observes
+       captured.src_port == 12345 AND SYN AND ACK flags set.
+
+  Pass guard conjuncts:
+    * captured.src_ip   == expected.dut_iface_ip  — DUT-origin
+    * captured.dst_ip   == expected.tester_ip     — addressed to us
+    * captured.src_port == 12345                  — the listener port
+    * (captured.flags & SYN) != 0                 — spec-mandated
+    * (captured.flags & ACK) != 0                 — spec-mandated
+
+  The src_ip filter drops the tester's own SYN + ACK (src_ip=tester)
+  and any SOME/IP-over-TCP kernel traffic to vsomeip ports.
+
+  Iteration coverage: spec lists only one iteration for BASICS_01.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_syn_ack_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>

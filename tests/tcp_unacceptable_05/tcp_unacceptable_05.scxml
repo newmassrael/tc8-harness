@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_05: TCP in LISTEN state MUST send a
+  RST after receiving a segment carrying an unacceptable ACK and
+  remain in the same state. Derived from RFC 793 §3.4 p36
+  Establishing a Connection (MUST).
+
+  v3.0 Test Procedure (p301-p320.txt:401), two iterations:
+    * CASE 1: flag set = SYN,ACK   (unacceptable ACK)
+    * CASE 2: flag set = ACK only  (unacceptable ACK)
+
+  Mechanism: a passive-listener DUT receives an ACK-bearing segment
+  with no prior SYN-RCVD context. RFC 793 §3.4 p36 specifies LISTEN
+  responds with RST when the incoming segment carries an ACK
+  acknowledging something that was never sent — which any ACK is in
+  LISTEN, since LISTEN has emitted no data. Both iterations resolve
+  through the same kernel path (`tcp_v4_rcv` → `tcp_v4_send_reset`)
+  but spec literalism mandates each is exercised in turn.
+
+  Each phase uses a DISTINCT DUT listener port (12345 / 12346) to
+  isolate cross-phase state — phase 1's RST emission cannot
+  contaminate phase 2's listen window via a stray retransmit, and
+  phase 2's listener bind cannot collide with phase 1's still-being-
+  closed listener.
+
+  Pass guard structure — two listening_phase states walked in
+  sequence:
+    listening_phase1_synack — match DUT-origin RST on
+        (src_port=12345, dst_port=49152). Once consumed, transit
+        to phase 2.
+    listening_phase2_ack — match DUT-origin RST on
+        (src_port=12346, dst_port=49152). Pass on observation.
+
+  Per-phase fail terminals (fail_timeout_phase1 / fail_timeout_phase2)
+  let smoke-test triage which iteration the DUT failed.
+
+  Phase deadlines: 5 s × 2 = 10 s upper bound. Stimulus wall-time
+  ~3.5 s (UT boot + 2× passive open + raw inject + close). Per-case
+  budget 14 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_05"
+       datamodel="null"
+       initial="listening_phase1_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_phase1_synack">
+    <onentry>
+      <send event="deadline_phase1" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="listening_phase2_ack"/>
+    <transition event="deadline_phase1" target="fail_timeout_phase1"/>
+  </state>
+
+  <state id="listening_phase2_ack">
+    <onentry>
+      <send event="deadline_phase2" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 1U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="pass"/>
+    <transition event="deadline_phase2" target="fail_timeout_phase2"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_synack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_phase2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_naked_ack"}</content>
+    </donedata>
+  </final>
+</scxml>

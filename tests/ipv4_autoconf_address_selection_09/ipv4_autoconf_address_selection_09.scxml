@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_09: DUT emits exactly
+  PROBE_NUM = 3 ARP Probes during the link-local probing phase
+  (RFC 3927 §2.2.1).
+
+  Spec Test Procedure (tc8_p141-p160.txt:520..532):
+    1-4. DUT brings up iface and sends DHCPDISCOVER.
+    5-6. TESTER listens; verify 3 ARP Request Messages received.
+
+  Cadence-bearing case: tc8-dut runs with the RFC default knobs
+  (PROBE_WAIT 1 s, PROBE_MIN..PROBE_MAX 1..2 s) so the cadence the
+  spec measures is what the tc8-dut actually emits. With those
+  knobs Probe1..Probe3 land at ~2.7 s..6.7 s after the stimulus
+  call (1.5 s initial wait + 200 ms DHCP fail + PROBE_WAIT + 2 ×
+  uniform[1, 2] s). 12 s deadline gives ~5 s margin.
+
+  SCXML counts via 3-step state advance — listening → seen_1 →
+  seen_2 → pass — using `is_arp_probe()` so non-Probe ARP traffic
+  (e.g., the post-Probe Announce phase if it leaks before the
+  third Probe verdict, which it cannot with the chosen timing) does
+  not advance the counter.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_address_selection_09"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="12s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="seen_1"/>
+    <transition event="deadline_exceeded" target="fail_no_probes"/>
+  </state>
+
+  <state id="seen_1">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="seen_2"/>
+    <transition event="deadline_exceeded" target="fail_too_few_probes"/>
+  </state>
+
+  <state id="seen_2">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_too_few_probes"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_probes">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_too_few_probes">
+    <donedata>
+      <content>{"verdict":"fail","reason":"fewer_than_3_arp_probes_within_deadline"}</content>
+    </donedata>
+  </final>
+</scxml>

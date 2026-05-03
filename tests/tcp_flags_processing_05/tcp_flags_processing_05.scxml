@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_05: TCP, in SYN-RCVD state, MUST
+  go to LISTEN state on receiving a segment of type Stp (SYN in
+  window or SYN+ACK in window). Derived from RFC 1122 §4.2.2.20(e)
+  p94 (MUST).
+
+  v3.0 Test Procedure (p341) lists 2 iterations:
+    * CASE 1: <stp> = SYN in window
+    * CASE 2: <stp> = SYN+ACK in window
+
+  ## Wire-observable assertion
+
+  "DUT goes to LISTEN" is asserted indirectly: after the spec-
+  prescribed inject, the tester sends a fresh SYN from a DIFFERENT
+  source port. If the DUT-side LISTEN socket survived, Linux's
+  tcp_v4_rcv routes the new SYN to LISTEN, creates a fresh
+  req_sock, and emits SYN+ACK on the new 4-tuple. The verify-SYN+ACK
+  observation on (listen_port, verify_tester_port) confirms the
+  LISTEN socket is alive — irrespective of whether the SYN-RCVD
+  instance for the original 4-tuple reverted to LISTEN per spec or
+  was destroyed and replaced (Linux's tcp_check_req treats a same-
+  ISN duplicate SYN as a SYN+ACK retx and a different-ISN SYN as
+  req_sock replacement; SYN+ACK with valid ack may complete the
+  handshake to ESTABLISHED). The LISTEN survival is the testable
+  invariant, not the precise instance disposition.
+
+  Per-phase port quads:
+    * Phase 1 SYN in window:    listen +10, prelude tester +72,
+                                verify tester +73
+    * Phase 2 SYN+ACK in window: listen +11, prelude tester +74,
+                                 verify tester +75
+
+  Both listen ports are clear of FLAGS_INVALID_07's +0..+4
+  reservation. Tester source ports are clear of MSS_OPTIONS's
+  +52..+63 (none collide).
+
+  ## SCXML chain (4 listening states + pass + 4 fails)
+
+    Phase 1: prelude_synack → verify_synack
+    Phase 2: prelude_synack → verify_synack
+                                            → pass
+
+  Phase 1 fires synchronously in stimulus body. Phase 2 schedules
+  via scheduleAfterStateEntry on Listening_p2_prelude_synack.
+
+  Negative IP-flip path: phase 1 src_ip-conjunct unreachable on
+  the initial state, lands on fail_p1_no_prelude_synack at the 5 s
+  deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_05"
+       datamodel="null"
+       initial="listening_p1_prelude_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <!-- Phase 1: SYN in window. listen +10, prelude tester +72, verify tester +73 -->
+  <state id="listening_p1_prelude_synack">
+    <onentry><send event="deadline_p1_prelude_synack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 10U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 72U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_p1_verify_synack"/>
+    <transition event="deadline_p1_prelude_synack" target="fail_p1_no_prelude_synack"/>
+  </state>
+  <state id="listening_p1_verify_synack">
+    <onentry><send event="deadline_p1_verify_synack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 10U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 73U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_p2_prelude_synack"/>
+    <transition event="deadline_p1_verify_synack" target="fail_p1_no_verify_synack"/>
+  </state>
+
+  <!-- Phase 2: SYN+ACK in window. listen +11, prelude tester +74, verify tester +75 -->
+  <state id="listening_p2_prelude_synack">
+    <onentry><send event="deadline_p2_prelude_synack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 74U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_p2_verify_synack"/>
+    <transition event="deadline_p2_prelude_synack" target="fail_p2_no_prelude_synack"/>
+  </state>
+  <state id="listening_p2_verify_synack">
+    <onentry><send event="deadline_p2_verify_synack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 75U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="pass"/>
+    <transition event="deadline_p2_verify_synack" target="fail_p2_no_verify_synack"/>
+  </state>
+
+  <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
+
+  <final id="fail_p1_no_prelude_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_prelude_syn_phase1"}</content></donedata></final>
+  <final id="fail_p1_no_verify_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_verify_syn_after_in_window_syn"}</content></donedata></final>
+  <final id="fail_p2_no_prelude_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_prelude_syn_phase2"}</content></donedata></final>
+  <final id="fail_p2_no_verify_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_verify_syn_after_in_window_synack"}</content></donedata></final>
+</scxml>

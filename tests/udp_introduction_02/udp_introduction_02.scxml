@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.6 UDP_INTRODUCTION_02: DUT denies a UDP datagram whose
+  Destination IP Address is the all-systems multicast address
+  (224.0.0.1). Spec inverts the RFC 1122 §4.1.1 SHOULD-allow due to
+  the automotive security profile.
+
+  Test Procedure (p201-p220.txt:664):
+    1. DUT CONFIGURE: Listen on <unusedUDPDstPort1> on <DIface-0>.
+    3. TESTER: Send UDP to <allSystemMCastAddr>:<unusedUDPDstPort1>.
+    4. TESTER: Verify via UT that the application layer did not receive.
+
+  Mechanism: tc8-dut binds INADDR_ANY without IP_ADD_MEMBERSHIP for any
+  multicast group, so Linux's IP layer never delivers a 224.0.0.1
+  datagram to the data listener — natural received=0. A future tc8-dut
+  that explicitly joined 224.0.0.1 would need an app-level filter
+  matching the iface_broadcast pattern; registering this case guards
+  against that drift.
+
+  Reuses ipv4_udp_ut_presence with expected_received=0.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_introduction_02"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="0"
+           fail_reason_wrong_receipt="dut_received_all_systems_multicast_udp"
+           fail_reason_timeout="no_ut_confirmation_for_multicast_deny"/>
+</scxml>

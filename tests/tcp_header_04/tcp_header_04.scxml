@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.X TCP_HEADER_04: DUT discards TCP packet whose Source
+  Port differs from the established peer's port (PORT2 != PORT1).
+  Derived from RFC 793 §3.1 / §3.9 (4-tuple demultiplexing).
+
+  v3.0 Test Procedure (p388):
+    1. TESTER: Bring DUT to 'ESTABLISHED' state on <PORT1>.
+    2. TESTER: Send a TCP packet on <PORT2> with Sequence Number set
+               to <SEQ1>.
+    3. DUT:    Discards the TCP packet (and optionally sends a RST).
+
+  Mechanism: Active-OPEN to ESTABLISHED on
+  (kBasicsActiveLocalPort+32, kBasicsActiveRemotePort+32) +
+  queryTcpSeqRange + raw-inject PSH+ACK with src_port=PORT2 (= the
+  primary remote port + 100, well clear of any §4.8 listener) and
+  in-window seq/ack against the EST connection's snd_nxt/rcv_nxt +
+  3 s absence of any DUT pure ACK on the EST 4-tuple.
+
+  Linux 6.5 dispatch: tcp_v4_rcv looks up (peer_ip, PORT2, dut_ip,
+  PORT_LOCAL_DUT) — no socket matches, the path falls into
+  tcp_v4_send_reset which emits RST on the (dut_ip:PORT_LOCAL_DUT,
+  peer_ip:PORT2) wrong-port-quad. The EST socket on PORT1 receives
+  no signal and emits no ACK. The spec's "and optionally a RST" is
+  satisfied on a different 4-tuple, structurally orthogonal to the
+  EST flow's absence guard.
+
+  Two-state SCXML chain:
+    * listening_handshake_ack — handshake third-leg ACK on the EST
+      port quad. Negative-flip handle on the src_ip conjunct.
+    * listening_absence — 3 s window for any DUT pure ACK on the
+      EST 4-tuple. Pass on deadline_absence; the spec-permitted
+      RST on the wrong-port quad is filtered out by the EST
+      port-quad conjuncts.
+
+  Port-quad — kBasicsActiveLocalPort + 32 / +32 for the EST
+  connection; raw-inject uses src_port = kBasicsActiveRemotePort +
+  132 as PORT2, deliberately offset by 100 from any other §4.8
+  port allocation.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_04"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 32U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 32U)"
+                target="listening_absence"/>
+    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 32U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 32U)"
+                target="fail_unexpected_ack"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_acked_segment_with_wrong_source_port"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,359 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+package {{ package }}
+
+import (
+	"github.com/newmassrael/sce-forge-runtime/codec"
+{% if has_string_fields %}
+	"unicode/utf8"
+{% endif %}
+{% if all_imports %}
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+)
+
+{% if has_variant %}
+{% if variant.default_arm %}
+// {{ struct_name }}{{ variant.default_arm.variant_name }} bundles the runtime
+// tag value with the catch-all body so encode can round-trip the
+// observed tag back onto the wire (RFC §5.B variant primitive B1-β).
+type {{ struct_name }}{{ variant.default_arm.variant_name }} struct {
+	Tag {{ variant.tag_native_type }}
+	Body {{ variant.default_arm.body_type }}
+}
+
+{% endif %}
+// {{ struct_name }}Variant is a discriminated-union body for the codec's
+// tag-field suffix (RFC §5.B variant primitive B1-β). Exactly one of
+// the pointer fields is non-nil at a time; the active arm is the one
+// that matches the current tag value.
+type {{ struct_name }}Variant struct {
+{% for arm in variant.arms %}
+	{{ arm.variant_name }} *{{ arm.body_type }}
+{% endfor %}
+{% if variant.default_arm %}
+	{{ variant.default_arm.variant_name }} *{{ struct_name }}{{ variant.default_arm.variant_name }}
+{% endif %}
+}
+
+{% endif %}
+// {{ struct_name }} represents the codec frame layout.
+type {{ struct_name }} struct {
+{% for field in fields %}
+	{{ field.id }} {{ field.go_type }}
+{% endfor %}
+{% if has_variant %}
+	Body {{ struct_name }}Variant
+{% endif %}
+}
+
+// Decode{{ struct_name }} decodes the next frame from cursor.
+// On success the cursor advances past the consumed bytes; returns
+// `codec.ErrNeedMoreBytes` (without advancing) when the cursor's tail
+// is shorter than the declared minimum frame (RFC §5.B L494-519).
+// VLE codecs may also return `codec.ErrVLEWidthOverflow`.
+func Decode{{ struct_name }}(cursor *codec.SceCursor{{ parent_flags_param_decl }}) (*{{ struct_name }}, error) {
+{% if has_no_fields %}
+	// RFC §5.B B5-α empty body — zero-byte payload, no cursor work.
+	_ = cursor
+	return &{{ struct_name }}{}, nil
+{% elif has_variant %}
+	// Decode fixed prefix (RFC §5.B variant B1-β: fields before tag suffix).
+	raw, err := cursor.PeekSlice({{ min_bytes }})
+	if err != nil {
+		return nil, err
+	}
+{% for field in fields %}
+	{{ field.id }} := {{ field.decode_expr }}
+{% endfor %}
+	if err := cursor.Advance({{ min_bytes }}); err != nil {
+		return nil, err
+	}
+	// Dispatch on the tag field; each arm decodes its body codec from
+	// the cursor. The default arm (when declared) carries the runtime
+	// tag value so encode can round-trip it back onto the wire.
+	body := {{ struct_name }}Variant{}
+	switch {{ variant.tag_match_expr }} {
+{% for arm in variant.arms %}
+	case {{ arm.value_literal }}:
+		_arm, err := {{ arm.body_decoder }}(cursor{{ arm.body_parent_flags_arg }})
+		if err != nil {
+			return nil, err
+		}
+		body.{{ arm.variant_name }} = _arm
+{% endfor %}
+	default:
+{% if variant.default_arm %}
+		_arm, err := {{ variant.default_arm.body_decoder }}(cursor{{ variant.default_arm.body_parent_flags_arg }})
+		if err != nil {
+			return nil, err
+		}
+		body.{{ variant.default_arm.variant_name }} = &{{ struct_name }}{{ variant.default_arm.variant_name }}{
+			Tag: {{ variant.tag_store_expr }},
+			Body: *_arm,
+		}
+{% else %}
+		// codec/variant-arm-unreachable rejected this case at parse time.
+		return nil, codec.ErrNeedMoreBytes
+{% endif %}
+	}
+	return &{{ struct_name }}{
+{% for field in fields %}
+		{{ field.id }}: {{ field.id }},
+{% endfor %}
+		Body: body,
+	}, nil
+{% elif has_present_if_fields %}
+	// RFC §5.B B1-δ + B2-β present-if primitive: streaming decode
+	// advances the cursor per field. Gated fields use `*T` for fixed
+	// (nil = absent) or `[]byte` (nil = absent) for tail/length-ref;
+	// VLE gating uses `*T` like fixed. Per-field `is_repeat` routes
+	// Repeat fields to the dedicated helper. Branch fires before
+	// has_vle_fields so a codec mixing VLE + present-if uses the
+	// unified streaming path.
+{% for field in fields %}
+{% if field.is_repeat %}
+	{{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+	{{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+	{{ field.embed_decode_stmt }}
+{% else %}
+	{{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+	return &{{ struct_name }}{
+{% for field in fields %}
+		{{ field.id }}: {{ field.id }},
+{% endfor %}
+	}, nil
+{% elif has_vle_fields %}
+	// Streaming codec: each field reads from cursor directly
+	// (VLE base-128 chain). Local var name reuses the Go-PascalCase
+	// `field.id` — the struct literal's `Foo: Foo` is unambiguous
+	// because the package owns both names. RFC §5.B B4: per-field
+	// bit-size dispatch routes Fixed / LengthRef siblings of VLE
+	// fields through `present_if_decode_stmt` (predicate=None arms).
+	// Pure-VLE codecs stay byte-stable.
+{% for field in fields %}
+{% if field.is_repeat %}
+	{{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+	{{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+	{{ field.embed_decode_stmt }}
+{% else %}
+	{{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+	return &{{ struct_name }}{
+{% for field in fields %}
+		{{ field.id }}: {{ field.id }},
+{% endfor %}
+	}, nil
+{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
+	// RFC §5.B B2 repeat primitive: streaming decode mixes plain
+	// fixed-width reads (per-field via the present-if helper's
+	// non-gated arm) with `make([]T, 0, N)` + `append` loops that
+	// iterate the imported codec's `Decode<T>(cursor)` either
+	// `int(N)` times (length-field) or until `cursor.Remaining() == 0`
+	// (until-eof). Element bodies recurse into their own decoder —
+	// each may itself surface `codec.ErrNeedMoreBytes`, unwinding
+	// the partial frame.
+{% for field in fields %}
+{% if field.is_repeat %}
+	{{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+	{{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+	{{ field.embed_decode_stmt }}
+{% else %}
+	{{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+	return &{{ struct_name }}{
+{% for field in fields %}
+		{{ field.id }}: {{ field.id }},
+{% endfor %}
+	}, nil
+{% elif has_variable_fields %}
+	frameLen := cursor.Remaining()
+	if frameLen < {{ min_bytes }} {
+		return nil, codec.ErrNeedMoreBytes
+	}
+	raw, err := cursor.PeekSlice(frameLen)
+	if err != nil {
+		return nil, err
+	}
+	value := &{{ struct_name }}{
+{% for field in fields %}
+		{{ field.id }}: {{ field.decode_expr }},
+{% endfor %}
+	}
+	if err := cursor.Advance(frameLen); err != nil {
+		return nil, err
+	}
+	return value, nil
+{% else %}
+	raw, err := cursor.PeekSlice({{ min_bytes }})
+	if err != nil {
+		return nil, err
+	}
+	value := &{{ struct_name }}{
+{% for field in fields %}
+		{{ field.id }}: {{ field.decode_expr }},
+{% endfor %}
+	}
+	if err := cursor.Advance({{ min_bytes }}); err != nil {
+		return nil, err
+	}
+	return value, nil
+{% endif %}
+}
+
+{% if has_flags %}
+// RFC §5.B B1-γ + B5-α flags primitive: per-bit-range accessors over
+// the carrier field. Single-bit (width=1) reads as bool; multi-bit
+// (width>=2) reads as the smallest unsigned int type that fits. Setters
+// mask + shift on the way in so out-of-range callers can't corrupt
+// sibling bits. Wire layout is unchanged — the carrier still occupies
+// its declared bytes.
+{% for field in fields %}
+{% if field.has_flags %}
+{% for fl in field.flags %}
+{% if fl.multi_bit %}
+func (s *{{ struct_name }}) {{ fl.name_acc }}() {{ fl.result_type }} {
+	return {{ fl.result_type }}((s.{{ field.id }} >> {{ fl.bit }}) & {{ fl.value_mask_literal }})
+}
+
+func (s *{{ struct_name }}) {{ fl.name_set }}(v {{ fl.result_type }}) {
+	const _shiftedMask {{ field.go_type }} = {{ fl.value_mask_literal }} << {{ fl.bit }}
+	_val := ({{ field.go_type }}(v) & {{ fl.value_mask_literal }}) << {{ fl.bit }}
+	s.{{ field.id }} = (s.{{ field.id }} &^ _shiftedMask) | _val
+}
+
+{% else %}
+func (s *{{ struct_name }}) {{ fl.name_acc }}() bool {
+	return (s.{{ field.id }} & {{ fl.mask_literal }}) != 0
+}
+
+func (s *{{ struct_name }}) {{ fl.name_set }}(v bool) {
+	if v {
+		s.{{ field.id }} |= {{ fl.mask_literal }}
+	} else {
+		s.{{ field.id }} &^= {{ fl.mask_literal }}
+	}
+}
+
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+// Encode serializes the {{ struct_name }} into raw bytes.
+func (s *{{ struct_name }}) Encode({{ parent_flags_param_first }}) []byte {
+{% if has_no_fields %}
+	// RFC §5.B B5-α empty body — zero-byte payload.
+	return []byte{}
+{% elif has_variant %}
+	// Encode fixed prefix (tag field bytes are part of the prefix).
+	// The tag value is read from the struct field, NOT derived from
+	// the body discriminant — keeping author-set tag / body in sync
+	// is the caller's responsibility (v1 keeps the layout simple).
+	r := make([]byte, 0, {{ max_bytes }})
+{% for expr in encode_exprs %}
+	r = append(r, {{ expr }})
+{% endfor %}
+	// Append the active arm body's encoded bytes.
+	switch {
+{% for arm in variant.arms %}
+	case s.Body.{{ arm.variant_name }} != nil:
+		r = append(r, s.Body.{{ arm.variant_name }}.Encode({{ arm.body_parent_flags_arg_first }})...)
+{% endfor %}
+{% if variant.default_arm %}
+	case s.Body.{{ variant.default_arm.variant_name }} != nil:
+		r = append(r, s.Body.{{ variant.default_arm.variant_name }}.Body.Encode({{ variant.default_arm.body_parent_flags_arg_first }})...)
+{% endif %}
+	}
+	return r
+{% elif has_present_if_fields %}
+	// RFC §5.B B1-δ + B2-β present-if encode: per-field byte append.
+	// Gated fields skip the append on nil pointer / nil slice. Per-
+	// field `is_repeat` routes Repeat fields to the dedicated helper.
+	// Branch fires before has_vle_fields so a codec mixing VLE +
+	// present-if uses the unified encode path.
+	r := make([]byte, 0, {{ max_bytes }})
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+	return r
+{% elif has_vle_fields %}
+	// RFC §5.B B4: per-field bit-size dispatch routes Fixed /
+	// LengthRef siblings of VLE fields through
+	// `present_if_encode_block` (predicate=None arms). Pure-VLE
+	// codecs stay byte-stable.
+	r := make([]byte, 0, {{ max_bytes }})
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+	return r
+{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
+	// RFC §5.B B2 encode: fixed prefix appends byte-by-byte; repeat
+	// fields range over `s.<Pascal>` and spread each element's
+	// `Encode()` bytes into the parent buffer. Author keeps count
+	// field == slice length (trust contract).
+	r := make([]byte, 0, {{ max_bytes }})
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+	return r
+{% elif has_variable_fields %}
+	r := make([]byte, 0, {{ max_bytes }})
+{% for expr in encode_exprs %}
+	r = append(r, {{ expr }})
+{% endfor %}
+{% for field in fields %}
+{% if field.is_variable %}
+	r = append(r, s.{{ field.id }}...)
+{% endif %}
+{% endfor %}
+	return r
+{% else %}
+	return []byte{
+{% for expr in encode_exprs %}
+		{{ expr }},
+{% endfor %}
+	}
+{% endif %}
+}

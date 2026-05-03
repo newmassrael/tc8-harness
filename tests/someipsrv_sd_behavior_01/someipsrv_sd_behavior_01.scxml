@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.5.4.1 SOMEIPSRV_SD_BEHAVIOR_01: After messages in the
+  Repetition Phase the delay is doubled.
+
+  vsomeip §5.1 SD timeline (initial_delay 10..100 ms, repetitions_base_delay
+  200 ms, repetitions_max 3):
+    t ≈ 50 ms   : Offer #1 (Initial Wait Phase boundary; first emitted)
+    t ≈ 250 ms  : Offer #2 (1st message IN Repetition Phase, gap = REP_BASE)
+    t ≈ 650 ms  : Offer #3 (2nd message IN Repetition Phase, gap = REP_BASE*2)
+    t ≈ 1450 ms : Offer #4 (3rd in Repetition Phase, gap = REP_BASE*4)
+
+  Per spec step 6 the assertion is the gap between the 1st and 2nd
+  Notification messages SENT IN the Repetition Phase — Offer #2 → #3 —
+  which is REP_BASE*2 = 400 ms ± ParamToleranceTimeMillisec.
+
+  3-phase shape:
+    listening_offer1 (3 s deadline) — first captured SD OfferService.
+    listening_offer2 (1 s deadline) — second captured SD OfferService.
+    listening_offer3 (2 s deadline) — third captured SD OfferService;
+                                       frame_delta_us must be in tolerance.
+
+  frame_delta_us() returns observed_ts_us - prev_observed_ts_us, with
+  prev snapshot only on fired transitions (managed by SomeIpAnyBase
+  dispatch). The first-transition delta on listening_offer1 is the
+  full observed_ts_us (prev=0) and is intentionally not gated; we
+  only check the delta on the third capture (Offer #3 - Offer #2),
+  which is the gap the spec asserts.
+
+  Per-state deadline event names (s1/s2/s3) prevent leftover-deadline
+  leakage across phases.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_sd_behavior_01"
+       datamodel="null"
+       initial="listening_offer1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_offer1">
+    <onentry>
+      <send event="s1_deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_offer2"/>
+    <transition event="s1_deadline_exceeded" target="fail_phase1_no_offer1"/>
+  </state>
+
+  <state id="listening_offer2">
+    <onentry>
+      <send event="s2_deadline_exceeded" delay="1s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_offer3"/>
+    <transition event="s2_deadline_exceeded" target="fail_phase2_no_offer2"/>
+  </state>
+
+  <state id="listening_offer3">
+    <onentry>
+      <send event="s3_deadline_exceeded" delay="2s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.frame_delta_us() &gt;= 300000 and captured.frame_delta_us() &lt;= 500000"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="fail_phase3_gap_out_of_tolerance"/>
+    <transition event="s3_deadline_exceeded" target="fail_phase3_no_offer3"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_offer1">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_first_offer_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_offer2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_second_offer_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_offer3">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_third_offer_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_gap_out_of_tolerance">
+    <donedata>
+      <content>{"verdict":"fail","reason":"repetition_phase_gap_not_within_2x_rep_base_delay_tolerance"}</content>
+    </donedata>
+  </final>
+</scxml>

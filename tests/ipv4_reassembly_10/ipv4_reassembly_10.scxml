@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPV4_REASSEMBLY_10: IP Reassembly default time check.
+  RFC 791 §3.2 recommends an initial reassembly timer of 15 s; this
+  case verifies the DUT's static timer behaviour with two
+  back-to-back reassembly attempts at distinct IP IDs:
+
+    * Phase A: frag 0 + (ipIniReassembleTimeout - tolerance) wait +
+      frag 1 — bucket alive, DUT reassembles, emits Echo Reply.
+    * Phase B: frag 0' + (ipIniReassembleTimeout + tolerance) wait +
+      frag 1' — bucket expired before frag 1' arrives, DUT silently
+      drops, no Echo Reply.
+
+  Per-netns toggle: smoke-test.sh sets `net.ipv4.ipfrag_time=2` in
+  the dut_ns for this case (mirrors the ICMPV4_TYPE_04 toggle
+  pattern). With ipfrag_time=2 s, ipIniReassembleTimeout=2 s and
+  tolerance=1 s in our convention: Phase A wait=1 s (< 2 s →
+  reassemble), Phase B wait=3 s (> 2 s → drop).
+
+  Pass: Phase A's Echo Reply fires phase_a_match → listening_phase_b;
+  Phase B's deadline expires with no DUT reply observed → pass.
+  Both phases use the same kIcmpEchoId/kIcmpEchoSeq, so phase_b's
+  fail transition cannot disambiguate "late Phase A reply" from
+  "incorrect Phase B reply" by id/seq alone. ICMP does not
+  retransmit Echo Replies, and Phase A's lone reply is consumed by
+  phase_a's transition before phase_b is entered, so the only
+  remaining type=0 frame phase_b can observe is a wrong DUT reply
+  to Phase B — that is the failure shape this case asserts.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_10"
+       datamodel="null"
+       initial="listening_phase_a">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening_phase_a">
+    <onentry>
+      <send event="phase_a_deadline" delay="6s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq and captured.echo_payload_equals(std::string_view(reinterpret_cast&lt;const char*&gt;(::tc8::sce::ipv4::fragments::kFragmentsEchoPayload.data()), ::tc8::sce::ipv4::fragments::kFragmentsEchoPayload.size()))"
+                target="listening_phase_b"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_id != expected.echo_id"
+                target="fail_phase_a_echo_id"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.echo_seq != expected.echo_seq"
+                target="fail_phase_a_echo_seq"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0"
+                target="fail_phase_a_data_mismatch"/>
+    <transition event="phase_a_deadline" target="fail_phase_a_no_reply"/>
+  </state>
+
+  <state id="listening_phase_b">
+    <onentry>
+      <send event="phase_b_deadline" delay="3s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0"
+                target="fail_phase_b_replied"/>
+    <transition event="phase_b_deadline" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase_a_echo_id">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_id_mismatch_phase_a_within_timer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase_a_echo_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"echo_seq_mismatch_phase_a_within_timer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase_a_data_mismatch">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_phase_a"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase_a_no_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_echo_reply_phase_a_within_timer"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase_b_replied">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_replied_phase_b_after_timer_expired"}</content>
+    </donedata>
+  </final>
+</scxml>

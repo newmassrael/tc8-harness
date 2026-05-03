@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.2 DHCPV4_CLIENT_PROTOCOL_02: The "DHCP message type"
+  option (option code 53) MUST be present in every DHCP message — this
+  case verifies the statement for DHCPDISCOVER (RFC 2131 §3).
+
+  Spec Test Procedure (tc8_p221-p240.txt: PROTOCOL_02):
+    1-2. DUT bring-up + DHCP client configure.
+    3.   TESTER listens (no server reply).
+    4.   DUT: Sends DHCPDISCOVER Message
+    5.   TESTER: Verify received DISCOVER carries Option 53 (DHCP
+         message type) — the option-presence flag is asserted; the
+         specific value (1 = DISCOVER) is implicit in the matching
+         on op = BOOTREQUEST (1) plus chaddr = DUT MAC.
+
+  Same stimulus as PROTOCOL_01 (one DHCPDISCOVER emitted by tc8-dut on
+  OpStartLLAutoconf). The pipeline's option-walk sets
+  `message_type_option_present` only when a length-1 option-53 TLV
+  appears in the post-magic options blob; absence (or mismatched
+  length) leaves the flag false and the SCXML routes to
+  fail_message_type_option_absent.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_protocol_02"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.op == 1
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.has_message_type_option()
+                      and captured.message_type == 1"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.op == 1
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.magic_cookie_valid
+                      and !captured.has_message_type_option()"
+                target="fail_message_type_option_absent"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_message_type_option_absent">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_missing_message_type_option"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+    </donedata>
+  </final>
+</scxml>
