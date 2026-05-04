@@ -1,6 +1,8 @@
 # tc8-harness
 W3C SCXML-based conformance test harness for automotive Ethernet ECUs (OA TC8 Layer 3-7)
 
+[![build-test](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml) [![smoke-test](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml)
+
 ## Scope
 
 `tc8-harness` verifies that a vsomeip-based DUT (ECU) conforms to OA
