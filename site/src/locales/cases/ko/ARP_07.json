@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 캐시에 없는 IP로 패킷을 보내려 할 때 ARP Request를 브로드캐스트로 발신하는지 검증 — 알 수 없는 peer에게 송신하면 egress 전에 ARP 해상도가 일어나야 함 (RFC 826 packet generation, MUST)",
+  "approach": "[검증 목적]\nARP_03의 정반대 케이스. DUT이 어떤 IP의 MAC을 모르는 상태에서 그 IP로 트래픽을 보내려 할 때, 송신 전에 ARP Request를 발신하는지 확인한다. 캐시는 비어있는 채로 두고(학습 자극 없음), DUT을 자극해 새 IP로 송신을 시도하게 만든 뒤 해상도 Request가 나오는지 본다.\n\n[시나리오 — 시간순]\n1. (캐시 시드 없음 — HOST-1-IP에 대한 DUT 캐시가 비어있는 상태에서 시작)\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup 메시지\n   ⇒ DUT이 HOST-1-IP로 unicast-Nack 응답을 보내도록 자극. tc8-dut엔 매칭 eventgroup이 없어서 Subscribe-Nack가 unicast egress를 일으키는 가장 안정적인 자극이다.\n   ⇒ DUT은 HOST-1-IP의 MAC이 필요한데 캐시가 비어있으므로 해상도가 필요함.\n\n3. 관찰 (5초 윈도우):\n   • DUT → 브로드캐스트: ARP Request\n      - opcode == 1 (Request)\n      - sender_mac == DUT 인터페이스 MAC\n      - target_ip  == HOST-1-IP\n   Ethernet 브로드캐스트 destination(ff:ff:ff:ff:ff:ff)은 RFC 826 packet generation에 따라 묵시적.\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 opcode == 1 + sender_mac == DUT iface MAC인 ARP Request를 브로드캐스트로 발신.\n\n[실패 조건]\n• Fail_opcode — ARP Request 형태의 프레임은 나왔지만 opcode가 1이 아님 (malformed ARP 의심)\n• Fail_timeout — DUT이 ARP Request를 전혀 발신하지 않음 — egress를 조용히 drop했거나 spec이 허용하지 않는 다른 해상도 방식을 사용한 것",
+  "verdicts": {
+    "Pass": "DUT이 정상 opcode/sender로 ARP Request를 브로드캐스트 — 정상 해상도",
+    "Fail_opcode": "ARP 형태 프레임은 보였지만 opcode가 1이 아님 — malformed Request",
+    "Fail_timeout": "DUT이 윈도우 동안 ARP Request를 전혀 발신 안 함 — 해상도 생략 또는 부재"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "DUT이 *gratuitous* ARP Response(opcode 2, sender == target)에서도 IP↔MAC 매핑을 캐시에 학습하는지 검증 — 학습 후 같은 IP로 패킷 보낼 때 자기 ARP Request를 또 발신하면 안 됨 (RFC 826 §2.3 + Linux `net.ipv4.conf.<iface>.arp_accept=1`)",
+  "approach": "[검증 목적]\nARP_03의 gratuitous ARP 변형이다. ARP Request(opcode 1) 대신 테스터가 gratuitous ARP Response(opcode 2)로 자기를 알리며, 이때 sender == target == <HOST-1-IP, MAC-ADDR1>이다. Gratuitous 알림을 인정하는 노드(Linux는 `net.ipv4.conf.<iface>.arp_accept=1` 필요 — setup-netns.sh가 DUT veth에 설정)는 Request와 동일하게 매핑을 학습해야 하며, 다음 HOST-1-IP 송신은 학습된 MAC을 그대로 사용해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: gratuitous ARP Response 주입\n   • opcode      = 2\n   • sender IP   = HOST-1-IP\n   • sender MAC  = MAC-ADDR1\n   • target IP   = HOST-1-IP   (== sender → 'gratuitous')\n   • target MAC  = MAC-ADDR1\n   ⇒ DUT은 <HOST-1-IP, MAC-ADDR1>를 ARP 캐시에 추가해야 함.\n\n2. 테스터 → DUT: SOME/IP Subscribe-Nack 메시지\n   ⇒ DUT을 자극해서 HOST-1-IP로 UDP 응답을 보내게 만듦.\n\n3. 관찰 (3초 윈도우):\n   • DUT → 테스터: UDP 패킷 (학습된 MAC 사용)\n   • DUT은 자기 ARP Request를 발신하지 않아야 함\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 자기 ARP Request를 발신하지 않으면 통과 (gratuitous 알림이 캐시 학습을 정상 수행함).\n\n[실패 조건]\nFail_unexpected_arp_request — DUT이 자기 MAC을 sender로 하는 ARP Request 발신. 가장 흔한 원인은 DUT 인터페이스의 `arp_accept=0`로 RFC 5227 §1.2 기본 동작에 따라 커널이 gratuitous 알림을 무시한 경우.",
+  "verdicts": {
+    "Pass": "DUT이 ARP Request 추가 발신 없이 학습된 캐시로 UDP 송신 — gratuitous 학습 성공",
+    "Fail_unexpected_arp_request": "DUT이 gratuitous 알림 후에도 자기 ARP Request 발신 — gratuitous 학습 실패 (arp_accept=0 가능성 높음)"
+  }
+}

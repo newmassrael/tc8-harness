@@ -1,0 +1,10 @@
+{
+  "description": "ARP_04의 gratuitous ARP 짝꿍 — DUT이 gratuitous ARP Response에서 학습한 후 실제로 그 MAC을 후속 UDP의 Ethernet destination으로 쓰는지까지 확인 (RFC 826 §2.3 + arp_accept=1, end-to-end)",
+  "approach": "[검증 목적]\nARP_04의 gratuitous ARP 변형. 학습 자극이 ARP Request 대신 gratuitous ARP Response(opcode 2, sender == target)이며, 검증은 ARP_04와 동일 — DUT이 HOST-1-IP로 보내는 UDP의 destination MAC이 학습된 값과 일치해야 한다. Gratuitous 학습이 '반쪽 학습'이 아니라 실제 사용 가능한 캐시 항목을 만드는지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: gratuitous ARP Response 주입\n   • opcode      = 2\n   • sender IP   = HOST-1-IP\n   • sender MAC  = MAC-ADDR1\n   • target IP   = HOST-1-IP\n   • target MAC  = MAC-ADDR1\n   ⇒ DUT은 <HOST-1-IP, MAC-ADDR1>를 ARP 캐시에 추가해야 함.\n\n2. 테스터 → DUT: SOME/IP Subscribe-Nack 메시지\n   ⇒ DUT을 자극해서 HOST-1-IP로 UDP 응답을 보내게 만듦.\n\n3. 관찰 (3초 윈도우):\n   • DUT → 테스터: UDP 패킷\n      - destination MAC = MAC-ADDR1 (학습된 값)   ← 핵심 확인 지점\n   • DUT은 자기 ARP Request를 UDP 앞에 발신하지 않아야 함\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 (a) UDP를 송신하고, (b) destination MAC이 1단계 MAC-ADDR1과 일치하며, (c) 그 앞에 자기 ARP Request가 없다.\n\n[실패 조건]\n• Fail_dut_did_arp_request — DUT이 자기 ARP Request 발신 (gratuitous 학습 무시 or 항목 만료, arp_accept=0 가능성)\n• Fail_wrong_eth_dst — UDP는 보냈지만 destination MAC이 MAC-ADDR1과 다름 (항목은 있지만 미사용)\n• Fail_timeout — 관찰 윈도우 동안 DUT이 UDP를 안 보냄",
+  "verdicts": {
+    "Pass": "DUT이 gratuitous로 학습된 MAC을 사용해 UDP 송신, 중복 ARP Request 없음 — 정상",
+    "Fail_dut_did_arp_request": "DUT이 자기 ARP Request 발신 — gratuitous 학습 실패 또는 항목 만료 (arp_accept=0 가능성)",
+    "Fail_wrong_eth_dst": "UDP는 보냈지만 destination MAC이 학습값과 다름 — 항목 있으나 미사용",
+    "Fail_timeout": "DUT이 관찰 윈도우 동안 UDP를 안 보냄"
+  }
+}
