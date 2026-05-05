@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT does NOT reassemble when an internal fragment is missing — frag offset=0 (MF=1) + frag offset=2 (MF=0) leave a hole at octets 8..15 so reassembly must abort (RFC 791 §3.2)",
+  "approach": "[Objective]\nUnlike IPV4_REASSEMBLY_06 (missing fragment 0), here fragment 0 is present but a middle fragment is missing. The IP/ICMP header is reconstructable but the payload is incomplete — DUT must still abort reassembly rather than emit a torn message.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment at offset=0 (MF=1)\n2. Tester → DUT: fragment at offset=2 (MF=0)\n   ⇒ Hole at octets 8..15 remains unfilled.\n\n3. Observation (extended):\n   • DUT → Tester: nothing\n\n[Pass condition]\nDUT does not emit any Echo Reply.\n\n[Fail condition]\nFail_dut_replied — DUT replied despite the missing middle fragment. Indicates reassembly delivered partial data upstream.",
+  "verdicts": {
+    "Pass": "DUT silently abandoned the gap-holed reassembly — normal",
+    "Fail_dut_replied": "DUT replied despite a missing middle fragment — partial data delivered upstream"
+  }
+}

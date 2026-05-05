@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT silently discards an IPv4 packet whose Version field is anything other than 4 — receiver must reject foreign protocol versions (RFC 791 §3.1)",
+  "approach": "[Objective]\nNegative companion to IPV4_VERSION_01. Version != 4 means a different protocol layout (or garbled bytes); the field offsets DUT relies on aren't valid, so the packet must be dropped before any further parsing.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet with Version != 4 (e.g. Version=6 with IPv4 layout, or arbitrary non-4)\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing\n\n[Pass condition]\nDUT does not emit any response.\n\n[Fail condition]\nFail_dut_replied — DUT responded despite the foreign Version. Indicates the receive path skipped the Version check.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the foreign-Version packet — normal",
+    "Fail_dut_replied": "DUT responded despite Version != 4 — Version check missing"
+  }
+}

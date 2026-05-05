@@ -1,0 +1,11 @@
+{
+  "description": "DUT이 첫 fragment의 TTL 기반으로 재조립 타이머를 연장하는지 검증 — ipIniReassembleTimeout(정적)보다 늦지만 Large-TTL grace 안에 fragment 1이 도착하면 재조립되어야 함 (RFC 791 §3.2 MAX(TLB, TTL))",
+  "approach": "[검증 목적]\nRFC 791 §3.2는 재조립 타임아웃을 MAX(내부 bucket 시계, TTL)로 정의한다. Large TTL을 가진 fragment는 bucket에 추가 시간을 부여한다. DUT은 이를 지키고 정적 타이머가 만료됐어도 연장된 윈도우 안에 두 번째 fragment가 도착하면 재조립해야 한다.\n\n참고: Linux의 정적 ipfrag_time은 TTL을 무시한다(reference_linux_ip_reassembly_deviations.md 참조). Linux DUT에서 이 케이스는 Fail_timeout으로 떨어지며 — 이는 알려진 커널 deviation이지 harness 버그가 아니다. Strict-RFC DUT에선 Pass.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: Large TTL을 가진 fragment 0 (MF=1)\n2. ipIniReassembleTimeout 초과 but TTL 연장 타임아웃 이내 대기\n3. 테스터 → DUT: fragment 1 (MF=0)\n4. 관찰: DUT → 테스터 id/seq/data 일치 Echo Reply.\n\n[통과 조건]\nDUT이 재조립하고 일치하는 Reply 발신.\n\n[실패 조건]\nFail_echo_id / Fail_echo_seq / Fail_data_mismatch / Fail_timeout — IPV4_FRAGMENTS_01과 동일.",
+  "verdicts": {
+    "Pass": "DUT이 TTL 연장 윈도우 내에 재조립 — RFC 791 §3.2 정상",
+    "Fail_echo_id": "Reply identifier 불일치",
+    "Fail_echo_seq": "Reply sequence 불일치",
+    "Fail_data_mismatch": "Reply data 불일치",
+    "Fail_timeout": "DUT Reply 미발신 (Linux 정적 타이머가 TTL 무시 — 커널 deviation, harness 버그 아님)"
+  }
+}

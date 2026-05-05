@@ -1,0 +1,11 @@
+{
+  "description": "DUT이 2-fragment Echo Request를 재조립한 뒤 Identifier, Sequence Number, Data가 일치하는 Echo Reply를 발신하는지 검증 — 기본 in-order 재조립 (RFC 791 §3.2 + RFC 1122 §3.3.2)",
+  "approach": "[검증 목적]\n재조립의 기초 케이스: Echo Request를 두 IP fragment로 쪼개서(frag 0 = payload 앞부분 + ICMP 헤더, frag 1 = payload 뒷부분) 순서대로 보내고, DUT이 재조립해 전체 내용을 echo로 돌려주길 기대.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 fragment 0 (offset=0, MF=1, Echo Request payload 앞부분 + ICMP 헤더)\n2. 테스터 → DUT: IPv4 fragment 1 (offset=N, MF=0, payload 뒷부분)\n   ⇒ DUT은 (id, src, dst, protocol) 공유로 재조립해야 함.\n\n3. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply\n      - identifier가 원본 Request와 일치\n      - sequence 일치\n      - data가 재조립된 전체 payload와 일치\n\n[통과 조건]\nReply가 id/seq/data 모두 일치한 채로 도착.\n\n[실패 조건]\n• Fail_echo_id — Reply identifier가 일치 안 함\n• Fail_echo_seq — Reply sequence가 일치 안 함\n• Fail_data_mismatch — Reply data가 재조립 payload와 다름\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "DUT이 재조립 후 전체 Echo Request echo — 정상 재조립",
+    "Fail_echo_id": "Reply identifier가 Request와 다름",
+    "Fail_echo_seq": "Reply sequence가 Request와 다름",
+    "Fail_data_mismatch": "Reply data가 재조립 payload와 다름",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

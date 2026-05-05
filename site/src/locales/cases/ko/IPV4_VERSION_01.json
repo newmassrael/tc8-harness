@@ -1,0 +1,8 @@
+{
+  "description": "IPv4 헤더의 Version=4인 ICMPv4 Echo Request에 DUT이 정상 응답하는지 검증 — 표준 정상 케이스 (RFC 791 §3.1, RFC 1122 §3.2.1.1)",
+  "approach": "[검증 목적]\nIPV4_VERSION_04(Version != 4 거부)의 positive 짝꿍. 표준 Version=4에서 DUT은 정상 응답해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ICMP Echo Request, IPv4 Version=4\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply\n\n[통과 조건]\nDUT이 Echo Reply 발신.\n\n[실패 조건]\nFail_timeout — 표준 Version=4에도 응답 안 함. 근본적 수신 버그.",
+  "verdicts": {
+    "Pass": "DUT이 Version=4 Echo Request에 응답 — 정상",
+    "Fail_timeout": "Version=4에도 응답 안 함 — 근본적 수신 버그"
+  }
+}

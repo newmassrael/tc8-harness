@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT reassembles a 2-fragment Echo Request and emits an Echo Reply whose Identifier, Sequence Number, and Data match the reassembled Request — basic in-order reassembly (RFC 791 §3.2 + RFC 1122 §3.3.2)",
+  "approach": "[Objective]\nThe foundational reassembly case: split an Echo Request across two IP fragments (frag 0 carries first half + IP header; frag 1 carries second half), send in order, expect DUT to reassemble and echo back the full content.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 fragment 0 (offset=0, MF=1, half of an Echo Request payload + ICMP header)\n2. Tester → DUT: IPv4 fragment 1 (offset=N, MF=0, second half of the payload)\n   ⇒ DUT must reassemble using shared (id, src, dst, protocol).\n\n3. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n      - identifier matches the original request\n      - sequence matches\n      - data matches the full reassembled payload\n\n[Pass condition]\nReply received with matching id, seq, and data.\n\n[Fail condition]\n• Fail_echo_id — Reply identifier did not match\n• Fail_echo_seq — Reply sequence did not match\n• Fail_data_mismatch — Reply data differed from reassembled payload\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "DUT reassembled and echoed back full Echo Request — normal reassembly",
+    "Fail_echo_id": "Reply identifier did not match Request",
+    "Fail_echo_seq": "Reply sequence did not match Request",
+    "Fail_data_mismatch": "Reply data differed from reassembled payload",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

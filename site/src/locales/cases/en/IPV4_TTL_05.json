@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ICMP Echo Request that arrives carrying TTL=0 — the host receive path MUST NOT discard packets based on TTL value, even when zero (RFC 1122 §3.2.1.7: 'a host MUST NOT send a datagram with TTL = 0; however, it MUST NOT silently discard a received datagram solely on the basis of its TTL value')",
+  "approach": "[Objective]\nTTL is a routing-time concept; once a packet has been delivered to its destination, its remaining TTL is irrelevant. RFC 1122 explicitly forbids hosts from silently dropping a received datagram solely because of low TTL, even TTL=0. DUT must reply normally.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request with IPv4 TTL=0\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n\n[Pass condition]\nDUT emits an Echo Reply.\n\n[Fail condition]\nFail_timeout — DUT did not emit a Reply, presumably because it dropped the Request based on TTL=0. RFC 1122 violation.",
+  "verdicts": {
+    "Pass": "DUT replied to TTL=0 Request — receive path correctly ignores TTL",
+    "Fail_timeout": "DUT did not reply to TTL=0 Request — likely dropped on TTL (RFC 1122 violation)"
+  }
+}

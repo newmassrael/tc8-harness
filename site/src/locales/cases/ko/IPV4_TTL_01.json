@@ -1,0 +1,9 @@
+{
+  "description": "DUT의 ICMP Echo Reply IPv4 헤더 TTL이 0보다 큰지 검증 — DUT이 outbound 패킷에 정하는 값 (RFC 1700 권장 64; RFC 1122 §3.2.1.7 'TTL은 설정 가능 파라미터')",
+  "approach": "[검증 목적]\nDUT은 자기 outbound 패킷의 초기 TTL을 정한다. RFC 1122 §3.2.1.7는 최소 1 이상이어야 한다고 규정(TTL=0은 '즉시 폐기'를 의미)하며, 기본값은 1 이상이어야 한 hop이라도 갈 수 있다. 이 케이스는 Reply의 TTL이 0이 아닌지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ICMP Echo Request\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply\n      - TTL > 0   ← 핵심 확인 지점\n\n[통과 조건]\nReply의 TTL 필드가 0보다 큼.\n\n[실패 조건]\n• Fail_ttl — Reply는 보였지만 TTL == 0 (다음 홉에서 폐기됨)\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply TTL > 0 — 정상",
+    "Fail_ttl": "Reply TTL = 0 — 즉시 폐기될 값",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

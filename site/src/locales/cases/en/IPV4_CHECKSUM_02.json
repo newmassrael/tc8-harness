@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT discards an IPv4 packet whose header checksum is wrong — checksum mismatch means the header is corrupt and the packet is unsafe to act on (RFC 1071 + RFC 791 §3.1)",
+  "approach": "[Objective]\nThe IPv4 header carries a one's-complement checksum over the header words (RFC 1071). Any single-bit error in the header is detected by this checksum. A mismatch means the header is corrupt; trusting it could route the packet wrong, deliver it to the wrong protocol, or trigger overreads.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet to DUT IP, header_checksum intentionally wrong (e.g. last bit flipped)\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing\n\n[Pass condition]\nDUT does not emit any response.\n\n[Fail condition]\nFail_dut_replied — DUT responded despite the bad header checksum. Indicates receive path skipped checksum verification.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the bad-checksum packet — normal",
+    "Fail_dut_replied": "DUT responded despite invalid IPv4 checksum — verification skipped"
+  }
+}

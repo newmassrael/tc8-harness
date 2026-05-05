@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT discards an IPv4 packet whose Total Length is bigger than the actual transmitted data — claiming more bytes than the wire carries is malformed and must be dropped",
+  "approach": "[Objective]\nTotal Length must match the bytes physically present (after the L2 / Ethernet padding subtracted). A claim larger than reality means either truncation in transit or a malformed origin; either way the receiver cannot trust the contents.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet\n   • Total Length = 48 (claims 48 bytes)\n   • Actual transmitted bytes < 48   ← malformed\n   • dst_ip = DUT IP\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing\n\n[Pass condition]\nDUT does not emit any response.\n\n[Fail condition]\nFail_dut_replied — DUT responded despite the over-claimed length. Receiver may have read past the actual buffer end (potential overread bug).",
+  "verdicts": {
+    "Pass": "DUT silently dropped the over-claimed packet — normal",
+    "Fail_dut_replied": "DUT responded despite Total Length > actual data — possible overread"
+  }
+}

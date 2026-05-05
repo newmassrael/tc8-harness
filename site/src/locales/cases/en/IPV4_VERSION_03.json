@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ICMP Echo Reply IPv4 header carries Version=4 — the response must declare the same protocol version as the receive path",
+  "approach": "[Objective]\nWhile the receive path validates the inbound Version, the emit path must also place the right value in outgoing packets.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request (Version=4)\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n      - IPv4 Version == 4   ← key check\n\n[Pass condition]\nReply's IPv4 Version field equals 4.\n\n[Fail condition]\n• Fail_version — Reply emitted but Version was not 4\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply carried Version=4 — normal emit path",
+    "Fail_version": "Reply emitted with Version != 4 — emit path malformed",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

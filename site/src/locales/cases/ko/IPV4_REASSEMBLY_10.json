@@ -1,0 +1,12 @@
+{
+  "description": "두 번째 fragment가 ipIniReassembleTimeout 이내에 도착하면 DUT이 재조립하고, 타이머 만료 *이후*에 도착하면 bucket을 drop하는지 — 재조립 타이머의 두 단계 검증",
+  "approach": "[검증 목적]\n타이머의 gating 효과를 검증. 같은 fragment 모양, 다른 타이밍 두 가지. Phase A: 지연된 fragment가 타이머 직전 도착 — DUT은 정상 재조립. Phase B: 지연된 fragment가 타이머 직후 도착 — DUT은 이미 bucket을 drop했으므로 늦은 도착을 무시해야 함.\n\n[시나리오 — 시간순]\n  Phase A:\n    1. 테스터 → DUT: fragment 0 (MF=1)\n    2. 테스터 → DUT: fragment 1 (MF=0) — 지연 < ipIniReassembleTimeout\n    3. 관찰: DUT → 테스터 Echo Reply, id/seq/data 일치.\n\n  Phase B:\n    4. 테스터 → DUT: fragment 0 (MF=1) (새 id)\n    5. 테스터 → DUT: fragment 1 (MF=0) — 지연 > ipIniReassembleTimeout\n    6. 관찰: DUT → 테스터 아무것도 없음 — bucket 이미 drop.\n\n[통과 조건]\nPhase A에서 id/seq/data 일치 Echo Reply, Phase B에서 Reply 없음.\n\n[실패 조건]\n• Fail_phase_a_echo_id / _seq / _data_mismatch — Phase A reply는 보이지만 필드 잘못됨\n• Fail_phase_a_no_reply — Phase A에서 Reply 없음 (타이머 너무 짧거나 재조립 깨짐)\n• Fail_phase_b_replied — Phase B에서 늦은 fragment에도 Reply 발신 (타이머 만료 안 함)",
+  "verdicts": {
+    "Pass": "Phase A 정시 재조립, Phase B 늦게 drop — 정상 타이머 동작",
+    "Fail_phase_a_echo_id": "Phase A reply identifier 불일치",
+    "Fail_phase_a_echo_seq": "Phase A reply sequence 불일치",
+    "Fail_phase_a_data_mismatch": "Phase A reply data 불일치",
+    "Fail_phase_a_no_reply": "Phase A에서 Reply 없음 — 타이머 너무 공격적이거나 재조립 깨짐",
+    "Fail_phase_b_replied": "Phase B에서 늦은 fragment에도 Reply 발신 — 타이머 만료 안 함"
+  }
+}

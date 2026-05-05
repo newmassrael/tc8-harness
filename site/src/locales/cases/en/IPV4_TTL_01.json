@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ICMP Echo Reply IPv4 header carries TTL > 0 — the value chosen by DUT for outbound packets (suggested 64 per RFC 1700; RFC 1122 §3.2.1.7 'TTL must be a configurable parameter')",
+  "approach": "[Objective]\nDUT picks the initial TTL for its own outbound packets. RFC 1122 §3.2.1.7 says it must be at least 1 (TTL=0 means 'discard immediately') and the default should be > 1 to allow at least one hop. This case checks that the Reply's TTL is non-zero.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n      - TTL > 0   ← key check\n\n[Pass condition]\nReply's TTL field is greater than zero.\n\n[Fail condition]\n• Fail_ttl — Reply emitted with TTL == 0 (would be discarded by the very next hop)\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply TTL > 0 — normal",
+    "Fail_ttl": "Reply emitted with TTL = 0 — would be discarded immediately",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

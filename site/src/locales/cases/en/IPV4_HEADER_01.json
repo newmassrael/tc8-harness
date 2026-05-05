@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ICMP Echo Reply carries an IPv4 header whose Total Length is at least 20 bytes — the minimum sized header per RFC 791 §3.1 (no options, no payload would still be 20 bytes)",
+  "approach": "[Objective]\nThe IPv4 header without options is exactly 20 bytes. Even an Echo Reply with zero data must therefore present Total Length ≥ 20 — anything smaller indicates a malformed emit path.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request (target_ip=DUT IP)\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply carrying an IPv4 header\n      - Total Length >= 20   ← key check\n\n[Pass condition]\nReply emitted with Total Length ≥ 20.\n\n[Fail condition]\n• Fail_total_length — Reply emitted but Total Length was less than 20\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply Total Length ≥ 20 — minimum header size respected",
+    "Fail_total_length": "Reply Total Length below 20 — malformed IPv4 header",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

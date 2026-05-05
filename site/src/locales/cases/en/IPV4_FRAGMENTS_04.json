@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT does NOT reassemble fragments whose Protocol fields differ — Protocol is part of the reassembly bucket key (RFC 791 §3.2)",
+  "approach": "[Objective]\nA fragment claiming protocol X cannot be merged with a fragment claiming protocol Y — they belong to different upper-layer streams. RFC 791 includes Protocol in the bucket-key tuple.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment 0 with protocol = ICMP (MF=1)\n2. Tester → DUT: fragment 1 with protocol = some other (MF=0, same id, src, dst)\n   ⇒ Different buckets — no reassembly.\n\n3. Observation (3 s window):\n   • DUT → Tester: no Echo Reply\n\n[Pass condition]\nDUT does not emit any Echo Reply within the window.\n\n[Fail condition]\nSame as IPV4_FRAGMENTS_02/03 — any Reply or wrong-field Reply indicates cross-protocol merging.",
+  "verdicts": {
+    "Pass": "DUT did not merge fragments across different protocols — normal",
+    "Fail_early_reply": "DUT replied — merged across different protocols",
+    "Fail_echo_id": "Reply identifier wrong — bucket-key violation",
+    "Fail_echo_seq": "Reply sequence wrong — bucket-key violation",
+    "Fail_data_mismatch": "Reply data wrong — bucket-key violation",
+    "Fail_timeout": "No reply observed"
+  }
+}

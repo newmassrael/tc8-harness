@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT extends the reassembly timer based on the first fragment's TTL — fragment 1 arriving after the static ipIniReassembleTimeout (but within Large-TTL grace) must still be reassembled (RFC 791 §3.2 MAX(TLB, TTL))",
+  "approach": "[Objective]\nRFC 791 §3.2 says reassembly timeout is MAX(internal-bucket-clock, TTL). A fragment carrying a Large TTL grants the bucket extra time. DUT must honour that and reassemble when the second fragment arrives within the extended window — even if the static timer has already expired.\n\nNote: Linux's static ipfrag_time ignores TTL (see reference_linux_ip_reassembly_deviations.md). On a Linux DUT this case lands as Fail_timeout — that's a known kernel deviation, not a harness bug. Strict-RFC DUTs land Pass.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment 0 with Large TTL (MF=1)\n2. Wait > ipIniReassembleTimeout but < (TTL-extended timeout)\n3. Tester → DUT: fragment 1 (MF=0)\n4. Observation: DUT → Tester Echo Reply matching id/seq/data.\n\n[Pass condition]\nDUT reassembles and emits a matching Reply.\n\n[Fail condition]\nFail_echo_id / Fail_echo_seq / Fail_data_mismatch / Fail_timeout — same shape as IPV4_FRAGMENTS_01.",
+  "verdicts": {
+    "Pass": "DUT reassembled within TTL-extended window — normal RFC 791 §3.2",
+    "Fail_echo_id": "Reply identifier mismatch",
+    "Fail_echo_seq": "Reply sequence mismatch",
+    "Fail_data_mismatch": "Reply data mismatch",
+    "Fail_timeout": "DUT did not emit Reply (Linux static timer ignores TTL — kernel deviation, not harness bug)"
+  }
+}

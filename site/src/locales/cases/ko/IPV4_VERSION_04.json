@@ -1,0 +1,8 @@
+{
+  "description": "Version 필드가 4가 아닌 IPv4 패킷을 DUT이 조용히 drop하는지 검증 — 받는 쪽은 다른 프로토콜 버전을 거부해야 함 (RFC 791 §3.1)",
+  "approach": "[검증 목적]\nIPV4_VERSION_01의 negative 짝꿍. Version != 4는 다른 프로토콜 레이아웃(또는 garbled 바이트)을 의미한다. DUT이 의존하는 필드 오프셋이 유효하지 않으므로 추가 파싱 전에 drop해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: Version != 4인 IPv4 패킷 (예: IPv4 레이아웃에 Version=6, 또는 임의의 non-4)\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함\n\n[통과 조건]\nDUT이 어떤 응답도 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — 다른 Version에도 응답. 받는 쪽에서 Version check 누락.",
+  "verdicts": {
+    "Pass": "DUT이 Version != 4 패킷을 조용히 drop — 정상",
+    "Fail_dut_replied": "Version != 4에도 응답 — Version check 누락"
+  }
+}

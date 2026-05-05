@@ -1,0 +1,8 @@
+{
+  "description": "MF=1인 IPv4 패킷에 후속 fragment가 영영 도착하지 않을 때 DUT이 재조립 bucket을 만료시키고 Echo Reply를 발신하지 *않는지* 검증 (RFC 791 §3.2 재조립 타이머)",
+  "approach": "[검증 목적]\nMF=1은 '더 많은 fragment가 온다'를 알린다. 영영 안 오면 재조립 bucket이 메모리를 점유한 채 남는다. spec은 이를 청소할 타이머를 mandate한다. DUT은 부분 내용 전달 없이 bucket을 drop해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: MF=1인 IPv4 fragment 하나 (continuation 안 보냄)\n\n2. 재조립 타임아웃보다 긴 시간 대기 (Linux 기본 60초).\n\n3. 관찰:\n   • DUT → 테스터: 아무것도 없어야 함 — Echo Reply도, 우리 fragment id의 Time Exceeded도 없음\n\n[통과 조건]\nDUT이 포기된 bucket에 대해 Echo Reply 미발신.\n\n[실패 조건]\nFail_dut_replied — datagram 나머지를 받지 않았는데도 Echo Reply 발신.",
+  "verdicts": {
+    "Pass": "DUT이 타임아웃 후 lingering bucket을 조용히 drop — 정상",
+    "Fail_dut_replied": "불완전 재조립에도 응답 — 부분 데이터 전달"
+  }
+}

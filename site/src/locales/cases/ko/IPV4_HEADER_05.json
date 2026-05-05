@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 576옥텟 IPv4 datagram을 받아들이고 Data section을 truncate 없이 그대로 응답하는지 검증 — 576은 모든 호환 호스트가 반드시 지원해야 하는 최소 최대 재조립 크기 (RFC 791 §3.1 MUST)",
+  "approach": "[검증 목적]\nRFC 791은 MTU/재조립 지원의 floor를 576옥텟으로 고정한다. 576옥텟 Echo Request는 수용·재조립(또는 통째 수신)되고, 전체 payload가 Reply로 그대로 echo되어야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 알려진 data 패턴을 가진 ICMP Echo Request, 전체 IPv4 크기 = 576옥텟\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply\n      - data 필드 전체 보존 (truncation 없음)\n      - data 바이트가 Request와 일치   ← 핵심 확인 지점\n\n[통과 조건]\nReply payload가 Request payload와 정확히 일치(전체 길이).\n\n[실패 조건]\n• Fail_payload_truncated — Reply는 보였지만 data section이 Request보다 짧음\n• Fail_payload_mismatch — Reply는 전체 길이로 보였지만 data 바이트가 다름\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply에 576바이트 echo 전체 보존 — 정상",
+    "Fail_payload_truncated": "Reply data section truncated — DUT이 576바이트 처리 못함",
+    "Fail_payload_mismatch": "Reply data가 Request와 다름 — echo 경로 손상",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

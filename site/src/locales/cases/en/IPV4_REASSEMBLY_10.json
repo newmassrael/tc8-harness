@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT reassembles when the second fragment arrives within ipIniReassembleTimeout, but drops the bucket when the second fragment arrives AFTER the timer has expired — two-phase test of the reassembly timer",
+  "approach": "[Objective]\nValidate the timer's gating effect: same fragment shape, two timing schedules. Phase A: late fragment arrives just under the timer — DUT must reassemble normally. Phase B: late fragment arrives just past the timer — DUT must have already dropped the bucket and ignore the late arrival.\n\n[Scenario — chronological]\n  Phase A:\n    1. Tester → DUT: fragment 0 (MF=1)\n    2. Tester → DUT: fragment 1 (MF=0) at delay < ipIniReassembleTimeout\n    3. Observation: DUT → Tester Echo Reply with matching id/seq/data.\n\n  Phase B:\n    4. Tester → DUT: fragment 0 (MF=1) (new id)\n    5. Tester → DUT: fragment 1 (MF=0) at delay > ipIniReassembleTimeout\n    6. Observation: DUT → Tester nothing — bucket already dropped.\n\n[Pass condition]\nPhase A produces an Echo Reply with matching id/seq/data; Phase B produces no Reply.\n\n[Fail condition]\n• Fail_phase_a_echo_id / _seq / _data_mismatch — Phase A reply present but field wrong\n• Fail_phase_a_no_reply — Phase A produced no reply (timer too short or reassembly broken)\n• Fail_phase_b_replied — Phase B produced a reply despite the late fragment (timer not expiring)",
+  "verdicts": {
+    "Pass": "Phase A reassembled in time, Phase B dropped late — normal timer behaviour",
+    "Fail_phase_a_echo_id": "Phase A reply identifier mismatch",
+    "Fail_phase_a_echo_seq": "Phase A reply sequence mismatch",
+    "Fail_phase_a_data_mismatch": "Phase A reply data mismatch",
+    "Fail_phase_a_no_reply": "Phase A produced no reply — timer too aggressive or reassembly broken",
+    "Fail_phase_b_replied": "Phase B emitted a reply despite the late fragment — timer not expiring"
+  }
+}

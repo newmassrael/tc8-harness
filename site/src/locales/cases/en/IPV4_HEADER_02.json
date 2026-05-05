@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT silently discards an IPv4 packet whose IHL field is less than 5 (header < 20 bytes) — RFC 791 §3.1 mandates IHL >= 5; smaller is malformed",
+  "approach": "[Objective]\nThe IHL field counts the header in 32-bit words; the minimum is 5 (= 20 bytes). A packet with IHL < 5 has a header too short to even hold the mandatory fields, so it must be dropped at the IP layer with no error reply.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet to DUT IP with IHL < 5 (e.g. IHL=4 = 16 bytes)\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing — no reply, no error\n\n[Pass condition]\nDUT does not emit any response.\n\n[Fail condition]\nFail_dut_replied — DUT responded despite the malformed IHL. Receive path skipped header-length sanity check.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the packet with IHL < 5 — normal",
+    "Fail_dut_replied": "DUT responded despite IHL < 5 — header-length check missing"
+  }
+}

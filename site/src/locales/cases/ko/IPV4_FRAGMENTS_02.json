@@ -1,0 +1,12 @@
+{
+  "description": "Identification 필드가 다른 fragment들을 DUT이 재조립하지 *않아야* 함을 검증 — (src, dst, protocol, id) tuple이 재조립 bucket key (RFC 791 §3.2)",
+  "approach": "[검증 목적]\nIdentification이 다른 fragment는 서로 다른 datagram에 속하므로 절대 merge하면 안 된다. 이 케이스는 fragment 0(id=A)와 fragment 1(id=B, 그 외는 호환)을 보내고 DUT이 둘을 합치지 않음을 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: fragment 0, id=A (MF=1)\n2. 테스터 → DUT: fragment 1, id=B (MF=0, 그 외 호환)\n   ⇒ 서로 다른 bucket — 각자 단독으로는 재조립 불가(반쪽이 없음).\n\n3. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply 없음 (재조립 미완료)\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 Echo Reply를 발신하지 않음.\n\n[실패 조건]\n• Fail_early_reply — DUT이 응답 발신 → 다른 id의 fragment를 merge함 (RFC 791 §3.2 위반)\n• Fail_echo_id / Fail_echo_seq / Fail_data_mismatch — Reply는 보였지만 필드가 잘못됨 (merge 부작용)\n• Fail_timeout — Reply 미관찰 시의 중립 catch-all (Pass 형태와 동일)",
+  "verdicts": {
+    "Pass": "DUT이 다른 id의 fragment를 merge 안 함 — 정상",
+    "Fail_early_reply": "DUT이 Reply 발신 — 다른 id 사이에서 잘못 merge",
+    "Fail_echo_id": "Reply identifier 잘못됨 — bucket key 위반",
+    "Fail_echo_seq": "Reply sequence 잘못됨 — bucket key 위반",
+    "Fail_data_mismatch": "Reply data가 예상과 다름 — bucket key 위반",
+    "Fail_timeout": "Reply 미관찰 — 보통 Pass 형태"
+  }
+}

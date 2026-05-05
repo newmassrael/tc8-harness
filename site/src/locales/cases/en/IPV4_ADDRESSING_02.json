@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT silently discards an IPv4 UDP packet whose Destination Address is a Directed Broadcast (subnet broadcast like 192.168.0.255) — directed broadcasts must not be accepted by hosts on the destination subnet (RFC 1122 §3.2.1.3 SHOULD NOT receive)",
+  "approach": "[Objective]\nDirected broadcast = the subnet broadcast for some other subnet (e.g. 192.168.0.255 reaches every host in 192.168.0.0/24). For TC8 / RFC 1122 §3.2.1.3, hosts SHOULD NOT receive directed broadcasts addressed to their subnet — too easy to abuse for amplification attacks. DUT must drop.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 UDP packet\n   • dst_ip = directed broadcast for DUT's subnet\n   • dst_port = a port DUT's upper-tester listens on\n\n2. Observation:\n   • Upper-tester does NOT see the UDP datagram\n\n[Pass condition]\nDUT did not deliver the datagram to its upper-tester.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT delivered the datagram (RFC 1122 SHOULD NOT violation)\n• Fail_timeout — handshake/observation timed out indeterminately",
+  "verdicts": {
+    "Pass": "DUT silently dropped the directed-broadcast UDP — normal",
+    "Fail_wrong_receipt": "DUT delivered the directed-broadcast UDP — RFC 1122 SHOULD NOT violation",
+    "Fail_timeout": "Observation timed out without a clear verdict"
+  }
+}

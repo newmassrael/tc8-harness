@@ -1,0 +1,12 @@
+{
+  "description": "Source Address가 다른 fragment들을 DUT이 재조립하지 *않아야* 함을 검증 — Source Address는 재조립 bucket key의 일부 (RFC 791 §3.2)",
+  "approach": "[검증 목적]\n같은 id라도 다른 source에서 온 fragment는 다른 datagram이다(id 공간은 source별). 이를 섞으면 공격자가 재조립을 hijack할 수 있다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: fragment 0, src_ip = SRC_A (MF=1)\n2. 테스터 → DUT: fragment 1, src_ip = SRC_B (MF=0, 그 외 동일 id)\n   ⇒ 다른 bucket — 재조립 일어나면 안 됨.\n\n3. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply 없음\n\n[통과 조건]\nDUT이 관찰 윈도우 동안 Echo Reply 미발신.\n\n[실패 조건]\nIPV4_FRAGMENTS_02와 동일 — Fail_early_reply / Fail_echo_id / Fail_echo_seq / Fail_data_mismatch는 cross-source merge를 시사.",
+  "verdicts": {
+    "Pass": "DUT이 다른 src의 fragment를 merge 안 함 — 정상",
+    "Fail_early_reply": "DUT 응답 — 다른 src_ip 사이 merge",
+    "Fail_echo_id": "Reply identifier 잘못됨 — bucket key 위반",
+    "Fail_echo_seq": "Reply sequence 잘못됨 — bucket key 위반",
+    "Fail_data_mismatch": "Reply data 잘못됨 — bucket key 위반",
+    "Fail_timeout": "Reply 미관찰"
+  }
+}

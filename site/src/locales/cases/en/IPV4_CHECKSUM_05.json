@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's Echo Reply carries an IPv4 header checksum matching the RFC 1071 one's-complement sum of the header words — emit path must compute the checksum correctly",
+  "approach": "[Objective]\nWhile IPV4_CHECKSUM_02 covers receive-side validation, this case covers send-side computation. The Reply's checksum, if recomputed independently, must equal what's on the wire.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n      - tester recomputes header checksum from the Reply's header words\n      - that recomputed value must equal Reply's header_checksum field   ← key check\n\n[Pass condition]\nReply's header_checksum equals the independently recomputed value.\n\n[Fail condition]\n• Fail_checksum — Reply emitted but its header_checksum did not match the recomputed sum\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply checksum matched independent recomputation — normal emit",
+    "Fail_checksum": "Reply checksum did not match recomputation — emit path miscalculation",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT의 Echo Reply IPv4 헤더 checksum이 RFC 1071 one's-complement 합과 일치하는지 검증 — emit 경로가 checksum을 정확히 계산해야 함",
+  "approach": "[검증 목적]\nIPV4_CHECKSUM_02가 수신 측 검증을 다룬다면, 이 케이스는 송신 측 계산을 다룬다. Reply의 checksum을 독립적으로 다시 계산하면 wire의 값과 일치해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ICMP Echo Request\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply\n      - 테스터가 Reply 헤더 워드들로 checksum 재계산\n      - 재계산값 == Reply의 header_checksum 필드   ← 핵심 확인 지점\n\n[통과 조건]\nReply header_checksum == 독립 재계산값.\n\n[실패 조건]\n• Fail_checksum — Reply는 보였지만 header_checksum이 재계산값과 다름\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply checksum이 독립 재계산값과 일치 — 정상 emit",
+    "Fail_checksum": "Reply checksum이 재계산값과 다름 — emit 경로 계산 오류",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

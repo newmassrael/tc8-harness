@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT correctly reassembles a 4-fragment Echo Request received OUT OF ORDER (frag 0, frag 2, frag 1, frag 3) and emits an Echo Reply with matching id/seq/data — fragments may arrive in any order (RFC 791 §3.2)",
+  "approach": "[Objective]\nIP fragments can arrive at the receiver in any order — middlebox queueing, multipath routing, retransmission. Reassembly must use offset to place each fragment, not arrival order. This case sends 4 fragments deliberately out of order and confirms the result is correct.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment 0 (offset=0, MF=1)\n2. Tester → DUT: fragment 2 (offset=2X, MF=1)\n3. Tester → DUT: fragment 1 (offset=X, MF=1)\n4. Tester → DUT: fragment 3 (offset=3X, MF=0)\n   ⇒ DUT must reassemble using offset positions, regardless of arrival order.\n\n5. Observation (3 s window):\n   • DUT → Tester: Echo Reply with full payload, id, seq matching the original Request.\n\n[Pass condition]\nReply id, seq, and data all match.\n\n[Fail condition]\nSame as IPV4_FRAGMENTS_01 — Fail_echo_id / Fail_echo_seq / Fail_data_mismatch / Fail_timeout.",
+  "verdicts": {
+    "Pass": "DUT reassembled out-of-order fragments correctly — normal",
+    "Fail_echo_id": "Reply identifier mismatch",
+    "Fail_echo_seq": "Reply sequence mismatch",
+    "Fail_data_mismatch": "Reply data did not match expected payload — reassembly used arrival order",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

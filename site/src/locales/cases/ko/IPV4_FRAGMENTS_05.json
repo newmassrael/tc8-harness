@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 발신하는 IPv4 UDP datagram(로컬 MTU 이내)이 fragment되지 않은지 검증 — IPv4 헤더에 MF=0, Fragment Offset=0 (RFC 791 §3.2 p25 — DUT은 작은 datagram을 미리 쪼개면 안 됨)",
+  "approach": "[검증 목적]\nMTU 이내의 datagram은 단일 fragment로 가야 한다. DUT은 MF=0 + offset=0으로 발신해야 하며 — 미리 쪼개면 바이트를 낭비하고 미들박스에 혼란을 준다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: DUT의 UDP egress를 유발할 SOME/IP 요청\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: IPv4 UDP datagram\n      - MF flag           = 0   ← 핵심 확인 지점 1\n      - Fragment Offset   = 0   ← 핵심 확인 지점 2\n\n[통과 조건]\nDUT UDP datagram의 MF=0 AND offset=0.\n\n[실패 조건]\n• Fail_fragmented — DUT이 발신한 UDP에 MF=1 또는 non-zero offset (DUT이 pre-fragment)\n• Fail_timeout — 윈도우 동안 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 UDP가 fragment 안 됨 — 정상",
+    "Fail_fragmented": "DUT 발신 UDP에 fragment flag — MTU 이내인데 pre-fragment",
+    "Fail_timeout": "윈도우 동안 UDP 미발신"
+  }
+}

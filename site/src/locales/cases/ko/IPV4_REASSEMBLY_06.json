@@ -1,0 +1,8 @@
+{
+  "description": "offset=0 fragment가 없을 때 DUT이 재조립하지 *않아야* 함을 검증 — offset=1, offset=2 fragment만으로는 octet 0..7(IP/ICMP 헤더 위치)에 구멍이 남아 재조립이 abort되어야 함 (RFC 791 §3.2)",
+  "approach": "[검증 목적]\nfragment 0 없이는 응답을 만들 IP 헤더도, 메시지를 식별할 ICMP 헤더도 없다. 재조립은 대기 후 타임아웃되어야 하며 — 절대 반쪽짜리 datagram을 위로 올리면 안 된다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: offset=1 fragment (MF=1)\n2. 테스터 → DUT: offset=2 fragment (MF=0)\n   ⇒ octet 0..7(IP+ICMP 헤더 위치)에 구멍 남음.\n\n3. 관찰 (재조립 타임아웃보다 긴 시간):\n   • DUT → 테스터: 아무것도 없어야 함\n\n[통과 조건]\nDUT이 어떤 Echo Reply도 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — fragment 0이 없는데도 응답. 재조립이 불완전한 데이터를 수용.",
+  "verdicts": {
+    "Pass": "DUT이 불완전한 재조립을 조용히 포기 — 정상",
+    "Fail_dut_replied": "fragment 0 없이도 응답 — 불완전 재조립 수용"
+  }
+}

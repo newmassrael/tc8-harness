@@ -1,0 +1,9 @@
+{
+  "description": "DUT의 ICMP Echo Reply IPv4 헤더가 Version=4인지 검증 — 응답도 수신 경로와 동일한 프로토콜 버전을 명시해야 함",
+  "approach": "[검증 목적]\n수신 경로가 inbound Version을 검증하듯이, emit 경로도 outgoing 패킷에 올바른 값을 넣어야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ICMP Echo Request (Version=4)\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply\n      - IPv4 Version == 4   ← 핵심 확인 지점\n\n[통과 조건]\nReply의 IPv4 Version 필드 == 4.\n\n[실패 조건]\n• Fail_version — Reply는 발신됐지만 Version이 4가 아님\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply가 Version=4 — 정상 emit 경로",
+    "Fail_version": "Reply Version != 4 — emit 경로 malformed",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

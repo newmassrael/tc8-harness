@@ -1,0 +1,8 @@
+{
+  "description": "TTL=0인 ICMP Echo Request에 DUT이 정상 응답하는지 검증 — 호스트 수신 경로는 TTL 값(0이라도)만으로 패킷을 drop하면 안 됨 (RFC 1122 §3.2.1.7: '호스트는 TTL=0인 datagram을 *송신*해서는 안 되지만, *수신*된 datagram은 TTL 값만으로 조용히 drop해서는 안 된다')",
+  "approach": "[검증 목적]\nTTL은 라우팅 시점의 개념이며, 일단 패킷이 목적지에 도착한 뒤의 남은 TTL은 무관하다. RFC 1122는 호스트가 TTL이 낮다는(TTL=0이라도) 이유만으로 받은 datagram을 조용히 drop하는 것을 명시적으로 금지한다. DUT은 정상 응답해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 TTL=0인 ICMP Echo Request\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: Echo Reply\n\n[통과 조건]\nDUT이 Echo Reply 발신.\n\n[실패 조건]\nFail_timeout — DUT이 응답 안 함, TTL=0 때문에 drop했을 것으로 추정. RFC 1122 위반.",
+  "verdicts": {
+    "Pass": "DUT이 TTL=0 Request에 응답 — 수신 경로가 TTL을 무시함 (정상)",
+    "Fail_timeout": "TTL=0 Request에 응답 안 함 — TTL 기반 drop 추정 (RFC 1122 위반)"
+  }
+}

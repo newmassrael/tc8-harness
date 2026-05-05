@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT silently discards an IPv4 packet whose Destination Address is neither one of its own addresses nor a broadcast / multicast address — strict accept-list per RFC 1122 §3.2.1.3",
+  "approach": "[Objective]\nA host must drop traffic addressed to neither itself nor a group it belongs to — otherwise it would forward (which a host MUST NOT) or generate spurious responses. This case sends an Echo Request with dst_ip pointing at some other unicast address and confirms DUT stays silent.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet to dst_ip = (some other host's IP, not DUT, not broadcast, not multicast)\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing\n\n[Pass condition]\nDUT does not emit any response.\n\n[Fail condition]\nFail_dut_replied — DUT responded despite the wrong dst_ip. Indicates DUT is acting as a router (forbidden for hosts) or its accept-list is too permissive.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the cross-addressed packet — normal",
+    "Fail_dut_replied": "DUT responded to a packet not addressed to it — accept-list too permissive"
+  }
+}

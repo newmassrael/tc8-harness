@@ -1,0 +1,8 @@
+{
+  "description": "Total Length가 실제 전송된 데이터보다 큰 IPv4 패킷을 DUT이 drop하는지 검증 — wire가 실어 나르는 것보다 더 많은 바이트를 주장하는 것은 malformed이며 drop해야 함",
+  "approach": "[검증 목적]\nTotal Length는 물리적으로 존재하는 바이트(L2/Ethernet 패딩 차감 후)와 일치해야 한다. 실제보다 큰 값을 주장하면 전송 중 truncation이거나 출처가 malformed라는 뜻 — 어느 쪽이든 수신자는 내용을 신뢰할 수 없다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 패킷\n   • Total Length = 48 (48바이트라고 주장)\n   • 실제 전송 바이트 < 48   ← malformed\n   • dst_ip = DUT IP\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함\n\n[통과 조건]\nDUT이 어떤 응답도 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — 길이 over-claim에도 응답. 수신자가 실제 buffer 끝을 넘어 read했을 가능성(overread 버그).",
+  "verdicts": {
+    "Pass": "DUT이 over-claim 패킷을 조용히 drop — 정상",
+    "Fail_dut_replied": "Total Length > 실제 데이터인데도 응답 — overread 가능성"
+  }
+}

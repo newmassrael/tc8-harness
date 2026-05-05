@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT does NOT reassemble fragments whose Identification fields differ — the (src, dst, protocol, id) tuple is the reassembly bucket key (RFC 791 §3.2)",
+  "approach": "[Objective]\nFragments with different Identification numbers belong to different datagrams and must never be merged. This case sends fragment 0 with id=A and fragment 1 with id=B (otherwise compatible) and confirms DUT does not glue them together.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment 0 with id=A (MF=1)\n2. Tester → DUT: fragment 1 with id=B (MF=0, otherwise compatible)\n   ⇒ Two separate buckets — neither should reassemble alone (each is missing the other half).\n\n3. Observation (3 s window):\n   • DUT → Tester: no Echo Reply (no completed reassembly)\n\n[Pass condition]\nDUT does not emit any Echo Reply within the window.\n\n[Fail condition]\n• Fail_early_reply — DUT replied — it merged fragments with different ids (RFC 791 §3.2 violation)\n• Fail_echo_id / Fail_echo_seq / Fail_data_mismatch — Reply emitted but with wrong fields (also failure mode of merging)\n• Fail_timeout — neutral catch-all if no reply observed (this is also Pass shape)",
+  "verdicts": {
+    "Pass": "DUT did not merge differently-identified fragments — normal",
+    "Fail_early_reply": "DUT emitted a Reply — it incorrectly merged across different IDs",
+    "Fail_echo_id": "Reply emitted with wrong identifier — bucket-key violation",
+    "Fail_echo_seq": "Reply emitted with wrong sequence — bucket-key violation",
+    "Fail_data_mismatch": "Reply emitted but data did not match expected — bucket-key violation",
+    "Fail_timeout": "No reply observed — typically the Pass shape"
+  }
+}

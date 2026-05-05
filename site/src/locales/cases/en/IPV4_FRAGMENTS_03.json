@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT does NOT reassemble fragments whose Source Address fields differ — Source Address is part of the reassembly bucket key (RFC 791 §3.2)",
+  "approach": "[Objective]\nSame-id fragments from different sources are different datagrams (the same id space is per-source). Mixing them would let an attacker hijack reassembly.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment 0 with src_ip = SRC_A (MF=1)\n2. Tester → DUT: fragment 1 with src_ip = SRC_B (MF=0, same id otherwise)\n   ⇒ Different buckets — no reassembly should happen.\n\n3. Observation (3 s window):\n   • DUT → Tester: no Echo Reply\n\n[Pass condition]\nDUT does not emit any Echo Reply within the window.\n\n[Fail condition]\nSame as IPV4_FRAGMENTS_02 — Fail_early_reply / Fail_echo_id / Fail_echo_seq / Fail_data_mismatch indicate cross-source merging.",
+  "verdicts": {
+    "Pass": "DUT did not merge fragments from different sources — normal",
+    "Fail_early_reply": "DUT replied — merged fragments from different src_ips",
+    "Fail_echo_id": "Reply identifier wrong — bucket-key violation",
+    "Fail_echo_seq": "Reply sequence wrong — bucket-key violation",
+    "Fail_data_mismatch": "Reply data wrong — bucket-key violation",
+    "Fail_timeout": "No reply observed"
+  }
+}

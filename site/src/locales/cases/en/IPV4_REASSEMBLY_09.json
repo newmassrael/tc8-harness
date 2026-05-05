@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT discards an IPv4 packet whose MF=1 with no following fragment ever arriving — the reassembly bucket times out and no Echo Reply is emitted (RFC 791 §3.2 reassembly timer)",
+  "approach": "[Objective]\nMF=1 advertises 'more fragments to come'. If they never arrive, the reassembly bucket lingers consuming memory; the spec mandates a timer to clean it up. DUT must drop the bucket without delivering its partial contents.\n\n[Scenario — chronological]\n1. Tester → DUT: single IPv4 fragment with MF=1 (no continuation sent)\n\n2. Wait > reassembly timeout (typically 60 s on Linux).\n\n3. Observation:\n   • DUT → Tester: nothing — neither Echo Reply nor Time Exceeded with our fragment's id\n\n[Pass condition]\nDUT does not emit any Echo Reply for the abandoned bucket.\n\n[Fail condition]\nFail_dut_replied — DUT emitted an Echo Reply despite never having received the rest of the datagram.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the lingering bucket after timeout — normal",
+    "Fail_dut_replied": "DUT replied despite incomplete reassembly — partial data delivered"
+  }
+}

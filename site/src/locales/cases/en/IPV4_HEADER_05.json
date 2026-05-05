@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT accepts an IPv4 datagram of up to 576 octets and replies without truncating the Data section — 576 is the minimum maximum reassembly size every conformant host must support (RFC 791 §3.1 MUST)",
+  "approach": "[Objective]\nRFC 791 fixes 576 octets as the floor for MTU/reassembly support. A 576-octet Echo Request must be accepted, reassembled (or received whole), and the full payload echoed back in the Reply.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request, total IPv4 size = 576 octets, with a known data pattern\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n      - data field present in full (no truncation)\n      - data bytes match the Request's   ← key check\n\n[Pass condition]\nReply payload matches the Request's payload, full length.\n\n[Fail condition]\n• Fail_payload_truncated — Reply was emitted but the data section was shorter than the Request's\n• Fail_payload_mismatch — Reply emitted at full length but data bytes differed\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply carried the full 576-byte echo — normal",
+    "Fail_payload_truncated": "Reply data section truncated — DUT could not handle 576 bytes",
+    "Fail_payload_mismatch": "Reply data differed from Request — corruption in echo path",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

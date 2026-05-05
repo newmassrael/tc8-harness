@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-originated IPv4 UDP datagrams (within the local MTU) are unfragmented — MF=0 and Fragment Offset=0 in the IPv4 header (RFC 791 §3.2 p25 — DUT must not pre-fragment small datagrams)",
+  "approach": "[Objective]\nWithin the path MTU, datagrams should travel as a single fragment. DUT must emit MF=0 + offset=0 — pre-fragmenting would waste bytes and confuse middleboxes.\n\n[Scenario — chronological]\n1. Tester → DUT: SOME/IP request that triggers DUT's UDP egress\n\n2. Observation (3 s window):\n   • DUT → Tester: IPv4 UDP datagram\n      - MF flag           = 0   ← key check 1\n      - Fragment Offset   = 0   ← key check 2\n\n[Pass condition]\nDUT's UDP datagram has MF=0 and offset=0.\n\n[Fail condition]\n• Fail_fragmented — DUT-originated UDP carried MF=1 or non-zero offset (DUT pre-fragmented)\n• Fail_timeout — DUT did not emit UDP within the window",
+  "verdicts": {
+    "Pass": "DUT-originated UDP was unfragmented — normal",
+    "Fail_fragmented": "DUT-originated UDP carried fragment flags — pre-fragmenting under MTU",
+    "Fail_timeout": "DUT did not emit UDP within the window"
+  }
+}

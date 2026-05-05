@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT accepts an ICMPv4 Echo Request whose IPv4 header carries Version=4 — the standard, normal case (RFC 791 §3.1, RFC 1122 §3.2.1.1)",
+  "approach": "[Objective]\nPositive control for IPV4_VERSION_04 (rejection of Version != 4). With the standard Version=4, DUT must reply normally.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request, IPv4 Version=4\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n\n[Pass condition]\nDUT emits an Echo Reply.\n\n[Fail condition]\nFail_timeout — DUT did not emit a Reply, despite the standard Version=4. Indicates a fundamental Reception bug.",
+  "verdicts": {
+    "Pass": "DUT replied to a Version=4 Echo Request — normal",
+    "Fail_timeout": "DUT did not reply to a Version=4 Echo Request — fundamental reception bug"
+  }
+}

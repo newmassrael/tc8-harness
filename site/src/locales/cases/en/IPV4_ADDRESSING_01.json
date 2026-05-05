@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT accepts an IPv4 UDP packet whose Destination Address is the Limited Broadcast (255.255.255.255) — must be received like a unicast for upper-layer protocols (RFC 791 §3.2, RFC 1122 §3.2.1.3)",
+  "approach": "[Objective]\nLimited broadcast (255.255.255.255) is a one-shot announcement to every host on the local segment. Hosts must receive packets to this address and dispatch them to the appropriate protocol stack just like unicast — for UDP this means the application bound to the destination port sees the datagram.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 UDP packet\n   • dst_ip = 255.255.255.255   ← key trigger\n   • dst_port = a port DUT's upper-tester listens on\n\n2. Observation:\n   • DUT's upper-tester acknowledges receipt of the UDP datagram (via test-side query interface)\n\n[Pass condition]\nDUT received and delivered the UDP datagram to its upper-tester.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT received but mis-delivered (e.g. dropped to wrong handler)\n• Fail_timeout — DUT did not receive the datagram within the window — broadcast filter too strict",
+  "verdicts": {
+    "Pass": "DUT delivered the limited-broadcast UDP to upper-tester — normal",
+    "Fail_wrong_receipt": "DUT received but mis-delivered the UDP datagram",
+    "Fail_timeout": "DUT did not receive the datagram — broadcast accepted-list too strict"
+  }
+}

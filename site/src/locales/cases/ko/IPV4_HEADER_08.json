@@ -1,0 +1,8 @@
+{
+  "description": "Total Length가 IHL이 시사하는 헤더 길이보다 작은 IPv4 패킷을 DUT이 drop하는지 검증 — IHL=13(헤더 52바이트)인데 Total Length < 52는 불가능하므로 drop해야 함",
+  "approach": "[검증 목적]\nIHL은 헤더 크기, Total Length는 전체 패킷 크기를 나타낸다. Total Length가 IHL × 4보다 작으면 헤더조차 안 들어가는 구조 — malformed다. drop이 유일한 안전한 동작.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 패킷\n   • IHL = 13 (헤더가 옵션 포함 52바이트라고 주장)\n   • Total Length < 52   ← malformed\n   • dst_ip = DUT IP\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함\n\n[통과 조건]\nDUT이 어떤 응답도 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — 불가능한 길이 조합에도 응답.",
+  "verdicts": {
+    "Pass": "DUT이 불가능하게 짧은 패킷을 조용히 drop — 정상",
+    "Fail_dut_replied": "Total Length < 헤더인데도 응답 — malformed 수용"
+  }
+}

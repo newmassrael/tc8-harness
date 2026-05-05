@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT's ICMP Echo Reply carries an IPv4 header whose Source Address equals one of DUT's configured IPv4 addresses — Reply must come from a real, owned address",
+  "approach": "[Objective]\nA Reply with src_ip not matching any DUT iface address would confuse the requester (cache poisoning, return-path failure). DUT's outgoing-interface IP must appear as the IPv4 source.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request (target_ip=DUT IP)\n\n2. Observation (3 s window):\n   • DUT → Tester: Echo Reply\n      - src_ip ∈ DUT's configured IPv4 addresses   ← key check\n\n[Pass condition]\nReply src_ip matches a DUT-owned address.\n\n[Fail condition]\nFail_timeout — DUT did not emit a Reply within the window. (Wrong src_ip would be rare — covered implicitly by Reply absence here.)",
+  "verdicts": {
+    "Pass": "Reply src_ip matched a DUT-owned address — normal",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

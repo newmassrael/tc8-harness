@@ -1,0 +1,8 @@
+{
+  "description": "헤더 checksum이 잘못된 IPv4 패킷을 DUT이 drop하는지 검증 — checksum 불일치는 헤더 손상을 의미하므로 패킷을 신뢰할 수 없음 (RFC 1071 + RFC 791 §3.1)",
+  "approach": "[검증 목적]\nIPv4 헤더는 헤더 워드에 대한 one's-complement checksum(RFC 1071)을 가진다. 헤더에 단일 비트 오류라도 있으면 이 checksum으로 잡힌다. 불일치는 헤더 손상 — 신뢰하면 잘못 라우팅, 잘못된 프로토콜로 전달, overread 등을 유발할 수 있다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: dst=DUT IP, header_checksum이 의도적으로 틀림 (예: 마지막 비트 flip)인 IPv4 패킷\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함\n\n[통과 조건]\nDUT이 어떤 응답도 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — 잘못된 헤더 checksum에도 응답. 받는 쪽에서 checksum 검증 건너뜀.",
+  "verdicts": {
+    "Pass": "DUT이 잘못된 checksum 패킷을 조용히 drop — 정상",
+    "Fail_dut_replied": "잘못된 IPv4 checksum에도 응답 — 검증 누락"
+  }
+}

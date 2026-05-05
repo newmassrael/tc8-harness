@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT reassembles partially OVERLAPPING fragments using most-recent-wins and emits an Echo Reply containing the fully-resolved 27-byte payload 'ECU NETWORK VALIDATION TEST' (RFC 791 §3.2 Example Reassembly Procedure)",
+  "approach": "[Objective]\nFragments may overlap (legacy behaviour, also abused for evasion). Per RFC 791 §3.2 the latest data at any byte position wins the reassembly. This case sends fragments whose ranges overlap and confirms the resolved payload matches the expected 27-byte string.\n\nNote: Modern Linux post-CVE-2018-5391 drops overlapping buckets entirely. On a Linux DUT this case lands as Fail (kernel deviation, not harness bug). Strict-RFC DUTs land Pass.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment A (covers some byte range)\n2. Tester → DUT: fragment B (overlaps fragment A in part)\n3. Tester → DUT: subsequent fragments completing 27 bytes\n   ⇒ DUT must apply most-recent-wins to overlapping bytes.\n\n4. Observation: DUT → Tester Echo Reply with payload 'ECU NETWORK VALIDATION TEST'.\n\n[Pass condition]\nDUT emits a Reply whose data matches the expected resolved payload.\n\n[Fail condition]\nFail_echo_id / Fail_echo_seq / Fail_data_mismatch / Fail_timeout — same shape as IPV4_FRAGMENTS_01.",
+  "verdicts": {
+    "Pass": "DUT reassembled overlapping fragments with most-recent-wins — RFC 791 §3.2 normal",
+    "Fail_echo_id": "Reply identifier mismatch",
+    "Fail_echo_seq": "Reply sequence mismatch",
+    "Fail_data_mismatch": "Reply data did not match expected — overlap resolution wrong",
+    "Fail_timeout": "DUT did not emit Reply (Linux post-CVE-2018-5391 drops overlap buckets — kernel deviation)"
+  }
+}

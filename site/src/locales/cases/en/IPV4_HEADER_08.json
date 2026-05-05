@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT discards an IPv4 packet whose Total Length is smaller than the header length implied by IHL — IHL=13 (52-byte header) with Total Length < 52 is impossible and the packet must be dropped",
+  "approach": "[Objective]\nIHL specifies header size; Total Length specifies the entire packet size. If Total Length is smaller than IHL × 4, the header alone wouldn't fit — the packet is malformed. Dropping is the only safe action.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet\n   • IHL = 13 (header claims 52 bytes including options)\n   • Total Length < 52   ← malformed\n   • dst_ip = DUT IP\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing\n\n[Pass condition]\nDUT does not emit any response.\n\n[Fail condition]\nFail_dut_replied — DUT responded despite the impossible length combination.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the impossibly-short packet — normal",
+    "Fail_dut_replied": "DUT responded despite Total Length < header — malformed accepted"
+  }
+}

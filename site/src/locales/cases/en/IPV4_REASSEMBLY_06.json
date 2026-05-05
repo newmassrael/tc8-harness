@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT does NOT reassemble when the offset=0 fragment is missing — fragments at offset=1 and offset=2 leave a hole at octets 0..7 (the IP/ICMP header lives there) so reassembly must abort (RFC 791 §3.2)",
+  "approach": "[Objective]\nWithout fragment 0, DUT has no IP header to construct an answer against and no ICMP header to identify the message. Reassembly must wait, then time out — never delivering a half-baked datagram upstream.\n\n[Scenario — chronological]\n1. Tester → DUT: fragment at offset=1 (MF=1)\n2. Tester → DUT: fragment at offset=2 (MF=0)\n   ⇒ Holes at octets 0..7 (where the IP+ICMP headers would live) remain unfilled.\n\n3. Observation (extended, > reassembly timeout):\n   • DUT → Tester: nothing\n\n[Pass condition]\nDUT does not emit any Echo Reply.\n\n[Fail condition]\nFail_dut_replied — DUT replied despite missing fragment 0. Reassembly accepted incomplete data.",
+  "verdicts": {
+    "Pass": "DUT silently abandoned the incomplete reassembly — normal",
+    "Fail_dut_replied": "DUT replied despite missing fragment 0 — incomplete reassembly accepted"
+  }
+}

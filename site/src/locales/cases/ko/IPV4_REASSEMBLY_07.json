@@ -1,0 +1,8 @@
+{
+  "description": "내부 fragment가 없을 때 DUT이 재조립하지 *않아야* 함을 검증 — offset=0(MF=1) + offset=2(MF=0)로 octet 8..15에 구멍이 남아 재조립이 abort되어야 함 (RFC 791 §3.2)",
+  "approach": "[검증 목적]\nIPV4_REASSEMBLY_06(fragment 0 결손)과 달리 여기선 fragment 0은 있지만 중간 fragment가 빠졌다. IP/ICMP 헤더는 복원 가능하지만 payload가 불완전 — DUT은 여전히 재조립을 abort해야 하며 torn 메시지를 발신하면 안 된다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: offset=0 fragment (MF=1)\n2. 테스터 → DUT: offset=2 fragment (MF=0)\n   ⇒ octet 8..15 구멍 남음.\n\n3. 관찰 (긴 시간):\n   • DUT → 테스터: 아무것도 없어야 함\n\n[통과 조건]\nDUT이 어떤 Echo Reply도 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — 중간 fragment가 없는데도 응답. 재조립이 부분 데이터를 위로 올림.",
+  "verdicts": {
+    "Pass": "DUT이 구멍 있는 재조립을 조용히 포기 — 정상",
+    "Fail_dut_replied": "중간 fragment 결손에도 응답 — 부분 데이터를 위로 올림"
+  }
+}

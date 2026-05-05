@@ -1,0 +1,11 @@
+{
+  "description": "첫 fragment가 Low TTL을 가질 때 DUT이 재조립 타이머를 *줄이지 않아야* 함을 검증 — Low TTL이 기존 bucket lifetime을 정적 타이머 아래로 단축하면 안 됨 (RFC 791 §3.2 MAX 의미론)",
+  "approach": "[검증 목적]\nMAX(TTL, 정적 타이머) 규칙은 Low TTL이 재조립 윈도우를 절대 단축하지 않음을 의미한다 — TTL 측에 추가 이득이 없을 뿐이다. DUT은 정적 타이머의 floor를 유지해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: Low TTL을 가진 fragment 0 (MF=1)\n2. 정적 ipIniReassembleTimeout 이내 대기 (정적 윈도우 안 — TTL은 무관)\n3. 테스터 → DUT: fragment 1 (MF=0)\n4. 관찰: DUT → 테스터 id/seq/data 일치 Echo Reply.\n\n[통과 조건]\nDUT이 재조립하고 일치하는 Reply 발신.\n\n[실패 조건]\nFail_echo_id / Fail_echo_seq / Fail_data_mismatch / Fail_timeout — IPV4_FRAGMENTS_01과 동일. 특히 Fail_timeout은 Low TTL 기반으로 타이머가 단축됐음을 시사.",
+  "verdicts": {
+    "Pass": "DUT이 Low TTL에도 정적 타이머 floor 유지 — 정상",
+    "Fail_echo_id": "Reply identifier 불일치",
+    "Fail_echo_seq": "Reply sequence 불일치",
+    "Fail_data_mismatch": "Reply data 불일치",
+    "Fail_timeout": "DUT 재조립 안 함 — Low TTL로 타이머 잘못 단축"
+  }
+}

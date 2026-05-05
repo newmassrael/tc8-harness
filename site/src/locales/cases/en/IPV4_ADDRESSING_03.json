@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT silently discards an IPv4 packet whose Destination Address is in the loopback range (127.0.0.0/8) when it arrives on a non-loopback interface — loopback traffic must never appear on the wire (RFC 1122 §3.2.1.3 'martian' filter)",
+  "approach": "[Objective]\nThe 127.0.0.0/8 prefix is reserved for the host's own loopback interface. A packet with a 127.x.x.x destination arriving via Ethernet is a 'martian' — either a misconfigured peer, a routing leak, or an attempt at spoofing. Hosts must drop it without response.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet on a non-loopback iface\n   • dst_ip = 127.0.0.1 (or any 127.0.0.0/8 address)   ← key trigger\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing — no reply, no error\n\n[Pass condition]\nDUT does not emit any response.\n\n[Fail condition]\nFail_dut_replied — DUT responded despite the loopback dst_ip arriving on a non-loopback iface. Indicates the martian filter is missing.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the wire-arriving loopback packet — normal",
+    "Fail_dut_replied": "DUT responded to a wire-arriving 127.0.0.0/8 packet — martian filter missing"
+  }
+}
