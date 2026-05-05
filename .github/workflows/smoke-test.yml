@@ -9,6 +9,13 @@ on:
   # back to the hosted build-test workflow.
   push:
     branches: [main]
+    # Skip pure-site / pcap-tooling pushes — none of those affect C++
+    # behaviour, so smoke-test would just waste runner time.
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/pcap-refresh.yml'
+      - 'doc/spec/deprecated_cases.json'
   workflow_dispatch: {}
 
 permissions:

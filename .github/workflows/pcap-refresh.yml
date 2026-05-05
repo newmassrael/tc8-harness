@@ -72,13 +72,12 @@ jobs:
           path: .pcap-data
 
       - name: Decode pcaps to PacketCapture JSON
-        # Outcome defaults to "pass" — JUnit parsing per case is a
-        # follow-up; the timeline component renders identically for
-        # pass/fail today (the badge differs only). Tester/DUT MAC+IP
-        # use the harness's standard test-fixture values; cases with
-        # different fixtures (e.g. DHCPv4 0.0.0.0 sources) come through
-        # with direction="other" — packets still appear, just without
-        # the directional pill.
+        # decode_pcap.py auto-detects tester/DUT MAC+IP from the first
+        # frames (the harness assigns random locally-administered MACs
+        # per veth pair, so static fixture values would not match a
+        # live capture). Outcome defaults to "pass" — JUnit parsing per
+        # case is a follow-up; the timeline component renders the same
+        # for pass/fail today, only the badge differs.
         run: |
           set -e
           shopt -s nullglob
@@ -94,10 +93,6 @@ jobs:
             name=$(basename "$pcap" .pcap)
             cid=${name^^}
             if python3 site/scripts/decode_pcap.py "$cid" pass "$pcap" \
-                 --tester-mac 02:00:00:00:00:01 \
-                 --tester-ip  192.168.0.10 \
-                 --dut-mac    02:00:00:00:00:02 \
-                 --dut-ip     192.168.0.1 \
                  --captured-at "$captured_at" \
                  --out ".pcap-data/site/src/data/pcap/${cid}.json"; then
               decoded=$((decoded+1))

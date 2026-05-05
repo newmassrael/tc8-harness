@@ -3,8 +3,21 @@ name: build-test
 on:
   push:
     branches: [main]
+    # Skip pure-site / pcap-tooling pushes — none of those affect C++
+    # behaviour, so the hosted build + ctest gate would just waste
+    # runner time.
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/pcap-refresh.yml'
+      - 'doc/spec/deprecated_cases.json'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/pcap-refresh.yml'
+      - 'doc/spec/deprecated_cases.json'
 
 permissions:
   contents: read

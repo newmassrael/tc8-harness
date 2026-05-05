@@ -191,6 +191,49 @@ def _direction(src_mac: Optional[str], dst_mac: Optional[str],
     return "other"
 
 
+def _autodetect_endpoints(packets):
+    """Infer (tester_mac, dut_mac, tester_ip, dut_ip) from the capture.
+
+    The harness's netns setup assigns random locally-administered MACs
+    per veth pair, so hard-coded fixtures don't match a live capture.
+    Heuristic: the two most frequent unicast src MACs are the endpoints;
+    the one that emits FIRST is the tester (stimulus typically precedes
+    DUT response). IPs are the first src_ip observed sourced from each
+    detected MAC.
+    """
+    from collections import Counter
+    src_counts: Counter = Counter()
+    first_seen: dict = {}
+    ip_for_mac: dict = {}
+    for p in packets:
+        mac = (p.src_mac or "").lower()
+        if not mac or mac == "00:00:00:00:00:00":
+            continue
+        try:
+            first_byte = int(mac.split(":")[0], 16)
+        except ValueError:
+            continue
+        if first_byte & 0x01:  # multicast / broadcast bit — not an endpoint
+            continue
+        src_counts[mac] += 1
+        if mac not in first_seen:
+            first_seen[mac] = p.idx
+        if p.src_ip and mac not in ip_for_mac:
+            ip_for_mac[mac] = p.src_ip
+    top = src_counts.most_common(2)
+    if not top:
+        return None, None, None, None
+    if len(top) == 1:
+        m = top[0][0]
+        return m, None, ip_for_mac.get(m), None
+    mac_a, mac_b = top[0][0], top[1][0]
+    if first_seen[mac_a] <= first_seen[mac_b]:
+        tester, dut = mac_a, mac_b
+    else:
+        tester, dut = mac_b, mac_a
+    return tester, dut, ip_for_mac.get(tester), ip_for_mac.get(dut)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("case_id")
@@ -215,16 +258,24 @@ def main() -> int:
                    ts_delta_us=(ts_us - prev_ts) if idx > 0 else 0,
                    direction="other")
         _dissect_ethernet(frame, p)
-        p.direction = _direction(p.src_mac, p.dst_mac, args.tester_mac, args.dut_mac)
         packets.append(p)
         prev_ts = ts_us
+
+    auto_t_mac, auto_d_mac, auto_t_ip, auto_d_ip = _autodetect_endpoints(packets)
+    tester_mac = args.tester_mac or auto_t_mac
+    dut_mac    = args.dut_mac    or auto_d_mac
+    tester_ip  = args.tester_ip  or auto_t_ip
+    dut_ip     = args.dut_ip     or auto_d_ip
+
+    for p in packets:
+        p.direction = _direction(p.src_mac, p.dst_mac, tester_mac, dut_mac)
 
     out = {
         "case_id": args.case_id.upper(),
         "outcome": args.outcome,
         "captured_at": args.captured_at,
-        "tester_mac": args.tester_mac, "tester_ip": args.tester_ip,
-        "dut_mac": args.dut_mac, "dut_ip": args.dut_ip,
+        "tester_mac": tester_mac, "tester_ip": tester_ip,
+        "dut_mac": dut_mac, "dut_ip": dut_ip,
         "packets": [asdict(p) for p in packets],
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
