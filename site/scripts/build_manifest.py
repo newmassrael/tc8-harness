@@ -431,8 +431,54 @@ def main(argv: list[str] | None = None) -> int:
     # auto-skip via the `requires` predicates in lib/sections.ts.
     active_ids = {canonical(c["case_id"]) for c in cases_in_spec_order}
     default_reason = deprecated_doc.get("default_reason", "Deprecated")
-    base_offset = 1 << 20  # park deprecated entries at the end of spec_order
-    for j, entry in enumerate(deprecated_doc.get("cases", [])):
+
+    # Index actives by case-id prefix → sorted (numeric_suffix, spec_order)
+    # so a deprecated case can slot in next to its numeric neighbours
+    # rather than collecting at the tail of the index.
+    from collections import defaultdict
+    PREFIX_RE = re.compile(r"_(\d+)$")
+    prefix_actives: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for c in cases_in_spec_order:
+        cid = canonical(c["case_id"])
+        m = PREFIX_RE.search(cid)
+        if not m:
+            continue
+        prefix = cid[: m.start()]
+        prefix_actives[prefix].append((int(m.group(1)), c["_spec_order"]))
+    for p in prefix_actives:
+        prefix_actives[p].sort()
+
+    # Anchor table for prefixes that are entirely deprecated (no active
+    # case carries the same id-prefix). Keys are spec section prefixes
+    # ("4.8", "4.8.6", etc.); value is the spec_order of the first
+    # active case whose section starts that way.
+    section_anchors: dict[str, int] = {}
+    for c in cases_in_spec_order:
+        sec = c.get("section", "")
+        for plen in (3, 5, 7):
+            key = sec[:plen]
+            if key and key not in section_anchors:
+                section_anchors[key] = c["_spec_order"]
+
+    def deprecated_spec_order(cid: str, section_hint: str) -> float:
+        m = PREFIX_RE.search(cid)
+        if not m:
+            return 1 << 20
+        prefix, suffix = cid[: m.start()], int(m.group(1))
+        actives = prefix_actives.get(prefix, [])
+        bump = suffix * 0.001
+        if actives:
+            ts = next((order for s, order in actives if s > suffix), None)
+            if ts is not None:
+                return ts - 1.0 + bump
+            return actives[-1][1] + bump
+        for plen in (7, 5, 3):
+            key = section_hint[:plen]
+            if key in section_anchors:
+                return section_anchors[key] - 1.0 + bump
+        return 1 << 20
+
+    for entry in deprecated_doc.get("cases", []):
         if isinstance(entry, str):
             cid, reason = canonical(entry), default_reason
         else:
@@ -451,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
             "category": category_of(cid),
             "protocol": protocol_of(section),
             "section": section,
-            "spec_order": base_offset + j,
+            "spec_order": deprecated_spec_order(cid, section),
             "status": "deprecated",
             "expected": False,
             "defer_reason": reason,
