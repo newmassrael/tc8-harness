@@ -28,6 +28,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Per-case captures live on the orphan `pcap-data` branch (decoupled
+      # from main so timestamp churn from refresh runs stays out of the
+      # codebase log). Overlay them onto site/src/data/pcap/ before
+      # sanitize so the build sees them as if they were on main.
+      # ``continue-on-error`` keeps the workflow alive on first deploy
+      # before the branch is seeded.
+      - name: Pull pcap-data branch
+        uses: actions/checkout@v4
+        with:
+          ref: pcap-data
+          path: .pcap-overlay
+        continue-on-error: true
+
+      - name: Overlay pcap data
+        run: |
+          mkdir -p site/src/data/pcap
+          if [ -d .pcap-overlay/site/src/data/pcap ]; then
+            cp -r .pcap-overlay/site/src/data/pcap/. site/src/data/pcap/
+            echo "overlaid $(ls site/src/data/pcap | wc -l) capture file(s)"
+          else
+            echo "pcap-data branch empty or absent; skipping overlay"
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
