@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 발신한 ARP Request의 Protocol Address Length 필드가 IP_ADDR_LEN(4)인지 검증 — 패킷 내 각 IP 주소 슬롯이 몇 바이트인지를 알리는 필드 (RFC 826 packet generation)",
+  "approach": "[검증 목적]\nARP Request의 Protocol Address Length 바이트는 파서에게 sender_ip/target_ip 필드가 몇 바이트인지 알린다. IPv4는 4바이트. 이 케이스는 DUT의 ARP Request를 유발한 뒤 필드 값을 확인한다.\n\n[시나리오 — 시간순]\n1. (캐시 시드 없음.)\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup 메시지\n   ⇒ DUT unicast-Nack 시도, 캐시 미스로 ARP Request 강제.\n\n3. 관찰 (5초 윈도우):\n   • DUT → 브로드캐스트: ARP Request\n      - opcode          == 1\n      - sender_mac      == DUT iface MAC\n      - target_ip       == HOST-1-IP\n      - proto_addr_len  == 4 (IP_ADDR_LEN)   ← 핵심 확인 지점\n\n[통과 조건]\n관찰된 ARP Request의 Protocol Address Length가 4와 일치.\n\n[실패 조건]\n• Fail_proto_addr_len — ARP Request는 보였지만 Protocol Address Length가 4가 아님 (IP 필드 너비 불일치)\n• Fail_timeout — 윈도우 동안 ARP Request 미관찰",
+  "verdicts": {
+    "Pass": "ARP Request의 proto_addr_len=4 (IPv4 너비) — 정상",
+    "Fail_proto_addr_len": "ARP Request는 발신됐지만 proto_addr_len이 4가 아님 — IP 필드 너비 불일치",
+    "Fail_timeout": "윈도우 동안 DUT ARP Request 미관찰"
+  }
+}

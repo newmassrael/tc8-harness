@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Destination IP Address field of DUT's emitted ARP Request equals the resolution target IPv4 — names the peer whose MAC the DUT is asking for (RFC 826 packet generation)",
+  "approach": "[Objective]\nThe target_ip field of an ARP Request asks 'who has this address?'. It must equal the actual IP DUT is trying to send to — anything else means DUT resolved the wrong peer. This case provokes a DUT ARP Request for HOST-1-IP and asserts the target_ip.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back to HOST-1-IP; cache miss forces an ARP Request to resolve HOST-1-IP.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode      == 1\n      - sender_mac  == DUT iface MAC\n      - target_ip   == HOST-1-IP   ← key check\n\n[Pass condition]\nThe observed ARP Request's target_ip equals HOST-1-IP (the destination DUT was asked to reach).\n\n[Fail condition]\n• Fail_target_ip — ARP Request seen but target_ip was not HOST-1-IP (DUT resolved the wrong peer — likely a routing/gateway substitution)\n• Fail_timeout — No DUT ARP Request observed within the window",
+  "verdicts": {
+    "Pass": "ARP Request target_ip matched HOST-1-IP — normal",
+    "Fail_target_ip": "ARP Request emitted but target_ip was not HOST-1-IP — wrong resolution target",
+    "Fail_timeout": "No DUT ARP Request observed within the window"
+  }
+}

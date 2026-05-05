@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 발신한 ARP Request의 Source IP Address 필드가 설정된 DIface-0 IPv4인지 검증 — peer가 해상도 주체의 IP를 알아볼 수 있게 자기 IP를 담는 필드 (RFC 826 packet generation)",
+  "approach": "[검증 목적]\nARP Request의 sender_ip 필드는 수신 peer가 자기 캐시에 '<sender_ip, sender_mac>'을 학습할 때 쓰는 값이다. DUT은 자기 송출 인터페이스 IPv4를 정확히 넣어야 하며, placeholder나 다른 인터페이스 주소가 들어가면 안 된다. 이 케이스는 DUT의 ARP Request를 유발한 뒤 sender_ip를 확인한다.\n\n[시나리오 — 시간순]\n1. (캐시 시드 없음.)\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup 메시지\n   ⇒ DUT unicast-Nack 시도, 캐시 미스로 ARP Request 강제.\n\n3. 관찰 (5초 윈도우):\n   • DUT → 브로드캐스트: ARP Request\n      - opcode      == 1\n      - sender_mac  == DUT iface MAC\n      - sender_ip   == DIface-0 IPv4 (DUT 송출 인터페이스)   ← 핵심 확인 지점\n      - target_ip   == HOST-1-IP\n\n[통과 조건]\n관찰된 ARP Request의 sender_ip가 DUT의 DIface-0 IPv4와 일치.\n\n[실패 조건]\n• Fail_sender_ip — ARP Request는 보였지만 sender_ip가 iface 주소와 다름 (예: 0.0.0.0 placeholder, multi-homed 라우팅 잘못 선택, stale binding)\n• Fail_timeout — 윈도우 동안 DUT ARP Request 미관찰",
+  "verdicts": {
+    "Pass": "ARP Request sender_ip가 DIface-0 IPv4와 일치 — 정상",
+    "Fail_sender_ip": "ARP Request는 발신됐지만 sender_ip가 DIface-0 IPv4와 다름",
+    "Fail_timeout": "윈도우 동안 DUT ARP Request 미관찰"
+  }
+}

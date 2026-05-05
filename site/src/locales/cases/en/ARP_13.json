@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Sender Hardware Address field of DUT's emitted ARP Request equals the configured DIface-0 MAC — identifies the resolver back to peers (RFC 826 packet generation)",
+  "approach": "[Objective]\nThe sender_mac field of an ARP Request lets the receiving peer learn '<sender_ip, sender_mac>' into its own cache (per RFC 826 §2.3). DUT must place its own outgoing-interface MAC there, not a stale or zero value. This case provokes a DUT ARP Request and asserts the sender_mac.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back; cache miss forces an ARP Request.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode      == 1\n      - sender_mac  == DIface-0 MAC (DUT outgoing iface)   ← key check\n      - target_ip   == HOST-1-IP\n\n[Pass condition]\nThe observed ARP Request's sender_mac matches the DUT's configured DIface-0 MAC.\n\n[Fail condition]\n• Fail_sender_hw — ARP Request seen but sender_mac differed from the iface MAC (suggests bridge/bond misrouting or all-zero placeholder)\n• Fail_timeout — No DUT ARP Request observed within the window",
+  "verdicts": {
+    "Pass": "ARP Request sender_mac matched DIface-0 MAC — normal",
+    "Fail_sender_hw": "ARP Request emitted but sender_mac did not match DIface-0 MAC",
+    "Fail_timeout": "No DUT ARP Request observed within the window"
+  }
+}

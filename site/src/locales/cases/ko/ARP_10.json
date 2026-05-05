@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 발신한 ARP Request의 Hardware Address Length 필드가 ETHERNET_ADDR_LEN(6)인지 검증 — 패킷 내 각 MAC 슬롯이 몇 바이트인지를 알리는 필드 (RFC 826 packet generation)",
+  "approach": "[검증 목적]\nARP Request에는 하드웨어 주소 길이 바이트가 들어있어 파서에게 sender_mac/target_mac 필드가 몇 바이트인지 알린다. Ethernet MAC은 6바이트. 이 케이스는 DUT의 ARP Request를 유발한 뒤 필드 값을 확인한다.\n\n[시나리오 — 시간순]\n1. (캐시 시드 없음.)\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup 메시지\n   ⇒ DUT unicast-Nack 시도, 캐시 미스로 ARP Request 강제.\n\n3. 관찰 (5초 윈도우):\n   • DUT → 브로드캐스트: ARP Request\n      - opcode        == 1\n      - sender_mac    == DUT iface MAC\n      - target_ip     == HOST-1-IP\n      - hw_addr_len   == 6 (ETHERNET_ADDR_LEN)   ← 핵심 확인 지점\n\n[통과 조건]\n관찰된 ARP Request의 Hardware Address Length가 6과 일치.\n\n[실패 조건]\n• Fail_hw_addr_len — ARP Request는 보였지만 Hardware Address Length가 6이 아님 (MAC 필드 너비 불일치)\n• Fail_timeout — 윈도우 동안 ARP Request 미관찰",
+  "verdicts": {
+    "Pass": "ARP Request의 hw_addr_len=6 (Ethernet MAC 너비) — 정상",
+    "Fail_hw_addr_len": "ARP Request는 발신됐지만 hw_addr_len이 6이 아님 — MAC 필드 너비 불일치",
+    "Fail_timeout": "윈도우 동안 DUT ARP Request 미관찰"
+  }
+}

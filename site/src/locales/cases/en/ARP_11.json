@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Protocol Address Length field of DUT's emitted ARP Request equals IP_ADDR_LEN (4) — declares how many bytes each IP address slot in the packet carries (RFC 826 packet generation)",
+  "approach": "[Objective]\nThe protocol-address-length byte of an ARP Request tells parsers how many bytes the sender_ip and target_ip fields occupy. For IPv4 that is 4. This case provokes a DUT ARP Request and asserts the field value.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back; cache miss forces an ARP Request.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode          == 1\n      - sender_mac      == DUT iface MAC\n      - target_ip       == HOST-1-IP\n      - proto_addr_len  == 4 (IP_ADDR_LEN)   ← key check\n\n[Pass condition]\nThe observed ARP Request's Protocol Address Length equals 4.\n\n[Fail condition]\n• Fail_proto_addr_len — ARP Request seen but Protocol Address Length was not 4 (IP field width mismatch)\n• Fail_timeout — No ARP Request observed within the window",
+  "verdicts": {
+    "Pass": "ARP Request carried proto_addr_len=4 (IPv4 width) — normal",
+    "Fail_proto_addr_len": "ARP Request emitted but proto_addr_len was not 4 — IP field width mismatch",
+    "Fail_timeout": "No DUT ARP Request observed within the window"
+  }
+}

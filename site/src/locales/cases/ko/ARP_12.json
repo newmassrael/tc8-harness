@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 발신한 ARP Request의 Operation Code 필드가 OPERATION_REQUEST(1)인지 검증 — 와이어 상에서 Request와 Reply를 구분하는 필드 (RFC 826 packet generation)",
+  "approach": "[검증 목적]\n바이트 하나가 ARP 메시지 종류를 구분한다 — opcode 1은 Request, 2는 Reply. DUT이 해상도를 시작할 때 발신하는 메시지는 Reply가 아니라 Request여야 한다. 이 케이스는 DUT의 ARP Request를 유발한 뒤 opcode를 확인한다.\n\n[시나리오 — 시간순]\n1. (캐시 시드 없음.)\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup 메시지\n   ⇒ DUT unicast-Nack 시도, 캐시 미스로 ARP 해상도 강제.\n\n3. 관찰 (5초 윈도우):\n   • DUT → 브로드캐스트: ARP Request\n      - opcode == 1 (OPERATION_REQUEST)   ← 핵심 확인 지점\n      - sender_mac == DUT iface MAC\n      - target_ip  == HOST-1-IP\n\n[통과 조건]\nsender_mac이 DUT iface와 일치하는 ARP 메시지가 관찰되고 opcode == 1.\n\n[실패 조건]\n• Fail_opcode — DUT이 ARP 메시지는 발신했지만 opcode가 1이 아님 (예: 요청 안 된 Reply)\n• Fail_timeout — 윈도우 동안 DUT ARP 메시지 미관찰",
+  "verdicts": {
+    "Pass": "ARP 메시지의 opcode=1 (Request) — 정상",
+    "Fail_opcode": "DUT이 opcode != 1인 ARP 메시지 발신 — Request 아님",
+    "Fail_timeout": "윈도우 동안 DUT ARP 메시지 미관찰"
+  }
+}

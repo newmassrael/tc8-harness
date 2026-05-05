@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Operation Code field of DUT's emitted ARP Request equals OPERATION_REQUEST (1) — distinguishes a Request from a Reply on the wire (RFC 826 packet generation)",
+  "approach": "[Objective]\nA single byte distinguishes the two ARP message kinds: opcode 1 is Request, 2 is Reply. When DUT initiates resolution the emitted message must be a Request, not a Reply. This case provokes a DUT ARP Request and asserts the opcode.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back; cache miss forces an ARP resolution.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode == 1 (OPERATION_REQUEST)   ← key check\n      - sender_mac == DUT iface MAC\n      - target_ip  == HOST-1-IP\n\n[Pass condition]\nA DUT ARP message whose sender_mac matches the iface is observed and its opcode equals 1.\n\n[Fail condition]\n• Fail_opcode — DUT emitted an ARP message but its opcode was not 1 (e.g. unsolicited Reply)\n• Fail_timeout — No DUT ARP message observed within the window",
+  "verdicts": {
+    "Pass": "ARP message carried opcode=1 (Request) — normal",
+    "Fail_opcode": "DUT emitted an ARP message with opcode != 1 — not a Request",
+    "Fail_timeout": "No DUT ARP message observed within the window"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Source IP Address field of DUT's emitted ARP Request equals the configured DIface-0 IPv4 — identifies the resolver's IP back to peers (RFC 826 packet generation)",
+  "approach": "[Objective]\nThe sender_ip field of an ARP Request is what receiving peers use to populate their own caches with '<sender_ip, sender_mac>'. DUT must put its outgoing-interface IPv4 there, not a placeholder or wrong-iface address. This case provokes a DUT ARP Request and asserts the sender_ip.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back; cache miss forces an ARP Request.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode      == 1\n      - sender_mac  == DUT iface MAC\n      - sender_ip   == DIface-0 IPv4 (DUT outgoing iface)   ← key check\n      - target_ip   == HOST-1-IP\n\n[Pass condition]\nThe observed ARP Request's sender_ip matches the DUT's configured DIface-0 IPv4.\n\n[Fail condition]\n• Fail_sender_ip — ARP Request seen but sender_ip differed from the iface address (e.g. 0.0.0.0 placeholder, multi-homed routing slipped, or stale binding)\n• Fail_timeout — No DUT ARP Request observed within the window",
+  "verdicts": {
+    "Pass": "ARP Request sender_ip matched DIface-0 IPv4 — normal",
+    "Fail_sender_ip": "ARP Request emitted but sender_ip did not match DIface-0 IPv4",
+    "Fail_timeout": "No DUT ARP Request observed within the window"
+  }
+}

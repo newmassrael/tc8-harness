@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Hardware Type field of DUT's emitted ARP Request equals ARP_HARDWARE_ETHERNET (0x0001) — names the link-layer technology the resolution is for (RFC 826 packet generation)",
+  "approach": "[Objective]\nWhen DUT must resolve an unknown IP, the ARP Request it broadcasts must declare which hardware family the address pair belongs to. For Ethernet, that is Hardware Type 0x0001. This case provokes a DUT ARP Request and asserts the field value.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back to HOST-1-IP, which forces an ARP resolution because the cache is empty.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode == 1 (Request)\n      - sender_mac == DUT iface MAC\n      - target_ip  == HOST-1-IP\n      - hw_type    == 0x0001 (ARP_HARDWARE_ETHERNET)   ← key check\n\n[Pass condition]\nAn ARP Request matching the trigger is observed and its Hardware Type field equals 0x0001.\n\n[Fail condition]\n• Fail_hw_type — A DUT ARP Request was seen but its Hardware Type was not 0x0001 (suggests link-layer misconfiguration or non-Ethernet stack)\n• Fail_timeout — No ARP Request observed within the window — resolution skipped or absent",
+  "verdicts": {
+    "Pass": "ARP Request carried hw_type=0x0001 (Ethernet) — normal",
+    "Fail_hw_type": "ARP Request emitted but hw_type was not 0x0001 — link-layer field wrong",
+    "Fail_timeout": "No DUT ARP Request observed within the window — resolution did not happen"
+  }
+}

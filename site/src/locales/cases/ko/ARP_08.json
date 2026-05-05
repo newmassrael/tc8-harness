@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 발신한 ARP Request의 Hardware Type 필드가 ARP_HARDWARE_ETHERNET(0x0001)인지 검증 — 어떤 링크 계층 기술을 위한 해상도인지 명시하는 필드 (RFC 826 packet generation)",
+  "approach": "[검증 목적]\nDUT이 모르는 IP를 해상도하려 할 때 발신하는 ARP Request는 주소 쌍이 어떤 하드웨어 패밀리에 속하는지를 명시해야 한다. Ethernet의 경우 Hardware Type = 0x0001. 이 케이스는 DUT의 ARP Request를 유발한 뒤 그 필드 값을 확인한다.\n\n[시나리오 — 시간순]\n1. (캐시 시드 없음 — HOST-1-IP에 대한 DUT 캐시가 비어있음.)\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup 메시지\n   ⇒ DUT이 HOST-1-IP로 unicast-Nack 응답 전송 시도. 캐시가 비어있으므로 ARP 해상도가 강제됨.\n\n3. 관찰 (5초 윈도우):\n   • DUT → 브로드캐스트: ARP Request\n      - opcode == 1 (Request)\n      - sender_mac == DUT iface MAC\n      - target_ip  == HOST-1-IP\n      - hw_type    == 0x0001 (ARP_HARDWARE_ETHERNET)   ← 핵심 확인 지점\n\n[통과 조건]\n자극에 의해 발신된 ARP Request의 Hardware Type 필드가 0x0001과 일치.\n\n[실패 조건]\n• Fail_hw_type — DUT ARP Request는 보였지만 Hardware Type이 0x0001이 아님 (링크 계층 설정 오류 또는 non-Ethernet 스택 의심)\n• Fail_timeout — 윈도우 동안 ARP Request 미발신 — 해상도 자체가 안 일어남",
+  "verdicts": {
+    "Pass": "ARP Request의 hw_type=0x0001 (Ethernet) — 정상",
+    "Fail_hw_type": "ARP Request는 발신됐지만 hw_type이 0x0001이 아님 — 링크 계층 필드 오류",
+    "Fail_timeout": "윈도우 동안 DUT ARP Request 미관찰 — 해상도 미발생"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Hardware Address Length field of DUT's emitted ARP Request equals ETHERNET_ADDR_LEN (6) — declares how many bytes each MAC address slot in the packet carries (RFC 826 packet generation)",
+  "approach": "[Objective]\nARP Request carries a hardware-address length byte that tells parsers how many bytes the sender_mac and target_mac fields occupy. For Ethernet MACs that is 6. This case provokes a DUT ARP Request and asserts the field value.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back; cache miss forces an ARP Request.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode        == 1\n      - sender_mac    == DUT iface MAC\n      - target_ip     == HOST-1-IP\n      - hw_addr_len   == 6 (ETHERNET_ADDR_LEN)   ← key check\n\n[Pass condition]\nThe observed ARP Request's Hardware Address Length equals 6.\n\n[Fail condition]\n• Fail_hw_addr_len — ARP Request seen but Hardware Address Length was not 6 (MAC field width mismatch)\n• Fail_timeout — No ARP Request observed within the window",
+  "verdicts": {
+    "Pass": "ARP Request carried hw_addr_len=6 (Ethernet MAC width) — normal",
+    "Fail_hw_addr_len": "ARP Request emitted but hw_addr_len was not 6 — MAC field width mismatch",
+    "Fail_timeout": "No DUT ARP Request observed within the window"
+  }
+}

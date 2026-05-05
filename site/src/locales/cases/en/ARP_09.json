@@ -1,0 +1,9 @@
+{
+  "description": "Verify the Protocol Type field of DUT's emitted ARP Request equals ARP_PROTOCOL_IP (0x0800) — names the upper-layer protocol whose address is being resolved (RFC 826 packet generation)",
+  "approach": "[Objective]\nThe Protocol Type field of an ARP Request announces which upper-layer protocol family the target_ip / sender_ip fields belong to. For IPv4, that is 0x0800. This case provokes a DUT ARP Request and asserts the field value.\n\n[Scenario — chronological]\n1. (No cache seeding — DUT's cache for HOST-1-IP starts empty.)\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup message\n   ⇒ DUT unicast-Nacks back to HOST-1-IP; cache miss forces an ARP Request.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request\n      - opcode      == 1\n      - sender_mac  == DUT iface MAC\n      - target_ip   == HOST-1-IP\n      - proto_type  == 0x0800 (ARP_PROTOCOL_IP)   ← key check\n\n[Pass condition]\nThe observed ARP Request's Protocol Type equals 0x0800.\n\n[Fail condition]\n• Fail_proto_type — ARP Request seen but Protocol Type was not 0x0800 (upper-layer family mislabelled)\n• Fail_timeout — No ARP Request observed within the window",
+  "verdicts": {
+    "Pass": "ARP Request carried proto_type=0x0800 (IPv4) — normal",
+    "Fail_proto_type": "ARP Request emitted but proto_type was not 0x0800 — upper-layer family mismatch",
+    "Fail_timeout": "No DUT ARP Request observed within the window"
+  }
+}
