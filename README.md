@@ -1,7 +1,9 @@
 # tc8-harness
 W3C SCXML-based conformance test harness for automotive Ethernet ECUs (OA TC8 Layer 3-7)
 
-[![build-test](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml) [![smoke-test](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml)
+[![build-test](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml) [![smoke-test](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml) [![site](https://github.com/newmassrael/tc8-harness/actions/workflows/site.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/site.yml)
+
+**Case browser**: <https://newmassrael.github.io/tc8-harness/> — per-case page for all 543 active cases (description + test approach + verdicts + packet timeline + raw SCXML + source links), in English and Korean.
 
 ## Scope
 
