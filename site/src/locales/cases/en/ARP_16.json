@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ARP Request whose target_hw is all-zero — RFC 826 §2.4 says the resolver leaves target_hw blank because that field is exactly what's being asked for",
+  "approach": "[Objective]\nThe target_hw field in an ARP Request is the hardware address of the resolution target — but the requester does not know it yet (that's the whole point of asking). RFC 826 §2.4 'Packet Reception' says it is left at zero. DUT must accept this and reply with its own MAC.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode      = 1\n   • target_hw   = 00:00:00:00:00:00   ← unset, the resolver leaves this blank\n   • target_ip   = DUT IP\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply\n      - opcode      == 2\n      - sender_mac  == DUT iface MAC (the answer to the question)\n      - target_ip   == HOST-1-IP\n\n[Pass condition]\nDUT emits an ARP Reply within the observation window.\n\n[Fail condition]\nFail_no_reply — DUT did not emit a Reply. Indicates DUT rejected the Request — possibly because it expected target_hw to be a meaningful value, contrary to RFC 826 §2.4.",
+  "verdicts": {
+    "Pass": "DUT replied with its own MAC — normal RFC 826 §2.4 reception",
+    "Fail_no_reply": "DUT did not reply — Request was likely dropped (target_hw=0 should be accepted per RFC 826 §2.4)"
+  }
+}

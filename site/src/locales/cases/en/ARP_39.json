@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT learns from a received ARP Request and uses the cached MAC for the next UDP egress — but only after first emitting its own ARP Request to claim the address pair (RFC 826 §2.3 + RFC 5227 ACD probe semantics)",
+  "approach": "[Objective]\nThis case is the harness's primary witness for receive-side learning + send-side use. RFC 826 §2.3 says learn from sender_ip/sender_mac; harness convention adds: DUT must ALSO emit its own ARP Request first (announcing presence) before unicasting UDP. Pass requires both behaviours in the right order.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • sender_ip = HOST-1-IP, sender_mac = MAC-ADDR1\n   • target_ip = DUT IP\n   ⇒ DUT learns <HOST-1-IP, MAC-ADDR1>.\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup\n   ⇒ stimulates DUT to send a UDP response.\n\n3. Observation (5 s window):\n   a. DUT → broadcast: DUT's own ARP Request (announces its iface mapping)\n   b. After (a), DUT → Tester: UDP with eth_dst == MAC-ADDR1 (the learned value)\n\n[Pass condition]\nBoth (a) and (b) observed, in this order, and UDP eth_dst == MAC-ADDR1.\n\n[Fail condition]\n• Fail_no_dut_request — DUT skipped its own announcement Request\n• Fail_udp_before_dut_request — DUT sent UDP without first announcing — order violated\n• Fail_wrong_eth_dst — UDP eth_dst was not MAC-ADDR1 (cache entry not used)\n• Fail_no_udp — DUT did not emit UDP within the window",
+  "verdicts": {
+    "Pass": "DUT announced via own Request, then sent UDP using learned MAC — normal",
+    "Fail_no_dut_request": "DUT did not announce via own Request",
+    "Fail_udp_before_dut_request": "DUT sent UDP before its own Request — order violated",
+    "Fail_wrong_eth_dst": "UDP eth_dst was not the learned MAC — cache not used",
+    "Fail_no_udp": "DUT did not emit UDP within the window"
+  }
+}

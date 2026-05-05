@@ -1,0 +1,11 @@
+{
+  "description": "같은 IP에서 다른 MAC을 가진 두 ARP Request 연속 수신 시 ARP 캐시 merge 동작 검증 — 두 번째 주입이 첫 번째를 overwrite해서 DUT UDP egress가 두 번째 MAC을 써야 함 (RFC 826 §2.3 'merge_flag')",
+  "approach": "[검증 목적]\nRFC 826 §2.3은 이미 캐시된 IP에 대한 새 ARP가 도착하면 기존 항목을 갱신해야 한다고 명시한다. 이 케이스는 같은 sender_ip에 다른 sender_mac을 가진 두 Request를 보내고, 후속 UDP가 *두 번째* MAC을 쓰는지 확인해서 merge가 실제로 일어났음을 검증한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request #1\n   • sender_ip = HOST-1-IP, sender_mac = MAC-ADDR1\n\n2. 테스터 → DUT: ARP Request #2\n   • sender_ip = HOST-1-IP (동일), sender_mac = MAC-ADDR2 (다름)\n   ⇒ DUT 캐시의 HOST-1-IP 항목은 MAC-ADDR2여야 함.\n\n3. 테스터 → DUT: SOME/IP SubscribeEventgroup → DUT이 HOST-1-IP로 UDP 송신.\n\n4. 관찰 (3초 윈도우):\n   • DUT → 테스터: UDP, eth_dst == MAC-ADDR2 (최신 학습값)   ← 핵심 확인 지점\n   • DUT은 자기 ARP Request를 발신하면 안 됨 (캐시가 채워져 있어야 함)\n\n[통과 조건]\nDUT UDP egress의 eth_dst가 MAC-ADDR2.\n\n[실패 조건]\n• Fail_used_mac1 — eth_dst == MAC-ADDR1 → merge가 overwrite 안 함 (첫 번째 유지)\n• Fail_unknown_mac — eth_dst가 둘 다 아님 (캐시 상태 corrupt)\n• Fail_dut_arp_request — DUT이 자기 Request 발신 → 캐시가 아예 안 채워짐\n• Fail_timeout — 윈도우 동안 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT이 MAC-ADDR2 (두 번째 학습값) 사용 — merge 동작",
+    "Fail_used_mac1": "DUT이 MAC-ADDR1 사용 — merge가 overwrite 안 함",
+    "Fail_unknown_mac": "DUT이 둘 다 아닌 MAC 사용 — 캐시 상태 corrupt",
+    "Fail_dut_arp_request": "DUT이 자기 Request로 재해상도 — 캐시 미채움",
+    "Fail_timeout": "윈도우 동안 DUT UDP 미발신"
+  }
+}

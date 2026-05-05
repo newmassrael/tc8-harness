@@ -1,0 +1,8 @@
+{
+  "description": "target_hw가 all-zero인 ARP Request에 DUT이 정상 응답하는지 검증 — RFC 826 §2.4에 따르면 해상도 요청자는 target_hw를 비워두는데, 그 필드 자체가 묻고 있는 대상이기 때문",
+  "approach": "[검증 목적]\nARP Request의 target_hw 필드는 해상도 대상의 하드웨어 주소인데, 요청자는 아직 그 값을 모른다(그게 묻는 이유). RFC 826 §2.4 'Packet Reception'은 이 필드를 0으로 남겨두라고 정의한다. DUT은 이 형식을 받아들여 자기 MAC으로 응답해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • opcode      = 1\n   • target_hw   = 00:00:00:00:00:00   ← 미설정, 해상도 요청자는 이 필드를 비움\n   • target_ip   = DUT IP\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply\n      - opcode      == 2\n      - sender_mac  == DUT iface MAC (질문에 대한 답)\n      - target_ip   == HOST-1-IP\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ARP Reply 발신.\n\n[실패 조건]\nFail_no_reply — DUT이 Reply를 안 보냄. RFC 826 §2.4와 달리 target_hw에 의미있는 값이 들어있어야 한다고 잘못 판단해 Request를 drop했을 가능성.",
+  "verdicts": {
+    "Pass": "DUT이 자기 MAC으로 응답 — RFC 826 §2.4 정상 수신",
+    "Fail_no_reply": "DUT이 응답 안 함 — Request drop된 듯 (target_hw=0은 RFC 826 §2.4상 정상)"
+  }
+}

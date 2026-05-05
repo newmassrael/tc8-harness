@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT drops an ARP Request whose target_ip is not DUT's own IP — receiver must reply only when the resolution target matches itself (RFC 826 §2.4)",
+  "approach": "[Objective]\nThe core invariant of ARP_36, restated as a negative. If target_ip belongs to some other host on the same broadcast segment, DUT is not the answer and must stay silent — replying would inject a wrong mapping into the requester's cache.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode      = 1\n   • target_ip   = some IP that is NOT DUT's   ← key check\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: no ARP Reply\n\n[Pass condition]\nDUT does not emit any ARP Reply within the observation window.\n\n[Fail condition]\nFail_unexpected_reply — DUT replied despite target_ip not being its own. Cache-poisoning class bug — peers would get the wrong MAC-IP binding.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the Request — correct rejection",
+    "Fail_unexpected_reply": "DUT replied despite target_ip ≠ DUT IP — cache-poisoning class bug"
+  }
+}

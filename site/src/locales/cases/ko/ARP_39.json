@@ -1,0 +1,11 @@
+{
+  "description": "DUT이 받은 ARP Request에서 학습한 뒤 다음 UDP egress에서 그 캐시를 사용하는지 검증 — 단, 그 전에 자기 ARP Request를 먼저 발신해 주소 쌍을 announce해야 함 (RFC 826 §2.3 + RFC 5227 ACD probe semantics)",
+  "approach": "[검증 목적]\n수신 측 학습 + 송신 측 사용을 둘 다 관찰하는 핵심 케이스. RFC 826 §2.3은 sender_ip/sender_mac에서 학습할 것을 요구하고, harness 관행은 DUT이 unicast UDP를 보내기 전에 자기 ARP Request를 먼저 발신(presence announce)해야 한다고 추가한다. 통과는 두 동작이 올바른 순서로 나와야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • sender_ip = HOST-1-IP, sender_mac = MAC-ADDR1\n   • target_ip = DUT IP\n   ⇒ DUT은 <HOST-1-IP, MAC-ADDR1> 학습.\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup\n   ⇒ DUT UDP 응답 송신 자극.\n\n3. 관찰 (5초 윈도우):\n   a. DUT → 브로드캐스트: DUT의 자기 ARP Request (iface 매핑 announce)\n   b. (a) 후, DUT → 테스터: UDP, eth_dst == MAC-ADDR1 (학습값)\n\n[통과 조건]\n(a)와 (b)가 이 순서로 관찰되고 UDP eth_dst == MAC-ADDR1.\n\n[실패 조건]\n• Fail_no_dut_request — DUT이 자기 announce Request 생략\n• Fail_udp_before_dut_request — UDP가 announce 전에 나옴 — 순서 위반\n• Fail_wrong_eth_dst — UDP eth_dst가 MAC-ADDR1이 아님 (캐시 미사용)\n• Fail_no_udp — 윈도우 동안 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT이 자기 Request로 announce 후 학습 MAC으로 UDP — 정상",
+    "Fail_no_dut_request": "DUT이 자기 Request announce 생략",
+    "Fail_udp_before_dut_request": "UDP가 자기 Request 전에 나감 — 순서 위반",
+    "Fail_wrong_eth_dst": "UDP eth_dst가 학습 MAC이 아님 — 캐시 미사용",
+    "Fail_no_udp": "윈도우 동안 DUT UDP 미발신"
+  }
+}

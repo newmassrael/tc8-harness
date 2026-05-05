@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ARP Request carrying proto_type=IPv4 (0x0800) — receiver must accept the standard upper-layer family (RFC 826 §2.4)",
+  "approach": "[Objective]\nPositive control for ARP_27 (rejection of unknown proto_type). With proto_type set to the standard IPv4 identifier, DUT must reply normally.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode       = 1\n   • proto_type   = 0x0800 (IPv4)   ← correct\n   • target_ip    = DUT IP\n   • sender_*     = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[Pass condition]\nDUT emits an ARP Reply within the observation window.\n\n[Fail condition]\nFail_no_reply — DUT did not reply despite proto_type being the standard IPv4 identifier.",
+  "verdicts": {
+    "Pass": "DUT replied to a Request with proto_type=IPv4 — normal",
+    "Fail_no_reply": "DUT did not reply even with proto_type=0x0800 — reception logic broken for valid input"
+  }
+}

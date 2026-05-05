@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ARP Reply carries hw_addr_len == ETHERNET_ADDR_LEN (6) — must declare correct MAC-field width in the response, just as the Request did (RFC 826 §2.4)",
+  "approach": "[Objective]\nReply-side analogue of ARP_10 (which checks hw_addr_len=6 in DUT's own Request).\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request (hw_addr_len=6, target_ip=DUT IP)\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply\n      - hw_addr_len == 6 (ETHERNET_ADDR_LEN)   ← key check\n\n[Pass condition]\nReply's hw_addr_len equals 6.\n\n[Fail condition]\n• Fail_hw_addr_len_not_six — Reply emitted with hw_addr_len ≠ 6\n• Fail_no_reply — DUT did not respond",
+  "verdicts": {
+    "Pass": "Reply hw_addr_len=6 (Ethernet width) — normal",
+    "Fail_hw_addr_len_not_six": "Reply emitted but hw_addr_len ≠ 6",
+    "Fail_no_reply": "DUT did not respond"
+  }
+}

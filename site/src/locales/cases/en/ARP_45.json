@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT's ARP Reply echoes the *requester's* sender_hw as its target_hw, even when two consecutive Requests come from different MACs — each Reply must answer the Request that triggered it (RFC 826 §2.4)",
+  "approach": "[Objective]\nDUT must not 'cache' a single target_hw to use across responses; each Reply's target_hw must echo the sender_hw of the Request that triggered it. This case sends two Requests from different sender MACs and checks that each Reply echoes the correct one.\n\n[Scenario — chronological]\n1. Tester → DUT: Request #1 (sender_mac=MAC-ADDR1, target_ip=DUT IP)\n2. (Observation 1) DUT → Tester: Reply #1, target_hw == MAC-ADDR1\n\n3. Tester → DUT: Request #2 (sender_mac=MAC-ADDR2, target_ip=DUT IP)\n4. (Observation 2) DUT → Tester: Reply #2, target_hw == MAC-ADDR2\n\n[Pass condition]\nReply #1's target_hw equals MAC-ADDR1 AND Reply #2's target_hw equals MAC-ADDR2.\n\n[Fail condition]\n• Fail_wrong_target_hw_1 — Reply #1's target_hw was not MAC-ADDR1\n• Fail_wrong_target_hw_2 — Reply #2's target_hw was not MAC-ADDR2 (e.g. still MAC-ADDR1 — cache leak)\n• Fail_no_response_1 — Reply #1 missing\n• Fail_no_response_2 — Reply #2 missing",
+  "verdicts": {
+    "Pass": "Both Replies echoed the corresponding requester's MAC — normal per-Request answering",
+    "Fail_wrong_target_hw_1": "Reply #1's target_hw was not MAC-ADDR1",
+    "Fail_wrong_target_hw_2": "Reply #2's target_hw was not MAC-ADDR2 (cache leaked between responses?)",
+    "Fail_no_response_1": "Reply #1 missing",
+    "Fail_no_response_2": "Reply #2 missing"
+  }
+}

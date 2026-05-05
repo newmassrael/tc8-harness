@@ -1,0 +1,11 @@
+{
+  "description": "Verify ARP cache merge on Request followed by gratuitous Response, both from the same IP but different MACs — mixed-stimulus variant of ARP_32/33",
+  "approach": "[Objective]\nThe merge invariant must hold across stimulus shapes. ARP_34 seeds with a Request (MAC-ADDR1) then announces an update with a gratuitous Response (MAC-ADDR2). UDP egress must use MAC-ADDR2.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR1)\n\n2. Tester → DUT: gratuitous ARP Response (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR2)\n   ⇒ Cache entry should now be MAC-ADDR2.\n\n3. Tester → DUT: SOME/IP SubscribeEventgroup → DUT sends UDP.\n\n4. Observation (3 s window):\n   • DUT → Tester: UDP with eth_dst == MAC-ADDR2   ← key check\n\n[Pass condition]\nDUT's UDP eth_dst equals MAC-ADDR2.\n\n[Fail condition]\nSame as ARP_32 — Fail_used_mac1 / Fail_unknown_mac / Fail_dut_arp_request / Fail_timeout.",
+  "verdicts": {
+    "Pass": "DUT used MAC-ADDR2 — Request→Response merge worked",
+    "Fail_used_mac1": "DUT used MAC-ADDR1 — Response did not overwrite Request entry",
+    "Fail_unknown_mac": "DUT used some other MAC — cache corrupt",
+    "Fail_dut_arp_request": "DUT re-resolved — cache not populated",
+    "Fail_timeout": "DUT did not emit UDP within window"
+  }
+}

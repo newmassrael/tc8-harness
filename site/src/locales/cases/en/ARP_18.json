@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ARP Request whose target_hw is an arbitrary non-zero, non-broadcast value — receiver must use target_ip, not target_hw, to decide whether to reply (RFC 826 §2.4)",
+  "approach": "[Objective]\nClose the loop on ARP_16/17 by injecting an arbitrary non-trivial target_hw. Reply must still happen because the only criterion is target_ip == DUT iface IP.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode      = 1\n   • target_hw   = some arbitrary value (not zero, not broadcast)\n   • target_ip   = DUT IP\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[Pass condition]\nDUT emits an ARP Reply within the observation window.\n\n[Fail condition]\nFail_no_reply — DUT did not reply. Likely cause is over-strict reception that filters by target_hw matching DUT MAC, contrary to RFC 826 §2.4.",
+  "verdicts": {
+    "Pass": "DUT replied — arbitrary target_hw tolerated as required",
+    "Fail_no_reply": "DUT did not reply — over-strict target_hw filter (RFC 826 §2.4 violation)"
+  }
+}

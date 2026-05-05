@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT drops a gratuitous ARP Response carrying an unknown proto_type and re-resolves on next egress — proto_type variant of ARP_22",
+  "approach": "[Objective]\nSame two-phase pattern as ARP_22; here the bad announcement carries an unknown proto_type instead of an unknown hw_type. The receiver must reject before learning — confirmed by observing DUT's own ARP Request on the subsequent UDP egress.\n\n[Scenario — chronological]\n1. Tester → DUT: gratuitous ARP Response injected\n   • opcode      = 2\n   • proto_type  = some unknown value   ← bad\n   • sender_ip   = HOST-1-IP / sender_mac = MAC-ADDR1 / target_ip = HOST-1-IP\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup\n   ⇒ stimulates DUT to send a UDP response to HOST-1-IP.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request for HOST-1-IP\n   • DUT's UDP must not use MAC-ADDR1 as eth_dst\n\n[Pass condition]\nDUT emits its own ARP Request for HOST-1-IP and does not use MAC-ADDR1.\n\n[Fail condition]\n• Fail_udp_used_injected_mac — UDP eth_dst was MAC-ADDR1 → malformed announcement learned\n• Fail_no_dut_arp_request — no DUT ARP Request → reception path incomplete",
+  "verdicts": {
+    "Pass": "DUT dropped the malformed gratuitous and resolved via its own Request — normal",
+    "Fail_udp_used_injected_mac": "DUT used MAC-ADDR1 in UDP — silently learned a malformed announcement",
+    "Fail_no_dut_arp_request": "DUT did not resolve via its own Request — reception path incomplete"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Verify the structure of DUT's ARP Reply — opcode flips from Request (1) to Reply (2) and the sender/target fields swap roles per RFC 826 §2.4",
+  "approach": "[Objective]\nThis case observes the *Reply itself*, not just whether one was sent. RFC 826 §2.4 says the receiver swaps sender↔target in the response and sets opcode=2. Companion cases ARP_43..47 break each Reply field out individually; ARP_41 is the high-level reply-structure check.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected (opcode=1, target_ip=DUT IP, sender=tester)\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply\n      - opcode      == 2   (flipped from 1)\n      - sender_mac  == DUT iface MAC   (filled in by the responder — the answer)\n      - sender_ip   == DUT IP\n      - target_*    == HOST-1-IP / MAC-ADDR1   (echoed from Request's sender_*)\n\n[Pass condition]\nDUT emits a well-formed ARP Reply matching the swapped-fields shape.\n\n[Fail condition]\nFail_no_reply — DUT did not respond to the Request at all.",
+  "verdicts": {
+    "Pass": "DUT emitted a Reply with opcode=2 and swapped sender/target fields — normal",
+    "Fail_no_reply": "DUT did not respond — basic reply mechanism failed"
+  }
+}

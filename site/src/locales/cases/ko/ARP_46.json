@@ -1,0 +1,9 @@
+{
+  "description": "DUT의 ARP Reply가 hw_type == ARP_HARDWARE_ETHERNET(1)인지 검증 — Request와 마찬가지로 응답에서도 링크 계층 패밀리를 동일하게 명시해야 함 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\nARP_08(DUT 자기 Request의 hw_type=1 검증)의 Reply 측 짝꿍. Reply도 동일한 Ethernet 하드웨어 패밀리를 선언해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request (hw_type=1, target_ip=DUT IP)\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply\n      - hw_type == 1 (ARP_HARDWARE_ETHERNET)   ← 핵심 확인 지점\n\n[통과 조건]\nReply의 hw_type == 1.\n\n[실패 조건]\n• Fail_hw_type_not_eth — Reply는 발신됐지만 hw_type ≠ 1\n• Fail_no_reply — DUT이 응답 안 함",
+  "verdicts": {
+    "Pass": "Reply hw_type=1 (Ethernet) — 정상",
+    "Fail_hw_type_not_eth": "Reply는 보였지만 hw_type ≠ 1",
+    "Fail_no_reply": "DUT이 응답 안 함"
+  }
+}

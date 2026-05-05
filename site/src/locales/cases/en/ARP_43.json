@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ARP Reply carries its own iface MAC as the Ethernet source — peer-side validation must trust eth_src to match sender_mac (RFC 826 §2.4)",
+  "approach": "[Objective]\nField-level breakdown of the Reply emitted in ARP_41. eth_src on a unicast Reply is the responder's iface MAC — it must equal sender_mac (the answer to the Request) for stack-level integrity.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request (target_ip=DUT IP)\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply\n      - eth_src     == DUT iface MAC   ← key check\n      - sender_mac  == DUT iface MAC\n      - opcode      == 2\n\n[Pass condition]\nThe Reply's eth_src equals DUT iface MAC.\n\n[Fail condition]\n• Fail_eth_src_not_dut_mac — Reply was emitted but eth_src differed from iface MAC (bridge/bond rewrite suspected)\n• Fail_no_reply — DUT did not respond at all",
+  "verdicts": {
+    "Pass": "Reply eth_src matched DUT iface MAC — normal",
+    "Fail_eth_src_not_dut_mac": "Reply emitted but eth_src ≠ iface MAC (bridge/bond rewrite?)",
+    "Fail_no_reply": "DUT did not respond to the Request"
+  }
+}

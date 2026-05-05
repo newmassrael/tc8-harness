@@ -1,0 +1,8 @@
+{
+  "description": "proto_type=IPv4(0x0800)인 ARP Request에 DUT이 정상 응답하는지 검증 — 받는 쪽은 표준 상위 패밀리를 허용해야 함 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\nARP_27(unknown proto_type 거부)의 positive 짝꿍. proto_type에 표준 IPv4 식별자가 들어있을 때 DUT은 정상 응답해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • opcode       = 1\n   • proto_type   = 0x0800 (IPv4)   ← 정상 값\n   • target_ip    = DUT IP\n   • sender_*     = HOST-1-IP / MAC-ADDR1\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ARP Reply 발신.\n\n[실패 조건]\nFail_no_reply — proto_type이 표준 IPv4 식별자인데도 응답 안 함.",
+  "verdicts": {
+    "Pass": "DUT이 proto_type=IPv4인 Request에 응답 — 정상",
+    "Fail_no_reply": "proto_type=0x0800에도 응답 안 함 — 정상 입력에서 수신 로직 깨짐"
+  }
+}

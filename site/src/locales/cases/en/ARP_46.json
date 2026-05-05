@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ARP Reply carries hw_type == ARP_HARDWARE_ETHERNET (1) — must mirror the link-layer family in the response, just as the Request did (RFC 826 §2.4)",
+  "approach": "[Objective]\nReply-side analogue of ARP_08 (which checks hw_type=1 in DUT's own Request). The Reply must declare the same Ethernet hardware family.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request (hw_type=1, target_ip=DUT IP)\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply\n      - hw_type == 1 (ARP_HARDWARE_ETHERNET)   ← key check\n\n[Pass condition]\nReply's hw_type equals 1.\n\n[Fail condition]\n• Fail_hw_type_not_eth — Reply emitted with hw_type ≠ 1\n• Fail_no_reply — DUT did not respond",
+  "verdicts": {
+    "Pass": "Reply hw_type=1 (Ethernet) — normal",
+    "Fail_hw_type_not_eth": "Reply emitted but hw_type ≠ 1",
+    "Fail_no_reply": "DUT did not respond"
+  }
+}

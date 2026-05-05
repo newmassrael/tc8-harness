@@ -1,0 +1,8 @@
+{
+  "description": "hw_type이 Ethernet이 아닌 ARP Request를 DUT이 drop하는지 검증 — 받는 쪽은 알 수 없는 하드웨어 패밀리를 거부하고 응답하지 말아야 함 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\nARP_20의 negative 케이스. 수신 경로의 첫 sanity check가 hw_type — Ethernet(0x0001)이 아니면 주소 쌍의 크기와 의미가 안 맞으므로 패킷 전체를 버려야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • opcode      = 1\n   • hw_type     = Ethernet 아닌 값 (예: 0xFFFF)   ← 알 수 없음\n   • target_ip   = DUT IP\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함 — Reply 없음, 다른 ARP 트래픽도 없음\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ARP Reply를 발신하지 않음.\n\n[실패 조건]\nFail_unexpected_reply — 알 수 없는 hw_type인데도 DUT이 Reply 발신. 수신 경로가 패밀리 체크를 건너뛴 것.",
+  "verdicts": {
+    "Pass": "DUT이 잘못된 Request를 조용히 drop — 정상",
+    "Fail_unexpected_reply": "알 수 없는 hw_type에도 응답 — 패밀리 체크 누락"
+  }
+}

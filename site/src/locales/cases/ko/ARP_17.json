@@ -1,0 +1,8 @@
+{
+  "description": "target_hw가 브로드캐스트 MAC(ff:ff:ff:ff:ff:ff)인 ARP Request에 DUT이 정상 응답하는지 검증 — 일반적이진 않지만 RFC 826 §2.4상 target_ip만 맞으면 응답해야 함",
+  "approach": "[검증 목적]\n일부 스택은 target_hw를 0이 아닌 브로드캐스트 주소로 채운다. RFC 826 §2.4상 해상도 의미는 동일 — 받는 쪽은 target_ip가 자기인지만 보면 되며 target_hw 값은 의미가 없다. DUT은 응답해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • opcode      = 1\n   • target_hw   = ff:ff:ff:ff:ff:ff   ← 필드에 브로드캐스트, 해상도자는 무시해야 함\n   • target_ip   = DUT IP\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ARP Reply 발신.\n\n[실패 조건]\nFail_no_reply — DUT이 응답 안 함. RFC 826 §2.4에 따르면 응답 여부는 target_hw가 아니라 target_ip로만 결정해야 한다.",
+  "verdicts": {
+    "Pass": "DUT이 응답 — target_hw=브로드캐스트를 허용함",
+    "Fail_no_reply": "DUT이 응답 안 함 — target_hw 값을 잘못 조건으로 사용한 듯"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "target_ip가 DUT 자기 IP가 아닌 ARP Request를 DUT이 drop하는지 검증 — 받는 쪽은 해상도 대상이 자기일 때만 응답해야 함 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\nARP_36의 핵심 invariant를 negative로 뒤집은 것. target_ip가 같은 브로드캐스트 세그먼트의 다른 호스트라면 DUT이 답이 아니므로 침묵해야 한다 — 잘못 응답하면 요청자 캐시에 틀린 매핑이 박힘.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • opcode      = 1\n   • target_ip   = DUT가 아닌 IP   ← 핵심 확인 지점\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply 없음\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 Reply를 발신하지 않음.\n\n[실패 조건]\nFail_unexpected_reply — target_ip가 DUT IP가 아닌데도 응답. cache-poisoning류 버그 — peer 캐시에 잘못된 MAC-IP 매핑이 들어감.",
+  "verdicts": {
+    "Pass": "DUT이 Request 조용히 drop — 정상 거부",
+    "Fail_unexpected_reply": "target_ip ≠ DUT IP에도 응답 — cache-poisoning 버그"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Verify ARP cache merge on two consecutive Requests from the same IP with different MACs — the second injection must overwrite the first, so DUT's UDP egress carries the second MAC (RFC 826 §2.3 'merge_flag')",
+  "approach": "[Objective]\nRFC 826 §2.3 says the receiver updates an existing entry when a new ARP arrives for an already-cached IP. This case sends two Requests from the same sender_ip but different sender_macs and verifies that DUT's subsequent UDP egress uses the SECOND MAC, proving the merge actually happened.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request #1\n   • sender_ip = HOST-1-IP, sender_mac = MAC-ADDR1\n\n2. Tester → DUT: ARP Request #2\n   • sender_ip = HOST-1-IP (same), sender_mac = MAC-ADDR2 (different)\n   ⇒ DUT cache for HOST-1-IP must now hold MAC-ADDR2.\n\n3. Tester → DUT: SOME/IP SubscribeEventgroup → DUT sends UDP to HOST-1-IP.\n\n4. Observation (3 s window):\n   • DUT → Tester: UDP with eth_dst == MAC-ADDR2 (the latest learned)   ← key check\n   • DUT must NOT emit its own ARP Request (cache should be populated)\n\n[Pass condition]\nDUT's UDP egress carries MAC-ADDR2 as eth_dst.\n\n[Fail condition]\n• Fail_used_mac1 — eth_dst == MAC-ADDR1 → merge did not overwrite (kept first)\n• Fail_unknown_mac — eth_dst was neither MAC-ADDR1 nor MAC-ADDR2 (corrupt cache)\n• Fail_dut_arp_request — DUT emitted its own ARP Request → cache not populated at all\n• Fail_timeout — no UDP within window",
+  "verdicts": {
+    "Pass": "DUT used MAC-ADDR2 (second learned) — merge worked",
+    "Fail_used_mac1": "DUT used MAC-ADDR1 — merge did not overwrite",
+    "Fail_unknown_mac": "DUT used some other MAC — cache state corrupt",
+    "Fail_dut_arp_request": "DUT re-resolved via its own Request — cache not populated",
+    "Fail_timeout": "DUT did not emit UDP within window"
+  }
+}

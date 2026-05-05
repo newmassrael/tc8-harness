@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ARP Request whose target_hw is the broadcast MAC ff:ff:ff:ff:ff:ff — broadcast in target_hw is unusual but RFC 826 §2.4 still requires reply if target_ip matches us",
+  "approach": "[Objective]\nSome stacks fill target_hw with the broadcast address rather than leaving it zero. The resolver semantics are unchanged — what matters per RFC 826 §2.4 is whether target_ip matches the receiver. DUT must reply.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode      = 1\n   • target_hw   = ff:ff:ff:ff:ff:ff   ← broadcast in the field; should be ignored by resolver\n   • target_ip   = DUT IP\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[Pass condition]\nDUT emits an ARP Reply within the observation window.\n\n[Fail condition]\nFail_no_reply — DUT did not reply. The receiver should not condition reply behaviour on target_hw — only on target_ip per RFC 826 §2.4.",
+  "verdicts": {
+    "Pass": "DUT replied — target_hw=broadcast was tolerated correctly",
+    "Fail_no_reply": "DUT did not reply — receiver wrongly conditioned on target_hw value"
+  }
+}

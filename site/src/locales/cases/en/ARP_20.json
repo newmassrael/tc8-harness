@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ARP Request carrying hw_type=Ethernet (0x0001) — the receiver must accept the standard hardware family (RFC 826 §2.4)",
+  "approach": "[Objective]\nPositive control for ARP_21 (rejection of unknown hw_type). With the correct Ethernet identifier in hw_type, DUT must reply normally.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode       = 1\n   • hw_type      = 0x0001 (Ethernet)   ← correct\n   • target_ip    = DUT IP\n   • sender_*     = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[Pass condition]\nDUT emits an ARP Reply within the observation window.\n\n[Fail condition]\nFail_no_reply — DUT did not reply, despite hw_type being the standard Ethernet identifier. Suggests reception logic is broken even for the correct value.",
+  "verdicts": {
+    "Pass": "DUT replied to a Request with hw_type=Ethernet — normal",
+    "Fail_no_reply": "DUT did not reply even with hw_type=0x0001 — reception logic broken for valid input"
+  }
+}

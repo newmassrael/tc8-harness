@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT drops an ARP Request whose hw_type is not Ethernet — receiver must reject unknown hardware families per RFC 826 §2.4 and emit no Reply",
+  "approach": "[Objective]\nNegative case for ARP_20. The receiver path's first sanity check is hw_type — if it isn't Ethernet (0x0001), the address pair sizes and meanings don't apply, so the entire packet must be discarded.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode      = 1\n   • hw_type     = some non-Ethernet value (e.g. 0xFFFF)   ← unknown\n   • target_ip   = DUT IP\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing — no ARP Reply, no other ARP traffic\n\n[Pass condition]\nDUT does not emit any ARP Reply within the observation window.\n\n[Fail condition]\nFail_unexpected_reply — DUT emitted an ARP Reply despite the unknown hw_type. Indicates the receive path skipped the family check.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the malformed Request — normal",
+    "Fail_unexpected_reply": "DUT replied despite unknown hw_type — family check missing"
+  }
+}

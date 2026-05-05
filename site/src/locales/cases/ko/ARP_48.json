@@ -1,0 +1,10 @@
+{
+  "description": "유휴 상태에서 ARP 캐시 항목이 만료되는지 검증 — <DYNAMIC-ARP-CACHE-TIMEOUT>초 동안 사용 안 하면 다음 UDP egress 전에 DUT이 새 ARP Request로 재해상도해야 함",
+  "approach": "[검증 목적]\nIdle aging은 stale 매핑이 쌓이지 않게 한다. DUT이 먼저 학습된 항목을 사용해서 캐시되었음을 증명한 뒤, cache-timeout보다 길게 대기, 그 다음 같은 IP로 다시 송신 자극을 받으면 — 이때 만료된 항목을 재사용하지 말고 새로 ARP 해상도해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입 (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR1) → DUT 학습.\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup\n   ⇒ DUT이 UDP #1을 HOST-1-IP로 송신, eth_dst는 MAC-ADDR1(학습값)이어야 함.\n\n3. <DYNAMIC-ARP-CACHE-TIMEOUT>초 유휴 대기 (트래픽 없음) — 항목 만료.\n\n4. 테스터 → DUT: SOME/IP SubscribeEventgroup\n   ⇒ DUT이 재해상도해야 함. DUT의 HOST-1-IP에 대한 자기 ARP Request 관찰.\n\n[통과 조건]\nUDP #1이 MAC-ADDR1을 썼고, 타임아웃 후 DUT의 HOST-1-IP 대상 ARP Request가 관찰됨.\n\n[실패 조건]\n• Fail_udp1_wrong_eth_dst — UDP #1이 MAC-ADDR1을 안 씀 (초기 학습 깨짐)\n• Fail_no_udp1 — UDP #1 미관찰 (초기 자극 동작 안 함)\n• Fail_no_arp_request_after_timeout — 유휴 후 DUT이 재 ARP 안 함 (항목이 만료 안 됨)",
+  "verdicts": {
+    "Pass": "DUT이 학습 항목 사용 후 타임아웃 후 재 ARP — 정상 aging",
+    "Fail_udp1_wrong_eth_dst": "초기 UDP가 학습 MAC 미사용 — 초기 학습 깨짐",
+    "Fail_no_udp1": "초기 UDP 미관찰 — 첫 자극이 egress 유발 못함",
+    "Fail_no_arp_request_after_timeout": "유휴 후 재 ARP 안 함 — 캐시 항목 만료 안 됨"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 알 수 없는 proto_type의 gratuitous ARP Response를 drop하고 다음 송신 시 새로 해상도하는지 검증 — ARP_22의 proto_type 변형",
+  "approach": "[검증 목적]\nARP_22와 동일한 2단계 패턴. 다만 잘못된 알림이 unknown hw_type 대신 unknown proto_type을 가진다. 받는 쪽은 학습 전에 거부해야 하며, 후속 UDP egress에서 DUT의 자기 ARP Request 발신으로 확인된다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: gratuitous ARP Response 주입\n   • opcode      = 2\n   • proto_type  = 알 수 없는 값   ← 잘못됨\n   • sender_ip   = HOST-1-IP / sender_mac = MAC-ADDR1 / target_ip = HOST-1-IP\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup\n   ⇒ DUT이 HOST-1-IP로 UDP 송신.\n\n3. 관찰 (5초 윈도우):\n   • DUT → 브로드캐스트: HOST-1-IP에 대한 ARP Request\n   • DUT UDP의 eth_dst가 MAC-ADDR1이면 안 됨\n\n[통과 조건]\nDUT이 자기 ARP Request 발신 + UDP에서 MAC-ADDR1 미사용.\n\n[실패 조건]\n• Fail_udp_used_injected_mac — UDP eth_dst가 MAC-ADDR1 → malformed 학습\n• Fail_no_dut_arp_request — DUT ARP Request 없음 → 수신 경로 미완성",
+  "verdicts": {
+    "Pass": "DUT이 malformed gratuitous drop + 자기 Request로 해상도 — 정상",
+    "Fail_udp_used_injected_mac": "UDP에서 MAC-ADDR1 사용 — malformed 학습",
+    "Fail_no_dut_arp_request": "자기 Request로 해상도 안 함 — 수신 경로 미완성"
+  }
+}

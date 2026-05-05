@@ -1,0 +1,9 @@
+{
+  "description": "DUT의 ARP Reply의 sender_proto_ip가 자기 iface IPv4와 일치하는지 검증 — 요청자가 해상도된 <IP, MAC> 바인딩을 캐시에 넣을 때 사용하는 필드 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\n요청자가 해상도 결과를 정확히 캐싱하려면 Reply의 sender_proto_ip가 요청한 바로 그 IP — DUT iface IP — 이어야 한다. 잘못된 값은 요청자 캐시를 오염시킨다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request (target_ip=DUT IP)\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply\n      - sender_proto_ip == DUT iface IPv4   ← 핵심 확인 지점\n      - sender_mac      == DUT iface MAC\n      - opcode          == 2\n\n[통과 조건]\nReply의 sender_proto_ip가 DUT iface IPv4와 일치.\n\n[실패 조건]\n• Fail_sender_ip_not_dut — Reply는 발신됐지만 sender_proto_ip가 다름\n• Fail_no_reply — DUT이 응답 안 함",
+  "verdicts": {
+    "Pass": "Reply sender_proto_ip가 DUT iface IPv4와 일치 — 정상",
+    "Fail_sender_ip_not_dut": "Reply는 보였지만 sender_proto_ip ≠ DUT iface IPv4",
+    "Fail_no_reply": "DUT이 Request에 응답 안 함"
+  }
+}

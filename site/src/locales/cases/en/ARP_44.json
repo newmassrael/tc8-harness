@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ARP Reply carries its own iface IPv4 as sender_proto_ip — the field that lets the requester populate cache with the resolved <IP, MAC> binding (RFC 826 §2.4)",
+  "approach": "[Objective]\nFor the requester to successfully cache the resolution, sender_proto_ip on the Reply must be the very IP the request asked about — i.e. DUT's iface IP. Wrong values poison the requester's cache.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request (target_ip=DUT IP)\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply\n      - sender_proto_ip == DUT iface IPv4   ← key check\n      - sender_mac      == DUT iface MAC\n      - opcode          == 2\n\n[Pass condition]\nReply's sender_proto_ip equals DUT iface IPv4.\n\n[Fail condition]\n• Fail_sender_ip_not_dut — Reply emitted but sender_proto_ip differed\n• Fail_no_reply — DUT did not respond",
+  "verdicts": {
+    "Pass": "Reply sender_proto_ip matched DUT iface IPv4 — normal",
+    "Fail_sender_ip_not_dut": "Reply emitted but sender_proto_ip ≠ DUT iface IPv4",
+    "Fail_no_reply": "DUT did not respond to the Request"
+  }
+}

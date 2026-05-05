@@ -1,0 +1,11 @@
+{
+  "description": "DUT이 받은 (non-gratuitous) ARP Response에서 학습한 뒤 자기 ARP Request announce 후 학습 MAC으로 UDP 송신하는지 검증 — ARP_39의 Response 변형",
+  "approach": "[검증 목적]\nARP_39의 Response 변형. 시드 자극이 DUT 앞 ARP Reply(Request 아님). 수신 측 merge는 동일하게 캐시를 채워야 한다. 순서 요건도 같다 — DUT의 자기 announce Request 먼저, 그 다음 학습 MAC으로 UDP.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Reply 주입\n   • opcode      = 2\n   • sender_ip   = HOST-1-IP, sender_mac = MAC-ADDR1\n   • target_ip   = DUT IP\n   ⇒ DUT은 <HOST-1-IP, MAC-ADDR1> 학습.\n\n2. 테스터 → DUT: SOME/IP SubscribeEventgroup → UDP egress 자극.\n\n3. 관찰 (5초 윈도우):\n   a. DUT의 자기 ARP Request (announce)\n   b. DUT → 테스터: UDP, eth_dst == MAC-ADDR1\n\n[통과 조건]\n(a)와 (b) 순서대로 관찰, UDP eth_dst == MAC-ADDR1.\n\n[실패 조건]\nARP_39와 동일 — Fail_no_dut_request / Fail_udp_before_dut_request / Fail_wrong_eth_dst / Fail_no_udp.",
+  "verdicts": {
+    "Pass": "DUT이 announce 후 학습 MAC 사용 — Response 측 학습 동작",
+    "Fail_no_dut_request": "DUT이 자기 Request announce 생략",
+    "Fail_udp_before_dut_request": "UDP가 자기 Request 전에 나감 — 순서 위반",
+    "Fail_wrong_eth_dst": "UDP eth_dst가 학습 MAC이 아님",
+    "Fail_no_udp": "윈도우 동안 DUT UDP 미발신"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "target_hw가 DUT MAC이고 Ethernet destination이 브로드캐스트인 ARP Request에 DUT이 정상 응답하는지 검증 — 가장 흔한 실제 ARP Request 모양 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\n교과서적 ARP Request 모양 — target_hw에 (이미 알고 있는) DUT MAC을 채우고, Ethernet destination을 브로드캐스트로 두어 누구나 읽을 수 있게 한다. target_ip가 DUT이므로 DUT은 응답해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • opcode       = 1\n   • eth_dst      = ff:ff:ff:ff:ff:ff   (브로드캐스트)\n   • target_hw    = DUT iface MAC\n   • target_ip    = DUT IP\n   • sender_*     = HOST-1-IP / MAC-ADDR1\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ARP Reply 발신.\n\n[실패 조건]\nFail_no_reply — DUT이 응답 안 함. 가장 일반적인 ARP 형식이라 실패하면 근본적인 수신 버그.",
+  "verdicts": {
+    "Pass": "DUT이 교과서적 ARP Request에 응답 — 정상",
+    "Fail_no_reply": "DUT이 가장 흔한 ARP Request 모양에 응답 안 함 — 근본적 수신 버그"
+  }
+}

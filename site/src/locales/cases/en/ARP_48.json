@@ -1,0 +1,10 @@
+{
+  "description": "Verify that an ARP cache entry ages out when idle — after <DYNAMIC-ARP-CACHE-TIMEOUT> seconds without use, DUT must re-resolve via a fresh ARP Request before its next UDP egress",
+  "approach": "[Objective]\nIdle aging keeps stale mappings from accumulating. DUT first uses a learned entry (proves it was cached), then waits past the cache-timeout, then is asked to send to the same IP again — at which point it must NOT reuse the now-expired entry but must re-ARP.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR1) → DUT learns.\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup\n   ⇒ DUT sends UDP #1 to HOST-1-IP, eth_dst should be MAC-ADDR1 (learned).\n\n3. Idle wait of <DYNAMIC-ARP-CACHE-TIMEOUT> seconds (no traffic) — entry must age out.\n\n4. Tester → DUT: SOME/IP SubscribeEventgroup\n   ⇒ DUT must resolve again. Observe DUT's own ARP Request for HOST-1-IP.\n\n[Pass condition]\nUDP #1 used MAC-ADDR1, then post-timeout an ARP Request from DUT for HOST-1-IP is observed.\n\n[Fail condition]\n• Fail_udp1_wrong_eth_dst — UDP #1 didn't use MAC-ADDR1 (initial learning broken)\n• Fail_no_udp1 — UDP #1 absent (initial trigger broken)\n• Fail_no_arp_request_after_timeout — DUT did not re-ARP after the idle period (entry did not age out)",
+  "verdicts": {
+    "Pass": "DUT used learned entry then re-ARPed after timeout — normal aging",
+    "Fail_udp1_wrong_eth_dst": "Initial UDP did not use the learned MAC — initial learning broken",
+    "Fail_no_udp1": "Initial UDP not observed — first stimulus did not trigger egress",
+    "Fail_no_arp_request_after_timeout": "DUT did not re-ARP after the idle wait — cache entry did not expire"
+  }
+}

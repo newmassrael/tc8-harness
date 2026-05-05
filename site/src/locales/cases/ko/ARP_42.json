@@ -1,0 +1,8 @@
+{
+  "description": "DUT이 'Reply에 Reply하지 않는지' 검증 — ARP Response(opcode 2)는 정보 전달용이지 요청이 아니므로 받았다고 다시 ARP 트래픽을 만들면 안 됨 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\nARP Reply(opcode 2)는 단방향 알림이다 — 해상도자가 요청자에게 답을 돌려주는 메시지. 받았을 때 캐시 업데이트는 OK지만, 다른 ARP 교환을 유발해서는 안 된다. 이 케이스는 DUT 앞으로 Reply를 주입한 뒤 DUT이 침묵하는지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Reply 주입\n   • opcode      = 2\n   • target_ip   = DUT IP\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply 없음\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 Reply를 발신하지 않음.\n\n[실패 조건]\nFail_unexpected_reply — Reply를 받고 또 Reply를 발신. 받는 쪽이 opcode를 확인하지 않고 target_ip만 보고 dispatch한 것.",
+  "verdicts": {
+    "Pass": "DUT이 Reply를 조용히 수신 (캐시 업데이트만) — 정상",
+    "Fail_unexpected_reply": "Reply 수신 후 Reply 발신 — opcode dispatch 누락"
+  }
+}

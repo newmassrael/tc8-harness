@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ARP Request whose target_ip equals DUT's own IP — the only essential trigger condition for an ARP Reply (RFC 826 §2.4)",
+  "approach": "[Objective]\nThe one criterion that must be checked on the receive path: target_ip == iface IP. This case is the positive control for ARP_37 (target_ip != DUT IP, no reply expected).\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode      = 1\n   • target_ip   = DUT IP   ← matches\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[Pass condition]\nDUT emits an ARP Reply within the observation window.\n\n[Fail condition]\nFail_no_reply — DUT did not reply despite target_ip matching DUT's own IP. Indicates a fundamental ARP reception failure.",
+  "verdicts": {
+    "Pass": "DUT replied to a Request whose target_ip matched — normal",
+    "Fail_no_reply": "DUT did not reply despite target_ip match — fundamental reception failure"
+  }
+}

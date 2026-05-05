@@ -1,0 +1,11 @@
+{
+  "description": "Verify ARP cache merge on two consecutive gratuitous Responses from the same IP with different MACs — gratuitous variant of ARP_32, requires arp_accept=1",
+  "approach": "[Objective]\nGratuitous Response variant of ARP_32. The same merge-overwrite invariant from RFC 826 §2.3 must hold whether the seeding stimulus is a Request (ARP_32) or a gratuitous Response (this case). Linux requires `net.ipv4.conf.<iface>.arp_accept=1` on DUT for gratuitous announcements to be honoured (set by setup-netns.sh).\n\n[Scenario — chronological]\n1. Tester → DUT: gratuitous ARP Response #1 (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR1)\n\n2. Tester → DUT: gratuitous ARP Response #2 (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR2)\n   ⇒ Cache entry must now hold MAC-ADDR2.\n\n3. Tester → DUT: SOME/IP SubscribeEventgroup → DUT sends UDP.\n\n4. Observation (3 s window):\n   • DUT → Tester: UDP with eth_dst == MAC-ADDR2   ← key check\n\n[Pass condition]\nDUT's UDP eth_dst equals MAC-ADDR2.\n\n[Fail condition]\nSame as ARP_32 — Fail_used_mac1 / Fail_unknown_mac / Fail_dut_arp_request / Fail_timeout.",
+  "verdicts": {
+    "Pass": "DUT used MAC-ADDR2 — gratuitous merge worked",
+    "Fail_used_mac1": "DUT used MAC-ADDR1 — merge did not overwrite",
+    "Fail_unknown_mac": "DUT used some other MAC — cache corrupt",
+    "Fail_dut_arp_request": "DUT re-resolved via its own Request — cache not populated",
+    "Fail_timeout": "DUT did not emit UDP within window"
+  }
+}

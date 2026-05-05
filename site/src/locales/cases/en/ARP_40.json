@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT learns from a received (non-gratuitous) ARP Response and uses the cached MAC for the next UDP egress, after announcing via its own ARP Request — Response variant of ARP_39",
+  "approach": "[Objective]\nResponse variant of ARP_39. The seeding stimulus is an ARP Reply addressed to DUT (not a Request); the receive-side merge must populate the cache the same way. Same order requirement: DUT's own announce Request first, then UDP carrying the learned MAC.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Reply injected\n   • opcode      = 2\n   • sender_ip   = HOST-1-IP, sender_mac = MAC-ADDR1\n   • target_ip   = DUT IP\n   ⇒ DUT learns <HOST-1-IP, MAC-ADDR1>.\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup → stimulates UDP egress.\n\n3. Observation (5 s window):\n   a. DUT's own ARP Request (announce)\n   b. DUT → Tester: UDP with eth_dst == MAC-ADDR1\n\n[Pass condition]\nBoth (a) and (b) observed in order, UDP eth_dst == MAC-ADDR1.\n\n[Fail condition]\nSame as ARP_39 — Fail_no_dut_request / Fail_udp_before_dut_request / Fail_wrong_eth_dst / Fail_no_udp.",
+  "verdicts": {
+    "Pass": "DUT announced and used learned MAC — Response-side learning works",
+    "Fail_no_dut_request": "DUT did not announce via own Request",
+    "Fail_udp_before_dut_request": "UDP preceded the own Request — order violated",
+    "Fail_wrong_eth_dst": "UDP eth_dst was not the learned MAC",
+    "Fail_no_udp": "DUT did not emit UDP within the window"
+  }
+}

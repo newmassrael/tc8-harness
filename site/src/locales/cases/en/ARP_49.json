@@ -1,0 +1,12 @@
+{
+  "description": "Verify that ARP cache entries age out even when in active use — DUT must re-ARP after the timeout despite ongoing UDP traffic to the same IP, so peers see fresh resolution attempts on a regular schedule",
+  "approach": "[Objective]\nStricter than ARP_48: even if the entry is being used, DUT must still re-resolve once <DYNAMIC-ARP-CACHE-TIMEOUT> seconds have passed since the last *learning* event. Continuous traffic does not refresh the timer; only fresh ARP responses do.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected → DUT learns <HOST-1-IP, MAC-ADDR1>.\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup → DUT sends UDP #1 (eth_dst=MAC-ADDR1).\n\n3. Active wait of <DYNAMIC-ARP-CACHE-TIMEOUT> seconds with the tester continuing to keep the entry 'in use' (e.g. periodic traffic). The entry must still age.\n\n4. Tester → DUT: SOME/IP SubscribeEventgroup again → DUT sends UDP #2 (eth_dst=MAC-ADDR1, still using cache).\n\n5. Observation: at some point during/after step 3, DUT must emit its own ARP Request for HOST-1-IP to refresh the entry.\n\n[Pass condition]\nUDP #1 and UDP #2 both use MAC-ADDR1, AND a DUT-originated ARP Request for HOST-1-IP appears after the timeout.\n\n[Fail condition]\n• Fail_udp1_wrong_eth_dst — UDP #1 didn't use MAC-ADDR1\n• Fail_udp2_wrong_eth_dst — UDP #2 didn't use MAC-ADDR1\n• Fail_no_udp1 / Fail_no_udp2 — corresponding UDP missing\n• Fail_no_arp_request_after_timeout — DUT did not re-ARP despite timeout passing (timer reset by traffic — wrong)",
+  "verdicts": {
+    "Pass": "DUT used learned entry through timeout window AND re-ARPed when timer fired — normal aging-under-load",
+    "Fail_udp1_wrong_eth_dst": "UDP #1 did not use the learned MAC",
+    "Fail_udp2_wrong_eth_dst": "UDP #2 did not use the learned MAC",
+    "Fail_no_udp1": "UDP #1 not observed",
+    "Fail_no_udp2": "UDP #2 not observed",
+    "Fail_no_arp_request_after_timeout": "DUT did not re-ARP after timeout despite continuous traffic — timer wrongly reset by use"
+  }
+}

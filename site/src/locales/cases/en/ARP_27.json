@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT drops an ARP Request whose proto_type is not IPv4 — receiver must reject unknown upper-layer families per RFC 826 §2.4 and emit no Reply",
+  "approach": "[Objective]\nNegative case for ARP_26. proto_type tells the receiver which upper-layer addressing scheme is being resolved; if it isn't IPv4 (0x0800), the sender_ip / target_ip fields don't have IPv4 semantics and the packet must be dropped.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode      = 1\n   • proto_type  = some non-IPv4 value   ← unknown\n   • target_ip   = (interpreted bytes that would map to DUT IP under IPv4)\n\n2. Observation (3 s window):\n   • DUT → Tester: nothing — no ARP Reply\n\n[Pass condition]\nDUT does not emit any ARP Reply within the observation window.\n\n[Fail condition]\nFail_unexpected_reply — DUT replied despite the unknown proto_type. Suggests the receiver checked target_ip without first validating the protocol family.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the Request — proto_type filter worked",
+    "Fail_unexpected_reply": "DUT replied despite unknown proto_type — family check missing"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "같은 IP에서 다른 MAC을 가진 두 gratuitous Response 연속 수신 시 캐시 merge 검증 — ARP_32의 gratuitous 변형, arp_accept=1 필요",
+  "approach": "[검증 목적]\nARP_32의 gratuitous Response 변형. RFC 826 §2.3의 merge-overwrite invariant는 시드가 Request이든(ARP_32) gratuitous Response이든(본 케이스) 동일하게 적용되어야 한다. Linux는 DUT의 `net.ipv4.conf.<iface>.arp_accept=1`이 필요하다 (setup-netns.sh가 설정).\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: gratuitous ARP Response #1 (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR1)\n\n2. 테스터 → DUT: gratuitous ARP Response #2 (sender_ip=HOST-1-IP, sender_mac=MAC-ADDR2)\n   ⇒ 캐시 항목은 MAC-ADDR2여야 함.\n\n3. 테스터 → DUT: SOME/IP SubscribeEventgroup → DUT이 UDP 송신.\n\n4. 관찰 (3초 윈도우):\n   • DUT → 테스터: UDP, eth_dst == MAC-ADDR2   ← 핵심 확인 지점\n\n[통과 조건]\nDUT UDP의 eth_dst가 MAC-ADDR2.\n\n[실패 조건]\nARP_32와 동일 — Fail_used_mac1 / Fail_unknown_mac / Fail_dut_arp_request / Fail_timeout.",
+  "verdicts": {
+    "Pass": "DUT이 MAC-ADDR2 사용 — gratuitous merge 동작",
+    "Fail_used_mac1": "DUT이 MAC-ADDR1 사용 — merge가 overwrite 안 함",
+    "Fail_unknown_mac": "DUT이 다른 MAC 사용 — 캐시 corrupt",
+    "Fail_dut_arp_request": "DUT이 자기 Request로 재해상도 — 캐시 미채움",
+    "Fail_timeout": "윈도우 동안 DUT UDP 미발신"
+  }
+}

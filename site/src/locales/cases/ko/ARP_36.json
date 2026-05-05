@@ -1,0 +1,8 @@
+{
+  "description": "target_ip가 DUT 자기 IP인 ARP Request에 DUT이 정상 응답하는지 검증 — ARP Reply의 유일한 필수 트리거 조건 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\n수신 경로에서 반드시 확인해야 하는 단 하나의 기준 — target_ip == iface IP. 이 케이스는 ARP_37(target_ip != DUT IP, 응답 불가)의 positive 짝꿍이다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • opcode      = 1\n   • target_ip   = DUT IP   ← 일치\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ARP Reply 발신.\n\n[실패 조건]\nFail_no_reply — target_ip가 DUT IP와 일치하는데도 응답 안 함. 근본적 ARP 수신 실패.",
+  "verdicts": {
+    "Pass": "target_ip 일치 Request에 응답 — 정상",
+    "Fail_no_reply": "target_ip 일치에도 응답 안 함 — 근본적 수신 실패"
+  }
+}

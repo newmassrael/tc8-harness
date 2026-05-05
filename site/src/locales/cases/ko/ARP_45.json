@@ -1,0 +1,11 @@
+{
+  "description": "DUT의 ARP Reply가 자신을 트리거한 *요청자의* sender_hw를 target_hw로 echo하는지 검증 — 다른 MAC을 가진 두 연속 Request가 와도 각 Reply는 자기를 부른 Request에 답해야 함 (RFC 826 §2.4)",
+  "approach": "[검증 목적]\nDUT은 응답 전반에 쓸 target_hw를 '캐시'하면 안 된다 — 각 Reply의 target_hw는 그 Reply를 트리거한 Request의 sender_hw를 echo해야 한다. 이 케이스는 다른 sender MAC을 가진 두 Request를 보내고 각 Reply가 올바른 값을 echo하는지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: Request #1 (sender_mac=MAC-ADDR1, target_ip=DUT IP)\n2. (관찰 1) DUT → 테스터: Reply #1, target_hw == MAC-ADDR1\n\n3. 테스터 → DUT: Request #2 (sender_mac=MAC-ADDR2, target_ip=DUT IP)\n4. (관찰 2) DUT → 테스터: Reply #2, target_hw == MAC-ADDR2\n\n[통과 조건]\nReply #1의 target_hw == MAC-ADDR1 AND Reply #2의 target_hw == MAC-ADDR2.\n\n[실패 조건]\n• Fail_wrong_target_hw_1 — Reply #1 target_hw가 MAC-ADDR1이 아님\n• Fail_wrong_target_hw_2 — Reply #2 target_hw가 MAC-ADDR2가 아님 (예: 여전히 MAC-ADDR1 — 캐시 누수)\n• Fail_no_response_1 — Reply #1 누락\n• Fail_no_response_2 — Reply #2 누락",
+  "verdicts": {
+    "Pass": "두 Reply 모두 자기 요청자의 MAC을 echo — Request별 정상 응답",
+    "Fail_wrong_target_hw_1": "Reply #1 target_hw가 MAC-ADDR1이 아님",
+    "Fail_wrong_target_hw_2": "Reply #2 target_hw가 MAC-ADDR2가 아님 (응답간 캐시 누수?)",
+    "Fail_no_response_1": "Reply #1 누락",
+    "Fail_no_response_2": "Reply #2 누락"
+  }
+}

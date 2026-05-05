@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT replies to an ARP Request where target_hw equals DUT's own MAC and the Ethernet destination is broadcast — the most common shape of a real ARP Request (RFC 826 §2.4)",
+  "approach": "[Objective]\nThis is the textbook shape of an ARP Request: target_hw filled with the (already known to be) DUT MAC and Ethernet destination set to broadcast so any host can read it. DUT must reply because target_ip matches.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • opcode       = 1\n   • eth_dst      = ff:ff:ff:ff:ff:ff   (broadcast)\n   • target_hw    = DUT iface MAC\n   • target_ip    = DUT IP\n   • sender_*     = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: ARP Reply (opcode 2, sender_mac=DUT, target_ip=HOST-1-IP)\n\n[Pass condition]\nDUT emits an ARP Reply within the observation window.\n\n[Fail condition]\nFail_no_reply — DUT did not reply. This is the most common ARP shape; failure here indicates a fundamental reception bug.",
+  "verdicts": {
+    "Pass": "DUT replied to a textbook-shape ARP Request — normal",
+    "Fail_no_reply": "DUT did not reply to the most common ARP Request shape — fundamental reception bug"
+  }
+}

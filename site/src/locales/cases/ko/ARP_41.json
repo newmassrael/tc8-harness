@@ -1,0 +1,8 @@
+{
+  "description": "DUT의 ARP Reply 구조 검증 — opcode가 Request(1)에서 Reply(2)로 바뀌고 sender/target 필드가 RFC 826 §2.4에 따라 역할 교환되는지 확인",
+  "approach": "[검증 목적]\n이 케이스는 응답이 왔다는 사실 외에 *Reply 자체의 구조*를 본다. RFC 826 §2.4에 따르면 받는 쪽은 sender↔target을 swap하고 opcode를 2로 세트한다. ARP_43..47이 Reply 필드를 하나씩 나눠 검증한다면, ARP_41은 응답 구조 전체를 본다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입 (opcode=1, target_ip=DUT IP, sender=테스터)\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ARP Reply\n      - opcode      == 2   (1에서 뒤집힘)\n      - sender_mac  == DUT iface MAC   (응답자가 채움 — 질문의 답)\n      - sender_ip   == DUT IP\n      - target_*    == HOST-1-IP / MAC-ADDR1   (Request의 sender_*가 echo됨)\n\n[통과 조건]\nDUT이 swap된 필드 구조를 갖춘 정상 ARP Reply 발신.\n\n[실패 조건]\nFail_no_reply — DUT이 Request에 아예 응답 안 함.",
+  "verdicts": {
+    "Pass": "DUT이 opcode=2 + sender/target swap된 Reply 발신 — 정상",
+    "Fail_no_reply": "DUT 응답 없음 — 기본 응답 메커니즘 실패"
+  }
+}

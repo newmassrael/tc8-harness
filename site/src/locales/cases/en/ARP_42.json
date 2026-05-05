@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT does not 'reply to a Reply' — an ARP Response (opcode 2) is informational, never a request, so DUT must not generate further ARP traffic in answer to it (RFC 826 §2.4)",
+  "approach": "[Objective]\nARP Replies (opcode 2) are unidirectional announcements: they carry information from a resolver back to a requester. Receiving one should at most update the cache — it must never trigger another ARP exchange. This case injects a Reply addressed at DUT and confirms DUT stays quiet.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Reply injected\n   • opcode      = 2\n   • target_ip   = DUT IP\n   • sender_*    = HOST-1-IP / MAC-ADDR1\n\n2. Observation (3 s window):\n   • DUT → Tester: no ARP Reply\n\n[Pass condition]\nDUT does not emit any ARP Reply within the observation window.\n\n[Fail condition]\nFail_unexpected_reply — DUT emitted a Reply in response to a received Reply. Suggests the receive logic dispatches on target_ip alone without checking opcode.",
+  "verdicts": {
+    "Pass": "DUT silently received the Reply (cache update at most) — normal",
+    "Fail_unexpected_reply": "DUT replied to a received Reply — opcode dispatch missing"
+  }
+}

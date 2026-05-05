@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT drops a gratuitous ARP Response carrying an unknown hw_type and, on the next UDP egress to that IP, emits its own ARP Request to resolve fresh — proves the bad announcement was rejected, not silently learned",
+  "approach": "[Objective]\nA two-phase observation. Phase 1 confirms DUT does not learn from a malformed gratuitous ARP. Phase 2 forces DUT to send something to the same IP — if DUT had wrongly learned, it would reuse the injected MAC; if DUT correctly dropped, it must resolve via its own ARP Request.\n\n[Scenario — chronological]\n1. Tester → DUT: gratuitous ARP Response injected\n   • opcode      = 2\n   • hw_type     = some unknown value   ← bad\n   • sender_ip   = HOST-1-IP\n   • sender_mac  = MAC-ADDR1\n   • target_ip   = HOST-1-IP\n\n2. Tester → DUT: SOME/IP SubscribeEventgroup\n   ⇒ stimulates DUT to send a UDP response to HOST-1-IP.\n\n3. Observation (5 s window):\n   • DUT → broadcast: ARP Request asking for HOST-1-IP   ← key: cache was NOT poisoned by step 1\n   • DUT's UDP, when it arrives, must NOT carry MAC-ADDR1 as eth_dst (that would mean step 1 was learned)\n\n[Pass condition]\nDUT emits its own ARP Request for HOST-1-IP and does not use MAC-ADDR1 in the UDP egress.\n\n[Fail condition]\n• Fail_udp_used_injected_mac — DUT's UDP carried MAC-ADDR1 as eth_dst → DUT silently learned the malformed announcement\n• Fail_no_dut_arp_request — DUT did not emit its own ARP Request → it neither learned nor resolved (incomplete reception path)",
+  "verdicts": {
+    "Pass": "DUT dropped the malformed gratuitous and resolved via its own Request — normal",
+    "Fail_udp_used_injected_mac": "DUT used MAC-ADDR1 in UDP — silently learned a malformed announcement",
+    "Fail_no_dut_arp_request": "DUT did not resolve via its own Request — reception path incomplete"
+  }
+}
