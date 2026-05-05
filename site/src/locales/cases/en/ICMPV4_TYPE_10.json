@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT validates the ICMP checksum and silently discards Echo Requests whose checksum is wrong — no Reply, no error message (RFC 792 'Checksum field is checked')",
+  "approach": "[Objective]\nA wrong ICMP checksum means the message is corrupt; silently dropping is the only safe action. DUT must NOT reply (the contents can't be trusted) and must NOT generate ICMP error (which would also need the corrupt header).\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request with an intentionally wrong checksum value\n\n2. Observation (5 s window):\n   • DUT → Tester: nothing — no Echo Reply, no error message\n\n[Pass condition]\nDUT does not emit any ICMP traffic within the window.\n\n[Fail condition]\nFail_dut_replied — DUT emitted some response despite the bad checksum. Indicates the receive path skipped checksum verification.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the bad-checksum Request — normal",
+    "Fail_dut_replied": "DUT replied despite invalid ICMP checksum — checksum verification skipped"
+  }
+}

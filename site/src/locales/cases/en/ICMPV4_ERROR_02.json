@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT emits an ICMP Parameter Problem (type=12) when receiving fragment 0 (MF=1, offset=0) carrying a malformed IPv4 Timestamp option — header options are parsed only on the first fragment (RFC 791 §3.2 + RFC 792)",
+  "approach": "[Objective]\nIPv4 reassembly only inspects header options on the first fragment of a datagram (the one with offset=0). When that fragment carries malformed options, DUT must signal the sender via ICMP Parameter Problem so the sender can fix its packet. This case checks both the trigger (DUT emits PP) and the pointer field (where the malformation was found).\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 fragment\n   • offset       = 0\n   • MF flag      = 1   (more fragments follow, but they will not arrive)\n   • IP options   = malformed Internet Timestamp (length / pointer mismatch)\n\n2. Observation (5 s window):\n   • DUT → Tester: ICMP Parameter Problem (type=12)\n      - pointer field points at the offending option byte\n      - original datagram echoed in payload\n\n[Pass condition]\nDUT emits an ICMP Parameter Problem and the pointer field identifies the malformed option location.\n\n[Fail condition]\n• Fail_wrong_pointer — DUT sent Parameter Problem but pointer field is wrong (TC8 expects 22; Linux tolerates 20 — both defensible)\n• Fail_timeout — DUT did not emit any Parameter Problem within the window",
+  "verdicts": {
+    "Pass": "DUT emitted Parameter Problem with the correct pointer — normal",
+    "Fail_wrong_pointer": "Parameter Problem emitted but pointer was unexpected",
+    "Fail_timeout": "DUT did not emit Parameter Problem within the window"
+  }
+}

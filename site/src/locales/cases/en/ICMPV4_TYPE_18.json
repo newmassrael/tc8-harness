@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT emits ICMP Destination Unreachable / Protocol Unreachable (type=3, code=2) when receiving an IPv4 packet whose upper-layer protocol is not supported — informs the sender to stop using that protocol (RFC 1122 §3.2.2.1 MUST)",
+  "approach": "[Objective]\nWhen a packet arrives addressed to DUT but its IP-protocol number names a protocol DUT doesn't implement, RFC 1122 §3.2.2.1 requires DUT to respond with Destination Unreachable code 2 (Protocol Unreachable) so the sender knows to stop trying.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 packet\n   • dst_ip      = DUT IP\n   • protocol    = some value DUT does not implement (e.g. 50 = ESP if no IPsec, 132 = SCTP if absent)\n\n2. Observation (5 s window):\n   • DUT → Tester: ICMP Destination Unreachable\n      - type == 3\n      - code == 2 (Protocol Unreachable)   ← key check\n      - original IP header echoed in payload\n\n[Pass condition]\nDUT emits ICMP type=3 code=2 within the window.\n\n[Fail condition]\n• Fail_wrong_code — DUT emitted Destination Unreachable but with the wrong code (e.g. Port Unreachable code 3 instead)\n• Fail_timeout — DUT did not emit Destination Unreachable within the window",
+  "verdicts": {
+    "Pass": "DUT emitted Destination Unreachable / Protocol Unreachable — normal",
+    "Fail_wrong_code": "Destination Unreachable emitted but with the wrong code",
+    "Fail_timeout": "DUT did not emit Destination Unreachable within the window"
+  }
+}

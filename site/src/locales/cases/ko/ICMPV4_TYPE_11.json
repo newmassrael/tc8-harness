@@ -1,0 +1,11 @@
+{
+  "description": "DUT의 ICMP Timestamp Reply가 Request의 Originate Timestamp를 echo하고 Receive/Transmit 필드를 0이 아닌 실제 시계 값으로 채우는지 검증 — round-trip 시계 데이터가 유효해야 함 (RFC 792 Timestamp Request/Reply MUST)",
+  "approach": "[검증 목적]\nTimestamp Reply는 요청자에게 두 개의 새 시계 값(Receive — DUT이 Request를 받은 시각, Transmit — DUT이 Reply를 보낸 시각)을 주고 요청자가 보낸 것(Originate)도 echo한다. 셋 다 있어야 시계 skew와 단방향 지연을 추정할 수 있다 — 0이거나 잘못된 값은 프로토콜을 무력화한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 특정 Originate Timestamp(예: 0x12345678 — 자정 이후 ms)를 가진 ICMP Timestamp Request\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ICMP Timestamp Reply\n      - Originate  == 0x12345678 (echo)   ← 핵심 확인 지점 1\n      - Receive    != 0   ← 핵심 확인 지점 2 (DUT이 실제 시간 기록)\n      - Transmit   != 0   ← 핵심 확인 지점 3 (DUT이 실제 시간 기록)\n\n[통과 조건]\nOriginate가 그대로 echo + Receive와 Transmit 모두 0 아님.\n\n[실패 조건]\n• Fail_zero_receive — Receive 필드가 0\n• Fail_zero_transmit — Transmit 필드가 0\n• Fail_wrong_originate — Originate가 Request 값과 다름\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply가 Originate echo + Receive/Transmit 0 아님 — 정상",
+    "Fail_zero_receive": "Receive timestamp가 0 — 수신시 시계 샘플링 안 함",
+    "Fail_zero_transmit": "Transmit timestamp가 0 — 송신시 시계 샘플링 안 함",
+    "Fail_wrong_originate": "Originate가 Request 값과 다름",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "기본 ICMP Echo Request에 DUT이 Echo Reply로 응답하는지 검증 — 표준적인 'ping reply' 확인 (RFC 792 MUST)",
+  "approach": "[검증 목적]\n가장 기본적인 ICMP 동작 — ping에 응답. 이 케이스는 Echo 교환의 특정 측면을 검증하는 TYPE_05/08/09/10/11/12 가족의 positive 짝꿍이다. 이게 실패하면 다른 세부 검증은 의미가 없다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: target_ip = DUT IP인 ICMP Echo Request (type=8)\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ICMP Echo Reply (type=0)\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 Echo Reply 발신.\n\n[실패 조건]\nFail_timeout — DUT이 응답 안 함. ICMP 수신 경로가 깨졌거나 ping이 비활성화됨.",
+  "verdicts": {
+    "Pass": "DUT이 ping에 응답 — 정상",
+    "Fail_timeout": "DUT이 ping에 응답 안 함 — 수신 경로 깨짐 또는 필터링"
+  }
+}

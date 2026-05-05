@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT responds to a basic ICMP Echo Request with an Echo Reply — the canonical 'ping reply' check (RFC 792 MUST)",
+  "approach": "[Objective]\nThe most basic ICMP behaviour: respond to ping. This case is the positive control for the family of TYPE_05/08/09/10/11/12 cases that validate specific aspects of the Echo exchange. If this fails, none of those finer checks are meaningful.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request (type=8) with target_ip = DUT IP\n\n2. Observation (3 s window):\n   • DUT → Tester: ICMP Echo Reply (type=0)\n\n[Pass condition]\nDUT emits an Echo Reply within the window.\n\n[Fail condition]\nFail_timeout — DUT did not respond. Indicates ICMP receive path is broken or ping is disabled.",
+  "verdicts": {
+    "Pass": "DUT replied to ping — normal",
+    "Fail_timeout": "DUT did not reply to ping — receive path broken or filtered"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "DUT의 ICMP Echo Reply가 Identifier와 Sequence Number 필드를 매칭되는 Echo Request에서 그대로 echo하는지 검증 — 요청자가 outstanding Request와 Reply를 연결하는 데 사용 (RFC 792 Echo Request/Reply MUST)",
+  "approach": "[검증 목적]\nping 클라이언트는 여러 outstanding Echo Request를 동시에 가질 수 있다. Identifier(보통 클라이언트 pid 또는 socket id)와 Sequence Number(Request별 카운터)가 어떤 Reply가 어떤 Request에 해당하는지를 알려준다. DUT은 두 필드를 그대로 복사해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 특정 identifier와 sequence를 가진 ICMP Echo Request (예: id=0xABCD, seq=0x0042)\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ICMP Echo Reply\n      - identifier == 0xABCD   ← 핵심 확인 지점 1\n      - sequence   == 0x0042   ← 핵심 확인 지점 2\n\n[통과 조건]\nReply의 identifier와 sequence 필드 둘 다 Request와 일치.\n\n[실패 조건]\n• Fail_echo_id — Reply identifier가 Request와 다름\n• Fail_echo_seq — Reply sequence가 Request와 다름\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply가 identifier/sequence echo — 정상 correlation 가능",
+    "Fail_echo_id": "Reply identifier가 Request와 다름",
+    "Fail_echo_seq": "Reply sequence가 Request와 다름",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

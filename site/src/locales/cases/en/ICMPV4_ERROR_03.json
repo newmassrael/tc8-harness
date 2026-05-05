@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT does NOT emit ICMP Parameter Problem for malformed IP options when they arrive on a non-first fragment (offset != 0) — options on later fragments should be ignored, not error-reported (RFC 791 §3.2)",
+  "approach": "[Objective]\nNegative companion to ICMPV4_ERROR_02. RFC 791 §3.2 mandates options be parsed only on the first fragment of a datagram; later fragments must not be options-checked. So malformed options on a non-first fragment must NOT produce a Parameter Problem.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 fragment\n   • offset       != 0   (non-first fragment)\n   • IP options   = malformed Internet Timestamp\n\n2. Observation (5 s window):\n   • DUT → Tester: nothing — no ICMP Parameter Problem\n\n[Pass condition]\nDUT does not emit any ICMP Parameter Problem within the window.\n\n[Fail condition]\nFail_dut_replied — DUT emitted a Parameter Problem despite the malformed options being on a non-first fragment. Suggests DUT is parsing options on every fragment, contrary to the spec.",
+  "verdicts": {
+    "Pass": "DUT silently ignored the bad options on the non-first fragment — normal",
+    "Fail_dut_replied": "DUT emitted Parameter Problem for options on a non-first fragment — over-eager parsing"
+  }
+}

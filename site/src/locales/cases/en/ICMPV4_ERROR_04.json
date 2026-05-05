@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT does NOT emit ICMP Parameter Problem for a datagram whose destination is an IP broadcast, even when its options are malformed — broadcast destinations must not generate per-host error replies (RFC 1122 §3.2.2 SHOULD NOT)",
+  "approach": "[Objective]\nIf every host on a broadcast segment replied to a malformed broadcast packet with an ICMP error, the sender would be flooded. RFC 1122 §3.2.2 forbids generating ICMP error messages in response to datagrams sent to broadcast or multicast destinations.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 datagram\n   • dst_ip      = broadcast (e.g. 255.255.255.255 or subnet broadcast)\n   • IP options  = malformed Internet Timestamp\n\n2. Observation (5 s window):\n   • DUT → Tester: nothing — no ICMP Parameter Problem\n\n[Pass condition]\nDUT does not emit any ICMP Parameter Problem within the window.\n\n[Fail condition]\nFail_dut_replied — DUT emitted Parameter Problem despite the broadcast destination. Indicates the broadcast-suppression rule is missing.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the malformed broadcast — normal RFC 1122 §3.2.2 behaviour",
+    "Fail_dut_replied": "DUT emitted Parameter Problem for a broadcast datagram — flood risk"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "지원하지 않는 상위 프로토콜을 가진 IPv4 패킷이 도착했을 때 DUT이 ICMP Destination Unreachable / Protocol Unreachable(type=3, code=2)을 발신하는지 검증 — sender에게 그 프로토콜 사용을 중단하라고 알림 (RFC 1122 §3.2.2.1 MUST)",
+  "approach": "[검증 목적]\nDUT 앞으로 온 패킷의 IP-protocol 번호가 DUT이 구현하지 않은 프로토콜을 가리키면, RFC 1122 §3.2.2.1은 Destination Unreachable code 2(Protocol Unreachable)로 응답을 요구한다 — sender가 시도를 중단하도록.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 패킷\n   • dst_ip      = DUT IP\n   • protocol    = DUT이 구현하지 않은 값 (예: IPsec 없으면 50=ESP, SCTP 없으면 132)\n\n2. 관찰 (5초 윈도우):\n   • DUT → 테스터: ICMP Destination Unreachable\n      - type == 3\n      - code == 2 (Protocol Unreachable)   ← 핵심 확인 지점\n      - 원본 IP 헤더가 payload에 echo됨\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ICMP type=3 code=2 발신.\n\n[실패 조건]\n• Fail_wrong_code — Destination Unreachable은 발신됐지만 code가 잘못됨 (예: Port Unreachable code 3)\n• Fail_timeout — 윈도우 동안 Destination Unreachable 미발신",
+  "verdicts": {
+    "Pass": "DUT이 Destination Unreachable / Protocol Unreachable 발신 — 정상",
+    "Fail_wrong_code": "Destination Unreachable은 보였지만 code가 잘못됨",
+    "Fail_timeout": "윈도우 동안 Destination Unreachable 미발신"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "fragment 0(MF=1, offset=0)이 malformed IPv4 Timestamp option을 가진 채 도착했을 때 DUT이 ICMP Parameter Problem(type=12)을 발신하는지 검증 — 헤더 옵션은 첫 fragment에서만 파싱됨 (RFC 791 §3.2 + RFC 792)",
+  "approach": "[검증 목적]\nIPv4 재조립은 첫 fragment(offset=0)에서만 헤더 옵션을 검사한다. 그 fragment가 malformed 옵션을 가졌을 때 DUT은 sender에게 ICMP Parameter Problem으로 알려야 sender가 패킷을 고칠 수 있다. 이 케이스는 PP 발신 자체와 pointer 필드(어디가 잘못됐는지)를 둘 다 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 fragment\n   • offset       = 0\n   • MF flag      = 1   (뒤에 fragment 더 있다고 표시, 실제론 도착 안 함)\n   • IP options   = malformed Internet Timestamp (length/pointer 불일치)\n\n2. 관찰 (5초 윈도우):\n   • DUT → 테스터: ICMP Parameter Problem (type=12)\n      - pointer 필드가 잘못된 옵션 바이트 위치를 가리킴\n      - 원본 datagram이 payload에 echo됨\n\n[통과 조건]\nDUT이 Parameter Problem 발신 + pointer 필드가 malformed 옵션 위치를 정확히 가리킴.\n\n[실패 조건]\n• Fail_wrong_pointer — Parameter Problem은 발신됐지만 pointer 값이 예상과 다름 (TC8은 22 기대, Linux는 20 — 둘 다 RFC 792상 defensible)\n• Fail_timeout — 윈도우 동안 Parameter Problem 미발신",
+  "verdicts": {
+    "Pass": "DUT이 정확한 pointer로 Parameter Problem 발신 — 정상",
+    "Fail_wrong_pointer": "Parameter Problem은 보였지만 pointer 값이 예상 밖",
+    "Fail_timeout": "윈도우 동안 Parameter Problem 미발신"
+  }
+}

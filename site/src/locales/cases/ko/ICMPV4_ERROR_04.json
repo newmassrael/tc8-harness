@@ -1,0 +1,8 @@
+{
+  "description": "destination이 IP broadcast인 datagram에 malformed 옵션이 있어도 DUT이 ICMP Parameter Problem을 *발신하지 않아야* 함을 검증 — 브로드캐스트 대상에는 호스트별 오류 응답을 만들면 안 됨 (RFC 1122 §3.2.2 SHOULD NOT)",
+  "approach": "[검증 목적]\n브로드캐스트 세그먼트의 모든 호스트가 malformed 브로드캐스트 패킷에 ICMP 오류로 응답하면 sender가 flood된다. RFC 1122 §3.2.2는 broadcast/multicast 목적지로 온 datagram에 대한 ICMP 오류 메시지 생성을 금지한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 datagram\n   • dst_ip      = 브로드캐스트 (예: 255.255.255.255 또는 서브넷 브로드캐스트)\n   • IP options  = malformed Internet Timestamp\n\n2. 관찰 (5초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함 — ICMP Parameter Problem 없음\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 Parameter Problem을 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — 브로드캐스트 목적지인데도 Parameter Problem 발신. 브로드캐스트 억제 규칙 누락.",
+  "verdicts": {
+    "Pass": "DUT이 malformed 브로드캐스트를 조용히 drop — RFC 1122 §3.2.2 정상",
+    "Fail_dut_replied": "브로드캐스트 datagram에 Parameter Problem 발신 — flood 위험"
+  }
+}

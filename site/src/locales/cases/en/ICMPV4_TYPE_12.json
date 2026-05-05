@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT's ICMP Timestamp Reply echoes the Identifier and Sequence Number fields verbatim from the matching Timestamp Request — analogous to the Echo case but for Timestamp messages (RFC 792 Timestamp Request/Reply MUST)",
+  "approach": "[Objective]\nLike Echo (ICMPV4_TYPE_09), Timestamp Replies must carry back the same identifier and sequence so the requester can correlate them to outstanding Requests.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Timestamp Request with chosen identifier and sequence\n\n2. Observation (3 s window):\n   • DUT → Tester: ICMP Timestamp Reply\n      - identifier == Request's identifier   ← key check 1\n      - sequence   == Request's sequence     ← key check 2\n\n[Pass condition]\nBoth fields echoed correctly.\n\n[Fail condition]\n• Fail_id_mismatch — identifier in Reply did not match Request\n• Fail_seq_mismatch — sequence in Reply did not match Request\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply echoed identifier and sequence — normal correlation",
+    "Fail_id_mismatch": "Reply identifier did not match Request",
+    "Fail_seq_mismatch": "Reply sequence did not match Request",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

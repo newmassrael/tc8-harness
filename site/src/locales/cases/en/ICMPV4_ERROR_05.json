@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT silently discards an ICMP message whose `type` field is unknown to the implementation (RFC 1122 §3.2.2 MUST) — unknown types must not produce any reply or visible side-effect",
+  "approach": "[Objective]\nUnknown ICMP types are forward-compatibility space — newer specs may define them. Today's implementation must drop them silently rather than guess at meaning or generate spurious responses.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP message\n   • type        = some value not in the implementation's recognised set (e.g. 99)\n   • addressed to DUT\n\n2. Observation (5 s window):\n   • DUT → Tester: nothing — no ICMP traffic of any kind\n\n[Pass condition]\nDUT does not emit any ICMP message within the observation window.\n\n[Fail condition]\nFail_dut_replied — DUT emitted some ICMP response (any type) to the unknown-type message. Indicates the receive path doesn't gate on known-type list.",
+  "verdicts": {
+    "Pass": "DUT silently discarded the unknown ICMP type — normal",
+    "Fail_dut_replied": "DUT emitted a response to an unknown ICMP type — type filter missing"
+  }
+}

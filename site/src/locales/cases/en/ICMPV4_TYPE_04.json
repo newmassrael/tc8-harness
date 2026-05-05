@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT does NOT emit ICMP Time Exceeded (type=11) for a partially-received datagram when the first fragment (offset=0) never arrives — without fragment 0 there is no header to construct an error reply against (RFC 792 p7 MUST)",
+  "approach": "[Objective]\nICMP Time Exceeded for fragment reassembly timeout requires the original datagram's IP header to echo back. That header lives only in fragment 0. If only later fragments arrived and reassembly times out without fragment 0 ever showing, DUT cannot construct a meaningful Time Exceeded — and per RFC 792 p7 it must not.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 fragment\n   • offset       != 0 (only later fragments arrive)\n   • MF, total_length, datagram_id consistent with a multi-fragment datagram\n   • fragment 0 is intentionally never sent\n\n2. Wait for the reassembly timer to expire (typically 60 s on Linux, may be shorter per spec).\n\n3. Observation:\n   • DUT → Tester: nothing — no ICMP Time Exceeded\n\n[Pass condition]\nDUT does not emit any ICMP Time Exceeded for the abandoned reassembly.\n\n[Fail condition]\nFail_dut_replied — DUT emitted a Time Exceeded despite never having received the first fragment.",
+  "verdicts": {
+    "Pass": "DUT silently abandoned the reassembly without sending Time Exceeded — normal",
+    "Fail_dut_replied": "DUT emitted Time Exceeded without fragment 0 — error path used wrong header"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT does NOT respond to an ICMP Information Request with an Information Reply — the Information Request/Reply pair (type 15/16) is obsolete per RFC 1122 §3.2.2.7 (SHOULD NOT)",
+  "approach": "[Objective]\nThe ICMP Information Request was an early way to discover an interface's network number; it has been obsolete since RFC 1122 (1989). Modern hosts must not reply, both to avoid leaking information and because the underlying assumption (no DHCP/RARP) no longer holds.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Information Request (type 15)\n\n2. Observation (5 s window):\n   • DUT → Tester: nothing — no Information Reply (type 16), no error message\n\n[Pass condition]\nDUT does not emit any response to the Information Request.\n\n[Fail condition]\nFail_dut_replied — DUT emitted an Information Reply. Indicates the implementation still ships obsolete behaviour.",
+  "verdicts": {
+    "Pass": "DUT silently dropped the obsolete Information Request — normal",
+    "Fail_dut_replied": "DUT emitted an Information Reply — obsolete behaviour still active"
+  }
+}

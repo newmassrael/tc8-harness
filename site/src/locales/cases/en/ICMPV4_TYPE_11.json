@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT's ICMP Timestamp Reply echoes the Originate Timestamp from the Request and fills the Receive and Transmit fields with non-zero clock readings — the round-trip clock data must be valid (RFC 792 Timestamp Request/Reply MUST)",
+  "approach": "[Objective]\nThe Timestamp Reply gives the requester two new clock readings (Receive when DUT got the Request, Transmit when DUT sent the Reply) plus an echo of what the requester sent (Originate). All three are needed to estimate clock skew and one-way delay; zero or wrong values defeat the protocol.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Timestamp Request with a chosen Originate Timestamp (e.g. 0x12345678 ms since midnight UTC)\n\n2. Observation (3 s window):\n   • DUT → Tester: ICMP Timestamp Reply\n      - Originate  == 0x12345678 (echoed)   ← key check 1\n      - Receive    != 0   ← key check 2 (DUT must record real time)\n      - Transmit   != 0   ← key check 3 (DUT must record real time)\n\n[Pass condition]\nOriginate echoed verbatim, Receive and Transmit both non-zero.\n\n[Fail condition]\n• Fail_zero_receive — Receive field was zero\n• Fail_zero_transmit — Transmit field was zero\n• Fail_wrong_originate — Originate did not echo the Request value\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply echoed Originate and supplied non-zero Receive/Transmit — normal",
+    "Fail_zero_receive": "Receive timestamp was zero — clock not sampled on receive",
+    "Fail_zero_transmit": "Transmit timestamp was zero — clock not sampled on transmit",
+    "Fail_wrong_originate": "Originate did not match the Request value",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

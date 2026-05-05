@@ -1,0 +1,8 @@
+{
+  "description": "DUT이 ICMP Information Request에 Information Reply로 *응답하지 않아야* 함을 검증 — Information Request/Reply 쌍(type 15/16)은 RFC 1122 §3.2.2.7로 deprecated (SHOULD NOT)",
+  "approach": "[검증 목적]\nICMP Information Request는 인터페이스의 네트워크 번호를 알아내는 초기 수단이었으나 RFC 1122(1989)로 deprecated됐다. 현대 호스트는 응답하면 안 된다 — 정보 누출 방지 측면과, DHCP/RARP가 없다는 전제 자체가 더 이상 유효하지 않다는 측면 모두에서.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ICMP Information Request (type 15)\n\n2. 관찰 (5초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함 — Information Reply(type 16) 없음, 오류 메시지 없음\n\n[통과 조건]\nDUT이 Information Request에 어떤 응답도 안 함.\n\n[실패 조건]\nFail_dut_replied — DUT이 Information Reply 발신. 구현이 아직 obsolete 동작을 포함하고 있음.",
+  "verdicts": {
+    "Pass": "DUT이 obsolete Information Request 조용히 drop — 정상",
+    "Fail_dut_replied": "DUT이 Information Reply 발신 — obsolete 동작 잔존"
+  }
+}

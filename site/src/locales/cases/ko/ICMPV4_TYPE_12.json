@@ -1,0 +1,10 @@
+{
+  "description": "DUT의 ICMP Timestamp Reply가 매칭되는 Timestamp Request의 Identifier와 Sequence Number 필드를 그대로 echo하는지 검증 — Echo 케이스(ICMPV4_TYPE_09)의 Timestamp 메시지 버전 (RFC 792 Timestamp Request/Reply MUST)",
+  "approach": "[검증 목적]\nEcho(ICMPV4_TYPE_09)와 마찬가지로 Timestamp Reply도 동일한 identifier와 sequence를 가져야 요청자가 outstanding Request와 correlate할 수 있다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 특정 identifier/sequence를 가진 ICMP Timestamp Request\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ICMP Timestamp Reply\n      - identifier == Request의 identifier   ← 핵심 확인 지점 1\n      - sequence   == Request의 sequence     ← 핵심 확인 지점 2\n\n[통과 조건]\n두 필드 모두 정확히 echo.\n\n[실패 조건]\n• Fail_id_mismatch — Reply identifier가 Request와 다름\n• Fail_seq_mismatch — Reply sequence가 Request와 다름\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply가 identifier/sequence echo — 정상 correlation",
+    "Fail_id_mismatch": "Reply identifier가 Request와 다름",
+    "Fail_seq_mismatch": "Reply sequence가 Request와 다름",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

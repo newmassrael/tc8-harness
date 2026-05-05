@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT's ICMP Echo Reply echoes the Identifier and Sequence Number fields verbatim from the matching Echo Request — these let the requester correlate Replies to outstanding Requests (RFC 792 Echo Request/Reply MUST)",
+  "approach": "[Objective]\nA ping client may have many outstanding Echo Requests at once. The Identifier (typically the client's pid or socket id) and Sequence Number (per-Request counter) tell it which Reply matches which Request. DUT must copy both fields verbatim.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request with a chosen identifier and sequence number (e.g. id=0xABCD, seq=0x0042)\n\n2. Observation (3 s window):\n   • DUT → Tester: ICMP Echo Reply\n      - identifier == 0xABCD   ← key check 1\n      - sequence   == 0x0042   ← key check 2\n\n[Pass condition]\nBoth identifier and sequence fields in the Reply match the Request.\n\n[Fail condition]\n• Fail_echo_id — identifier in Reply did not match Request\n• Fail_echo_seq — sequence in Reply did not match Request\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply echoed identifier and sequence — normal correlation possible",
+    "Fail_echo_id": "Reply identifier did not match Request",
+    "Fail_echo_seq": "Reply sequence number did not match Request",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

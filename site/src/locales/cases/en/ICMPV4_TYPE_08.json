@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT's ICMP Echo Reply data field exactly equals the data field that the Echo Request carried — payload must be echoed verbatim (RFC 792 Echo Request/Reply MUST)",
+  "approach": "[Objective]\nEcho Reply has no semantic transformation of the payload — the exact bytes the requester sent must come back. This is what makes ping useful for liveness, latency and MTU probing: the sender knows what it sent and can verify what came back.\n\n[Scenario — chronological]\n1. Tester → DUT: ICMP Echo Request with a known payload (e.g. an ASCII pattern or sequence)\n\n2. Observation (3 s window):\n   • DUT → Tester: ICMP Echo Reply\n      - data field == request payload, byte-for-byte   ← key check\n\n[Pass condition]\nReply payload equals the Request payload exactly.\n\n[Fail condition]\n• Fail_payload_mismatch — Reply was emitted but its data field differs from what was sent\n• Fail_timeout — DUT did not emit a Reply within the window",
+  "verdicts": {
+    "Pass": "Reply payload matched request — normal echo",
+    "Fail_payload_mismatch": "Reply payload differed from request — echo not byte-for-byte",
+    "Fail_timeout": "DUT did not emit a Reply within the window"
+  }
+}

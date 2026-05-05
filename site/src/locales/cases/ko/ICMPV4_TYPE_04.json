@@ -1,0 +1,8 @@
+{
+  "description": "첫 fragment(offset=0)가 도착하지 않은 부분 datagram에 대해 DUT이 ICMP Time Exceeded(type=11)를 *발신하지 않아야* 함을 검증 — fragment 0이 없으면 오류 응답에 echo할 헤더가 없음 (RFC 792 p7 MUST)",
+  "approach": "[검증 목적]\nICMP Time Exceeded(재조립 타임아웃용)는 원본 datagram의 IP 헤더를 echo로 되돌려야 한다. 그 헤더는 fragment 0에만 있다. 후속 fragment만 도착하고 fragment 0이 영영 안 와서 재조립이 타임아웃되면 DUT은 의미있는 Time Exceeded를 만들 수 없다 — RFC 792 p7에 따라 발신 금지.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 fragment\n   • offset       != 0 (후속 fragment만 도착)\n   • MF, total_length, datagram_id가 다중 fragment를 시사\n   • fragment 0은 의도적으로 안 보냄\n\n2. 재조립 타이머 만료 대기 (Linux 기본 60초, spec상 더 짧을 수도).\n\n3. 관찰:\n   • DUT → 테스터: 아무것도 없어야 함 — ICMP Time Exceeded 없음\n\n[통과 조건]\nDUT이 포기된 재조립에 대해 Time Exceeded를 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — fragment 0을 받지 않았는데도 Time Exceeded 발신. 오류 경로가 잘못된 헤더를 사용.",
+  "verdicts": {
+    "Pass": "DUT이 Time Exceeded 없이 재조립 조용히 포기 — 정상",
+    "Fail_dut_replied": "fragment 0 없이 Time Exceeded 발신 — 오류 경로의 헤더 처리 오류"
+  }
+}

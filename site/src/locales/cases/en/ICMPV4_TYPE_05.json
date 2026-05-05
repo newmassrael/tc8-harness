@@ -1,0 +1,8 @@
+{
+  "description": "Verify that DUT discards an ICMP Echo Request whose IPv4 header carries malformed options (Internet Timestamp with length/pointer mismatch) and does NOT emit an Echo Reply — IP options are checked before ICMP is processed (RFC 791 §3.1 + RFC 792 Parameter Problem MUST)",
+  "approach": "[Objective]\nThe IP layer must reject malformed options before handing the payload up to ICMP. So even a structurally valid Echo Request that arrives wrapped in a header with bad options must be dropped — no Echo Reply.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 + ICMP Echo Request\n   • IP options = malformed Internet Timestamp (length=10 byte claims, only 8 B present; pointer past length+1)\n   • ICMP body  = valid Echo Request\n   • L2 dst     = DUT MAC (unicast)\n\n2. Observation (5 s window):\n   • DUT → Tester: no Echo Reply\n\n[Pass condition]\nDUT does not emit any Echo Reply within the window.\n\n[Fail condition]\nFail_dut_replied — DUT replied to the Echo Request despite the malformed IP options. Indicates the IP layer passed the packet up before validating options.",
+  "verdicts": {
+    "Pass": "DUT dropped the Echo Request at the IP-options stage — normal",
+    "Fail_dut_replied": "DUT replied despite malformed IP options — option validation skipped"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "DUT이 ICMP checksum을 검증하고 잘못된 checksum의 Echo Request를 조용히 drop하는지 검증 — Reply도, 오류 메시지도 없어야 함 (RFC 792 'Checksum field is checked')",
+  "approach": "[검증 목적]\n잘못된 ICMP checksum은 메시지가 손상됐음을 의미하므로 조용히 drop만이 안전한 동작이다. DUT은 응답해서도 안 되며(내용을 신뢰할 수 없음) ICMP 오류도 만들면 안 된다(그 오류도 손상된 헤더가 필요).\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 의도적으로 잘못된 checksum 값을 가진 ICMP Echo Request\n\n2. 관찰 (5초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함 — Echo Reply 없음, 오류 메시지 없음\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 ICMP 트래픽을 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — 잘못된 checksum에도 응답 발신. 받는 쪽이 checksum 검증을 건너뛴 것.",
+  "verdicts": {
+    "Pass": "DUT이 잘못된 checksum Request를 조용히 drop — 정상",
+    "Fail_dut_replied": "잘못된 ICMP checksum에도 응답 — checksum 검증 누락"
+  }
+}

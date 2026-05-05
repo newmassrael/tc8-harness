@@ -1,0 +1,9 @@
+{
+  "description": "DUT의 ICMP Echo Reply data 필드가 Echo Request의 data 필드와 정확히 일치하는지 검증 — payload는 byte 단위로 그대로 echo되어야 함 (RFC 792 Echo Request/Reply MUST)",
+  "approach": "[검증 목적]\nEcho Reply는 payload를 변환하지 않는다 — 요청자가 보낸 바이트가 그대로 돌아와야 한다. 이것이 ping이 liveness/지연시간/MTU probe에 쓸모있는 이유다 — sender가 보낸 것과 돌아온 것을 비교할 수 있음.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 알려진 payload(예: ASCII 패턴 또는 시퀀스)를 가진 ICMP Echo Request\n\n2. 관찰 (3초 윈도우):\n   • DUT → 테스터: ICMP Echo Reply\n      - data 필드 == 요청 payload, byte-for-byte   ← 핵심 확인 지점\n\n[통과 조건]\nReply payload == Request payload (정확 일치).\n\n[실패 조건]\n• Fail_payload_mismatch — Reply는 보였지만 data 필드가 요청과 다름\n• Fail_timeout — 윈도우 동안 Reply 미발신",
+  "verdicts": {
+    "Pass": "Reply payload == 요청 payload — 정상 echo",
+    "Fail_payload_mismatch": "Reply payload가 요청과 다름 — byte-for-byte echo 아님",
+    "Fail_timeout": "윈도우 동안 Reply 미발신"
+  }
+}

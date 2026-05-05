@@ -1,0 +1,8 @@
+{
+  "description": "non-first fragment(offset != 0)에 도착한 malformed IP 옵션에 대해 DUT이 ICMP Parameter Problem을 *발신하지 않아야* 함을 검증 — 첫 fragment 이외의 옵션은 무시되어야 함 (RFC 791 §3.2)",
+  "approach": "[검증 목적]\nICMPV4_ERROR_02의 negative 짝꿍. RFC 791 §3.2는 옵션을 첫 fragment에서만 파싱하라고 규정한다. 후속 fragment의 옵션은 검사하면 안 되며, 따라서 malformed라도 Parameter Problem을 만들면 안 된다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 fragment\n   • offset       != 0   (첫 fragment 아님)\n   • IP options   = malformed Internet Timestamp\n\n2. 관찰 (5초 윈도우):\n   • DUT → 테스터: 아무것도 없어야 함 — ICMP Parameter Problem 없음\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 Parameter Problem을 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — non-first fragment의 malformed 옵션에도 Parameter Problem 발신. DUT이 모든 fragment에서 옵션을 파싱하고 있다는 뜻 — spec 위반.",
+  "verdicts": {
+    "Pass": "DUT이 non-first fragment의 잘못된 옵션을 조용히 무시 — 정상",
+    "Fail_dut_replied": "non-first fragment 옵션에도 Parameter Problem 발신 — 과도한 파싱"
+  }
+}

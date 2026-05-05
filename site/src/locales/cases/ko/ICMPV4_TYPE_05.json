@@ -1,0 +1,8 @@
+{
+  "description": "IPv4 헤더에 malformed 옵션(length/pointer 불일치 Internet Timestamp)이 있는 ICMP Echo Request를 DUT이 drop하고 Echo Reply를 *발신하지 않아야* 함을 검증 — IP 옵션은 ICMP 처리 전에 검사됨 (RFC 791 §3.1 + RFC 792 Parameter Problem MUST)",
+  "approach": "[검증 목적]\nIP 계층은 payload를 ICMP에 넘기기 전에 malformed 옵션을 거부해야 한다. 따라서 ICMP 본문이 유효한 Echo Request라도 잘못된 옵션이 있는 헤더에 싸여 도착하면 drop — Echo Reply 없음.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: IPv4 + ICMP Echo Request\n   • IP options = malformed Internet Timestamp (length가 10이라 주장하지만 실제 8바이트, pointer가 length+1을 초과)\n   • ICMP body  = 정상 Echo Request\n   • L2 dst     = DUT MAC (unicast)\n\n2. 관찰 (5초 윈도우):\n   • DUT → 테스터: Echo Reply 없음\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 Echo Reply를 발신하지 않음.\n\n[실패 조건]\nFail_dut_replied — malformed IP 옵션에도 Echo Request에 응답. IP 계층이 옵션 검증 전에 패킷을 통과시킨 것.",
+  "verdicts": {
+    "Pass": "DUT이 IP-옵션 단계에서 Echo Request drop — 정상",
+    "Fail_dut_replied": "malformed IP 옵션에도 응답 — 옵션 검증 누락"
+  }
+}
