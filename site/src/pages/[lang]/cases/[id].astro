@@ -1,0 +1,29 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import { allCases, getCase } from '~/lib/cases';
+import { sections } from '~/lib/sections';
+import { locales } from '~/lib/i18n';
+import type { Locale } from '~/lib/types';
+
+export function getStaticPaths() {
+  const paths: Array<{ params: { lang: Locale; id: string } }> = [];
+  for (const lang of locales) {
+    for (const c of allCases) {
+      paths.push({ params: { lang, id: c.case_id } });
+    }
+  }
+  return paths;
+}
+
+const { lang, id } = Astro.params as { lang: Locale; id: string };
+const c = getCase(id);
+if (!c) {
+  return Astro.redirect(`/${lang}/`);
+}
+const altPath = `cases/${c!.case_id}/`;
+const visible = sections.filter((s) => s.requires(c!));
+---
+
+<BaseLayout locale={lang} title={c!.case_id} altPath={altPath}>
+  {visible.map(({ Component }) => <Component case={c!} locale={lang} />)}
+</BaseLayout>

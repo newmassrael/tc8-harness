@@ -1,0 +1,13 @@
+{
+  "description": "Verify that DUT learns IP↔MAC mappings from received ARP Requests into its cache — once learned, DUT must not emit its own ARP Request when sending to the same IP (RFC 826 §2.3)",
+  "approach": "[Objective]\nPer RFC 826 §2.3, a node receiving an ARP Request MUST learn the sender's IP↔MAC mapping into its ARP cache. This case verifies that DUT actually performs that learning. If learned, the next packet to the same IP should reuse the cached MAC without emitting another ARP Request.\n\n[Scenario — chronological]\n1. Tester → DUT: ARP Request injected\n   • sender IP  = HOST-1-IP (tester's IP)\n   • sender MAC = MAC-ADDR1 (tester's MAC)\n   • target IP  = DUT IP\n   ⇒ DUT must add <HOST-1-IP, MAC-ADDR1> to its ARP cache.\n\n2. Tester → DUT: SOME/IP Subscribe-Nack message\n   ⇒ Stimulates DUT to send a UDP response back to HOST-1-IP.\n\n3. Observation (3 s window):\n   • DUT → Tester: UDP packet (destination MAC = learned MAC-ADDR1)\n   • DUT must NOT emit its own ARP Request\n\n[Pass condition]\nWithin the observation window, DUT does not emit its own ARP Request — meaning it reused the cache entry learned in step 1.\n\n[Fail condition]\nDUT emits an ARP Request with its own MAC as sender → fail (Fail_unexpected_arp_request). This means step-1 learning did not work or the cache expired immediately, violating RFC 826 §2.3 MUST.",
+  "verdicts": {
+    "Pass": "DUT sent UDP using the cached MAC without an extra ARP Request — normal",
+    "Fail_unexpected_arp_request": "DUT emitted its own ARP Request after the cache was populated — cache learning failed"
+  },
+  "messages": [
+    { "idx": 0, "role": "stimulus",     "label": "Step 1 stimulus — ARP Request inject (sender = HOST-1-IP/MAC-ADDR1, target = DUT IP). Expected to seed DUT's ARP cache." },
+    { "idx": 1, "role": "stimulus",     "label": "Step 2 stimulus — SOME/IP Subscribe-Nack. Triggers DUT to send a UDP response back to HOST-1-IP." },
+    { "idx": 2, "role": "expected",     "label": "PASS evidence — DUT's UDP destination MAC equals MAC-ADDR1 (the value learned in step 1) and no DUT-originated ARP Request precedes it." }
+  ]
+}

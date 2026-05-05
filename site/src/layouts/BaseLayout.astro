@@ -1,0 +1,50 @@
+---
+import '~/styles/global.css';
+import { t } from '~/lib/i18n';
+import { localePath } from '~/lib/links';
+import type { Locale } from '~/lib/types';
+
+interface Props {
+  locale: Locale;
+  title: string;
+  /** Path under the locale prefix used to compute the alternate-language link. */
+  altPath?: string;
+}
+
+const { locale, title, altPath = '' } = Astro.props;
+const siteTitle = t(locale, 'site.title');
+const subtitle = t(locale, 'site.subtitle');
+const cases = t(locale, 'nav.cases');
+const altClean = altPath.replace(/^\/+|\/+$/g, '');
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · {siteTitle}</title>
+  </head>
+  <body>
+    <div class="layout">
+      <header class="topbar">
+        <div>
+          <h1>
+            <a href={localePath(locale)} style="color:var(--text)">{siteTitle}</a>
+            <span class="sub">{subtitle}</span>
+          </h1>
+        </div>
+        <nav>
+          <a href={localePath(locale)} class="active">{cases}</a>
+          <span class="lang-switch">
+            <a href={localePath('en', altClean)} class={locale === 'en' ? 'active' : ''}>EN</a>
+            <a href={localePath('ko', altClean)} class={locale === 'ko' ? 'active' : ''}>KO</a>
+          </span>
+        </nav>
+      </header>
+      <main>
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

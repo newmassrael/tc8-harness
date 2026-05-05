@@ -1,0 +1,84 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import { allCases } from '~/lib/cases';
+import { t, locales } from '~/lib/i18n';
+import { casePath } from '~/lib/links';
+import { translationCoverage, hasOverride } from '~/lib/overrides';
+import type { Locale } from '~/lib/types';
+
+export function getStaticPaths() {
+  return locales.map((lang) => ({ params: { lang } }));
+}
+
+const { lang } = Astro.params as { lang: Locale };
+const protocols = Array.from(new Set(allCases.map((c) => c.protocol)));
+const cov = translationCoverage(allCases.length);
+---
+
+<BaseLayout locale={lang} title={t(lang, 'index.heading')}>
+  <h2 style="margin-top:0">
+    {t(lang, 'index.heading')}
+    <span class="muted" style="font-size:14px">({allCases.length} {t(lang, 'index.count')})</span>
+    <span class="muted" style="font-size:12px;margin-left:14px;font-weight:400">
+      EN {cov.en}/{cov.total} · KO {cov.ko}/{cov.total}
+    </span>
+  </h2>
+
+  <div class="toolbar">
+    <input id="q" type="search" placeholder={t(lang, 'index.search')} />
+    <select id="protocol-filter" aria-label={t(lang, 'index.filter.protocol')}>
+      <option value="">{t(lang, 'index.filter.protocol')}: {t(lang, 'index.filter.all')}</option>
+      {protocols.map((p) => <option value={p}>{p}</option>)}
+    </select>
+  </div>
+
+  <table class="case-table" id="case-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>{t(lang, 'case.protocol')}</th>
+        <th>§</th>
+        <th style="width:60%">{t(lang, 'case.approach.heading')}</th>
+        <th>{t(lang, 'case.status')}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {allCases.map((c) => {
+        const translated = hasOverride(c.case_id, lang);
+        const desc = c.trait?.description ?? '';
+        return (
+          <tr data-protocol={c.protocol} data-id={c.case_id} data-desc={desc.toLowerCase()} data-section={c.section} data-translated={String(translated)}>
+            <td class="id"><a href={casePath(lang, c.case_id)}>{c.case_id}</a></td>
+            <td>{c.protocol}</td>
+            <td class="mono muted">{c.section}</td>
+            <td>
+              {desc}
+              {!translated && lang !== 'en' && <span class="fallback-marker" style="margin-left:6px">{t(lang, 'case.fallback')}</span>}
+            </td>
+            <td><span class={`badge ${c.status}`}>{t(lang, c.status === 'deprecated' ? 'case.status.deprecated' : 'case.status.active' as any)}</span></td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+</BaseLayout>
+
+<script is:inline>
+  const q = document.getElementById('q');
+  const sel = document.getElementById('protocol-filter');
+  const rows = Array.from(document.querySelectorAll('#case-table tbody tr'));
+  function apply() {
+    const term = (q.value || '').toLowerCase();
+    const proto = sel.value;
+    for (const row of rows) {
+      const id = row.dataset.id.toLowerCase();
+      const desc = row.dataset.desc;
+      const section = row.dataset.section;
+      const matchesText = !term || id.includes(term) || desc.includes(term) || section.includes(term);
+      const matchesProto = !proto || row.dataset.protocol === proto;
+      row.style.display = matchesText && matchesProto ? '' : 'none';
+    }
+  }
+  q?.addEventListener('input', apply);
+  sel?.addEventListener('change', apply);
+</script>

@@ -1,0 +1,13 @@
+{
+  "description": "DUT이 받은 ARP Request에서 IP↔MAC 매핑을 캐시에 학습하는지 검증 — 학습 후 같은 IP로 패킷 보낼 때 자기 ARP Request를 또 발신하면 안 됨 (RFC 826 §2.3)",
+  "approach": "[검증 목적]\nRFC 826 §2.3에 따르면, ARP Request를 받은 노드는 그 안에 있는 sender의 IP↔MAC 매핑을 자기 ARP 캐시에 학습해야 한다 (MUST). 이 케이스는 DUT이 그 학습을 실제로 수행하는지 확인한다. 학습이 됐다면, 다음에 같은 IP로 패킷을 보낼 때 추가로 ARP Request를 발신하지 않고 캐시에 저장된 MAC을 그대로 써야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: ARP Request 주입\n   • sender IP  = HOST-1-IP (테스터 IP)\n   • sender MAC = MAC-ADDR1 (테스터 MAC)\n   • target IP  = DUT IP\n   ⇒ DUT은 <HOST-1-IP, MAC-ADDR1> 쌍을 ARP 캐시에 추가해야 함.\n\n2. 테스터 → DUT: SOME/IP Subscribe-Nack 메시지 전송\n   ⇒ DUT을 자극해서 HOST-1-IP로 응답 UDP를 보내게 만듦.\n\n3. 관찰 (3초 윈도우):\n   • DUT → 테스터: UDP 패킷 (destination MAC = 학습된 MAC-ADDR1)\n   • DUT은 자기 ARP Request를 발신하지 않아야 함\n\n[통과 조건]\n관찰 윈도우 동안 DUT이 자기 ARP Request를 발신하지 않으면 통과 (즉 1단계에서 학습한 캐시 항목을 그대로 사용한 것).\n\n[실패 조건]\nDUT이 자기 MAC을 sender로 하는 ARP Request를 발신하면 실패 (Fail_unexpected_arp_request) — 이는 1단계 학습이 작동하지 않았거나 캐시가 즉시 만료됐다는 뜻으로, RFC 826 §2.3 MUST 위반.",
+  "verdicts": {
+    "Pass": "DUT이 ARP Request 추가 발신 없이 학습된 캐시로 UDP 송신 — 정상",
+    "Fail_unexpected_arp_request": "DUT이 캐시 학습 후에도 자기 ARP Request를 발신함 — 캐시 학습 실패"
+  },
+  "messages": [
+    { "idx": 0, "role": "stimulus",  "label": "1단계 자극 — 테스터 ARP Request 주입 (sender=HOST-1-IP/MAC-ADDR1, target=DUT IP). DUT의 ARP 캐시에 항목이 학습되어야 함." },
+    { "idx": 1, "role": "stimulus",  "label": "2단계 자극 — SOME/IP Subscribe-Nack. DUT이 HOST-1-IP로 UDP 응답을 보내도록 유도." },
+    { "idx": 2, "role": "expected",  "label": "통과 증거 — DUT의 UDP destination MAC이 1단계에서 학습된 MAC-ADDR1과 같고, 그 앞에 DUT의 ARP Request가 없음." }
+  ]
+}

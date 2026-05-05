@@ -1,0 +1,21 @@
+{
+  "name": "tc8-harness-site",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "manifest": "python3 scripts/build_manifest.py",
+    "predev": "npm run manifest",
+    "dev": "astro dev",
+    "build": "npm run manifest && astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "astro": "^5.1.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "typescript": "^5.6.3"
+  }
+}

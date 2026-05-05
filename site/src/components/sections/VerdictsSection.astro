@@ -1,0 +1,40 @@
+---
+import { t } from '~/lib/i18n';
+import { classifyVerdict } from '~/lib/verdicts';
+import type { CaseRecord, Locale } from '~/lib/types';
+
+interface Props {
+  case: CaseRecord;
+  locale: Locale;
+}
+
+const { case: c, locale } = Astro.props;
+const verdicts = c.trait!.verdicts.map((v) => classifyVerdict(c, v, locale));
+---
+
+<section class="section">
+  <h2>{t(locale, 'case.verdicts.heading')}</h2>
+  <table class="verdict-table">
+    <thead>
+      <tr>
+        <th>{t(locale, 'case.verdicts.state')}</th>
+        <th>{t(locale, 'case.verdicts.outcome')}</th>
+        <th>{t(locale, 'case.verdicts.meaning')}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {verdicts.map((v) => (
+        <tr class={`outcome-${v.outcome}`}>
+          <td class="mono">{v.state}</td>
+          <td>
+            <span class={`badge outcome-badge ${v.outcome}`}>{t(locale, `case.verdicts.${v.outcome}` as any)}</span>
+          </td>
+          <td>
+            <span>{v.reason}</span>
+            <code class="raw-verdict mono" title={t(locale, 'case.verdicts.raw' as any)}>{v.raw}</code>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</section>

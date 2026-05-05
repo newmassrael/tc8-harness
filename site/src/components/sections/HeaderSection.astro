@@ -1,0 +1,46 @@
+---
+import { t } from '~/lib/i18n';
+import { localizedDescription } from '~/lib/overrides';
+import type { CaseRecord, Locale } from '~/lib/types';
+
+interface Props {
+  case: CaseRecord;
+  locale: Locale;
+}
+
+const { case: c, locale } = Astro.props;
+const statusKey = c.status === 'deprecated' ? 'case.status.deprecated' : 'case.status.active';
+const desc = localizedDescription(c, locale);
+---
+
+<section class="section">
+  <div class="case-title">
+    <h1>{c.case_id}</h1>
+    <span class={`badge ${c.status}`}>{t(locale, statusKey as any)}</span>
+    <span class="badge protocol">{c.protocol}</span>
+  </div>
+  {desc.text && (
+    <p class="desc">
+      {desc.text}
+      {desc.isFallback && <span class="fallback-marker">({t(locale, 'case.fallback')})</span>}
+    </p>
+  )}
+  <dl class="kv" style="margin-top:14px">
+    <dt>{t(locale, 'case.section')}</dt>
+    <dd class="mono">§{c.section}</dd>
+    <dt>{t(locale, 'case.protocol')}</dt>
+    <dd>{c.protocol}</dd>
+    {c.trait?.bpf_group && (
+      <>
+        <dt>{t(locale, 'case.bpf_group')}</dt>
+        <dd class="mono">{c.trait.bpf_group}</dd>
+      </>
+    )}
+    {!c.expected && c.defer_reason && (
+      <>
+        <dt>{t(locale, 'case.deferReason')}</dt>
+        <dd class="muted">{c.defer_reason}</dd>
+      </>
+    )}
+  </dl>
+</section>
