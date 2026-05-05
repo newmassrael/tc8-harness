@@ -48,5 +48,8 @@
   "pcap.role.note": "Note",
   "case.scxml.heading": "State machine (SCXML)",
   "case.scxml.lines": "lines",
-  "case.scxml.toggle": "Show / hide SCXML source"
+  "case.scxml.toggle": "Show / hide SCXML source",
+  "case.deprecated.title": "Deprecated test case",
+  "case.deprecated.notice": "This test case has been removed from the active TC8 spec.",
+  "index.filter.hideDeprecated": "Hide deprecated"
 }

@@ -33,10 +33,36 @@ from typing import Callable
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = REPO_ROOT / "doc" / "spec" / "case_inventory.json"
 OVERRIDES = REPO_ROOT / "doc" / "spec" / "inventory_overrides.json"
+DEPRECATED = REPO_ROOT / "doc" / "spec" / "deprecated_cases.json"
 TESTS_DIR = REPO_ROOT / "tests"
 TRAITS_DIR = REPO_ROOT / "src" / "sce_integration" / "cases"
 OUT_DIR = REPO_ROOT / "site" / "src" / "data" / "cases"
 INDEX_OUT = REPO_ROOT / "site" / "src" / "data" / "index.json"
+
+
+def section_hint_for(case_id: str) -> str:
+    """Derive a coarse spec-section number from a deprecated case_id prefix.
+    Used when the deletion table doesn't carry the original subsection."""
+    cid = case_id.upper()
+    if cid.startswith("ARP_"):
+        return "4.2"
+    if cid.startswith("ICMPV4_"):
+        return "4.3"
+    if cid.startswith("IPV4_AUTOCONF_"):
+        return "4.5"
+    if cid.startswith("IPV4_"):
+        return "4.4"
+    if cid.startswith("UDP_"):
+        return "4.6"
+    if cid.startswith("DHCPV4_"):
+        return "4.7"
+    if cid.startswith("TCP_"):
+        return "4.8"
+    if cid.startswith("SOMEIPSRV_"):
+        return "5.1.5"
+    if cid.startswith("SOMEIP_ETS_"):
+        return "5.1.6"
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +402,7 @@ def main(argv: list[str] | None = None) -> int:
 
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
     overrides = json.loads(OVERRIDES.read_text(encoding="utf-8"))
+    deprecated_doc = json.loads(DEPRECATED.read_text(encoding="utf-8"))
     ctx = {"overrides": overrides}
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -394,6 +421,41 @@ def main(argv: list[str] | None = None) -> int:
         if only and cid not in only:
             continue
         record = build_one(raw, ctx)
+        out_path = OUT_DIR / f"{cid}.json"
+        out_path.write_text(json.dumps(record, indent=2, ensure_ascii=False),
+                            encoding="utf-8")
+        n_written += 1
+
+    # Deprecated cases get placeholder records — Header section renders the
+    # status badge + reason; data-bearing sections (trait, scxml, pcap)
+    # auto-skip via the `requires` predicates in lib/sections.ts.
+    active_ids = {canonical(c["case_id"]) for c in cases_in_spec_order}
+    default_reason = deprecated_doc.get("default_reason", "Deprecated")
+    base_offset = 1 << 20  # park deprecated entries at the end of spec_order
+    for j, entry in enumerate(deprecated_doc.get("cases", [])):
+        if isinstance(entry, str):
+            cid, reason = canonical(entry), default_reason
+        else:
+            cid = canonical(entry["case_id"])
+            reason = entry.get("reason", default_reason)
+        if only and cid not in only:
+            continue
+        if cid in active_ids:
+            print(f"warn: {cid} listed deprecated but is in active inventory; skipping",
+                  file=sys.stderr)
+            continue
+        section = section_hint_for(cid)
+        record = {
+            "case_id": cid,
+            "case_id_raw": cid,
+            "category": category_of(cid),
+            "protocol": protocol_of(section),
+            "section": section,
+            "spec_order": base_offset + j,
+            "status": "deprecated",
+            "expected": False,
+            "defer_reason": reason,
+        }
         out_path = OUT_DIR / f"{cid}.json"
         out_path.write_text(json.dumps(record, indent=2, ensure_ascii=False),
                             encoding="utf-8")

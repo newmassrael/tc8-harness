@@ -48,5 +48,8 @@
   "pcap.role.note": "참고",
   "case.scxml.heading": "상태 머신 (SCXML)",
   "case.scxml.lines": "줄",
-  "case.scxml.toggle": "SCXML 소스 펼치기 / 접기"
+  "case.scxml.toggle": "SCXML 소스 펼치기 / 접기",
+  "case.deprecated.title": "사용 중단된 테스트 케이스",
+  "case.deprecated.notice": "이 테스트 케이스는 활성 TC8 명세에서 제거되었습니다.",
+  "index.filter.hideDeprecated": "사용 중단 케이스 숨기기"
 }

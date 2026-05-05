@@ -9,7 +9,8 @@ interface Props {
 }
 
 const { case: c, locale } = Astro.props;
-const statusKey = c.status === 'deprecated' ? 'case.status.deprecated' : 'case.status.active';
+const isDeprecated = c.status === 'deprecated';
+const statusKey = isDeprecated ? 'case.status.deprecated' : 'case.status.active';
 const desc = localizedDescription(c, locale);
 ---
 
@@ -19,6 +20,12 @@ const desc = localizedDescription(c, locale);
     <span class={`badge ${c.status}`}>{t(locale, statusKey as any)}</span>
     <span class="badge protocol">{c.protocol}</span>
   </div>
+  {isDeprecated && (
+    <div class="deprecated-notice" role="note">
+      <strong>{t(locale, 'case.deprecated.title')}</strong>
+      <p>{c.defer_reason || t(locale, 'case.deprecated.notice')}</p>
+    </div>
+  )}
   {desc.text && (
     <p class="desc">
       {desc.text}

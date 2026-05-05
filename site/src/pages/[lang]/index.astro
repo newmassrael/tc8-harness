@@ -30,6 +30,10 @@ const cov = translationCoverage(allCases.length);
       <option value="">{t(lang, 'index.filter.protocol')}: {t(lang, 'index.filter.all')}</option>
       {protocols.map((p) => <option value={p}>{p}</option>)}
     </select>
+    <label class="checkbox">
+      <input id="hide-deprecated" type="checkbox" checked />
+      {t(lang, 'index.filter.hideDeprecated')}
+    </label>
   </div>
 
   <table class="case-table" id="case-table">
@@ -47,7 +51,7 @@ const cov = translationCoverage(allCases.length);
         const translated = hasOverride(c.case_id, lang);
         const desc = c.trait?.description ?? '';
         return (
-          <tr data-protocol={c.protocol} data-id={c.case_id} data-desc={desc.toLowerCase()} data-section={c.section} data-translated={String(translated)}>
+          <tr data-protocol={c.protocol} data-id={c.case_id} data-desc={desc.toLowerCase()} data-section={c.section} data-translated={String(translated)} data-status={c.status}>
             <td class="id"><a href={casePath(lang, c.case_id)}>{c.case_id}</a></td>
             <td>{c.protocol}</td>
             <td class="mono muted">{c.section}</td>
@@ -66,19 +70,24 @@ const cov = translationCoverage(allCases.length);
 <script is:inline>
   const q = document.getElementById('q');
   const sel = document.getElementById('protocol-filter');
+  const hideDep = document.getElementById('hide-deprecated');
   const rows = Array.from(document.querySelectorAll('#case-table tbody tr'));
   function apply() {
     const term = (q.value || '').toLowerCase();
     const proto = sel.value;
+    const hide = hideDep.checked;
     for (const row of rows) {
       const id = row.dataset.id.toLowerCase();
       const desc = row.dataset.desc;
       const section = row.dataset.section;
       const matchesText = !term || id.includes(term) || desc.includes(term) || section.includes(term);
       const matchesProto = !proto || row.dataset.protocol === proto;
-      row.style.display = matchesText && matchesProto ? '' : 'none';
+      const matchesStatus = !hide || row.dataset.status !== 'deprecated';
+      row.style.display = matchesText && matchesProto && matchesStatus ? '' : 'none';
     }
   }
   q?.addEventListener('input', apply);
   sel?.addEventListener('change', apply);
+  hideDep?.addEventListener('change', apply);
+  apply();
 </script>
