@@ -1,0 +1,87 @@
+{
+  "case_id": "IPV4_AUTOCONF_ANNOUNCING_04_NEG",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "4e:d1:95:2f:ad:0a",
+  "tester_ip": null,
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.14.78? Tell 0.0.0.0 (sender_mac=4e:d1:95:2f:ad:0a)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "4e:d1:95:2f:ad:0a",
+        "sender_ip": "0.0.0.0",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.14.78"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 323772,
+      "ts_delta_us": 323772,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.14.78? Tell 0.0.0.0 (sender_mac=4e:d1:95:2f:ad:0a)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "4e:d1:95:2f:ad:0a",
+        "sender_ip": "0.0.0.0",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.14.78"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 571084,
+      "ts_delta_us": 247312,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.14.78? Tell 0.0.0.0 (sender_mac=4e:d1:95:2f:ad:0a)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "4e:d1:95:2f:ad:0a",
+        "sender_ip": "0.0.0.0",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.14.78"
+      }
+    },
+    {
+      "idx": 3,
+      "ts_us": 851849,
+      "ts_delta_us": 280765,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.14.78? Tell 169.254.14.78 (sender_mac=4e:d1:95:2f:ad:0a)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "4e:d1:95:2f:ad:0a",
+        "sender_ip": "169.254.14.78",
+        "target_mac": "de:ad:be:ef:00:01",
+        "target_ip": "169.254.14.78"
+      }
+    }
+  ]
+}

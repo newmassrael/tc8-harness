@@ -1,0 +1,87 @@
+{
+  "case_id": "TCP_UNACCEPTABLE_05",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "7a:81:ad:0f:e7:4b",
+  "tester_ip": "172.16.0.2",
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "7a:81:ad:0f:e7:4b",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "49152 → 12345 [SYN|ACK] seq=270544960 ack=270544961",
+      "fields": {
+        "src_port": 49152,
+        "dst_port": 12345,
+        "seq": 270544960,
+        "ack": 270544961,
+        "flags": "SYN|ACK"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 14,
+      "ts_delta_us": 14,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "56:d0:8a:f0:35:b6",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "12345 → 49152 [RST] seq=270544961 ack=0",
+      "fields": {
+        "src_port": 12345,
+        "dst_port": 49152,
+        "seq": 270544961,
+        "ack": 0,
+        "flags": "RST"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 555894,
+      "ts_delta_us": 555880,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "7a:81:ad:0f:e7:4b",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "49152 → 12346 [ACK] seq=270545216 ack=270544961",
+      "fields": {
+        "src_port": 49152,
+        "dst_port": 12346,
+        "seq": 270545216,
+        "ack": 270544961,
+        "flags": "ACK"
+      }
+    },
+    {
+      "idx": 3,
+      "ts_us": 555912,
+      "ts_delta_us": 18,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "56:d0:8a:f0:35:b6",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "12346 → 49152 [RST] seq=270544961 ack=0",
+      "fields": {
+        "src_port": 12346,
+        "dst_port": 49152,
+        "seq": 270544961,
+        "ack": 0,
+        "flags": "RST"
+      }
+    }
+  ]
+}

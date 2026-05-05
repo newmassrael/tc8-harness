@@ -1,0 +1,87 @@
+{
+  "case_id": "IPV4_AUTOCONF_ANNOUNCING_03_NEG",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "7a:81:ad:0f:e7:4b",
+  "tester_ip": null,
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.117.114? Tell 0.0.0.0 (sender_mac=7a:81:ad:0f:e7:4b)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "7a:81:ad:0f:e7:4b",
+        "sender_ip": "0.0.0.0",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.117.114"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 263050,
+      "ts_delta_us": 263050,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.117.114? Tell 0.0.0.0 (sender_mac=7a:81:ad:0f:e7:4b)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "7a:81:ad:0f:e7:4b",
+        "sender_ip": "0.0.0.0",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.117.114"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 529848,
+      "ts_delta_us": 266798,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.117.114? Tell 0.0.0.0 (sender_mac=7a:81:ad:0f:e7:4b)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "7a:81:ad:0f:e7:4b",
+        "sender_ip": "0.0.0.0",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.117.114"
+      }
+    },
+    {
+      "idx": 3,
+      "ts_us": 860071,
+      "ts_delta_us": 330223,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "Who has 169.254.117.114? Tell 169.254.117.114 (sender_mac=ca:fe:ba:be:00:01)",
+      "fields": {
+        "opcode": 1,
+        "sender_mac": "ca:fe:ba:be:00:01",
+        "sender_ip": "169.254.117.114",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.117.114"
+      }
+    }
+  ]
+}

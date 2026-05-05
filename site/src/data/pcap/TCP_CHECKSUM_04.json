@@ -1,0 +1,87 @@
+{
+  "case_id": "TCP_CHECKSUM_04",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "7a:81:ad:0f:e7:4b",
+  "tester_ip": "172.16.0.2",
+  "dut_mac": "56:d0:8a:f0:35:b6",
+  "dut_ip": "172.16.0.1",
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "56:d0:8a:f0:35:b6",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49680 → 23636 [SYN] seq=3194137486 ack=0",
+      "fields": {
+        "src_port": 49680,
+        "dst_port": 23636,
+        "seq": 3194137486,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 4,
+      "ts_delta_us": 4,
+      "direction": "dut_to_tester",
+      "src_mac": "56:d0:8a:f0:35:b6",
+      "dst_mac": "7a:81:ad:0f:e7:4b",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "23636 → 49680 [ACK|RST] seq=0 ack=3194137487",
+      "fields": {
+        "src_port": 23636,
+        "dst_port": 49680,
+        "seq": 0,
+        "ack": 3194137487,
+        "flags": "ACK|RST"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 699622,
+      "ts_delta_us": 699618,
+      "direction": "tester_to_dut",
+      "src_mac": "7a:81:ad:0f:e7:4b",
+      "dst_mac": "56:d0:8a:f0:35:b6",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49680 → 23636 [SYN] seq=3205069003 ack=0",
+      "fields": {
+        "src_port": 49680,
+        "dst_port": 23636,
+        "seq": 3205069003,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 3,
+      "ts_us": 699640,
+      "ts_delta_us": 18,
+      "direction": "dut_to_tester",
+      "src_mac": "56:d0:8a:f0:35:b6",
+      "dst_mac": "7a:81:ad:0f:e7:4b",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "23636 → 49680 [ACK|RST] seq=0 ack=3205069004",
+      "fields": {
+        "src_port": 23636,
+        "dst_port": 49680,
+        "seq": 0,
+        "ack": 3205069004,
+        "flags": "ACK|RST"
+      }
+    }
+  ]
+}

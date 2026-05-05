@@ -1,0 +1,43 @@
+{
+  "case_id": "IPV4_REASSEMBLY_06",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": null,
+  "tester_ip": null,
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "other",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "ICMPv4",
+      "summary": "type=170 code=170",
+      "fields": {
+        "type": 170,
+        "code": 170
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 215625,
+      "ts_delta_us": 215625,
+      "direction": "other",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "ICMPv4",
+      "summary": "type=187 code=187",
+      "fields": {
+        "type": 187,
+        "code": 187
+      }
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "case_id": "TCP_RETRANSMISSION_TO_05",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "5e:45:c1:4c:94:86",
+  "tester_ip": "172.16.0.2",
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "tester_to_dut",
+      "src_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "8a:bb:e9:76:e5:dd",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49655 → 23611 [SYN] seq=1224514241 ack=0",
+      "fields": {
+        "src_port": 49655,
+        "dst_port": 23611,
+        "seq": 1224514241,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 1009784,
+      "ts_delta_us": 1009784,
+      "direction": "tester_to_dut",
+      "src_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "8a:bb:e9:76:e5:dd",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49655 → 23611 [SYN] seq=1224514241 ack=0",
+      "fields": {
+        "src_port": 49655,
+        "dst_port": 23611,
+        "seq": 1224514241,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 3029842,
+      "ts_delta_us": 2020058,
+      "direction": "tester_to_dut",
+      "src_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "8a:bb:e9:76:e5:dd",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49655 → 23611 [SYN] seq=1224514241 ack=0",
+      "fields": {
+        "src_port": 49655,
+        "dst_port": 23611,
+        "seq": 1224514241,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 3,
+      "ts_us": 7121743,
+      "ts_delta_us": 4091901,
+      "direction": "tester_to_dut",
+      "src_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "8a:bb:e9:76:e5:dd",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49655 → 23611 [SYN] seq=1224514241 ack=0",
+      "fields": {
+        "src_port": 49655,
+        "dst_port": 23611,
+        "seq": 1224514241,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    }
+  ]
+}

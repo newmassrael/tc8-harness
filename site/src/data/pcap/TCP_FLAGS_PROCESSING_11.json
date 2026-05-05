@@ -1,0 +1,87 @@
+{
+  "case_id": "TCP_FLAGS_PROCESSING_11",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "5e:45:c1:4c:94:86",
+  "tester_ip": "172.16.0.2",
+  "dut_mac": "8a:bb:e9:76:e5:dd",
+  "dut_ip": "172.16.0.1",
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "tester_to_dut",
+      "src_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "8a:bb:e9:76:e5:dd",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49550 → 23506 [SYN] seq=99079729 ack=0",
+      "fields": {
+        "src_port": 49550,
+        "dst_port": 23506,
+        "seq": 99079729,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 6,
+      "ts_delta_us": 6,
+      "direction": "dut_to_tester",
+      "src_mac": "8a:bb:e9:76:e5:dd",
+      "dst_mac": "5e:45:c1:4c:94:86",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "23506 → 49550 [SYN|ACK] seq=1912461952 ack=99079730",
+      "fields": {
+        "src_port": 23506,
+        "dst_port": 49550,
+        "seq": 1912461952,
+        "ack": 99079730,
+        "flags": "SYN|ACK"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 11,
+      "ts_delta_us": 5,
+      "direction": "tester_to_dut",
+      "src_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "8a:bb:e9:76:e5:dd",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49550 → 23506 [ACK] seq=99079730 ack=1912461953",
+      "fields": {
+        "src_port": 49550,
+        "dst_port": 23506,
+        "seq": 99079730,
+        "ack": 1912461953,
+        "flags": "ACK"
+      }
+    },
+    {
+      "idx": 3,
+      "ts_us": 181708,
+      "ts_delta_us": 181697,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "5e:45:c1:4c:94:86",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "23506 → 49550 [ACK] seq=1912461953 ack=99079730",
+      "fields": {
+        "src_port": 23506,
+        "dst_port": 49550,
+        "seq": 1912461953,
+        "ack": 99079730,
+        "flags": "ACK"
+      }
+    }
+  ]
+}

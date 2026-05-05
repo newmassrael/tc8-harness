@@ -1,0 +1,163 @@
+{
+  "case_id": "TCP_RETRANSMISSION_TO_09",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "4e:d1:95:2f:ad:0a",
+  "tester_ip": "172.16.0.2",
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 1001851,
+      "ts_delta_us": 1001851,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 2025853,
+      "ts_delta_us": 1024002,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 3,
+      "ts_us": 3049844,
+      "ts_delta_us": 1023991,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 4,
+      "ts_us": 4073877,
+      "ts_delta_us": 1024033,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 5,
+      "ts_us": 5097865,
+      "ts_delta_us": 1023988,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 6,
+      "ts_us": 7113864,
+      "ts_delta_us": 2015999,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 7,
+      "ts_us": 11337901,
+      "ts_delta_us": 4224037,
+      "direction": "tester_to_dut",
+      "src_mac": "4e:d1:95:2f:ad:0a",
+      "dst_mac": "6a:5a:e1:9b:6f:1f",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "49682 → 23638 [SYN] seq=1428155190 ack=0",
+      "fields": {
+        "src_port": 49682,
+        "dst_port": 23638,
+        "seq": 1428155190,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    }
+  ]
+}

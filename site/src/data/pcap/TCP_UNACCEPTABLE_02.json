@@ -1,0 +1,68 @@
+{
+  "case_id": "TCP_UNACCEPTABLE_02",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "tester_ip": "172.16.0.2",
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "49152 → 12345 [SYN] seq=270544960 ack=0",
+      "fields": {
+        "src_port": 49152,
+        "dst_port": 12345,
+        "seq": 270544960,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 14,
+      "ts_delta_us": 14,
+      "direction": "tester_to_dut",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "8e:88:75:fd:ec:0d",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "12345 → 49152 [SYN|ACK] seq=1743498778 ack=270544961",
+      "fields": {
+        "src_port": 12345,
+        "dst_port": 49152,
+        "seq": 1743498778,
+        "ack": 270544961,
+        "flags": "SYN|ACK"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 219833,
+      "ts_delta_us": 219819,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "49152 → 12345 [RST] seq=271593537 ack=0",
+      "fields": {
+        "src_port": 49152,
+        "dst_port": 12345,
+        "seq": 271593537,
+        "ack": 0,
+        "flags": "RST"
+      }
+    }
+  ]
+}

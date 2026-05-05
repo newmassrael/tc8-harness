@@ -1,0 +1,68 @@
+{
+  "case_id": "TCP_SEQUENCE_01",
+  "outcome": "pass",
+  "captured_at": "2026-05-05T12:54:40Z",
+  "tester_mac": "5e:45:c1:4c:94:86",
+  "tester_ip": "172.16.0.2",
+  "dut_mac": null,
+  "dut_ip": null,
+  "packets": [
+    {
+      "idx": 0,
+      "ts_us": 0,
+      "ts_delta_us": 0,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "5e:45:c1:4c:94:86",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "49312 → 13160 [SYN] seq=270544960 ack=0",
+      "fields": {
+        "src_port": 49312,
+        "dst_port": 13160,
+        "seq": 270544960,
+        "ack": 0,
+        "flags": "SYN"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 18,
+      "ts_delta_us": 18,
+      "direction": "tester_to_dut",
+      "src_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "8a:bb:e9:76:e5:dd",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "TCP",
+      "summary": "13160 → 49312 [SYN|ACK] seq=3519751292 ack=270544961",
+      "fields": {
+        "src_port": 13160,
+        "dst_port": 49312,
+        "seq": 3519751292,
+        "ack": 270544961,
+        "flags": "SYN|ACK"
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 282580,
+      "ts_delta_us": 282562,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "5e:45:c1:4c:94:86",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "TCP",
+      "summary": "49312 → 13160 [ACK] seq=270544961 ack=3519751293",
+      "fields": {
+        "src_port": 49312,
+        "dst_port": 13160,
+        "seq": 270544961,
+        "ack": 3519751293,
+        "flags": "ACK"
+      }
+    }
+  ]
+}
