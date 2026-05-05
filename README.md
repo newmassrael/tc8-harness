@@ -110,6 +110,7 @@ no script-engine clock dependency.
 ```sh
 git clone --recursive <repo-url> tc8-harness
 cd tc8-harness
+git config core.hooksPath .githooks    # enable in-tree commit-msg validator (COMMIT_FORMAT.md)
 sudo ./scripts/setup-vsomeip.sh        # quilt push -a → cmake build → install to /usr/local
 cmake -B build -DTC8_SCE_FIND_PACKAGE=OFF
 cmake --build build -j4

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# commit-msg hook — validates the message against COMMIT_FORMAT.md.
+# Activate once per clone:
+#     git config core.hooksPath .githooks
+set -e
+exec python3 "$(dirname "$0")/check-commit-msg.py" "$1"
