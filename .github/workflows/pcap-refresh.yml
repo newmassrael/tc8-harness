@@ -1,0 +1,135 @@
+name: pcap-refresh
+
+# Runs the full positive-smoke set with `--log-dir` to capture pcaps,
+# decodes each one to the site's PacketCapture JSON shape, and pushes
+# the result to the orphan `pcap-data` branch. The site workflow then
+# overlays those captures during build (see site.yml).
+#
+# Manual-only for now (no schedule). The maintainer triggers this when
+# the test logic, the DUT firmware, or vsomeip patch series has changed
+# enough to warrant fresh on-the-wire evidence on the case pages.
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Optional commit message suffix shown in pcap-data log'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # push to pcap-data branch
+  actions: write    # trigger site.yml after pushing
+
+jobs:
+  refresh:
+    name: capture + decode + push
+    # Same self-hosted netns runner as smoke-test.yml — needs sudo
+    # NOPASSWD for setup-vsomeip.sh + dut/env/smoke-test.sh + cmake.
+    runs-on: [self-hosted, netns]
+    # Cold path: vsomeip rebuild + harness build + 543-case smoke run +
+    # decode + push ≈ 30 min. Set the cap high enough to absorb the
+    # cold path and rely on test logic to bound runtime.
+    timeout-minutes: 120
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply vsomeip patch series + reinstall (idempotent)
+        run: sudo -n ./scripts/setup-vsomeip.sh
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTC8_SCE_FIND_PACKAGE=OFF
+
+      - name: Build harness + tc8-dut
+        run: cmake --build build -j4
+
+      - name: Capture pcaps for the active spec
+        # `|| true` lets known-deviating cases (Linux DUT vs strict-RFC,
+        # see smoke-test.yml comment) fail without aborting the refresh
+        # — the pcap files are still produced and useful for the page
+        # timeline regardless of pass/fail outcome.
+        run: |
+          mkdir -p /tmp/pcap-logs
+          sudo -n dut/env/smoke-test.sh \
+            --workers 4 \
+            --log-dir /tmp/pcap-logs \
+            --junit-xml /tmp/pcap-logs/junit.xml \
+            $(./build/tc8-harness test --list-cases --exclude-deferred \
+              | awk '/^  [A-Z]/{print $1}') || true
+          echo "captured $(ls /tmp/pcap-logs/*.pcap 2>/dev/null | wc -l) pcap file(s)"
+
+      - name: Pull pcap-data branch
+        uses: actions/checkout@v4
+        with:
+          ref: pcap-data
+          path: .pcap-data
+
+      - name: Decode pcaps to PacketCapture JSON
+        # Outcome defaults to "pass" — JUnit parsing per case is a
+        # follow-up; the timeline component renders identically for
+        # pass/fail today (the badge differs only). Tester/DUT MAC+IP
+        # use the harness's standard test-fixture values; cases with
+        # different fixtures (e.g. DHCPv4 0.0.0.0 sources) come through
+        # with direction="other" — packets still appear, just without
+        # the directional pill.
+        run: |
+          set -e
+          shopt -s nullglob
+          # Wipe existing JSON so removed/renamed cases don't linger.
+          # Re-creating identical content produces no git diff.
+          rm -f .pcap-data/site/src/data/pcap/*.json
+          mkdir -p .pcap-data/site/src/data/pcap
+
+          decoded=0
+          failed=0
+          captured_at="$(date -u +%FT%TZ)"
+          for pcap in /tmp/pcap-logs/*.pcap; do
+            name=$(basename "$pcap" .pcap)
+            cid=${name^^}
+            if python3 site/scripts/decode_pcap.py "$cid" pass "$pcap" \
+                 --tester-mac 02:00:00:00:00:01 \
+                 --tester-ip  192.168.0.10 \
+                 --dut-mac    02:00:00:00:00:02 \
+                 --dut-ip     192.168.0.1 \
+                 --captured-at "$captured_at" \
+                 --out ".pcap-data/site/src/data/pcap/${cid}.json"; then
+              decoded=$((decoded+1))
+            else
+              failed=$((failed+1))
+              echo "::warning::decode failed for $cid ($pcap)"
+            fi
+          done
+          echo "decoded=$decoded failed=$failed"
+
+      - name: Sanitize captures
+        run: python3 site/scripts/sanitize_pcap.py .pcap-data/site/src/data/pcap
+
+      - name: Commit + push to pcap-data
+        working-directory: .pcap-data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/src/data/pcap/
+          if git diff --staged --quiet; then
+            echo "no pcap changes — skipping commit"
+            exit 0
+          fi
+          suffix=""
+          if [ -n "${{ github.event.inputs.message }}" ]; then
+            suffix=" — ${{ github.event.inputs.message }}"
+          fi
+          git commit -m "chore(pcap): Refresh captures from run ${{ github.run_id }}${suffix}"
+          git push origin pcap-data
+
+      - name: Trigger site rebuild
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run site.yml --ref main
