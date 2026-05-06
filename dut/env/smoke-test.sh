@@ -2083,6 +2083,16 @@ run_case() {
     # the override here cleanly shadows TC8_DUT_EXPECT.
     declare -A CASE_EXPECT_OVERRIDES=(
         [SOMEIPSRV_BASIC_03]="eventgroup_id=0x0002"
+        # §5.1.5.1.28 FORMAT_28 round-trip eventgroup_id check: the
+        # trait subscribes to eg 0x0002 (Ack path); SCXML cond checks
+        # captured.eventgroup_id == expected.eventgroup_id, so the
+        # --expect must match the trait's subscribe target.
+        # Sister cases FORMAT_19..27 don't read expected.eventgroup_id
+        # (they assert Type/Length/IndexFirst/Service/Instance/Major/
+        # TTL/Reserved against the configured identity, which is unchanged)
+        # so they need no per-case override even though their stimulus
+        # also subscribes to 0x0002 for the Ack path.
+        [SOMEIPSRV_FORMAT_28]="eventgroup_id=0x0002"
         # §5.1.5.3 SD_MESSAGE_09 — same eventgroup target as BASIC_03;
         # the verdict differs (Notification UDP src_port vs OfferService
         # Endpoint Option port) but the stimulus + Subscribe target are
