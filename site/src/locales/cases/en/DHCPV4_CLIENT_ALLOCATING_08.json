@@ -1,0 +1,12 @@
+{
+  "description": "Verify that after DHCPDECLINE the client waits at least 10 s before restarting configuration — DECLINE→DISCOVER #2 interval > (10 - ParamToleranceTime) s (RFC 2131 §3.1 SHOULD)",
+  "approach": "[Objective]\nA tight loop of DECLINE → DISCOVER would hammer the server when many addresses are bad. RFC 2131 §3.1 says the client SHOULD pause at least 10 s before retrying.\n\n[Scenario — chronological]\n1. DORA → BOUND → ARP Probe → conflict → DECLINE.\n2. DUT → wire: DHCPDISCOVER #2 only after the wait.\n\n[Pass condition]\n(t_DISCOVER#2 - t_DECLINE) > (10 s - ParamToleranceTime).\n\n[Fail condition]\nAny chain step missing OR Fail_no_second_discover_in_window — DISCOVER #2 either absent OR arrived before the minimum wait elapsed.",
+  "verdicts": {
+    "Pass": "DUT paused ≥ 10 s after DECLINE before DISCOVER #2 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_arp_probe": "No DUT ARP Probe after BOUND",
+    "Fail_no_decline": "No DUT DHCPDECLINE after ARP conflict",
+    "Fail_no_second_discover_in_window": "No DUT DHCPDISCOVER within the DECLINE-to-DISCOVER window"
+  }
+}

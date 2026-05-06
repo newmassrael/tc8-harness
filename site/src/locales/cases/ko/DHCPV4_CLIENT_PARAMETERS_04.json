@@ -1,0 +1,10 @@
+{
+  "description": "DHCPREQUEST가 DISCOVER의 Option 55(Parameter Request List) 바이트 시퀀스를 그대로 반복하는지 검증 (RFC 2131 §4.3.6 MUST)",
+  "approach": "[검증 목적]\nOption 55는 클라이언트가 서버에게 받고 싶은 configuration 옵션을 나열한다. RFC 2131 §4.3.6은 REQUEST가 DISCOVER와 같은 리스트를 반복하도록 요구한다(MUST) — 아니면 서버가 클라이언트가 여전히 필요한 옵션을 빠뜨릴 수 있다.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: Option 55 = [바이트 시퀀스 P]인 DHCPDISCOVER → 하네스가 P snapshot\n2. 테스터 → DUT: DHCPOFFER\n3. DUT → 와이어: DHCPREQUEST\n   • Option 55 == P (verbatim)   ← 핵심 확인 지점\n\n[통과 조건]\nREQUEST.Option55 바이트 시퀀스 == snapshot된 DISCOVER.Option55.\n\n[실패 조건]\n• Fail_no_discover / Fail_no_request — DORA 누락\n• Fail_request_param_request_mismatch — REQUEST.Option55가 DISCOVER.Option55와 다름",
+  "verdicts": {
+    "Pass": "REQUEST.Option55 == DISCOVER.Option55 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_request_param_request_mismatch": "DUT DHCPREQUEST Option 55가 DISCOVER와 불일치"
+  }
+}

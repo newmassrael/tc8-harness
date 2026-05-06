@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST advertises the offered IP via Option 50 (Requested IP Address) matching the OFFER yiaddr (RFC 2131 §4.3.2 MUST)",
+  "approach": "[Objective]\nThe REQUEST tells the chosen server 'I'd like the address you offered me'. Option 50 carries that address; it must equal the yiaddr the OFFER advertised. RFC 2131 §4.3.2 mandates the match.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER.\n2. Tester → DUT: DHCPOFFER (yiaddr = Y) → harness snapshots Y\n3. DUT → wire: DHCPREQUEST\n   • Option 50 == Y   ← key check\n\n[Pass condition]\nREQUEST.Option50 equals the snapshotted OFFER.yiaddr.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_requested_ip_mismatch — REQUEST.Option50 differs from OFFER.yiaddr",
+  "verdicts": {
+    "Pass": "REQUEST Option 50 == OFFER yiaddr — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_requested_ip_mismatch": "DUT DHCPREQUEST Option 50 mismatch with OFFER yiaddr"
+  }
+}

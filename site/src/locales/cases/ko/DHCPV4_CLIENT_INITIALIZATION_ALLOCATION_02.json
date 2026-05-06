@@ -1,0 +1,9 @@
+{
+  "description": "INIT 상태의 DHCPDISCOVER 'ciaddr' 필드가 0인지 검증 — 클라이언트가 아직 바인딩된 주소를 가지지 않음 (RFC 2131 §4.4.1 MUST)",
+  "approach": "[검증 목적]\nINIT에서 클라이언트는 아직 IP가 없다; ciaddr를 0이 아닌 값으로 설정하면 서버가 클라이언트에게 갱신할 기존 바인딩이 있다고 오해한다. RFC 2131 §4.4.1은 이 상태에서 ciaddr=0을 강제한다(MUST).\n\n[시나리오 — 시간순]\n1. DUT이 INIT으로 시작.\n2. DUT → 와이어: DHCPDISCOVER\n   • ciaddr == 0   ← 핵심 확인 지점\n\n[통과 조건]\nDISCOVER의 BOOTP ciaddr 필드가 모두 0.\n\n[실패 조건]\n• Fail_ciaddr_nonzero — DISCOVER에 non-zero ciaddr (이전 임대 상태 누출)\n• Fail_no_discover — listen 윈도우 내 DHCPDISCOVER 미발신",
+  "verdicts": {
+    "Pass": "DISCOVER ciaddr = 0 — 정상",
+    "Fail_ciaddr_nonzero": "DUT DHCPDISCOVER ciaddr가 0이 아님",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

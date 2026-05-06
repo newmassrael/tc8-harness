@@ -1,0 +1,12 @@
+{
+  "description": "Verify that on lease expiration, DUT immediately stops network processing — no further DHCPREQUEST with the released ciaddr (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nWhen the lease expires without renewal, the client no longer owns its IP. Continuing to use ciaddr would conflict with whoever the server reassigns it to. RFC 2131 §4.4.5 says the client must stop processing and return to INIT.\n\n[Scenario — chronological]\n1. DORA → BOUND with lease = L.\n2. T1 → RENEWING REQUEST (no ACK).\n3. Lease ends.\n4. DUT must NOT emit further DHCPREQUEST carrying the released ciaddr; instead it should restart with DISCOVER.   ← key check\n\n[Pass condition]\nNo DHCPREQUEST with the released ciaddr after lease expiry; a fresh DISCOVER eventually appears.\n\n[Fail condition]\n• Fail_no_lease_release — DUT did not start a fresh DISCOVER cycle\n• Fail_dut_kept_released_ip — DUT continued to use the released ciaddr",
+  "verdicts": {
+    "Pass": "DUT stopped using released ciaddr — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_no_lease_release": "No DUT lease-release DISCOVER after lease end",
+    "Fail_dut_kept_released_ip": "DUT kept released IP after lease expiry"
+  }
+}

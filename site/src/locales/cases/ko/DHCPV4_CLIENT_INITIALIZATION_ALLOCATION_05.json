@@ -1,0 +1,9 @@
+{
+  "description": "INIT 단계에 도착한 단독 DHCPACK(선행 OFFER/REQUEST 없음)을 DUT이 silent discard하는지 검증 — DUT은 자신을 BOUND로 간주하거나 후속 DHCPREQUEST를 발신해서는 안 됨 (RFC 2131 §4.4.1 MUST)",
+  "approach": "[검증 목적]\nDHCPACK은 DISCOVER → OFFER → REQUEST 교환의 끝에서만 의미를 가진다. INIT에서 단독으로 도착한 ACK(아직 DISCOVER가 없거나 REQUEST가 떠 있지 않은)는 잔여물이거나 공격자의 spoof다. DUT은 무시해야 하며 — 성공한 바인딩으로 취급하면 무관한 서버가 임의 IP를 클라이언트에게 강요할 수 있다.\n\n[시나리오 — 시간순]\n1. DUT이 INIT으로 시작 (DISCOVER가 없거나 OFFER 매칭이 없음).\n2. 테스터 → DUT: 단독 DHCPACK\n\n3. 관찰:\n   • DUT은 응답으로 DHCPREQUEST를 발신하지 않아야 함   ← 핵심 확인 지점\n\n[통과 조건]\nlisten 윈도우 내 단독 ACK 후 DHCPREQUEST 미발신.\n\n[실패 조건]\n• Fail_unexpected_request — DUT이 단독 ACK 후 REQUEST 발신 (REQUESTING/BOUND으로 잘못 진입)\n• Fail_no_discover — listen 윈도우 내 DHCPDISCOVER 미발신",
+  "verdicts": {
+    "Pass": "DUT이 INIT의 단독 ACK silent discard — 정상",
+    "Fail_unexpected_request": "DUT이 단독 ACK 후 DHCPREQUEST 발신",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

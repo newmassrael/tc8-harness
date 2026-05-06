@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER carries IPv4 destination = 255.255.255.255 (limited broadcast) (RFC 2131 §3.1 MUST)",
+  "approach": "[Objective]\nIn INIT, the client doesn't know any specific server. RFC 2131 §3.1 requires DISCOVER to be sent to limited broadcast 255.255.255.255 so every DHCP server on the segment hears it.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n   • IPv4 dst_ip == 255.255.255.255   ← key check\n\n[Pass condition]\nDISCOVER's IPv4 dst_ip is the all-ones limited broadcast.\n\n[Fail condition]\n• Fail_dst_ip_not_broadcast — DISCOVER dst_ip is not 255.255.255.255\n• Fail_timeout — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DISCOVER dst_ip = 255.255.255.255 — normal",
+    "Fail_dst_ip_not_broadcast": "DUT DHCPDISCOVER dst_ip not broadcast",
+    "Fail_timeout": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

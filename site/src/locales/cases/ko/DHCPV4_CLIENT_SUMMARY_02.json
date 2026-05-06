@@ -1,0 +1,10 @@
+{
+  "description": "같은 인터페이스의 두 경쟁 DHCP 서버 환경에서, DUT이 SERVER-1의 mismatched-xid OFFER를 silent discard하고 SERVER-2를 선택 — 결과 REQUEST가 Option 54 = SERVER-2의 식별자를 운반하는지 검증 (RFC 2131 §3.1)",
+  "approach": "[검증 목적]\nTC8 §4.7.3 Topology 3는 단일 DUT 인터페이스에 두 서버 에뮬을 배치한다(multi-iface 아님 — 그건 USAGE_01). 두 서버 에뮬이 Listening_for_request 진입 시 동시 동작; SERVER-1은 xid_offset = +1(불일치, INIT_ALLOC_04 논리에 따라 silent drop)인 OFFER 발신, SERVER-2는 xid_offset = 0 + 별도 server_id(kSecondServerIdBe)인 OFFER 발신. DUT은 SERVER-2를 선택하고 후속 REQUEST의 Option 54가 SERVER-2의 id를 echo한다.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER.\n2. SERVER-1 → DUT: DHCPOFFER (xid 불일치).\n3. SERVER-2 → DUT: DHCPOFFER (xid 일치, server_id = S2).\n4. DUT → 와이어: DHCPREQUEST\n   • Option 54 == S2   ← 핵심 확인 지점\n\n[통과 조건]\nREQUEST.Option54 == SERVER-2의 식별자.\n\n[실패 조건]\n• Fail_no_discover / Fail_no_request — DORA 누락\n• Fail_request_selected_mismatched_server — DUT이 SERVER-1(mismatched-xid OFFER)을 대신 선택",
+  "verdicts": {
+    "Pass": "DUT이 SERVER-2 선택 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_request_selected_mismatched_server": "DUT DHCPREQUEST가 두 번째 서버를 선택하지 않음"
+  }
+}

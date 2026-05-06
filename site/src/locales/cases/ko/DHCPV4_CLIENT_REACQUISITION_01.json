@@ -1,0 +1,11 @@
+{
+  "description": "RENEWING 상태의 DHCPREQUEST가 Option 54(server identifier)의 IP로 unicast되는지 검증 (RFC 2131 §4.4.5)",
+  "approach": "[검증 목적]\nRENEWING에서는 바인딩이 여전히 유효하다; 클라이언트는 이미 알고 있는 서버에서 갱신만 받으면 된다. RFC 2131 §4.4.5는 renewal REQUEST를 server-id로 unicast하도록 한다(broadcast 아님 — broadcast는 REBINDING).\n\n[시나리오 — 시간순]\n1. DORA → Option 54 = SERVER_ID로 BOUND.\n2. T1 발동, DUT이 RENEWING 진입 + renew DHCPREQUEST 발신.\n   • IPv4 dst_ip == SERVER_ID   ← 핵심 확인 지점\n\n[통과 조건]\nRENEWING REQUEST의 IPv4 dst_ip == snapshot된 Option 54.\n\n[실패 조건]\n임의 사슬 단계 누락 또는 Fail_renewing_request_dst_not_server_id — REQUEST가 다른 곳으로 감.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST가 server-id로 unicast — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_first_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_renewing_request": "listen 윈도우 내 DUT renewing DHCPREQUEST 없음",
+    "Fail_renewing_request_dst_not_server_id": "RENEWING REQUEST dst_ip가 server identifier가 아님"
+  }
+}

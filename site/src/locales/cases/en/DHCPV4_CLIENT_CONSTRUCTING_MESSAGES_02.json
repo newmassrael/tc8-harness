@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DHCP clients use the IP address provided in the 'server identifier' option (Option 54) for any unicast requests (RFC 2131 §4.1)",
+  "approach": "[Objective]\nThe RENEWING-state REQUEST is unicast directly to the binding's server. RFC 2131 §4.1 says that destination IP must be Option 54 from the prior ACK (the 'server identifier'); pinning to anyone else lets a different server steal renewals.\n\n[Scenario — chronological]\n1. DORA → BOUND with Option 54 = SERVER_ID.\n2. DUT enters RENEWING and emits a renew DHCPREQUEST.\n   • IPv4 dst_ip == SERVER_ID   ← key check\n\n[Pass condition]\nRENEWING REQUEST's IPv4 dst_ip equals the snapshotted Option 54 value.\n\n[Fail condition]\nAny chain step missing OR Fail_renewing_request_dst_not_server_id — destination diverged from server-id.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST unicast to Option 54 server-id — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_renewing_request_dst_not_server_id": "RENEWING REQUEST dst_ip is not the server identifier"
+  }
+}

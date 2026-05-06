@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT with multiple network interfaces uses DHCP through each interface independently — DISCOVER#1 (DIface-0) and DISCOVER#2 (DIface-1) carry distinct chaddr values (RFC 2131 §3.6 MUST)",
+  "approach": "[Objective]\nRFC 2131 §3.6 says each network interface gets its own independent DHCP client. Sharing chaddr across interfaces would conflate two separate bindings on the server. This is the only multi-iface §4.7 case (Topology 2: dual-veth-pair); the harness uses SECOND_VETH = 1 + per-iface tc8-dut registry.\n\n[Scenario — chronological]\n1. Tester brings DUT up on two interfaces (DIface-0 and DIface-1).\n2. Each iface independently emits DHCPDISCOVER.\n3. Observation:\n   • DISCOVER on DIface-0 carries chaddr_0   ← key check 1\n   • DISCOVER on DIface-1 carries chaddr_1\n   • chaddr_0 ≠ chaddr_1   ← key check 2\n\n[Pass condition]\nBoth DISCOVERs observed AND their chaddr values differ.\n\n[Fail condition]\n• Fail_no_d0_discover / Fail_no_d1_discover — DISCOVER missing on the corresponding iface\n• Fail_chaddr_collision — DIface-0 and DIface-1 share the same chaddr",
+  "verdicts": {
+    "Pass": "Each DUT iface ran DHCP independently with distinct chaddr — normal",
+    "Fail_no_d0_discover": "No DUT DHCPDISCOVER on DIface-0",
+    "Fail_no_d1_discover": "No DUT DHCPDISCOVER on DIface-1",
+    "Fail_chaddr_collision": "DIface-0 and DIface-1 share the same chaddr"
+  }
+}

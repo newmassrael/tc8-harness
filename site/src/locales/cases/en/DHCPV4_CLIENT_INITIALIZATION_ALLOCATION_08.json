@@ -1,0 +1,11 @@
+{
+  "description": "Verify that post-BOUND DUT emits an ARP Probe (sender_ip=0, target_ip=offered yiaddr) to verify the offered address is not in use (RFC 2131 §4.4.1)",
+  "approach": "[Objective]\nRFC 2131 §4.4.1 says the client SHOULD probe the assigned address with ARP before using it, in case another host is silently squatting. The Probe shape mirrors RFC 5227: sender_ip = 0, target_ip = offered yiaddr.\n\n[Scenario — chronological]\n1. DORA: DISCOVER → OFFER → REQUEST → ACK → BOUND.\n2. DUT → wire: ARP Probe\n   • sender_proto_ip == 0\n   • target_proto_ip == offered yiaddr   ← key check\n\n[Pass condition]\nARP Probe with the expected sender/target IP shape lands within the deadline.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA broken before BOUND\n• Fail_arp_probe_shape_mismatch — Probe has wrong sender/target fields\n• Fail_no_arp_probe — DUT did not emit any ARP Probe after BOUND",
+  "verdicts": {
+    "Pass": "Post-BOUND ARP Probe has correct shape — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_arp_probe_shape_mismatch": "DUT ARP Probe field mismatch",
+    "Fail_no_arp_probe": "No DUT ARP Probe after BOUND"
+  }
+}

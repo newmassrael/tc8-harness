@@ -1,0 +1,12 @@
+{
+  "description": "Verify that on DHCPACK timeout (T2) the client moves to REBINDING and broadcasts DHCPREQUEST to 0xFFFFFFFF (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nIf the original server doesn't ACK by T2 (= 0.875 × lease), it might be down; the client falls back to broadcast so any server with the binding can respond. RFC 2131 §4.4.5 makes the broadcast destination the rule for REBINDING.\n\n[Scenario — chronological]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew DHCPREQUEST.\n3. Tester silent (no ACK within T2-T1).\n4. T2 → REBINDING → DHCPREQUEST\n   • IPv4 dst_ip == 255.255.255.255   ← key check\n\n[Pass condition]\nREBINDING REQUEST's IPv4 dst_ip is the all-ones broadcast.\n\n[Fail condition]\nAny chain step missing OR Fail_rebinding_request_dst_not_broadcast — REBINDING REQUEST not broadcast.",
+  "verdicts": {
+    "Pass": "REBINDING REQUEST broadcast at T2 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST after ACK",
+    "Fail_no_rebinding_request": "No DUT rebinding DHCPREQUEST within listen window",
+    "Fail_rebinding_request_dst_not_broadcast": "DUT rebinding REQUEST dst_ip is not broadcast"
+  }
+}

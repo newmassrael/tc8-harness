@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DHCPREQUEST in RENEWING fills 'ciaddr' with the client's IP address (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nIn RENEWING the client is already bound; ciaddr advertises the bound IP so the server can match it to the existing lease. Setting it to 0 (REQUESTING-style) would make the server treat the message as a fresh REQUEST and likely NAK.\n\n[Scenario — chronological]\n1. DORA → BOUND with yiaddr = Y.\n2. T1 → RENEWING → renew DHCPREQUEST\n   • ciaddr == Y   ← key check\n\n[Pass condition]\nRENEWING REQUEST.ciaddr equals the bound client IP.\n\n[Fail condition]\nAny chain step missing OR Fail_renewing_request_ciaddr_mismatch — ciaddr is not the bound IP.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST.ciaddr = client IP — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_renewing_request_ciaddr_mismatch": "DUT renewing REQUEST ciaddr mismatch"
+  }
+}

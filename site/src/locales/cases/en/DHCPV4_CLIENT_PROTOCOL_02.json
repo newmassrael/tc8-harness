@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER carries Option 53 (DHCP message type) — every DHCP message must include this option (RFC 2131 §3 MUST)",
+  "approach": "[Objective]\nWithout Option 53, a receiver cannot tell whether a BOOTP-shaped frame is a DISCOVER, OFFER, REQUEST, ACK, NAK, RELEASE, INFORM, or DECLINE. RFC 2131 §3 makes Option 53 mandatory in every DHCP message.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n   • options blob contains Option 53 with value=1 (DISCOVER)   ← key check\n\n[Pass condition]\nDISCOVER's options blob contains Option 53.\n\n[Fail condition]\n• Fail_message_type_option_absent — Option 53 missing from DISCOVER\n• Fail_timeout — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DISCOVER carries Option 53 — normal",
+    "Fail_message_type_option_absent": "DUT DHCPDISCOVER missing message-type option",
+    "Fail_timeout": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

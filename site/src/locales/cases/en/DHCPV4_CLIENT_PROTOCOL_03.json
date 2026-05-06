@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST emitted on transition to REQUESTING carries Option 53 (Message Type) (RFC 2131 §3 MUST)",
+  "approach": "[Objective]\nSame mandatory Option 53 rule as PROTOCOL_02, but applied to REQUEST. Option 53 value=3 marks it as a REQUEST. Every DHCP message — DISCOVER, REQUEST, RELEASE, etc. — needs it.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER.\n2. Tester → DUT: DHCPOFFER.\n3. DUT → wire: DHCPREQUEST\n   • options blob contains Option 53 with value=3 (REQUEST)   ← key check\n\n[Pass condition]\nREQUEST's options blob contains Option 53.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_missing_message_type — Option 53 missing from REQUEST",
+  "verdicts": {
+    "Pass": "REQUEST carries Option 53 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_missing_message_type": "DUT DHCPREQUEST missing message-type option"
+  }
+}

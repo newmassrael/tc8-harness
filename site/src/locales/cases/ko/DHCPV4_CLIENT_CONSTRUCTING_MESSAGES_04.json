@@ -1,0 +1,10 @@
+{
+  "description": "REQUESTING 상태의 DHCPREQUEST IPv4 source 주소가 0인지 검증 (RFC 2131 §4.1 MUST)",
+  "approach": "[검증 목적]\nREQUESTING에서 클라이언트는 offered yiaddr의 소유자로 아직 확정되지 않았다 — OFFER만 도착한 상태다. 따라서 와이어상 IPv4 src_ip는 ACK이 도착하고 BOUND로 들어가기 전까지 0.0.0.0이어야 한다.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER.\n2. 테스터 → DUT: DHCPOFFER.\n3. DUT → 와이어: DHCPREQUEST\n   • IPv4 src_ip == 0.0.0.0   ← 핵심 확인 지점\n\n[통과 조건]\nREQUEST의 IPv4 src_ip = 0.0.0.0.\n\n[실패 조건]\n• Fail_no_discover / Fail_no_request — DORA 누락\n• Fail_request_src_ip_not_zero — REQUEST src_ip가 0이 아님",
+  "verdicts": {
+    "Pass": "REQUEST src_ip = 0.0.0.0 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_request_src_ip_not_zero": "DUT DHCPREQUEST source IP가 0이 아님"
+  }
+}

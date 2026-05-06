@@ -1,0 +1,10 @@
+{
+  "description": "DHCPREQUEST가 Option 50(Requested IP Address)으로 OFFER yiaddr와 일치하는 offered IP를 광고하는지 검증 (RFC 2131 §4.3.2 MUST)",
+  "approach": "[검증 목적]\nREQUEST는 선택된 서버에게 '네가 제안한 주소를 받고 싶다'고 전한다. Option 50이 그 주소를 운반하며, OFFER가 광고한 yiaddr와 같아야 한다. RFC 2131 §4.3.2가 이 일치를 강제한다(MUST).\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER.\n2. 테스터 → DUT: DHCPOFFER (yiaddr = Y) → 하네스가 Y snapshot\n3. DUT → 와이어: DHCPREQUEST\n   • Option 50 == Y   ← 핵심 확인 지점\n\n[통과 조건]\nREQUEST.Option50 == snapshot된 OFFER.yiaddr.\n\n[실패 조건]\n• Fail_no_discover / Fail_no_request — DORA 누락\n• Fail_request_requested_ip_mismatch — REQUEST.Option50가 OFFER.yiaddr와 다름",
+  "verdicts": {
+    "Pass": "REQUEST Option 50 == OFFER yiaddr — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_request_requested_ip_mismatch": "DUT DHCPREQUEST Option 50가 OFFER yiaddr와 불일치"
+  }
+}

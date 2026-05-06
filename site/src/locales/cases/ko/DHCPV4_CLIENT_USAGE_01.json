@@ -1,0 +1,10 @@
+{
+  "description": "여러 네트워크 인터페이스를 가진 DUT이 각 인터페이스에서 독립적으로 DHCP를 사용하는지 검증 — DISCOVER#1(DIface-0)와 DISCOVER#2(DIface-1)이 서로 다른 chaddr를 운반 (RFC 2131 §3.6 MUST)",
+  "approach": "[검증 목적]\nRFC 2131 §3.6은 각 네트워크 인터페이스가 독립적인 DHCP 클라이언트를 가지도록 한다. 인터페이스 간 chaddr 공유는 서버 측에서 별개의 두 바인딩을 혼동시킨다. §4.7의 유일한 multi-iface 케이스(Topology 2: dual-veth-pair); 하네스는 SECOND_VETH = 1 + per-iface tc8-dut registry 사용.\n\n[시나리오 — 시간순]\n1. 테스터가 DUT을 두 인터페이스(DIface-0, DIface-1)에서 올림.\n2. 각 iface가 독립적으로 DHCPDISCOVER 발신.\n3. 관찰:\n   • DIface-0의 DISCOVER가 chaddr_0 운반   ← 핵심 확인 지점 1\n   • DIface-1의 DISCOVER가 chaddr_1 운반\n   • chaddr_0 ≠ chaddr_1   ← 핵심 확인 지점 2\n\n[통과 조건]\n두 DISCOVER 모두 관찰 + chaddr 값이 다름.\n\n[실패 조건]\n• Fail_no_d0_discover / Fail_no_d1_discover — 해당 iface의 DISCOVER 누락\n• Fail_chaddr_collision — DIface-0과 DIface-1이 같은 chaddr 공유",
+  "verdicts": {
+    "Pass": "각 DUT iface가 서로 다른 chaddr로 독립 DHCP 수행 — 정상",
+    "Fail_no_d0_discover": "DIface-0에 DUT DHCPDISCOVER 없음",
+    "Fail_no_d1_discover": "DIface-1에 DUT DHCPDISCOVER 없음",
+    "Fail_chaddr_collision": "DIface-0과 DIface-1이 같은 chaddr 공유"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST 'secs' field equals the originating DHCPDISCOVER's 'secs' value (RFC 2131 §4.3.2 MUST)",
+  "approach": "[Objective]\nThe 'secs' field reports how long the client has been trying to acquire / renew. The REQUEST is part of the same attempt as the DISCOVER, so RFC 2131 §4.3.2 says secs must carry the same value — otherwise relay agents and servers can't reason about retry duration consistently.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER (secs = N) → harness snapshots N\n2. Tester → DUT: DHCPOFFER\n3. DUT → wire: DHCPREQUEST\n   • secs == N   ← key check\n\n[Pass condition]\nREQUEST.secs equals the snapshotted DISCOVER.secs.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_secs_mismatch — REQUEST.secs differs from DISCOVER.secs",
+  "verdicts": {
+    "Pass": "REQUEST.secs == DISCOVER.secs — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_secs_mismatch": "DUT DHCPREQUEST secs mismatch with DISCOVER"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DHCPREQUEST in RENEWING does NOT carry Option 50 (Requested IP Address) (RFC 2131 §4.3.6 table 5)",
+  "approach": "[Objective]\nIn RENEWING the address being renewed is already in ciaddr (REQUEST_08 covers that), so Option 50 would duplicate it. Table 5 in RFC 2131 §4.3.6 lists Option 50 as MUST NOT in renewing/rebinding.\n\n[Scenario — chronological]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew DHCPREQUEST.\n   • options blob does NOT contain Option 50   ← key check\n\n[Pass condition]\nNo Option 50 inside the RENEWING REQUEST options blob.\n\n[Fail condition]\nAny chain step missing OR Fail_renewing_request_carries_requested_ip — REQUEST illegally carries Option 50.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST has no Option 50 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_renewing_request_carries_requested_ip": "DUT renewing REQUEST illegally carries Option 50"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST destination IP = 255.255.255.255 limited broadcast (matches DHCPDISCOVER) (RFC 2131 §3.1 MUST)",
+  "approach": "[Objective]\nIn the SELECTING transition, REQUEST is broadcast to the same limited address as DISCOVER (255.255.255.255). This lets every server see which one was picked (via Option 54). RFC 2131 §3.1 makes the broadcast destination mandatory in this state.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n2. Tester → DUT: DHCPOFFER\n3. DUT → wire: DHCPREQUEST\n   • IPv4 dst_ip == 255.255.255.255   ← key check\n\n[Pass condition]\nREQUEST's IPv4 dst_ip is the all-ones limited broadcast.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_dst_ip_not_broadcast — REQUEST dst_ip is not 255.255.255.255",
+  "verdicts": {
+    "Pass": "REQUEST dst_ip = 255.255.255.255 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_dst_ip_not_broadcast": "DUT DHCPREQUEST dst_ip not broadcast"
+  }
+}

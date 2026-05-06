@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER 'flags' field has reserved bits (1..15) set to 0 (RFC 2131 §2 Protocol Summary MUST)",
+  "approach": "[Objective]\nThe DHCP `flags` field is 16 bits but RFC 2131 §2 only defines bit 0 (the Broadcast flag). Bits 1..15 are reserved and must be sent as 0; future extensions could redefine them, so today's clients must not stamp arbitrary values.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n   • flags & 0x7FFF == 0 (only the broadcast bit may be set)   ← key check\n\n[Pass condition]\nDISCOVER's reserved flag bits are all zero.\n\n[Fail condition]\n• Fail_reserved_flags_nonzero — at least one of bits 1..15 is set\n• Fail_timeout — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DISCOVER reserved flag bits are zero — normal",
+    "Fail_reserved_flags_nonzero": "DUT DHCPDISCOVER reserved flags non-zero",
+    "Fail_timeout": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

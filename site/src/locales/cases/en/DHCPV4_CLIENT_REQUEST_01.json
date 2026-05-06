@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST 'ciaddr' field is 0 in REQUESTING — the requested address is carried in Option 50, NOT the BOOTP fixed header (RFC 2131 §4.3.2 MUST)",
+  "approach": "[Objective]\nIn REQUESTING the client has only an OFFER, not yet an ACK; it does not yet own yiaddr. ciaddr therefore stays 0 and the desired IP goes in Option 50 (Requested IP Address). RFC 2131 §4.3.2 makes this split mandatory.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER.\n2. Tester → DUT: DHCPOFFER.\n3. DUT → wire: DHCPREQUEST\n   • ciaddr == 0   ← key check\n\n[Pass condition]\nREQUEST.ciaddr is all-zero.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_ciaddr_not_zero — REQUEST carries non-zero ciaddr",
+  "verdicts": {
+    "Pass": "REQUESTING REQUEST ciaddr = 0 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_ciaddr_not_zero": "DUT DHCPREQUEST ciaddr is not zero"
+  }
+}

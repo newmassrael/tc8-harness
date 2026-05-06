@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the DUT-side DHCPv4 client listens on UDP port 68 and runs the full DISCOVER → OFFER → REQUEST lifecycle (RFC 2131 §4.1 MUST)",
+  "approach": "[Objective]\nThe positive baseline: with a normal server emul, DUT must complete the DORA exchange — emit DISCOVER, accept OFFER (delivered to UDP:68), emit REQUEST. Anchors all the negative-shape cases.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER.\n2. Tester → DUT: DHCPOFFER (delivered to UDP:68).\n3. DUT → wire: DHCPREQUEST.\n\n[Pass condition]\nDISCOVER + REQUEST observed in the listen window.\n\n[Fail condition]\n• Fail_no_discover — DUT did not emit DHCPDISCOVER\n• Fail_no_request — DUT did not emit DHCPREQUEST after the OFFER",
+  "verdicts": {
+    "Pass": "DUT completed DISCOVER → OFFER → REQUEST — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER"
+  }
+}

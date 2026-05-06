@@ -1,0 +1,12 @@
+{
+  "description": "Verify that ARP-detected address-in-use → DHCPDECLINE + restart configuration (DUT emits DISCOVER #2 after the DECLINE) (RFC 2131 §3.1 MUST)",
+  "approach": "[Objective]\nFull recovery loop: when the post-BOUND ARP Probe collides, DUT must DECLINE the OFFER and then restart from INIT — i.e. emit a fresh DISCOVER. INIT_ALLOC_09 covers DECLINE; this case extends it to assert the restart actually happens.\n\n[Scenario — chronological]\n1. DORA → BOUND → DUT-emitted ARP Probe.\n2. Tester → DUT: ARP Reply causing the conflict.\n3. DUT → wire: DHCPDECLINE.\n4. DUT → wire: DHCPDISCOVER #2 (restart of configuration)   ← key check\n\n[Pass condition]\nFull chain DISCOVER#1 → REQUEST → ARP_Probe → DECLINE → DISCOVER#2 observed.\n\n[Fail condition]\nAny chain step missing → corresponding Fail_no_* verdict.",
+  "verdicts": {
+    "Pass": "DUT DECLINE + restart DISCOVER #2 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_arp_probe": "No DUT ARP Probe after BOUND",
+    "Fail_no_decline": "No DUT DHCPDECLINE after ARP conflict",
+    "Fail_no_second_discover": "No DUT DHCPDISCOVER after DECLINE"
+  }
+}

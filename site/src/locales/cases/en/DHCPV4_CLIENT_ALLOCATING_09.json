@@ -1,0 +1,11 @@
+{
+  "description": "Verify that a DHCPNAK received in RENEWING restarts the configuration process (RFC 2131 §3.1)",
+  "approach": "[Objective]\nA NAK in RENEWING means the server rejects the renewal — the binding is gone. The client must abandon ciaddr and return to INIT, eventually emitting a fresh DISCOVER.\n\n[Scenario — chronological]\n1. DORA → BOUND → T1 → RENEWING → renew DHCPREQUEST.\n2. Tester → DUT: DHCPNAK.\n3. DUT returns to INIT and eventually emits DHCPDISCOVER #2   ← key check\n\n[Pass condition]\nFull chain DISCOVER#1 → REQUEST#1 → renewing REQUEST → DISCOVER#2 observed.\n\n[Fail condition]\nAny chain step missing → corresponding Fail_no_* verdict.",
+  "verdicts": {
+    "Pass": "DUT restarted with DISCOVER #2 after NAK in RENEWING — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_no_second_discover": "No DUT second DISCOVER after returning to INIT"
+  }
+}

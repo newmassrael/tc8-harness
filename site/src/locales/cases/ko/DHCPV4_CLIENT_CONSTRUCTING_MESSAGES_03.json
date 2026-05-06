@@ -1,0 +1,9 @@
+{
+  "description": "클라이언트가 주소를 획득하기 전 DHCPDISCOVER의 IPv4 source 주소가 0인지 검증 (RFC 2131 §4.1 MUST)",
+  "approach": "[검증 목적]\nINIT에서 클라이언트는 IP가 없으므로 와이어상 IPv4 src_ip는 0.0.0.0이어야 한다. 다른 값을 쓰면 소유하지 않은 IP를 광고하는 셈 — 라우터를 혼란시키고 duplicate-detection 로직을 깨뜨린다.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER\n   • IPv4 src_ip == 0.0.0.0   ← 핵심 확인 지점\n\n[통과 조건]\nDISCOVER의 IPv4 src_ip = 0.0.0.0.\n\n[실패 조건]\n• Fail_source_ip_not_zero — DISCOVER src_ip가 0이 아님 (이전 임대 상태 누출)\n• Fail_timeout — listen 윈도우 내 DHCPDISCOVER 미발신",
+  "verdicts": {
+    "Pass": "DISCOVER src_ip = 0.0.0.0 — 정상",
+    "Fail_source_ip_not_zero": "DUT DHCPDISCOVER source IP가 0이 아님",
+    "Fail_timeout": "listen 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

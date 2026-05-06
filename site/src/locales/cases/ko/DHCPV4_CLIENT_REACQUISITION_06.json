@@ -1,0 +1,13 @@
+{
+  "description": "REBINDING 재전송 간격이 (lease - T2) / 2 인지 검증 (RFC 2131 §4.4.5)",
+  "approach": "[검증 목적]\nRENEWING과 같은 절반 규칙을 T2 이후 남은 시간에 적용: (lease_end - T2) / 2 시점에 retx. 윈도우가 lease 만료까지 계속 줄어든다 — 만료되면 클라이언트는 포기하고 INIT으로 복귀.\n\n[시나리오 — 시간순]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew REQUEST.\n3. T2 → REBINDING → rebind REQUEST #1.\n4. 테스터 침묵.\n5. (lease - T2)/2 후: DUT → 와이어: rebind REQUEST #2   ← 핵심 확인 지점\n\n[통과 조건]\n(t_REB#2 - t_REB#1) ≈ (lease - T2) / 2.\n\n[실패 조건]\n임의 사슬 단계 누락 또는 Fail_rebinding_retx_interval_out_of_bounds — retx 간격이 허용 윈도우 밖.",
+  "verdicts": {
+    "Pass": "REBINDING retx 간격 = (lease-T2)/2 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_first_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_renewing_request": "listen 윈도우 내 DUT renewing DHCPREQUEST 없음",
+    "Fail_no_first_rebinding_request": "listen 윈도우 내 DUT 첫 rebinding DHCPREQUEST 없음",
+    "Fail_no_second_rebinding_request": "retx 윈도우 내 DUT 두 번째 rebinding DHCPREQUEST 없음",
+    "Fail_rebinding_retx_interval_out_of_bounds": "DUT rebinding retx 간격이 범위 밖"
+  }
+}

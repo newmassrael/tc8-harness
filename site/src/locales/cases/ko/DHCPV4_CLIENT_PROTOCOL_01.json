@@ -1,0 +1,9 @@
+{
+  "description": "DHCPDISCOVER의 'options' 필드 첫 4 옥텟에 RFC 1497 magic cookie 99,130,83,99가 있는지 검증 (RFC 2131 §3 MUST)",
+  "approach": "[검증 목적]\nmagic cookie {99, 130, 83, 99} (즉 0x63825363)는 수신자에게 '이 BOOTP 메시지가 DHCP options 포맷을 사용한다'고 알리는 표식이다. 없으면 나머지 options 블롭이 정의되지 않는다. RFC 2131 §3은 이 cookie를 강제한다(MUST).\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER\n   • options[0..3] == {0x63, 0x82, 0x53, 0x63}   ← 핵심 확인 지점\n\n[통과 조건]\noptions 필드 첫 4 바이트가 RFC 1497 magic cookie.\n\n[실패 조건]\n• Fail_magic_cookie_invalid — DISCOVER에 magic cookie 누락 또는 오류\n• Fail_timeout — listen 윈도우 내 DHCPDISCOVER 미발신",
+  "verdicts": {
+    "Pass": "DISCOVER에 RFC 1497 magic cookie 포함 — 정상",
+    "Fail_magic_cookie_invalid": "DUT DHCPDISCOVER에 magic cookie 누락",
+    "Fail_timeout": "listen 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

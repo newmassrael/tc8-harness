@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DHCPREQUEST in REBINDING fills 'ciaddr' with the client's IP address (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nLike REQUEST_08 for RENEWING: the rebound IP must travel in ciaddr so any responding server can match it against an existing lease record. Without it, no server can identify which binding to extend.\n\n[Scenario — chronological]\n1. DORA → BOUND with yiaddr = Y.\n2. T1 → RENEWING REQUEST.\n3. T2 → REBINDING → rebind DHCPREQUEST\n   • ciaddr == Y   ← key check\n\n[Pass condition]\nREBINDING REQUEST.ciaddr equals the bound client IP.\n\n[Fail condition]\nAny chain step missing OR Fail_rebinding_request_ciaddr_mismatch — ciaddr is not the bound IP.",
+  "verdicts": {
+    "Pass": "REBINDING REQUEST.ciaddr = client IP — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST after ACK",
+    "Fail_no_rebinding_request": "No DUT rebinding DHCPREQUEST within listen window",
+    "Fail_rebinding_request_ciaddr_mismatch": "DUT rebinding REQUEST ciaddr mismatch"
+  }
+}

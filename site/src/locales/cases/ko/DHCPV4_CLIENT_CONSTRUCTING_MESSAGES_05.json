@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 Option Overload value=2 (sname가 옵션을 보관)을 파싱하고 Option 3(Router)을 적용해, BOUND 후 unrouted IP로의 UDP 송신이 gateway를 L2 next-hop으로 사용하는지 검증 (RFC 2132 §9.3 + RFC 2131 §3.5/§4.1 MUST)",
+  "approach": "[검증 목적]\nOption Overload(Option 52)는 options 블롭이 가득 찼을 때 DHCP 서버가 추가 옵션을 BOOTP `sname`(value=2) 또는 `file`(value=1) 필드에 채워 넣을 수 있게 한다. parser는 그 보조 영역을 걸어가며 critical 옵션을 픽업해야 한다 — 여기서는 L3 gateway를 선택하는 Option 3(Router). parser가 이를 무시하면 BOUND 후 off-LAN destination 트래픽이 실패한다.\n\n[시나리오 — 시간순]\n1. DORA → BOUND, OFFER에 다음 포함:\n   • Option 52 (Option Overload) = 2 (sname가 옵션 보관)\n   • Option 3 (Router)이 `sname`에 임베드\n2. 테스터 → DUT: DUT이 unrouted IP로 UDP 발신하도록 유도 (gateway 경유 필수).\n3. DUT → 와이어: UDP\n   • Ethernet next-hop MAC == gateway MAC (Option 3 router로 해소)   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 UDP가 Option-3 router를 L2 next-hop으로 사용.\n\n[실패 조건]\n• Fail_no_discover / Fail_no_request — DORA 누락\n• Fail_no_dut_udp — router 옵션 경유 unused-routed IP UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT이 sname-overloaded Option 3 router 적용 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_dut_udp": "router 옵션 경유 unused-routed IP UDP 없음"
+  }
+}

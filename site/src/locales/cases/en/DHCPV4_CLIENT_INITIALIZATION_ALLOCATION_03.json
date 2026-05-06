@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER 'chaddr' field carries the DUT iface MAC — the hardware address identifying the client (RFC 2131 §4.4.1 MUST)",
+  "approach": "[Objective]\nThe server uses chaddr to look up / pin the client's MAC↔IP binding. RFC 2131 §4.4.1 requires chaddr to be the DUT's actual interface MAC; a zero or fake value would either fail lookup or pollute neighbour bookkeeping.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n   • chaddr == DUT iface MAC   ← key check\n\n[Pass condition]\nDISCOVER chaddr matches the DUT's outgoing iface MAC.\n\n[Fail condition]\n• Fail_chaddr_mismatch — DISCOVER chaddr is not the DUT iface MAC\n• Fail_no_discover — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DISCOVER chaddr = DUT iface MAC — normal",
+    "Fail_chaddr_mismatch": "DUT DHCPDISCOVER chaddr mismatch",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DHCPDISCOVER가 Option 53(DHCP message type)을 포함하는지 검증 — 모든 DHCP 메시지는 이 옵션을 포함해야 함 (RFC 2131 §3 MUST)",
+  "approach": "[검증 목적]\nOption 53 없이는 수신자가 BOOTP 모양 프레임이 DISCOVER인지 OFFER, REQUEST, ACK, NAK, RELEASE, INFORM, DECLINE인지 알 수 없다. RFC 2131 §3은 모든 DHCP 메시지에 Option 53을 강제한다(MUST).\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER\n   • options 블롭에 Option 53 (value=1, DISCOVER) 포함   ← 핵심 확인 지점\n\n[통과 조건]\nDISCOVER의 options 블롭에 Option 53 포함.\n\n[실패 조건]\n• Fail_message_type_option_absent — DISCOVER에 Option 53 누락\n• Fail_timeout — listen 윈도우 내 DHCPDISCOVER 미발신",
+  "verdicts": {
+    "Pass": "DISCOVER에 Option 53 포함 — 정상",
+    "Fail_message_type_option_absent": "DUT DHCPDISCOVER에 message-type option 누락",
+    "Fail_timeout": "listen 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

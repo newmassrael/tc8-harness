@@ -1,0 +1,9 @@
+{
+  "description": "DHCPDISCOVER의 'chaddr' 필드가 DUT 인터페이스 MAC인지 검증 — 클라이언트를 식별하는 하드웨어 주소 (RFC 2131 §4.4.1 MUST)",
+  "approach": "[검증 목적]\n서버는 chaddr로 클라이언트의 MAC↔IP 바인딩을 조회/고정한다. RFC 2131 §4.4.1은 chaddr를 DUT의 실제 인터페이스 MAC과 같도록 요구한다(MUST); 0이나 가짜 값은 조회를 실패시키거나 neighbour 부기를 오염시킨다.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER\n   • chaddr == DUT iface MAC   ← 핵심 확인 지점\n\n[통과 조건]\nDISCOVER의 chaddr가 DUT 송신 iface MAC과 일치.\n\n[실패 조건]\n• Fail_chaddr_mismatch — DISCOVER chaddr가 DUT iface MAC이 아님\n• Fail_no_discover — listen 윈도우 내 DHCPDISCOVER 미발신",
+  "verdicts": {
+    "Pass": "DISCOVER chaddr = DUT iface MAC — 정상",
+    "Fail_chaddr_mismatch": "DUT DHCPDISCOVER chaddr 불일치",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

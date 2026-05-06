@@ -1,0 +1,12 @@
+{
+  "description": "RENEWING 재전송 간격이 (T2 - T1) / 2 인지 검증 (RFC 2131 §4.4.5)",
+  "approach": "[검증 목적]\nrenewal REQUEST가 유실되면 클라이언트는 T2까지 남은 시간의 절반에 재전송한다. 매 retx를 절반으로 하면 스케줄이 예측 가능해지고, T2가 다가올수록 시도가 dense해진다.\n\n[시나리오 — 시간순]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew REQUEST #1.\n3. 테스터 침묵 (ACK 없음).\n4. (T2-T1)/2 후: DUT → 와이어: renew REQUEST #2   ← 핵심 확인 지점\n\n[통과 조건]\n(t_REQ#2 - t_REQ#1) ≈ (T2 - T1) / 2.\n\n[실패 조건]\n임의 사슬 단계 누락 또는 Fail_renewing_retx_interval_out_of_bounds — retx 간격이 허용 윈도우 밖.",
+  "verdicts": {
+    "Pass": "RENEWING retx 간격 = (T2-T1)/2 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_first_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_renewing_request": "listen 윈도우 내 DUT renewing DHCPREQUEST 없음",
+    "Fail_no_second_renewing_request": "retx 윈도우 내 DUT 두 번째 renewing DHCPREQUEST 없음",
+    "Fail_renewing_retx_interval_out_of_bounds": "DUT renewing retx 간격이 범위 밖"
+  }
+}

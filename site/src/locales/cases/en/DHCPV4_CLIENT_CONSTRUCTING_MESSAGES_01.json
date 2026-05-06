@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER's options blob terminates with the End Option (0xFF) at the last position (RFC 2131 §4.1 MUST)",
+  "approach": "[Objective]\nThe options blob is a TLV stream — the parser walks until 0xFF (End Option). Without that terminator, receivers walk past the buffer or treat trailing zeros as garbage options. RFC 2131 §4.1 makes the End Option mandatory.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n   • last byte of options blob == 0xFF   ← key check\n\n[Pass condition]\nDISCOVER's options blob ends with 0xFF.\n\n[Fail condition]\n• Fail_last_option_not_end — last byte is not 0xFF\n• Fail_timeout — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DISCOVER options blob ends with End Option — normal",
+    "Fail_last_option_not_end": "DUT DHCPDISCOVER last option is not End",
+    "Fail_timeout": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

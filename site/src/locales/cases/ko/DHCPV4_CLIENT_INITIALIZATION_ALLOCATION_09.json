@@ -1,0 +1,11 @@
+{
+  "description": "offered 주소에 대한 ARP 충돌이 DHCPDECLINE(msg_type=4, ciaddr=0, Option 50=declined yiaddr, Option 54=server_id) 발신을 유발하는지 검증 (RFC 2131 §4.4.1 / §4.4.4 MUST)",
+  "approach": "[검증 목적]\nBOUND 직후 ARP Probe가 실제 사용자와 충돌하면 offered 주소는 사용 불가다. 클라이언트는 DHCPDECLINE으로 서버에 알려야 한다 — 주소(Option 50)와 그 주소를 준 서버(Option 54)를 가리키며 — 서버가 그 주소를 bad로 마킹할 수 있도록.\n\n[시나리오 — 시간순]\n1. DORA: DISCOVER → OFFER → REQUEST → ACK → BOUND.\n2. DUT → 와이어: yiaddr 대상 ARP Probe.\n3. 테스터 → DUT: yiaddr를 claim하는 ARP Reply (충돌).\n4. DUT → 와이어: DHCPDECLINE\n   • msg_type = 4\n   • ciaddr = 0\n   • Option 50 = declined yiaddr\n   • Option 54 = server_id   ← 핵심 확인 지점\n\n[통과 조건]\ndeadline 내 예상 필드의 DHCPDECLINE 관찰.\n\n[실패 조건]\n• Fail_no_discover / Fail_no_request / Fail_no_arp_probe — DORA / Probe 누락\n• Fail_no_decline — ARP 충돌 후 DHCPDECLINE 미발신",
+  "verdicts": {
+    "Pass": "DUT이 ARP 충돌 후 DHCPDECLINE 발신 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_arp_probe": "BOUND 후 DUT ARP Probe 없음",
+    "Fail_no_decline": "ARP 충돌 후 DUT DHCPDECLINE 없음"
+  }
+}

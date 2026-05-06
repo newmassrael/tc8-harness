@@ -1,0 +1,11 @@
+{
+  "description": "Verify that lease expiration without DHCPACK pushes the client to INIT, where it requests network initialization parameters via DHCPDISCOVER (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nFollow-up to REACQUISITION_07: confirms the client doesn't just stop — it actively recovers by going to INIT and emitting a fresh DISCOVER #2 to start a new lease cycle.\n\n[Scenario — chronological]\n1. DORA → BOUND.\n2. T1 → RENEWING REQUEST (no ACK).\n3. Lease ends.\n4. DUT → wire: DHCPDISCOVER #2 (full restart from INIT)   ← key check\n\n[Pass condition]\nDISCOVER #2 observed after the lease ends.\n\n[Fail condition]\nAny chain step missing → corresponding Fail_no_* verdict.",
+  "verdicts": {
+    "Pass": "DUT emitted DISCOVER #2 after lease expiry — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_no_second_discover": "No DUT second DISCOVER after returning to INIT"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT silently discards a DHCPOFFER whose 'xid' does not match the originating DISCOVER's xid — DUT must NOT emit a DHCPREQUEST in response (RFC 2131 §4.4.1 MUST)",
+  "approach": "[Objective]\nThe transaction id (xid) ties an OFFER to the DISCOVER it answers. If a server replies with a different xid, that OFFER belongs to someone else's transaction — accepting it would let an attacker hijack the binding. DUT must drop and not REQUEST.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER (xid = X)\n2. Tester → DUT: DHCPOFFER (xid = X+1, deliberately mismatched)\n\n3. Observation:\n   • DUT must NOT emit a DHCPREQUEST in response   ← key check\n\n[Pass condition]\nNo DHCPREQUEST follows the mismatched-xid OFFER within the listen window.\n\n[Fail condition]\n• Fail_unexpected_request — DUT emitted REQUEST after the mismatched-xid OFFER (xid validation absent)\n• Fail_no_discover — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DUT discarded the mismatched-xid OFFER and did not REQUEST — normal",
+    "Fail_unexpected_request": "DUT emitted DHCPREQUEST after a mismatched-xid OFFER",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "REQUESTING으로 전이 시 발신되는 DHCPREQUEST가 Option 53(Message Type)을 포함하는지 검증 (RFC 2131 §3 MUST)",
+  "approach": "[검증 목적]\nPROTOCOL_02와 같은 Option 53 강제 규칙을 REQUEST에 적용. Option 53 value=3이 REQUEST를 표시한다. 모든 DHCP 메시지 — DISCOVER, REQUEST, RELEASE 등 — 가 필요로 한다.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER.\n2. 테스터 → DUT: DHCPOFFER.\n3. DUT → 와이어: DHCPREQUEST\n   • options 블롭에 Option 53 (value=3, REQUEST) 포함   ← 핵심 확인 지점\n\n[통과 조건]\nREQUEST의 options 블롭에 Option 53 포함.\n\n[실패 조건]\n• Fail_no_discover / Fail_no_request — DORA 누락\n• Fail_request_missing_message_type — REQUEST에 Option 53 누락",
+  "verdicts": {
+    "Pass": "REQUEST에 Option 53 포함 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_request_missing_message_type": "DUT DHCPREQUEST에 message-type option 누락"
+  }
+}

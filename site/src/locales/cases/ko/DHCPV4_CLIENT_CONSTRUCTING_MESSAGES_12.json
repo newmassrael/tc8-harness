@@ -1,0 +1,14 @@
+{
+  "description": "DUT이 DHCPDISCOVER를 doubling backoff로 재전송하되 상한선에서 cap되는지 검증 (RFC 2131 §4.1 MUST)",
+  "approach": "[검증 목적]\nRFC 2131 §4.1은 DISCOVER 재전송에 exponential backoff를 강제한다(MUST): 매 retx 간격이 두 배가 되며 상한선(보통 64 s; 하네스는 테스트 속도를 위해 fast-envelope cap 사용)에서 cap된다. 클라이언트가 고정 속도로 영원히 폴링하는 것을 방지한다.\n\n[시나리오 — 시간순]\n1. 테스터 침묵: 서버 에뮬은 어떤 DISCOVER에도 응답하지 않음.\n2. DUT → 와이어: DISCOVER #1 → DISCOVER #2 → ... → DISCOVER #6\n   • interval(k+1, k)이 매번 두 배, fast-envelope 상한선에서 cap   ← 핵심 확인 지점\n\n[통과 조건]\nDISCOVER 6회 모두 관찰 + 매 연속 간격이 직전 간격 × 2 (또는 상한선 cap).\n\n[실패 조건]\n• Fail_no_discover_<k> — DISCOVER #k 누락\n• Fail_cap_exceeded — DUT retx 간격이 cap 초과",
+  "verdicts": {
+    "Pass": "DUT이 cap 적용된 doubling backoff 따름 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_discover_2": "DUT DHCPDISCOVER #2 없음",
+    "Fail_no_discover_3": "DUT DHCPDISCOVER #3 없음",
+    "Fail_no_discover_4": "DUT DHCPDISCOVER #4 없음",
+    "Fail_no_discover_5": "DUT DHCPDISCOVER #5 없음",
+    "Fail_no_discover_6": "DUT DHCPDISCOVER #6 없음",
+    "Fail_cap_exceeded": "DUT retx 간격이 cap 초과"
+  }
+}

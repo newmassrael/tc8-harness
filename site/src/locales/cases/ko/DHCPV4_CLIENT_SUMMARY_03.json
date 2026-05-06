@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 576 옥텟 DHCPOFFER(RFC 791 minimum reassembly / RFC 2131 §2 maximum DHCP message size)를 ingest하고 후속 DHCPREQUEST를 발신하는지 검증",
+  "approach": "[검증 목적]\n576 바이트는 모든 호스트가 fragment 없이 수용해야 하는 IPv4 datagram 최소 크기(RFC 791 §3.2). RFC 2131 §2도 576을 합법적인 DHCP 메시지 최댓값으로 명시한다. 이 케이스는 fully-padded OFFER로 DUT의 ingest를 stress 테스트한다.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER.\n2. 테스터 → DUT: 576 옥텟으로 padding된 DHCPOFFER (End Option + zero pad).\n3. DUT → 와이어: DHCPREQUEST   ← 핵심 확인 지점 (DUT이 padded OFFER를 성공적으로 파싱했음을 증명)\n\n[통과 조건]\n576-byte OFFER 후 REQUEST 관찰.\n\n[실패 조건]\n• Fail_no_discover — DUT이 DHCPDISCOVER 미발신\n• Fail_no_request — padded OFFER 후 DUT이 DHCPREQUEST 미발신 (parser가 padding으로 인해 멈춤)",
+  "verdicts": {
+    "Pass": "DUT이 576-byte OFFER 파싱 + REQUEST — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "padded OFFER 후 DUT DHCPREQUEST 없음"
+  }
+}

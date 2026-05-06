@@ -1,0 +1,14 @@
+{
+  "description": "Verify that DUT retransmits DHCPDISCOVER with doubling backoff capped at an upper bound (RFC 2131 §4.1 MUST)",
+  "approach": "[Objective]\nRFC 2131 §4.1 mandates exponential backoff for DISCOVER retransmissions: each retx interval doubles, capped at an upper bound (typically 64 s; the harness uses a fast-envelope cap for test speed). This prevents the client from polling forever at a fixed rate.\n\n[Scenario — chronological]\n1. Tester silent: server emul does NOT respond to any DISCOVER.\n2. DUT → wire: DISCOVER #1 → DISCOVER #2 → ... → DISCOVER #6\n   • interval(k+1, k) doubles each time, capped at fast-envelope upper bound   ← key check\n\n[Pass condition]\nAll 6 DISCOVERs observed AND each consecutive interval is the prior interval × 2 (or capped at the bound).\n\n[Fail condition]\n• Fail_no_discover_<k> — DISCOVER #k missing\n• Fail_cap_exceeded — DUT's retx interval exceeds the cap",
+  "verdicts": {
+    "Pass": "DUT followed doubling backoff with cap — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_discover_2": "No DUT DHCPDISCOVER #2",
+    "Fail_no_discover_3": "No DUT DHCPDISCOVER #3",
+    "Fail_no_discover_4": "No DUT DHCPDISCOVER #4",
+    "Fail_no_discover_5": "No DUT DHCPDISCOVER #5",
+    "Fail_no_discover_6": "No DUT DHCPDISCOVER #6",
+    "Fail_cap_exceeded": "DUT retx interval exceeds the cap"
+  }
+}

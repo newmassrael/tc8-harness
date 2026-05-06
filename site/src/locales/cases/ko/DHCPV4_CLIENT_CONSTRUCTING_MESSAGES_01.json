@@ -1,0 +1,9 @@
+{
+  "description": "DHCPDISCOVER의 options 블롭이 End Option(0xFF)으로 종료되는지 검증 (RFC 2131 §4.1 MUST)",
+  "approach": "[검증 목적]\noptions 블롭은 TLV 스트림이다 — parser는 0xFF(End Option)까지 걷는다. 종결자 없이는 수신자가 버퍼를 넘어 걷거나 trailing 0을 쓰레기 옵션으로 해석한다. RFC 2131 §4.1은 End Option을 강제한다(MUST).\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER\n   • options 블롭 마지막 바이트 == 0xFF   ← 핵심 확인 지점\n\n[통과 조건]\nDISCOVER의 options 블롭이 0xFF로 끝남.\n\n[실패 조건]\n• Fail_last_option_not_end — 마지막 바이트가 0xFF가 아님\n• Fail_timeout — listen 윈도우 내 DHCPDISCOVER 미발신",
+  "verdicts": {
+    "Pass": "DISCOVER options 블롭이 End Option으로 종료 — 정상",
+    "Fail_last_option_not_end": "DUT DHCPDISCOVER 마지막 옵션이 End가 아님",
+    "Fail_timeout": "listen 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

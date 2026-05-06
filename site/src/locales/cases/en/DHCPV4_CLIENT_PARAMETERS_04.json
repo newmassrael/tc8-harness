@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST repeats the DISCOVER's Option 55 (Parameter Request List) byte sequence verbatim (RFC 2131 §4.3.6 MUST)",
+  "approach": "[Objective]\nOption 55 lists which configuration options the client wants the server to send back. RFC 2131 §4.3.6 requires REQUEST to repeat the same list as DISCOVER — otherwise the server might omit options the client still needs.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER with Option 55 = [byte sequence P] → harness snapshots P\n2. Tester → DUT: DHCPOFFER\n3. DUT → wire: DHCPREQUEST\n   • Option 55 == P (verbatim)   ← key check\n\n[Pass condition]\nREQUEST.Option55 byte sequence equals the snapshotted DISCOVER.Option55.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_param_request_mismatch — REQUEST.Option55 differs from DISCOVER.Option55",
+  "verdicts": {
+    "Pass": "REQUEST.Option55 == DISCOVER.Option55 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_param_request_mismatch": "DUT DHCPREQUEST Option 55 mismatch with DISCOVER"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT 측 DHCPv4 클라이언트가 UDP 포트 68에서 listen하고 전체 DISCOVER → OFFER → REQUEST 라이프사이클을 수행하는지 검증 (RFC 2131 §4.1 MUST)",
+  "approach": "[검증 목적]\npositive baseline: 정상 서버 에뮬과 함께 DUT이 DORA 교환을 완료해야 한다 — DISCOVER 발신, OFFER 수용(UDP:68 전달), REQUEST 발신. 모든 negative-shape 케이스의 anchor.\n\n[시나리오 — 시간순]\n1. DUT → 와이어: DHCPDISCOVER.\n2. 테스터 → DUT: DHCPOFFER (UDP:68로 전달).\n3. DUT → 와이어: DHCPREQUEST.\n\n[통과 조건]\nlisten 윈도우 내 DISCOVER + REQUEST 관찰.\n\n[실패 조건]\n• Fail_no_discover — DUT이 DHCPDISCOVER 미발신\n• Fail_no_request — OFFER 후 DUT이 DHCPREQUEST 미발신",
+  "verdicts": {
+    "Pass": "DUT이 DISCOVER → OFFER → REQUEST 완료 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음"
+  }
+}

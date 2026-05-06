@@ -1,0 +1,12 @@
+{
+  "description": "Verify that T2 = 0.875 × lease — REBINDING REQUEST emitted within T2 ± ParamToleranceTime of the last DHCPACK (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nT2 is when the client falls back to broadcast renewal after the original server has been unresponsive. RFC 2131 §4.4.5 sets it at 0.875 × lease. This case asserts the elapsed time between ACK and the REBINDING REQUEST is in [T2 - tol, T2 + tol].\n\n[Scenario — chronological]\n1. DORA → BOUND with lease = L.\n2. T1 → RENEWING REQUEST.\n3. Tester silent (no ACK).\n4. Wait until t_ACK + 0.875 × L; DUT must emit REBINDING REQUEST around this point.\n\n[Pass condition]\n(t_rebinding - t_ACK) ∈ [0.875 L - tol, 0.875 L + tol].\n\n[Fail condition]\nAny chain step missing OR Fail_rebinding_request_t2_out_of_bounds — interval outside the tolerance window.",
+  "verdicts": {
+    "Pass": "REBINDING REQUEST at T2 ± tolerance — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST after ACK",
+    "Fail_no_rebinding_request": "No DUT rebinding DHCPREQUEST within listen window",
+    "Fail_rebinding_request_t2_out_of_bounds": "DUT rebinding REQUEST T2 interval out of bounds"
+  }
+}

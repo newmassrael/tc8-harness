@@ -1,0 +1,11 @@
+{
+  "description": "RENEWING의 DHCPREQUEST가 'ciaddr'에 클라이언트 IP를 채우는지 검증 (RFC 2131 §4.4.5)",
+  "approach": "[검증 목적]\nRENEWING에서 클라이언트는 이미 바인딩 상태; ciaddr가 bound IP를 광고해야 서버가 기존 임대와 매칭한다. 0(REQUESTING 방식)으로 두면 서버가 메시지를 새 REQUEST로 취급해 NAK할 가능성이 높다.\n\n[시나리오 — 시간순]\n1. DORA → yiaddr = Y로 BOUND.\n2. T1 → RENEWING → renew DHCPREQUEST\n   • ciaddr == Y   ← 핵심 확인 지점\n\n[통과 조건]\nRENEWING REQUEST.ciaddr == bound 클라이언트 IP.\n\n[실패 조건]\n임의 사슬 단계 누락 또는 Fail_renewing_request_ciaddr_mismatch — ciaddr가 bound IP가 아님.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST.ciaddr = 클라이언트 IP — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_first_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_renewing_request": "listen 윈도우 내 DUT renewing DHCPREQUEST 없음",
+    "Fail_renewing_request_ciaddr_mismatch": "DUT renewing REQUEST ciaddr 불일치"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "RENEWING의 DHCPREQUEST가 Option 54(server identifier)를 포함하지 않는지 검증 (RFC 2131 §4.3.6 table 5)",
+  "approach": "[검증 목적]\nRENEWING에서는 destination IP가 이미 server-id(CONSTRUCTING_MESSAGES_02). 메시지 본문에 Option 54를 또 담으면 그 정보를 중복시키고 §4.3.6 table 5의 'renewing/rebinding에서 Option 54 MUST NOT'과 충돌한다.\n\n[시나리오 — 시간순]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew DHCPREQUEST.\n   • options 블롭에 Option 54 미포함   ← 핵심 확인 지점\n\n[통과 조건]\nRENEWING REQUEST options 블롭 내 Option 54 없음.\n\n[실패 조건]\n임의 사슬 단계 누락 또는 Fail_renewing_request_carries_server_id — REQUEST가 불법적으로 Option 54 포함.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST에 Option 54 없음 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_first_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_renewing_request": "listen 윈도우 내 DUT renewing DHCPREQUEST 없음",
+    "Fail_renewing_request_carries_server_id": "DUT renewing REQUEST가 server-id 불법 포함"
+  }
+}

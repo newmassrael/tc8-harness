@@ -1,0 +1,10 @@
+{
+  "description": "Verify that with two competing DHCP servers on the same interface, DUT silently discards SERVER-1's mismatched-xid OFFER and selects SERVER-2 — the resulting REQUEST carries Option 54 = SERVER-2's identifier (RFC 2131 §3.1)",
+  "approach": "[Objective]\nTC8 §4.7.3 Topology 3 puts two server emuls on a single DUT interface (NOT multi-iface — that's USAGE_01). Two server emuls fire on Listening_for_request entry; SERVER-1 emits an OFFER with xid_offset = +1 (mismatched, must be silently dropped per INIT_ALLOC_04 logic), SERVER-2 emits with xid_offset = 0 and a distinct server_id (kSecondServerIdBe). DUT selects SERVER-2 and the subsequent REQUEST's Option 54 echoes SERVER-2's id.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER.\n2. SERVER-1 → DUT: DHCPOFFER (xid mismatched).\n3. SERVER-2 → DUT: DHCPOFFER (xid match, server_id = S2).\n4. DUT → wire: DHCPREQUEST\n   • Option 54 == S2   ← key check\n\n[Pass condition]\nREQUEST.Option54 equals SERVER-2's identifier.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_selected_mismatched_server — DUT picked SERVER-1 (via the mismatched-xid OFFER) instead",
+  "verdicts": {
+    "Pass": "DUT selected SERVER-2 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_selected_mismatched_server": "DUT DHCPREQUEST did not select the second server"
+  }
+}

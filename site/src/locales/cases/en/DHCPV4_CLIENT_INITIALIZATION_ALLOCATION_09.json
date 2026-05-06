@@ -1,0 +1,11 @@
+{
+  "description": "Verify that an ARP conflict on the offered address triggers a DHCPDECLINE (msg_type=4, ciaddr=0, Option 50 = declined yiaddr, Option 54 = server_id) (RFC 2131 §4.4.1 / §4.4.4 MUST)",
+  "approach": "[Objective]\nWhen the post-BOUND ARP Probe collides with a real holder, the offered address is unusable. The client must tell the server with a DHCPDECLINE — pointing at the address (Option 50) and the server that gave it (Option 54) — so the server can mark the address bad.\n\n[Scenario — chronological]\n1. DORA: DISCOVER → OFFER → REQUEST → ACK → BOUND.\n2. DUT → wire: ARP Probe targeting yiaddr.\n3. Tester → DUT: ARP Reply claiming yiaddr (the conflict).\n4. DUT → wire: DHCPDECLINE\n   • msg_type = 4\n   • ciaddr = 0\n   • Option 50 = declined yiaddr\n   • Option 54 = server_id   ← key check\n\n[Pass condition]\nDHCPDECLINE with the expected fields lands within the deadline.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request / Fail_no_arp_probe — DORA / Probe missing\n• Fail_no_decline — DUT did not emit DHCPDECLINE after the ARP conflict",
+  "verdicts": {
+    "Pass": "DUT emitted DHCPDECLINE after ARP conflict — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_arp_probe": "No DUT ARP Probe after BOUND",
+    "Fail_no_decline": "No DUT DHCPDECLINE after ARP conflict"
+  }
+}

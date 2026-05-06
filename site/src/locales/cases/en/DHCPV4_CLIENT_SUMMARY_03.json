@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT ingests a 576-octet DHCPOFFER (RFC 791 minimum reassembly / RFC 2131 §2 maximum DHCP message size) and emits the resulting DHCPREQUEST",
+  "approach": "[Objective]\n576 bytes is the minimum IPv4 datagram size every host must accept un-fragmented (RFC 791 §3.2). RFC 2131 §2 also lists 576 as the legal maximum DHCP message size. This case stresses DUT's ingest with a fully padded OFFER.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER.\n2. Tester → DUT: DHCPOFFER padded to 576 octets (with End Option + zero pad).\n3. DUT → wire: DHCPREQUEST   ← key check (proves DUT successfully parsed the padded OFFER)\n\n[Pass condition]\nREQUEST observed after the 576-byte OFFER.\n\n[Fail condition]\n• Fail_no_discover — DUT did not emit DHCPDISCOVER\n• Fail_no_request — DUT did not emit DHCPREQUEST after the padded OFFER (parser choked on padding)",
+  "verdicts": {
+    "Pass": "DUT parsed 576-byte OFFER and REQUESTed — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after the padded OFFER"
+  }
+}

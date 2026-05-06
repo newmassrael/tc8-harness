@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER carries IPv4 source address = 0 prior to the client obtaining its address (RFC 2131 §4.1 MUST)",
+  "approach": "[Objective]\nIn INIT the client has no IP, so the IPv4 src_ip on the wire must be 0.0.0.0. Setting any other value would advertise an IP the client doesn't own — confusing routers and breaking duplicate-detection logic.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n   • IPv4 src_ip == 0.0.0.0   ← key check\n\n[Pass condition]\nDISCOVER's IPv4 src_ip is 0.0.0.0.\n\n[Fail condition]\n• Fail_source_ip_not_zero — DISCOVER src_ip is not zero (state-leak from prior bound lease)\n• Fail_timeout — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DISCOVER src_ip = 0.0.0.0 — normal",
+    "Fail_source_ip_not_zero": "DUT DHCPDISCOVER source IP is not zero",
+    "Fail_timeout": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST includes Option 54 (Server Identifier) echoing the OFFER's server-id (RFC 2131 §3.1 MUST)",
+  "approach": "[Objective]\nWhen multiple servers OFFER, the client picks one. Option 54 in the broadcast REQUEST tells the chosen server 'this is for you' and tells the others 'free your reservation'. RFC 2131 §3.1 makes this echo mandatory.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER\n2. Tester → DUT: DHCPOFFER (server_id = S)\n3. DUT → wire: DHCPREQUEST\n   • Option 54 == S   ← key check\n\n[Pass condition]\nREQUEST's Option 54 equals the snapshotted OFFER server-id.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_request_server_id_mismatch — Option 54 differs from the OFFER's server_id",
+  "verdicts": {
+    "Pass": "REQUEST Option 54 == OFFER server_id — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_request_server_id_mismatch": "DUT DHCPREQUEST server_id mismatch with OFFER"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER 'ciaddr' field is 0 in INIT — the client has no bound address to advertise (RFC 2131 §4.4.1 MUST)",
+  "approach": "[Objective]\nIn INIT the client has no IP yet; setting ciaddr to anything but 0 would mislead servers into thinking the client already has a binding to renew. RFC 2131 §4.4.1 makes ciaddr=0 mandatory in this state.\n\n[Scenario — chronological]\n1. DUT starts in INIT.\n2. DUT → wire: DHCPDISCOVER\n   • ciaddr == 0   ← key check\n\n[Pass condition]\nDISCOVER's BOOTP ciaddr field is all-zero.\n\n[Fail condition]\n• Fail_ciaddr_nonzero — DISCOVER carries non-zero ciaddr (state-leak from a prior bound lease)\n• Fail_no_discover — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DISCOVER ciaddr = 0 — normal",
+    "Fail_ciaddr_nonzero": "DUT DHCPDISCOVER ciaddr is not zero",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

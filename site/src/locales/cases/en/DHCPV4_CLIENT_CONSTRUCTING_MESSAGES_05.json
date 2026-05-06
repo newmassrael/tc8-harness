@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT parses Option Overload value=2 (sname holds options) and applies Option 3 (Router) so post-BOUND UDP egress to an unrouted IP uses the gateway as L2 next-hop (RFC 2132 §9.3 + RFC 2131 §3.5/§4.1 MUST)",
+  "approach": "[Objective]\nOption Overload (Option 52) lets a DHCP server stuff additional options into the BOOTP `sname` (value=2) or `file` (value=1) fields when the options blob is full. The parser must walk those secondary regions and pick up critical options — here Option 3 (Router) which selects the L3 gateway. If the parser ignores them, post-BOUND traffic to off-LAN destinations will fail.\n\n[Scenario — chronological]\n1. DORA → BOUND, with OFFER carrying:\n   • Option 52 (Option Overload) = 2 (sname holds options)\n   • Option 3 (Router) embedded in `sname`\n2. Tester → DUT: triggers DUT to send a UDP to an unrouted IP (must go via gateway).\n3. DUT → wire: UDP\n   • Ethernet next-hop MAC == gateway MAC (resolved via Option 3 router)   ← key check\n\n[Pass condition]\nDUT-emitted UDP uses the Option-3 router as L2 next-hop.\n\n[Fail condition]\n• Fail_no_discover / Fail_no_request — DORA missing\n• Fail_no_dut_udp — DUT did not emit UDP to the unused-routed IP via the router option",
+  "verdicts": {
+    "Pass": "DUT applied sname-overloaded Option 3 router — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_dut_udp": "No DUT UDP to unused-routed IP via the router option"
+  }
+}

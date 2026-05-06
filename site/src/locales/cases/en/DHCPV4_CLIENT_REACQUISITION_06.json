@@ -1,0 +1,13 @@
+{
+  "description": "Verify that the REBINDING retransmission interval is (lease - T2) / 2 (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nSame halving rule as RENEWING but applied to the remaining time after T2: retx at half of (lease_end - T2). The window keeps shrinking until lease expiry, when the client must give up and return to INIT.\n\n[Scenario — chronological]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew REQUEST.\n3. T2 → REBINDING → rebind REQUEST #1.\n4. Tester silent.\n5. After (lease - T2)/2: DUT → wire: rebind REQUEST #2   ← key check\n\n[Pass condition]\n(t_REB#2 - t_REB#1) ≈ (lease - T2) / 2.\n\n[Fail condition]\nAny chain step missing OR Fail_rebinding_retx_interval_out_of_bounds — retx interval outside the tolerance window.",
+  "verdicts": {
+    "Pass": "REBINDING retx interval = (lease-T2)/2 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_no_first_rebinding_request": "No DUT first rebinding DHCPREQUEST within listen window",
+    "Fail_no_second_rebinding_request": "No DUT second rebinding DHCPREQUEST within retx window",
+    "Fail_rebinding_retx_interval_out_of_bounds": "DUT rebinding retx interval out of bounds"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DHCPREQUEST in RENEWING does NOT carry Option 54 (server identifier) (RFC 2131 §4.3.6 table 5)",
+  "approach": "[Objective]\nIn RENEWING the destination IP is already the server-id (per CONSTRUCTING_MESSAGES_02). Carrying Option 54 inside the message body would duplicate that information and conflict with table 5 in §4.3.6, which lists Option 54 as MUST NOT in renewing/rebinding.\n\n[Scenario — chronological]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew DHCPREQUEST.\n   • options blob does NOT contain Option 54   ← key check\n\n[Pass condition]\nNo Option 54 inside the RENEWING REQUEST options blob.\n\n[Fail condition]\nAny chain step missing OR Fail_renewing_request_carries_server_id — REQUEST illegally carries Option 54.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST has no Option 54 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_renewing_request_carries_server_id": "DUT renewing REQUEST illegally carries server-id"
+  }
+}

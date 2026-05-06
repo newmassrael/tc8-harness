@@ -1,0 +1,12 @@
+{
+  "description": "Verify that after a DHCPNAK in RENEWING the DUT waits a random [1, 10] s before emitting the restart DHCPDISCOVER (RFC 2131 §4.4.1 SHOULD)",
+  "approach": "[Objective]\nRFC 2131 §4.4.1 says when a renewal is rejected, the client returns to INIT and SHOULD wait a random [1, 10] s before its next DISCOVER. The desync prevents synchronized retry storms when many clients lose their leases at once.\n\n[Scenario — chronological]\n1. DUT runs the full DORA: DISCOVER → OFFER → REQUEST → ACK → BOUND.\n2. Tester pushes DUT into RENEWING via T1 timer; DUT emits a renew DHCPREQUEST.\n3. Tester replies DHCPNAK to that REQUEST.\n4. DUT returns to INIT, then emits a fresh DHCPDISCOVER #2.\n\n[Pass condition]\n(t_DISCOVER#2 - t_NAK) ∈ [1 s, 10 s + ParamToleranceTime].\n\n[Fail condition]\n• Fail_desync_out_of_range — the wait is outside [1, 11] s\n• Fail_no_discover / Fail_no_first_request / Fail_no_renewing_request / Fail_no_second_discover — corresponding DORA / RENEW / restart frame missing",
+  "verdicts": {
+    "Pass": "DUT waited random [1, 10] s after NAK before DISCOVER #2 — normal",
+    "Fail_desync_out_of_range": "DUT NAK→DISCOVER wait outside [1, 11] s",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_no_second_discover": "No DUT second DISCOVER after returning to INIT"
+  }
+}

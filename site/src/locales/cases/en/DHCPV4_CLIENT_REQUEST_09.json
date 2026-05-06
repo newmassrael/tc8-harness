@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DHCPREQUEST in REBINDING does NOT carry Option 54 (server identifier) (RFC 2131 §4.3.6 table 5)",
+  "approach": "[Objective]\nThe REBINDING REQUEST is broadcast precisely because the original server might be down — pinning to it via Option 54 would defeat the fallback. Table 5 in RFC 2131 §4.3.6 marks Option 54 as MUST NOT in rebinding.\n\n[Scenario — chronological]\n1. DORA → BOUND.\n2. T1 → RENEWING REQUEST.\n3. T2 → REBINDING → rebind DHCPREQUEST\n   • options blob does NOT contain Option 54   ← key check\n\n[Pass condition]\nNo Option 54 inside the REBINDING REQUEST options blob.\n\n[Fail condition]\nAny chain step missing OR Fail_rebinding_request_carries_server_id — REQUEST illegally carries Option 54.",
+  "verdicts": {
+    "Pass": "REBINDING REQUEST has no Option 54 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST after ACK",
+    "Fail_no_rebinding_request": "No DUT rebinding DHCPREQUEST within listen window",
+    "Fail_rebinding_request_carries_server_id": "DUT rebinding REQUEST illegally carries server-id"
+  }
+}

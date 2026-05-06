@@ -1,0 +1,12 @@
+{
+  "description": "Verify that the client retransmits DHCPREQUEST in RENEWING when no DHCPACK or DHCPNAK is received (RFC 2131 §3.1)",
+  "approach": "[Objective]\nIf the unicast renewal REQUEST is lost or the server is unreachable, the client must retransmit before T2 — otherwise a single packet loss would make the lease lapse without warning.\n\n[Scenario — chronological]\n1. DORA → BOUND → T1 → RENEWING → first renew DHCPREQUEST.\n2. Tester does NOT reply (no ACK / no NAK).\n3. DUT → wire: second renew DHCPREQUEST   ← key check (within (T2-T1)/2 retx window)\n\n[Pass condition]\nA second renewing REQUEST is observed within the retx window.\n\n[Fail condition]\nAny chain step missing → corresponding Fail_no_* verdict.",
+  "verdicts": {
+    "Pass": "DUT retransmitted RENEWING DHCPREQUEST — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_no_second_renewing_request": "No DUT second renewing DHCPREQUEST within retx window",
+    "Fail_unreachable": "Sentinel — pass expression always true (debug verdict, not expected to trigger)"
+  }
+}

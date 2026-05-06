@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT uses randomized exponential backoff for DHCPDISCOVER retransmissions: first interval = 4 ± 1 s, second = 8 ± 1 s (RFC 2131 §4.1 SHOULD)",
+  "approach": "[Objective]\nThe SHOULD-randomization on top of RFC 2131 §4.1 doubling: each retx interval gets a small random jitter (typically ±1 s). The first should be in [3, 5] s, second in [7, 9] s. Without jitter, simultaneously-booting clients sync up and stampede the server.\n\n[Scenario — chronological]\n1. Tester silent: no OFFER ever sent.\n2. DUT → wire: DISCOVER #1, #2, #3.\n   • Δt(#2-#1) ∈ [3, 5] s   ← key check 1\n   • Δt(#3-#2) ∈ [7, 9] s   ← key check 2\n\n[Pass condition]\nFirst and second retx intervals fall inside the randomized exponential bounds.\n\n[Fail condition]\n• Fail_no_discover_<k> — DISCOVER #k missing\n• Fail_first_interval_out_of_range — first retx outside [3, 5] s\n• Fail_second_interval_out_of_range — second retx outside [7, 9] s",
+  "verdicts": {
+    "Pass": "DUT retx intervals match randomized exponential pattern — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_discover_2": "No DUT DHCPDISCOVER #2",
+    "Fail_no_discover_3": "No DUT DHCPDISCOVER #3",
+    "Fail_first_interval_out_of_range": "DUT first retx interval out of [3, 5] s",
+    "Fail_second_interval_out_of_range": "DUT second retx interval out of [7, 9] s"
+  }
+}

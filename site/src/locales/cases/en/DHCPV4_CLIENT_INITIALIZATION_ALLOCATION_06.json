@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DHCPREQUEST 'xid' equals the originating DISCOVER's 'xid' (RFC 2131 §4.4.1 MUST). The harness server emul faithfully echoes DISCOVER.xid in OFFER, so REQUEST.xid == OFFER.xid is verified against the snapshot",
+  "approach": "[Objective]\nThe transaction id ties the DISCOVER → OFFER → REQUEST chain together. RFC 2131 §4.4.1 requires REQUEST.xid to equal the OFFER.xid (which itself echoes DISCOVER.xid). A different xid would orphan the REQUEST.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER (xid = X) → harness snapshots X\n2. Tester → DUT: DHCPOFFER (xid = X)\n3. DUT → wire: DHCPREQUEST\n   • xid == X   ← key check\n\n[Pass condition]\nREQUEST.xid equals the snapshotted DISCOVER.xid.\n\n[Fail condition]\n• Fail_xid_mismatch — REQUEST carries a different xid (transaction tracking broken)\n• Fail_no_discover / Fail_no_request — corresponding frame missing",
+  "verdicts": {
+    "Pass": "REQUEST.xid == DISCOVER.xid — normal",
+    "Fail_xid_mismatch": "DUT DHCPREQUEST xid mismatch",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_request": "No DUT DHCPREQUEST after OFFER"
+  }
+}

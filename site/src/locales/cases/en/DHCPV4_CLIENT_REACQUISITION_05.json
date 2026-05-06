@@ -1,0 +1,12 @@
+{
+  "description": "Verify that the RENEWING retransmission interval is (T2 - T1) / 2 (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nIf the renewal REQUEST is lost, the client retransmits at half the remaining time to T2. Halving each retx makes the schedule predictable AND keeps later attempts dense as T2 approaches.\n\n[Scenario — chronological]\n1. DORA → BOUND.\n2. T1 → RENEWING → renew REQUEST #1.\n3. Tester silent (no ACK).\n4. After (T2-T1)/2: DUT → wire: renew REQUEST #2   ← key check\n\n[Pass condition]\n(t_REQ#2 - t_REQ#1) ≈ (T2 - T1) / 2.\n\n[Fail condition]\nAny chain step missing OR Fail_renewing_retx_interval_out_of_bounds — retx interval outside the tolerance window.",
+  "verdicts": {
+    "Pass": "RENEWING retx interval = (T2-T1)/2 — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_no_second_renewing_request": "No DUT second renewing DHCPREQUEST within retx window",
+    "Fail_renewing_retx_interval_out_of_bounds": "DUT renewing retx interval out of bounds"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "T1 = 0.5 × lease — 마지막 DHCPACK으로부터 T1 ± ParamToleranceTime 내에 RENEWING REQUEST가 발신되는지 검증 (RFC 2131 §4.4.5)",
+  "approach": "[검증 목적]\nT1은 클라이언트가 처음 갱신을 시도하는 시점. RFC 2131 §4.4.5는 이를 임대의 절반으로 설정한다 — T2 전에 여러 번 재시도할 수 있도록 충분히 일찍. 이 케이스는 ACK과 renewing REQUEST 사이 실제 경과 시간이 [T1 - tol, T1 + tol] 안인지 확인한다.\n\n[시나리오 — 시간순]\n1. DORA → lease = L로 BOUND.\n2. t_ACK + 0.5 × L까지 대기; DUT은 그 시점 즈음 renew DHCPREQUEST 발신.\n\n[통과 조건]\n(t_renewing - t_ACK) ∈ [0.5 L - tol, 0.5 L + tol].\n\n[실패 조건]\n임의 사슬 단계 누락 또는 Fail_renewing_request_t1_out_of_bounds — 간격이 허용 윈도우 밖.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST가 T1 ± tolerance에 발신 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_first_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_renewing_request": "listen 윈도우 내 DUT renewing DHCPREQUEST 없음",
+    "Fail_renewing_request_t1_out_of_bounds": "DUT renewing REQUEST T1 간격이 범위 밖"
+  }
+}

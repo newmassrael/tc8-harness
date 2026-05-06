@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DHCPDISCOVER is retransmitted when no DHCPOFFER arrives (RFC 2131 §3.1 MUST)",
+  "approach": "[Objective]\nLost DISCOVERs / OFFERs would deadlock the client without retransmission. RFC 2131 §3.1 mandates retransmission of the DISCOVER if no OFFER arrives within the timeout.\n\n[Scenario — chronological]\n1. DUT → wire: DHCPDISCOVER #1.\n2. Tester does NOT reply with OFFER.\n3. After timeout: DUT → wire: DHCPDISCOVER #2   ← key check\n\n[Pass condition]\nA second DISCOVER appears within the retransmission window.\n\n[Fail condition]\n• Fail_no_first_discover — DUT did not emit even the first DISCOVER\n• Fail_no_resend — first DISCOVER observed but no retransmission",
+  "verdicts": {
+    "Pass": "DUT retransmitted DHCPDISCOVER — normal",
+    "Fail_no_first_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_resend": "No DUT DHCPDISCOVER retransmission"
+  }
+}

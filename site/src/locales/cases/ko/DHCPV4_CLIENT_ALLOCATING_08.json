@@ -1,0 +1,12 @@
+{
+  "description": "DHCPDECLINE 후 클라이언트가 configuration 재시작 전에 최소 10 s 대기 — DECLINE→DISCOVER #2 간격 > (10 - ParamToleranceTime) s 인지 검증 (RFC 2131 §3.1 SHOULD)",
+  "approach": "[검증 목적]\nDECLINE → DISCOVER 타이트 루프는 많은 주소가 bad일 때 서버를 쥐어짠다. RFC 2131 §3.1은 클라이언트가 재시도 전 최소 10 s를 쉬도록 권고한다(SHOULD).\n\n[시나리오 — 시간순]\n1. DORA → BOUND → ARP Probe → 충돌 → DECLINE.\n2. DUT → 와이어: 대기 후 DHCPDISCOVER #2.\n\n[통과 조건]\n(t_DISCOVER#2 - t_DECLINE) > (10 s - ParamToleranceTime).\n\n[실패 조건]\n임의 사슬 단계 누락 또는 Fail_no_second_discover_in_window — DISCOVER #2가 없거나 최소 대기 전에 도착.",
+  "verdicts": {
+    "Pass": "DUT이 DECLINE 후 ≥ 10 s 대기 후 DISCOVER #2 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_arp_probe": "BOUND 후 DUT ARP Probe 없음",
+    "Fail_no_decline": "ARP 충돌 후 DUT DHCPDECLINE 없음",
+    "Fail_no_second_discover_in_window": "DECLINE-to-DISCOVER 윈도우 내 DUT DHCPDISCOVER 없음"
+  }
+}

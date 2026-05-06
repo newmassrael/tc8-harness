@@ -1,0 +1,11 @@
+{
+  "description": "Verify that the RENEWING-state DHCPREQUEST is unicast to the IP carried in Option 54 (server identifier) (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nIn RENEWING the binding is still valid; the client just wants to extend it with the server it already has. RFC 2131 §4.4.5 says the renewal REQUEST is unicast to the server-id (NOT broadcast — that would be REBINDING).\n\n[Scenario — chronological]\n1. DORA → BOUND with Option 54 = SERVER_ID.\n2. T1 fires; DUT enters RENEWING and emits a renew DHCPREQUEST.\n   • IPv4 dst_ip == SERVER_ID   ← key check\n\n[Pass condition]\nRENEWING REQUEST's IPv4 dst_ip equals the snapshotted Option 54.\n\n[Fail condition]\nAny chain step missing OR Fail_renewing_request_dst_not_server_id — REQUEST went somewhere else.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST unicast to server-id — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_renewing_request_dst_not_server_id": "RENEWING REQUEST dst_ip is not the server identifier"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Verify that T1 = 0.5 × lease — RENEWING REQUEST emitted within T1 ± ParamToleranceTime of the last DHCPACK (RFC 2131 §4.4.5)",
+  "approach": "[Objective]\nT1 is when the client first tries to renew. RFC 2131 §4.4.5 sets it at half the lease — early enough to retry several times before T2. This case asserts the actual elapsed time between ACK and the renewing REQUEST is in [T1 - tol, T1 + tol].\n\n[Scenario — chronological]\n1. DORA → BOUND with lease = L.\n2. Wait until t_ACK + 0.5 × L; DUT must emit renew DHCPREQUEST around this point.\n\n[Pass condition]\n(t_renewing - t_ACK) ∈ [0.5 L - tol, 0.5 L + tol].\n\n[Fail condition]\nAny chain step missing OR Fail_renewing_request_t1_out_of_bounds — interval outside the tolerance window.",
+  "verdicts": {
+    "Pass": "RENEWING REQUEST at T1 ± tolerance — normal",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window",
+    "Fail_no_first_request": "No DUT DHCPREQUEST after OFFER",
+    "Fail_no_renewing_request": "No DUT renewing DHCPREQUEST within listen window",
+    "Fail_renewing_request_t1_out_of_bounds": "DUT renewing REQUEST T1 interval out of bounds"
+  }
+}

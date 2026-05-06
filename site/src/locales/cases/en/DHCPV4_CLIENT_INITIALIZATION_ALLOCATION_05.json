@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT silently discards a stray DHCPACK arriving in INIT (no preceding OFFER/REQUEST) — DUT must NOT treat itself as BOUND or emit any follow-up DHCPREQUEST (RFC 2131 §4.4.1 MUST)",
+  "approach": "[Objective]\nA DHCPACK only has meaning at the end of a DISCOVER → OFFER → REQUEST exchange. A lone ACK in INIT (no DISCOVER yet, or no REQUEST in flight) is either a leftover or an attacker's spoof. DUT must ignore it; treating it as a successful binding would let unsolicited servers hand the client an arbitrary IP.\n\n[Scenario — chronological]\n1. DUT starts in INIT (no DISCOVER yet, or DISCOVER with no matching OFFER).\n2. Tester → DUT: lone DHCPACK\n\n3. Observation:\n   • DUT must NOT emit a DHCPREQUEST in response   ← key check\n\n[Pass condition]\nNo DHCPREQUEST follows the lone ACK within the listen window.\n\n[Fail condition]\n• Fail_unexpected_request — DUT emitted REQUEST after a lone ACK (DUT mistakenly entered REQUESTING/BOUND)\n• Fail_no_discover — DUT did not emit DHCPDISCOVER within the listen window",
+  "verdicts": {
+    "Pass": "DUT silently discarded the lone INIT-phase ACK — normal",
+    "Fail_unexpected_request": "DUT emitted DHCPREQUEST after a lone ACK",
+    "Fail_no_discover": "No DUT DHCPDISCOVER within the listen window"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "description": "ARP로 감지된 address-in-use → DHCPDECLINE + configuration 재시작 (DECLINE 후 DUT이 DISCOVER #2 발신)인지 검증 (RFC 2131 §3.1 MUST)",
+  "approach": "[검증 목적]\n전체 복구 루프: BOUND 직후 ARP Probe가 충돌하면 DUT은 OFFER를 DECLINE하고 INIT부터 재시작 — 즉 새 DISCOVER를 발신해야 한다. INIT_ALLOC_09가 DECLINE을 다루고, 이 케이스는 재시작이 실제로 일어나는지까지 확장 검증한다.\n\n[시나리오 — 시간순]\n1. DORA → BOUND → DUT 발신 ARP Probe.\n2. 테스터 → DUT: 충돌을 유발하는 ARP Reply.\n3. DUT → 와이어: DHCPDECLINE.\n4. DUT → 와이어: DHCPDISCOVER #2 (configuration 재시작)   ← 핵심 확인 지점\n\n[통과 조건]\nDISCOVER#1 → REQUEST → ARP_Probe → DECLINE → DISCOVER#2 사슬 전체 관찰.\n\n[실패 조건]\n임의 사슬 단계 누락 → 해당 Fail_no_* verdict.",
+  "verdicts": {
+    "Pass": "DUT DECLINE + restart DISCOVER #2 — 정상",
+    "Fail_no_discover": "listen 윈도우 내 DUT DHCPDISCOVER 없음",
+    "Fail_no_request": "OFFER 후 DUT DHCPREQUEST 없음",
+    "Fail_no_arp_probe": "BOUND 후 DUT ARP Probe 없음",
+    "Fail_no_decline": "ARP 충돌 후 DUT DHCPDECLINE 없음",
+    "Fail_no_second_discover": "DECLINE 후 DUT DHCPDISCOVER 없음"
+  }
+}
