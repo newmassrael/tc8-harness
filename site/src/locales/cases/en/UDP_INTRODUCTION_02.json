@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT denies a UDP datagram whose Destination Address is the all-systems multicast 224.0.0.1 — TC8 inverts the RFC 1122 §4.1.1 SHOULD-allow per its automotive security negotiation note",
+  "approach": "[Objective]\nLike INTRODUCTION_01 but the trigger is multicast: 224.0.0.1 is the all-systems group every IPv4 host is a member of. TC8 v3.0 treats it as a security risk for ECUs and DUT must drop datagrams sent there.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 UDP packet\n   • dst_ip = 224.0.0.1   ← key trigger\n   • dst_port = a port DUT's upper-tester would normally listen on\n\n2. Observation:\n   • DUT's upper-tester must NOT receive the datagram\n\n[Pass condition]\nUT-query confirms DUT did not deliver the all-systems multicast UDP to upper-tester.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT actually delivered the multicast UDP (security policy not enforced)\n• Fail_timeout — UT-query never arrived (test infra issue, indeterminate)",
+  "verdicts": {
+    "Pass": "DUT denied the all-systems multicast UDP — normal",
+    "Fail_wrong_receipt": "DUT received the all-systems multicast UDP",
+    "Fail_timeout": "No UT confirmation for multicast deny"
+  }
+}

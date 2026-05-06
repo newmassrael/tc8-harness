@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT denies a UDP datagram whose Destination Address is the directed broadcast (e.g. 172.16.255.255) — TC8 inverts the RFC 1122 §4.1.1 SHOULD-allow per its automotive security negotiation note",
+  "approach": "[Objective]\nRFC 1122 §4.1.1 says hosts SHOULD accept directed-broadcast UDP. TC8 v3.0 explicitly inverts this for automotive ECUs — directed broadcast is treated as a security risk and DUT must drop it. This case sends a UDP datagram with dst_ip = directed broadcast and asserts the upper-tester does NOT see a delivery confirmation.\n\n[Scenario — chronological]\n1. Tester → DUT: IPv4 UDP packet\n   • dst_ip = directed broadcast (e.g. 172.16.255.255)   ← key trigger\n   • dst_port = a port DUT's upper-tester would normally listen on\n\n2. Observation:\n   • DUT's upper-tester must NOT receive the datagram\n\n[Pass condition]\nUT-query confirms DUT did not deliver the directed-broadcast UDP to upper-tester.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT actually delivered the directed-broadcast UDP (security policy not enforced)\n• Fail_timeout — UT-query never arrived (test infra issue, indeterminate)",
+  "verdicts": {
+    "Pass": "DUT denied the directed-broadcast UDP — normal",
+    "Fail_wrong_receipt": "DUT received the directed-broadcast UDP",
+    "Fail_timeout": "No UT confirmation for directed-broadcast deny"
+  }
+}

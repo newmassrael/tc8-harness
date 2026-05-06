@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emit UDP datagram carries the caller-specified Source IP Address (RFC 768 'User Interface' MUST)",
+  "approach": "[Objective]\nThe send primitive must carry the caller's src_ip to the wire. Multi-homed hosts often want to choose which interface (and therefore which IP) the datagram leaves on; the user interface must respect that choice.\n\n[Scenario — chronological]\n1. Tester → DUT: send-UDP request via the user interface (src_ip = X)\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - src_ip == X   ← key check (also implicitly checks src_port to keep the captured tuple unambiguous)\n\n[Pass condition]\nDUT-emitted UDP carries src_ip = X.\n\n[Fail condition]\n• Fail_wrong_src_ip_or_port — DUT emitted UDP with a different src_ip (or wrong src_port)\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted UDP carries the requested src_ip — normal",
+    "Fail_wrong_src_ip_or_port": "DUT emitted UDP with the wrong user-interface src_ip",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

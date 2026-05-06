@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT discards a UDP datagram whose Length field is smaller than the actual data on the wire (RFC 768 'Format' + automotive frame integrity)",
+  "approach": "[Objective]\nIf UDP.Length < (actual bytes on the wire), the receiver would silently truncate the payload — discarding bytes that the sender intended to deliver. For automotive flows where every byte may be load-bearing, RFC 768's Format rule plus the TC8 frame-integrity stance require the datagram to be dropped entirely. (Companion of FIELDS_10 which covers the over-claim direction.)\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with Length field intentionally smaller than actual bytes\n\n2. Observation:\n   • DUT's upper-tester must NOT receive the datagram (UT-query confirms drop)\n\n[Pass condition]\nUT-query confirms DUT did not deliver the under-length UDP.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT delivered the under-length UDP (parser silently truncated)\n• Fail_timeout — UT-query never arrived (test infra issue)",
+  "verdicts": {
+    "Pass": "DUT discarded the under-length UDP — normal",
+    "Fail_wrong_receipt": "DUT received UDP with Length smaller than actual data",
+    "Fail_timeout": "No UT confirmation for under-length discard"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 Length 필드 == 0인 UDP datagram을 폐기하는지 검증 (RFC 768 'Fields' MUST)",
+  "approach": "[검증 목적]\nLength = 0은 불법이다 — 합법적인 최솟값은 8(header만)이다. Length=0을 수용하는 수신자는 framing 규칙을 임의로 만들어야 해서 parser-confusion 공격에 노출된다. RFC 768은 폐기를 요구한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: Length 필드를 0으로 설정한 UDP datagram\n\n2. 관찰:\n   • DUT의 upper-tester는 datagram을 수신하지 않아야 함 (UT-query로 drop 확인)\n\n[통과 조건]\nUT-query가 DUT이 Length=0 UDP를 전달하지 않았음을 확인.\n\n[실패 조건]\n• Fail_wrong_receipt — DUT이 Length=0 UDP를 전달 (parser가 불법 length 허용)\n• Fail_timeout — UT-query 응답 없음 (테스트 인프라 문제)",
+  "verdicts": {
+    "Pass": "DUT이 Length=0 UDP 폐기 — 정상",
+    "Fail_wrong_receipt": "DUT이 zero Length 필드 UDP 수신",
+    "Fail_timeout": "zero-length 폐기에 대한 UT 확인 없음"
+  }
+}

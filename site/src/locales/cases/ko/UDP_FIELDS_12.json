@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 지원 가능한 최대 payload 크기(65 507 바이트 — IPv4 max payload 65 535 - IP 헤더 20 - UDP 헤더 8)의 UDP datagram을 수용하는지 검증",
+  "approach": "[검증 목적]\nIPv4 datagram의 합법적인 최댓값은 65 535 옥텟(16비트 Total Length)이다. IP 헤더 20 + UDP 헤더 8을 빼면 UDP payload는 65 507 바이트까지 가능하다. DUT은 이 최댓값을 수용해야 하며, 일반적으로 IP fragmentation/reassembly를 통해 전달된다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: payload = 65 507 바이트인 UDP datagram\n   • emitFragmentedUdpStimulus로 빌드 (harness가 fragment/reassembly를 투명하게 처리)\n   • index i의 payload 바이트 = i & 0xFF — index별 결정론적 패턴으로 SCXML은 length만으로 판정하지만 pcap이 읽기 좋게 유지됨\n\n2. 관찰:\n   • DUT의 upper-tester가 payload length == 65 507로 수신 보고 (SCXML은 length로 판정, byte 내용은 확인하지 않음)\n\n[통과 조건]\nUT-query가 DUT이 payload length 65 507인 UDP를 전달했음을 확인.\n\n[실패 조건]\n• Fail_field_mismatch — DUT이 잘못된 payload length로 전달\n• Fail_timeout — UT-query 응답 없음 (테스트 인프라 문제)",
+  "verdicts": {
+    "Pass": "DUT이 65 507-byte UDP 수용 — 정상",
+    "Fail_field_mismatch": "DUT이 예상치 못한 payload length로 UDP 수신",
+    "Fail_timeout": "max-length UDP에 대한 UT 확인 없음"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "UDP 수신 operation이 상위 계층에 데이터 옥텟을 정확히 반환하는지 검증 (RFC 768 'User Interface' MUST)",
+  "approach": "[검증 목적]\n수신 primitive는 애플리케이션에 바이트 단위로 정확한 payload를 넘겨야 한다 — truncation, reorder, off-by-one 없이. 이 케이스는 알려진 payload 패턴 P의 UDP를 보내고 DUT에게 본 것을 보고하라고 요청한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 알려진 payload P의 UDP datagram\n2. 테스터 → DUT: OpGetReceivedUdp UT-query\n\n3. 관찰:\n   • UT Confirmation의 payload 바이트 == P   ← 핵심 확인 지점\n\n[통과 조건]\n보고된 payload 바이트가 보낸 것과 일치.\n\n[실패 조건]\n• Fail_field_mismatch — DUT이 잘못된 payload 바이트 보고\n• Fail_timeout — UT-query 응답 없음",
+  "verdicts": {
+    "Pass": "DUT이 정확한 payload 바이트 보고 — 정상",
+    "Fail_field_mismatch": "DUT이 잘못된 payload 바이트의 UDP 수신",
+    "Fail_timeout": "payload 검사에 대한 UT 확인 없음"
+  }
+}

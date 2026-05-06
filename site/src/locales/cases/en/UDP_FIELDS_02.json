@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted UDP datagrams carry the caller-specified Destination Port (RFC 768 'Fields' MUST)",
+  "approach": "[Objective]\nThe Destination Port determines which application on the receiver picks up the datagram. RFC 768 makes carrying it correctly mandatory — anything else means the message reaches the wrong endpoint or nothing.\n\n[Scenario — chronological]\n1. Tester → DUT: OpTriggerSendUdp request (dst_port = K)\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - dst_port == K   ← key check\n\n[Pass condition]\nDUT-emitted UDP carries dst_port = K.\n\n[Fail condition]\n• Fail_wrong_dst_port — DUT emitted UDP with a different dst_port\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted UDP carries the requested dst_port — normal",
+    "Fail_wrong_dst_port": "DUT emitted UDP with the wrong dst_port",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

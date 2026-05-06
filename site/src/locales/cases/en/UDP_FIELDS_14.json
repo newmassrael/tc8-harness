@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted UDP with even payload size carries a valid Internet checksum, computed without zero-pad (RFC 768 'Fields' MUST)",
+  "approach": "[Objective]\nThe even-length companion to FIELDS_13: when payload length is even, no trailing zero pad is needed. DUT must still produce a correct pseudo-header + header + payload checksum. This case exercises the unpadded path explicitly.\n\n[Scenario — chronological]\n1. Tester → DUT: OpTriggerSendUdp request with even-length payload\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - checksum verifies against (pseudo-header + UDP header + payload), no pad   ← key check\n\n[Pass condition]\nDUT-emitted UDP checksum is valid for the even-length payload.\n\n[Fail condition]\n• Fail_invalid_checksum — DUT emitted UDP with a checksum that does not validate\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted even-payload UDP carries valid checksum — normal",
+    "Fail_invalid_checksum": "DUT emitted UDP with invalid pseudo-header checksum on even payload",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT 발신 UDP datagram이 caller가 지정한 Destination Port를 가지는지 검증 (RFC 768 'Fields' MUST)",
+  "approach": "[검증 목적]\nDestination Port는 수신자에서 어느 애플리케이션이 datagram을 받을지 결정한다. RFC 768은 이를 정확히 운반하도록 강제한다(MUST) — 다른 값이면 메시지가 잘못된 엔드포인트에 가거나 아무도 받지 않는다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpTriggerSendUdp 요청 (dst_port = K)\n\n2. 관찰:\n   • DUT → 테스터: UDP datagram\n     - dst_port == K   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 UDP의 dst_port = K.\n\n[실패 조건]\n• Fail_wrong_dst_port — DUT이 다른 dst_port로 UDP 발신\n• Fail_timeout — listen 윈도우 내 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 UDP가 요청된 dst_port 사용 — 정상",
+    "Fail_wrong_dst_port": "DUT이 잘못된 dst_port로 UDP 발신",
+    "Fail_timeout": "listen 윈도우 내 DUT 발신 UDP 없음"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT discards a UDP datagram whose Source IP Address is the directed broadcast (RFC 1122 §4.1.3.6 + §3.2.1.3 MUST)",
+  "approach": "[Objective]\nCompanion of INVALID_ADDRESSES_01 for the broadcast-source variant: a directed-broadcast src_ip is also illegal — no single host owns that address. DUT must drop the datagram.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram\n   • src_ip = directed broadcast (e.g. 172.16.255.255)   ← key trigger\n   • dst_ip = DUT IP\n\n2. Observation:\n   • DUT's upper-tester must NOT receive the datagram (UT-query confirms drop)\n\n[Pass condition]\nUT-query confirms DUT did not deliver the broadcast-source UDP.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT delivered the broadcast-source UDP\n• Fail_timeout — UT-query never arrived (test infra issue)",
+  "verdicts": {
+    "Pass": "DUT discarded UDP with broadcast src_ip — normal",
+    "Fail_wrong_receipt": "DUT received UDP with broadcast src_ip",
+    "Fail_timeout": "No UT confirmation for broadcast-src discard"
+  }
+}

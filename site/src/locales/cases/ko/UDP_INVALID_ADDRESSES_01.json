@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 Source IP Address가 multicast인 UDP datagram을 폐기하는지 검증 (RFC 1122 §4.1.3.6 + §3.2.1.3 MUST)",
+  "approach": "[검증 목적]\n도착 패킷의 Source IP는 단일 호스트를 식별해야 한다. multicast / broadcast / unspecified는 불법 source 주소다(RFC 1122 §3.2.1.3) — 이를 수용하면 공격자가 그룹 내 누구에게나 reply destination을 spoof할 수 있다. RFC 1122 §4.1.3.6은 폐기를 강제한다(MUST).\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: UDP datagram\n   • src_ip = IPv4 multicast 주소 (예: 224.0.0.1)   ← 핵심 트리거\n   • dst_ip = DUT IP\n\n2. 관찰:\n   • DUT의 upper-tester는 datagram을 수신하지 않아야 함 (UT-query로 drop 확인)\n\n[통과 조건]\nUT-query가 DUT이 multicast-source UDP를 전달하지 않았음을 확인.\n\n[실패 조건]\n• Fail_wrong_receipt — DUT이 multicast-source UDP를 전달\n• Fail_timeout — UT-query 응답 없음 (테스트 인프라 문제)",
+  "verdicts": {
+    "Pass": "DUT이 multicast src_ip UDP 폐기 — 정상",
+    "Fail_wrong_receipt": "DUT이 multicast src_ip UDP 수신",
+    "Fail_timeout": "multicast-src 폐기에 대한 UT 확인 없음"
+  }
+}

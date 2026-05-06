@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 Length 필드가 와이어상 실제 데이터보다 작은 UDP datagram을 폐기하는지 검증 (RFC 768 'Format' + 자동차 frame 무결성)",
+  "approach": "[검증 목적]\nUDP.Length < (와이어상 실제 바이트 수)이면 수신자가 payload를 silent truncate — 송신자가 전달하려던 바이트를 폐기한다. 자동차 트래픽에서는 모든 바이트가 의미를 가질 수 있으므로, RFC 768의 Format 규칙과 TC8 frame-integrity 정책은 datagram 전체를 폐기하도록 요구한다. (FIELDS_10이 over-claim 방향을 다루는 짝.)\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: Length 필드가 실제 바이트보다 작게 설정된 UDP datagram\n\n2. 관찰:\n   • DUT의 upper-tester는 datagram을 수신하지 않아야 함 (UT-query로 drop 확인)\n\n[통과 조건]\nUT-query가 DUT이 under-length UDP를 전달하지 않았음을 확인.\n\n[실패 조건]\n• Fail_wrong_receipt — DUT이 under-length UDP 전달 (parser가 silent truncate)\n• Fail_timeout — UT-query 응답 없음 (테스트 인프라 문제)",
+  "verdicts": {
+    "Pass": "DUT이 under-length UDP 폐기 — 정상",
+    "Fail_wrong_receipt": "DUT이 Length가 실제 데이터보다 작은 UDP 수신",
+    "Fail_timeout": "under-length 폐기에 대한 UT 확인 없음"
+  }
+}

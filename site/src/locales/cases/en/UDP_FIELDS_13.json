@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted UDP with odd payload size carries a valid Internet checksum, with proper pseudo-header zero-pad processing for the trailing odd byte (RFC 768 'Fields' MUST)",
+  "approach": "[Objective]\nUDP checksums are computed over the pseudo-header + UDP header + payload, with a trailing zero byte appended if the data length is odd. This is a frequent bug surface — naive implementations forget the pad, producing a wrong checksum on odd-length payloads.\n\n[Scenario — chronological]\n1. Tester → DUT: OpTriggerSendUdp request with odd-length payload\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - checksum verifies against (pseudo-header + UDP header + payload + 0-pad)   ← key check\n\n[Pass condition]\nDUT-emitted UDP checksum is valid for the odd-length payload.\n\n[Fail condition]\n• Fail_invalid_checksum — DUT emitted UDP with checksum that does not validate (likely missing the zero-pad in the cksum computation)\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted odd-payload UDP carries valid checksum — normal",
+    "Fail_invalid_checksum": "DUT emitted UDP with invalid pseudo-header checksum on odd payload",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

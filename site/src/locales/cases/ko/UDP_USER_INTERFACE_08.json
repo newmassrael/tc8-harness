@@ -1,0 +1,9 @@
+{
+  "description": "DUT 발신 UDP datagram이 caller가 지정한 Destination IP Address를 가지는지 검증 (RFC 768 'User Interface' MUST)",
+  "approach": "[검증 목적]\nsend primitive는 caller의 dst_ip를 와이어에 실어야 한다 — 가장 근본적인 라우팅 결정이다. 잘못된 dst_ip는 datagram을 잘못된 호스트로(또는 아무 데도) 보낸다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: user interface로 send-UDP 요청 (dst_ip = Y)\n\n2. 관찰:\n   • DUT → 테스터: UDP datagram\n     - dst_ip == Y   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 UDP의 dst_ip = Y.\n\n[실패 조건]\n• Fail_wrong_dst_ip — DUT이 다른 dst_ip로 UDP 발신\n• Fail_timeout — listen 윈도우 내 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 UDP가 요청된 dst_ip 사용 — 정상",
+    "Fail_wrong_dst_ip": "DUT이 잘못된 user-interface dst_ip로 UDP 발신",
+    "Fail_timeout": "listen 윈도우 내 DUT 발신 UDP 없음"
+  }
+}

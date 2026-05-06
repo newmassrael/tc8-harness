@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT can receive UDP at the same destination port from two distinct hosts (RFC 768 'Fields')",
+  "approach": "[Objective]\nMirror of FIELDS_04: DUT must accept and report receipt of UDP datagrams arriving at the same dst_port but originating from different src_ip values. tc8-dut overwrites its last_receipt slot on each probe; the SCXML observes only the UT Confirmation that carries the per-phase expected src_ip.\n\n[Scenario — chronological]\n1. Phase 1 (synchronous):\n   • Tester → DUT: UDP probe with src_ip = Host-1-IP, dst_port = K\n   • Tester → DUT: OpGetReceivedUdp UT-query\n   • Observation: UT Confirmation reports src_ip == Host-1-IP\n\n2. Phase 2 (scheduled on Listening_phase2 entry):\n   • Tester → DUT: UDP probe with src_ip = Host-2-IP, dst_port = K\n   • Tester → DUT: OpGetReceivedUdp UT-query\n   • Observation: UT Confirmation reports src_ip == Host-2-IP\n\n[Pass condition]\nBoth UT-query confirmations report the matching per-phase expected src_ip.\n\n[Fail condition]\n• Fail_phase1_no_host1_receipt — UT confirmation missing for Host-1 phase\n• Fail_phase2_no_host2_receipt — UT confirmation missing for Host-2 phase",
+  "verdicts": {
+    "Pass": "DUT received UDPs from two distinct hosts on the same dst_port — normal",
+    "Fail_phase1_no_host1_receipt": "No UT confirmation for Host-1 receipt",
+    "Fail_phase2_no_host2_receipt": "No UT confirmation for Host-2 receipt"
+  }
+}

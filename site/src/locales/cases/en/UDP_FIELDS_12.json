@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT accepts a UDP datagram with maximum supported payload length (65 507 bytes — IPv4 max payload 65 535 minus 20 IP header minus 8 UDP header)",
+  "approach": "[Objective]\nThe largest legal IPv4 datagram is 65 535 octets (16-bit Total Length). Subtracting the 20-byte IP header and 8-byte UDP header leaves 65 507 bytes for UDP payload. DUT must accept this maximum size — typically delivered through IP fragmentation and reassembly.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with payload = 65 507 bytes\n   • Built via emitFragmentedUdpStimulus (the harness fragments and reassembles transparently)\n   • Payload byte at index i = i & 0xFF — deterministic per-index pattern so the SCXML can pivot on length while pcap remains readable\n\n2. Observation:\n   • DUT's upper-tester reports receipt with payload length == 65 507 (the SCXML pivots on length, not byte content)\n\n[Pass condition]\nUT-query confirms DUT delivered a UDP with payload length 65 507.\n\n[Fail condition]\n• Fail_field_mismatch — DUT delivered with the wrong payload length\n• Fail_timeout — UT-query never arrived (test infra issue)",
+  "verdicts": {
+    "Pass": "DUT accepted the 65 507-byte UDP — normal",
+    "Fail_field_mismatch": "DUT received UDP with unexpected payload length",
+    "Fail_timeout": "No UT confirmation for max-length UDP"
+  }
+}

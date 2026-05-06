@@ -1,0 +1,9 @@
+{
+  "description": "Verify that UDP receive operations return the data octets correctly to the upper layer (RFC 768 'User Interface' MUST)",
+  "approach": "[Objective]\nThe receive primitive must hand the application byte-exact payload — no truncation, no reorder, no off-by-one. This case sends a UDP with a known payload pattern and asks DUT to echo what it saw.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with a known payload P\n2. Tester → DUT: OpGetReceivedUdp UT-query\n\n3. Observation:\n   • UT Confirmation reports payload bytes == P   ← key check\n\n[Pass condition]\nReported payload bytes match what was sent.\n\n[Fail condition]\n• Fail_field_mismatch — DUT reported wrong payload bytes\n• Fail_timeout — UT-query never returned",
+  "verdicts": {
+    "Pass": "DUT reported correct payload bytes — normal",
+    "Fail_field_mismatch": "DUT received UDP with wrong payload bytes",
+    "Fail_timeout": "No UT confirmation for payload check"
+  }
+}

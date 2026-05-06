@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted UDP datagrams with no payload carry Length == 8 (header only) (RFC 768 'Fields' MUST)",
+  "approach": "[Objective]\nThe minimum legal UDP Length is 8 — the header alone, with zero payload. Some buggy stacks set Length = 0 in this case (which would be illegal per RFC 768). This case asks DUT to emit a zero-payload UDP and asserts Length is exactly 8.\n\n[Scenario — chronological]\n1. Tester → DUT: OpTriggerSendUdp request (udpUserDataSize = 0)\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - Length field == 8   ← key check\n\n[Pass condition]\nDUT-emitted UDP carries Length = 8.\n\n[Fail condition]\n• Fail_wrong_length — DUT emitted a zero-payload UDP whose Length is not 8 (e.g. 0)\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted zero-payload UDP carries Length = 8 — normal",
+    "Fail_wrong_length": "DUT emitted zero-payload UDP with Length not 8",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

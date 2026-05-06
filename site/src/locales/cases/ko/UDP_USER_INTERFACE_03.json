@@ -1,0 +1,9 @@
+{
+  "description": "UDP 수신 operation이 상위 계층에 source UDP port를 정확히 반환하는지 검증 (RFC 768 'User Interface' MUST)",
+  "approach": "[검증 목적]\n애플리케이션은 응답을 보내거나 flow를 demux하기 위해 송신자 포트가 필요하다. 수신 primitive는 와이어상 실제 src_port를 보고해야 한다(MUST) — 다른 값이면 reply-routing이 불가능해진다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 알려진 src_port = K인 UDP datagram\n2. 테스터 → DUT: OpGetReceivedUdp UT-query\n\n3. 관찰:\n   • UT Confirmation의 src_port == K   ← 핵심 확인 지점\n\n[통과 조건]\n보고된 src_port가 보낸 것과 일치.\n\n[실패 조건]\n• Fail_field_mismatch — DUT이 다른 src_port 보고\n• Fail_timeout — UT-query 응답 없음",
+  "verdicts": {
+    "Pass": "DUT이 정확한 src_port 보고 — 정상",
+    "Fail_field_mismatch": "DUT 수신 UDP confirmation의 src_port가 잘못됨",
+    "Fail_timeout": "src_port 검사에 대한 UT 확인 없음"
+  }
+}

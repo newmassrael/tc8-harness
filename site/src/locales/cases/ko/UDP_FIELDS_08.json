@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 절단된 UDP datagram(와이어 영역 < 8 바이트 — 헤더 자체가 불완전)을 폐기하는지 검증 (RFC 768 'Fields' MUST)",
+  "approach": "[검증 목적]\nUDP 헤더는 8 바이트로 고정이다. L2/L3 와이어가 UDP 영역으로 8 바이트 미만을 전달하면 헤더가 불완전해 datagram을 파싱할 수 없다. RFC 768 / RFC 1122는 수신자가 폐기하도록 요구한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: UDP 영역이 8 바이트 미만(예: 4 또는 6 바이트)인 IPv4 패킷\n\n2. 관찰:\n   • DUT의 upper-tester는 datagram을 수신하지 않아야 함 (UT-query로 drop 확인)\n\n[통과 조건]\nUT-query가 DUT이 절단된 UDP를 전달하지 않았음을 확인.\n\n[실패 조건]\n• Fail_wrong_receipt — DUT이 절단된 UDP를 전달 (parser가 sub-8-byte UDP 영역을 허용)\n• Fail_timeout — UT-query 응답 없음 (테스트 인프라 문제)",
+  "verdicts": {
+    "Pass": "DUT이 sub-8-byte 절단 UDP 폐기 — 정상",
+    "Fail_wrong_receipt": "DUT이 절단된 sub-8-byte UDP 수신",
+    "Fail_timeout": "절단 UDP 폐기에 대한 UT 확인 없음"
+  }
+}

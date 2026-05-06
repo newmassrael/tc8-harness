@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT can send UDP to the same destination port at two distinct hosts in sequence (RFC 768 'Fields')",
+  "approach": "[Objective]\nA correct UDP implementation can re-target the same dst_port at different remote hosts without confusing its egress state. This case has DUT emit two UDPs with the same dst_port but different dst_ip values and asserts both reach the wire.\n\n[Scenario — chronological]\n1. Phase 1 (synchronous):\n   • Tester → DUT: OpTriggerSendUdp (dst_ip = Host-1-IP)\n   • Observation: DUT → wire: UDP to Host-1-IP, src_port = 20040\n\n2. Phase 2 (scheduled on Listening_phase2 entry, after phase 1 completes):\n   • Tester → DUT: OpTriggerSendUdp (dst_ip = Host-2-IP, kUdpHost2IpBe = 172.16.0.3)\n   • Observation: DUT → wire: UDP to Host-2-IP\n\n3. ARP note: DUT's egress ARP for 172.16.0.3 resolves via the NUD_PERMANENT entry pinned by smoke-test bring_up. Tester-side does not alias the IP, so Linux drops the unmatched-dst inbound silently — pcap on AF_PACKET ETH_P_ALL still observes the wire frame.\n\n[Pass condition]\nBoth phase-1 and phase-2 egress UDPs are observed on the wire.\n\n[Fail condition]\n• Fail_phase1_no_host1_egress — phase 1 UDP to Host-1-IP not observed within window\n• Fail_phase2_no_host2_egress — phase 2 UDP to Host-2-IP not observed within window",
+  "verdicts": {
+    "Pass": "DUT emitted UDPs to two distinct hosts on the same dst_port — normal",
+    "Fail_phase1_no_host1_egress": "No DUT-originated UDP to Host-1-IP within the listen window",
+    "Fail_phase2_no_host2_egress": "No DUT-originated UDP to Host-2-IP within the listen window"
+  }
+}

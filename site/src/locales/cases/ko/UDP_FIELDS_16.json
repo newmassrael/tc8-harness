@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 Checksum 필드 == 0인 UDP datagram을 수용하는지 검증 (RFC 768 'Fields' — checksum=0은 정당한 'no-checksum' opt-out)",
+  "approach": "[검증 목적]\nRFC 768은 송신자가 Checksum = 0을 설정해 무결성 검사를 건너뛸 수 있게 한다 — 검증 비용을 피하고자 하는 지연 민감 트래픽이 역사적으로 사용해왔다. 수신자는 Checksum = 0이라는 이유만으로 datagram을 거부해서는 안 된다(MUST NOT). 이는 'invalid non-zero checksum'(FIELDS_15)과는 다른 코드 경로다. DUT은 datagram을 수용하고 전달해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: Checksum 필드를 0으로 설정한 UDP datagram\n\n2. 관찰:\n   • DUT의 upper-tester가 datagram 수신 (UT-query로 확인)\n\n[통과 조건]\nUT-query가 DUT이 Checksum=0 UDP를 전달했음을 확인.\n\n[실패 조건]\n• Fail_wrong_receipt — DUT이 datagram을 전달하지 않음 (checksum=0을 invalid로 취급)\n• Fail_timeout — UT-query 응답 없음 (테스트 인프라 문제)",
+  "verdicts": {
+    "Pass": "DUT이 Checksum=0 UDP 수용 — 정상",
+    "Fail_wrong_receipt": "DUT이 zero-checksum UDP를 수용하지 않음",
+    "Fail_timeout": "zero-checksum 수용에 대한 UT 확인 없음"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "UDP user interface가 N개의 신규 수신 포트 생성을 허용하는지 검증 — TC8 spec은 DUT이 OpCreateUdpReceivePorts로 요청 시 10개 수신 포트를 생성할 수 있어야 한다고 명시 (RFC 768 'User Interface' MUST)",
+  "approach": "[검증 목적]\nRFC 768 'User Interface'는 신규 수신 포트 생성을 필수 UDP 서비스 primitive로 명시한다. TC8 v3.0은 이를 정량화한다: DUT은 요청 시 최소 10개의 포트를 provisioning할 수 있어야 한다. 이 케이스는 OpCreateUdpReceivePorts를 보내고 DUT이 요청 수를 보고하는지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpCreateUdpReceivePorts (count = 10)\n\n2. 관찰:\n   • DUT이 10개의 수신 포트 생성을 confirmation으로 회신   ← 핵심 확인 지점\n\n[통과 조건]\nUT confirmation의 created port count == requested count.\n\n[실패 조건]\n• Fail_wrong_port_count — DUT이 요청 수와 다른 수의 포트를 생성\n• Fail_timeout — UT-query에 대한 생성 confirmation 회신 없음",
+  "verdicts": {
+    "Pass": "DUT이 요청된 수신 포트 수 생성 — 정상",
+    "Fail_wrong_port_count": "DUT이 요청된 수신 포트 수를 생성하지 않음",
+    "Fail_timeout": "create-UDP-receive-ports에 대한 UT 확인 없음"
+  }
+}

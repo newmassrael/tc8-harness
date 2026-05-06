@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT accepts a UDP datagram with Source Port = 0 (RFC 768 'Fields' MUST — \"If not used, a value of zero is inserted\")",
+  "approach": "[Objective]\nRFC 768 says src_port = 0 is the legitimate sentinel for 'no reply expected', e.g. one-shot announcements. Receivers MUST NOT reject a datagram just because src_port is zero — that would break unidirectional UDP usage.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram\n   • src_port = 0   ← key trigger\n   • dst_port = a port DUT's upper-tester listens on\n\n2. Observation:\n   • DUT's upper-tester receives the datagram (UT-query confirms)\n\n[Pass condition]\nDUT delivers the src_port=0 UDP to upper-tester.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT did not deliver the datagram (src_port=0 silently dropped)\n• Fail_timeout — UT-query never arrived (test infra issue, indeterminate)",
+  "verdicts": {
+    "Pass": "DUT accepted the src_port=0 UDP — normal",
+    "Fail_wrong_receipt": "DUT did not receive the zero-source-port UDP",
+    "Fail_timeout": "No UT confirmation for zero-source-port"
+  }
+}

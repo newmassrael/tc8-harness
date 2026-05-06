@@ -1,0 +1,9 @@
+{
+  "description": "짝수 payload 크기의 DUT 발신 UDP가 zero-pad 없이 계산된 유효한 Internet checksum을 가지는지 검증 (RFC 768 'Fields' MUST)",
+  "approach": "[검증 목적]\nFIELDS_13의 짝수 길이 짝: payload 길이가 짝수면 trailing zero pad가 필요 없다. DUT은 그래도 정확한 pseudo-header + header + payload checksum을 생산해야 한다. 이 케이스는 unpadded 경로를 명시적으로 검증한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 짝수 길이 payload로 OpTriggerSendUdp 요청\n\n2. 관찰:\n   • DUT → 테스터: UDP datagram\n     - checksum이 (pseudo-header + UDP header + payload, pad 없음)에 대해 검증됨   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 UDP의 checksum이 짝수 길이 payload에 대해 유효.\n\n[실패 조건]\n• Fail_invalid_checksum — DUT이 검증되지 않는 checksum으로 UDP 발신\n• Fail_timeout — listen 윈도우 내 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 짝수-payload UDP가 유효한 checksum 포함 — 정상",
+    "Fail_invalid_checksum": "DUT이 짝수 payload에 대해 잘못된 pseudo-header checksum의 UDP 발신",
+    "Fail_timeout": "listen 윈도우 내 DUT 발신 UDP 없음"
+  }
+}

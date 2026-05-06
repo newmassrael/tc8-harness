@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT accepts a UDP datagram with a well-formed UDP Header (RFC 768 'Format' MUST)",
+  "approach": "[Objective]\nThe positive baseline for UDP receipt: when src_port, dst_port, Length, and Checksum are all well-formed and the IP envelope is valid, DUT must deliver the datagram to the upper-tester. This case anchors the negative-discard cases (FIELDS_08..10/15, INVALID_ADDRESSES_01/02, DATAGRAMLENGTH_01) by showing the same path delivers correctly when the header is right.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with a well-formed header\n\n2. Observation:\n   • DUT's upper-tester receives the datagram (UT-query confirms)\n\n[Pass condition]\nUT-query confirms DUT delivered the well-formed UDP.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT did not deliver a well-formed UDP (drop path overzealous)\n• Fail_timeout — UT-query never arrived (test infra issue)",
+  "verdicts": {
+    "Pass": "DUT accepted the well-formed UDP — normal",
+    "Fail_wrong_receipt": "DUT did not accept the well-formed UDP",
+    "Fail_timeout": "No UT confirmation for well-formed UDP accept"
+  }
+}

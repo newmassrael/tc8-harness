@@ -1,0 +1,9 @@
+{
+  "description": "짝수 payload 크기의 DUT 발신 UDP datagram에 trailing padding 바이트가 없는지 검증 (RFC 768 'Fields')",
+  "approach": "[검증 목적]\nUDP 자체는 padding을 붙이지 않는다. 짝수 길이 payload에서는 checksum 관련 zero-pad도 없다. 와이어 프레임은 (UDP header + payload) 끝에서 정확히 끝나야 한다 — 뒤에 바이트가 더 있다면 DUT이 버퍼 내용을 누출하거나 잘못된 계층에서 정렬하는 것이다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 짝수 길이 payload로 OpTriggerSendUdp 요청\n\n2. 관찰:\n   • DUT → 테스터: UDP datagram\n     - IP Total Length가 정확히 (IP header + UDP header + payload)에 대응, 추가 옥텟 없음   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 UDP 프레임이 선언된 payload 너머로 trailing padding 없음.\n\n[실패 조건]\n• Fail_padding_or_length — DUT이 payload 너머 trailing 바이트가 있는 UDP 발신 (또는 Length 필드 오류)\n• Fail_timeout — listen 윈도우 내 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 짝수-payload UDP에 trailing padding 없음 — 정상",
+    "Fail_padding_or_length": "DUT이 짝수 payload에 trailing padding을 붙여 UDP 발신",
+    "Fail_timeout": "listen 윈도우 내 DUT 발신 UDP 없음"
+  }
+}

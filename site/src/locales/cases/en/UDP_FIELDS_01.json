@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted UDP datagrams carry the caller-specified Source Port (RFC 768 'Fields' SHOULD)",
+  "approach": "[Objective]\nRFC 768 'Fields' says the Source Port is set by the application — when an upper-tester asks DUT to emit a UDP with a specific src_port, that exact value must reach the wire. This case asks DUT to emit a UDP with a known src_port and asserts the captured packet carries it.\n\n[Scenario — chronological]\n1. Tester → DUT: OpTriggerSendUdp request (src_port = K)\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - src_port == K   ← key check\n\n[Pass condition]\nDUT-emitted UDP carries src_port = K.\n\n[Fail condition]\n• Fail_wrong_src_port — DUT emitted UDP with a different src_port (UI value not propagated)\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted UDP carries the requested src_port — normal",
+    "Fail_wrong_src_port": "DUT emitted UDP with the wrong src_port",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

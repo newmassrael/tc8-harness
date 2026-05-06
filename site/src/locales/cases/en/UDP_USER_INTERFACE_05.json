@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emit UDP datagram carries the caller-specified Source Port (RFC 768 'User Interface' MUST). Mirror of FIELDS_01 but anchored under §User Interface with a per-case src_port for wire disambiguation",
+  "approach": "[Objective]\nSame mechanic as FIELDS_01 — the user interface src_port must reach the wire — but anchored to the User Interface section of RFC 768 and using a per-case src_port so wire frames are disambiguated from FIELDS_01 / _05.\n\n[Scenario — chronological]\n1. Tester → DUT: send-UDP request via the user interface (src_port = K)\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - src_port == K   ← key check\n\n[Pass condition]\nDUT-emitted UDP carries src_port = K.\n\n[Fail condition]\n• Fail_wrong_src_port — DUT emitted UDP with a different src_port\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted UDP carries the requested src_port — normal",
+    "Fail_wrong_src_port": "DUT emitted UDP with the wrong user-interface src_port",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

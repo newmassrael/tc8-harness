@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 같은 destination port로 서로 다른 두 호스트에 UDP를 순차 발신할 수 있는지 검증 (RFC 768 'Fields')",
+  "approach": "[검증 목적]\n올바른 UDP 구현은 egress 상태를 혼동하지 않고 같은 dst_port를 다른 원격 호스트에 재타겟할 수 있어야 한다. 이 케이스는 DUT에게 dst_port는 같지만 dst_ip가 다른 UDP 두 개를 발신시키고, 둘 다 와이어에 실리는지 확인한다.\n\n[시나리오 — 시간순]\n1. Phase 1 (동기):\n   • 테스터 → DUT: OpTriggerSendUdp (dst_ip = Host-1-IP)\n   • 관찰: DUT → 와이어: Host-1-IP로 UDP, src_port = 20040\n\n2. Phase 2 (Phase 1 완료 후 Listening_phase2 진입 시 스케줄):\n   • 테스터 → DUT: OpTriggerSendUdp (dst_ip = Host-2-IP, kUdpHost2IpBe = 172.16.0.3)\n   • 관찰: DUT → 와이어: Host-2-IP로 UDP\n\n3. ARP 참고: 172.16.0.3에 대한 DUT의 egress ARP는 smoke-test bring_up이 pin한 NUD_PERMANENT 엔트리로 해소된다. 테스터 측은 그 IP를 alias하지 않으므로 Linux는 unmatched-dst 인바운드를 silent drop하지만, AF_PACKET ETH_P_ALL pcap은 와이어 프레임을 그대로 관찰한다.\n\n[통과 조건]\nphase 1, phase 2 egress UDP 모두 와이어에서 관찰.\n\n[실패 조건]\n• Fail_phase1_no_host1_egress — listen 윈도우 내 Host-1-IP로의 UDP 미발신\n• Fail_phase2_no_host2_egress — listen 윈도우 내 Host-2-IP로의 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT이 같은 dst_port로 서로 다른 두 호스트에 UDP 발신 — 정상",
+    "Fail_phase1_no_host1_egress": "listen 윈도우 내 Host-1-IP 향 DUT UDP 없음",
+    "Fail_phase2_no_host2_egress": "listen 윈도우 내 Host-2-IP 향 DUT UDP 없음"
+  }
+}

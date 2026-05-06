@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the UDP user interface allows creation of N new receive ports — TC8 spec asserts DUT can create 10 receive ports on demand via OpCreateUdpReceivePorts (RFC 768 'User Interface' MUST)",
+  "approach": "[Objective]\nRFC 768 'User Interface' lists creation of new receive ports as a required UDP service primitive. TC8 v3.0 quantifies it: DUT must be able to provision at least 10 ports when asked. This case sends OpCreateUdpReceivePorts and asserts DUT reports the requested count.\n\n[Scenario — chronological]\n1. Tester → DUT: OpCreateUdpReceivePorts (count = 10)\n\n2. Observation:\n   • DUT confirms creation of 10 receive ports (via UT-query response)   ← key check\n\n[Pass condition]\nUT confirmation reports created port count == requested count.\n\n[Fail condition]\n• Fail_wrong_port_count — DUT created a different number of ports than requested\n• Fail_timeout — UT-query never returned a creation confirmation",
+  "verdicts": {
+    "Pass": "DUT created the requested receive port count — normal",
+    "Fail_wrong_port_count": "DUT did not create the requested receive port count",
+    "Fail_timeout": "No UT confirmation for create-UDP-receive-ports"
+  }
+}

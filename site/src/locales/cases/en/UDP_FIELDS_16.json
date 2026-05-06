@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT accepts a UDP datagram with Checksum field == 0 (RFC 768 'Fields' — checksum=0 is the legitimate 'no-checksum' opt-out)",
+  "approach": "[Objective]\nRFC 768 lets a sender set Checksum = 0 to skip integrity checking — used historically by latency-sensitive flows that don't want a verify cost. Receivers MUST NOT reject a datagram on Checksum = 0 alone; that's a different code path from 'invalid non-zero checksum' (FIELDS_15). DUT must accept and deliver the datagram.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with Checksum field set to 0\n\n2. Observation:\n   • DUT's upper-tester receives the datagram (UT-query confirms)\n\n[Pass condition]\nUT-query confirms DUT delivered the Checksum=0 UDP.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT did not deliver the datagram (treated checksum=0 as invalid)\n• Fail_timeout — UT-query never arrived (test infra issue)",
+  "verdicts": {
+    "Pass": "DUT accepted the Checksum=0 UDP — normal",
+    "Fail_wrong_receipt": "DUT did not accept the zero-checksum UDP",
+    "Fail_timeout": "No UT confirmation for zero-checksum accept"
+  }
+}

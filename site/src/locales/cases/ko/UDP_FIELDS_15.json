@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 0이 아닌 잘못된 checksum의 UDP datagram을 silent discard하는지 검증 (RFC 1122 §4.1.3.4 MUST)",
+  "approach": "[검증 목적]\nRFC 1122 §4.1.3.4는 수신자가 0이 아니면서 검증되지 않는 checksum의 UDP datagram을 silent discard해야 한다(MUST)고 규정한다. 'silently'는 ICMP 에러도, 송신자에게 로그 노이즈도 없이 — 잘못된 비트는 그냥 바닥에 떨어뜨린다. (Checksum=0은 정당한 'no checksum' opt-out으로 FIELDS_16이 다룬다.)\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: 의도적으로 손상된(0이 아닌) checksum의 UDP datagram\n\n2. 관찰:\n   • DUT의 upper-tester는 datagram을 수신하지 않아야 함 (UT-query로 drop 확인)\n\n[통과 조건]\nUT-query가 DUT이 bad-checksum UDP를 전달하지 않았음을 확인.\n\n[실패 조건]\n• Fail_wrong_receipt — DUT이 잘못된 checksum의 UDP를 전달 (checksum 검증 비활성화 또는 우회)\n• Fail_timeout — UT-query 응답 없음 (테스트 인프라 문제)",
+  "verdicts": {
+    "Pass": "DUT이 bad-checksum UDP silent discard — 정상",
+    "Fail_wrong_receipt": "DUT이 잘못된 checksum의 UDP 수신",
+    "Fail_timeout": "invalid-checksum 폐기에 대한 UT 확인 없음"
+  }
+}

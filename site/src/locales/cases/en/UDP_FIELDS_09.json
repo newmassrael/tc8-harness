@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT discards a UDP datagram with Length field == 0 (RFC 768 'Fields' MUST)",
+  "approach": "[Objective]\nLength = 0 is illegal — the minimum legal value is 8 (the header alone). A receiver that accepted Length=0 would have to make up framing rules, opening parser-confusion attacks. RFC 768 requires it to be dropped.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with Length field set to 0\n\n2. Observation:\n   • DUT's upper-tester must NOT receive the datagram (UT-query confirms drop)\n\n[Pass condition]\nUT-query confirms DUT did not deliver the Length=0 UDP.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT delivered the Length=0 UDP (parser tolerated illegal length)\n• Fail_timeout — UT-query never arrived (test infra issue)",
+  "verdicts": {
+    "Pass": "DUT discarded the Length=0 UDP — normal",
+    "Fail_wrong_receipt": "DUT received UDP with zero Length field",
+    "Fail_timeout": "No UT confirmation for zero-length discard"
+  }
+}

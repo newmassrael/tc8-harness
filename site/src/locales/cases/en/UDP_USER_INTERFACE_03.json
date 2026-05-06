@@ -1,0 +1,9 @@
+{
+  "description": "Verify that UDP receive operations return the source UDP port correctly to the upper layer (RFC 768 'User Interface' MUST)",
+  "approach": "[Objective]\nApplications often need the sender's port to reply or to demultiplex flows. The receive primitive MUST report the actual src_port on the wire — anything else makes reply-routing impossible.\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with a known src_port = K\n2. Tester → DUT: OpGetReceivedUdp UT-query\n\n3. Observation:\n   • UT Confirmation reports src_port == K   ← key check\n\n[Pass condition]\nReported src_port matches what was sent.\n\n[Fail condition]\n• Fail_field_mismatch — DUT reported a different src_port\n• Fail_timeout — UT-query never returned",
+  "verdicts": {
+    "Pass": "DUT reported correct src_port — normal",
+    "Fail_field_mismatch": "DUT received UDP with wrong src_port in confirmation",
+    "Fail_timeout": "No UT confirmation for src_port check"
+  }
+}

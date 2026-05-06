@@ -1,0 +1,9 @@
+{
+  "description": "DUT 발신 UDP datagram이 caller가 지정한 Source Port를 가지는지 검증 (RFC 768 'Fields' SHOULD)",
+  "approach": "[검증 목적]\nRFC 768 'Fields'는 Source Port를 애플리케이션이 설정한다고 한다 — upper-tester가 DUT에게 특정 src_port로 UDP를 발신하라고 요청하면, 그 정확한 값이 와이어에 실려야 한다. 이 케이스는 DUT에게 알려진 src_port로 UDP를 발신하라고 요청하고, 캡처된 패킷이 그 값을 담고 있는지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpTriggerSendUdp 요청 (src_port = K)\n\n2. 관찰:\n   • DUT → 테스터: UDP datagram\n     - src_port == K   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 UDP의 src_port = K.\n\n[실패 조건]\n• Fail_wrong_src_port — DUT이 다른 src_port로 UDP 발신 (UI 값이 전파되지 않음)\n• Fail_timeout — listen 윈도우 내 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 UDP가 요청된 src_port 사용 — 정상",
+    "Fail_wrong_src_port": "DUT이 잘못된 src_port로 UDP 발신",
+    "Fail_timeout": "listen 윈도우 내 DUT 발신 UDP 없음"
+  }
+}

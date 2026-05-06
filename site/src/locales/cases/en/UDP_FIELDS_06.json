@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted UDP datagrams have a Length field equal to 8 (header) + udpUserDataSize (RFC 768 'Fields' MUST)",
+  "approach": "[Objective]\nRFC 768 defines the UDP Length field as the total UDP-layer byte count: 8 octets of header + the payload. Wrong length corrupts framing and may cause receivers to truncate or drop the datagram.\n\n[Scenario — chronological]\n1. Tester → DUT: OpTriggerSendUdp request (udpUserDataSize = 8)\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - Length field == 8 + 8 = 16   ← key check\n\n[Pass condition]\nDUT-emitted UDP carries Length == 8 + udpUserDataSize.\n\n[Fail condition]\n• Fail_wrong_length — Length is not 8 + payload size (e.g. payload-only count, or includes IP header)\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted UDP Length == 8 + payload — normal",
+    "Fail_wrong_length": "DUT emitted UDP Length is not 8 + payload",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}

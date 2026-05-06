@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 같은 destination port로 서로 다른 두 호스트에서 오는 UDP를 수신할 수 있는지 검증 (RFC 768 'Fields')",
+  "approach": "[검증 목적]\nFIELDS_04의 거울 방향: DUT은 같은 dst_port에 도착하지만 src_ip가 다른 UDP datagram을 모두 수용하고 수신을 보고해야 한다. tc8-dut은 매 probe마다 last_receipt 슬롯을 덮어쓰고, SCXML은 phase별 기대 src_ip를 담은 UT Confirmation만을 관찰한다.\n\n[시나리오 — 시간순]\n1. Phase 1 (동기):\n   • 테스터 → DUT: UDP probe (src_ip = Host-1-IP, dst_port = K)\n   • 테스터 → DUT: OpGetReceivedUdp UT-query\n   • 관찰: UT Confirmation의 src_ip == Host-1-IP\n\n2. Phase 2 (Listening_phase2 진입 시 스케줄):\n   • 테스터 → DUT: UDP probe (src_ip = Host-2-IP, dst_port = K)\n   • 테스터 → DUT: OpGetReceivedUdp UT-query\n   • 관찰: UT Confirmation의 src_ip == Host-2-IP\n\n[통과 조건]\n두 UT-query confirmation 모두 phase별 기대 src_ip를 보고.\n\n[실패 조건]\n• Fail_phase1_no_host1_receipt — Host-1 phase의 UT confirmation 없음\n• Fail_phase2_no_host2_receipt — Host-2 phase의 UT confirmation 없음",
+  "verdicts": {
+    "Pass": "DUT이 같은 dst_port로 서로 다른 두 호스트의 UDP를 수신 — 정상",
+    "Fail_phase1_no_host1_receipt": "Host-1 수신에 대한 UT 확인 없음",
+    "Fail_phase2_no_host2_receipt": "Host-2 수신에 대한 UT 확인 없음"
+  }
+}

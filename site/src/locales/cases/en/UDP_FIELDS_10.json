@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT discards a UDP datagram whose Length field claims more bytes than the IP payload actually carries (RFC 768 'Fields' MUST)",
+  "approach": "[Objective]\nIf UDP.Length > (IP payload length), the datagram is internally inconsistent — the parser would walk past the end of the buffer. RFC 768 requires the receiver to drop it. (Note: this is the over-claim variant; under-claim is covered by DATAGRAMLENGTH_01.)\n\n[Scenario — chronological]\n1. Tester → DUT: UDP datagram with Length field intentionally larger than the IP payload byte count\n\n2. Observation:\n   • DUT's upper-tester must NOT receive the datagram (UT-query confirms drop)\n\n[Pass condition]\nUT-query confirms DUT did not deliver the over-length UDP.\n\n[Fail condition]\n• Fail_wrong_receipt — DUT delivered the over-length UDP (parser tolerated buffer over-walk)\n• Fail_timeout — UT-query never arrived (test infra issue)",
+  "verdicts": {
+    "Pass": "DUT discarded the over-length UDP — normal",
+    "Fail_wrong_receipt": "DUT received UDP with Length greater than actual IP payload",
+    "Fail_timeout": "No UT confirmation for over-length discard"
+  }
+}

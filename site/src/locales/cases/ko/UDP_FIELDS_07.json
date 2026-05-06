@@ -1,0 +1,9 @@
+{
+  "description": "payload가 없는 DUT 발신 UDP datagram의 Length가 8(header만)인지 검증 (RFC 768 'Fields' MUST)",
+  "approach": "[검증 목적]\n합법적인 UDP Length의 최솟값은 8 — payload 없이 헤더만 있는 경우다. 일부 버그 있는 스택은 이 경우 Length=0으로 설정한다(RFC 768 위반). 이 케이스는 DUT에게 zero-payload UDP를 발신시키고 Length가 정확히 8인지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpTriggerSendUdp 요청 (udpUserDataSize = 0)\n\n2. 관찰:\n   • DUT → 테스터: UDP datagram\n     - Length 필드 == 8   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 UDP의 Length = 8.\n\n[실패 조건]\n• Fail_wrong_length — DUT이 zero-payload UDP를 Length≠8로 발신 (예: 0)\n• Fail_timeout — listen 윈도우 내 UDP 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 zero-payload UDP의 Length = 8 — 정상",
+    "Fail_wrong_length": "DUT 발신 zero-payload UDP의 Length가 8이 아님",
+    "Fail_timeout": "listen 윈도우 내 DUT 발신 UDP 없음"
+  }
+}

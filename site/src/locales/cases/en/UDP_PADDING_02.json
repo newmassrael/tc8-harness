@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted UDP datagrams with even payload size carry no trailing padding bytes (RFC 768 'Fields')",
+  "approach": "[Objective]\nUDP itself never adds padding. With an even-length payload there is no checksum-related zero-pad either. The wire frame must end exactly at (UDP header + payload); any trailing bytes mean DUT is leaking buffer contents or aligning at the wrong layer.\n\n[Scenario — chronological]\n1. Tester → DUT: OpTriggerSendUdp request with an even-length payload\n\n2. Observation:\n   • DUT → Tester: UDP datagram\n     - IP Total Length corresponds exactly to (IP header + UDP header + payload), no extra octets   ← key check\n\n[Pass condition]\nDUT-emitted UDP frame has no trailing padding past the declared payload.\n\n[Fail condition]\n• Fail_padding_or_length — DUT emitted UDP with trailing bytes beyond the payload (or wrong Length field)\n• Fail_timeout — DUT did not emit any UDP within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted even-payload UDP has no trailing padding — normal",
+    "Fail_padding_or_length": "DUT emitted UDP with trailing padding on even payload",
+    "Fail_timeout": "No DUT-originated UDP within the listen window"
+  }
+}
