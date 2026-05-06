@@ -1,0 +1,9 @@
+{
+  "description": "DUT 발신 ARP Probe의 Ethernet destination이 broadcast(FF:FF:FF:FF:FF:FF)인지 검증 (RFC 3927 §2.2.1, MUST)",
+  "approach": "[검증 목적]\nRFC 3927 §2.2.1은 ARP Probe를 link-layer broadcast로 발신하도록 강제한다(MUST) — 세그먼트의 모든 호스트가 봐야 주소 충돌을 감지할 수 있다. 이 케이스는 DUT이 처음 발신한 Probe의 Ethernet destination이 all-ones broadcast MAC인지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf + fast envelope. tc8-dut은 DHCPDISCOVER 1회 발신(spec 사전 조건 'DUT: Sends DHCPDISCOVER Message') 후 PROBE 단계 진입.\n\n2. 관찰:\n   • DUT → 와이어: 첫 ARP Probe\n     - Ethernet dst = FF:FF:FF:FF:FF:FF   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 첫 Probe의 Ethernet dst = FF:FF:FF:FF:FF:FF.\n\n[실패 조건]\n• Fail_probe_not_broadcast — Probe Ethernet dst가 broadcast MAC이 아님\n• Fail_timeout — deadline 내 ARP Probe 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 Probe가 Ethernet broadcast 사용 — 정상",
+    "Fail_probe_not_broadcast": "DUT ARP Probe의 Ethernet destination이 broadcast가 아님",
+    "Fail_timeout": "deadline 내 ARP Probe 미발신"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT immediately ceases its claim and re-probes after a SINGLE ARP Reply conflict on its committed Link-Local address (RFC 3927 §2.5, MAY)",
+  "approach": "[Objective]\n_06..09 cover two-conflict CEASE behaviour. _10 hits the RFC 3927 §2.5 MAY-immediate-cease branch: a single conflict is enough to abandon the LL. DUT's always-cease implementation reaches the re-pick verdict identically — only one Reply is injected, but the abandonment must still trigger.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 1st Announce → post_claim entry observer fires:\n   • UT-query DUT_LL → snapshot\n   • Tester → DUT: 1 ARP Reply with sender_proto_ip = committed LL\n\n3. Observation (re-probe window):\n   • DUT → wire: a fresh ARP Probe with target_proto_ip ≠ snapshotted committed LL   ← key check\n\n[Pass condition]\nClaim observed AND a fresh Probe with a different LL after the single conflict.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT did not announce its committed LL\n• Fail_no_reprobe — DUT did not re-probe after the single conflict ARP",
+  "verdicts": {
+    "Pass": "DUT ceased and re-probed after a single ARP Reply conflict — normal",
+    "Fail_no_claim_observed": "DUT did not announce its committed Link-Local address",
+    "Fail_no_reprobe": "DUT did not re-probe after the single conflict ARP"
+  }
+}

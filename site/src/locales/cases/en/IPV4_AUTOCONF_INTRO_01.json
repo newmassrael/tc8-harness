@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT does NOT auto-configure an IPv4 Link-Local address while a routable DHCP lease is available (RFC 3927 §1.9 SHOULD NOT)",
+  "approach": "[Objective]\nRFC 3927 §1.9 says a host SHOULD NOT configure a Link-Local address (169.254/16) while it has a routable IP from a higher-priority source such as DHCP. This case checks that DUT successfully completes a DHCPv4 lease and then stays on the routable address — it must not start the Link-Local probe machine on the side.\n\n[Scenario — chronological]\n1. Tester (DHCP server emul) ⇄ DUT: full DHCPv4 4-way exchange\n   • DUT emits DISCOVER → tester replies OFFER on Listening_for_request entry\n   • DUT emits REQUEST → tester replies ACK on Listening_for_no_arp_probe entry\n   • Lease time = 15 s (ParamListenTime × 3, per TC8 §3 default 5 s)\n\n2. Observation (Listening_for_no_arp_probe window):\n   • DUT must NOT emit any ARP Probe targeting a 169.254/16 address\n\n[Pass condition]\nDISCOVER → OFFER → REQUEST → ACK observed AND no Link-Local ARP Probe within the listen window.\n\n[Fail condition]\n• Fail_no_discover — DUT did not emit DHCPDISCOVER within the listen window\n• Fail_no_request — DUT did not emit DHCPREQUEST after receiving the OFFER\n• Fail_dut_emitted_ll_probe — DUT emitted a Link-Local ARP Probe even though it had a routable lease",
+  "verdicts": {
+    "Pass": "DUT honoured the DHCP lease and stayed off Link-Local — normal",
+    "Fail_no_discover": "DUT did not emit DHCPDISCOVER within the listen window",
+    "Fail_no_request": "DUT did not emit DHCPREQUEST after the OFFER",
+    "Fail_dut_emitted_ll_probe": "DUT emitted a Link-Local ARP Probe despite having a routable DHCP lease"
+  }
+}

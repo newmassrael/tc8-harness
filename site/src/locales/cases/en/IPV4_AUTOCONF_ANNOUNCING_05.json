@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT broadcasts ANNOUNCE_NUM = 2 ARP Announcements after the Probe phase (RFC 3927 §2.4, MUST)",
+  "approach": "[Objective]\nRFC 3927 §2.4 specifies ANNOUNCE_NUM = 2 — DUT must emit two Announcements to lock in cache state across the segment. A single Announcement may be lost; two improves the chance every receiver sees one. This case observes the post-Probe phase and asserts at least 2 Announcements.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 2 Announcements.\n\n3. Observation (announcement window):\n   • DUT → wire: 2 ARP Announcements   ← key check\n\n[Pass condition]\nAt least 2 Announcements observed before the deadline.\n\n[Fail condition]\n• Fail_no_announces — DUT did not emit any Announcement after the Probe phase\n• Fail_only_one_announce — fewer than 2 Announcements within the deadline",
+  "verdicts": {
+    "Pass": "DUT emitted ANNOUNCE_NUM = 2 Announcements — normal",
+    "Fail_no_announces": "DUT did not emit any ARP Announcement after Probes",
+    "Fail_only_one_announce": "Fewer than 2 ARP Announcements within the deadline"
+  }
+}

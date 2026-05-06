@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT ceases its claim and re-probes after Reply + Request conflicts on its committed Link-Local address (RFC 3927 §2.5, MUST)",
+  "approach": "[Objective]\nReverse mixed-shape variant of _08: first conflict is an ARP Reply, the second is an ARP Request. Order should not matter to the always-cease branch — collisions are collisions regardless of opcode order.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 1st Announce → post_claim entry observer fires:\n   • UT-query DUT_LL → snapshot\n   • Tester → DUT: 1 ARP Reply, then 1 ARP Request, both claiming committed LL\n\n3. Observation (re-probe window):\n   • DUT → wire: a fresh ARP Probe with target_proto_ip ≠ snapshotted committed LL   ← key check\n\n[Pass condition]\nClaim observed AND a fresh Probe with a different LL after the Reply+Request conflicts.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT did not announce its committed LL\n• Fail_no_reprobe — DUT did not re-probe after the conflict ARPs",
+  "verdicts": {
+    "Pass": "DUT ceased and re-probed after Reply+Request conflicts — normal",
+    "Fail_no_claim_observed": "DUT did not announce its committed Link-Local address",
+    "Fail_no_reprobe": "DUT did not re-probe after the conflict ARPs"
+  }
+}

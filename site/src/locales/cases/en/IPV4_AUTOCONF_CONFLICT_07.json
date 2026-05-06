@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT ceases its claim and re-probes after two ARP Reply conflicts on its committed Link-Local address (RFC 3927 §2.5, MUST)",
+  "approach": "[Objective]\nSame post-claim conflict-cease behaviour as _06, but the conflict frames are ARP Replies (not Requests). RFC 3927 §2.5 treats both as collision signals — the LL has been claimed by another node and DUT must abandon it.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 1st Announce → post_claim entry observer fires:\n   • UT-query DUT_LL → snapshot\n   • Tester → DUT: 2 ARP Replies with sender_proto_ip = committed LL\n\n3. Observation (re-probe window):\n   • DUT → wire: a fresh ARP Probe with target_proto_ip ≠ snapshotted committed LL   ← key check\n\n[Pass condition]\nClaim observed AND a fresh Probe with a different LL after the Reply conflicts.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT did not announce its committed LL\n• Fail_no_reprobe — DUT did not re-probe after the conflict ARP Replies",
+  "verdicts": {
+    "Pass": "DUT ceased its claim and re-probed after two ARP Reply conflicts — normal",
+    "Fail_no_claim_observed": "DUT did not announce its committed Link-Local address",
+    "Fail_no_reprobe": "DUT did not re-probe after the conflict ARPs"
+  }
+}

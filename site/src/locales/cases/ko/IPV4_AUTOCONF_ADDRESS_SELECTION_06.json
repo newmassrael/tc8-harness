@@ -1,0 +1,9 @@
+{
+  "description": "DUT 발신 ARP Probe의 sender_proto_ip가 0.0.0.0인지 검증 (RFC 3927 §2.1.1, MUST)",
+  "approach": "[검증 목적]\nRFC 3927 §2.1.1은 Probe의 ARP sender_proto_ip를 0.0.0.0으로 설정하도록 요구한다(MUST) — prober는 아직 IP를 확정하지 않았으므로, 0이 아닌 값이면 충돌 감지를 오도하거나 수신측 ARP 캐시를 오염시킨다. 이 케이스는 DUT이 처음 발신한 Probe의 sender_proto_ip가 all-zero인지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf (Link-Local 상태 머신 가동)\n\n2. 관찰:\n   • DUT → 와이어: 첫 ARP Probe\n     - ARP sender_proto_ip == 0.0.0.0   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 첫 Probe의 ARP sender_proto_ip = 0.0.0.0.\n\n[실패 조건]\n• Fail_sender_proto_ip_nonzero — Probe sender_proto_ip가 0.0.0.0이 아님 (claim하지 않은 IP를 잘못 광고)\n• Fail_timeout — deadline 내 ARP Probe 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 Probe의 sender_proto_ip = 0.0.0.0 — 정상",
+    "Fail_sender_proto_ip_nonzero": "Probe sender_proto_ip가 0.0.0.0이 아님",
+    "Fail_timeout": "deadline 내 ARP Probe 미발신"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that the time interval between consecutive ARP Announcements is in [ANNOUNCE_INTERVAL - 50 ms, ANNOUNCE_INTERVAL + 50 ms] (RFC 3927 §2.4, MUST)",
+  "approach": "[Objective]\nRFC 3927 §2.4 sets ANNOUNCE_INTERVAL = 2 s between consecutive Announcements. The harness allows ±50 ms tolerance to absorb scheduler jitter. Wrong cadence means either Announcements arrive too close together (less robust to loss) or too far apart (cache update is delayed).\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine; cadence-verification cases use the spec-default rates rather than the fast envelope)\n\n2. DUT: 3 Probes → 2 Announcements.\n\n3. Observation:\n   • Δt(announce[1] - announce[0]) ∈ [ANNOUNCE_INTERVAL - 50 ms, ANNOUNCE_INTERVAL + 50 ms]   ← key check\n\n[Pass condition]\nBoth Announcements emitted AND inter-Announcement Δt is inside the bound.\n\n[Fail condition]\n• Fail_no_announces — DUT did not emit any Announcement after the Probe phase\n• Fail_only_one_announce — fewer than 2 Announcements within the deadline\n• Fail_interval_out_of_range — inter-Announcement interval is outside the RFC 3927 bounds (with 50 ms tolerance)",
+  "verdicts": {
+    "Pass": "Announcement interval is inside [ANNOUNCE_INTERVAL ± 50 ms] — normal",
+    "Fail_no_announces": "DUT did not emit any ARP Announcement after Probes",
+    "Fail_only_one_announce": "Fewer than 2 ARP Announcements within the deadline",
+    "Fail_interval_out_of_range": "Announcement interval is outside the RFC 3927 bounds (50 ms tolerance)"
+  }
+}

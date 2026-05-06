@@ -1,0 +1,11 @@
+{
+  "description": "MAX_CONFLICTS=10회 충돌 후 DUT이 새 주소당 Probe 발신을 RATE_LIMIT_INTERVAL로 rate-limit하는지 검증 (RFC 3927 §2.2.1, MUST)",
+  "approach": "[검증 목적]\nRFC 3927 §2.2.1은 호스트가 충돌 후 재-probe하는 속도에 상한을 둔다: MAX_CONFLICTS=10회의 충돌이 발생하면, prober는 새 주소에 대한 시도 사이에 최소 RATE_LIMIT_INTERVAL을 기다려야 한다(MUST). 이는 폭주 prober로부터 링크를 보호하고 기존 claimant가 정착할 시간을 준다. 이 케이스는 10회 충돌을 강제하고 다음을 확인한다:\n  • 매 충돌마다 새 LL로 재-probe (사이클마다 LL이 바뀜), AND\n  • 10번째 충돌 이후 rate-limit 간격 동안 와이어 침묵\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf (fast-conflict envelope, rate_limit_interval = 3 s)\n\n2. 10회 반복:\n   • DUT → 와이어: ARP Probe (target_proto_ip = LL_k, LL_{k-1}과 달라야 함)\n   • 테스터 → DUT: ARP Request, sender_proto_ip = LL_k\n\n3. 관찰 (rate-limit 침묵 윈도우):\n   • DUT은 RATE_LIMIT_INTERVAL 동안 ARP를 발신하지 않아야 함\n\n[통과 조건]\n10개의 서로 다른 LL 재-probe + rate-limit 간격 동안 와이어 침묵.\n\n[실패 조건]\n• Fail_no_initial_probe — deadline 내 초기 ARP Probe 미발신\n• Fail_conflicts_incomplete — MAX_CONFLICTS=10회까지 재-probe하지 않음\n• Fail_cycle_repeat — DUT이 이전에 썼던 LL로 다시 probe (재선택 없음)\n• Fail_emitted_during_silence — rate-limit 침묵 윈도우 중 ARP 발신",
+  "verdicts": {
+    "Pass": "DUT이 RATE_LIMIT_INTERVAL 침묵 준수 — 정상",
+    "Fail_no_initial_probe": "deadline 내 초기 ARP Probe 미발신",
+    "Fail_conflicts_incomplete": "MAX_CONFLICTS=10회까지 재-probe하지 않음",
+    "Fail_cycle_repeat": "DUT이 이미 사용한 Link-Local 주소로 재-probe",
+    "Fail_emitted_during_silence": "rate-limit 침묵 윈도우 중 ARP 발신"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT-emitted ARP Probe inter-frame intervals fall within [PROBE_MIN-50 ms, PROBE_MAX+50 ms] (RFC 3927 §2.2.1)",
+  "approach": "[Objective]\nRFC 3927 §2.2.1 says consecutive Probes are spaced randomly between PROBE_MIN (1 s) and PROBE_MAX (2 s). The harness allows ±50 ms tolerance to absorb scheduler jitter. Out-of-range intervals indicate a buggy timer (too slow → claim takes too long; too fast → conflict detection windows are smaller than the spec assumed).\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine, no fast envelope)\n\n2. Observation (probing window):\n   • DUT → wire: 3 ARP Probes\n     - Δt(probe[k+1] - probe[k]) ∈ [PROBE_MIN - 50 ms, PROBE_MAX + 50 ms]   ← key check\n\n[Pass condition]\nAll 3 Probes emitted AND every consecutive Δt is inside the bound.\n\n[Fail condition]\n• Fail_no_probes — DUT did not emit any ARP Probe within the deadline\n• Fail_too_few_probes — fewer than 3 Probes within the deadline\n• Fail_interval_out_of_range — at least one inter-Probe interval is outside the RFC 3927 bounds",
+  "verdicts": {
+    "Pass": "Probe intervals are inside [PROBE_MIN-50 ms, PROBE_MAX+50 ms] — normal",
+    "Fail_no_probes": "DUT did not emit any ARP Probe within the deadline",
+    "Fail_too_few_probes": "Fewer than 3 ARP Probes within the deadline",
+    "Fail_interval_out_of_range": "Probe interval is outside the RFC 3927 bounds"
+  }
+}

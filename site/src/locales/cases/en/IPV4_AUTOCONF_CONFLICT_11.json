@@ -1,0 +1,10 @@
+{
+  "description": "Verify that a DUT-emitted ARP Reply carrying a Link-Local sender IP is sent via link-layer broadcast (RFC 3927 §2.5, MUST)",
+  "approach": "[Objective]\nNormal ARP Replies are unicast to the requester, but RFC 3927 §2.5 last MUST flips that for Link-Local: a Reply whose sender_proto_ip is in 169.254/16 must be sent as Ethernet broadcast. This lets every host on the segment refresh its cache so all stale mappings are corrected — important because LL ownership can shift between hosts. This case has the same shape as ADDRESS_SELECTION_16 but adds the broadcast Eth dst check.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine; fast envelope)\n\n2. DUT: 3 Probes → 1st Announce → post_claim entry observer fires:\n   • UT-query DUT_LL → snapshot into Captured\n   • Tester → DUT: ARP Request, target_proto_ip = DUT_LL (delivered via AIFACE-LL)\n\n3. Observation:\n   • DUT → wire: ARP Reply\n     - sender_proto_ip = DUT_LL\n     - target_proto_ip = AIFACE-LL sender\n     - Ethernet dst = FF:FF:FF:FF:FF:FF (broadcast)   ← key check vs _16\n\n[Pass condition]\nClaim observed AND DUT-emitted Reply has correct fields AND Ethernet dst = broadcast.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT did not announce its committed LL\n• Fail_no_responder_reply — DUT did not emit an ARP Reply for the claim address\n• Fail_reply_wrong_fields — Reply carried wrong fields or unicast Ethernet destination",
+  "verdicts": {
+    "Pass": "DUT-emitted Link-Local Reply is broadcast — normal",
+    "Fail_no_claim_observed": "DUT did not announce its committed Link-Local address",
+    "Fail_no_responder_reply": "DUT did not emit an ARP Reply for the claim address",
+    "Fail_reply_wrong_fields": "DUT's ARP Reply carried wrong fields or unicast Ethernet destination"
+  }
+}

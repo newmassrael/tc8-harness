@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 claim하지 않은 임의의 169.254/16 주소를 target으로 하는 ARP Request에 응답하지 않는지 검증 (RFC 3927 §2.7, MUST)",
+  "approach": "[검증 목적]\nRFC 3927 §2.7에 따르면, 호스트는 자신이 실제로 claim한 Link-Local 주소를 target으로 하는 ARP Request에만 응답해야 한다(MUST). 이 케이스는 DUT이 자신과 무관한 다른 169.254/16 주소에 대한 Request는 무시하는지 — 즉 169.254/16 prefix 전체를 자기 것으로 답하는 식의 광범위 응답을 하지 않는지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf (Link-Local 상태 머신 가동)\n\n2. DUT: Probe 3회 → Announce 2회 → claim 완료. post-claim observer는 두 Announce가 모두 발신된 후 Listening_post_claim 진입 시점에 동작한다. 2-announce 게이트는 spec step 8의 '(PROBE_MAX*2) + ANNOUNCE_WAIT + ANNOUNCE_INTERVAL' 대기 시간과 정렬되어, inject가 claim 단계 종료 후에 도착하도록 보장한다.\n\n3. 테스터 → DUT: ARP Request, target_proto_ip = DUT이 claim한 주소가 아닌 임의의 169.254/16 주소\n\n4. 관찰 (post-claim 부재 윈도우):\n   • DUT은 임의의 target에 대해 ARP Reply를 발신하지 않아야 함\n\n[통과 조건]\nDUT이 Probe 3회 + Announce 2회 claim을 완료하고, 임의 target에 대한 ARP Reply를 발신하지 않음.\n\n[실패 조건]\n• Fail_no_claim_observed — DUT이 자신의 committed Link-Local 주소를 announce하지 않음\n• Fail_only_one_announce — deadline 내 ARP Announce가 2회 미만\n• Fail_responded_to_arbitrary — DUT이 claim하지 않은 임의의 169.254/16 target에 ARP Reply 발신",
+  "verdicts": {
+    "Pass": "DUT이 임의의 Link-Local target ARP Request를 무시 — 정상",
+    "Fail_no_claim_observed": "DUT이 committed Link-Local 주소를 announce하지 않음",
+    "Fail_only_one_announce": "deadline 내 ARP Announce 2회 미만",
+    "Fail_responded_to_arbitrary": "DUT이 claim하지 않은 Link-Local 주소에 대한 ARP Request에 응답"
+  }
+}

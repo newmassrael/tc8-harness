@@ -1,0 +1,9 @@
+{
+  "description": "DUT 발신 ARP Announcement의 sender_proto_ip == target_proto_ip == announced Link-Local 주소인지 검증 (RFC 3927 §2.4, MUST)",
+  "approach": "[검증 목적]\nAnnouncement는 자기-claim이다: sender_proto_ip와 target_proto_ip를 같은 주소(DUT이 방금 claim한 LL)로 설정해서 '이 IP의 주인이 나'를 알린다. RFC 3927 §2.4는 정확히 이 모양을 요구한다(MUST) — 수신자가 LL → DUT_MAC 매핑으로 캐시를 갱신할 수 있도록.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf (Link-Local 상태 머신 가동)\n\n2. DUT: Probe 3회 → Announcement.\n\n3. 관찰:\n   • DUT → 와이어: ARP Announcement\n     - sender_proto_ip == target_proto_ip == announced LL   ← 핵심 확인 지점\n\n[통과 조건]\nAnnouncement의 sender_proto_ip == target_proto_ip == announced LL.\n\n[실패 조건]\n• Fail_announce_sender_target_ip_mismatch — sender_proto_ip ≠ target_proto_ip 이거나 둘 중 하나가 announced LL이 아님\n• Fail_no_announce_after_probes — Probe 단계 후 Announcement 미발신",
+  "verdicts": {
+    "Pass": "Announcement sender_proto_ip == target_proto_ip == announced LL — 정상",
+    "Fail_announce_sender_target_ip_mismatch": "Announcement sender/target IP가 announced LL이 아님",
+    "Fail_no_announce_after_probes": "Probe 후 ARP Announcement 미발신"
+  }
+}

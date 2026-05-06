@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted ARP Probes target a Link-Local address in the usable 169.254.[1-254].* range — first/last 256 addresses are reserved (RFC 3927 §2.1, MUST)",
+  "approach": "[Objective]\nRFC 3927 §2.1 reserves the first 256 (169.254.0.0/24) and the last 256 (169.254.255.0/24) addresses of the Link-Local prefix. Implementations MUST pick from the usable 169.254.1.0..169.254.254.255 range. This case observes the first DUT-emitted ARP Probe and asserts the target IP falls inside the usable range.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. Observation:\n   • DUT → wire: ARP Probe (the first one)\n     - target_proto_ip ∈ 169.254.[1..254].*   ← key check\n\n[Pass condition]\nFirst DUT Probe's target_proto_ip is inside 169.254.1.0..169.254.254.255.\n\n[Fail condition]\n• Fail_target_ip_in_reserved_range — Probe target is in the first or last 256 (169.254.0.* or 169.254.255.*)\n• Fail_timeout — DUT did not emit any ARP Probe within the deadline",
+  "verdicts": {
+    "Pass": "DUT picked a Link-Local in the usable range — normal",
+    "Fail_target_ip_in_reserved_range": "Probe targets the reserved first/last 256 of 169.254/16",
+    "Fail_timeout": "DUT did not emit any ARP Probe within the deadline"
+  }
+}

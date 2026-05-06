@@ -1,0 +1,10 @@
+{
+  "description": "DUT 발신 ARP Probe의 inter-frame 간격이 [PROBE_MIN-50 ms, PROBE_MAX+50 ms] 범위인지 검증 (RFC 3927 §2.2.1)",
+  "approach": "[검증 목적]\nRFC 3927 §2.2.1에 따르면 연속된 Probe는 PROBE_MIN(1 s)..PROBE_MAX(2 s) 사이의 랜덤 간격으로 발신된다. harness는 scheduler jitter를 흡수하기 위해 ±50 ms 허용오차를 둔다. 범위 밖이면 타이머 버그를 의미한다 — 너무 느리면 claim이 지연되고, 너무 빠르면 충돌 감지 윈도우가 spec 가정보다 작아진다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf (Link-Local 상태 머신 가동, fast envelope 미사용)\n\n2. 관찰 (probing 윈도우):\n   • DUT → 와이어: ARP Probe 3회\n     - Δt(probe[k+1] - probe[k]) ∈ [PROBE_MIN - 50 ms, PROBE_MAX + 50 ms]   ← 핵심 확인 지점\n\n[통과 조건]\nProbe 3회 발신 + 모든 연속 Δt가 범위 안.\n\n[실패 조건]\n• Fail_no_probes — deadline 내 ARP Probe 미발신\n• Fail_too_few_probes — deadline 내 Probe가 3회 미만\n• Fail_interval_out_of_range — 적어도 한 개의 inter-Probe 간격이 RFC 3927 범위 밖",
+  "verdicts": {
+    "Pass": "Probe 간격이 [PROBE_MIN-50 ms, PROBE_MAX+50 ms] 범위 내 — 정상",
+    "Fail_no_probes": "deadline 내 ARP Probe 미발신",
+    "Fail_too_few_probes": "deadline 내 ARP Probe가 3회 미만",
+    "Fail_interval_out_of_range": "Probe 간격이 RFC 3927 범위 밖"
+  }
+}

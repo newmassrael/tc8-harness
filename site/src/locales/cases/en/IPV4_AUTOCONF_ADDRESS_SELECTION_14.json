@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT rate-limits Probe emissions to one new address per RATE_LIMIT_INTERVAL after MAX_CONFLICTS = 10 conflicts (RFC 3927 §2.2.1, MUST)",
+  "approach": "[Objective]\nRFC 3927 §2.2.1 caps the rate at which a host can re-probe after collisions: once MAX_CONFLICTS = 10 conflict events have been seen, the prober MUST wait at least RATE_LIMIT_INTERVAL between attempts on a fresh address. This protects the link from a thrashing prober and gives existing claimants time to settle. This case forces 10 collisions and asserts:\n  • each conflict yields a fresh re-probe (LL changes every cycle), AND\n  • after the 10th collision, the wire stays silent for the rate-limit interval\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (fast-conflict envelope, rate_limit_interval = 3 s)\n\n2. Repeat 10×:\n   • DUT → wire: ARP Probe (target_proto_ip = LL_k, must differ from LL_{k-1})\n   • Tester → DUT: ARP Request, sender_proto_ip = LL_k\n\n3. Observation (rate-limit silence window):\n   • DUT must NOT emit any ARP for the duration of RATE_LIMIT_INTERVAL\n\n[Pass condition]\n10 distinct LL re-probes AND wire silence during the rate-limit interval.\n\n[Fail condition]\n• Fail_no_initial_probe — DUT did not emit any initial ARP Probe within the deadline\n• Fail_conflicts_incomplete — DUT did not re-probe through all MAX_CONFLICTS = 10\n• Fail_cycle_repeat — DUT re-probed with the same LL it had used before (no fresh pick)\n• Fail_emitted_during_silence — DUT emitted an ARP during the rate-limit silence window",
+  "verdicts": {
+    "Pass": "DUT enforced the RATE_LIMIT_INTERVAL silence — normal",
+    "Fail_no_initial_probe": "DUT did not emit any initial ARP Probe within the deadline",
+    "Fail_conflicts_incomplete": "DUT did not re-probe through MAX_CONFLICTS = 10",
+    "Fail_cycle_repeat": "DUT re-probed with a stale (already-used) Link-Local address",
+    "Fail_emitted_during_silence": "DUT emitted an ARP during the rate-limit silence window"
+  }
+}

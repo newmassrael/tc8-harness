@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT ceases its claim and re-probes after two ARP Request conflicts on its committed Link-Local address (RFC 3927 §2.5, MUST)",
+  "approach": "[Objective]\nAfter the claim is final, RFC 3927 §2.5 lets the host either DEFEND once or always-CEASE. The always-cease branch (DUT's choice here) abandons the LL on the first conflict. This case fires two conflicting ARP Requests claiming DUT's committed LL and asserts a fresh Probe targeting a different LL appears.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 1st Announce → SCXML transitions pre_claim → post_claim. Listening_post_claim entry observer fires:\n   • UT-query DUT_LL → snapshot into Captured\n   • Tester → DUT: 2 ARP Requests with sender == target == committed LL (spec step 9 + 11)\n\n3. Observation (re-probe window):\n   • DUT → wire: a fresh ARP Probe with target_proto_ip ≠ snapshotted committed LL   ← key check\n\n[Pass condition]\nClaim observed AND a fresh Probe with a different LL after the conflict.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT did not announce its committed LL\n• Fail_no_reprobe — DUT did not re-probe after the conflict ARP Requests",
+  "verdicts": {
+    "Pass": "DUT ceased its claim and re-probed after two ARP Request conflicts — normal",
+    "Fail_no_claim_observed": "DUT did not announce its committed Link-Local address",
+    "Fail_no_reprobe": "DUT did not re-probe after the conflict ARPs"
+  }
+}

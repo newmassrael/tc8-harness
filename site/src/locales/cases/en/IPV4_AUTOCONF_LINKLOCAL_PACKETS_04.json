@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT does NOT answer ARP Requests for arbitrary 169.254/16 addresses it has not claimed (RFC 3927 §2.7, MUST)",
+  "approach": "[Objective]\nRFC 3927 §2.7 says a host MUST only respond to ARP Requests targeting the Link-Local address it has actually claimed. This case proves DUT correctly ignores Requests for some other (uninvolved) 169.254/16 address — i.e. it doesn't blanket-answer every Link-Local target as if the whole prefix were its own.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 2 Announces → claim done. The post-claim observer fires on Listening_post_claim entry, AFTER both Announces have flown. The 2-announce gate matches the spec step-8 wait '(PROBE_MAX*2) + ANNOUNCE_WAIT + ANNOUNCE_INTERVAL', ensuring the inject lands strictly after claim.\n\n3. Tester → DUT: ARP Request with target_proto_ip = an arbitrary 169.254/16 address that is NOT what DUT claimed.\n\n4. Observation (post-claim absence window):\n   • DUT must NOT emit any ARP Reply for the arbitrary target\n\n[Pass condition]\nDUT performs the 3-probe + 2-announce claim AND emits no ARP Reply for the arbitrary 169.254/16 target.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT never announced its committed Link-Local address\n• Fail_only_one_announce — fewer than 2 ARP Announces within the deadline\n• Fail_responded_to_arbitrary — DUT emitted an ARP Reply for an arbitrary 169.254/16 target it had not claimed",
+  "verdicts": {
+    "Pass": "DUT ignored an arbitrary-target Link-Local ARP Request — normal",
+    "Fail_no_claim_observed": "DUT did not announce its committed Link-Local address",
+    "Fail_only_one_announce": "Fewer than 2 ARP Announces within the deadline",
+    "Fail_responded_to_arbitrary": "DUT replied to an ARP Request for a Link-Local address it had not claimed"
+  }
+}

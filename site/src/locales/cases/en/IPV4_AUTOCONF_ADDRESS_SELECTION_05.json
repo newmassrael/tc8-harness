@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted ARP Probes carry sender_hw = DUT interface MAC (RFC 3927 §2.1.1, MUST)",
+  "approach": "[Objective]\nThe Probe's ARP sender_hw field is what conflict detectors on the segment use to identify the prober. RFC 3927 §2.1.1 requires it to equal the prober's own hardware address — i.e. the DUT's outgoing interface MAC. Anything else makes the Probe useless for collision detection.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. Observation:\n   • DUT → wire: ARP Probe (the first one)\n     - ARP sender_hw == DUT's own iface MAC   ← key check\n\n[Pass condition]\nFirst DUT Probe's ARP sender_hw equals the DUT's interface MAC.\n\n[Fail condition]\n• Fail_sender_hw_not_dut_iface_mac — sender_hw differs from the DUT's outgoing iface MAC\n• Fail_timeout — DUT did not emit any ARP Probe within the deadline",
+  "verdicts": {
+    "Pass": "DUT-emitted Probe carries DUT iface MAC as sender_hw — normal",
+    "Fail_sender_hw_not_dut_iface_mac": "Probe sender_hw is not the DUT's interface MAC",
+    "Fail_timeout": "DUT did not emit any ARP Probe within the deadline"
+  }
+}

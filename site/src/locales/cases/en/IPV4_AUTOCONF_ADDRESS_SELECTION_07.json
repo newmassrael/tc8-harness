@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted ARP Probes carry target_hw = NULL_MAC (six zero octets) (RFC 3927 §2.2.1, SHOULD)",
+  "approach": "[Objective]\nRFC 3927 §2.2.1 says the Probe's ARP target_hw SHOULD be all zeros — the prober is asking 'who has this IP?' and does not know (or care about) any target hardware address. Setting target_hw to a real MAC would be misleading. This case observes the first DUT-emitted Probe and asserts target_hw is six zero octets.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. Observation:\n   • DUT → wire: ARP Probe (the first one)\n     - ARP target_hw == 00:00:00:00:00:00   ← key check\n\n[Pass condition]\nFirst DUT Probe carries ARP target_hw = NULL_MAC.\n\n[Fail condition]\n• Fail_target_hw_not_zero — Probe target_hw is not the null MAC\n• Fail_timeout — DUT did not emit any ARP Probe within the deadline",
+  "verdicts": {
+    "Pass": "DUT-emitted Probe has target_hw = NULL_MAC — normal",
+    "Fail_target_hw_not_zero": "Probe target_hw is not 00:00:00:00:00:00",
+    "Fail_timeout": "DUT did not emit any ARP Probe within the deadline"
+  }
+}

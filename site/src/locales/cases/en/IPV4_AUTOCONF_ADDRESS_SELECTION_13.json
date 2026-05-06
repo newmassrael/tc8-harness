@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT re-picks its Link-Local address after a probing-window conflict ARP Probe (RFC 3927 §2.2.1, MUST)",
+  "approach": "[Objective]\nRFC 3927 §2.2.1 covers the Probe-vs-Probe race: if another host is also probing the same tentative address, both must back off. The conflict signal is an ARP Probe with target_proto_ip = DUT's tentative LL (sender_proto_ip = 0.0.0.0, target_hw = 0). DUT must re-pick.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT → wire: first ARP Probe with target_proto_ip = tentative_LL\n\n3. Tester → DUT: ARP Probe, sender_proto_ip = 0.0.0.0, target_proto_ip = tentative_LL (a competing prober shape)\n\n4. Observation:\n   • DUT → wire: a fresh ARP Probe with target_proto_ip ≠ tentative_LL   ← key check\n\n[Pass condition]\nFirst DUT Probe AND a follow-up Probe targeting a different LL after the competing Probe.\n\n[Fail condition]\n• Fail_no_initial_probe — DUT did not emit any initial ARP Probe within the deadline\n• Fail_no_repick — DUT did not re-probe with a different LL after the conflict ARP Probe",
+  "verdicts": {
+    "Pass": "DUT re-picked its LL after the conflict ARP Probe — normal",
+    "Fail_no_initial_probe": "DUT did not emit any initial ARP Probe within the deadline",
+    "Fail_no_repick": "DUT did not re-probe with a different LL after the conflict ARP"
+  }
+}

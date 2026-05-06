@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted ARP Announcements have Ethernet destination = broadcast (FF:FF:FF:FF:FF:FF) (RFC 3927 §2.4, MUST)",
+  "approach": "[Objective]\nRFC 3927 §2.4 says Announcements (the post-claim gratuitous ARPs declaring 'I now own this LL') MUST be sent as link-layer broadcast — every host on the segment must update its ARP cache with the new owner. This case observes the first DUT-emitted Announcement and asserts Ethernet dst is broadcast.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 1st Announce.\n\n3. Observation:\n   • DUT → wire: ARP Announcement\n     - Ethernet dst = FF:FF:FF:FF:FF:FF   ← key check\n\n[Pass condition]\nDUT-emitted Announcement has Ethernet dst = broadcast.\n\n[Fail condition]\n• Fail_announce_eth_dst_not_broadcast — Announcement Ethernet dst is not broadcast\n• Fail_no_announce_after_probes — DUT did not emit any Announcement after the Probe phase",
+  "verdicts": {
+    "Pass": "Announcement uses Ethernet broadcast — normal",
+    "Fail_announce_eth_dst_not_broadcast": "Announcement Ethernet destination is not broadcast",
+    "Fail_no_announce_after_probes": "DUT did not emit any ARP Announcement after Probes"
+  }
+}

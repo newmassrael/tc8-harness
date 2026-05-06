@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT replies to an ARP Request targeting its claimed IPv4 Link-Local address (RFC 3927 §2.5, MUST)",
+  "approach": "[Objective]\nOnce DUT has claimed an LL via the Probe + Announce sequence, it MUST behave as the canonical resolver for that address — RFC 3927 §2.5: an ARP Request whose target_proto_ip equals the committed LL must be answered with a Reply. This case completes the claim phase, queries the committed LL via UT, then injects an ARP Request and verifies the Reply.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine; fast envelope)\n\n2. DUT: 3 Probes → Announce 1 (claim confirmed). SCXML transitions pre_claim → post_claim on the first DUT Announce.\n\n3. On post_claim entry, the shared scheduleClaimConditionTesterRequest helper runs:\n   • UT-query DUT_LL → snapshot into c.expected_responder_sender_ip_be\n   • Tester → DUT: ARP Request, target_proto_ip = DUT_LL (delivered via AIFACE-LL)\n\n4. Observation:\n   • DUT → wire: ARP Reply with sender_proto_ip = DUT_LL AND target_proto_ip = AIFACE-LL sender   ← key check\n\n[Pass condition]\nDUT emits an ARP Reply correctly identifying the committed LL as sender_proto_ip and the AIFACE-LL Request originator as target.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT did not announce the committed LL\n• Fail_no_responder_reply — DUT did not emit an ARP Reply for the claim address\n• Fail_reply_wrong_fields — Reply carried wrong sender_proto_ip or target_proto_ip",
+  "verdicts": {
+    "Pass": "DUT replied to an ARP Request for its committed LL — normal",
+    "Fail_no_claim_observed": "DUT did not announce its committed Link-Local address",
+    "Fail_no_responder_reply": "DUT did not emit an ARP Reply for the claim address",
+    "Fail_reply_wrong_fields": "DUT's ARP Reply carried wrong sender or target IP"
+  }
+}

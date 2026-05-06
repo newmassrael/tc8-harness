@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 자신이 claim한 IPv4 Link-Local 주소를 target으로 하는 ARP Request에 응답하는지 검증 (RFC 3927 §2.5, MUST)",
+  "approach": "[검증 목적]\nDUT이 Probe + Announce 시퀀스로 LL을 claim한 뒤에는, 그 주소의 정식 resolver로 동작해야 한다 — RFC 3927 §2.5: target_proto_ip가 committed LL인 ARP Request에는 Reply로 답해야 한다(MUST). 이 케이스는 claim 단계를 완료시키고, UT로 committed LL을 조회한 뒤, ARP Request를 주입해 Reply를 검증한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf (Link-Local 상태 머신 가동; fast envelope)\n\n2. DUT: Probe 3회 → Announce 1회 (claim 확정). SCXML은 첫 DUT Announce에서 pre_claim → post_claim 전이.\n\n3. post_claim 진입 시 shared scheduleClaimConditionTesterRequest helper 동작:\n   • UT-query로 DUT_LL 조회 → c.expected_responder_sender_ip_be에 snapshot\n   • 테스터 → DUT: ARP Request, target_proto_ip = DUT_LL (AIFACE-LL로 전달)\n\n4. 관찰:\n   • DUT → 와이어: ARP Reply, sender_proto_ip = DUT_LL AND target_proto_ip = AIFACE-LL 송신자   ← 핵심 확인 지점\n\n[통과 조건]\nDUT이 ARP Reply를 발신하고 committed LL이 sender_proto_ip로, AIFACE-LL Request 발신자가 target으로 정확히 들어감.\n\n[실패 조건]\n• Fail_no_claim_observed — DUT이 committed LL을 announce하지 않음\n• Fail_no_responder_reply — claim 주소에 대한 ARP Reply 미발신\n• Fail_reply_wrong_fields — Reply의 sender_proto_ip 또는 target_proto_ip가 잘못됨",
+  "verdicts": {
+    "Pass": "DUT이 committed LL ARP Request에 응답 — 정상",
+    "Fail_no_claim_observed": "DUT이 committed Link-Local 주소를 announce하지 않음",
+    "Fail_no_responder_reply": "claim 주소에 대한 ARP Reply 미발신",
+    "Fail_reply_wrong_fields": "DUT ARP Reply의 sender 또는 target IP가 잘못됨"
+  }
+}

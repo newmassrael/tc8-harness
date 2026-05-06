@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT does NOT emit periodic gratuitous ARPs for its claimed Link-Local address (RFC 3927 §4, SHOULD)",
+  "approach": "[Objective]\nRFC 3927 §4 advises hosts SHOULD NOT spam periodic gratuitous ARPs for a claimed Link-Local address — the 2 Announces of the claim phase are sufficient. This case lets DUT complete its claim and a single legitimate Reply (triggered by an AIFACE-LL Request), then watches a long absence window for unsolicited periodic broadcasts.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → 2 Announces → claim done. The post-claim observer fires on Listening_post_claim entry, after both Announces. ANNOUNCE_WAIT + ANNOUNCE_INTERVAL must elapse first because Announces share the gratuitous-shape filter and would otherwise false-fail the absence guard.\n\n3. Tester → DUT: UT-query DUT_LL → snapshot it → emit AIFACE-LL ARP Request (target = DUT_LL) on the secondary interface. DUT's responder must broadcast a Reply per RFC 3927 §2.5 last MUST. The SCXML transitions to listening_no_periodic on that Reply.\n\n4. Observation (listening_no_periodic absence window):\n   • DUT must NOT emit any further gratuitous ARP for the committed Link-Local\n\n[Pass condition]\n3 Probes + 2 Announces claim + 1 broadcast Reply for the AIFACE-LL Request + no further gratuitous ARP within the absence window.\n\n[Fail condition]\n• Fail_no_claim_observed — DUT never announced the committed LL\n• Fail_only_one_announce — fewer than 2 Announces within the deadline\n• Fail_no_responder_reply — DUT did not emit an ARP Reply for the AIFACE-LL Request\n• Fail_reply_wrong_fields — Reply carried wrong fields or unicast Eth dst\n• Fail_periodic_gratuitous_arp — DUT emitted an extra periodic gratuitous ARP for the committed LL after the claim is done",
+  "verdicts": {
+    "Pass": "DUT did not emit periodic gratuitous ARPs after the claim — normal",
+    "Fail_no_claim_observed": "DUT did not announce committed Link-Local address",
+    "Fail_only_one_announce": "Fewer than 2 ARP Announces within the deadline",
+    "Fail_no_responder_reply": "DUT did not emit an ARP Reply for the claim address",
+    "Fail_reply_wrong_fields": "DUT's ARP Reply carried wrong fields or unicast Ethernet destination",
+    "Fail_periodic_gratuitous_arp": "DUT emitted a periodic gratuitous ARP for its committed Link-Local"
+  }
+}

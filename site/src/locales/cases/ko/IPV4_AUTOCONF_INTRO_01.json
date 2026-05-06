@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 DHCP routable 임대를 받고 있을 때 IPv4 Link-Local 주소를 자동 구성하지 않는지 검증 (RFC 3927 §1.9 SHOULD NOT)",
+  "approach": "[검증 목적]\nRFC 3927 §1.9에 따르면, DHCP 같은 더 높은 우선순위 소스로부터 routable IP를 얻은 호스트는 Link-Local 주소(169.254/16)를 동시에 구성해서는 안 된다(SHOULD NOT). 이 케이스는 DUT이 DHCPv4 임대를 정상적으로 완료한 뒤 routable 주소만 유지하고, 옆길로 Link-Local probe 머신을 돌리지 않는지 확인한다.\n\n[시나리오 — 시간순]\n1. 테스터(DHCP 서버 에뮬) ⇄ DUT: DHCPv4 4-way 교환\n   • DUT DISCOVER → 테스터가 Listening_for_request 진입 시 OFFER 응답\n   • DUT REQUEST → 테스터가 Listening_for_no_arp_probe 진입 시 ACK 응답\n   • 임대 시간 = 15 s (ParamListenTime × 3, TC8 §3 기본 5 s 기준)\n\n2. 관찰 (Listening_for_no_arp_probe 윈도우):\n   • DUT은 169.254/16 대역을 target으로 하는 ARP Probe를 발신하지 않아야 함\n\n[통과 조건]\nDISCOVER → OFFER → REQUEST → ACK 관찰 + listen 윈도우 동안 Link-Local ARP Probe 미관측.\n\n[실패 조건]\n• Fail_no_discover — listen 윈도우 동안 DHCPDISCOVER 미발신\n• Fail_no_request — OFFER 수신 후 DHCPREQUEST 미발신\n• Fail_dut_emitted_ll_probe — routable 임대를 받았는데도 Link-Local ARP Probe 발신",
+  "verdicts": {
+    "Pass": "DUT이 DHCP 임대를 받고 Link-Local 자동 구성을 하지 않음 — 정상",
+    "Fail_no_discover": "listen 윈도우 동안 DHCPDISCOVER 미발신",
+    "Fail_no_request": "OFFER 수신 후 DHCPREQUEST 미발신",
+    "Fail_dut_emitted_ll_probe": "routable DHCP 임대가 있는데도 Link-Local ARP Probe 발신"
+  }
+}

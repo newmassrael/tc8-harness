@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT-emitted ARP Announcements have ARP sender_hw = DUT interface MAC (RFC 3927 §2.4, MUST)",
+  "approach": "[Objective]\nThe Announcement's ARP sender_hw is what receivers cache as the new owner's MAC. RFC 3927 §2.4 requires it to equal the DUT's iface MAC — anything else corrupts the segment's ARP cache (LL would map to a wrong MAC).\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine)\n\n2. DUT: 3 Probes → Announcement(s).\n\n3. Observation:\n   • DUT → wire: ARP Announcement\n     - ARP sender_hw == DUT iface MAC   ← key check\n\n[Pass condition]\nAnnouncement ARP sender_hw equals the DUT's interface MAC.\n\n[Fail condition]\n• Fail_announce_sender_hw_not_dut_mac — Announcement sender_hw differs from the DUT's outgoing iface MAC\n• Fail_no_announce_after_probes — DUT did not emit any Announcement after the Probe phase",
+  "verdicts": {
+    "Pass": "Announcement carries DUT iface MAC as sender_hw — normal",
+    "Fail_announce_sender_hw_not_dut_mac": "Announcement sender_hw is not the DUT's interface MAC",
+    "Fail_no_announce_after_probes": "DUT did not emit any ARP Announcement after Probes"
+  }
+}

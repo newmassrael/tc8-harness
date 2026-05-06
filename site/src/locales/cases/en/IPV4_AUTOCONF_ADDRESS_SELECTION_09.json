@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT emits exactly PROBE_NUM = 3 ARP Probes during the Link-Local probing phase (RFC 3927 §2.2.1)",
+  "approach": "[Objective]\nRFC 3927 §2.2.1 specifies the prober sends PROBE_NUM = 3 ARP Probes before claiming the tentative address. Fewer Probes weakens conflict detection. This case observes the entire probing window and asserts at least 3 Probes are emitted.\n\n[Scenario — chronological]\n1. Tester → DUT: OpStartLLAutoconf (kicks the Link-Local state machine; cadence verification cases like this one intentionally forgo the fast envelope so the timing observation matches the spec-mandated rates: PROBE_WAIT 1 s, PROBE_MIN..MAX 1..2 s)\n\n2. Observation (probing window):\n   • DUT → wire: 3 ARP Probes targeting the same tentative LL address   ← key check\n\n[Pass condition]\n3 ARP Probes observed before the deadline.\n\n[Fail condition]\n• Fail_no_probes — DUT did not emit any ARP Probe within the deadline\n• Fail_too_few_probes — fewer than 3 Probes within the deadline",
+  "verdicts": {
+    "Pass": "DUT emitted PROBE_NUM = 3 ARP Probes — normal",
+    "Fail_no_probes": "DUT did not emit any ARP Probe within the deadline",
+    "Fail_too_few_probes": "Fewer than 3 ARP Probes within the deadline"
+  }
+}

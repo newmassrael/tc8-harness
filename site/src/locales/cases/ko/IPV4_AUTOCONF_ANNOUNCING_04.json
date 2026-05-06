@@ -1,0 +1,9 @@
+{
+  "description": "DUT 발신 ARP Announcement의 target_hw가 all-zero인지 검증 (RFC 3927 §2.4, SHOULD)",
+  "approach": "[검증 목적]\nRFC 3927 §2.4는 Announcement의 target_hw를 모두 0으로 설정하도록 권고한다(SHOULD) — Probe와 마찬가지로 announcer는 자기-claim을 broadcast하고 있으므로 특정 target 하드웨어 주소가 없다(또는 신경 쓰지 않는다). 실제 MAC을 채우면 오해를 부른다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT: OpStartLLAutoconf (Link-Local 상태 머신 가동)\n\n2. DUT: Probe 3회 → Announcement.\n\n3. 관찰:\n   • DUT → 와이어: ARP Announcement\n     - ARP target_hw == 00:00:00:00:00:00   ← 핵심 확인 지점\n\n[통과 조건]\nAnnouncement의 ARP target_hw = NULL_MAC.\n\n[실패 조건]\n• Fail_announce_target_hw_not_zero — Announcement target_hw가 NULL MAC이 아님\n• Fail_no_announce_after_probes — Probe 단계 후 Announcement 미발신",
+  "verdicts": {
+    "Pass": "Announcement target_hw = NULL_MAC — 정상",
+    "Fail_announce_target_hw_not_zero": "Announcement target_hw가 00:00:00:00:00:00이 아님",
+    "Fail_no_announce_after_probes": "Probe 후 ARP Announcement 미발신"
+  }
+}
