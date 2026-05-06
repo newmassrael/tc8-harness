@@ -75,9 +75,11 @@ jobs:
         # decode_pcap.py auto-detects tester/DUT MAC+IP from the first
         # frames (the harness assigns random locally-administered MACs
         # per veth pair, so static fixture values would not match a
-        # live capture). Outcome defaults to "pass" — JUnit parsing per
-        # case is a follow-up; the timeline component renders the same
-        # for pass/fail today, only the badge differs.
+        # live capture). Outcome is derived per-case from the JUnit XML
+        # produced by the smoke run above so Linux-known-fail cases
+        # (e.g. IPV4_REASSEMBLY_11/_13) land with a 'fail' badge on
+        # their packet timeline. Cases not present in the XML default
+        # to 'pass' (pcap capture succeeded but no JUnit row).
         run: |
           set -e
           shopt -s nullglob
@@ -86,13 +88,27 @@ jobs:
           rm -f .pcap-data/site/src/data/pcap/*.json
           mkdir -p .pcap-data/site/src/data/pcap
 
+          # Build {case_id: outcome} map from junit.xml. junit_outcomes.py
+          # skips _NEG rows so a passing negative case won't overwrite the
+          # positive outcome (pcap files are keyed by positive case_id).
+          declare -A OUTCOMES
+          if [[ -s /tmp/pcap-logs/junit.xml ]]; then
+            while IFS=$'\t' read -r cid outcome; do
+              [[ -n "$cid" ]] && OUTCOMES["$cid"]="$outcome"
+            done < <(python3 site/scripts/junit_outcomes.py /tmp/pcap-logs/junit.xml)
+            echo "junit outcomes parsed: ${#OUTCOMES[@]} case(s)"
+          else
+            echo "::warning::no junit.xml — every pcap will default to pass"
+          fi
+
           decoded=0
           failed=0
           captured_at="$(date -u +%FT%TZ)"
           for pcap in /tmp/pcap-logs/*.pcap; do
             name=$(basename "$pcap" .pcap)
             cid=${name^^}
-            if python3 site/scripts/decode_pcap.py "$cid" pass "$pcap" \
+            outcome="${OUTCOMES[$cid]:-pass}"
+            if python3 site/scripts/decode_pcap.py "$cid" "$outcome" "$pcap" \
                  --captured-at "$captured_at" \
                  --out ".pcap-data/site/src/data/pcap/${cid}.json"; then
               decoded=$((decoded+1))
