@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Wrong Method ID (0x00FF unknown) — DUT must reject or ignore",
+  "approach": "[Objective]\nUnknown method_id — DUT rejects (or returns E_UNKNOWN_METHOD per ONWIRE_12).\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT rejected/ignored malformed input — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_dut_accepted_wrong_method_id": "DUT returned OK Response for wrong method id"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "같은 type(IPv4 Endpoint) option 두 개의 SubscribeEventgroup — DUT Nack 또는 무시을(를) 검증",
+  "approach": "[검증 목적]\n중복 option type은 모호 — DUT 거부 (event를 어느 endpoint로?).\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: 두 IPv4 Endpoint option의 SubscribeEventgroup.\n3. 관찰: DUT Ack 금지.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 중복 IPv4 Endpoint option 거부 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음"
+  }
+}

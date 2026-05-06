@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TestFieldUINT8Reliable getter / setter / getter — DUT responds over TCP",
+  "approach": "[Objective]\nTCP-bound field getter/setter — same cycle but operations travel over the reliable endpoint.\n\n[Scenario — chronological]\nGet/set/get cycle (per case-specific operations).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT echoed set value over TCP — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_initial_get": "No initial getReliable response",
+    "Fail_phase3_no_set_response": "No setReliable response",
+    "Fail_phase4_no_post_set_get": "No post-set getReliable response"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that SubscribeEventgroup with trailing payload (counted + uncounted) — DUT Acks both",
+  "approach": "[Objective]\nTrailing payload tolerance: extra bytes after the last option must be ignored.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with IPv4 endpoint option.\n2. Tester → DUT: SubscribeEventgroup (per-case shape).\n3. Observation: DUT → Tester: SubscribeAck/Nack/event per the asserted behaviour.\n\n[Pass condition]\nObserved DUT response matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked both trailing variants — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_first_ack": "No first Subscribe Ack within listen window",
+    "Fail_phase3_no_second_ack": "No second Subscribe Ack within listen window"
+  }
+}

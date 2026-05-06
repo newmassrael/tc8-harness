@@ -1,0 +1,8 @@
+{
+  "description": "Verify that Tester unicast FindService — DUT responds with OfferService",
+  "approach": "[Objective]\nUnicast FindService variant — same answer rule as multicast (per SD_BEHAVIOR_03).\n\n[Scenario — chronological]\n1. Tester → DUT (unicast): FindService.\n2. Observation: DUT → Tester: OfferService.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT replied to unicast FindService — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window"
+  }
+}

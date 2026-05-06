@@ -1,0 +1,11 @@
+{
+  "description": "Subscribe ttl=3 후 expiry 너머 대기 — DUT이 event 발신 중단을(를) 검증",
+  "approach": "[검증 목적]\nSubscription TTL 준수: TTL 초 경과 후 명시적 StopSubscribe 없이도 DUT은 notification 발신 중단.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. TTL=3인 Subscribe → Ack.\n3. > 3s 대기.\n4. 관찰: DUT event 발신 금지.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 TTL expiry에서 event 중단 — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_subscribe_nacked": "Subscribe nack",
+    "Fail_phase2_no_subscribe_ack": "SubscribeAck 없음",
+    "Fail_phase3_event_after_ttl_expiry": "subscription TTL 만료 후 DUT event 발신"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Client Mode StopOfferService stops DUT FindService for the bounced Service+Instance",
+  "approach": "[Objective]\nStopOfferService → client-mode must stop emitting FindService for that specific Service+Instance.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. DUT FindService observed in Start-Up.\n3. Tester → DUT: StopOfferService.\n4. Observation: NO further DUT FindService for that S+I.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT followed client-mode FindService rule — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_findservice": "No DUT FindService during start phase",
+    "Fail_phase4_findservice_after_stop_offer": "DUT FindService after StopOfferService"
+  }
+}

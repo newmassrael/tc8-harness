@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Server-reboot recovery via UDP — DUT re-subscribes with new tester UDP port",
+  "approach": "[Objective]\n_081 UDP variant: DUT must drop the old subscription and resubscribe to the new tester UDP port after the reboot signal.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester ⇄ DUT: SubscribeEventgroup with UDP option.\n3. Tester → DUT: simulated reboot OfferService.\n4. Observation: DUT emits new Subscribe targeting the new UDP port.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT resubscribed via new UDP port — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_first_subscribe": "No DUT Subscribe with UDP option within listen window",
+    "Fail_phase3_no_second_subscribe": "DUT did not re-subscribe after simulated reboot"
+  }
+}

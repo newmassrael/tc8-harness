@@ -1,0 +1,9 @@
+{
+  "description": "Client-Mode + GetLastValueOfEventTCP — DUT이 cached UInt8(TCP)로 응답을(를) 검증",
+  "approach": "[검증 목적]\nGetLastValueOfEvent (TCP 변형): DUT(SID-2 client mode)이 offered 서버에서 method 호출; 서버가 cached event value 반환.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: Method Request (케이스별 모양).\n3. 관찰: DUT → 테스터: Method Response (또는 부재) 주장된 동작에 따라.\n\n[통과 조건]\nDUT 발신 응답이 spec 속성 충족.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 spec대로 응답 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_get_last_response": "GetLastValue TCP response 없음"
+  }
+}

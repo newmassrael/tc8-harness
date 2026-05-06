@@ -1,0 +1,8 @@
+{
+  "description": "Verify that FindService with Unicast Flag=0 — DUT ignores flag and answers",
+  "approach": "[Objective]\nUnicast flag in FindService is purely a hint — DUT must still answer (per multicast rule SD_BEHAVIOR_04 from server side).\n\n[Scenario — chronological]\n1. Tester → DUT (multicast): FindService with Unicast Flag=0.\n2. Observation: DUT → Tester: OfferService.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT replied despite UF=0 — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window"
+  }
+}

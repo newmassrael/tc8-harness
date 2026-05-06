@@ -1,0 +1,10 @@
+{
+  "description": "TCP Endpoint option + live TCP connection 없음의 Subscribe — DUT이 SubscribeEventgroupNack로 응답을(를) 검증",
+  "approach": "[검증 목적]\n방어적 nack: DUT은 TCP-bound Subscribe Ack 전에 TCP connection 존재 검증 필수 — 아니면 event가 갈 곳 없음.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: IPv4 endpoint 포함 OfferService.\n2. 테스터 → DUT: TCP option 포함 SubscribeEventgroup, but TCP handshake 미선행.\n3. 관찰: DUT → 테스터: SubscribeNack (TTL=0).\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 connection 없이 TCP subscribe nack — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_dut_acked_tcp_subscribe_without_connection": "DUT이 pre-established connection 없는 TCP subscribe ack",
+    "Fail_phase2_no_subscribe_response": "listen 윈도우 내 subscribe 응답 없음"
+  }
+}

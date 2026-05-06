@@ -1,0 +1,10 @@
+{
+  "description": "Server-reboot recovery — DUT이 lower-sid OfferService 후 TCP renew을(를) 검증",
+  "approach": "[검증 목적]\n시뮬레이션 서버 reboot 후(낮은 SD session_id의 OfferService로 신호) DUT은 session view 초기화 + TCP handshake renew 필수.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService (초기 sid).\n2. 테스터 ⇄ DUT: TCP option 포함 SubscribeEventgroup + handshake.\n3. 테스터 → DUT: 시뮬레이션 reboot OfferService (낮은 sid).\n4. 관찰: DUT TCP handshake renew.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 reboot signal 후 TCP renew — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_first_subscribe": "listen 윈도우 내 TCP option 포함 DUT Subscribe 없음",
+    "Fail_phase3_no_renewed_handshake": "시뮬레이션 reboot 후 DUT TCP connection renew 안 함"
+  }
+}

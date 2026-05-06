@@ -1,0 +1,14 @@
+{
+  "description": "Verify that Multicast/unicast reboot tracker — DUT Acks lower-sid Subscribe after reboot",
+  "approach": "[Objective]\nReboot detection: a SD message with a session_id lower than the previous one signals reboot — DUT honours subsequent Subscribes from the rebooted peer.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Subscribe #1 → Ack.\n3. Subscribe #2 → Ack.\n4. Reboot signal (lower sid) + Subscribe #3 → Ack.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked subscribes across reboot — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_subscribe_nacked": "First Subscribe nacked",
+    "Fail_phase2_no_first_ack": "No first Subscribe Ack",
+    "Fail_phase3_subscribe_nacked": "Second Subscribe nacked",
+    "Fail_phase3_no_second_ack": "No second Subscribe Ack",
+    "Fail_phase4_reboot_subscribe_nacked": "Reboot Subscribe nacked",
+    "Fail_phase4_no_reboot_ack": "No reboot Subscribe Ack"
+  }
+}

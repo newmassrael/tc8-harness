@@ -1,0 +1,8 @@
+{
+  "description": "테스터 unicast FindService — DUT이 OfferService로 응답을(를) 검증",
+  "approach": "[검증 목적]\nunicast FindService 변형 — multicast와 같은 응답 규칙 (SD_BEHAVIOR_03에 따라).\n\n[시나리오 — 시간순]\n1. 테스터 → DUT (unicast): FindService.\n2. 관찰: DUT → 테스터: OfferService.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 unicast FindService 응답 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음"
+  }
+}

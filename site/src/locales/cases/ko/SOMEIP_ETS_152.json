@@ -1,0 +1,9 @@
+{
+  "description": "Burst Subscribe → DUT SD session_id wrap 0xFFFF → 0x0001 관찰을(를) 검증",
+  "approach": "[검증 목적]\nSession ID wrap: 16-bit 필드가 0xFFFF에서 0x0001로 wrap (0x0000 아님 — session_id 0은 reserved).\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 많은 SD 메시지 burst로 DUT SD session_id를 0xFFFF 근처로 유도.\n3. 관찰: session_id가 0x0001로 wrap.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT session_id가 0xFFFF → 0x0001 wrap — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_wrap_observed": "listen 윈도우 내 session_id wrap 없음"
+  }
+}

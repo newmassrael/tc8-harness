@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Cyclic OfferService Session-IDs strictly increment across iterations",
+  "approach": "[Objective]\nSession ID monotonicity: each cyclic OfferService must increment Session ID — protects replay detection.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService #1 (sid=N).\n2. DUT → Tester: cyclic OfferService #2 (sid=N+1).\n\n[Pass condition]\nsid increased between #1 and #2.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT incremented Session ID — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_session_id_did_not_increment": "OfferService Session ID did not increment",
+    "Fail_phase2_no_second_offer": "No second OfferService within listen window"
+  }
+}

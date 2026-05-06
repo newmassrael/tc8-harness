@@ -1,0 +1,8 @@
+{
+  "description": "SD multicast FindService에 대한 DUT unicast OfferService가 UDP+TCP IPv4 Endpoint Options를 나열하는지 검증",
+  "approach": "[검증 목적]\nUDP와 TCP 두 transport를 제공하는 service는 OfferService에 두 Endpoint Option 모두 광고해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 → DUT (multicast): FindService.\n2. 관찰: DUT → 테스터 (unicast): UDP와 TCP IPv4 Endpoint Option 모두 포함한 OfferService.\n\n[통과 조건]\nOfferService가 UDP와 TCP endpoint 모두 나열.\n\n[실패 조건]\n• Fail_phase1_no_offer_with_endpoints — UDP+TCP endpoint 모두 포함한 OfferService 미관찰",
+  "verdicts": {
+    "Pass": "DUT이 UDP+TCP endpoint로 응답 — 정상",
+    "Fail_phase1_no_offer_with_endpoints": "listen 윈도우 내 UDP+TCP endpoint 포함 OfferService 없음"
+  }
+}

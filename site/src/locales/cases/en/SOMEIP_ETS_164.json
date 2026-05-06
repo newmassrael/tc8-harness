@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TestField get / set / suspendInterface / StopOffer / resume / get — DUT honors suspend cycle",
+  "approach": "[Objective]\nCross-effect cycle: setting a field, suspending the interface, resuming, and re-getting the field — DUT must preserve the field across the suspend (no implicit reset).\n\n[Scenario — chronological]\nGet/set/get cycle (per case-specific operations).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT preserved field across suspend — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_set_response": "No setField response",
+    "Fail_phase3_no_stop_offer": "No StopOfferService within listen window",
+    "Fail_phase4_no_post_resume_get": "No post-resume getField response"
+  }
+}

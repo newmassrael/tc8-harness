@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Major-Version wildcard burst + Minor-Version wildcard burst — DUT answers each",
+  "approach": "[Objective]\nWildcard FindService variants — DUT must answer all matching wildcards.\n\n[Scenario — chronological]\n1. Tester → DUT: Major-Version wildcard FindService burst → DUT replies.\n2. Tester → DUT: Minor-Version wildcard FindService burst → DUT replies.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT answered both wildcard bursts — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_offer": "No OfferService phase 2 within listen window"
+  }
+}

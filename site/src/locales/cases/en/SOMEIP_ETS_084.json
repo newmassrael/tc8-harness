@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Client-mode deactivate — DUT emits StopSubscribeEventgroup for ets3",
+  "approach": "[Objective]\nClient-mode lifecycle: deactivating a subscription must produce a StopSubscribe SD entry (TTL=0) so the server stops sending events.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester (UT) → DUT: subscribe to ets3 → DUT emits Subscribe.\n3. Tester (UT) → DUT: deactivate ets3.\n4. Observation: DUT → Tester: StopSubscribeEventgroup (TTL=0).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT emitted StopSubscribe for ets3 — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_subscribe": "No DUT Subscribe for ets3 within listen window",
+    "Fail_phase3_no_stop_subscribe": "No DUT StopSubscribe for ets3 within listen window"
+  }
+}

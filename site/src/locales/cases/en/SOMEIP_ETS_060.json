@@ -1,0 +1,8 @@
+{
+  "description": "Verify that an SD multicast FindService → DUT unicast OfferService lists UDP+TCP IPv4 Endpoint Options",
+  "approach": "[Objective]\nA service offering both UDP and TCP transports must advertise both Endpoint Options in the OfferService.\n\n[Scenario — chronological]\n1. Tester → DUT (multicast): FindService.\n2. Observation: DUT → Tester (unicast): OfferService containing both UDP and TCP IPv4 Endpoint Options.\n\n[Pass condition]\nOfferService lists both UDP and TCP endpoints.\n\n[Fail condition]\n• Fail_phase1_no_offer_with_endpoints — OfferService with both endpoints not observed",
+  "verdicts": {
+    "Pass": "DUT replied with UDP+TCP endpoints — normal",
+    "Fail_phase1_no_offer_with_endpoints": "No OfferService with UDP and TCP endpoints within listen window"
+  }
+}

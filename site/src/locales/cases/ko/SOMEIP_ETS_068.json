@@ -1,0 +1,9 @@
+{
+  "description": "TCP의 unaligned 3-message SOME/IP bundle — DUT이 각 Request echo을(를) 검증",
+  "approach": "[검증 목적]\nTCP byte-stream bundling: 메시지가 segment 간 byte-align되지 않을 수 있음 — DUT parser가 SOME/IP length 헤더로 stream walk.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: Method Request (케이스별 모양).\n3. 관찰: DUT → 테스터: Method Response (또는 부재) 주장된 동작에 따라.\n\n[통과 조건]\nDUT 발신 응답이 spec 속성 충족.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 모든 메시지에 응답 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_response_missing": "DUT이 TCP bundle 내 모든 메시지에 응답하지 않음"
+  }
+}

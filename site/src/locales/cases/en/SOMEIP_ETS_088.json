@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Multi-entry Subscribe (eg 0x02 + 0x05 + 0x06) — DUT acks/nacks each entry",
+  "approach": "[Objective]\nBundled SD entries: a single Subscribe SOME/IP message carries 3 entries — DUT processes each independently.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with IPv4 endpoint.\n2. Tester → DUT: SubscribeEventgroup with 3 entries (eg 0x02, 0x05, 0x06).\n3. Observation: DUT → Tester: SD message containing 3 Acks/Nacks.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked all 3 subscribe entries — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_no_three_acks": "No bundled subscribe Ack for eg 0x02 + 0x05 + 0x06"
+  }
+}

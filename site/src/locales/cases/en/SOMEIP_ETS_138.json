@@ -1,0 +1,9 @@
+{
+  "description": "Verify that SubscribeEventgroup OptionsLen larger than message — DUT Acks or ignores",
+  "approach": "[Objective]\nTolerant: OptionsLen overshoots but DUT can still find a valid endpoint option — Acks. DUT must NOT silently fail by Nack-ing valid endpoint.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: SubscribeEventgroup with OptionsLen larger than message.\n3. Observation: DUT → Tester: SubscribeAck (NOT Nack).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked oversized OptionsLen — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_dut_nacked_oversized_options_len": "DUT nacked on oversized options array length"
+  }
+}

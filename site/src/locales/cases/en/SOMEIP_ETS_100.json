@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Client-mode FindService is bounded to Start-Up Phase, absent in Main Phase",
+  "approach": "[Objective]\nFindService cadence: client-mode emits FindService during the Start-Up Phase but stops once the service is found and Main Phase begins.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Observation Start-Up Phase: DUT FindService present.\n3. Wait until Main Phase.\n4. Observation Main Phase: NO DUT FindService.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT followed client-mode FindService rule — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_findservice": "No DUT FindService during start phase",
+    "Fail_phase4_findservice_in_main_phase": "DUT FindService observed during Main Phase"
+  }
+}

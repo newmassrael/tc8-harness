@@ -1,0 +1,14 @@
+{
+  "description": "Multicast/unicast reboot tracker — DUT이 reboot 후 lower-sid Subscribe Ack을(를) 검증",
+  "approach": "[검증 목적]\nReboot 감지: 이전보다 낮은 session_id의 SD 메시지가 reboot 신호 — DUT이 rebooted peer의 후속 Subscribe 처리.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. Subscribe #1 → Ack.\n3. Subscribe #2 → Ack.\n4. Reboot signal (낮은 sid) + Subscribe #3 → Ack.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 reboot 간 subscribe ack — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_subscribe_nacked": "첫 Subscribe nack",
+    "Fail_phase2_no_first_ack": "첫 Subscribe Ack 없음",
+    "Fail_phase3_subscribe_nacked": "두 번째 Subscribe nack",
+    "Fail_phase3_no_second_ack": "두 번째 Subscribe Ack 없음",
+    "Fail_phase4_reboot_subscribe_nacked": "Reboot Subscribe nack",
+    "Fail_phase4_no_reboot_ack": "Reboot Subscribe Ack 없음"
+  }
+}

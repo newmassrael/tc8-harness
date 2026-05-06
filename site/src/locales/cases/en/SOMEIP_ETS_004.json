@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT responds to each Method Request in a quick burst",
+  "approach": "[Objective]\nBurst handling: a back-to-back batch of Requests must each get a Response — no single drop, no rate-limit silently swallowing requests.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: burst of N Method Requests in quick succession.\n3. Observation: DUT → Tester: matching N Responses.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT responded to every burst request — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_burst_response_missing": "DUT did not respond to every request in burst"
+  }
+}

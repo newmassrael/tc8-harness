@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Client-Mode + GetLastValueOfEventTCP — DUT responds with cached UInt8 (TCP)",
+  "approach": "[Objective]\nGetLastValueOfEvent (TCP variant): DUT (in client mode for SID-2) calls the method on the offered server; server returns cached event value.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT replied per spec — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_get_last_response": "No GetLastValue TCP response"
+  }
+}

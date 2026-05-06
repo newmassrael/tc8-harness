@@ -1,0 +1,9 @@
+{
+  "description": "echoUNION 내부 union-type out of range — DUT이 응답 (any return_code)을(를) 검증",
+  "approach": "[검증 목적]\n범위 밖 type 값의 union discriminator — DUT은 reject 또는 substitute 가능, 응답 필수 (silent drop 아님).\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: 범위 밖 type의 echoUNION Request.\n3. 관찰: DUT → 테스터: 어떤 Method Response.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 응답 (any code) — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_response": "wrong union type에 대한 listen 윈도우 내 Method Response 없음"
+  }
+}

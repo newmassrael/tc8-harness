@@ -1,0 +1,11 @@
+{
+  "description": "eg 0x02 Subscribe + triggerEventUINT8Reliable trigger — DUT Ack + MSB-set notification을(를) 검증",
+  "approach": "[검증 목적]\nTCP reliable eventgroup variant (event subscription path).\n\n[시나리오 — 시간순]\n1. DUT → 테스터: IPv4 endpoint option 포함 OfferService.\n2. 테스터 → DUT: SubscribeEventgroup (케이스별 모양).\n3. 관찰: DUT → 테스터: SubscribeAck/Nack/event 주장된 동작에 따라.\n\n[통과 조건]\n관찰된 DUT 응답이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 subscribe ack + notification 발신 — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_subscribe_nacked": "Subscribe nack됨 (TTL=0)",
+    "Fail_phase2_no_subscribe_ack": "listen 윈도우 내 SubscribeAck 없음",
+    "Fail_phase3_no_notification": "listen 윈도우 내 event MSB notification 없음"
+  }
+}

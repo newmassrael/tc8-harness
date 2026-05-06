@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Client Mode without explicit Subscribe trigger — DUT must not auto-subscribe",
+  "approach": "[Objective]\nClient mode boundary: subscriptions are explicit user actions — DUT must not subscribe just because an OfferService matches.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. UT does NOT trigger explicit Subscribe.\n3. Observation: DUT must NOT emit Subscribe.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT silent without explicit trigger — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_dut_subscribed_without_trigger": "DUT emitted subscribe without explicit trigger"
+  }
+}

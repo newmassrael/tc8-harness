@@ -1,0 +1,11 @@
+{
+  "description": "Verify that Subscribe ttl=3 then wait past expiry — DUT must stop emitting events",
+  "approach": "[Objective]\nSubscription TTL must be honoured: after TTL seconds elapse, DUT stops emitting notifications without an explicit StopSubscribe.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Subscribe with TTL=3 → Ack.\n3. Wait > 3s.\n4. Observation: DUT must NOT emit events.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT stopped events at TTL expiry — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_subscribe_nacked": "Subscribe nacked",
+    "Fail_phase2_no_subscribe_ack": "No SubscribeAck",
+    "Fail_phase3_event_after_ttl_expiry": "DUT emitted event after subscription TTL expired"
+  }
+}

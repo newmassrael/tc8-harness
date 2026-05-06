@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT does not close the TCP reliable connection when service is stopped",
+  "approach": "[Objective]\nConnection lifecycle: stopping the service should not tear down the underlying TCP connection — DUT keeps the socket alive, only the SD-level offer is withdrawn.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester ⇄ DUT: TCP handshake + Method Request → Response on the reliable endpoint.\n3. Tester (UT) → DUT: stop service.\n4. Observation: DUT must NOT emit FIN/RST on the TCP connection.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT kept TCP connection open across service stop — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_response": "No Method Response on reliable endpoint within listen window",
+    "Fail_phase3_dut_emitted_fin": "DUT tore down TCP reliable connection on reset"
+  }
+}

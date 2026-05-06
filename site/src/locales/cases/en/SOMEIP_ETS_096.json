@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Subscribe with TCP Endpoint option and no live TCP connection — DUT must respond with SubscribeEventgroupNack",
+  "approach": "[Objective]\nDefensive nack: DUT must verify the TCP connection exists before acking a TCP-bound Subscribe — otherwise events would have nowhere to go.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with IPv4 endpoint.\n2. Tester → DUT: SubscribeEventgroup with TCP option, but no TCP handshake first.\n3. Observation: DUT → Tester: SubscribeNack (TTL=0).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT nacked TCP subscribe without connection — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_dut_acked_tcp_subscribe_without_connection": "DUT acked TCP subscribe without pre-established connection",
+    "Fail_phase2_no_subscribe_response": "No subscribe response within listen window"
+  }
+}

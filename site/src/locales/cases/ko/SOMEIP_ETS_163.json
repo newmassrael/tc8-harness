@@ -1,0 +1,9 @@
+{
+  "description": "unallowed Endpoint IPv4(111.111.111.111)의 SubscribeEventgroup — DUT Nack 또는 무시을(를) 검증",
+  "approach": "[검증 목적]\nOff-LAN endpoint IP — DUT 거부.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: IPv4 endpoint option 포함 OfferService.\n2. 테스터 → DUT: SubscribeEventgroup (케이스별 모양).\n3. 관찰: DUT → 테스터: SubscribeAck/Nack/event 주장된 동작에 따라.\n\n[통과 조건]\n관찰된 DUT 응답이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 malformed subscribe 거부/무시 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_dut_acked_unallowed_ip": "DUT이 unallowed endpoint IPv4 ack"
+  }
+}

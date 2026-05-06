@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT client restarts refused TCP connection on next OfferService",
+  "approach": "[Objective]\nClient recovery: a refused TCP connection must be retried on the next OfferService — DUT does not give up permanently.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. DUT → Tester: Subscribe with TCP option.\n3. Tester refuses TCP handshake.\n4. Tester → DUT: another OfferService.\n5. Observation: DUT completes TCP handshake.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT retried TCP after refusal — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_subscribe_with_tcp_option": "No DUT Subscribe with TCP option within listen window",
+    "Fail_phase3_no_tcp_handshake_after_second_offer": "DUT did not complete TCP handshake after second offer"
+  }
+}

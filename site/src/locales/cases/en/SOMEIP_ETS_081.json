@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Server-reboot recovery — DUT renews TCP after lower-sid OfferService",
+  "approach": "[Objective]\nAfter a simulated server reboot (signalled by an OfferService with a lower SD session_id), DUT must reset its session view and renew the TCP handshake.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService (initial sid).\n2. Tester ⇄ DUT: SubscribeEventgroup with TCP option + handshake.\n3. Tester → DUT: simulated reboot OfferService (lower sid).\n4. Observation: DUT renews TCP handshake.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT renewed TCP after reboot signal — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_first_subscribe": "No DUT Subscribe with TCP option within listen window",
+    "Fail_phase3_no_renewed_handshake": "DUT did not renew TCP connection after simulated reboot"
+  }
+}

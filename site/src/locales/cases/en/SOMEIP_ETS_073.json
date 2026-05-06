@@ -1,0 +1,9 @@
+{
+  "description": "Verify that echoUNION inner union-type out of range — DUT must respond (any return_code)",
+  "approach": "[Objective]\nUnion discriminator with out-of-range type value — DUT may reject or substitute, but must respond (no silent drop).\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: echoUNION Request with type out of range.\n3. Observation: DUT → Tester: any Method Response.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT responded (any code) — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_response": "No Method Response within listen window for wrong union type"
+  }
+}

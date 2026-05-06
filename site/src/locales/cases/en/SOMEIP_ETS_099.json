@@ -1,0 +1,9 @@
+{
+  "description": "Verify that clientServiceActivate spawns FindService for SERVICE-ID-2 while preserving SERVICE-ID-1 server",
+  "approach": "[Objective]\nMixed-role: DUT is both server (SID-1) and client (SID-2). Activating client mode for SID-2 emits FindService without disturbing SID-1's offer.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService for SID-1.\n2. Tester (UT) → DUT: clientServiceActivate for SID-2.\n3. Observation: DUT → Tester: FindService for SID-2.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT followed client-mode FindService rule — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_findservice": "No DUT FindService for SERVICE-ID-2 within listen window"
+  }
+}

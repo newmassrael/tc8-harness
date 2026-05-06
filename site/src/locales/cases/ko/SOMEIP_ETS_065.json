@@ -1,0 +1,9 @@
+{
+  "description": "UTF8FIXED 65-byte payload — DUT이 응답 (any return_code)을(를) 검증",
+  "approach": "[검증 목적]\n_063의 UTF-8 family — 같은 응답 필수, 어떤 code도 가능 규칙.\n\n[시나리오 — 시간순]\n_063과 같지만 UTF8FIXED method.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 응답 (any code) — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_response": "oversized에 대한 listen 윈도우 내 Method Response 없음"
+  }
+}

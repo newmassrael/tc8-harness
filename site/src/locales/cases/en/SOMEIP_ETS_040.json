@@ -1,0 +1,9 @@
+{
+  "description": "Verify that echoUTF16DYNAMIC length too long — DUT must reject or ignore",
+  "approach": "[Objective]\nUTF-16 dynamic string length declares more bytes than payload carries — DUT rejects.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT rejected/ignored malformed input — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_dut_accepted_malformed": "DUT returned OK Response for oversized length field"
+  }
+}

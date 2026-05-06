@@ -1,0 +1,9 @@
+{
+  "description": "Verify that InterfaceVersion Field Getter — DUT must respond (any return_code)",
+  "approach": "[Objective]\nStandard Interface Version field getter — DUT must respond, even if implementation returns an Error.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: InterfaceVersion getter Method Request.\n3. Observation: DUT → Tester: any Method Response.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT responded to InterfaceVersion getter — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_response": "No Method Response within listen window for Interface getter"
+  }
+}

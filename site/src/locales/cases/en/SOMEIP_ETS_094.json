@@ -1,0 +1,13 @@
+{
+  "description": "Verify that Server-side reboot detection — duplicate SD session_id triggers expire_subscriptions",
+  "approach": "[Objective]\nWhen DUT detects a duplicate (or non-incrementing) session_id from the peer, it must expire prior subscriptions to prevent stale event delivery.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with endpoint.\n2. Subscribe → Ack.\n3. Tester triggers events post-subscribe → DUT emits.\n4. Tester sends FindService.\n5. Tester triggers more events.\n6. Tester sends reboot signal.\n7. Observation: DUT must NOT emit further events after reboot signal.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT expired subscriptions on reboot — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_subscribe_nacked": "Subscribe nacked",
+    "Fail_phase2_no_subscribe_ack": "No SubscribeAck",
+    "Fail_phase3_no_event_post_subscribe": "No test event post-subscribe",
+    "Fail_phase4_no_event_post_first_find": "No test event post-FindService",
+    "Fail_phase6_event_post_reboot": "Test event observed after simulated reboot"
+  }
+}

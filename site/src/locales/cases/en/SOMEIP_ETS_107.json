@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Subscribe → multi-entry SD (Stop+Subscribe) → DUT Acks both Subscribes",
+  "approach": "[Objective]\nSD entry combination: Stop entry followed by Subscribe entry in the same SD message — DUT processes both.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Subscribe → Ack.\n3. Multi-entry SD (StopSubscribe + new Subscribe).\n4. Observation: DUT Acks the new Subscribe.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked both subscribes — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_first_ack": "No first Subscribe Ack",
+    "Fail_phase3_no_second_ack": "No re-subscribe Ack"
+  }
+}

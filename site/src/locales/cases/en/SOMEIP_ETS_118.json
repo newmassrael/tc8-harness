@@ -1,0 +1,8 @@
+{
+  "description": "Verify that FindService with unreferenced IPv4 Endpoint option (×10) — DUT ignores option, OfferServices",
+  "approach": "[Objective]\nForward-compat: unreferenced options must not break the SD message — DUT ignores them and processes the FindService.\n\n[Scenario — chronological]\n1. Tester → DUT: FindService with 10 unreferenced IPv4 endpoint options.\n2. Observation: DUT → Tester: OfferService (FindService still processed).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT processed FindService despite extra options — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window"
+  }
+}

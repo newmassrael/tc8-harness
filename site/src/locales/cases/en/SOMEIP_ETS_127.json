@@ -1,0 +1,8 @@
+{
+  "description": "Verify that 10 multicast FindService at 100 ms — DUT answers with unicast OfferService",
+  "approach": "[Objective]\nBurst FindService: even 10 rapid multicast Finds must each get a unicast OfferService reply.\n\n[Scenario — chronological]\n1. Tester → DUT (multicast): 10 FindServices spaced 100 ms apart.\n2. Observation: DUT → Tester: ≥1 unicast OfferService.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT replied to multicast FindService burst — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window"
+  }
+}

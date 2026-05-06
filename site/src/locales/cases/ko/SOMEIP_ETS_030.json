@@ -1,0 +1,10 @@
+{
+  "description": "echoUINT8Array2Dim round-trip — 각각 1 UInt8을 가진 2 sub-array을(를) 검증",
+  "approach": "[검증 목적]\n중첩 array: outer array of inner array — DUT이 두 length prefix 모두 정확히 walk.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: Method Request (케이스별 모양).\n3. 관찰: DUT → 테스터: Method Response (또는 부재) 주장된 동작에 따라.\n\n[통과 조건]\nDUT 발신 응답이 spec 속성 충족.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT 발신 응답이 invariant 충족 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_array2dim_echo_mismatch": "echoUINT8Array2Dim response가 Request와 불일치",
+    "Fail_phase2_no_response": "listen 윈도우 내 Method Response 없음"
+  }
+}

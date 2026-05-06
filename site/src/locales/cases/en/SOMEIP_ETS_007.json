@@ -1,0 +1,10 @@
+{
+  "description": "Verify that echoBitfields echoes each integer arg with bit order reversed",
+  "approach": "[Objective]\nBit-order canon: DUT performs a per-arg bit reversal — exercises bit-level wire format and reverse-encoding logic.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT-emitted response satisfies invariant — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_bitfield_echo_mismatch": "echoBitfields response did not match reversed Request",
+    "Fail_phase2_no_response": "No Method Response within listen window"
+  }
+}

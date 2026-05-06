@@ -1,0 +1,10 @@
+{
+  "description": "Verify that suspendInterface — DUT emits StopOfferService then re-offers same ports",
+  "approach": "[Objective]\nService suspend/resume cycle: suspendInterface stops the offer (StopOfferService entry); resume re-offers the same endpoint (port preservation invariant).\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester (UT) → DUT: suspendInterface → DUT → Tester: StopOfferService.\n3. Tester (UT) → DUT: resume → DUT → Tester: OfferService with same port.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT cycled stop+resume offers — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_stop_offer": "No StopOfferService within listen window",
+    "Fail_phase3_no_resume_offer": "No resume OfferService within listen window"
+  }
+}

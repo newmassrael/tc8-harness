@@ -1,0 +1,9 @@
+{
+  "description": "Multi-entry Subscribe (eg 0x02 + 0x05 + 0x06) — DUT이 각 entry ack/nack을(를) 검증",
+  "approach": "[검증 목적]\nBundled SD entries: 단일 Subscribe SOME/IP 메시지가 3 entry 운반 — DUT이 각각 독립 처리.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: IPv4 endpoint 포함 OfferService.\n2. 테스터 → DUT: 3 entry(eg 0x02, 0x05, 0x06)의 SubscribeEventgroup.\n3. 관찰: DUT → 테스터: 3 Ack/Nack 포함 SD 메시지.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 3 subscribe entry 모두 ack — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_no_three_acks": "eg 0x02 + 0x05 + 0x06 bundled subscribe Ack 없음"
+  }
+}

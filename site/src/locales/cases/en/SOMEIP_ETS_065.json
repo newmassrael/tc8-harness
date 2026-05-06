@@ -1,0 +1,9 @@
+{
+  "description": "Verify that UTF8FIXED 65-byte payload — DUT must respond (any return_code)",
+  "approach": "[Objective]\nUTF-8 family of _063 — same response-required-but-any-code rule.\n\n[Scenario — chronological]\nSame as _063 but UTF8FIXED method.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT responded (any code) — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_response": "No Method Response within listen window for oversized"
+  }
+}

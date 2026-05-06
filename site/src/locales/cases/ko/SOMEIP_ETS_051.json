@@ -1,0 +1,9 @@
+{
+  "description": "echoUTF8DYNAMIC length too short — DUT이 거부 또는 무시을(를) 검증",
+  "approach": "[검증 목적]\nUTF-8 dynamic length 부족 선언 — UTF-8 family에 대한 _042와 동일.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: Method Request (케이스별 모양).\n3. 관찰: DUT → 테스터: Method Response (또는 부재) 주장된 동작에 따라.\n\n[통과 조건]\nDUT 발신 응답이 spec 속성 충족.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 malformed 입력 거부/무시 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_dut_accepted_malformed": "DUT이 undersized length 필드에 OK Response 반환"
+  }
+}

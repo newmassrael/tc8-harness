@@ -1,0 +1,9 @@
+{
+  "description": "clientServiceActivate가 SERVICE-ID-1 서버를 유지하면서 SERVICE-ID-2 FindService를 spawn을(를) 검증",
+  "approach": "[검증 목적]\nMixed-role: DUT이 server(SID-1)이자 client(SID-2). SID-2 client mode 활성화는 SID-1 offer 방해 없이 FindService 발신.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: SID-1 OfferService.\n2. 테스터 (UT) → DUT: SID-2에 대한 clientServiceActivate.\n3. 관찰: DUT → 테스터: SID-2 FindService.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 client-mode FindService 규칙 준수 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_findservice": "listen 윈도우 내 SERVICE-ID-2 DUT FindService 없음"
+  }
+}

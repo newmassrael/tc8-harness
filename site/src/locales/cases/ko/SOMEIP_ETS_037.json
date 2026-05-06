@@ -1,0 +1,10 @@
+{
+  "description": "service가 stop될 때 DUT이 TCP reliable connection을 close하지 않음을(를) 검증",
+  "approach": "[검증 목적]\nConnection 생명주기: service stop이 underlying TCP connection을 tear down하지 않아야 함 — DUT은 소켓을 유지하고 SD-level offer만 회수.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 ⇄ DUT: TCP handshake + reliable endpoint에서 Method Request → Response.\n3. 테스터 (UT) → DUT: service stop.\n4. 관찰: DUT은 TCP connection에 FIN/RST 발신 금지.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 service stop 간 TCP connection 유지 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_response": "listen 윈도우 내 reliable endpoint Method Response 없음",
+    "Fail_phase3_dut_emitted_fin": "DUT이 reset 시 TCP reliable connection tear down"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that echoUTF16DYNAMIC two-step length-too-short — DUT echoes valid first then rejects truncated",
+  "approach": "[Objective]\nMixed-correctness sequence: a valid Request must be echoed; a follow-up with a too-short length must be rejected — proves DUT's validation is per-message, not session-level.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: valid echoUTF16DYNAMIC Request → DUT must echo.\n3. Tester → DUT: same method but with length-too-short payload → DUT must reject.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT echoed valid then rejected truncated — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_valid_echo": "DUT did not echo valid first request",
+    "Fail_phase3_dut_accepted_malformed": "DUT returned OK Response for truncated inner string"
+  }
+}

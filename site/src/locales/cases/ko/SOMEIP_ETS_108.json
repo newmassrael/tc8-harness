@@ -1,0 +1,10 @@
+{
+  "description": "TCP-only endpoint Subscribe 변형 — DUT이 ack + TCP로 event 발신을(를) 검증",
+  "approach": "[검증 목적]\nEvent용 TCP transport: Subscribe가 TCP endpoint 운반; DUT은 Ack + TCP 경유로 후속 event 라우팅.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: TCP endpoint 포함 OfferService.\n2. 테스터 ⇄ DUT: TCP handshake.\n3. TCP option 포함 Subscribe → DUT Ack.\n4. event 트리거 → DUT이 TCP로 event 발신.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 TCP subscribe ack + event 발신 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_subscribe_ack": "SubscribeAck 없음",
+    "Fail_phase3_no_event": "TCP event 없음"
+  }
+}

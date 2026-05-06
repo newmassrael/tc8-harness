@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Subscribe → StopSubscribe → Subscribe — DUT Acks both subscribes",
+  "approach": "[Objective]\nCycle: subscribe, unsubscribe, resubscribe — DUT must Ack both subscribes (state cleanup between is implicit).\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Subscribe → Ack #1.\n3. StopSubscribe.\n4. Subscribe → Ack #2.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked sub-stop-sub cycle — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_first_ack": "No first Subscribe Ack within listen window",
+    "Fail_phase3_no_second_ack": "No second Subscribe Ack after Stop within listen window"
+  }
+}

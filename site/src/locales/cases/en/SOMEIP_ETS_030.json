@@ -1,0 +1,10 @@
+{
+  "description": "Verify that echoUINT8Array2Dim round-trip — 2 sub-arrays each holding 1 UInt8",
+  "approach": "[Objective]\nNested array: outer array of inner arrays — DUT must walk both length prefixes correctly.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT-emitted response satisfies invariant — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_array2dim_echo_mismatch": "echoUINT8Array2Dim response did not match Request",
+    "Fail_phase2_no_response": "No Method Response within listen window"
+  }
+}

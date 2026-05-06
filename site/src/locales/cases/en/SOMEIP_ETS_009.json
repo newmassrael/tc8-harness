@@ -1,0 +1,10 @@
+{
+  "description": "Verify that echoENUM round-trip — DUT echoes the 1-byte enum VALUE_C (0x02)",
+  "approach": "[Objective]\nEnum encoding: DUT echoes a SOME/IP enum value (1 byte) — verifies enum serialisation matches a plain UInt8.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT-emitted response satisfies invariant — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_enum_echo_mismatch": "echoENUM response did not match Request",
+    "Fail_phase2_no_response": "No Method Response within listen window"
+  }
+}

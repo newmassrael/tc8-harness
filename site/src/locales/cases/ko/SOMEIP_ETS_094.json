@@ -1,0 +1,13 @@
+{
+  "description": "Server-side reboot 감지 — 중복 SD session_id가 expire_subscriptions 트리거을(를) 검증",
+  "approach": "[검증 목적]\nDUT이 peer로부터 중복(또는 non-incrementing) session_id 감지 시 stale event 전달 방지를 위해 이전 subscription 만료 필수.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: endpoint 포함 OfferService.\n2. Subscribe → Ack.\n3. 테스터가 subscribe 후 event 트리거 → DUT 발신.\n4. 테스터가 FindService 발신.\n5. 테스터가 더 많은 event 트리거.\n6. 테스터가 reboot signal 발신.\n7. 관찰: DUT은 reboot signal 후 추가 event 발신 금지.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 reboot 시 subscription 만료 — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_subscribe_nacked": "Subscribe nack",
+    "Fail_phase2_no_subscribe_ack": "SubscribeAck 없음",
+    "Fail_phase3_no_event_post_subscribe": "subscribe 후 test event 없음",
+    "Fail_phase4_no_event_post_first_find": "FindService 후 test event 없음",
+    "Fail_phase6_event_post_reboot": "시뮬레이션 reboot 후 test event 관측"
+  }
+}

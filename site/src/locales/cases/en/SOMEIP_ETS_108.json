@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Subscribe variant with TCP-only endpoint — DUT acks and emits event over TCP",
+  "approach": "[Objective]\nTCP transport for events: Subscribe carries TCP endpoint; DUT must Ack and route subsequent events via TCP.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with TCP endpoint.\n2. Tester ⇄ DUT: TCP handshake.\n3. Subscribe with TCP option → DUT Ack.\n4. Trigger event → DUT emits event over TCP.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked TCP subscribe + emitted event — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_subscribe_ack": "No SubscribeAck",
+    "Fail_phase3_no_event": "No event over TCP"
+  }
+}

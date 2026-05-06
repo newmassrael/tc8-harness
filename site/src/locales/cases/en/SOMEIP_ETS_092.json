@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Subscribe ttl=0 (StopSubscribe) — DUT must not emit Ack/Nack",
+  "approach": "[Objective]\nTTL=0 is the StopSubscribe sentinel — it's an unsubscribe, not a subscribe; DUT must not respond with an Ack.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with IPv4 endpoint.\n2. Tester → DUT: SubscribeEventgroup with TTL=0.\n3. Observation: DUT must NOT emit Ack/Nack.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT silent on TTL=0 subscribe — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_dut_responded_to_ttl_zero": "DUT emitted subscribe response for TTL=0 request"
+  }
+}

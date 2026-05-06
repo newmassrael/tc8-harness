@@ -1,0 +1,8 @@
+{
+  "description": "Verify that SubscribeEventgroup with two same-type (IPv4 Endpoint) options — DUT Nacks or ignores",
+  "approach": "[Objective]\nDuplicate option types are ambiguous — DUT rejects (which endpoint should events go to?).\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: SubscribeEventgroup with two IPv4 Endpoint options.\n3. Observation: DUT must NOT Ack.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT rejected duplicate IPv4 Endpoint options — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window"
+  }
+}

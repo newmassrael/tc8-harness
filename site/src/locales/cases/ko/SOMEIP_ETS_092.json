@@ -1,0 +1,9 @@
+{
+  "description": "Subscribe ttl=0(StopSubscribe) — DUT이 Ack/Nack 발신 금지을(를) 검증",
+  "approach": "[검증 목적]\nTTL=0은 StopSubscribe sentinel — subscribe가 아닌 unsubscribe; DUT은 Ack 응답 금지.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: IPv4 endpoint 포함 OfferService.\n2. 테스터 → DUT: TTL=0인 SubscribeEventgroup.\n3. 관찰: DUT Ack/Nack 발신 금지.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 TTL=0 subscribe에 silent — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_dut_responded_to_ttl_zero": "DUT이 TTL=0 request에 subscribe 응답 발신"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "echoUINT8E2E — DUT이 4×UInt32 E2E header + UInt8 value 그대로 echo을(를) 검증",
+  "approach": "[검증 목적]\nE2E(End-to-End protection) header round-trip: DUT이 payload value와 함께 AUTOSAR E2E header byte 보존.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: Method Request (케이스별 모양).\n3. 관찰: DUT → 테스터: Method Response (또는 부재) 주장된 동작에 따라.\n\n[통과 조건]\nDUT 발신 응답이 spec 속성 충족.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT 발신 응답이 invariant 충족 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_e2e_echo_mismatch": "echoUINT8E2E response가 Request와 불일치",
+    "Fail_phase2_no_response": "listen 윈도우 내 Method Response 없음"
+  }
+}

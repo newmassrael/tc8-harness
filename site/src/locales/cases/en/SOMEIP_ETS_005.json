@@ -1,0 +1,10 @@
+{
+  "description": "Verify that checkByteOrder replies with UInt32 BE sum of UInt8+UInt16 BE inputs",
+  "approach": "[Objective]\nByte-order canon: DUT receives UInt8+UInt16 in BE wire form, computes their sum as UInt32 BE — verifies the deserialiser+serialiser endianness across multi-width arithmetic.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT-emitted response satisfies invariant — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_payload_mismatch": "checkByteOrder response did not match expected UInt32 sum",
+    "Fail_phase2_no_response": "No Method Response within listen window"
+  }
+}

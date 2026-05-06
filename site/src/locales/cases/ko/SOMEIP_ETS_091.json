@@ -1,0 +1,10 @@
+{
+  "description": "Cyclic OfferService Session-ID가 iteration 간 strictly increment을(를) 검증",
+  "approach": "[검증 목적]\nSession ID 단조성: 매 cyclic OfferService가 Session ID increment 필수 — replay 감지 보호.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService #1 (sid=N).\n2. DUT → 테스터: cyclic OfferService #2 (sid=N+1).\n\n[통과 조건]\n#1과 #2 간 sid 증가.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 Session ID increment — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_session_id_did_not_increment": "OfferService Session ID increment 안 함",
+    "Fail_phase2_no_second_offer": "listen 윈도우 내 두 번째 OfferService 없음"
+  }
+}

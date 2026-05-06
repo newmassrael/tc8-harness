@@ -1,0 +1,12 @@
+{
+  "description": "Verify that getFieldA / setFieldA(0xAA) / resetInterface / getFieldA — post-reset value differs",
+  "approach": "[Objective]\nReset semantics: resetInterface (Fire&Forget) clears field state — post-reset getter returns the default value, NOT the previously-set 0xAA.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. getFieldA → response.\n3. setFieldA(0xAA) → response.\n4. resetInterface (Fire&Forget).\n5. getFieldA → response (must NOT be 0xAA).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT cleared field on reset — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_initial_get": "No initial getField response",
+    "Fail_phase3_no_set_response": "No setField response with payload 0xAA",
+    "Fail_phase4_no_post_reset_get": "No post-reset getField response",
+    "Fail_phase4_field_unchanged": "Post-reset getField still returns 0xAA"
+  }
+}

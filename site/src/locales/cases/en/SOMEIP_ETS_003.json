@@ -1,0 +1,10 @@
+{
+  "description": "Verify that an empty echoUINT8 Request payload elicits a Response with stripped payload",
+  "approach": "[Objective]\nEmpty payload edge case: DUT must accept zero-length echo input and reply with a corresponding stripped (zero-length) payload.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (per-case shape).\n3. Observation: DUT → Tester: Method Response (or absence) per the asserted behaviour.\n\n[Pass condition]\nDUT-emitted response satisfies the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT-emitted response satisfies invariant — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_payload_not_stripped": "DUT response payload was not stripped for short array",
+    "Fail_phase2_no_response": "No Method Response within listen window"
+  }
+}

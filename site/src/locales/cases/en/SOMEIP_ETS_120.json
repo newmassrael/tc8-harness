@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Subscribe with Endpoint Option != tester source — DUT Acks",
+  "approach": "[Objective]\nEndpoint can specify a different IP than the SD message source — legitimate (e.g. routing through a proxy); DUT must Ack.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: SubscribeEventgroup with endpoint IP ≠ source IP.\n3. Observation: DUT Acks.\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT acked endpoint != source — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_ack": "No Subscribe Ack within listen window"
+  }
+}

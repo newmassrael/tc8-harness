@@ -1,0 +1,9 @@
+{
+  "description": "explicit Subscribe trigger 없는 Client Mode — DUT이 auto-subscribe 금지을(를) 검증",
+  "approach": "[검증 목적]\nClient mode 경계: subscription은 explicit 사용자 액션 — DUT은 OfferService 매치만으로 subscribe 금지.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. UT가 explicit Subscribe 트리거 안 함.\n3. 관찰: DUT Subscribe 발신 금지.\n\n[통과 조건]\n관찰된 DUT 동작이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 explicit trigger 없이 silent — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_dut_subscribed_without_trigger": "DUT이 explicit trigger 없이 subscribe 발신"
+  }
+}

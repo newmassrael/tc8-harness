@@ -1,0 +1,10 @@
+{
+  "description": "Verify that echoUINT8Array with array length zero — DUT echoes empty array",
+  "approach": "[Objective]\nZero-element edge: dynamic array length = 0 is legal; DUT echoes back an empty array (length prefix only, no data).\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: echoUINT8Array Request with array length = 0.\n3. Observation: DUT → Tester: Response with empty array (length prefix = 0).\n\n[Pass condition]\nObserved DUT behaviour matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT echoed empty array — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_response": "No Method Response for zero-length array",
+    "Fail_phase2_unexpected_payload": "DUT response payload was not empty array"
+  }
+}
