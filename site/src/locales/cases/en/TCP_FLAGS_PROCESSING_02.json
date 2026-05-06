@@ -1,0 +1,20 @@
+{
+  "description": "Verify that TCP in SYN-RCVD / EST / FW1 / FW2 / CW returns to CLOSED on RESET (RFC 793 §3.9 p70). 5 iterations exercise wst ∈ {SYN-RCVD, EST, FW1, FW2, CW}",
+  "approach": "[Objective]\nA RST in any active state aborts the connection. RFC 793 §3.9 lists this for SYN-RCVD through CW. Verify-probe afterwards elicits a RST proving the socket is gone.\n\n[Scenario — chronological]\n5 iterations, one per state. Each: drive DUT to wst, tester sends RST, verify-probe gets RST.\n\n[Pass condition]\nAll 5 phases close cleanly.\n\n[Fail condition]\nPer phase: prelude failure or Fail_p<n>_no_verify_rst.",
+  "verdicts": {
+    "Pass": "DUT closed on RST in 5 active states — normal",
+    "Fail_p1_no_prelude_synack": "No DUT SYN,ACK phase 1 SYN-RCVD",
+    "Fail_p1_no_verify_rst": "DUT did not emit RST after RST in SYN-RCVD",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2 EST",
+    "Fail_p2_no_verify_rst": "DUT did not emit RST after RST in EST",
+    "Fail_p3_no_handshake_ack": "No DUT handshake ACK phase 3 FW1",
+    "Fail_p3_no_dut_fin": "No DUT FIN phase 3 FW1",
+    "Fail_p3_no_verify_rst": "DUT did not emit RST after RST in FW1",
+    "Fail_p4_no_handshake_ack": "No DUT handshake ACK phase 4 FW2",
+    "Fail_p4_no_dut_fin": "No DUT FIN phase 4 FW2",
+    "Fail_p4_no_verify_rst": "DUT did not emit RST after RST in FW2",
+    "Fail_p5_no_handshake_ack": "No DUT handshake ACK phase 5 CW",
+    "Fail_p5_no_close_wait_ack": "No DUT close-wait ACK phase 5 CW",
+    "Fail_p5_no_verify_rst": "DUT did not emit RST after RST in CW"
+  }
+}

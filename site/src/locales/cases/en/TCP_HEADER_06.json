@@ -1,0 +1,10 @@
+{
+  "description": "DUT ignores Reserved field nonzero values and accepts the TCP packet (RFC 4413 §4.2.3 Reserved)",
+  "approach": "[Objective]\nReserved must be ignored on receive — future spec extensions might define some bits. RFC 4413 §4.2.3 makes this explicit. DUT must accept the segment despite the nonzero Reserved.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data with Reserved bits set.\n3. Observation: DUT acks with correct ack_num.\n\n[Pass condition]\nDUT acks the data normally.\n\n[Fail condition]\n• Fail_no_handshake_ack / Fail_no_data_ack / Fail_wrong_ack_num — same as HEADER_05",
+  "verdicts": {
+    "Pass": "DUT acked data with nonzero Reserved — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_data_ack": "No DUT ACK to reserved-nonzero data",
+    "Fail_wrong_ack_num": "DUT ack_num does not acknowledge payload"
+  }
+}

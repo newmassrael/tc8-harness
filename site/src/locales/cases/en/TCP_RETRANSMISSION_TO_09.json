@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT TCP uses 2*MSL upper bound on SYN-segment RTO (RFC 1122 §4.2.3.1 p96 SHOULD)",
+  "approach": "[Objective]\nMirror of RETRANSMISSION_TO_08 for SYN retx during active OPEN. Same 2*MSL ceiling.\n\n[Scenario — chronological]\n1. DUT active OPEN → SYN → tester drops all SYNs.\n2. DUT retransmits with doubling RTO.\n3. TCP_INFO query → RTO plateau ≤ 2*MSL.\n\n[Pass condition]\nSame as TO_08 but for SYN.\n\n[Fail condition]\nSame fail set as TO_08.",
+  "verdicts": {
+    "Pass": "DUT SYN RTO plateaued at 2*MSL — normal",
+    "Fail_handshake_did_not_complete": "DUT active OPEN did not initiate",
+    "Fail_query_failed": "TCP_INFO query failed",
+    "Fail_no_retx": "No SYN retransmits observed in kernel",
+    "Fail_rto_above_2msl_cap": "RTO plateau above 2*MSL (Linux RTO max 120 s exceeds spec)",
+    "Fail_rto_below_2msl_cap": "RTO below 2*MSL did not plateau within observation budget"
+  }
+}

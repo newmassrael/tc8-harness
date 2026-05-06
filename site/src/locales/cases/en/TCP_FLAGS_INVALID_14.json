@@ -1,0 +1,15 @@
+{
+  "description": "Verify that TCP in TIME-WAIT sends an ACK with next expected SEQ after receiving any segment with OTW SEQ number (RFC 793 §3.9 p69)",
+  "approach": "[Objective]\nIn TIME-WAIT, OTW segments — even FINs from the peer's retransmission — must trigger an ACK announcing the proper SEQ. 2 phases test FIN and data shapes.\n\n[Scenario — chronological]\nTwo phases (FIN, data) — DUT in TIME-WAIT after handshake → CLOSE-WAIT → LAST-ACK style FW2 prelude. Tester injects OTW segment of the phase shape.\n\n[Pass condition]\nDUT replies proper-SEQ ACK in both phases.\n\n[Fail condition]\nPer-phase: handshake / DUT FIN / tester FIN ACK / probe ACK missing.",
+  "verdicts": {
+    "Pass": "DUT acked OTW probe in TIME-WAIT (FIN and data) — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1",
+    "Fail_p1_no_dut_fin": "No DUT FIN phase 1",
+    "Fail_p1_no_tester_fin_ack": "No DUT ACK to tester FIN phase 1",
+    "Fail_p1_no_probe_ack": "No DUT ACK to OTW FIN in TIME-WAIT",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2",
+    "Fail_p2_no_dut_fin": "No DUT FIN phase 2",
+    "Fail_p2_no_tester_fin_ack": "No DUT ACK to tester FIN phase 2",
+    "Fail_p2_no_probe_ack": "No DUT ACK to OTW data in TIME-WAIT"
+  }
+}

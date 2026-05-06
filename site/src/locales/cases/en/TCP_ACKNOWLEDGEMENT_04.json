@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT receives a pure ACK (Length=0, no piggybacking) and stays in ESTABLISHED — must not RST and must continue to honour CLOSE (RFC 793 §3.9)",
+  "approach": "[Objective]\nA bare ACK (no payload) is normal flow control. DUT must process it without disturbing the connection — no RST, no spurious state change. The case proves the ACK was absorbed cleanly by issuing a CLOSE afterward and observing the FIN.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: 3-way handshake.\n2. Tester → DUT: bare ACK (Length=0).\n3. Tester → DUT (UT): CLOSE call.\n4. Observation: DUT → Tester: FIN (no RST observed)   ← key check\n\n[Pass condition]\nNo DUT RST after the bare ACK AND DUT emits FIN on CLOSE.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_dut_rst_after_pure_ack — DUT mistakenly emitted RST\n• Fail_no_dut_fin — DUT did not emit FIN on CLOSE",
+  "verdicts": {
+    "Pass": "DUT absorbed the pure ACK and FIN'd on CLOSE — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_dut_rst_after_pure_ack": "DUT emitted RST after pure ACK",
+    "Fail_no_dut_fin": "No DUT FIN after CLOSE request"
+  }
+}

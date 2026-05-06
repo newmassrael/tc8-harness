@@ -1,0 +1,8 @@
+{
+  "description": "TCP가 LISTEN에서 spurious SYN,ACK 수신 후 RST을 발신하는지 검증 (RFC 793 §3.4 p35)",
+  "approach": "[검증 목적]\nLISTEN에 도착한 SYN,ACK은 unsolicited (DUT은 SYN을 보낸 적 없음). RFC 793 §3.4는 DUT이 RST으로 응답하도록 한다.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. 테스터 → DUT: SYN,ACK.\n3. 관찰: DUT → 테스터: RST.\n\n[통과 조건]\nDUT RST 관찰.\n\n[실패 조건]\n• Fail_timeout — DUT RST 없음",
+  "verdicts": {
+    "Pass": "DUT이 spurious LISTEN SYN,ACK에 RST 응답 — 정상",
+    "Fail_timeout": "LISTEN SYN,ACK에 대한 DUT RST 없음"
+  }
+}

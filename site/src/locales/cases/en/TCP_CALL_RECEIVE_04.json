@@ -1,0 +1,15 @@
+{
+  "description": "Verify that TCP reassembles queued incoming segments and returns the data to a RECEIVE call in EST / FIN-WAIT-1 / FIN-WAIT-2 (RFC 793 §3.9 p58 Event Processing)",
+  "approach": "[Objective]\nThe receive path must coalesce segments into the application-visible byte stream. Three iterations send 4 × 32 B segments per phase and verify a single 128 B UT recv per phase.\n\n[Scenario — chronological]\nThree iterations, one per state:\n1. Phase 1 (EST): tester sends 4 × 32 B segments → DUT recv reports 128 B.\n2. Phase 2 (FW1): same after DUT-side CLOSE.\n3. Phase 3 (FW2): same after tester ACKs DUT FIN.\n\n[Pass condition]\nEach phase reports correct 128 B reassembled data.\n\n[Fail condition]\n• Fail_p<n>_* — handshake / FIN / data per-phase missing or wrong",
+  "verdicts": {
+    "Pass": "DUT reassembled 4×32 B → 128 B in all 3 phases — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1 EST",
+    "Fail_p1_no_proper_data": "DUT did not receive proper data phase 1 EST",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2 FW1",
+    "Fail_p2_no_dut_fin": "No DUT FIN phase 2 FW1",
+    "Fail_p2_no_proper_data": "DUT did not receive proper data phase 2 FW1",
+    "Fail_p3_no_handshake_ack": "No DUT handshake ACK phase 3 FW2",
+    "Fail_p3_no_dut_fin": "No DUT FIN phase 3 FW2",
+    "Fail_p3_no_proper_data": "DUT did not receive proper data phase 3 FW2"
+  }
+}

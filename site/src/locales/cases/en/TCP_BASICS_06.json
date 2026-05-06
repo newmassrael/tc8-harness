@@ -1,0 +1,8 @@
+{
+  "description": "Verify that TCP in CLOSED sends a SYN on an active OPEN call (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nThe active-OPEN entry transition: from CLOSED, the user's OPEN call must produce a SYN on the wire and move the state to SYN-SENT.\n\n[Scenario — chronological]\n1. DUT in CLOSED.\n2. Tester (UT) → DUT: active OPEN call.\n3. Observation: DUT → Tester: SYN   ← key check\n\n[Pass condition]\nDUT-emitted SYN observed within the listen window.\n\n[Fail condition]\n• Fail_timeout — no DUT SYN within the listen window",
+  "verdicts": {
+    "Pass": "DUT emitted SYN on active OPEN — normal",
+    "Fail_timeout": "No DUT SYN within listen window"
+  }
+}

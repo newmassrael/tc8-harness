@@ -1,0 +1,9 @@
+{
+  "description": "TCP handles an illegal MSS option length in a SYN,ACK without crashing (RFC 1122 §4.2.2.5 p85). Iterations: ilen=0 and ilen=5",
+  "approach": "[Objective]\nMirror of MSS_OPTIONS_01 from the active-OPEN side: DUT in SYN-SENT receives a SYN,ACK with malformed MSS — must complete handshake or refuse, not crash.\n\n[Scenario — chronological]\nTwo iterations: DUT active OPEN; tester replies SYN,ACK with MSS length 0 / length 5; DUT must ack to complete handshake (rejecting the bad option silently).\n\n[Pass condition]\nDUT acks SYN,ACK in both phases.\n\n[Fail condition]\n• Fail_timeout_phase<n> — no DUT ACK to phase n's malformed-MSS SYN,ACK",
+  "verdicts": {
+    "Pass": "DUT survived illegal MSS in SYN,ACK — normal",
+    "Fail_timeout_phase1": "No DUT ACK to SYN,ACK with ilen=0 MSS",
+    "Fail_timeout_phase2": "No DUT ACK to SYN,ACK with ilen=5 MSS"
+  }
+}

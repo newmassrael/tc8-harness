@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 pure ACK(Length=0, piggyback 없음)을 받고 ESTABLISHED에 머무르는지 검증 — RST 금지 + 이후 CLOSE에 정상 응답해야 함 (RFC 793 §3.9)",
+  "approach": "[검증 목적]\npayload 없는 단독 ACK은 정상 flow control이다. DUT은 connection을 흔들지 않고 처리해야 한다 — RST 없음, 잘못된 상태 변경 없음. 이 케이스는 이후 CLOSE를 발행하고 FIN이 나오는지를 관찰해 ACK이 깔끔히 흡수됐는지 증명한다.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: 3-way handshake.\n2. 테스터 → DUT: bare ACK (Length=0).\n3. 테스터 → DUT (UT): CLOSE 호출.\n4. 관찰: DUT → 테스터: FIN (RST 없음)   ← 핵심 확인 지점\n\n[통과 조건]\nbare ACK 후 DUT RST 없음 + CLOSE에 FIN 발신.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_dut_rst_after_pure_ack — DUT이 RST 발신\n• Fail_no_dut_fin — CLOSE에 FIN 미발신",
+  "verdicts": {
+    "Pass": "DUT이 pure ACK 흡수 + CLOSE 시 FIN — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_dut_rst_after_pure_ack": "pure ACK 후 DUT이 RST 발신",
+    "Fail_no_dut_fin": "CLOSE 요청 후 DUT FIN 없음"
+  }
+}

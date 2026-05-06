@@ -1,0 +1,18 @@
+{
+  "description": "Verify that TCP in CW / CLOSING / LAST-ACK does not change state after receiving a FIN+ACK (RFC 793 §3.9 p75). 3 iterations exercise wst ∈ {CW with valid ack, CLOSING with invalid ack, LA with invalid ack}",
+  "approach": "[Objective]\nLate-state FIN+ACK retransmissions are common; DUT must absorb without state oscillation. RFC 793 §3.9 requires no transition in CW/CLOSING/LA on duplicate FIN+ACK.\n\n[Scenario — chronological]\n3 iterations, one per state. Each: drive DUT to wst, tester sends dup FIN+ACK, DUT must remain in wst (no spurious RST or state change).\n\n[Pass condition]\nAll 3 phases preserve wst.\n\n[Fail condition]\nPer phase: prelude failure or Fail_p<n>_unexpected_state_change.",
+  "verdicts": {
+    "Pass": "DUT preserved state on dup FIN+ACK — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1 CW",
+    "Fail_p1_no_close_wait_ack": "No DUT close-wait ACK phase 1 CW",
+    "Fail_p1_unexpected_state_change": "DUT state changed after dup FIN+ACK in CW",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2 CLOSING",
+    "Fail_p2_no_dut_fin": "No DUT FIN phase 2 CLOSING",
+    "Fail_p2_no_closing_ack": "No DUT closing ACK phase 2 CLOSING",
+    "Fail_p2_unexpected_state_change": "DUT emitted RST after dup FIN+ACK in CLOSING",
+    "Fail_p3_no_handshake_ack": "No DUT handshake ACK phase 3 LA",
+    "Fail_p3_no_close_wait_ack": "No DUT close-wait ACK phase 3 LA",
+    "Fail_p3_no_dut_fin": "No DUT FIN phase 3 LA",
+    "Fail_p3_unexpected_state_change": "DUT emitted RST after dup FIN+ACK in LA"
+  }
+}

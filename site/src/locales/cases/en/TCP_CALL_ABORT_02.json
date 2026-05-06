@@ -1,0 +1,10 @@
+{
+  "description": "Verify that TCP in ESTABLISHED enters CLOSED on application ABORT call (RFC 793 §3.9 p62 Event Processing)",
+  "approach": "[Objective]\nABORT is an immediate teardown — unlike CLOSE, no FIN handshake. DUT must emit a RST and clean up the socket.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake → ESTABLISHED.\n2. Tester (UT) → DUT: ABORT call.\n3. Observation: DUT → Tester: RST AND DUT in CLOSED (verify-probe replies RST again)   ← key check\n\n[Pass condition]\nDUT emits RST after ABORT AND post-ABORT probe also gets RST.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_dut_rst — DUT did not emit RST after ABORT in ESTABLISHED\n• Fail_no_verify_rst — DUT did not close",
+  "verdicts": {
+    "Pass": "DUT emitted RST and closed on ABORT — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_dut_rst": "DUT did not emit RST after ABORT in EST",
+    "Fail_no_verify_rst": "DUT did not close after ABORT in EST"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "description": "Verify that DUT TCP follows Karn's algorithm — preserve RTO doubling across an ACK that acknowledges a previously retransmitted segment (RFC 1122 §4.2.3.1, RFC 6298 §3 / §5)",
+  "approach": "[Objective]\nKarn's algorithm: don't reset RTO based on the RTT of an acked retransmit (you can't tell which copy generated the ACK). RFC 6298 §5 keeps the doubled RTO until a non-retransmitted segment is acked.\n\n[Scenario — chronological]\n1. Handshake → DUT sends data → tester drops it → DUT retransmits with RTO_1 doubled.\n2. Phase 1 query: TCP_INFO RTO ≥ doubled baseline.\n3. Tester ACKs the retransmit.\n4. Phase 2 query: TCP_INFO RTO must remain doubled (Karn's preservation).\n\n[Pass condition]\nPhase 2 RTO is still ≥ doubled baseline.\n\n[Fail condition]\n• Fail_handshake_did_not_complete\n• Fail_phase<n>_query_failed\n• Fail_no_phase1_retx\n• Fail_initial_rto_not_doubled\n• Fail_doubling_not_preserved — Karn's violation",
+  "verdicts": {
+    "Pass": "DUT preserved doubled RTO across acked retransmit — normal",
+    "Fail_handshake_did_not_complete": "DUT handshake did not complete",
+    "Fail_phase1_query_failed": "Phase 1 TCP_INFO query failed",
+    "Fail_phase2_query_failed": "Phase 2 TCP_INFO query failed",
+    "Fail_no_phase1_retx": "No phase 1 retransmit observed in kernel",
+    "Fail_initial_rto_not_doubled": "Phase 1 RTO below doubled baseline",
+    "Fail_doubling_not_preserved": "Phase 2 RTO not doubled (Karn's violation)"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Verify that TCP in CLOSED ignores a RST control message (RFC 793 §3.9 p65 Event Processing)",
+  "approach": "[Objective]\nA RST arriving at a CLOSED port has no connection to abort. DUT must ignore it — emitting any response (RST, ACK) would let an attacker provoke traffic from an idle port.\n\n[Scenario — chronological]\n1. DUT in CLOSED.\n2. Tester → DUT: RST.\n3. Observation: DUT must NOT respond.\n\n[Pass condition]\nNo DUT response to the RST.\n\n[Fail condition]\n• Fail_unexpected_response — DUT emitted any reply to RST in CLOSED",
+  "verdicts": {
+    "Pass": "DUT silently ignored RST in CLOSED — normal",
+    "Fail_unexpected_response": "DUT emitted response to RST in CLOSED"
+  }
+}

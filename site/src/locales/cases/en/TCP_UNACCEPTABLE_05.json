@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP in LISTEN sends a RST after receiving a segment carrying an unacceptable ACK (RFC 793 §3.4 p36)",
+  "approach": "[Objective]\nIn LISTEN, a segment carrying any ACK is suspicious — there's no connection to ack. DUT must reply RST. Two phases test SYN,ACK and bare ACK shapes.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Phase 1: tester sends SYN,ACK → DUT replies RST.\n3. Phase 2: tester sends bare ACK → DUT replies RST.\n\n[Pass condition]\nBoth phases produce DUT RST.\n\n[Fail condition]\n• Fail_timeout_phase<n> — no DUT RST in phase n",
+  "verdicts": {
+    "Pass": "DUT replied RST to unacceptable-ACK in LISTEN (both shapes) — normal",
+    "Fail_timeout_phase1": "No DUT RST to LISTEN SYN,ACK",
+    "Fail_timeout_phase2": "No DUT RST to LISTEN naked ACK"
+  }
+}

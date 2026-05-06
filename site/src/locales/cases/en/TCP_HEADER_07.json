@@ -1,0 +1,9 @@
+{
+  "description": "DUT discards a TCP packet with Data Offset < 5 (RFC 793 §3.1 — header alone is 20 bytes = 5 32-bit words)",
+  "approach": "[Objective]\nData Offset < 5 means the declared header length is shorter than the minimum 20 bytes — impossible. DUT must drop without ack.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data with Data Offset < 5.\n3. Observation: DUT must NOT ack the malformed data.\n\n[Pass condition]\nNo DUT ACK to invalid Data Offset.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_unexpected_ack — DUT acked malformed segment",
+  "verdicts": {
+    "Pass": "DUT discarded segment with Data Offset < 5 — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_unexpected_ack": "DUT acked segment with invalid Data Offset"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Verify that TCP sends an ACK in response to a FIN received in ESTABLISHED state (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nReceiving a FIN in ESTABLISHED moves the connection to CLOSE-WAIT — but RFC 793 also requires a corresponding ACK so the peer knows its FIN was received.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake → ESTABLISHED.\n2. Tester → DUT: FIN.\n3. Observation: DUT → Tester: ACK   ← key check\n\n[Pass condition]\nDUT-emitted ACK to the FIN observed within the listen window.\n\n[Fail condition]\n• Fail_timeout — no DUT ACK to tester FIN within listen window",
+  "verdicts": {
+    "Pass": "DUT acked tester FIN — normal",
+    "Fail_timeout": "No DUT ACK to tester FIN within listen window"
+  }
+}

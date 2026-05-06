@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP sends a FIN on a CLOSE call in ESTABLISHED or CLOSE-WAIT (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nA CLOSE call from the user side starts the half-close: in ESTABLISHED → FIN-WAIT-1, in CLOSE-WAIT → LAST-ACK. Both transitions emit a FIN.\n\n[Scenario — chronological]\n1. Phase 1: DUT in ESTABLISHED → user CLOSE → DUT emits FIN.\n2. Phase 2: DUT in CLOSE-WAIT (after tester FIN) → user CLOSE → DUT emits FIN.\n\n[Pass condition]\nDUT emits FIN in both phases.\n\n[Fail condition]\n• Fail_timeout_phase1 — no DUT FIN from ESTABLISHED\n• Fail_timeout_phase2 — no DUT FIN from CLOSE-WAIT",
+  "verdicts": {
+    "Pass": "DUT emitted FIN on CLOSE in both states — normal",
+    "Fail_timeout_phase1": "No DUT FIN from ESTABLISHED",
+    "Fail_timeout_phase2": "No DUT FIN from CLOSE-WAIT"
+  }
+}

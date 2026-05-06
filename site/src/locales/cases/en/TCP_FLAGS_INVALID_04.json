@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP in SYN-SENT ignores a bare RST control message (RFC 793 §3.9 p67)",
+  "approach": "[Objective]\nA bare RST in SYN-SENT (no ACK) cannot be authenticated against the SYN; could be a blind reset attack. RFC 793 §3.9 says ignore.\n\n[Scenario — chronological]\n1. DUT active OPEN → DUT in SYN-SENT.\n2. Tester → DUT: bare RST.\n3. Observation: DUT must NOT respond.\n\n[Pass condition]\nNo DUT response to the bare RST.\n\n[Fail condition]\n• Fail_no_dut_syn — active OPEN didn't produce SYN\n• Fail_unexpected_response — DUT emitted reply to bare RST",
+  "verdicts": {
+    "Pass": "DUT silently ignored bare RST in SYN-SENT — normal",
+    "Fail_no_dut_syn": "No DUT SYN to active OPEN",
+    "Fail_unexpected_response": "DUT emitted response to bare RST in SYN-SENT"
+  }
+}

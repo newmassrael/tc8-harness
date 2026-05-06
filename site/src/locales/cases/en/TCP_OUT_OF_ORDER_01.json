@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT TCP acknowledges a full-sized segment within 0.5 sec (RFC 1122 §4.2.3.2 p96 — When to Send an ACK Segment)",
+  "approach": "[Objective]\nFull-sized segments must be acked promptly to keep the sender's window open. RFC 1122 §4.2.3.2 sets the deadline at 0.5 s.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: full-sized data segment (= DUT_MSS bytes).\n3. Observation: DUT → Tester: ACK within 500 ms.\n\n[Pass condition]\nDUT ACK arrives within 500 ms of the data.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_data_ack_within_500ms — DUT did not ack within 500 ms",
+  "verdicts": {
+    "Pass": "DUT acked full-sized segment within 500 ms — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_data_ack_within_500ms": "DUT did not ack full-sized segment within 500 ms"
+  }
+}

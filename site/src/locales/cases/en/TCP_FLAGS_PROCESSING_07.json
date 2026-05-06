@@ -1,0 +1,22 @@
+{
+  "description": "Verify that TCP in CW / CLOSING / LA / TW ignores a segment with only URG flag set (RFC 793 §3.9 p74). 4 iterations exercise wst ∈ {CW, CLOSING, LA, TW}",
+  "approach": "[Objective]\nA URG-only segment (no payload, no ACK) is meaningless in late-state connections — RFC 793 §3.9 says drop without response.\n\n[Scenario — chronological]\nFour iterations, one per late state. Each: drive DUT to wst, tester sends URG-only segment, DUT must NOT respond.\n\n[Pass condition]\nNo DUT response in any of the 4 phases.\n\n[Fail condition]\nPer phase: prelude failure or Fail_p<n>_unexpected_response.",
+  "verdicts": {
+    "Pass": "DUT ignored URG-only in CW/CLOSING/LA/TW — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1 CW",
+    "Fail_p1_no_close_wait_ack": "No DUT close-wait ACK phase 1 CW",
+    "Fail_p1_unexpected_response": "DUT response to URG-only in CW",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2 CLOSING",
+    "Fail_p2_no_dut_fin": "No DUT FIN phase 2 CLOSING",
+    "Fail_p2_no_closing_ack": "No DUT closing ACK phase 2 CLOSING",
+    "Fail_p2_unexpected_response": "DUT response to URG-only in CLOSING",
+    "Fail_p3_no_handshake_ack": "No DUT handshake ACK phase 3 LA",
+    "Fail_p3_no_close_wait_ack": "No DUT close-wait ACK phase 3 LA",
+    "Fail_p3_no_dut_fin": "No DUT FIN phase 3 LA",
+    "Fail_p3_unexpected_response": "DUT response to URG-only in LA",
+    "Fail_p4_no_handshake_ack": "No DUT handshake ACK phase 4 TW",
+    "Fail_p4_no_dut_fin": "No DUT FIN phase 4 TW",
+    "Fail_p4_no_tester_fin_ack": "No DUT tester FIN ACK phase 4 TW",
+    "Fail_p4_unexpected_response": "DUT response to URG-only in TW"
+  }
+}

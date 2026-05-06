@@ -1,0 +1,8 @@
+{
+  "description": "Verify that TCP sends a RST after receiving an unacceptable ACK in SYN-RCVD (RFC 793 §3.4 p35)",
+  "approach": "[Objective]\nIn SYN-RCVD, an ACK whose ack_num is not the expected SYN+1 is bogus — DUT replies with RST to abort the bad attempt.\n\n[Scenario — chronological]\n1. DUT in SYN-RCVD after receiving tester SYN.\n2. Tester → DUT: ACK with unacceptable ack_num.\n3. Observation: DUT → Tester: RST.\n\n[Pass condition]\nDUT RST observed.\n\n[Fail condition]\n• Fail_timeout — no DUT RST",
+  "verdicts": {
+    "Pass": "DUT replied RST to unacceptable ACK in SYN-RCVD — normal",
+    "Fail_timeout": "No DUT RST to unacceptable ACK in SYN-RCVD"
+  }
+}

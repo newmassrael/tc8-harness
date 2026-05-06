@@ -1,0 +1,11 @@
+{
+  "description": "DUT이 SYN,ACK의 MSS option을 수신하고 effective send segment size를 min(advertised, DUT_MSS)로 clamp하는지 검증 (RFC 1122 §4.2.2.5 p85). Iteration: Mv=200(작음), Mv=2000(큼)",
+  "approach": "[검증 목적]\nMSS_OPTIONS_06의 active-OPEN 측 mirror: DUT이 SYN-SENT의 SYN,ACK에서 peer MSS 학습.\n\n[시나리오 — 시간순]\n각 2 phase — DUT active OPEN; 테스터가 MSS Mv ∈ {200, 2000}의 SYN,ACK 응답; DUT 후속 data 세그먼트 관찰.\n\n[통과 조건]\nPhase 1 크기 ≤ 200; phase 2 크기 = DUT_MSS (1460).\n\n[실패 조건]\nphase별: Fail_wrong_size_phase<n> 또는 Fail_timeout_phase<n>.",
+  "verdicts": {
+    "Pass": "DUT이 SYN,ACK MSS로 송신 크기 clamp — 정상",
+    "Fail_wrong_size_phase1": "Phase 1 세그먼트 크기가 advertised MSS 200이 아님",
+    "Fail_wrong_size_phase2": "Phase 2 세그먼트 크기가 DUT MSS 1460이 아님",
+    "Fail_timeout_phase1": "phase 1 Mv=200 DUT data 세그먼트 없음",
+    "Fail_timeout_phase2": "phase 2 Mv=2000 DUT data 세그먼트 없음"
+  }
+}

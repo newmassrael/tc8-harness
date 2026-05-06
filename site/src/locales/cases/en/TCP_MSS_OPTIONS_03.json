@@ -1,0 +1,9 @@
+{
+  "description": "DUT ignores an unimplemented TCP option in a SYN and completes the handshake (RFC 1122 §4.2.2.5 p85)",
+  "approach": "[Objective]\nForward compat: an unknown option kind must be skipped (using its declared length), not cause connection refusal. RFC 1122 §4.2.2.5 enables future extensions.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN with an unknown option kind (kind=99, length=4, value=0).\n3. Observation: DUT → Tester: SYN,ACK + DUT reaches ESTABLISHED.\n\n[Pass condition]\nDUT completes handshake.\n\n[Fail condition]\n• Fail_not_established — DUT did not reach ESTABLISHED\n• Fail_timeout — no DUT SYN,ACK",
+  "verdicts": {
+    "Pass": "DUT ignored unknown option and handshook — normal",
+    "Fail_not_established": "DUT did not reach ESTABLISHED",
+    "Fail_timeout": "No DUT SYN,ACK within listen window"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP supports simultaneous OPEN attempts (RFC 1122 §4.2.2.10 p87, RFC 793 §3.4 simultaneous-open path)",
+  "approach": "[Objective]\nWhen both peers issue active OPEN at nearly the same time, the SYN-SENT → SYN-RCVD → ESTABLISHED simultaneous-open transition replaces the usual three-way handshake.\n\n[Scenario — chronological]\n1. DUT in SYN-SENT (after active OPEN).\n2. Tester → DUT: SYN (not SYN,ACK).\n3. Observation: DUT → Tester: SYN,ACK and DUT in ESTABLISHED   ← key check\n\n[Pass condition]\nDUT replies SYN,ACK to the simultaneous SYN AND reaches ESTABLISHED.\n\n[Fail condition]\n• Fail_not_established — DUT did not reach ESTABLISHED\n• Fail_timeout — no DUT SYN,ACK to simultaneous SYN",
+  "verdicts": {
+    "Pass": "DUT completed simultaneous-open path — normal",
+    "Fail_not_established": "DUT did not reach ESTABLISHED after simultaneous open",
+    "Fail_timeout": "No DUT SYN,ACK to simultaneous SYN"
+  }
+}

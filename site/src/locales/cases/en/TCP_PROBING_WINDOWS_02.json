@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT TCP treats the receive window as an unsigned 16-bit number — an MSB-set advertised window does not refuse the send (RFC 1122 §4.2.2.3 p83)",
+  "approach": "[Objective]\nThe Window field is unsigned 16-bit. A naive parser using signed arithmetic would treat the MSB-set value as negative and refuse to send. RFC 1122 §4.2.2.3 / RFC 793 §3.1 mandate unsigned interpretation.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake; tester advertises a Window value with MSB set (e.g. 0x8000+).\n2. DUT (UT) → DUT: SEND call.\n3. Observation: DUT → Tester: data segment.\n\n[Pass condition]\nDUT emits data despite MSB-set window.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_dut_data_segment — DUT did not send data after MSB window",
+  "verdicts": {
+    "Pass": "DUT honoured unsigned-16 receive window — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_dut_data_segment": "DUT did not send data after MSB-set window advertisement"
+  }
+}

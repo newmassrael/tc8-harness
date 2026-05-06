@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP in ESTABLISHED enters CLOSE-WAIT on receiving a tester FIN and stays there until application CLOSE (RFC 793 §3.5 p38)",
+  "approach": "[Objective]\nThe passive-close half: tester FIN → DUT acks + transitions ESTABLISHED → CLOSE-WAIT. DUT may still send queued data; it must not emit FIN/RST until user CLOSE.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: FIN.\n3. Observation: DUT acks the FIN; if DUT has queued data it sends a data segment in CLOSE-WAIT; no FIN/RST emitted.\n\n[Pass condition]\nDUT acks tester FIN + emits queued data + stays in CLOSE-WAIT.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_dut_fin_ack — DUT did not ACK tester FIN\n• Fail_no_dut_data — DUT did not send queued data in CW\n• Fail_dut_left_cw — DUT emitted FIN or RST in CLOSE-WAIT",
+  "verdicts": {
+    "Pass": "DUT entered CLOSE-WAIT and stayed there — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_dut_fin_ack": "No DUT ACK to tester FIN in EST",
+    "Fail_no_dut_data": "No DUT data segment in CLOSE-WAIT",
+    "Fail_dut_left_cw": "DUT emitted FIN or RST in CLOSE-WAIT"
+  }
+}

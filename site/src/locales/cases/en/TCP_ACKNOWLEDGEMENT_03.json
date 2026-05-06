@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT replies to a tester-injected data segment with a pure ACK whose ack_num covers the payload (RFC 793 p74)",
+  "approach": "[Objective]\nThe baseline ACK-for-data check: after handshake, DUT receives a data segment in ESTABLISHED and must emit a pure ACK with ack_num covering the received bytes. RFC 793 p74 mandates this.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: 3-way handshake.\n2. Tester → DUT: data segment (ACK + payload).\n3. Observation: DUT → Tester: pure ACK\n   • ack_num == seg.seq + payload_len   ← key check\n\n[Pass condition]\nDUT-emitted ACK ack_num equals the post-payload sequence number.\n\n[Fail condition]\n• Fail_no_data_ack — no DUT ACK to data\n• Fail_wrong_ack_num — ACK value does not cover the payload",
+  "verdicts": {
+    "Pass": "DUT acknowledged the data with correct ack_num — normal",
+    "Fail_no_data_ack": "No DUT ACK to data",
+    "Fail_wrong_ack_num": "DUT ack_num does not acknowledge payload"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT TCP keeps the connection open and emits zero-window probes indefinitely as long as the tester acknowledges each probe (RFC 1122 §4.2.2.17)",
+  "approach": "[Objective]\nWhen the peer's window is 0, DUT must persist with zero-window probes until the window opens. As long as ACKs come, DUT keeps probing — no give-up.\n\n[Scenario — chronological]\n1. Handshake; DUT sends data segment #1; tester acks but advertises zero window.\n2. DUT → Tester: zero-window probe #1.\n3. Tester → DUT: ACK (still zero window).\n4. DUT → Tester: probe #2 → ACK → probe #3.\n\n[Pass condition]\nAll 3 probes observed.\n\n[Fail condition]\n• Fail_no_seg1 — first data segment missing\n• Fail_no_probe<n> — probe n missing",
+  "verdicts": {
+    "Pass": "DUT persisted zero-window probes — normal",
+    "Fail_no_seg1": "No DUT first data segment",
+    "Fail_no_probe1": "No DUT zero-window probe 1",
+    "Fail_no_probe2": "No DUT zero-window probe 2 after ACK",
+    "Fail_no_probe3": "No DUT zero-window probe 3 after ACK"
+  }
+}

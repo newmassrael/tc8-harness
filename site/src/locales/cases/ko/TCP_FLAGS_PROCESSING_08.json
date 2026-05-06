@@ -1,0 +1,12 @@
+{
+  "description": "TCP가 CLOSED / LISTEN / SYN-SENT에서 FIN을 처리하지 않는지 검증: CLOSED는 RST 응답, LISTEN / SYN-SENT는 silent drop (RFC 793 §3.9 p75). 3 iteration이 wst ∈ {CLOSED, LISTEN, SYN-SENT} 시험",
+  "approach": "[검증 목적]\nconnection 이전의 FIN은 의미 없다. CLOSED는 RST 응답(BASICS_04와 일관). LISTEN / SYN-SENT는 silent drop — close할 half-open이 없다.\n\n[시나리오 — 시간순]\n3 iteration:\n• Phase 1: DUT이 CLOSED → 테스터 FIN → DUT RST seq=0 응답.\n• Phase 2: DUT이 LISTEN → 테스터 FIN → DUT 응답 없음.\n• Phase 3: DUT이 SYN-SENT → 테스터 FIN → DUT 응답 없음.\n\n[통과 조건]\nPhase 1 DUT RST seq=0; phase 2/3 silent.\n\n[실패 조건]\nphase별: 해당 Fail_p<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 상태별 FIN 처리 — 정상",
+    "Fail_p1_no_dut_rst": "CLOSED의 FIN에 대한 DUT RST 없음",
+    "Fail_p1_wrong_seq": "CLOSED에서 FIN 후 DUT RST seq이 0이 아님",
+    "Fail_p2_unexpected_response": "LISTEN에서 FIN에 DUT 응답",
+    "Fail_p3_no_dut_syn": "phase 3 active OPEN에 대한 DUT SYN 없음",
+    "Fail_p3_unexpected_response": "SYN-SENT에서 FIN에 DUT 응답"
+  }
+}

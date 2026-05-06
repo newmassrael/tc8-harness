@@ -1,0 +1,10 @@
+{
+  "description": "Verify that TCP uses clock-driven selection of initial sequence numbers (RFC 1122 §4.2.2.9 p87, RFC 793 §3.3 p27)",
+  "approach": "[Objective]\nTwo back-to-back active OPENs must produce different ISNs — RFC 793 calls for a clock-driven generator. A static or counter-based ISN would let attackers predict / inject sequence numbers.\n\n[Scenario — chronological]\n1. Cycle 1: DUT active OPEN → DUT → Tester: SYN with ISN_1 → snapshot ISN_1.\n2. Tester → DUT: ABORT to release the binding.\n3. Cycle 2: DUT active OPEN → DUT → Tester: SYN with ISN_2.\n\n[Pass condition]\nISN_1 ≠ ISN_2 (and ideally separated by clock-driven jitter).\n\n[Fail condition]\n• Fail_no_cycle1_isn / Fail_no_cycle2_isn — SYN capture missed\n• Fail_isn_unchanged — DUT reused a prior ISN across active OPENs",
+  "verdicts": {
+    "Pass": "DUT chose distinct ISNs across active OPENs — normal",
+    "Fail_no_cycle1_isn": "Cycle 1 SYN capture timeout",
+    "Fail_no_cycle2_isn": "Cycle 2 SYN capture timeout",
+    "Fail_isn_unchanged": "DUT reused prior ISN across active OPENs"
+  }
+}

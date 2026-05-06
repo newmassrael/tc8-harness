@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT opens 3 active sockets and completes the 3-way handshake on each (RFC 793 §3.4)",
+  "approach": "[Objective]\nMultiple concurrent active OPENs. Each must produce its own SYN, receive SYN,ACK, and emit the third-leg ACK.\n\n[Scenario — chronological]\n1. Tester (UT) → DUT: 3 active OPEN calls.\n2. DUT → Tester: SYN per leg.\n3. Tester → DUT: SYN,ACK per leg.\n4. DUT → Tester: ACK per leg (handshake complete).\n\n[Pass condition]\nAll 3 third-leg ACKs observed.\n\n[Fail condition]\n• Fail_timeout_leg<n> — no DUT handshake ACK for the corresponding leg",
+  "verdicts": {
+    "Pass": "DUT completed 3 concurrent active opens — normal",
+    "Fail_timeout_leg1": "No DUT handshake ACK for leg 1",
+    "Fail_timeout_leg2": "No DUT handshake ACK for leg 2",
+    "Fail_timeout_leg3": "No DUT handshake ACK for leg 3"
+  }
+}

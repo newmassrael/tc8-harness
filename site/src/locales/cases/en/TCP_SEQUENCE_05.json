@@ -1,0 +1,10 @@
+{
+  "description": "Verify that from ESTABLISHED, DUT acknowledges each tester data segment with a cumulative ACK at the expected ack_num (RFC 793 §3.4 / §3.7)",
+  "approach": "[Objective]\nIn-order data delivery → cumulative ACK after each segment. Three sequential segments must each produce an ACK whose ack_num equals the sum of received bytes.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: seg #1, #2, #3 (each with N bytes).\n3. Observation: DUT acks each at I+N, I+2N, I+3N.\n\n[Pass condition]\nAll 3 ACKs observed with correct ack_num.\n\n[Fail condition]\n• Fail_timeout_seg<n> — no DUT ACK for segment n",
+  "verdicts": {
+    "Pass": "DUT cumulative-acked 3 sequential data segments — normal",
+    "Fail_timeout_seg1": "No DUT ACK for seg 1",
+    "Fail_timeout_seg2": "No DUT ACK for seg 2",
+    "Fail_timeout_seg3": "No DUT ACK for seg 3"
+  }
+}

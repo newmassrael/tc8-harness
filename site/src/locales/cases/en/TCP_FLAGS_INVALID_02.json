@@ -1,0 +1,10 @@
+{
+  "description": "Verify that TCP in LISTEN sends RST in response to incoming SYN+ACK with the seg.ack as RST seq (RFC 793 §3.9 p65)",
+  "approach": "[Objective]\nA SYN,ACK arriving at LISTEN is unexpected (no peer asked us to send a SYN). RFC 793 §3.9 says DUT must reply with RST whose seq = the unsolicited SYN,ACK's ack number.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN,ACK with ack=K.\n3. Observation: DUT → Tester: RST with seq == K.\n4. Tester → DUT: fresh SYN → DUT must SYN,ACK (LISTEN survived).\n\n[Pass condition]\nDUT-emitted RST seq == seg.ack AND LISTEN survives.\n\n[Fail condition]\n• Fail_wrong_seq — RST seq is not seg.ack\n• Fail_timeout — no DUT RST to SYN,ACK\n• Fail_p2_no_synack — LISTEN socket did not survive RST emission",
+  "verdicts": {
+    "Pass": "DUT emitted RST seq=ack to SYN,ACK in LISTEN — normal",
+    "Fail_wrong_seq": "DUT RST seq not seg.ack in LISTEN",
+    "Fail_timeout": "No DUT RST to SYN,ACK in LISTEN",
+    "Fail_p2_no_synack": "LISTEN socket did not survive RST emission"
+  }
+}

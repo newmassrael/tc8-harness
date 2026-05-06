@@ -1,0 +1,10 @@
+{
+  "description": "단일 passive 소켓이 서로 다른 3개 source port의 SYN을 수용하고 각각에 SYN,ACK으로 응답하는지 검증 (RFC 793 §3.4)",
+  "approach": "[검증 목적]\n하나의 LISTEN 소켓은 원격 4-tuple로 구분되는 다수의 동시 connection을 호스팅할 수 있다. source port가 다른 새 SYN마다 별개의 connection을 spawn.\n\n[시나리오 — 시간순]\n1. DUT이 포트 P로 LISTEN.\n2. 테스터 → DUT: src_port S1, S2, S3에서 SYN (순차 또는 인터리브).\n3. 관찰: DUT → 테스터: 각 leg마다 SYN,ACK.\n\n[통과 조건]\nDUT이 3개 leg 모두 SYN,ACK 발신.\n\n[실패 조건]\n• Fail_timeout_leg<n> — 해당 leg에 대한 DUT SYN,ACK 없음",
+  "verdicts": {
+    "Pass": "DUT이 3개 서로 다른 source port의 SYN ACK — 정상",
+    "Fail_timeout_leg1": "leg 1에 대한 DUT SYN,ACK 없음",
+    "Fail_timeout_leg2": "leg 2에 대한 DUT SYN,ACK 없음",
+    "Fail_timeout_leg3": "leg 3에 대한 DUT SYN,ACK 없음"
+  }
+}

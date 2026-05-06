@@ -1,0 +1,9 @@
+{
+  "description": "old duplicate SYN으로부터의 복구 검증: LISTEN의 DUT이 stale SYN에 SYN,ACK 응답, 테스터가 주입한 believable seq의 RST을 소비, LISTEN으로 복귀, 새 SYN에 SYN,ACK 응답 (RFC 793 §3.4 figure 9)",
+  "approach": "[검증 목적]\nRFC 793 figure 9: stale (old duplicate) SYN이 LISTEN 소켓에 도착 → SYN,ACK 발신 → 진짜 peer가 RST 응답(예상치 못한 SYN,ACK이므로) → DUT은 RST을 수용하고 LISTEN으로 복귀 → 새 SYN이 작동.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. 테스터 → DUT: stale SYN.\n3. DUT → 테스터: SYN,ACK.\n4. 테스터 → DUT: believable seq의 RST (= SYN,ACK의 ack_num).\n5. 테스터 → DUT: 새 SYN.\n6. 관찰: DUT → 테스터: 새 SYN에 SYN,ACK (LISTEN 소켓 생존).\n\n[통과 조건]\n두 SYN,ACK 모두 관찰.\n\n[실패 조건]\n• Fail_no_first_syn_ack — DUT이 stale SYN에 응답 안 함\n• Fail_no_second_syn_ack — DUT이 새 SYN에 응답 안 함 (LISTEN 소켓 유실)",
+  "verdicts": {
+    "Pass": "DUT이 old duplicate SYN으로부터 복구 — 정상",
+    "Fail_no_first_syn_ack": "첫 SYN에 대한 DUT SYN,ACK 없음",
+    "Fail_no_second_syn_ack": "old duplicate 복구 후 DUT SYN,ACK 없음"
+  }
+}

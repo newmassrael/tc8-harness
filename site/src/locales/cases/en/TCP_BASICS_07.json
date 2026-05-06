@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP progresses to ESTABLISHED after receiving SYN,ACK in SYN-SENT (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nThe second leg of the active-OPEN handshake: SYN-SENT → ESTABLISHED on receiving SYN,ACK and emitting the third-leg ACK.\n\n[Scenario — chronological]\n1. DUT in SYN-SENT after active OPEN.\n2. Tester → DUT: SYN,ACK.\n3. Observation: DUT → Tester: ACK and DUT in ESTABLISHED   ← key check\n\n[Pass condition]\nDUT reports ESTABLISHED after the third-leg ACK.\n\n[Fail condition]\n• Fail_not_established — DUT did not reach ESTABLISHED\n• Fail_timeout — no DUT ACK within the listen window",
+  "verdicts": {
+    "Pass": "DUT reached ESTABLISHED on SYN,ACK — normal",
+    "Fail_not_established": "DUT did not reach ESTABLISHED",
+    "Fail_timeout": "No DUT ACK within listen window"
+  }
+}

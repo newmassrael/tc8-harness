@@ -1,0 +1,9 @@
+{
+  "description": "Verify that sender TCP generates a correct RFC 793 §3.1 pseudo-header checksum (RFC 1122 §4.2.2.7 p86)",
+  "approach": "[Objective]\nDUT must compute checksum = ones-complement sum of pseudo-header + TCP header + payload — every emitted segment.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. DUT → Tester: data segment.\n3. Observation: validate the DUT-emitted segment's checksum against its pseudo-header.\n\n[Pass condition]\nAll DUT-emitted segments have valid checksums.\n\n[Fail condition]\n• Fail_bad_checksum — DUT emitted a segment with invalid checksum\n• Fail_timeout — no DUT data segment within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted segment carries valid pseudo-header checksum — normal",
+    "Fail_bad_checksum": "DUT emitted segment with invalid checksum",
+    "Fail_timeout": "No DUT data segment within listen window"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "description": "TCP가 CW / CLOSING / LAST-ACK에서 FIN+ACK 수신 후 상태를 바꾸지 않는지 검증 (RFC 793 §3.9 p75). 3 iteration이 wst ∈ {CW with valid ack, CLOSING with invalid ack, LA with invalid ack} 시험",
+  "approach": "[검증 목적]\nlate 상태에서 FIN+ACK 재전송은 흔하다; DUT은 상태 oscillation 없이 흡수해야 한다. RFC 793 §3.9는 CW/CLOSING/LA에서 dup FIN+ACK에 전이 금지를 요구한다.\n\n[시나리오 — 시간순]\n각 상태별 3 iteration. 각각: DUT을 wst로 유도, 테스터 dup FIN+ACK 발신, DUT이 wst 유지(잘못된 RST 또는 상태 변경 금지).\n\n[통과 조건]\n3 phase 모두 wst 유지.\n\n[실패 조건]\nphase별: prelude 실패 또는 Fail_p<n>_unexpected_state_change.",
+  "verdicts": {
+    "Pass": "DUT이 dup FIN+ACK에 상태 유지 — 정상",
+    "Fail_p1_no_handshake_ack": "phase 1 CW DUT handshake ACK 없음",
+    "Fail_p1_no_close_wait_ack": "phase 1 CW close-wait ACK 없음",
+    "Fail_p1_unexpected_state_change": "CW에서 dup FIN+ACK 후 DUT 상태 변경",
+    "Fail_p2_no_handshake_ack": "phase 2 CLOSING DUT handshake ACK 없음",
+    "Fail_p2_no_dut_fin": "phase 2 CLOSING DUT FIN 없음",
+    "Fail_p2_no_closing_ack": "phase 2 CLOSING ACK 없음",
+    "Fail_p2_unexpected_state_change": "CLOSING에서 dup FIN+ACK 후 DUT RST",
+    "Fail_p3_no_handshake_ack": "phase 3 LA DUT handshake ACK 없음",
+    "Fail_p3_no_close_wait_ack": "phase 3 LA close-wait ACK 없음",
+    "Fail_p3_no_dut_fin": "phase 3 LA DUT FIN 없음",
+    "Fail_p3_unexpected_state_change": "LA에서 dup FIN+ACK 후 DUT RST"
+  }
+}

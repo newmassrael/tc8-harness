@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT accepts a SYN with seq = 0 and emits SYN,ACK with ack_num == 1 (RFC 793 §3.1)",
+  "approach": "[Objective]\nseq=0 is a legal ISN (the sequence space is modulo 2^32). DUT must process it normally and ack with 1.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN with seq=0.\n3. Observation: DUT → Tester: SYN,ACK with ack_num == 1.\n\n[Pass condition]\nDUT SYN,ACK ack_num == 1.\n\n[Fail condition]\n• Fail_wrong_ack_num — ack_num not 1\n• Fail_timeout — no SYN,ACK",
+  "verdicts": {
+    "Pass": "DUT acked seq=0 with ack=1 — normal",
+    "Fail_wrong_ack_num": "DUT SYN,ACK ack_num not 1 for zero ISN",
+    "Fail_timeout": "No DUT SYN,ACK within listen window"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 세그먼트 길이보다 큰 Data Offset의 TCP 패킷을 폐기하는지 검증 (RFC 793 §3.1)",
+  "approach": "[검증 목적]\nData Offset이 와이어상 세그먼트가 운반하는 것보다 많은 헤더 바이트를 선언하면 parser가 버퍼 끝을 넘어 걷는다. DUT drop.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. 테스터 → DUT: Data Offset > 세그먼트 길이인 data.\n3. 관찰: DUT ACK 금지.\n\n[통과 조건]\noversize Data Offset에 DUT ACK 없음.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_unexpected_ack — DUT이 oversize Data Offset ACK",
+  "verdicts": {
+    "Pass": "DUT이 oversize Data Offset 세그먼트 폐기 — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_unexpected_ack": "DUT이 oversize Data Offset 세그먼트 ACK"
+  }
+}

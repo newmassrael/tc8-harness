@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the receiver TCP checks the checksum and acknowledges in case of no error (RFC 1122 §4.2.2.7 p86)",
+  "approach": "[Objective]\nPositive baseline for TCP checksum: a well-formed segment must be acked. Anchors CHECKSUM_02's negative case.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data segment with correct checksum.\n3. Observation: DUT → Tester: ACK.\n\n[Pass condition]\nDUT acks the correct-checksum data.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_data_ack — DUT did not ack correct-checksum data",
+  "verdicts": {
+    "Pass": "DUT acked correct-checksum data — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK within listen window",
+    "Fail_no_data_ack": "No DUT ACK to correct-checksum data"
+  }
+}

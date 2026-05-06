@@ -1,0 +1,11 @@
+{
+  "description": "TCP가 FIN-WAIT-2 경유 TIME-WAIT에서 2*MSL 만료 전에 CLOSED로 이동하지 않는지 검증 (NEGATIVE — RFC 793 §3.2)",
+  "approach": "[검증 목적]\nBASICS_11의 negative 짝: 2*MSL 경과 전 DUT은 여전히 TIME-WAIT여야 한다 — replayed FIN을 ACK함으로써 증명(TIME-WAIT 전용 동작).\n\n[시나리오 — 시간순]\n1. driveTcpToTimeWaitFw2 prelude → DUT이 TIME-WAIT.\n2. < 2*MSL 대기.\n3. 테스터 → DUT: replayed FIN.\n4. 관찰: DUT → 테스터: ACK (TIME-WAIT 응답, RST 아님)   ← 핵심 확인 지점\n\n[통과 조건]\n2*MSL 전 DUT이 replayed FIN을 ACK.\n\n[실패 조건]\n• Fail_no_handshake_ack / Fail_no_close_fin / Fail_no_tester_fin_ack — prelude 실패\n• Fail_no_replay_ack — DUT이 replay를 ACK하지 않음 (조기 상태 전이)",
+  "verdicts": {
+    "Pass": "2*MSL 전 DUT이 여전히 TIME-WAIT (FW2) — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_close_fin": "DUT CLOSE FIN 없음",
+    "Fail_no_tester_fin_ack": "테스터 FIN에 대한 DUT ACK 없음",
+    "Fail_no_replay_ack": "TIME-WAIT의 replay FIN에 대한 DUT ACK 없음"
+  }
+}

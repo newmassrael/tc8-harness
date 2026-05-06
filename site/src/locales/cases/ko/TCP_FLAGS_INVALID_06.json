@@ -1,0 +1,11 @@
+{
+  "description": "TCP가 SYN-SENT에서 SYN도 RST도 없는 세그먼트를 폐기하고 같은 상태에 머무르는지 검증 (RFC 793 §3.9 p68). 2 iteration이 stp ∈ {no data, data} 시험",
+  "approach": "[검증 목적]\nSYN-SENT의 bare ACK(또는 ACK+payload)은 의미가 없다 — DUT은 아직 sequence number를 확립하지 않았다. RFC 793 §3.9는 drop, 응답 없음을 명시.\n\n[시나리오 — 시간순]\n2 iteration:\n• Phase 1: 테스터가 acceptable ack의 bare ACK 발신.\n• Phase 2: 테스터가 acceptable ack의 ACK+payload 발신.\n각각: DUT 응답 금지.\n\n[통과 조건]\n두 phase 모두 DUT 응답 없음.\n\n[실패 조건]\n• Fail_p<n>_no_dut_syn — phase n SYN 없음\n• Fail_p<n>_unexpected_response — phase n DUT이 응답함",
+  "verdicts": {
+    "Pass": "DUT이 SYN-SENT에서 bare ACK 및 ACK+payload silent drop — 정상",
+    "Fail_p1_no_dut_syn": "phase 1 bare ACK DUT SYN 없음",
+    "Fail_p1_unexpected_response": "acceptable ack bare ACK에 DUT 응답",
+    "Fail_p2_no_dut_syn": "phase 2 ACK+payload DUT SYN 없음",
+    "Fail_p2_unexpected_response": "acceptable ack ACK+payload에 DUT 응답"
+  }
+}

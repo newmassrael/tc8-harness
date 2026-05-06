@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the receiver TCP checks the checksum and does NOT acknowledge in case of an error (RFC 1122 §4.2.2.7 p86)",
+  "approach": "[Objective]\nNegative companion of CHECKSUM_01: a corrupted-checksum segment must be silently dropped — no ACK, no other response.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data segment with deliberately wrong checksum.\n3. Observation: DUT must NOT emit an ACK for the bad-checksum data.\n\n[Pass condition]\nNo DUT ACK to corrupt-checksum data.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_unexpected_ack — DUT acked corrupt-checksum data (checksum verification disabled)",
+  "verdicts": {
+    "Pass": "DUT silently dropped bad-checksum data — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK within listen window",
+    "Fail_unexpected_ack": "DUT acked corrupt-checksum data"
+  }
+}

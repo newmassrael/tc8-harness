@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT TCP emits at least one ACK per two full-sized segments in a stream (RFC 1122 §4.2.3.2 p96 stretchACK floor)",
+  "approach": "[Objective]\nThe stretch-ACK floor: even with delayed-ACK, DUT must ACK at least every other full-sized segment. For 10 segments, ≥ 5 ACKs are required.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: 10 consecutive full-sized data segments.\n3. Observation: DUT → Tester: at least 5 ACKs.\n\n[Pass condition]\n≥ 5 ACKs observed.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_insufficient_dut_acks — fewer than 5 ACKs",
+  "verdicts": {
+    "Pass": "DUT emitted ≥ 5 ACKs per 10 full segments — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_insufficient_dut_acks": "DUT emitted fewer than 5 ACKs for 10 full-sized segments"
+  }
+}

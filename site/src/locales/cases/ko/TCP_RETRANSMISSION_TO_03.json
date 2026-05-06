@@ -1,0 +1,13 @@
+{
+  "description": "DUT TCP가 Karn's algorithm을 따르는지 검증 — 이전에 재전송된 세그먼트를 ACK하는 ACK에 대해 RTO doubling을 유지 (RFC 1122 §4.2.3.1, RFC 6298 §3 / §5)",
+  "approach": "[검증 목적]\nKarn's algorithm: 재전송된 ACK의 RTT로 RTO를 재설정하지 않는다 (어느 copy가 ACK을 생성했는지 알 수 없음). RFC 6298 §5는 비재전송 세그먼트가 ACK될 때까지 doubled RTO를 유지.\n\n[시나리오 — 시간순]\n1. handshake → DUT data 송신 → 테스터 drop → DUT이 RTO_1 doubled로 재전송.\n2. Phase 1 query: TCP_INFO RTO ≥ doubled baseline.\n3. 테스터가 재전송 ACK.\n4. Phase 2 query: TCP_INFO RTO이 여전히 doubled여야 함 (Karn's 유지).\n\n[통과 조건]\nPhase 2 RTO이 여전히 ≥ doubled baseline.\n\n[실패 조건]\n• Fail_handshake_did_not_complete\n• Fail_phase<n>_query_failed\n• Fail_no_phase1_retx\n• Fail_initial_rto_not_doubled\n• Fail_doubling_not_preserved — Karn's 위반",
+  "verdicts": {
+    "Pass": "DUT이 acked 재전송 간 doubled RTO 유지 — 정상",
+    "Fail_handshake_did_not_complete": "DUT handshake 완료 못함",
+    "Fail_phase1_query_failed": "Phase 1 TCP_INFO query 실패",
+    "Fail_phase2_query_failed": "Phase 2 TCP_INFO query 실패",
+    "Fail_no_phase1_retx": "커널에서 phase 1 재전송 미관측",
+    "Fail_initial_rto_not_doubled": "Phase 1 RTO이 doubled baseline 미만",
+    "Fail_doubling_not_preserved": "Phase 2 RTO doubled되지 않음 (Karn's 위반)"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 SYN,ACK으로 ack_num == tester_seq + 1을 발신해 테스터 ISN을 acknowledge하는지 검증 (RFC 793 §3.1)",
+  "approach": "[검증 목적]\nSYN은 sequence number 1개 소비; DUT의 SYN,ACK은 tester_isn + 1을 ACK해야 한다.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. 테스터 → DUT: seq=I인 SYN.\n3. 관찰: DUT → 테스터: ack_num == I+1인 SYN,ACK.\n\n[통과 조건]\nSYN,ACK ack_num == 테스터 ISN + 1.\n\n[실패 조건]\n• Fail_wrong_ack_num — ack_num이 I+1과 다름\n• Fail_timeout — SYN,ACK 없음",
+  "verdicts": {
+    "Pass": "DUT SYN,ACK ack_num = ISN+1 — 정상",
+    "Fail_wrong_ack_num": "DUT SYN,ACK ack_num이 테스터 ISN을 acknowledge 못함",
+    "Fail_timeout": "listen 윈도우 내 DUT SYN,ACK 없음"
+  }
+}

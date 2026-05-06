@@ -1,0 +1,9 @@
+{
+  "description": "TCP가 LISTEN에서 unacceptable ACK을 운반하는 세그먼트 수신 후 RST을 발신하는지 검증 (RFC 793 §3.4 p36)",
+  "approach": "[검증 목적]\nLISTEN에서 ACK을 운반하는 세그먼트는 의심스럽다 — ACK할 connection이 없다. DUT은 RST 응답. 2 phase로 SYN,ACK과 bare ACK 모양 시험.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. Phase 1: 테스터가 SYN,ACK 발신 → DUT RST 응답.\n3. Phase 2: 테스터가 bare ACK 발신 → DUT RST 응답.\n\n[통과 조건]\n두 phase 모두 DUT RST 생성.\n\n[실패 조건]\n• Fail_timeout_phase<n> — phase n에서 DUT RST 없음",
+  "verdicts": {
+    "Pass": "DUT이 LISTEN의 unacceptable-ACK에 RST 응답 (양쪽 모양) — 정상",
+    "Fail_timeout_phase1": "LISTEN SYN,ACK에 대한 DUT RST 없음",
+    "Fail_timeout_phase2": "LISTEN naked ACK에 대한 DUT RST 없음"
+  }
+}

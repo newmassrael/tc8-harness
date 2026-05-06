@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT accepts a SYN with seq = SeqMaxVal (0xFFFFFFFF) and emits SYN,ACK with ack_num wrapping to 0 (RFC 793 §3.1 modulo-32 arithmetic)",
+  "approach": "[Objective]\nThe sequence space is modulo 2^32. seq=0xFFFFFFFF + 1 wraps to 0; the SYN,ACK ack_num must reflect that.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN with seq=0xFFFFFFFF.\n3. Observation: DUT → Tester: SYN,ACK with ack_num == 0.\n\n[Pass condition]\nDUT SYN,ACK ack_num == 0 (wrap).\n\n[Fail condition]\n• Fail_wrong_ack_num — ack_num not zero\n• Fail_timeout — no SYN,ACK",
+  "verdicts": {
+    "Pass": "DUT acked max ISN with ack=0 (wrap) — normal",
+    "Fail_wrong_ack_num": "DUT SYN,ACK ack_num not zero for max ISN",
+    "Fail_timeout": "No DUT SYN,ACK within listen window"
+  }
+}

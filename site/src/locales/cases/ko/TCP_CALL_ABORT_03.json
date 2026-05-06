@@ -1,0 +1,13 @@
+{
+  "description": "TCP가 CLOSING / LAST-ACK / TIME-WAIT에서 application ABORT 호출에 ok 응답 + CLOSED 진입하는지 검증 (RFC 793 §3.9 p62 Event Processing)",
+  "approach": "[검증 목적]\n늦은 상태의 ABORT: CLOSING, LAST-ACK, TIME-WAIT에서도 ABORT은 connection을 즉시 폐기해야 한다. tc8-dut은 tcp_disconnect로 처리; verify-probe-A에 RST이 나와 소켓이 사라졌음을 증명한다.\n\n[시나리오 — 시간순]\n각 상태별 3 iteration. 각각:\n1. per-iter prelude로 DUT을 wst(CLOSING/LAST-ACK/TIME-WAIT)로 유도.\n2. 테스터 (UT) → DUT: ABORT 호출.\n3. 관찰: DUT이 close되어야 함 (verify-probe RST 받음).\n\n[통과 조건]\n3 phase 모두 깔끔히 close.\n\n[실패 조건]\n• Fail_p<n>_no_handshake_ack — phase n handshake 실패\n• Fail_p<n>_no_close — phase n에서 ABORT 후 DUT close되지 않음",
+  "verdicts": {
+    "Pass": "DUT이 3개 late 상태에서 ABORT 시 close — 정상",
+    "Fail_p1_no_handshake_ack": "phase 1 CLOSING DUT handshake ACK 없음",
+    "Fail_p1_no_close": "CLOSING의 ABORT 후 DUT close되지 않음",
+    "Fail_p2_no_handshake_ack": "phase 2 LAST-ACK DUT handshake ACK 없음",
+    "Fail_p2_no_close": "LAST-ACK의 ABORT 후 DUT close되지 않음",
+    "Fail_p3_no_handshake_ack": "phase 3 TIME-WAIT DUT handshake ACK 없음",
+    "Fail_p3_no_close": "TIME-WAIT의 ABORT 후 DUT close되지 않음"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT TCP의 delayed-ACK이 0.5 sec 내에 발동하는지 검증 — 연속 두 data 세그먼트를 cover하는 cumulative ACK이 시간 내 도착 (RFC 1122 §4.2.3.2 p96)",
+  "approach": "[검증 목적]\ndelayed-ACK 최적화: 한 세그먼트 후 DUT은 piggyback을 위해 ACK을 지연할 수 있음. 두 세그먼트가 도착한 후 DUT은 ACK 필수(cumulative). 0.5 s 상한은 DUT이 지연을 선택했더라도 적용.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. 테스터 → DUT: data 세그먼트 #1, 이어서 #2.\n3. 관찰: DUT → 테스터: 500 ms 내 두 세그먼트 cover하는 cumulative ACK.\n\n[통과 조건]\n500 ms 내 cumulative ACK 관찰.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_no_cumulative_ack_within_500ms — 시간 내 cumulative ACK 없음",
+  "verdicts": {
+    "Pass": "DUT delayed-ACK이 500 ms 내 발동 — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_cumulative_ack_within_500ms": "500 ms 내 두 세그먼트에 대한 DUT cumulative ACK 없음"
+  }
+}

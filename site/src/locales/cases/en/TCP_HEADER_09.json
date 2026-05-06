@@ -1,0 +1,9 @@
+{
+  "description": "DUT discards a TCP packet with Checksum = 0 and sends no ACK (RFC 793 §3.1)",
+  "approach": "[Objective]\nUnlike UDP (where checksum=0 is a legal opt-out), TCP has no zero-checksum opt-out — checksum=0 is invalid. DUT must drop.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data with TCP Checksum=0.\n3. Observation: DUT must NOT ack.\n\n[Pass condition]\nNo DUT ACK to zero-checksum.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_unexpected_ack — DUT acked zero-checksum",
+  "verdicts": {
+    "Pass": "DUT discarded zero-checksum segment — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_unexpected_ack": "DUT acked segment with zero checksum"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "ESTABLISHED의 DUT이 각 테스터 data 세그먼트를 expected ack_num의 cumulative ACK으로 acknowledge하는지 검증 (RFC 793 §3.4 / §3.7)",
+  "approach": "[검증 목적]\nin-order data 전달 → 각 세그먼트 후 cumulative ACK. 3개 연속 세그먼트마다 ack_num = 받은 바이트 누적인 ACK 생성.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. 테스터 → DUT: 세그먼트 #1, #2, #3 (각 N byte).\n3. 관찰: DUT이 I+N, I+2N, I+3N으로 각각 ACK.\n\n[통과 조건]\n3개 ACK 모두 정확한 ack_num 관찰.\n\n[실패 조건]\n• Fail_timeout_seg<n> — 세그먼트 n에 대한 DUT ACK 없음",
+  "verdicts": {
+    "Pass": "DUT이 3개 순차 data 세그먼트 cumulative ACK — 정상",
+    "Fail_timeout_seg1": "seg 1에 대한 DUT ACK 없음",
+    "Fail_timeout_seg2": "seg 2에 대한 DUT ACK 없음",
+    "Fail_timeout_seg3": "seg 3에 대한 DUT ACK 없음"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "description": "Verify that TCP in CLOSED sends a RST with seq=0 in response to an incoming non-RST/ACK segment (RFC 793 §3.9 p65 Event Processing)",
+  "approach": "[Objective]\nWhen a segment arrives at a port that has no live socket, RFC 793 §3.9 says the receiver replies with a RST. If the incoming segment did not carry an ACK, the RST's seq is 0 (no ACK to use as seed).\n\n[Scenario — chronological]\n1. DUT in CLOSED state.\n2. Tester → DUT: SYN (no ACK), then FIN (no ACK), then DATA (no ACK).\n3. Observation: For each, DUT → Tester: RST with seq == 0   ← key check\n\n[Pass condition]\nDUT emits RST with seq=0 to each non-ACK probe.\n\n[Fail condition]\n• Fail_wrong_seq_<probe> — RST seq is not 0\n• Fail_timeout_<probe> — no DUT RST after the probe",
+  "verdicts": {
+    "Pass": "DUT emitted RST seq=0 to every non-ACK probe — normal",
+    "Fail_wrong_seq_syn": "DUT RST seq not zero after SYN",
+    "Fail_wrong_seq_fin": "DUT RST seq not zero after FIN",
+    "Fail_wrong_seq_data": "DUT RST seq not zero after data",
+    "Fail_timeout_syn": "No DUT RST after SYN",
+    "Fail_timeout_fin": "No DUT RST after FIN",
+    "Fail_timeout_data": "No DUT RST after data"
+  }
+}

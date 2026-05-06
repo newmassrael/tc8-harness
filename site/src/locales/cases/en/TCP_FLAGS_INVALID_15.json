@@ -1,0 +1,32 @@
+{
+  "description": "Verify that TCP in any non-CLOSED/non-SYN-SENT/non-LISTEN state ignores a RST with OTW SEQ (RFC 793 §3.9 p69). 8 iterations exercise wst ∈ {SYN-RCVD, EST, FW1, FW2, CW, CLOSING, LA, TW}",
+  "approach": "[Objective]\nA RST whose sequence falls outside the receive window cannot be authenticated against the connection — could be a blind off-path attack. RFC 793 §3.9 says ignore in every state where a connection exists (i.e., not LISTEN/SYN-SENT/CLOSED).\n\n[Scenario — chronological]\n8 iterations, one per state. Each: drive DUT to wst, tester sends RST with OTW SEQ, DUT must NOT respond.\n\n[Pass condition]\nNo DUT response in any of the 8 phases.\n\n[Fail condition]\nPer phase: prelude failures (handshake / FIN / etc.) OR Fail_p<n>_unexpected_response — DUT acted on the OTW RST.",
+  "verdicts": {
+    "Pass": "DUT ignored OTW RST in all 8 states — normal",
+    "Fail_p1_no_dut_synack": "No DUT SYN,ACK phase 1 SYN-RCVD",
+    "Fail_p1_unexpected_response": "DUT response to OTW RST in SYN-RCVD",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2 EST",
+    "Fail_p2_unexpected_response": "DUT response to OTW RST in EST",
+    "Fail_p3_no_handshake_ack": "No DUT handshake ACK phase 3 FW1",
+    "Fail_p3_no_dut_fin": "No DUT FIN phase 3 FW1",
+    "Fail_p3_unexpected_response": "DUT response to OTW RST in FW1",
+    "Fail_p4_no_handshake_ack": "No DUT handshake ACK phase 4 FW2",
+    "Fail_p4_no_dut_fin": "No DUT FIN phase 4 FW2",
+    "Fail_p4_unexpected_response": "DUT response to OTW RST in FW2",
+    "Fail_p5_no_handshake_ack": "No DUT handshake ACK phase 5 CW",
+    "Fail_p5_no_close_wait_ack": "No DUT close-wait ACK phase 5 CW",
+    "Fail_p5_unexpected_response": "DUT response to OTW RST in CW",
+    "Fail_p6_no_handshake_ack": "No DUT handshake ACK phase 6 CLOSING",
+    "Fail_p6_no_dut_fin": "No DUT FIN phase 6 CLOSING",
+    "Fail_p6_no_closing_ack": "No DUT closing ACK phase 6 CLOSING",
+    "Fail_p6_unexpected_response": "DUT response to OTW RST in CLOSING",
+    "Fail_p7_no_handshake_ack": "No DUT handshake ACK phase 7 LA",
+    "Fail_p7_no_close_wait_ack": "No DUT close-wait ACK phase 7 LA",
+    "Fail_p7_no_dut_fin": "No DUT FIN phase 7 LA",
+    "Fail_p7_unexpected_response": "DUT response to OTW RST in LA",
+    "Fail_p8_no_handshake_ack": "No DUT handshake ACK phase 8 TW",
+    "Fail_p8_no_dut_fin": "No DUT FIN phase 8 TW",
+    "Fail_p8_no_tw_ack": "No DUT TW ACK phase 8 TW",
+    "Fail_p8_unexpected_response": "DUT response to OTW RST in TW"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "description": "TCP가 EST / FIN-WAIT-1 / FIN-WAIT-2에서 큐에 쌓인 incoming 세그먼트를 재조립하고 RECEIVE 호출에 데이터를 반환하는지 검증 (RFC 793 §3.9 p58 Event Processing)",
+  "approach": "[검증 목적]\n수신 경로는 세그먼트들을 애플리케이션 가시 바이트 스트림으로 합쳐야 한다. 3 iteration, 각 phase마다 4 × 32 B 세그먼트 전송 + 단일 128 B UT recv 검증.\n\n[시나리오 — 시간순]\n각 상태별 3 iteration:\n1. Phase 1 (EST): 테스터 4 × 32 B → DUT recv 128 B 보고.\n2. Phase 2 (FW1): DUT 측 CLOSE 후 동일.\n3. Phase 3 (FW2): 테스터가 DUT FIN을 ACK한 후 동일.\n\n[통과 조건]\n각 phase에서 정확한 128 B 재조립 데이터 보고.\n\n[실패 조건]\n• Fail_p<n>_* — phase별 handshake/FIN/data 누락 또는 오류",
+  "verdicts": {
+    "Pass": "DUT이 3개 phase 모두 4×32 B → 128 B 재조립 — 정상",
+    "Fail_p1_no_handshake_ack": "phase 1 EST DUT handshake ACK 없음",
+    "Fail_p1_no_proper_data": "phase 1 EST DUT 데이터 수신 오류",
+    "Fail_p2_no_handshake_ack": "phase 2 FW1 DUT handshake ACK 없음",
+    "Fail_p2_no_dut_fin": "phase 2 FW1 DUT FIN 없음",
+    "Fail_p2_no_proper_data": "phase 2 FW1 DUT 데이터 수신 오류",
+    "Fail_p3_no_handshake_ack": "phase 3 FW2 DUT handshake ACK 없음",
+    "Fail_p3_no_dut_fin": "phase 3 FW2 DUT FIN 없음",
+    "Fail_p3_no_proper_data": "phase 3 FW2 DUT 데이터 수신 오류"
+  }
+}

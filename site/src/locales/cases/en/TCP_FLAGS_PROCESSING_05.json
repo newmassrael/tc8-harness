@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP in SYN-RCVD goes to LISTEN on receiving SYN (or SYN+ACK) in window (RFC 1122 §4.2.2.20(e) p94). 2 iterations exercise stp ∈ {SYN in window, SYN+ACK in window}",
+  "approach": "[Objective]\nIf a SYN-RCVD socket sees an in-window SYN (or SYN,ACK), the half-open connection is treated as stale and DUT returns to LISTEN. Verified by injecting a fresh SYN and seeing SYN,ACK answered.\n\n[Scenario — chronological]\nTwo phases:\n• Phase 1: prelude SYN → DUT SYN,ACK (SYN-RCVD) → tester injects in-window SYN → fresh SYN → DUT must SYN,ACK.\n• Phase 2: same but the inject is SYN+ACK in window.\n\n[Pass condition]\nFresh SYN gets SYN,ACK in both phases.\n\n[Fail condition]\nPer phase: Fail_p<n>_no_prelude_synack / Fail_p<n>_no_verify_synack.",
+  "verdicts": {
+    "Pass": "DUT returned to LISTEN on in-window SYN(+ACK) — normal",
+    "Fail_p1_no_prelude_synack": "No DUT SYN,ACK to prelude SYN phase 1",
+    "Fail_p1_no_verify_synack": "No DUT SYN,ACK to verify SYN after in-window SYN",
+    "Fail_p2_no_prelude_synack": "No DUT SYN,ACK to prelude SYN phase 2",
+    "Fail_p2_no_verify_synack": "No DUT SYN,ACK to verify SYN after in-window SYN+ACK"
+  }
+}

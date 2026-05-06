@@ -1,0 +1,9 @@
+{
+  "description": "DUT TCP가 receive window가 0으로 유지될 때 retransmission timeout 후 첫 zero-window probe를 발신하는지 검증 (RFC 1122 §4.2.2.17)",
+  "approach": "[검증 목적]\n초기 probe 타이밍: DUT은 첫 zero-window probe 전에 최소 1 RTO 대기 — 즉시도 아니고 임의로 늦지도 않게.\n\n[시나리오 — 시간순]\n1. handshake; DUT data 송신; 테스터 zero window로 ACK.\n2. ≥ 1 RTO 경과까지 대기.\n3. 관찰: DUT → 테스터: RTO 윈도우 내 zero-window probe.\n\n[통과 조건]\nRTO 윈도우 내 DUT 발신 probe.\n\n[실패 조건]\n• Fail_no_seg1 — 첫 data 세그먼트 누락\n• Fail_no_zero_window_probe — RTO 윈도우 내 probe 없음",
+  "verdicts": {
+    "Pass": "DUT이 RTO 후 첫 probe 발신 — 정상",
+    "Fail_no_seg1": "DUT 첫 data 세그먼트 없음",
+    "Fail_no_zero_window_probe": "RTO 윈도우 내 DUT zero-window probe 없음"
+  }
+}

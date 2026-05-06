@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 3개의 passive 소켓을 열고 받은 각 테스터 SYN에 SYN,ACK을 발신하는지 검증 (RFC 793 §3.4)",
+  "approach": "[검증 목적]\n다수의 별개 LISTEN 소켓이 각자의 포트에서 공존할 수 있다. ESTAB_01의 변형 — 결과는 같지만 leg마다 포트가 다름.\n\n[시나리오 — 시간순]\n1. DUT이 P1, P2, P3 포트에서 LISTEN.\n2. 테스터 → DUT: 각 포트에 SYN.\n3. 관찰: DUT → 테스터: 각 leg마다 SYN,ACK.\n\n[통과 조건]\n3개 SYN,ACK 모두 관찰.\n\n[실패 조건]\n• Fail_timeout_leg<n> — 해당 leg에 대한 DUT SYN,ACK 없음",
+  "verdicts": {
+    "Pass": "DUT이 3개 passive 소켓에서 SYN ACK — 정상",
+    "Fail_timeout_leg1": "leg 1에 대한 DUT SYN,ACK 없음",
+    "Fail_timeout_leg2": "leg 2에 대한 DUT SYN,ACK 없음",
+    "Fail_timeout_leg3": "leg 3에 대한 DUT SYN,ACK 없음"
+  }
+}

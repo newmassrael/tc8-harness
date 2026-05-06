@@ -1,0 +1,12 @@
+{
+  "description": "Verify that TCP in CLOSE-WAIT returns queued data to the application on a RECEIVE call (RFC 793 §3.9 p59 Event Processing)",
+  "approach": "[Objective]\nClose-wait state still has a half-open connection: the local app can read data already buffered. A PSH+FIN+ACK segment with payload drives DUT into CLOSE-WAIT and primes the read.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: PSH+FIN+ACK with payload (DUT enters CLOSE-WAIT).\n3. Tester (UT) → DUT: RECEIVE call.\n4. Observation: DUT acks the data, stays in CLOSE-WAIT (no FIN/RST), returns the buffered bytes.\n\n[Pass condition]\nDUT acks data + reports correct payload + remains in CLOSE-WAIT.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_dut_data_ack — no DUT ACK to received FIN+data in CW\n• Fail_dut_rst_in_cw — DUT mistakenly emitted RST in CW\n• Fail_dut_fin_in_cw — DUT emitted FIN in CW without CLOSE call\n• Fail_no_proper_data — wrong payload reported",
+  "verdicts": {
+    "Pass": "DUT returned buffered data in CLOSE-WAIT — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_dut_data_ack": "No DUT ACK to received FIN+data in CW",
+    "Fail_dut_rst_in_cw": "DUT emitted RST in CW",
+    "Fail_dut_fin_in_cw": "DUT emitted FIN in CW without CLOSE",
+    "Fail_no_proper_data": "DUT did not receive proper data in CW"
+  }
+}

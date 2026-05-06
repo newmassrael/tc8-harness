@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP in SYN-SENT ignores a segment carrying both ACK and RST flags with an unacceptable ACK number (RFC 793 §3.9 p66)",
+  "approach": "[Objective]\nIn SYN-SENT, a stray ACK,RST whose ack_num doesn't acknowledge the DUT's SYN is suspicious — could be a spoof. RFC 793 §3.9 mandates ignore.\n\n[Scenario — chronological]\n1. DUT active OPEN → DUT in SYN-SENT.\n2. Tester → DUT: ACK+RST with unacceptable ack number.\n3. Observation: DUT must NOT respond (silently dropped).\n\n[Pass condition]\nNo DUT response to the bogus ACK+RST.\n\n[Fail condition]\n• Fail_no_dut_syn — active OPEN didn't even produce SYN\n• Fail_unexpected_response — DUT emitted any reply to the bogus ACK+RST",
+  "verdicts": {
+    "Pass": "DUT silently ignored bogus ACK+RST in SYN-SENT — normal",
+    "Fail_no_dut_syn": "No DUT SYN to active OPEN",
+    "Fail_unexpected_response": "DUT emitted response to ACK+RST with unacceptable ack"
+  }
+}

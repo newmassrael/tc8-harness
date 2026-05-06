@@ -1,0 +1,13 @@
+{
+  "description": "TCP가 FIN-WAIT-1에서 OTW SEQ 또는 unacceptable ACK 세그먼트 수신 후 proper SEQ/ACK number의 ACK을 반환하는지 검증 (RFC 793 §3.4 p37)",
+  "approach": "[검증 목적]\nOTW-SEQ / unacc-ACK에 대한 FW1의 응답은 ESTABLISHED와 동일: expected SEQ를 광고하는 corrective ACK. 2 phase로 OTW-SEQ와 unacc-ACK 모양 시험.\n\n[시나리오 — 시간순]\n2 phase. 각각:\n1. handshake → CLOSE → FW1.\n2. 테스터가 OTW-SEQ(phase 1) 또는 unacc-ACK(phase 2) data 발신.\n3. DUT이 corrective ACK 발신.\n\n[통과 조건]\n두 phase 모두 corrective ACK 생성.\n\n[실패 조건]\nphase별: handshake / FIN / data ACK 누락.",
+  "verdicts": {
+    "Pass": "DUT이 FW1에서 corrective ACK (OTW + unacc) — 정상",
+    "Fail_p1_no_handshake_ack": "phase 1 DUT handshake ACK 없음",
+    "Fail_p1_no_dut_fin": "phase 1 DUT FIN 없음",
+    "Fail_p1_no_data_ack": "FW1의 OTW-SEQ에 DUT ACK 없음",
+    "Fail_p2_no_handshake_ack": "phase 2 DUT handshake ACK 없음",
+    "Fail_p2_no_dut_fin": "phase 2 DUT FIN 없음",
+    "Fail_p2_no_data_ack": "FW1의 unacceptable ACK에 DUT ACK 없음"
+  }
+}

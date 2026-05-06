@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP in SYN-SENT moves to CLOSED after receiving a segment with ACK+RST and an acceptable ACK number (RFC 793 §3.9 p67). 2 iterations exercise flag set ∈ {SYN+ACK, ACK} alongside RST",
+  "approach": "[Objective]\nCompanion of FLAGS_INVALID_03: when the ACK+RST in SYN-SENT carries a *valid* ack number (acknowledges DUT's SYN), DUT must accept and close — that's the canonical 'connection refused' response.\n\n[Scenario — chronological]\nTwo iterations:\n• Phase 1: tester emits SYN+ACK+RST with acceptable ack.\n• Phase 2: tester emits ACK+RST with acceptable ack.\nFor each: DUT active OPEN → DUT SYN observed → tester injects → DUT must close (verify-probe RST).\n\n[Pass condition]\nDUT closes in both phases.\n\n[Fail condition]\n• Fail_p<n>_no_dut_syn — phase n SYN missing\n• Fail_p<n>_dut_continued — phase n DUT did not close",
+  "verdicts": {
+    "Pass": "DUT closed on ACK+RST with acceptable ack in both phases — normal",
+    "Fail_p1_no_dut_syn": "No DUT SYN phase 1 SYN+ACK+RST",
+    "Fail_p1_dut_continued": "DUT did not close on SYN+ACK+RST with acceptable ack",
+    "Fail_p2_no_dut_syn": "No DUT SYN phase 2 ACK+RST",
+    "Fail_p2_dut_continued": "DUT did not close on ACK+RST with acceptable ack"
+  }
+}

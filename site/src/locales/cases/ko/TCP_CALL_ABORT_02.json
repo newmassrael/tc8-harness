@@ -1,0 +1,10 @@
+{
+  "description": "TCP가 ESTABLISHED에서 application ABORT 호출에 CLOSED로 진입하는지 검증 (RFC 793 §3.9 p62 Event Processing)",
+  "approach": "[검증 목적]\nABORT은 즉시 teardown — CLOSE와 달리 FIN handshake 없음. DUT은 RST을 발신하고 소켓을 정리해야 한다.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake → ESTABLISHED.\n2. 테스터 (UT) → DUT: ABORT 호출.\n3. 관찰: DUT → 테스터: RST + DUT이 CLOSED (verify-probe도 RST 받음)   ← 핵심 확인 지점\n\n[통과 조건]\nABORT 후 DUT RST + post-ABORT probe도 RST 받음.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_no_dut_rst — EST의 ABORT 후 DUT RST 없음\n• Fail_no_verify_rst — DUT close되지 않음",
+  "verdicts": {
+    "Pass": "DUT이 ABORT 시 RST + close — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_dut_rst": "EST의 ABORT 후 DUT RST 없음",
+    "Fail_no_verify_rst": "EST의 ABORT 후 DUT close되지 않음"
+  }
+}

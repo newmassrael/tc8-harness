@@ -1,0 +1,13 @@
+{
+  "description": "Verify that TCP in FIN-WAIT-1 returns ACK with proper SEQ/ACK numbers after receiving a segment with OTW SEQ or unacceptable ACK (RFC 793 §3.4 p37)",
+  "approach": "[Objective]\nFW1's response to OTW-SEQ / unacc-ACK is identical to ESTABLISHED's: corrective ACK announcing the expected SEQ. 2 phases test the OTW-SEQ and unacc-ACK shapes.\n\n[Scenario — chronological]\nTwo phases. For each:\n1. Handshake → CLOSE → FW1.\n2. Tester sends OTW-SEQ (phase 1) or unacc-ACK (phase 2) data.\n3. DUT must emit corrective ACK.\n\n[Pass condition]\nBoth phases produce corrective ACKs.\n\n[Fail condition]\nPer phase: handshake / FIN / data ACK missing.",
+  "verdicts": {
+    "Pass": "DUT corrective-acked in FW1 (OTW + unacc) — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1",
+    "Fail_p1_no_dut_fin": "No DUT FIN phase 1",
+    "Fail_p1_no_data_ack": "No DUT ACK to OTW-SEQ in FW1",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2",
+    "Fail_p2_no_dut_fin": "No DUT FIN phase 2",
+    "Fail_p2_no_data_ack": "No DUT ACK to unacceptable ACK in FW1"
+  }
+}

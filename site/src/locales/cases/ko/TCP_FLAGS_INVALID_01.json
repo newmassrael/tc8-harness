@@ -1,0 +1,10 @@
+{
+  "description": "TCP가 LISTEN에서 RST 플래그가 있는 들어온 세그먼트를 무시하는지 검증 (RFC 793 §3.9 p65)",
+  "approach": "[검증 목적]\nLISTEN의 RST은 abort할 connection이 없다. CLOSING_13(CLOSED)과 같이 DUT은 silent drop. 이후 새 SYN을 보내 LISTEN 소켓이 여전히 응답하는지 확인.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. 테스터 → DUT: SYN+RST (또는 LISTEN의 bare RST).\n3. 관찰: DUT 응답 금지.\n4. 테스터 → DUT: 새 SYN → DUT이 SYN,ACK 응답 (LISTEN 생존).\n\n[통과 조건]\nSYN+RST에 DUT 응답 없음 + LISTEN 소켓이 새 SYN에 응답.\n\n[실패 조건]\n• Fail_timeout_first_synack — 첫 SYN에 SYN,ACK 없음 (prelude 실패)\n• Fail_unexpected_response_to_syn_rst — DUT이 SYN+RST에 응답\n• Fail_p3_no_synack — LISTEN 소켓 유실",
+  "verdicts": {
+    "Pass": "LISTEN 소켓이 SYN+RST 후 생존 — 정상",
+    "Fail_timeout_first_synack": "첫 테스터 SYN에 대한 DUT SYN,ACK 없음",
+    "Fail_unexpected_response_to_syn_rst": "LISTEN에서 SYN+RST 후 DUT 응답",
+    "Fail_p3_no_synack": "LISTEN 소켓이 SYN+RST 후 생존하지 못함"
+  }
+}

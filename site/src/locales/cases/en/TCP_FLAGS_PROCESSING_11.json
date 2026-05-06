@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP in ESTABLISHED ignores a duplicate ACK (RFC 793 §3.9 p72)",
+  "approach": "[Objective]\nA duplicate ACK (no new data acked) carries no information — RFC 793 §3.9 says ignore. (Note: modern TCP uses dup-ACKs as a fast-retransmit signal, but that's RFC 5681's heuristic, not §3.9 EST behaviour.)\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake → ESTABLISHED.\n2. Tester → DUT: ACK with same ack_num as handshake completion (no new ack).\n3. Observation: DUT must NOT respond.\n\n[Pass condition]\nNo DUT response to duplicate ACK.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_unexpected_response — DUT replied to dup ACK",
+  "verdicts": {
+    "Pass": "DUT ignored duplicate ACK in ESTABLISHED — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_unexpected_response": "DUT response to duplicate ACK in EST"
+  }
+}

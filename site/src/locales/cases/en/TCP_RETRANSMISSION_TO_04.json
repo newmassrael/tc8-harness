@@ -1,0 +1,14 @@
+{
+  "description": "Verify that DUT TCP includes exponential (more than linear) backoff for successive RTO values for data segments (RFC 1122 §4.2.3.1, RFC 6298 §5)",
+  "approach": "[Objective]\nExponential RTO backoff for data: each successive retx interval > previous (geometric, not arithmetic). Protects from triangle-of-thrash when the peer is unreachable.\n\n[Scenario — chronological]\n1. Handshake → DUT sends data → tester drops all retransmits.\n2. DUT → Tester: data, retx_1, retx_2, retx_3.\n3. Observation: Δt(retx_2) > Δt(retx_1); Δt(retx_3) > Δt(retx_2).\n\n[Pass condition]\nIntervals strictly grow.\n\n[Fail condition]\n• Fail_no_seg1 — initial data missing\n• Fail_no_retx_<n> — retransmit n missing\n• Fail_initial_rto_out_of_window — first retx interval out of baseline\n• Fail_retx<n>_not_doubled — interval n not larger than n-1",
+  "verdicts": {
+    "Pass": "DUT data RTO exponential — normal",
+    "Fail_no_seg1": "No DUT first data segment",
+    "Fail_no_retx_1": "No DUT data retransmit 1",
+    "Fail_no_retx_2": "No DUT data retransmit 2",
+    "Fail_no_retx_3": "No DUT data retransmit 3",
+    "Fail_initial_rto_out_of_window": "Data retx 1 RTO out of baseline window",
+    "Fail_retx2_not_doubled": "Data retx 2 delta not greater than initial RTO",
+    "Fail_retx3_not_doubled": "Data retx 3 delta not greater than retx 2 lower bound"
+  }
+}

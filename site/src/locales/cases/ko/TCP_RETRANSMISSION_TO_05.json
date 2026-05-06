@@ -1,0 +1,14 @@
+{
+  "description": "DUT TCP가 SYN 세그먼트의 연속 RTO 값에 exponential backoff를 포함하는지 검증 (RFC 1122 §4.2.3.1, RFC 6298 §5)",
+  "approach": "[검증 목적]\nRETRANSMISSION_TO_04와 같은 backoff 요건이지만 active OPEN의 SYN 재전송에 대한 것.\n\n[시나리오 — 시간순]\n1. DUT active OPEN → DUT → 테스터: SYN.\n2. 테스터가 모든 SYN drop.\n3. DUT 재전송: syn_retx_1, _2, _3.\n4. 관찰: 간격이 strictly 증가.\n\n[통과 조건]\n간격이 doubling.\n\n[실패 조건]\n• Fail_no_first_syn — 초기 SYN 누락\n• Fail_no_syn_retx_<n> — 재전송 n 누락\n• Fail_initial_rto_out_of_window — 첫 retx 간격이 RFC 6298 초기 윈도우 밖\n• Fail_retx<n>_not_doubled — n번째 간격이 n-1보다 크지 않음",
+  "verdicts": {
+    "Pass": "DUT SYN RTO exponential — 정상",
+    "Fail_no_first_syn": "DUT 첫 SYN 없음",
+    "Fail_no_syn_retx_1": "DUT SYN 재전송 1 없음",
+    "Fail_no_syn_retx_2": "DUT SYN 재전송 2 없음",
+    "Fail_no_syn_retx_3": "DUT SYN 재전송 3 없음",
+    "Fail_initial_rto_out_of_window": "SYN retx 1 RTO이 RFC 6298 초기 윈도우 밖",
+    "Fail_retx2_not_doubled": "SYN retx 2 delta가 초기 RTO보다 크지 않음",
+    "Fail_retx3_not_doubled": "SYN retx 3 delta가 retx 2 하한보다 크지 않음"
+  }
+}

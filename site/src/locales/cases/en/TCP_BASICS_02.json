@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP moves to ESTABLISHED after receiving ACK in SYN-RCVD state (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nThe last leg of the 3-way handshake: SYN-RCVD's defining transition is to ESTABLISHED on the third-leg ACK.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN → DUT replies SYN,ACK (DUT now in SYN-RCVD).\n3. Tester → DUT: ACK.\n4. Observation: DUT must be in ESTABLISHED (verified via UT-query).   ← key check\n\n[Pass condition]\nDUT reports ESTABLISHED after the third-leg ACK.\n\n[Fail condition]\n• Fail_not_established — DUT did not reach ESTABLISHED\n• Fail_timeout — no DUT SYN,ACK within the listen window",
+  "verdicts": {
+    "Pass": "DUT reached ESTABLISHED on third-leg ACK — normal",
+    "Fail_not_established": "DUT did not reach ESTABLISHED",
+    "Fail_timeout": "No DUT SYN,ACK within listen window"
+  }
+}

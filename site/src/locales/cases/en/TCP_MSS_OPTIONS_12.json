@@ -1,0 +1,8 @@
+{
+  "description": "DUT advertises an MSS != 536 in active-OPEN SYN when its receive MSS differs from the RFC 1122 §4.2.2.6 default",
+  "approach": "[Objective]\nIf DUT can receive larger segments than the 536 default, it MUST tell the peer — otherwise the peer wastes bandwidth.\n\n[Scenario — chronological]\n1. DUT receive MSS configured to non-536 value (e.g. 1460).\n2. Tester (UT) → DUT: active OPEN call.\n3. DUT → Tester: SYN.\n4. Observation: SYN's MSS option ≠ 536.\n\n[Pass condition]\nDUT-emitted MSS option carries the non-default value.\n\n[Fail condition]\n• Fail_timeout — no DUT SYN with non-default MSS",
+  "verdicts": {
+    "Pass": "DUT advertised non-default MSS — normal",
+    "Fail_timeout": "No DUT SYN with non-default MSS"
+  }
+}

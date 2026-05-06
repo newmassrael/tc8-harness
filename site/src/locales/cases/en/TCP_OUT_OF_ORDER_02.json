@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT TCP delayed-ACK fires within 0.5 sec — cumulative ACK covering two consecutive data segments arrives in time (RFC 1122 §4.2.3.2 p96)",
+  "approach": "[Objective]\nThe delayed-ACK optimization: after one segment, DUT may delay ACK in hope of piggyback. After two segments arrive, DUT MUST ACK (cumulative). The 0.5 s ceiling applies even when DUT chose to delay.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data segment #1, then segment #2.\n3. Observation: DUT → Tester: cumulative ACK covering both within 500 ms.\n\n[Pass condition]\nCumulative ACK observed within 500 ms.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_cumulative_ack_within_500ms — no cumulative ACK in time",
+  "verdicts": {
+    "Pass": "DUT delayed-ACK fired within 500 ms — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_cumulative_ack_within_500ms": "No DUT cumulative ACK for two segments within 500 ms"
+  }
+}

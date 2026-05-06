@@ -1,0 +1,10 @@
+{
+  "description": "DUT accepts a TCP packet with Reserved field set to zero (RFC 793 §3.1, RFC 4413 §4.2.3)",
+  "approach": "[Objective]\nThe Reserved field is officially zero. RFC 793 §3.1 / RFC 4413 §4.2.3 require senders to set 0 and receivers to accept. This is the positive baseline — HEADER_06 covers nonzero (also accepted, ignored).\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data with Reserved=0.\n3. Observation: DUT acks with correct ack_num.\n\n[Pass condition]\nDUT acks the data normally.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_data_ack — DUT did not ack data\n• Fail_wrong_ack_num — ACK does not cover payload",
+  "verdicts": {
+    "Pass": "DUT acked Reserved=0 data — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_data_ack": "No DUT ACK to reserved-zero data",
+    "Fail_wrong_ack_num": "DUT ack_num does not acknowledge payload"
+  }
+}

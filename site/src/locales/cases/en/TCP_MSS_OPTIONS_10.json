@@ -1,0 +1,9 @@
+{
+  "description": "If no MSS option is received at connection setup, DUT defaults send MSS to 536 bytes (RFC 1122 §4.2.2.6 p85)",
+  "approach": "[Objective]\nThe spec default. Without an explicit MSS, RFC 1122 §4.2.2.6 says assume 536 (the largest path MTU minus headers that's universally safe).\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake without MSS option.\n2. DUT → Tester: data segment.\n3. Observation: data segment size = 536 bytes.\n\n[Pass condition]\nDUT-emitted segment size = 536.\n\n[Fail condition]\n• Fail_wrong_segment_size — segment is not 536 bytes\n• Fail_timeout — no DUT data segment",
+  "verdicts": {
+    "Pass": "DUT defaulted to MSS 536 — normal",
+    "Fail_wrong_segment_size": "DUT data segment size not default 536",
+    "Fail_timeout": "No DUT data segment within listen window"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "DUT implements sending the MSS option in its active-OPEN SYN (RFC 1122 §4.2.2.6 p85)",
+  "approach": "[Objective]\nDUT must advertise its own MSS to the peer. Without an MSS option in the SYN, the peer will assume 536 — wasting bandwidth.\n\n[Scenario — chronological]\n1. Tester (UT) → DUT: active OPEN call.\n2. DUT → Tester: SYN.\n3. Observation: SYN options blob contains the MSS option.\n\n[Pass condition]\nDUT-emitted SYN includes MSS.\n\n[Fail condition]\n• Fail_timeout — no DUT SYN with MSS option",
+  "verdicts": {
+    "Pass": "DUT-emitted SYN carries MSS option — normal",
+    "Fail_timeout": "No DUT SYN with MSS option"
+  }
+}

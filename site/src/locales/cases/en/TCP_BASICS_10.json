@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP sends an ACK in response to a FIN received in FIN-WAIT-1 or FIN-WAIT-2 (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nWhen DUT has already sent its own FIN (FW1 / FW2) and the peer also FINs, DUT must ACK the peer's FIN. From FW1 the joint state is CLOSING; from FW2 it's TIME-WAIT.\n\n[Scenario — chronological]\n1. Phase 1: DUT in FW1 → tester FIN → DUT must emit ACK.\n2. Phase 2: DUT in FW2 → tester FIN → DUT must emit ACK.\n\n[Pass condition]\nDUT emits ACK to the tester FIN in both phases (preceded by DUT's own FIN).\n\n[Fail condition]\n• Fail_timeout_p1_fin / Fail_timeout_p1_ack — phase 1 DUT FIN or ACK missing\n• Fail_timeout_p2_fin / Fail_timeout_p2_ack — phase 2 DUT FIN or ACK missing",
+  "verdicts": {
+    "Pass": "DUT acked tester FIN in FW1 and FW2 — normal",
+    "Fail_timeout_p1_fin": "No DUT CLOSE FIN phase 1",
+    "Fail_timeout_p1_ack": "No DUT ACK to tester FIN phase 1",
+    "Fail_timeout_p2_fin": "No DUT CLOSE FIN phase 2",
+    "Fail_timeout_p2_ack": "No DUT ACK to tester FIN phase 2"
+  }
+}

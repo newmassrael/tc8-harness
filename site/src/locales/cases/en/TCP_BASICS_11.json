@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP moves from TIME-WAIT to CLOSED after a 2*MSL timeout, with TIME-WAIT reached through FIN-WAIT-2 (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nTIME-WAIT exists to absorb stray late segments. After 2*MSL the binding is released. Reached via FW2 path (active-close + peer-FIN sequence). Linux DUT uses kTimeWaitFullWait=72 s.\n\n[Scenario — chronological]\n1. driveTcpToTimeWaitFw2 prelude → DUT in TIME-WAIT.\n2. Wait 2*MSL.\n3. Tester → DUT: probe segment.\n4. Observation: DUT → Tester: RST (CLOSED-state response)   ← key check\n\n[Pass condition]\nDUT replies RST to the post-2MSL probe (state moved to CLOSED).\n\n[Fail condition]\n• Fail_no_handshake_ack / Fail_no_close_fin / Fail_no_tester_fin_ack — prelude broken\n• Fail_no_replay_rst — no RST after 2*MSL (still in TIME-WAIT)",
+  "verdicts": {
+    "Pass": "DUT moved TIME-WAIT → CLOSED after 2*MSL (FW2) — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_close_fin": "No DUT CLOSE FIN",
+    "Fail_no_tester_fin_ack": "No DUT ACK to tester FIN",
+    "Fail_no_replay_rst": "No DUT RST after 2*MSL post TIME-WAIT"
+  }
+}

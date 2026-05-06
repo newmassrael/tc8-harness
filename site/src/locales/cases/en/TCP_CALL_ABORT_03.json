@@ -1,0 +1,13 @@
+{
+  "description": "Verify that TCP in CLOSING / LAST-ACK / TIME-WAIT responds with ok and enters CLOSED on application ABORT call (RFC 793 §3.9 p62 Event Processing)",
+  "approach": "[Objective]\nLate-state ABORT: in CLOSING, LAST-ACK, or TIME-WAIT, ABORT must drop the connection immediately. tc8-dut handles this via tcp_disconnect; verify-probe-A elicits a RST proving the socket is gone.\n\n[Scenario — chronological]\nThree iterations, one per state. For each:\n1. Per-iter prelude drives DUT to wst (CLOSING / LAST-ACK / TIME-WAIT).\n2. Tester (UT) → DUT: ABORT call.\n3. Observation: DUT must close (verify-probe replies RST).\n\n[Pass condition]\nAll three phases close cleanly.\n\n[Fail condition]\n• Fail_p<n>_no_handshake_ack — phase n handshake broken\n• Fail_p<n>_no_close — phase n DUT did not close after ABORT",
+  "verdicts": {
+    "Pass": "DUT closed in all 3 late states on ABORT — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1 CLOSING",
+    "Fail_p1_no_close": "DUT did not close after ABORT in CLOSING",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2 LAST-ACK",
+    "Fail_p2_no_close": "DUT did not close after ABORT in LAST-ACK",
+    "Fail_p3_no_handshake_ack": "No DUT handshake ACK phase 3 TIME-WAIT",
+    "Fail_p3_no_close": "DUT did not close after ABORT in TIME-WAIT"
+  }
+}

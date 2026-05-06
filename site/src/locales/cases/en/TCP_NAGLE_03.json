@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT implements Nagle: a small SEND (ssz) is buffered while unacked data is outstanding, but releases as part of the next MSS-filling segment (RFC 1122 §4.2.3.4)",
+  "approach": "[Objective]\nVariant of NAGLE_02: instead of waiting for ACK, the small write is held until enough data accumulates to fill an MSS-sized segment — then released as one larger segment.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. DUT (UT) small write #1 → DUT → Tester: data #1.\n3. DUT (UT) small write of size ssz (Nagle holds it).\n4. DUT (UT) sends enough additional data to fill MSS.\n5. Observation: DUT → Tester: aggregate segment containing the small ssz + filler.\n\n[Pass condition]\nDUT releases the held small write only inside the aggregate MSS segment.\n\n[Fail condition]\n• Fail_no_first_data — first segment missing\n• Fail_dut_released_small_segment_before_aggregate — Nagle violation\n• Fail_no_aggregate — aggregate segment never appeared",
+  "verdicts": {
+    "Pass": "DUT held small write and released as MSS aggregate — normal",
+    "Fail_no_first_data": "No DUT first data segment",
+    "Fail_dut_released_small_segment_before_aggregate": "DUT released small segment before aggregate (Nagle violation)",
+    "Fail_no_aggregate": "No DUT aggregate segment after MSS fill"
+  }
+}

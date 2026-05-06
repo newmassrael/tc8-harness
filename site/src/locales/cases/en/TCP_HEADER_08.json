@@ -1,0 +1,9 @@
+{
+  "description": "DUT discards a TCP packet with Data Offset greater than the segment length (RFC 793 §3.1)",
+  "approach": "[Objective]\nIf Data Offset declares more header bytes than the segment carries on the wire, the parser would walk past the buffer end. DUT must drop.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data with Data Offset > segment length.\n3. Observation: DUT must NOT ack.\n\n[Pass condition]\nNo DUT ACK to oversize Data Offset.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_unexpected_ack — DUT acked oversize Data Offset",
+  "verdicts": {
+    "Pass": "DUT discarded segment with oversize Data Offset — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_unexpected_ack": "DUT acked segment with oversize Data Offset"
+  }
+}

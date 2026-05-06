@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT in ESTABLISHED piggybacks the acknowledgement on a queued data segment when the tester injects ACK+payload that opens the window and provides ack-able data — within 0.5 sec (RFC 793 §3.9 SHOULD)",
+  "approach": "[Objective]\nWhen DUT has a data segment to send AND fresh data to ack, an efficient implementation piggybacks the ACK on the outgoing data instead of emitting a pure ACK. RFC 793 §3.9 calls for this within 0.5 s.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. DUT → Tester: first data segment (window full).\n3. Before any second segment, tester sends ACK+payload (opens window + provides data).\n4. Observation: DUT → Tester: piggyback segment within 500 ms with ack_num covering the tester payload.\n\n[Pass condition]\nDUT emits piggyback within 500 ms.\n\n[Fail condition]\n• Fail_no_first_data — DUT did not emit first segment\n• Fail_dut_sent_second_segment_before_ack — DUT raced ahead\n• Fail_no_piggyback — no piggyback within 500 ms\n• Fail_wrong_piggyback_ack — piggyback ack_num does not cover tester payload",
+  "verdicts": {
+    "Pass": "DUT piggybacked the ACK on next data segment — normal",
+    "Fail_no_first_data": "No DUT first data segment",
+    "Fail_dut_sent_second_segment_before_ack": "DUT sent second segment before piggyback inject",
+    "Fail_no_piggyback": "No DUT piggyback segment within 500 ms",
+    "Fail_wrong_piggyback_ack": "DUT piggyback ack_num does not acknowledge tester payload"
+  }
+}

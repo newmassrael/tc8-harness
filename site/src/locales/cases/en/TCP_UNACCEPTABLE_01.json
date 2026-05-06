@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP returns to LISTEN on receiving an acceptable RST in SYN-RCVD (RFC 793 §3.4 p33)",
+  "approach": "[Objective]\nIn SYN-RCVD, an acceptable RST (matching the expected sequence space) means the peer aborted before the handshake completed. DUT must return to LISTEN, NOT close the listening socket.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN → DUT → Tester: SYN,ACK (DUT in SYN-RCVD).\n3. Tester → DUT: acceptable RST.\n4. Tester → DUT: fresh SYN → DUT → Tester: SYN,ACK (LISTEN survived).\n\n[Pass condition]\nLISTEN socket survives and answers fresh SYN.\n\n[Fail condition]\n• Fail_timeout_first_synack — first SYN,ACK missing\n• Fail_timeout_second_synack — LISTEN did not answer fresh SYN",
+  "verdicts": {
+    "Pass": "DUT returned to LISTEN on acceptable RST — normal",
+    "Fail_timeout_first_synack": "No DUT SYN,ACK to first tester SYN",
+    "Fail_timeout_second_synack": "No DUT SYN,ACK after acceptable RST"
+  }
+}

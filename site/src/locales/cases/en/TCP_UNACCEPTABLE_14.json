@@ -1,0 +1,13 @@
+{
+  "description": "Verify that TCP in CLOSE-WAIT returns ACK with proper SEQ/ACK numbers after receiving a segment with OTW SEQ or unacceptable ACK (RFC 793 §3.4 p37)",
+  "approach": "[Objective]\nMirror of UNACCEPTABLE_11/_12/_13 for CLOSE-WAIT (after passive-close FIN).\n\n[Scenario — chronological]\nTwo phases. For each: handshake → tester FIN → DUT CLOSE-WAIT (close-wait ACK emitted). Then tester injects OTW-SEQ / unacc-ACK. DUT corrective ACK.\n\n[Pass condition]\nBoth phases produce corrective ACKs.\n\n[Fail condition]\nPer phase: handshake / close ACK / data ACK missing.",
+  "verdicts": {
+    "Pass": "DUT corrective-acked in CLOSE-WAIT (OTW + unacc) — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1",
+    "Fail_p1_no_close_ack": "No DUT close-wait ACK phase 1",
+    "Fail_p1_no_data_ack": "No DUT ACK to OTW-SEQ in CLOSE-WAIT",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2",
+    "Fail_p2_no_close_ack": "No DUT close-wait ACK phase 2",
+    "Fail_p2_no_data_ack": "No DUT ACK to unacceptable ACK in CLOSE-WAIT"
+  }
+}

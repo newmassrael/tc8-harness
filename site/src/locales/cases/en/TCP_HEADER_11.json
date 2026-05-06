@@ -1,0 +1,9 @@
+{
+  "description": "DUT silently discards a SYN with multicast IP destination (RFC 1122 §3.2.1.3 — multicast addresses are not legal connection destinations)",
+  "approach": "[Objective]\nTCP is a unicast protocol; receiving a SYN aimed at a multicast group address is nonsensical and could be an attack. DUT must drop without response.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN with multicast dst_ip.\n3. Observation: DUT must NOT respond (no SYN,ACK).\n\n[Pass condition]\nNo DUT response.\n\n[Fail condition]\n• Fail_no_handshake_ack — first probe handshake never completed (anchors prelude)\n• Fail_unexpected_ack — DUT acked the multicast-dst SYN",
+  "verdicts": {
+    "Pass": "DUT silently dropped multicast-dst SYN — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_unexpected_ack": "DUT acked multicast SYN"
+  }
+}

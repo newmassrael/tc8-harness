@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT implements Nagle: with outstanding unacknowledged data, additional small writes are buffered until the prior segment is acked (RFC 1122 §4.2.3.4)",
+  "approach": "[Objective]\nNagle's algorithm coalesces small writes to reduce header overhead. RFC 1122 §4.2.3.4: when there is unacked data outstanding, additional small writes wait for the prior segment's ACK.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. DUT (UT) sends small write #1 → DUT → Tester: data #1.\n3. DUT (UT) sends small write #2 → DUT must NOT emit immediately (data #1 unacked).\n4. Tester → DUT: ACK of data #1.\n5. Observation: DUT → Tester: data #2 (now released).\n\n[Pass condition]\nData #2 emitted only AFTER ACK of data #1.\n\n[Fail condition]\n• Fail_no_first_data — DUT did not emit first segment\n• Fail_dut_sent_second_segment_before_ack — Nagle violation\n• Fail_no_second_data — DUT never released second segment",
+  "verdicts": {
+    "Pass": "DUT honoured Nagle's algorithm — normal",
+    "Fail_no_first_data": "No DUT first data segment",
+    "Fail_dut_sent_second_segment_before_ack": "DUT sent second segment before ACK (Nagle violation)",
+    "Fail_no_second_data": "No DUT second data segment after ACK"
+  }
+}

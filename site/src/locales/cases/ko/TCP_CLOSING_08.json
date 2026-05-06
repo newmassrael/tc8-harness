@@ -1,0 +1,12 @@
+{
+  "description": "TCP가 FIN-WAIT-2에서 RECEIVE 호출을 지원하고 들어온 데이터를 ACK하면서 FW2에 머무르는지 검증 (RFC 793 §3.5 p38)",
+  "approach": "[검증 목적]\nFW2는 FW1 + peer가 DUT FIN을 ACK한 상태. half-open 방향은 여전히 readable; DUT은 들어온 데이터를 ACK하고 peer FIN까지 FW2에 머물러야 한다.\n\n[시나리오 — 시간순]\n1. handshake → CLOSE → FW1 → 테스터 DUT FIN ACK → FW2.\n2. 테스터 → DUT: data 세그먼트.\n3. 관찰: DUT이 데이터 ACK, FIN/RST 발신 없음, FW2 유지.\n\n[통과 조건]\nDUT이 데이터 ACK + FW2 유지.\n\n[실패 조건]\n• Fail_no_handshake_ack / Fail_no_dut_fin — prelude 실패\n• Fail_no_dut_data_ack — FW2에서 DUT ACK 없음\n• Fail_dut_left_fw2 — DUT이 FW2에서 FIN 또는 RST 발신 (불법)\n• Fail_no_proper_data — 잘못된 payload 보고",
+  "verdicts": {
+    "Pass": "DUT이 FIN-WAIT-2에서 데이터 ACK + 유지 — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_dut_fin": "DUT CLOSE FIN 없음",
+    "Fail_no_dut_data_ack": "FW2의 받은 데이터에 대한 DUT ACK 없음",
+    "Fail_dut_left_fw2": "DUT이 FW2에서 FIN 또는 RST 발신",
+    "Fail_no_proper_data": "FW2에서 DUT 데이터 수신 오류"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "description": "TCP가 TIME-WAIT에서 재전송된 FIN을 ACK하고 2*MSL 타임아웃을 재시작하는지 검증 (RFC 793 §3.9 p73)",
+  "approach": "[검증 목적]\nTIME-WAIT의 DUT에 도달한 peer의 재전송 FIN은 DUT의 이전 ACK이 유실됐음을 신호한다. RFC 793 §3.9는 DUT이 replay를 ACK하고 2*MSL 시계를 재설정하도록 요구한다 — 아니면 peer가 여전히 시도 중인데 binding이 close될 수 있다.\n\n[시나리오 — 시간순]\n1. handshake → CLOSE → FW1 → 테스터 ACK + FIN → DUT이 TIME-WAIT.\n2. 테스터 → DUT: replay FIN.\n3. 관찰: DUT → 테스터: ACK.\n4. 1.5*MSL 대기 (full 2*MSL 미만).\n5. 테스터 → DUT: 두 번째 replay FIN.\n6. 관찰: DUT → 테스터: ACK (여전히 TIME-WAIT, 시계 재시작).\n\n[통과 조건]\n두 replay FIN 모두 ACK 받음.\n\n[실패 조건]\n임의 prelude 또는 replay-ACK 누락.",
+  "verdicts": {
+    "Pass": "DUT이 replay FIN ACK + 2*MSL 재시작 — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_dut_fin": "DUT CLOSE FIN 없음",
+    "Fail_no_tester_fin_ack": "테스터 FIN에 대한 DUT ACK 없음",
+    "Fail_no_first_replay_ack": "TIME-WAIT의 첫 replay FIN에 대한 DUT ACK 없음",
+    "Fail_no_second_replay_ack": "1.5*MSL 후 두 번째 replay FIN에 대한 DUT ACK 없음"
+  }
+}

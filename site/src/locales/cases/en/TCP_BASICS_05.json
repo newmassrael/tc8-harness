@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP in CLOSED sends a RST whose seq equals the incoming segment's ACK in response to an ACK-bearing non-RST segment (RFC 793 §3.9 p65 Event Processing)",
+  "approach": "[Objective]\nCompanion of BASICS_04: when the unsolicited segment carries an ACK, the RST's seq is set to that ACK value (the only sequence-credible information available).\n\n[Scenario — chronological]\n1. DUT in CLOSED state.\n2. Tester → DUT: SYN,ACK (with ack=K) and bare ACK (with ack=K).\n3. Observation: DUT → Tester: RST with seq == K   ← key check\n\n[Pass condition]\nDUT emits RST with seq equal to the incoming ACK value.\n\n[Fail condition]\n• Fail_wrong_seq_<probe> — RST seq does not match incoming ACK\n• Fail_timeout_<probe> — no DUT RST after the probe",
+  "verdicts": {
+    "Pass": "DUT emitted RST seq=ACK to every ACK-bearing probe — normal",
+    "Fail_wrong_seq_synack": "DUT RST seq not synack ack",
+    "Fail_wrong_seq_ack": "DUT RST seq not ack-phase ack",
+    "Fail_timeout_synack": "No DUT RST after SYN,ACK",
+    "Fail_timeout_ack": "No DUT RST after ACK"
+  }
+}

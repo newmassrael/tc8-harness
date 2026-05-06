@@ -1,0 +1,8 @@
+{
+  "description": "TCP가 LISTEN 상태에서 받은 SYN에 SYN,ACK으로 응답하는지 검증 (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[검증 목적]\nLISTEN의 정의 동작: 들어온 SYN에 SYN,ACK으로 응답해 3-way handshake를 시작. LISTEN → SYN-RCVD 진입 전이.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. 테스터 → DUT: SYN.\n3. 관찰: DUT → 테스터: SYN,ACK   ← 핵심 확인 지점\n\n[통과 조건]\nlisten 윈도우 내 DUT 발신 SYN,ACK 관찰.\n\n[실패 조건]\n• Fail_timeout — listen 윈도우 내 DUT SYN,ACK 없음",
+  "verdicts": {
+    "Pass": "DUT이 LISTEN에서 SYN,ACK으로 응답 — 정상",
+    "Fail_timeout": "listen 윈도우 내 DUT SYN,ACK 없음"
+  }
+}

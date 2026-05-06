@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT accepts an ACK piggybacked on the next transmit packet and replies with a pure ACK acknowledging the payload (RFC 793 §3.9 Event Processing)",
+  "approach": "[Objective]\nA TCP receiver must process payload bytes whether they ride alone or piggyback on an outgoing-direction segment. RFC 793 §3.9 dictates the ack_num covers the received bytes either way.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: 3-way handshake.\n2. Tester → DUT: data segment with ACK bit set + payload.\n3. Observation: DUT → Tester: pure ACK with ack_num = received data end (= recv_isn + 1 + payload_len)   ← key check\n\n[Pass condition]\nDUT emits a pure ACK whose ack_num covers the piggybacked payload.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_data_ack — no DUT ACK to the piggyback data\n• Fail_wrong_ack_num — ACK value does not cover the payload",
+  "verdicts": {
+    "Pass": "DUT acknowledged the piggyback payload with a pure ACK — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_data_ack": "No DUT ACK to piggyback data",
+    "Fail_wrong_ack_num": "DUT ack_num does not acknowledge piggyback payload"
+  }
+}

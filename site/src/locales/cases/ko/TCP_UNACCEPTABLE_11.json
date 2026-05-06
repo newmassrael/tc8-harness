@@ -1,0 +1,15 @@
+{
+  "description": "TCP가 CLOSING에서 OTW SEQ 또는 unacceptable ACK number 세그먼트 수신 후 proper SEQ/ACK number의 ACK을 반환하는지 검증 (RFC 793 §3.4 p37). 2 iteration이 CASE 1 (OTW SEQ)와 CASE 2 (unacc ACK) 시험",
+  "approach": "[검증 목적]\nCLOSING은 simultaneous-close 상태. EST/FW1/FW2와 같은 OTW/unacc-ACK corrective-ACK 규칙.\n\n[시나리오 — 시간순]\n2 phase. 각각: DUT을 handshake → CLOSE → FW1 → 테스터 FIN → CLOSING으로 유도. 그 후 테스터가 OTW-SEQ(phase 1) 또는 unacc-ACK(phase 2) 발신. DUT corrective ACK.\n\n[통과 조건]\n두 phase 모두 corrective ACK 생성.\n\n[실패 조건]\nphase별: handshake / CLOSE FIN / closing ACK / probe ACK 누락.",
+  "verdicts": {
+    "Pass": "DUT이 CLOSING에서 corrective ACK (OTW + unacc) — 정상",
+    "Fail_p1_no_handshake_ack": "phase 1 DUT handshake ACK 없음",
+    "Fail_p1_no_close_fin": "phase 1 DUT CLOSE FIN 없음",
+    "Fail_p1_no_closing_ack": "phase 1 CLOSING 전이 DUT ACK 없음",
+    "Fail_p1_no_probe_ack": "CLOSING의 OTW-SEQ에 DUT ACK 없음",
+    "Fail_p2_no_handshake_ack": "phase 2 DUT handshake ACK 없음",
+    "Fail_p2_no_close_fin": "phase 2 DUT CLOSE FIN 없음",
+    "Fail_p2_no_closing_ack": "phase 2 CLOSING 전이 DUT ACK 없음",
+    "Fail_p2_no_probe_ack": "CLOSING의 unacceptable ACK에 DUT ACK 없음"
+  }
+}

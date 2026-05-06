@@ -1,0 +1,17 @@
+{
+  "description": "TCP가 ESTABLISHED에서 OTW SEQ 번호의 들어온 세그먼트에 대해 다음 expected SEQ의 ACK을 발신하는지 검증 (RFC 793 §3.9 p69). 5 iteration이 flag set ∈ {SYN, SYN+ACK, ACK, FIN, data} 시험",
+  "approach": "[검증 목적]\nOTW(out-of-window) SEQ는 seg.seq가 receive window 밖에 있음을 의미. RFC 793 §3.9는 DUT이 실제 expect하는 SEQ를 광고하는 ACK으로 응답하도록 강제한다 — peer가 resync할 수 있도록. OTW 세그먼트의 flag set은 무관(SYN, ACK, FIN, data — 같은 응답).\n\n[시나리오 — 시간순]\nphase별(flag set별)로 DUT을 ESTABLISHED로 유도, 테스터가 해당 flag의 OTW-SEQ 세그먼트 주입. DUT은 proper-SEQ ACK으로 응답.\n\n[통과 조건]\n모든 phase에서 정확한 probe ACK 관찰.\n\n[실패 조건]\nphase별: Fail_p<n>_no_handshake_ack / Fail_p<n>_no_probe_ack.",
+  "verdicts": {
+    "Pass": "DUT이 모든 flag 변형 phase의 OTW-SEQ probe ACK — 정상",
+    "Fail_p1_no_handshake_ack": "phase 1 DUT handshake ACK 없음",
+    "Fail_p1_no_probe_ack": "phase 1 OTW-SEQ probe DUT ACK 없음",
+    "Fail_p2_no_handshake_ack": "phase 2 DUT handshake ACK 없음",
+    "Fail_p2_no_probe_ack": "phase 2 OTW-SEQ probe DUT ACK 없음",
+    "Fail_p3_no_handshake_ack": "phase 3 DUT handshake ACK 없음",
+    "Fail_p3_no_probe_ack": "phase 3 OTW-SEQ probe DUT ACK 없음",
+    "Fail_p4_no_handshake_ack": "phase 4 DUT handshake ACK 없음",
+    "Fail_p4_no_probe_ack": "phase 4 OTW-SEQ probe DUT ACK 없음",
+    "Fail_p5_no_handshake_ack": "phase 5 DUT handshake ACK 없음",
+    "Fail_p5_no_probe_ack": "phase 5 OTW-SEQ probe DUT ACK 없음"
+  }
+}

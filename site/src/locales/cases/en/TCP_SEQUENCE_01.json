@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT acknowledges tester ISN by emitting SYN,ACK with ack_num == tester_seq + 1 (RFC 793 §3.1)",
+  "approach": "[Objective]\nThe SYN consumes one sequence number; DUT's SYN,ACK must ack tester_isn + 1.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN with seq=I.\n3. Observation: DUT → Tester: SYN,ACK with ack_num == I+1.\n\n[Pass condition]\nSYN,ACK ack_num == tester ISN + 1.\n\n[Fail condition]\n• Fail_wrong_ack_num — ack_num does not equal I+1\n• Fail_timeout — no SYN,ACK",
+  "verdicts": {
+    "Pass": "DUT SYN,ACK ack_num = ISN+1 — normal",
+    "Fail_wrong_ack_num": "DUT SYN,ACK ack_num does not acknowledge tester ISN",
+    "Fail_timeout": "No DUT SYN,ACK within listen window"
+  }
+}

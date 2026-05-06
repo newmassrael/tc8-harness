@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP moves to CLOSED after receiving an ACK of the sent FIN in LAST-ACK (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[Objective]\nThe last leg of the passive-close path: LAST-ACK → CLOSED on the peer's ACK. Verifies socket cleanup, exposed by a follow-up probe that should now elicit a RST (port has no live socket).\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake; tester sends FIN; DUT enters CLOSE-WAIT; user CLOSE → DUT emits FIN, enters LAST-ACK.\n2. Tester → DUT: ACK of DUT's FIN → DUT must reach CLOSED.\n3. Tester → DUT: probe segment.\n4. Observation: DUT → Tester: RST (CLOSED-state response)   ← key check\n\n[Pass condition]\nDUT emits RST to the post-CLOSE probe (proves cleanup happened).\n\n[Fail condition]\n• Fail_timeout_fin — no DUT FIN into LAST-ACK\n• Fail_timeout_rst — no DUT RST from CLOSED",
+  "verdicts": {
+    "Pass": "DUT cleaned up to CLOSED — normal",
+    "Fail_timeout_fin": "No DUT FIN into LAST-ACK",
+    "Fail_timeout_rst": "No DUT RST from CLOSED"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that TCP ignores an incoming segment with RST flag in LISTEN state (RFC 793 §3.9 p65)",
+  "approach": "[Objective]\nA RST in LISTEN has no connection to abort. Like CLOSING_13 (CLOSED), DUT must silently drop. Verified by sending a fresh SYN afterward and seeing the LISTEN socket still answer.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN+RST (or bare RST in LISTEN).\n3. Observation: DUT must NOT respond.\n4. Tester → DUT: fresh SYN → DUT must reply SYN,ACK (LISTEN survived).\n\n[Pass condition]\nNo DUT response to SYN+RST AND LISTEN socket still answers fresh SYN.\n\n[Fail condition]\n• Fail_timeout_first_synack — first SYN did not get SYN,ACK (prelude broken)\n• Fail_unexpected_response_to_syn_rst — DUT responded to SYN+RST\n• Fail_p3_no_synack — LISTEN socket did not survive",
+  "verdicts": {
+    "Pass": "LISTEN socket survived SYN+RST — normal",
+    "Fail_timeout_first_synack": "No DUT SYN,ACK to first tester SYN",
+    "Fail_unexpected_response_to_syn_rst": "DUT emitted response after SYN+RST in LISTEN",
+    "Fail_p3_no_synack": "LISTEN socket did not survive SYN+RST"
+  }
+}

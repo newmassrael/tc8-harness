@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT acks tester FIN and on user CLOSE emits its own FIN to reach CLOSED (RFC 793 §3.5 Closing a Connection)",
+  "approach": "[Objective]\nThe passive-close half: tester FIN first → DUT acks (CLOSE-WAIT) → user CLOSE → DUT FIN (LAST-ACK).\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: FIN.\n3. DUT → Tester: ACK.\n4. Tester (UT) → DUT: CLOSE call.\n5. DUT → Tester: FIN.\n\n[Pass condition]\nDUT-emitted ACK to tester FIN + DUT-emitted FIN after CLOSE both observed.\n\n[Fail condition]\n• Fail_timeout_ack — no DUT ACK to tester FIN\n• Fail_timeout_fin — no DUT FIN after CLOSE",
+  "verdicts": {
+    "Pass": "DUT completed passive close — normal",
+    "Fail_timeout_ack": "No DUT ACK to tester FIN",
+    "Fail_timeout_fin": "No DUT FIN after CLOSE"
+  }
+}

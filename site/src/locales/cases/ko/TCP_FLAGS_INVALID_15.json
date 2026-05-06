@@ -1,0 +1,32 @@
+{
+  "description": "TCP가 CLOSED/SYN-SENT/LISTEN을 제외한 모든 상태에서 OTW SEQ의 RST을 무시하는지 검증 (RFC 793 §3.9 p69). 8 iteration이 wst ∈ {SYN-RCVD, EST, FW1, FW2, CW, CLOSING, LA, TW} 시험",
+  "approach": "[검증 목적]\nreceive window 밖의 sequence를 가진 RST은 connection에 대해 인증할 수 없다 — blind off-path 공격일 수 있다. RFC 793 §3.9는 connection이 존재하는 모든 상태(즉 LISTEN/SYN-SENT/CLOSED 제외)에서 무시를 명시.\n\n[시나리오 — 시간순]\n각 상태별 8 iteration. 각각: DUT을 wst로 유도, 테스터가 OTW SEQ RST 발신, DUT 응답 금지.\n\n[통과 조건]\n8 phase 모두 DUT 응답 없음.\n\n[실패 조건]\nphase별: prelude 실패(handshake / FIN / 등) 또는 Fail_p<n>_unexpected_response — DUT이 OTW RST에 반응.",
+  "verdicts": {
+    "Pass": "DUT이 8개 상태 모두에서 OTW RST 무시 — 정상",
+    "Fail_p1_no_dut_synack": "phase 1 SYN-RCVD DUT SYN,ACK 없음",
+    "Fail_p1_unexpected_response": "SYN-RCVD에서 OTW RST에 DUT 응답",
+    "Fail_p2_no_handshake_ack": "phase 2 EST DUT handshake ACK 없음",
+    "Fail_p2_unexpected_response": "EST에서 OTW RST에 DUT 응답",
+    "Fail_p3_no_handshake_ack": "phase 3 FW1 DUT handshake ACK 없음",
+    "Fail_p3_no_dut_fin": "phase 3 FW1 DUT FIN 없음",
+    "Fail_p3_unexpected_response": "FW1에서 OTW RST에 DUT 응답",
+    "Fail_p4_no_handshake_ack": "phase 4 FW2 DUT handshake ACK 없음",
+    "Fail_p4_no_dut_fin": "phase 4 FW2 DUT FIN 없음",
+    "Fail_p4_unexpected_response": "FW2에서 OTW RST에 DUT 응답",
+    "Fail_p5_no_handshake_ack": "phase 5 CW DUT handshake ACK 없음",
+    "Fail_p5_no_close_wait_ack": "phase 5 CW close-wait ACK 없음",
+    "Fail_p5_unexpected_response": "CW에서 OTW RST에 DUT 응답",
+    "Fail_p6_no_handshake_ack": "phase 6 CLOSING DUT handshake ACK 없음",
+    "Fail_p6_no_dut_fin": "phase 6 CLOSING DUT FIN 없음",
+    "Fail_p6_no_closing_ack": "phase 6 CLOSING ACK 없음",
+    "Fail_p6_unexpected_response": "CLOSING에서 OTW RST에 DUT 응답",
+    "Fail_p7_no_handshake_ack": "phase 7 LA DUT handshake ACK 없음",
+    "Fail_p7_no_close_wait_ack": "phase 7 LA close-wait ACK 없음",
+    "Fail_p7_no_dut_fin": "phase 7 LA DUT FIN 없음",
+    "Fail_p7_unexpected_response": "LA에서 OTW RST에 DUT 응답",
+    "Fail_p8_no_handshake_ack": "phase 8 TW DUT handshake ACK 없음",
+    "Fail_p8_no_dut_fin": "phase 8 TW DUT FIN 없음",
+    "Fail_p8_no_tw_ack": "phase 8 TW ACK 없음",
+    "Fail_p8_unexpected_response": "TW에서 OTW RST에 DUT 응답"
+  }
+}

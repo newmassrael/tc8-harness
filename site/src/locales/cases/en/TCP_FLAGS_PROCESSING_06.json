@@ -1,0 +1,12 @@
+{
+  "description": "Verify that TCP in TIME-WAIT acknowledges a retransmitted FIN and restarts the 2*MSL time-out (RFC 793 §3.9 p73)",
+  "approach": "[Objective]\nA peer's retransmitted FIN reaching DUT in TIME-WAIT signals that DUT's earlier ACK was lost. RFC 793 §3.9 requires DUT to ACK the replay and reset the 2*MSL clock — otherwise the binding could close while the peer is still trying.\n\n[Scenario — chronological]\n1. Handshake → CLOSE → FW1 → tester ACK + FIN → DUT in TIME-WAIT.\n2. Tester → DUT: replay FIN.\n3. Observation: DUT → Tester: ACK.\n4. Wait 1.5*MSL (less than full 2*MSL).\n5. Tester → DUT: second replay FIN.\n6. Observation: DUT → Tester: ACK (still in TIME-WAIT, clock restarted).\n\n[Pass condition]\nBoth replay FINs get ACK.\n\n[Fail condition]\nAny prelude or replay-ACK missing.",
+  "verdicts": {
+    "Pass": "DUT acked replay FIN and restarted 2*MSL — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_dut_fin": "No DUT CLOSE FIN",
+    "Fail_no_tester_fin_ack": "No DUT ACK to tester FIN",
+    "Fail_no_first_replay_ack": "No DUT ACK to first replay FIN in TIME-WAIT",
+    "Fail_no_second_replay_ack": "No DUT ACK to second replay FIN after 1.5*MSL"
+  }
+}

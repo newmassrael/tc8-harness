@@ -1,0 +1,20 @@
+{
+  "description": "TCP가 SYN-RCVD / EST / FW1 / FW2 / CW에서 RESET 시 CLOSED로 복귀하는지 검증 (RFC 793 §3.9 p70). 5 iteration이 wst ∈ {SYN-RCVD, EST, FW1, FW2, CW} 시험",
+  "approach": "[검증 목적]\n어느 active 상태에서든 RST은 connection을 abort한다. RFC 793 §3.9는 SYN-RCVD부터 CW까지 이를 명시. 이후 verify-probe에 RST이 나와 소켓 정리를 증명.\n\n[시나리오 — 시간순]\n각 상태별 5 iteration. 각각: DUT을 wst로 유도, 테스터 RST 발신, verify-probe RST 받음.\n\n[통과 조건]\n5 phase 모두 깔끔히 close.\n\n[실패 조건]\nphase별: prelude 실패 또는 Fail_p<n>_no_verify_rst.",
+  "verdicts": {
+    "Pass": "DUT이 5개 active 상태에서 RST 시 close — 정상",
+    "Fail_p1_no_prelude_synack": "phase 1 SYN-RCVD DUT SYN,ACK 없음",
+    "Fail_p1_no_verify_rst": "SYN-RCVD에서 RST 후 DUT RST 없음",
+    "Fail_p2_no_handshake_ack": "phase 2 EST DUT handshake ACK 없음",
+    "Fail_p2_no_verify_rst": "EST에서 RST 후 DUT RST 없음",
+    "Fail_p3_no_handshake_ack": "phase 3 FW1 DUT handshake ACK 없음",
+    "Fail_p3_no_dut_fin": "phase 3 FW1 DUT FIN 없음",
+    "Fail_p3_no_verify_rst": "FW1에서 RST 후 DUT RST 없음",
+    "Fail_p4_no_handshake_ack": "phase 4 FW2 DUT handshake ACK 없음",
+    "Fail_p4_no_dut_fin": "phase 4 FW2 DUT FIN 없음",
+    "Fail_p4_no_verify_rst": "FW2에서 RST 후 DUT RST 없음",
+    "Fail_p5_no_handshake_ack": "phase 5 CW DUT handshake ACK 없음",
+    "Fail_p5_no_close_wait_ack": "phase 5 CW close-wait ACK 없음",
+    "Fail_p5_no_verify_rst": "CW에서 RST 후 DUT RST 없음"
+  }
+}

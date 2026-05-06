@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT TCP queues out-of-order segments and emits a cumulative ACK covering all queued data once the SEQ-number gap is filled (RFC 1122 §4.2.2.20 / RFC 793 §3.9)",
+  "approach": "[Objective]\nWhen a segment arrives ahead of an earlier segment (SEQ gap), DUT buffers it and acks only what's contiguous (initial ACK = old expected SEQ). When the gap-fill arrives, DUT emits a cumulative ACK covering everything received.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: segment B (later SEQ; out-of-order).\n3. DUT → Tester: ACK of expected SEQ (does not advance because gap exists).\n4. Tester → DUT: segment A (the gap-filler).\n5. Observation: DUT → Tester: cumulative ACK covering A + B.\n\n[Pass condition]\nFinal cumulative ACK observed after gap fill.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_initial_ack — DUT did not ack initial out-of-order data\n• Fail_no_final_cumulative_ack — no cumulative ACK after gap fill",
+  "verdicts": {
+    "Pass": "DUT cumulative-acked queued OOO data — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_initial_ack": "No DUT ACK to initial data segment",
+    "Fail_no_final_cumulative_ack": "DUT did not emit cumulative ACK after gap fill"
+  }
+}

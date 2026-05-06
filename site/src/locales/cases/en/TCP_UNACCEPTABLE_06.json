@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP in ESTABLISHED sends an ACK indicating the correct SEQ number after receiving a SYN with seq out of window (RFC 793 §3.4 p34)",
+  "approach": "[Objective]\nA SYN arriving on an established connection (with OTW seq) is anomalous — DUT must reply with a corrective ACK announcing its expected SEQ. RFC 793 §3.4 mandates this for the OTW-SYN shape specifically.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: SYN with OTW seq.\n3. Observation: DUT → Tester: ACK with proper SEQ.\n\n[Pass condition]\nDUT corrective ACK observed.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_otw_syn_ack — no DUT ACK to OTW SYN",
+  "verdicts": {
+    "Pass": "DUT corrective-acked OTW SYN in EST — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK within listen window",
+    "Fail_no_otw_syn_ack": "No DUT ACK to OTW SYN"
+  }
+}

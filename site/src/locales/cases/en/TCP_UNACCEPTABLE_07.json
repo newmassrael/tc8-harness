@@ -1,0 +1,8 @@
+{
+  "description": "Verify that TCP in LISTEN sends a RST after receiving a spurious SYN,ACK (RFC 793 §3.4 p35)",
+  "approach": "[Objective]\nA SYN,ACK arriving at LISTEN is unsolicited (DUT didn't send a SYN). RFC 793 §3.4 requires DUT to reply with RST.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN,ACK.\n3. Observation: DUT → Tester: RST.\n\n[Pass condition]\nDUT RST observed.\n\n[Fail condition]\n• Fail_timeout — no DUT RST",
+  "verdicts": {
+    "Pass": "DUT replied RST to spurious LISTEN SYN,ACK — normal",
+    "Fail_timeout": "No DUT RST to LISTEN SYN,ACK"
+  }
+}

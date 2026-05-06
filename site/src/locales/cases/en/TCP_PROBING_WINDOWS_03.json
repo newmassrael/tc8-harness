@@ -1,0 +1,11 @@
+{
+  "description": "Verify that DUT TCP is robust against window shrinking — when usable window becomes negative, DUT must not transmit beyond the previously emitted range (RFC 1122 §4.2.2.16, RFC 793 §3.7)",
+  "approach": "[Objective]\nWindow shrinking happens when the peer reduces its advertised window after data is in flight. RFC 1122 §4.2.2.16 says DUT must not retransmit or send new data past the originally agreed limit.\n\n[Scenario — chronological]\n1. Handshake with large window.\n2. DUT sends segment 1, 2, 3 (filling the window).\n3. Tester → DUT: window-shrink ACK that makes usable window negative.\n4. Observation: DUT must NOT emit any segment past the original sent range.\n\n[Pass condition]\nNo DUT segment past the shrunk window.\n\n[Fail condition]\n• Fail_no_seg<n> — segment n missing\n• Fail_dut_sent_past_shrunk_window — DUT crossed the line",
+  "verdicts": {
+    "Pass": "DUT honoured window shrink — normal",
+    "Fail_no_seg1": "No DUT first data segment",
+    "Fail_no_seg2": "No DUT second data segment",
+    "Fail_no_seg3": "No DUT third data segment",
+    "Fail_dut_sent_past_shrunk_window": "DUT sent segment past shrunk window negative usable_win"
+  }
+}

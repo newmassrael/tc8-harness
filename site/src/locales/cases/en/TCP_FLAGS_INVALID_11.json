@@ -1,0 +1,22 @@
+{
+  "description": "Verify that TCP in CLOSE-WAIT sends an ACK with next expected SEQ after receiving any segment with OTW SEQ number (RFC 793 §3.9 p69). 5 iterations exercise flag set ∈ {SYN, SYN+ACK, ACK, FIN, data}",
+  "approach": "[Objective]\nOut-of-window (OTW) SEQ means the seg.seq is outside the receive window. RFC 793 §3.9 mandates DUT reply with an ACK announcing the SEQ it actually expects — so the peer can resync. The flag set on the OTW segment doesn't matter (SYN, ACK, FIN, data — same response).\n\n[Scenario — chronological]\nFor each phase (per flag set), DUT is driven to CLOSE-WAIT (close-wait ACK must precede), then tester injects an OTW-SEQ segment with that phase's flags. DUT must reply with the proper-SEQ ACK.\n\n[Pass condition]\nAll phases observe the correct probe ACK.\n\n[Fail condition]\nPer-phase: Fail_p<n>_no_handshake_ack / Fail_p<n>_no_probe_ack.",
+  "verdicts": {
+    "Pass": "DUT acked OTW-SEQ probe in all flag-variant phases — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1",
+    "Fail_p1_no_close_wait_ack": "No DUT no close wait ack phase 1",
+    "Fail_p1_no_probe_ack": "No DUT ACK to OTW-SEQ probe phase 1",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2",
+    "Fail_p2_no_close_wait_ack": "No DUT no close wait ack phase 2",
+    "Fail_p2_no_probe_ack": "No DUT ACK to OTW-SEQ probe phase 2",
+    "Fail_p3_no_handshake_ack": "No DUT handshake ACK phase 3",
+    "Fail_p3_no_close_wait_ack": "No DUT no close wait ack phase 3",
+    "Fail_p3_no_probe_ack": "No DUT ACK to OTW-SEQ probe phase 3",
+    "Fail_p4_no_handshake_ack": "No DUT handshake ACK phase 4",
+    "Fail_p4_no_close_wait_ack": "No DUT no close wait ack phase 4",
+    "Fail_p4_no_probe_ack": "No DUT ACK to OTW-SEQ probe phase 4",
+    "Fail_p5_no_handshake_ack": "No DUT handshake ACK phase 5",
+    "Fail_p5_no_close_wait_ack": "No DUT no close wait ack phase 5",
+    "Fail_p5_no_probe_ack": "No DUT ACK to OTW-SEQ probe phase 5"
+  }
+}

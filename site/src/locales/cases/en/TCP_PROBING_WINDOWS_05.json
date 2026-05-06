@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT TCP sends the first zero-window probe after the retransmission timeout when the receive window remains zero (RFC 1122 §4.2.2.17)",
+  "approach": "[Objective]\nThe initial probe timing: DUT must wait at least one RTO before its first zero-window probe — not immediately, not arbitrarily late.\n\n[Scenario — chronological]\n1. Handshake; DUT sends data; tester ACKs with zero window.\n2. Wait until ≥ 1 RTO elapsed.\n3. Observation: DUT → Tester: zero-window probe within the RTO window.\n\n[Pass condition]\nDUT-emitted probe arrives within the RTO window.\n\n[Fail condition]\n• Fail_no_seg1 — first data segment missing\n• Fail_no_zero_window_probe — no probe within RTO window",
+  "verdicts": {
+    "Pass": "DUT emitted first probe at RTO — normal",
+    "Fail_no_seg1": "No DUT first data segment",
+    "Fail_no_zero_window_probe": "No DUT zero-window probe within RTO window"
+  }
+}

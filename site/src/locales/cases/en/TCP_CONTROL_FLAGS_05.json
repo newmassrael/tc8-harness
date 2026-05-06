@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT receives a TCP packet with the URG flag set and replies with an ACK whose ack_num is the expected value (RFC 4413 §4.2.4)",
+  "approach": "[Objective]\nThe URG flag does not change ACK semantics — DUT must still acknowledge the data normally. Urgent processing happens above TCP; the ack_num must cover all received bytes.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data segment with URG=1 + payload.\n3. Observation: DUT → Tester: ACK with ack_num covering the urgent payload.\n\n[Pass condition]\nDUT acks the URG segment with the correct ack_num.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_urg_ack — DUT did not ack URG segment\n• Fail_wrong_ack_num — ACK does not cover URG payload",
+  "verdicts": {
+    "Pass": "DUT acked URG-flagged data with correct ack_num — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_urg_ack": "No DUT ACK to URG segment",
+    "Fail_wrong_ack_num": "DUT ack_num does not acknowledge URG payload"
+  }
+}

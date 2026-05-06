@@ -1,0 +1,12 @@
+{
+  "description": "Verify that TCP in FIN-WAIT-2 honours RECEIVE calls and ACKs incoming data while remaining in FIN-WAIT-2 (RFC 793 §3.5 p38)",
+  "approach": "[Objective]\nFW2 is FW1 + the peer's ACK of DUT's FIN. The half-open direction is still readable; DUT must continue to ack incoming data and stay in FW2 until the peer FINs.\n\n[Scenario — chronological]\n1. Handshake → CLOSE → FW1 → tester ACKs DUT FIN → FW2.\n2. Tester → DUT: data segment.\n3. Observation: DUT acks data, no FIN/RST emission, stays in FW2.\n\n[Pass condition]\nDUT acks data + remains in FW2.\n\n[Fail condition]\n• Fail_no_handshake_ack / Fail_no_dut_fin — prelude broken\n• Fail_no_dut_data_ack — DUT did not ACK in FW2\n• Fail_dut_left_fw2 — DUT emitted FIN or RST (illegal in FW2)\n• Fail_no_proper_data — wrong payload reported",
+  "verdicts": {
+    "Pass": "DUT acked data and stayed in FIN-WAIT-2 — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_dut_fin": "No DUT CLOSE FIN",
+    "Fail_no_dut_data_ack": "No DUT ACK to received data in FW2",
+    "Fail_dut_left_fw2": "DUT emitted FIN or RST in FW2",
+    "Fail_no_proper_data": "DUT did not receive proper data in FW2"
+  }
+}

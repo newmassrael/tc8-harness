@@ -1,0 +1,8 @@
+{
+  "description": "DUT의 receive MSS가 RFC 1122 §4.2.2.6 기본값과 다를 때 active-OPEN SYN에서 MSS != 536을 광고하는지 검증",
+  "approach": "[검증 목적]\nDUT이 536 기본값보다 큰 세그먼트를 받을 수 있으면 peer에게 알려야 한다(MUST) — 아니면 peer가 대역폭을 낭비한다.\n\n[시나리오 — 시간순]\n1. DUT receive MSS이 non-536 값(예: 1460)으로 구성.\n2. 테스터 (UT) → DUT: active OPEN 호출.\n3. DUT → 테스터: SYN.\n4. 관찰: SYN의 MSS option ≠ 536.\n\n[통과 조건]\nDUT 발신 MSS option이 non-default 값.\n\n[실패 조건]\n• Fail_timeout — non-default MSS의 DUT SYN 없음",
+  "verdicts": {
+    "Pass": "DUT이 non-default MSS 광고 — 정상",
+    "Fail_timeout": "non-default MSS 포함 DUT SYN 없음"
+  }
+}

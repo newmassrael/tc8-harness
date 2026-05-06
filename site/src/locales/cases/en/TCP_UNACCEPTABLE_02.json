@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP does NOT change state on receiving an unacceptable RST in SYN-RCVD (RFC 793 §3.4 p33)",
+  "approach": "[Objective]\nNegative companion of UNACCEPTABLE_01: a RST whose seq is outside the expected window cannot be authenticated → DUT must ignore it and stay in SYN-RCVD.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: SYN → DUT → Tester: SYN,ACK (SYN-RCVD).\n3. Tester → DUT: unacceptable RST (out-of-window seq).\n4. Observation: DUT must NOT emit RST.\n\n[Pass condition]\nNo DUT RST after unacceptable RST.\n\n[Fail condition]\n• Fail_timeout_first_synack — first SYN,ACK missing\n• Fail_unexpected_rst — DUT mistakenly emitted RST",
+  "verdicts": {
+    "Pass": "DUT ignored unacceptable RST in SYN-RCVD — normal",
+    "Fail_timeout_first_synack": "No DUT SYN,ACK to first tester SYN",
+    "Fail_unexpected_rst": "DUT emitted RST after unacceptable RST"
+  }
+}

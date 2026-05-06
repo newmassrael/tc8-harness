@@ -1,0 +1,10 @@
+{
+  "description": "Verify that DUT TCP uses RTO = 1 sec initially (RFC 6298 §2.1)",
+  "approach": "[Objective]\nRFC 6298 §2.1 sets the spec-default initial RTO at 1 s — used until the first RTT sample arrives.\n\n[Scenario — chronological]\n1. DUT active OPEN → DUT → Tester: SYN.\n2. Tester drops the SYN.\n3. Observation: DUT SYN retx after ~1 s.\n\n[Pass condition]\nSYN retx interval within RFC 6298 initial window centred on 1 s.\n\n[Fail condition]\n• Fail_no_first_syn — initial SYN missing\n• Fail_no_syn_retx — no SYN retx\n• Fail_rto_out_of_window — RTO out of bounds",
+  "verdicts": {
+    "Pass": "DUT initial RTO ≈ 1 s — normal",
+    "Fail_no_first_syn": "No DUT first SYN",
+    "Fail_no_syn_retx": "No DUT SYN retransmit within listen window",
+    "Fail_rto_out_of_window": "SYN retransmit RTO out of RFC 6298 window"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "DUT accepts a TCP packet with valid header fields and ACKs with the expected ack_num (RFC 793 §3.9)",
+  "approach": "[Objective]\nThe positive baseline for header acceptance: a well-formed segment with payload must be acked correctly. Anchors HEADER_07/08/09 negative cases.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: well-formed data segment.\n3. Observation: DUT → Tester: ACK with ack_num covering payload.\n\n[Pass condition]\nDUT acks the data with correct ack_num.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_data_ack — DUT did not ack data\n• Fail_wrong_ack_num — ACK does not cover payload",
+  "verdicts": {
+    "Pass": "DUT acked valid data with correct ack_num — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_data_ack": "No DUT ACK to valid data",
+    "Fail_wrong_ack_num": "DUT ack_num does not acknowledge payload"
+  }
+}

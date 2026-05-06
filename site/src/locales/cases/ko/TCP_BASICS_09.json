@@ -1,0 +1,9 @@
+{
+  "description": "TCP가 LAST-ACK에서 자신이 보낸 FIN에 대한 ACK을 받고 CLOSED로 이동하는지 검증 (RFC 793 §3.2 p23 Terminology)",
+  "approach": "[검증 목적]\npassive-close 경로의 마지막 leg: peer의 ACK에 LAST-ACK → CLOSED. 소켓 정리는 이후 probe에 RST이 나오는지(살아있는 소켓이 없으므로)로 검증한다.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake; 테스터 FIN; DUT이 CLOSE-WAIT 진입; 사용자 CLOSE → DUT FIN 발신, LAST-ACK 진입.\n2. 테스터 → DUT: DUT FIN의 ACK → DUT이 CLOSED 도달해야 함.\n3. 테스터 → DUT: probe 세그먼트.\n4. 관찰: DUT → 테스터: RST (CLOSED 상태 응답)   ← 핵심 확인 지점\n\n[통과 조건]\nDUT이 post-CLOSE probe에 RST 발신 (정리 완료 증명).\n\n[실패 조건]\n• Fail_timeout_fin — LAST-ACK 진입 DUT FIN 없음\n• Fail_timeout_rst — CLOSED에서 DUT RST 없음",
+  "verdicts": {
+    "Pass": "DUT이 CLOSED로 정리 — 정상",
+    "Fail_timeout_fin": "LAST-ACK 진입 DUT FIN 없음",
+    "Fail_timeout_rst": "CLOSED에서 DUT RST 없음"
+  }
+}

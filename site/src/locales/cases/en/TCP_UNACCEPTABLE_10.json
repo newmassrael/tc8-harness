@@ -1,0 +1,10 @@
+{
+  "description": "Verify that TCP in FIN-WAIT-2 returns ACK with proper SEQ/ACK numbers after receiving a segment with OTW SEQ or unacceptable ACK (RFC 793 §3.4 p37)",
+  "approach": "[Objective]\nMirror of UNACCEPTABLE_09 for FW2.\n\n[Scenario — chronological]\n1. Handshake → CLOSE → FW1 → tester ACK → FW2.\n2. Tester sends OTW-SEQ data.\n3. DUT corrective ACK.\n\n[Pass condition]\nDUT-emitted corrective ACK observed.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_dut_fin — no DUT FIN\n• Fail_no_data_ack — no DUT corrective ACK",
+  "verdicts": {
+    "Pass": "DUT corrective-acked in FW2 — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK within listen window",
+    "Fail_no_dut_fin": "No DUT FIN within listen window",
+    "Fail_no_data_ack": "No DUT ACK to OTW-SEQ in FW2"
+  }
+}

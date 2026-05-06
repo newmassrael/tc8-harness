@@ -1,0 +1,8 @@
+{
+  "description": "Verify that TCP in SYN-SENT sends a RST after receiving a segment with an unacceptable ACK number (RFC 793 §3.4 p36)",
+  "approach": "[Objective]\nIn SYN-SENT, the SYN,ACK that DUT expects must have ack_num = DUT's SYN+1. If the ack_num is unacceptable, DUT replies with RST to abort the bogus attempt.\n\n[Scenario — chronological]\n1. DUT active OPEN → SYN-SENT.\n2. Tester → DUT: SYN,ACK with unacceptable ack_num.\n3. Observation: DUT → Tester: RST.\n\n[Pass condition]\nDUT RST observed.\n\n[Fail condition]\n• Fail_timeout — no DUT RST",
+  "verdicts": {
+    "Pass": "DUT replied RST to unacceptable-ack SYN,ACK in SYN-SENT — normal",
+    "Fail_timeout": "No DUT RST to SYN,ACK with unacceptable ack"
+  }
+}

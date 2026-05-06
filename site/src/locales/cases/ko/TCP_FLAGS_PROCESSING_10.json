@@ -1,0 +1,11 @@
+{
+  "description": "DUT이 ESTABLISHED에서 윈도우를 열고 ack 가능한 데이터를 제공하는 ACK+payload 주입 시 큐의 data 세그먼트에 acknowledgement를 piggyback하는지 검증 — 0.5 sec 이내 (RFC 793 §3.9 SHOULD)",
+  "approach": "[검증 목적]\nDUT이 보낼 data 세그먼트가 있고 ack할 신규 데이터도 있을 때, 효율적인 구현은 pure ACK 대신 outgoing data에 ACK을 piggyback한다. RFC 793 §3.9는 0.5 s 이내를 요구한다.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. DUT → 테스터: 첫 data 세그먼트 (윈도우 가득).\n3. 두 번째 세그먼트 전에 테스터가 ACK+payload 발신 (윈도우 열고 데이터 제공).\n4. 관찰: DUT → 테스터: 500 ms 내 piggyback 세그먼트, ack_num이 테스터 payload cover.\n\n[통과 조건]\nDUT이 500 ms 내 piggyback 발신.\n\n[실패 조건]\n• Fail_no_first_data — DUT 첫 세그먼트 미발신\n• Fail_dut_sent_second_segment_before_ack — DUT이 앞서 두 번째 세그먼트 발신\n• Fail_no_piggyback — 500 ms 내 piggyback 없음\n• Fail_wrong_piggyback_ack — piggyback ack_num이 테스터 payload cover 못함",
+  "verdicts": {
+    "Pass": "DUT이 다음 data 세그먼트에 ACK piggyback — 정상",
+    "Fail_no_first_data": "DUT 첫 data 세그먼트 없음",
+    "Fail_dut_sent_second_segment_before_ack": "DUT이 piggyback inject 전 두 번째 세그먼트 발신",
+    "Fail_no_piggyback": "500 ms 내 DUT piggyback 세그먼트 없음",
+    "Fail_wrong_piggyback_ack": "DUT piggyback ack_num이 테스터 payload acknowledge 못함"
+  }
+}

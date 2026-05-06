@@ -1,0 +1,13 @@
+{
+  "description": "DUT TCP가 연속된 zero-window probe 간 간격을 exponential하게 증가시키는지 검증 (RFC 1122 §4.2.2.17)",
+  "approach": "[검증 목적]\nRTO backoff처럼 zero-window probe도 지속적으로 가득 찬 peer에 대한 stress를 줄이기 위해 exponential backoff. RFC 1122 §4.2.2.17은 doubling을 권고(SHOULD).\n\n[시나리오 — 시간순]\n1. handshake → data → zero-window 상태.\n2. probe #1, #2, #3 발신; 테스터 zero-window 유지.\n3. 관찰: Δt(probe2-probe1) > 초기 RTO; Δt(probe3-probe2) > Δt(probe2-probe1).\n\n[통과 조건]\nProbe 간격이 strictly 증가.\n\n[실패 조건]\n• Fail_no_seg1 — 첫 data 세그먼트 누락\n• Fail_no_probe<n> — probe n 누락\n• Fail_probe2_not_doubled — probe 2 delta가 초기 RTO보다 크지 않음\n• Fail_probe3_not_doubled — probe 3 delta가 probe 2 하한보다 크지 않음",
+  "verdicts": {
+    "Pass": "DUT zero-window probe 간격이 doubling — 정상",
+    "Fail_no_seg1": "DUT 첫 data 세그먼트 없음",
+    "Fail_no_probe1": "DUT zero-window probe 1 없음",
+    "Fail_no_probe2": "DUT zero-window probe 2 없음",
+    "Fail_no_probe3": "DUT zero-window probe 3 없음",
+    "Fail_probe2_not_doubled": "probe 2 delta가 초기 probe RTO보다 크지 않음",
+    "Fail_probe3_not_doubled": "probe 3 delta가 probe 2 하한보다 크지 않음"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP does NOT move from TIME-WAIT to CLOSED before 2*MSL expires, with TIME-WAIT reached through CLOSING (NEGATIVE — RFC 793 §3.2)",
+  "approach": "[Objective]\nNegative companion of BASICS_12: same not-yet-CLOSED check but the path into TIME-WAIT is CLOSING (simultaneous close).\n\n[Scenario — chronological]\n1. driveCloseToTimeWaitClosing prelude → DUT in TIME-WAIT.\n2. Wait < 2*MSL.\n3. Tester → DUT: replayed FIN.\n4. Observation: DUT → Tester: ACK   ← key check\n\n[Pass condition]\nDUT acks the replayed FIN before 2*MSL.\n\n[Fail condition]\n• Fail_no_handshake_ack / Fail_no_close_fin / Fail_no_closing_ack — prelude broken\n• Fail_no_replay_ack — no DUT ACK to replay (state moved early)",
+  "verdicts": {
+    "Pass": "DUT still in TIME-WAIT before 2*MSL (CLOSING) — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_close_fin": "No DUT CLOSE FIN",
+    "Fail_no_closing_ack": "No DUT ACK in CLOSING transition",
+    "Fail_no_replay_ack": "No DUT ACK to replay FIN in TIME-WAIT via CLOSING"
+  }
+}

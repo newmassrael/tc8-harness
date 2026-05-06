@@ -1,0 +1,15 @@
+{
+  "description": "Verify that TCP in LAST-ACK returns ACK with proper SEQ/ACK numbers after receiving a segment with OTW SEQ or unacceptable ACK (RFC 793 §3.4 p37). 2 iterations exercise CASE 1 (OTW SEQ) and CASE 2 (unacc ACK)",
+  "approach": "[Objective]\nMirror of UNACCEPTABLE_11 for LAST-ACK (passive-close path).\n\n[Scenario — chronological]\nTwo phases. For each: tester FIN first → DUT enters CLOSE-WAIT → user CLOSE → DUT FIN → LAST-ACK. Then tester injects OTW-SEQ / unacc-ACK. DUT corrective ACK.\n\n[Pass condition]\nBoth phases produce corrective ACKs.\n\n[Fail condition]\nPer phase: handshake / close-wait ACK / DUT FIN / probe ACK missing.",
+  "verdicts": {
+    "Pass": "DUT corrective-acked in LAST-ACK (OTW + unacc) — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1",
+    "Fail_p1_no_close_wait_ack": "No DUT close-wait ACK phase 1",
+    "Fail_p1_no_dut_fin": "No DUT FIN phase 1",
+    "Fail_p1_no_probe_ack": "No DUT ACK to OTW-SEQ in LAST-ACK",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2",
+    "Fail_p2_no_close_wait_ack": "No DUT close-wait ACK phase 2",
+    "Fail_p2_no_dut_fin": "No DUT FIN phase 2",
+    "Fail_p2_no_probe_ack": "No DUT ACK to unacceptable ACK in LAST-ACK"
+  }
+}

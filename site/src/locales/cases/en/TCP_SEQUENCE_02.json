@@ -1,0 +1,9 @@
+{
+  "description": "Verify that from SYN-SENT, DUT acknowledges tester ISN by emitting ACK with ack_num == tester_seq + 1 (RFC 793 §3.4)",
+  "approach": "[Objective]\nMirror of SEQUENCE_01 for active OPEN: DUT in SYN-SENT receives SYN,ACK from tester → DUT third-leg ACK has ack_num = tester_seq + 1.\n\n[Scenario — chronological]\n1. DUT active OPEN → SYN.\n2. Tester → DUT: SYN,ACK with seq=I.\n3. Observation: DUT → Tester: ACK with ack_num == I+1.\n\n[Pass condition]\nDUT ACK ack_num == tester seq + 1.\n\n[Fail condition]\n• Fail_wrong_ack_num — ack_num mismatch\n• Fail_timeout — no DUT ACK",
+  "verdicts": {
+    "Pass": "DUT third-leg ACK ack_num = ISN+1 — normal",
+    "Fail_wrong_ack_num": "DUT ack_num does not acknowledge tester ISN",
+    "Fail_timeout": "No DUT ACK to SYN,ACK within listen window"
+  }
+}

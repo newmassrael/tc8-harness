@@ -1,0 +1,10 @@
+{
+  "description": "Verify that a single passive socket accepts SYNs from 3 distinct remote source ports and replies SYN,ACK on each (RFC 793 §3.4)",
+  "approach": "[Objective]\nOne LISTENing socket can host multiple simultaneous connections, distinguished by the remote 4-tuple. Each new SYN with a different source port spawns a separate connection.\n\n[Scenario — chronological]\n1. DUT in LISTEN on port P.\n2. Tester → DUT: SYN from src_port S1, S2, S3 (sequentially or interleaved).\n3. Observation: DUT → Tester: SYN,ACK for each leg.\n\n[Pass condition]\nDUT emits SYN,ACK for all 3 legs.\n\n[Fail condition]\n• Fail_timeout_leg<n> — no DUT SYN,ACK for the corresponding leg",
+  "verdicts": {
+    "Pass": "DUT acked SYN from 3 distinct source ports — normal",
+    "Fail_timeout_leg1": "No DUT SYN,ACK for leg 1",
+    "Fail_timeout_leg2": "No DUT SYN,ACK for leg 2",
+    "Fail_timeout_leg3": "No DUT SYN,ACK for leg 3"
+  }
+}

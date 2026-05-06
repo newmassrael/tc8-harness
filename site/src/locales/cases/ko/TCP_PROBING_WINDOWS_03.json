@@ -1,0 +1,11 @@
+{
+  "description": "DUT TCP가 window shrinking에 robust한지 검증 — usable window가 음수가 됐을 때 이전에 emit된 범위를 넘어 송신하지 않는지 (RFC 1122 §4.2.2.16, RFC 793 §3.7)",
+  "approach": "[검증 목적]\nwindow shrinking은 peer가 데이터가 in-flight인 상태에서 광고 window를 줄일 때 발생. RFC 1122 §4.2.2.16은 DUT이 원래 합의된 limit을 넘어 재전송하거나 새 데이터를 보내지 않도록 한다.\n\n[시나리오 — 시간순]\n1. 큰 window로 handshake.\n2. DUT이 세그먼트 1, 2, 3 송신 (window 채움).\n3. 테스터 → DUT: usable window를 음수로 만드는 window-shrink ACK.\n4. 관찰: DUT은 원래 sent 범위를 넘어 어떤 세그먼트도 발신 금지.\n\n[통과 조건]\nshrunk window 너머 DUT 세그먼트 없음.\n\n[실패 조건]\n• Fail_no_seg<n> — 세그먼트 n 누락\n• Fail_dut_sent_past_shrunk_window — DUT이 선을 넘음",
+  "verdicts": {
+    "Pass": "DUT이 window shrink 준수 — 정상",
+    "Fail_no_seg1": "DUT 첫 data 세그먼트 없음",
+    "Fail_no_seg2": "DUT 두 번째 data 세그먼트 없음",
+    "Fail_no_seg3": "DUT 세 번째 data 세그먼트 없음",
+    "Fail_dut_sent_past_shrunk_window": "DUT이 shrunk window 넘어 세그먼트 발신"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "description": "Verify that DUT TCP increases exponentially the interval between successive zero-window probes (RFC 1122 §4.2.2.17)",
+  "approach": "[Objective]\nLike RTO backoff, zero-window probes back off exponentially to reduce stress on a peer that's persistently full. RFC 1122 §4.2.2.17 says SHOULD double.\n\n[Scenario — chronological]\n1. Handshake → data → zero-window state.\n2. Probe #1, #2, #3 emitted; tester remains in zero-window.\n3. Observation: Δt(probe2-probe1) > initial RTO; Δt(probe3-probe2) > Δt(probe2-probe1).\n\n[Pass condition]\nProbe intervals strictly grow.\n\n[Fail condition]\n• Fail_no_seg1 — first data segment missing\n• Fail_no_probe<n> — probe n missing\n• Fail_probe2_not_doubled — probe 2 delta not greater than initial RTO\n• Fail_probe3_not_doubled — probe 3 delta not greater than probe 2 lower bound",
+  "verdicts": {
+    "Pass": "DUT zero-window probe intervals doubled — normal",
+    "Fail_no_seg1": "No DUT first data segment",
+    "Fail_no_probe1": "No DUT zero-window probe 1",
+    "Fail_no_probe2": "No DUT zero-window probe 2",
+    "Fail_no_probe3": "No DUT zero-window probe 3",
+    "Fail_probe2_not_doubled": "Probe 2 delta not greater than initial probe RTO",
+    "Fail_probe3_not_doubled": "Probe 3 delta not greater than probe 2 lower bound"
+  }
+}

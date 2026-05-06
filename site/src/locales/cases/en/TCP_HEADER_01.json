@@ -1,0 +1,9 @@
+{
+  "description": "DUT generates a TCP packet containing valid header field values (RFC 793 §3.1 Header Format)",
+  "approach": "[Objective]\nA DUT-emitted segment must have a structurally valid TCP header — Data Offset ≥ 5, valid checksum, sane flags. This case checks the entire header gestalt of an outgoing segment.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. DUT → Tester: data segment.\n3. Observation: validate header structurally.\n\n[Pass condition]\nDUT-emitted segment has well-formed header.\n\n[Fail condition]\n• Fail_bad_header — header has invalid fields\n• Fail_timeout — no DUT data segment within listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted segment header valid — normal",
+    "Fail_bad_header": "DUT emitted segment with invalid header",
+    "Fail_timeout": "No DUT data segment within listen window"
+  }
+}

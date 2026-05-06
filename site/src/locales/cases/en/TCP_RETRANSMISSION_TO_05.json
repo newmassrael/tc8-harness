@@ -1,0 +1,14 @@
+{
+  "description": "Verify that DUT TCP includes exponential backoff for successive RTO values for SYN segments (RFC 1122 §4.2.3.1, RFC 6298 §5)",
+  "approach": "[Objective]\nSame backoff requirement as RETRANSMISSION_TO_04 but for SYN retransmits during active OPEN.\n\n[Scenario — chronological]\n1. DUT active OPEN → DUT → Tester: SYN.\n2. Tester drops all SYNs.\n3. DUT retransmits: syn_retx_1, _2, _3.\n4. Observation: intervals strictly grow.\n\n[Pass condition]\nIntervals doubling.\n\n[Fail condition]\n• Fail_no_first_syn — initial SYN missing\n• Fail_no_syn_retx_<n> — retransmit n missing\n• Fail_initial_rto_out_of_window — first retx interval outside RFC 6298 initial window\n• Fail_retx<n>_not_doubled — interval n not larger than n-1",
+  "verdicts": {
+    "Pass": "DUT SYN RTO exponential — normal",
+    "Fail_no_first_syn": "No DUT first SYN",
+    "Fail_no_syn_retx_1": "No DUT SYN retransmit 1",
+    "Fail_no_syn_retx_2": "No DUT SYN retransmit 2",
+    "Fail_no_syn_retx_3": "No DUT SYN retransmit 3",
+    "Fail_initial_rto_out_of_window": "SYN retx 1 RTO out of RFC 6298 initial window",
+    "Fail_retx2_not_doubled": "SYN retx 2 delta not greater than initial RTO",
+    "Fail_retx3_not_doubled": "SYN retx 3 delta not greater than retx 2 lower bound"
+  }
+}

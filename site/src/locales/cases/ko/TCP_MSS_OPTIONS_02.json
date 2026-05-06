@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 SYN의 NOP와 EOL 옵션을 수용하고 handshake를 완료하는지 검증 (RFC 1122 §4.2.2.5 p85)",
+  "approach": "[검증 목적]\nNOP(kind=1, length 없음)와 EOL(kind=0, option list 종료)은 universal padding/terminator. DUT은 혼란 없이 이를 걸어 넘어야 한다.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. 테스터 → DUT: NOP+EOL(및 MSS)을 포함한 options 블롭의 SYN.\n3. 관찰: DUT → 테스터: SYN,ACK + DUT이 ESTABLISHED 도달.\n\n[통과 조건]\nDUT handshake 완료.\n\n[실패 조건]\n• Fail_not_established — DUT이 ESTABLISHED 도달 못함\n• Fail_timeout — DUT SYN,ACK 없음",
+  "verdicts": {
+    "Pass": "DUT이 NOP+EOL 옵션 수용 — 정상",
+    "Fail_not_established": "DUT이 ESTABLISHED 도달 못함",
+    "Fail_timeout": "listen 윈도우 내 DUT SYN,ACK 없음"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "TCP가 SYN-RCVD에서 acceptable RST 수신 시 LISTEN으로 복귀하는지 검증 (RFC 793 §3.4 p33)",
+  "approach": "[검증 목적]\nSYN-RCVD에서 acceptable RST(예상 sequence space와 일치)은 peer가 handshake 완료 전에 abort했음을 의미. DUT은 LISTEN으로 복귀, listening 소켓을 close하지 않아야 한다.\n\n[시나리오 — 시간순]\n1. DUT이 LISTEN.\n2. 테스터 → DUT: SYN → DUT → 테스터: SYN,ACK (DUT SYN-RCVD).\n3. 테스터 → DUT: acceptable RST.\n4. 테스터 → DUT: 새 SYN → DUT → 테스터: SYN,ACK (LISTEN 생존).\n\n[통과 조건]\nLISTEN 소켓 생존 + 새 SYN 응답.\n\n[실패 조건]\n• Fail_timeout_first_synack — 첫 SYN,ACK 누락\n• Fail_timeout_second_synack — LISTEN이 새 SYN에 응답 못함",
+  "verdicts": {
+    "Pass": "DUT이 acceptable RST에 LISTEN 복귀 — 정상",
+    "Fail_timeout_first_synack": "첫 테스터 SYN에 대한 DUT SYN,ACK 없음",
+    "Fail_timeout_second_synack": "acceptable RST 후 DUT SYN,ACK 없음"
+  }
+}

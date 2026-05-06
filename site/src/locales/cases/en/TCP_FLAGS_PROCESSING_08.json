@@ -1,0 +1,12 @@
+{
+  "description": "Verify that TCP in CLOSED / LISTEN / SYN-SENT does not process a FIN: CLOSED replies RST, LISTEN / SYN-SENT silently drop (RFC 793 §3.9 p75). 3 iterations exercise wst ∈ {CLOSED, LISTEN, SYN-SENT}",
+  "approach": "[Objective]\nA FIN before any connection makes no sense. CLOSED replies RST (consistent with BASICS_04). LISTEN / SYN-SENT silently drop — there's no half-open connection to close.\n\n[Scenario — chronological]\nThree iterations:\n• Phase 1: DUT in CLOSED → tester FIN → DUT replies RST seq=0.\n• Phase 2: DUT in LISTEN → tester FIN → no DUT response.\n• Phase 3: DUT in SYN-SENT → tester FIN → no DUT response.\n\n[Pass condition]\nPhase 1 DUT RST seq=0; phases 2/3 silent.\n\n[Fail condition]\nPer phase: corresponding Fail_p<n>_*.",
+  "verdicts": {
+    "Pass": "DUT handled FIN per state — normal",
+    "Fail_p1_no_dut_rst": "No DUT RST to FIN in CLOSED",
+    "Fail_p1_wrong_seq": "DUT RST seq not zero after FIN in CLOSED",
+    "Fail_p2_unexpected_response": "DUT response to FIN in LISTEN",
+    "Fail_p3_no_dut_syn": "No DUT SYN to active OPEN phase 3",
+    "Fail_p3_unexpected_response": "DUT response to FIN in SYN-SENT"
+  }
+}

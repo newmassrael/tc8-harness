@@ -1,0 +1,12 @@
+{
+  "description": "Verify that DUT TCP uses 2*MSL upper bound on data-segment RTO (RFC 1122 §4.2.3.1 p96 SHOULD)",
+  "approach": "[Objective]\nRTO must cap at some upper bound — without one the back-off would grow forever. RFC 1122 §4.2.3.1 SHOULDs 2*MSL. Linux uses tcp_rto_max=120 s which equals 2*60 s MSL.\n\n[Scenario — chronological]\n1. Handshake → DUT data → tester drops all.\n2. DUT retransmits with doubling RTO.\n3. After many doublings: TCP_INFO query → RTO should plateau at ≤ 2*MSL.\n\n[Pass condition]\nRTO plateau at 2*MSL (or smaller).\n\n[Fail condition]\n• Fail_handshake_did_not_complete\n• Fail_query_failed — TCP_INFO query failed\n• Fail_no_retx — no retransmits observed in kernel\n• Fail_rto_above_2msl_cap — RTO exceeds 2*MSL\n• Fail_rto_below_2msl_cap — observation budget exhausted before plateau",
+  "verdicts": {
+    "Pass": "DUT data RTO plateaued at 2*MSL — normal",
+    "Fail_handshake_did_not_complete": "DUT handshake did not complete",
+    "Fail_query_failed": "TCP_INFO query failed",
+    "Fail_no_retx": "No retransmits observed in kernel",
+    "Fail_rto_above_2msl_cap": "RTO plateau above 2*MSL (Linux RTO max 120 s exceeds spec)",
+    "Fail_rto_below_2msl_cap": "RTO below 2*MSL did not plateau within observation budget"
+  }
+}

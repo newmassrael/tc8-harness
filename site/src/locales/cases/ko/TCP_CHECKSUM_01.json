@@ -1,0 +1,9 @@
+{
+  "description": "수신자 TCP가 checksum을 검사하고 오류가 없으면 acknowledge하는지 검증 (RFC 1122 §4.2.2.7 p86)",
+  "approach": "[검증 목적]\nTCP checksum positive baseline: well-formed 세그먼트는 ACK되어야 한다. CHECKSUM_02의 negative 짝의 anchor.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. 테스터 → DUT: 정확한 checksum의 data 세그먼트.\n3. 관찰: DUT → 테스터: ACK.\n\n[통과 조건]\nDUT이 correct-checksum data를 ACK.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_no_data_ack — DUT이 correct-checksum data를 ACK하지 않음",
+  "verdicts": {
+    "Pass": "DUT이 correct-checksum data ACK — 정상",
+    "Fail_no_handshake_ack": "listen 윈도우 내 DUT handshake ACK 없음",
+    "Fail_no_data_ack": "correct-checksum data에 대한 DUT ACK 없음"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "TCP가 데이터를 포함한 RST 세그먼트를 수용하고 silent하게 CLOSED로 전이하는지 검증 (RFC 1122 §4.2.2.12 p87 / RFC 793 §3.4)",
+  "approach": "[검증 목적]\npayload를 운반하는 RST은 드물지만 합법이다. RFC 1122 §4.2.2.12는 수신자가 처리하도록 권고한다(SHOULD): data 폐기, silent CLOSED 전이 — 응답 패킷 없음 (있으면 공격자가 RST+data 주입으로 트래픽 유도 가능).\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. 테스터 → DUT: RST + data.\n3. 관찰: DUT 즉시 응답 금지; 이후 verify-probe에 RST 응답 (CLOSED 도달).\n\n[통과 조건]\nRST+data에 대한 즉시 응답 없음; verify-probe RST 받음.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_dut_response_to_rst — DUT이 RST+data에 응답\n• Fail_no_verify_rst — DUT이 CLOSED 도달 못함 (verify-probe RST 없음)",
+  "verdicts": {
+    "Pass": "DUT이 RST+data로 silent CLOSED 전이 — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_dut_response_to_rst": "EST의 RST+data에 DUT 응답",
+    "Fail_no_verify_rst": "EST의 RST+data 후 DUT RST 없음"
+  }
+}

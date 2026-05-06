@@ -1,0 +1,9 @@
+{
+  "description": "DUT handles an illegal MSS option length in a SYN without crashing (RFC 1122 §4.2.2.5 p85). Iterations: ilen=0 and ilen=5",
+  "approach": "[Objective]\nThe MSS option's legal length is 4 bytes (1 kind + 1 length + 2 mss). ilen=0 or ilen=5 is illegal. DUT must reject the option but not crash — likely defaulting MSS or dropping the SYN.\n\n[Scenario — chronological]\nTwo iterations: tester sends SYN with MSS option of length 0 and length 5. DUT must either complete handshake (rejecting the option silently) or refuse the connection — but never crash.\n\n[Pass condition]\nDUT survives both phases (reaches ESTABLISHED OR sends a clean RST).\n\n[Fail condition]\n• Fail_not_established — no progress / crash\n• Fail_timeout — no DUT SYN,ACK within listen window",
+  "verdicts": {
+    "Pass": "DUT survived illegal MSS length — normal",
+    "Fail_not_established": "DUT did not reach ESTABLISHED",
+    "Fail_timeout": "No DUT SYN,ACK within listen window"
+  }
+}

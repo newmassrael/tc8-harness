@@ -1,0 +1,12 @@
+{
+  "description": "TCP가 CLOSE-WAIT에서 RECEIVE 호출에 큐 데이터를 애플리케이션에 반환하는지 검증 (RFC 793 §3.9 p59 Event Processing)",
+  "approach": "[검증 목적]\nclose-wait 상태도 여전히 half-open connection: 로컬 앱은 이미 버퍼된 데이터를 읽을 수 있다. payload가 있는 PSH+FIN+ACK 세그먼트로 DUT을 CLOSE-WAIT로 유도하고 read를 prime한다.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. 테스터 → DUT: payload가 있는 PSH+FIN+ACK (DUT이 CLOSE-WAIT 진입).\n3. 테스터 (UT) → DUT: RECEIVE 호출.\n4. 관찰: DUT이 데이터 ACK, CLOSE-WAIT 유지(FIN/RST 없음), 버퍼된 바이트 반환.\n\n[통과 조건]\nDUT이 데이터 ACK + 정확한 payload 보고 + CLOSE-WAIT 유지.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_no_dut_data_ack — CW의 FIN+data에 대한 DUT ACK 없음\n• Fail_dut_rst_in_cw — DUT이 CW에서 RST 발신\n• Fail_dut_fin_in_cw — CLOSE 없이 CW에서 DUT이 FIN 발신\n• Fail_no_proper_data — 잘못된 payload 보고",
+  "verdicts": {
+    "Pass": "DUT이 CLOSE-WAIT에서 버퍼된 데이터 반환 — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_dut_data_ack": "CW에서 받은 FIN+data에 대한 DUT ACK 없음",
+    "Fail_dut_rst_in_cw": "CW에서 DUT이 RST 발신",
+    "Fail_dut_fin_in_cw": "CLOSE 없이 CW에서 DUT이 FIN 발신",
+    "Fail_no_proper_data": "CW에서 DUT 데이터 수신 오류"
+  }
+}

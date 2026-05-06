@@ -1,0 +1,11 @@
+{
+  "description": "TCP가 CLOSED에서 ACK을 운반하는 non-RST 세그먼트에 대해 들어온 세그먼트의 ACK을 seq으로 하는 RST으로 응답하는지 검증 (RFC 793 §3.9 p65 Event Processing)",
+  "approach": "[검증 목적]\nBASICS_04의 짝: unsolicited 세그먼트가 ACK을 운반하면, RST의 seq은 그 ACK 값으로 설정된다(사용할 수 있는 유일한 sequence-신뢰 정보).\n\n[시나리오 — 시간순]\n1. DUT이 CLOSED.\n2. 테스터 → DUT: SYN,ACK(ack=K), bare ACK(ack=K).\n3. 관찰: DUT → 테스터: seq == K인 RST   ← 핵심 확인 지점\n\n[통과 조건]\nDUT이 들어온 ACK 값과 같은 seq의 RST 발신.\n\n[실패 조건]\n• Fail_wrong_seq_<probe> — RST seq이 들어온 ACK과 일치하지 않음\n• Fail_timeout_<probe> — probe 후 DUT RST 없음",
+  "verdicts": {
+    "Pass": "DUT이 ACK-운반 probe에 seq=ACK인 RST 발신 — 정상",
+    "Fail_wrong_seq_synack": "DUT RST seq이 synack ack이 아님",
+    "Fail_wrong_seq_ack": "DUT RST seq이 ack-phase ack이 아님",
+    "Fail_timeout_synack": "SYN,ACK 후 DUT RST 없음",
+    "Fail_timeout_ack": "ACK 후 DUT RST 없음"
+  }
+}

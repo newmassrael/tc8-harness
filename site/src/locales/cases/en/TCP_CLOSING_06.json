@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP in ESTABLISHED sends a FIN segment when the local user issues a CLOSE call (RFC 793 §3.5 p38)",
+  "approach": "[Objective]\nThe canonical active-close trigger: from ESTABLISHED, user CLOSE → FIN on the wire and FIN-WAIT-1 entry.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester (UT) → DUT: CLOSE call.\n3. Observation: DUT → Tester: FIN.\n\n[Pass condition]\nDUT-emitted FIN observed.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_dut_fin — DUT did not emit FIN on CLOSE",
+  "verdicts": {
+    "Pass": "DUT emitted FIN on CLOSE from ESTABLISHED — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_dut_fin": "No DUT CLOSE FIN"
+  }
+}

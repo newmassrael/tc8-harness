@@ -1,0 +1,10 @@
+{
+  "description": "DUT이 Reserved 필드가 0인 TCP 패킷을 수용하는지 검증 (RFC 793 §3.1, RFC 4413 §4.2.3)",
+  "approach": "[검증 목적]\nReserved 필드는 공식적으로 0. RFC 793 §3.1 / RFC 4413 §4.2.3은 송신자는 0으로 설정, 수신자는 수용을 요구한다. positive baseline — HEADER_06이 nonzero(역시 수용, 무시)를 다룬다.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake.\n2. 테스터 → DUT: Reserved=0 data.\n3. 관찰: DUT이 정확한 ack_num으로 ACK.\n\n[통과 조건]\nDUT이 data를 정상 ACK.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_no_data_ack — DUT data ACK 없음\n• Fail_wrong_ack_num — ACK이 payload cover 못함",
+  "verdicts": {
+    "Pass": "DUT이 Reserved=0 data ACK — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_data_ack": "reserved-zero data에 대한 DUT ACK 없음",
+    "Fail_wrong_ack_num": "DUT ack_num이 payload acknowledge 못함"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that TCP allows a received RST segment to include data and transitions to CLOSED silently (RFC 1122 §4.2.2.12 p87 / RFC 793 §3.4)",
+  "approach": "[Objective]\nA RST that carries payload is unusual but legal. RFC 1122 §4.2.2.12 says receivers SHOULD process it: drop the data, transition to CLOSED silently — no response packet (otherwise an attacker could induce traffic by injecting RST+data).\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: RST + data.\n3. Observation: DUT must NOT respond; verify-probe afterwards elicits a RST (DUT moved to CLOSED).\n\n[Pass condition]\nNo immediate DUT response to the RST+data; verify-probe gets RST.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_dut_response_to_rst — DUT responded to RST+data\n• Fail_no_verify_rst — DUT did not move to CLOSED (no RST to verify-probe)",
+  "verdicts": {
+    "Pass": "DUT silently transitioned to CLOSED on RST+data — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_dut_response_to_rst": "DUT emitted response to RST with data in EST",
+    "Fail_no_verify_rst": "DUT did not emit RST after RST with data in EST"
+  }
+}

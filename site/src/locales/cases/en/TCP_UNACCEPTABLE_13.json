@@ -1,0 +1,15 @@
+{
+  "description": "Verify that TCP in TIME-WAIT returns ACK with proper SEQ/ACK numbers after receiving a segment with OTW SEQ or unacceptable ACK (RFC 793 §3.4 p37)",
+  "approach": "[Objective]\nMirror of UNACCEPTABLE_11/_12 for TIME-WAIT (active-close + ACK of peer FIN).\n\n[Scenario — chronological]\nTwo phases. For each: handshake → CLOSE → FW1 → tester ACK + FIN → DUT TIME-WAIT. Then tester injects OTW-SEQ / unacc-ACK. DUT corrective ACK.\n\n[Pass condition]\nBoth phases produce corrective ACKs.\n\n[Fail condition]\nPer phase: handshake / DUT FIN / tester FIN ACK / probe ACK missing.",
+  "verdicts": {
+    "Pass": "DUT corrective-acked in TIME-WAIT (OTW + unacc) — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1",
+    "Fail_p1_no_dut_fin": "No DUT FIN phase 1",
+    "Fail_p1_no_tester_fin_ack": "No DUT ACK to tester FIN phase 1",
+    "Fail_p1_no_probe_ack": "No DUT ACK to OTW-SEQ in TIME-WAIT",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2",
+    "Fail_p2_no_dut_fin": "No DUT FIN phase 2",
+    "Fail_p2_no_tester_fin_ack": "No DUT ACK to tester FIN phase 2",
+    "Fail_p2_no_probe_ack": "No DUT ACK to unacceptable ACK in TIME-WAIT"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 테스터 주입 data 세그먼트에 대해 payload를 cover하는 ack_num의 pure ACK으로 응답하는지 검증 (RFC 793 p74)",
+  "approach": "[검증 목적]\nbaseline ACK-for-data 검사: handshake 후 DUT이 ESTABLISHED에서 data 세그먼트를 받고 받은 바이트를 cover하는 ack_num의 pure ACK을 발신해야 한다. RFC 793 p74가 이를 강제한다.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: 3-way handshake.\n2. 테스터 → DUT: data 세그먼트 (ACK + payload).\n3. 관찰: DUT → 테스터: pure ACK\n   • ack_num == seg.seq + payload_len   ← 핵심 확인 지점\n\n[통과 조건]\nDUT 발신 ACK의 ack_num이 payload 이후 sequence number와 같음.\n\n[실패 조건]\n• Fail_no_data_ack — data에 대한 DUT ACK 없음\n• Fail_wrong_ack_num — ACK 값이 payload를 cover하지 못함",
+  "verdicts": {
+    "Pass": "DUT이 정확한 ack_num으로 data를 acknowledge — 정상",
+    "Fail_no_data_ack": "data에 대한 DUT ACK 없음",
+    "Fail_wrong_ack_num": "DUT ack_num이 payload를 acknowledge하지 못함"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "description": "Verify that TCP in CLOSING returns ACK with proper SEQ/ACK numbers after receiving a segment with OTW SEQ or unacceptable ACK number (RFC 793 §3.4 p37). 2 iterations exercise CASE 1 (OTW SEQ) and CASE 2 (unacc ACK)",
+  "approach": "[Objective]\nCLOSING is the simultaneous-close state. Same OTW/unacc-ACK corrective-ACK rule as EST/FW1/FW2.\n\n[Scenario — chronological]\nTwo phases. For each: drive DUT through handshake → CLOSE → FW1 → tester FIN → CLOSING. Then tester sends OTW-SEQ (phase 1) or unacc-ACK (phase 2). DUT corrective ACK.\n\n[Pass condition]\nBoth phases produce corrective ACKs.\n\n[Fail condition]\nPer phase: handshake / CLOSE FIN / closing ACK / probe ACK missing.",
+  "verdicts": {
+    "Pass": "DUT corrective-acked in CLOSING (OTW + unacc) — normal",
+    "Fail_p1_no_handshake_ack": "No DUT handshake ACK phase 1",
+    "Fail_p1_no_close_fin": "No DUT CLOSE FIN phase 1",
+    "Fail_p1_no_closing_ack": "No DUT ACK in CLOSING transition phase 1",
+    "Fail_p1_no_probe_ack": "No DUT ACK to OTW-SEQ in CLOSING",
+    "Fail_p2_no_handshake_ack": "No DUT handshake ACK phase 2",
+    "Fail_p2_no_close_fin": "No DUT CLOSE FIN phase 2",
+    "Fail_p2_no_closing_ack": "No DUT ACK in CLOSING transition phase 2",
+    "Fail_p2_no_probe_ack": "No DUT ACK to unacceptable ACK in CLOSING"
+  }
+}

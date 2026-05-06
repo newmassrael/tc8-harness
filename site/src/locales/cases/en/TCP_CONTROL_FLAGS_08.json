@@ -1,0 +1,9 @@
+{
+  "description": "Verify recovery from old duplicate SYN: DUT in LISTEN replies SYN,ACK to a stale SYN, consumes a tester-injected RST with believable seq, returns to LISTEN, and replies SYN,ACK to a fresh SYN (RFC 793 §3.4 figure 9)",
+  "approach": "[Objective]\nFigure 9 in RFC 793: a stale (old duplicate) SYN reaches the LISTEN socket → SYN,ACK is sent → the real peer replies RST (because the SYN,ACK is unexpected) → DUT must accept the RST + return to LISTEN → fresh SYN works.\n\n[Scenario — chronological]\n1. DUT in LISTEN.\n2. Tester → DUT: stale SYN.\n3. DUT → Tester: SYN,ACK.\n4. Tester → DUT: RST with believable seq (= the SYN,ACK's ack_num).\n5. Tester → DUT: fresh SYN.\n6. Observation: DUT → Tester: SYN,ACK to the fresh SYN (LISTEN socket survived).\n\n[Pass condition]\nBoth SYN,ACKs observed.\n\n[Fail condition]\n• Fail_no_first_syn_ack — DUT did not reply to the stale SYN\n• Fail_no_second_syn_ack — DUT did not reply to the fresh SYN (LISTEN socket lost)",
+  "verdicts": {
+    "Pass": "DUT recovered from old duplicate SYN — normal",
+    "Fail_no_first_syn_ack": "No DUT SYN,ACK to first SYN",
+    "Fail_no_second_syn_ack": "No DUT SYN,ACK after old duplicate recovery"
+  }
+}

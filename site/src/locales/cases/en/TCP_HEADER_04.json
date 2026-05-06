@@ -1,0 +1,9 @@
+{
+  "description": "DUT discards a TCP packet whose source port differs from the established peer's port (RFC 793 §3.1 / §3.9 4-tuple demux)",
+  "approach": "[Objective]\nTCP demuxes by 4-tuple (src_ip, src_port, dst_ip, dst_port). A segment with a different src_port doesn't match the established connection — it must be dropped (or trigger RST per CLOSED-state rules).\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake on src_port=K.\n2. Tester → DUT: data segment with src_port=K' (≠K).\n3. Observation: DUT must NOT acknowledge the data on the established socket.\n\n[Pass condition]\nNo ACK to wrong-source-port data.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_unexpected_ack — DUT acked the wrong-port segment",
+  "verdicts": {
+    "Pass": "DUT discarded wrong-source-port segment — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_unexpected_ack": "DUT acked segment with wrong source port"
+  }
+}

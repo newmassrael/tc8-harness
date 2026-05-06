@@ -1,0 +1,11 @@
+{
+  "description": "Verify that TCP in SYN-SENT drops a segment with neither SYN nor RST and remains in the same state (RFC 793 §3.9 p68). 2 iterations exercise stp ∈ {no data, data}",
+  "approach": "[Objective]\nA bare ACK (or ACK+payload) in SYN-SENT is meaningless — DUT hasn't established sequence numbers yet. RFC 793 §3.9 says drop, no response.\n\n[Scenario — chronological]\nTwo iterations:\n• Phase 1: tester emits bare ACK with acceptable ack.\n• Phase 2: tester emits ACK+payload with acceptable ack.\nFor each: DUT must not respond.\n\n[Pass condition]\nNo DUT response in either phase.\n\n[Fail condition]\n• Fail_p<n>_no_dut_syn — phase n SYN missing\n• Fail_p<n>_unexpected_response — phase n DUT responded",
+  "verdicts": {
+    "Pass": "DUT silently dropped bare ACK and ACK+payload in SYN-SENT — normal",
+    "Fail_p1_no_dut_syn": "No DUT SYN phase 1 bare ACK",
+    "Fail_p1_unexpected_response": "DUT emitted response to bare ACK with acceptable ack",
+    "Fail_p2_no_dut_syn": "No DUT SYN phase 2 ACK with payload",
+    "Fail_p2_unexpected_response": "DUT emitted response to ACK with payload acceptable ack"
+  }
+}

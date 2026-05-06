@@ -1,0 +1,9 @@
+{
+  "description": "Verify that TCP in ESTABLISHED returns ACK with proper SEQ/ACK numbers after receiving a segment with OTW SEQ or unacceptable ACK (RFC 793 §3.4 p37)",
+  "approach": "[Objective]\nIn ESTABLISHED, an OTW-SEQ or unacceptable-ACK segment must trigger a corrective ACK announcing the SEQ DUT actually expects — same as FLAGS_INVALID_08 but stated from §3.4's perspective.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data with OTW SEQ.\n3. Observation: DUT → Tester: ACK with proper SEQ.\n\n[Pass condition]\nDUT-emitted corrective ACK observed.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_otw_seq_ack — no DUT ACK to OTW-SEQ data",
+  "verdicts": {
+    "Pass": "DUT corrective-acked OTW-SEQ in EST — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK within listen window",
+    "Fail_no_otw_seq_ack": "No DUT ACK to OTW-SEQ data"
+  }
+}

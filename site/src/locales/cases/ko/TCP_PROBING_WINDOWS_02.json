@@ -1,0 +1,9 @@
+{
+  "description": "DUT TCP가 receive window를 unsigned 16-bit 숫자로 취급하는지 검증 — MSB-set 광고 window로 송신을 거부하지 않는지 (RFC 1122 §4.2.2.3 p83)",
+  "approach": "[검증 목적]\nWindow 필드는 unsigned 16-bit. signed 산술을 쓰는 순진한 parser는 MSB-set 값을 음수로 취급해 송신을 거부한다. RFC 1122 §4.2.2.3 / RFC 793 §3.1은 unsigned 해석을 강제.\n\n[시나리오 — 시간순]\n1. 테스터 ⇄ DUT: handshake; 테스터가 MSB가 set된 Window 값 광고 (예: 0x8000+).\n2. DUT (UT) → DUT: SEND 호출.\n3. 관찰: DUT → 테스터: data 세그먼트.\n\n[통과 조건]\nDUT이 MSB-set window에도 data 발신.\n\n[실패 조건]\n• Fail_no_handshake_ack — handshake 미완료\n• Fail_no_dut_data_segment — MSB window 후 DUT data 미발신",
+  "verdicts": {
+    "Pass": "DUT이 unsigned-16 receive window 준수 — 정상",
+    "Fail_no_handshake_ack": "DUT handshake ACK 없음",
+    "Fail_no_dut_data_segment": "MSB-set window 광고 후 DUT data 미발신"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that data following the urgent pointer (non-urgent data) is NOT delivered to the user in the same buffer as the preceding urgent data (RFC 793 §3.7 Interfaces)",
+  "approach": "[Objective]\nUrgent data must be split off into its own out-of-band buffer; non-urgent data following it must arrive in the regular data stream — not co-mingled in one application read.\n\n[Scenario — chronological]\n1. Tester ⇄ DUT: handshake.\n2. Tester → DUT: data segment with URG=1, urgent pointer pointing past some prefix bytes; segment also carries non-urgent suffix bytes.\n3. Observation: DUT separates urgent prefix from non-urgent suffix in two distinct read buffers.\n\n[Pass condition]\nUT verifies that the urgent and non-urgent bytes were delivered separately.\n\n[Fail condition]\n• Fail_no_handshake_ack — handshake never completed\n• Fail_no_proper_urgent_data — DUT did not isolate urgent data",
+  "verdicts": {
+    "Pass": "DUT isolated urgent vs non-urgent data — normal",
+    "Fail_no_handshake_ack": "No DUT handshake ACK",
+    "Fail_no_proper_urgent_data": "DUT did not isolate urgent data"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "description": "DUT receives an MSS option in a SYN,ACK and clamps the effective send segment size to min(advertised, DUT_MSS) (RFC 1122 §4.2.2.5 p85). Iterations: Mv=200 (smaller), Mv=2000 (larger)",
+  "approach": "[Objective]\nMirror of MSS_OPTIONS_06 from the active-OPEN side: DUT learns peer's MSS from the SYN,ACK in SYN-SENT.\n\n[Scenario — chronological]\nTwo phases — DUT active OPEN; tester replies SYN,ACK with MSS Mv ∈ {200, 2000}; DUT subsequent data segments observed.\n\n[Pass condition]\nPhase 1 size ≤ 200; phase 2 size = DUT_MSS (1460).\n\n[Fail condition]\nPer phase: Fail_wrong_size_phase<n> or Fail_timeout_phase<n>.",
+  "verdicts": {
+    "Pass": "DUT clamped send size from SYN,ACK MSS — normal",
+    "Fail_wrong_size_phase1": "Phase 1 segment size not advertised MSS 200",
+    "Fail_wrong_size_phase2": "Phase 2 segment size not DUT MSS 1460",
+    "Fail_timeout_phase1": "No DUT data segment phase 1 Mv=200",
+    "Fail_timeout_phase2": "No DUT data segment phase 2 Mv=2000"
+  }
+}

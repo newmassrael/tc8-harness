@@ -1,0 +1,11 @@
+{
+  "description": "TCP가 SYN-SENT에서 ACK+RST + acceptable ACK 번호를 받고 CLOSED로 이동하는지 검증 (RFC 793 §3.9 p67). 2 iteration이 flag set ∈ {SYN+ACK, ACK}과 RST를 함께 시험",
+  "approach": "[검증 목적]\nFLAGS_INVALID_03의 짝: SYN-SENT의 ACK+RST이 valid ack(DUT SYN을 ACK)를 운반하면, DUT은 수용하고 close해야 한다 — 표준 'connection refused' 응답.\n\n[시나리오 — 시간순]\n2 iteration:\n• Phase 1: 테스터가 acceptable ack의 SYN+ACK+RST 발신.\n• Phase 2: 테스터가 acceptable ack의 ACK+RST 발신.\n각각: DUT active OPEN → DUT SYN 관찰 → 테스터 주입 → DUT close (verify-probe RST).\n\n[통과 조건]\n두 phase 모두 DUT close.\n\n[실패 조건]\n• Fail_p<n>_no_dut_syn — phase n SYN 없음\n• Fail_p<n>_dut_continued — phase n DUT close되지 않음",
+  "verdicts": {
+    "Pass": "DUT이 두 phase 모두 acceptable ack ACK+RST으로 close — 정상",
+    "Fail_p1_no_dut_syn": "phase 1 SYN+ACK+RST DUT SYN 없음",
+    "Fail_p1_dut_continued": "acceptable ack SYN+ACK+RST으로 DUT close되지 않음",
+    "Fail_p2_no_dut_syn": "phase 2 ACK+RST DUT SYN 없음",
+    "Fail_p2_dut_continued": "acceptable ack ACK+RST으로 DUT close되지 않음"
+  }
+}
