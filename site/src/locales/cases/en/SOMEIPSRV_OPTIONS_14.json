@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the Port Number field of the IPv4 Multicast Option is eventgroup multicast port (SOME/IP-SD §5.1.2)",
+  "approach": "[Objective]\nWire-format invariant for the IPv4 Multicast Option: Port Number == eventgroup multicast port.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message containing the option (typically an OfferService).\nObservation: option's Port Number field == eventgroup multicast port.   ← key check\n\n[Pass condition]\nPort Number on the wire equals eventgroup multicast port.\n\n[Fail condition]\n• Fail_port — IPv4 multicast port mismatch\n• Fail_timeout — no qualifying SD message within listen window",
+  "verdicts": {
+    "Pass": "IPv4 Multicast Option Port Number = eventgroup multicast port — normal",
+    "Fail_port": "IPv4 multicast port mismatch",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

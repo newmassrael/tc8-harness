@@ -1,0 +1,9 @@
+{
+  "description": "Verify that SubscribeEventgroupNack echoes Instance/Eventgroup/Major/Reserved fields",
+  "approach": "[Objective]\nSubscribeEventgroupNack echoes Instance/Eventgroup/Major/Reserved fields.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message (OfferService / Subscribe Ack / Nack). The harness captures it and validates the asserted property byte-precisely.\n\n[Pass condition]\nThe asserted property holds on the wire.\n\n[Fail condition]\nFail_<state> per the listed verdicts; Fail_timeout if no qualifying SD message arrived.",
+  "verdicts": {
+    "Pass": "Nack echoed all fields — normal",
+    "Fail_echo_fields": "Nack entry echo fields mismatch",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

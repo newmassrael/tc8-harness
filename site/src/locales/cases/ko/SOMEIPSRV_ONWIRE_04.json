@@ -1,0 +1,10 @@
+{
+  "description": "Response 도착 후 Request ID 재사용 가능 — DUT이 두 Request 모두에 응답하는지",
+  "approach": "[검증 목적]\nResponse 도착 후 Request ID 재사용 가능 — DUT이 두 Request 모두에 응답하는지. 케이스는 OfferService prelude 완료, Method Request 발신, 결과 Response 검증.\nRequest ID 재사용은 합법; DUT은 두 번째 호출을 silent drop하지 말고 응답해야 함\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: Method Request (또는 Error trigger).\n3. 관찰: DUT → 테스터: 주장된 속성의 Method Response.   ← 핵심 확인 지점\n\n[통과 조건]\nResponse 필드가 spec invariant 충족.\n\n[실패 조건]\nphase별: Fail_phase1_no_offer / Fail_phase2_* / Fail_phase2_no_response.",
+  "verdicts": {
+    "Pass": "DUT이 재사용 Request ID에 응답 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_no_first_response": "listen 윈도우 내 첫 Response 없음",
+    "Fail_phase3_no_second_response": "DUT이 재사용 Request ID의 두 번째 request silent drop"
+  }
+}

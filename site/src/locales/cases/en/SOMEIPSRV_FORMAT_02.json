@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the Session ID of the notification is 0x0001 after SD init",
+  "approach": "[Objective]\nThis case asserts a single SOME/IP-SD wire-format invariant: Session ID must equal 0x0001 after SD init. The harness drives DUT to emit a qualifying notification, captures it, and validates the field byte-precisely.\n\n[Scenario — chronological]\n1. Tester drives DUT to emit a notification (typically by completing OfferService prelude or sending a stimulus message).\n2. Observation: captured notification's Session ID == 0x0001 after SD init   ← key check\n\n[Pass condition]\nSession ID on the wire equals 0x0001 after SD init.\n\n[Fail condition]\n• Fail_session_id — Session ID not 0x0001\n• Fail_timeout — DUT did not emit a qualifying notification within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted Session ID == 0x0001 after SD init — normal",
+    "Fail_session_id": "Session ID not 0x0001",
+    "Fail_timeout": "No qualifying notification within listen window"
+  }
+}

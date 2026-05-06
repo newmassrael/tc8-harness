@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the Type field of the IPv4 Endpoint Option is 0x04 (SOME/IP-SD §5.1.2)",
+  "approach": "[Objective]\nWire-format invariant for the IPv4 Endpoint Option: Type == 0x04.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message containing the option (typically an OfferService).\nObservation: option's Type field == 0x04.   ← key check\n\n[Pass condition]\nType on the wire equals 0x04.\n\n[Fail condition]\n• Fail_type — Non-IPv4-endpoint option present in offer\n• Fail_timeout — no qualifying SD message within listen window",
+  "verdicts": {
+    "Pass": "IPv4 Endpoint Option Type = 0x04 — normal",
+    "Fail_type": "Non-IPv4-endpoint option present in offer",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

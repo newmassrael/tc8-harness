@@ -1,0 +1,9 @@
+{
+  "description": "OfferService entry Minor Version이 SdServerServiceMinorVersion 운반을(를) 검증",
+  "approach": "[검증 목적]\nOfferService entry Minor Version이 SdServerServiceMinorVersion 운반. Minor Version invariant (FORMAT_18과 같지만 OfferService 자체에서).\n\n[시나리오 — 시간순]\nDUT이 qualifying SD message(OfferService / Subscribe Ack / Nack) 발신. 하네스가 캡처해 주장된 속성을 byte 단위로 검증.\n\n[통과 조건]\n주장된 속성이 와이어에 성립.\n\n[실패 조건]\n나열된 verdict별 Fail_<state>; qualifying SD message가 도착하지 않으면 Fail_timeout.",
+  "verdicts": {
+    "Pass": "OfferService entry Minor Version이 config와 일치 — 정상",
+    "Fail_minor_version": "Offer entry minor_version 불일치",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

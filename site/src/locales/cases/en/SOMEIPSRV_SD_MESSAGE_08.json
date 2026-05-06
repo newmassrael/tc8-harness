@@ -1,0 +1,9 @@
+{
+  "description": "Verify that OfferService carries at least one IPv4 Endpoint Option",
+  "approach": "[Objective]\nOfferService carries at least one IPv4 Endpoint Option.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message (OfferService / Subscribe Ack / Nack). The harness captures it and validates the asserted property byte-precisely.\n\n[Pass condition]\nThe asserted property holds on the wire.\n\n[Fail condition]\nFail_<state> per the listed verdicts; Fail_timeout if no qualifying SD message arrived.",
+  "verdicts": {
+    "Pass": "OfferService carries IPv4 endpoint — normal",
+    "Fail_endpoint_count": "Offer carries no IPv4 endpoint option",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

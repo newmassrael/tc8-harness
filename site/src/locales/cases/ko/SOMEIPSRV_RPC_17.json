@@ -1,0 +1,10 @@
+{
+  "description": "Multi-instance Method Response가 instance별 별도 TCP port에서 송출을(를) 검증",
+  "approach": "[검증 목적]\nMulti-instance Method Response가 instance별 별도 TCP port에서 송출. RPC_14의 TCP 짝.\n\n[시나리오 — 시간순]\nDUT이 서비스 offer; 테스터가 Method Request(또는 특정 자극) 전송; 결과 와이어 응답을 spec 속성에 대해 검증.\n\n[통과 조건]\nResponse / 동작이 주장된 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "두 instance가 서로 다른 TCP port에서 응답 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 distinct TCP port의 two-entry offer 없음",
+    "Fail_phase2_no_response_from_instance_1": "instance 1 TCP port 30501에서 Response 없음",
+    "Fail_phase3_no_response_from_instance_2": "instance 2 TCP port 30503에서 Response 없음"
+  }
+}

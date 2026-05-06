@@ -1,0 +1,9 @@
+{
+  "description": "notification의 Interface Version가 0x01을(를) 검증",
+  "approach": "[검증 목적]\n이 케이스는 단일 SOME/IP-SD 와이어-포맷 invariant를 확인한다: Interface Version는 0x01와 같아야 한다. 하네스는 DUT이 qualifying notification을(를) 발신하도록 유도하고, 캡처해 필드를 byte 단위로 검증한다.\n\n[시나리오 — 시간순]\n1. 테스터가 DUT을 자극해 notification을(를) 발신시킴 (보통 OfferService prelude 완료 또는 자극 메시지 전송).\n2. 관찰: 캡처된 notification의 Interface Version == 0x01   ← 핵심 확인 지점\n\n[통과 조건]\n와이어상 Interface Version가 0x01와 같음.\n\n[실패 조건]\n• Fail_interface_version — interface version이 0x01이 아님\n• Fail_timeout — listen 윈도우 내 DUT이 qualifying notification 미발신",
+  "verdicts": {
+    "Pass": "DUT 발신 Interface Version == 0x01 — 정상",
+    "Fail_interface_version": "interface version이 0x01이 아님",
+    "Fail_timeout": "listen 윈도우 내 qualifying notification 없음"
+  }
+}

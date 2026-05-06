@@ -1,0 +1,9 @@
+{
+  "description": "Verify that a service is identified by its Service-ID — DUT emits OfferService and replies to a Method Request with a matching Response (SOME/IP §5.1.4)",
+  "approach": "[Objective]\nThe baseline check that DUT can play a SOME/IP server role: it advertises the service via OfferService and answers method calls. Anchors all other §5.1.4 / §5.1.5 cases.\n\n[Scenario — chronological]\n1. DUT (UT-driven) starts service → DUT → Tester: OfferService (multicast SD on port 30490).\n2. Tester → DUT: Method Request to the offered service.\n3. Observation: DUT → Tester: Method Response.\n\n[Pass condition]\nBoth OfferService and matching Method Response observed.\n\n[Fail condition]\n• Fail_phase1_no_offer — no OfferService\n• Fail_phase2_no_response — no Method Response",
+  "verdicts": {
+    "Pass": "DUT offered service and replied to method request — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_no_response": "No Method Response within listen window"
+  }
+}

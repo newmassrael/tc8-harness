@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Two distinct services advertise the same UDP port",
+  "approach": "[Objective]\nTwo distinct services advertise the same UDP port.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "Two services share same UDP port — normal",
+    "Fail_distinct_udp_ports": "Two services advertise distinct UDP ports (not shared)",
+    "Fail_timeout": "No qualifying OfferService within listen window"
+  }
+}

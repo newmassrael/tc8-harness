@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the L4 Protocol field of the IPv4 Multicast Option is 0x11 (UDP) (SOME/IP-SD §5.1.2)",
+  "approach": "[Objective]\nWire-format invariant for the IPv4 Multicast Option: L4 Protocol == 0x11 (UDP).\n\n[Scenario — chronological]\nDUT emits a qualifying SD message containing the option (typically an OfferService).\nObservation: option's L4 Protocol field == 0x11 (UDP).   ← key check\n\n[Pass condition]\nL4 Protocol on the wire equals 0x11 (UDP).\n\n[Fail condition]\n• Fail_l4_udp — No IPv4 multicast option with UDP L4\n• Fail_timeout — no qualifying SD message within listen window",
+  "verdicts": {
+    "Pass": "IPv4 Multicast Option L4 Protocol = 0x11 (UDP) — normal",
+    "Fail_l4_udp": "No IPv4 multicast option with UDP L4",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

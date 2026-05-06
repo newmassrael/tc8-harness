@@ -1,0 +1,9 @@
+{
+  "description": "Verify that a Unicast Find after >1/2 cyclic_offer_delay → DUT replies with multicast OfferService (SOME/IP-SD §4.2.1)",
+  "approach": "[Objective]\nIn Main Phase, if the time since the last cyclic OfferService is greater than half cyclic_offer_delay, DUT must answer the Unicast Find with a multicast OfferService — this synchronises all listeners on the same wire timing.\n\n[Scenario — chronological]\n1. DUT in Main Phase.\n2. Wait > 1/2 × cyclic_offer_delay since last cyclic offer.\n3. Tester → DUT (unicast): FindService.\n4. Observation: DUT → Tester: OfferService with multicast dst_ip.\n\n[Pass condition]\nDUT-emitted offer is multicast (not unicast back to the requester).\n\n[Fail condition]\n• Fail_offer_not_multicast — DUT replied unicast\n• Fail_no_offer_after_unicast_find — no OfferService at all",
+  "verdicts": {
+    "Pass": "DUT replied multicast to unicast Find — normal",
+    "Fail_offer_not_multicast": "Offer dst_ip not multicast after unicast Find",
+    "Fail_no_offer_after_unicast_find": "No offer within listen window after unicast Find"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that OfferService entry TTL carries SERVICE-ID-1-TTL",
+  "approach": "[Objective]\nOfferService entry TTL carries SERVICE-ID-1-TTL.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message (OfferService / Subscribe Ack / Nack). The harness captures it and validates the asserted property byte-precisely.\n\n[Pass condition]\nThe asserted property holds on the wire.\n\n[Fail condition]\nFail_<state> per the listed verdicts; Fail_timeout if no qualifying SD message arrived.",
+  "verdicts": {
+    "Pass": "OfferService entry TTL matches config — normal",
+    "Fail_ttl": "Offer entry TTL mismatch",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

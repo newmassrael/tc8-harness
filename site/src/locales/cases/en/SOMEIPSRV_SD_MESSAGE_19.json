@@ -1,0 +1,9 @@
+{
+  "description": "Verify that SubscribeEventgroupNack echoes Eventgroup ID for unknown EventGroupID",
+  "approach": "[Objective]\nSubscribeEventgroupNack echoes Eventgroup ID for unknown EventGroupID.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message (OfferService / Subscribe Ack / Nack). The harness captures it and validates the asserted property byte-precisely.\n\n[Pass condition]\nThe asserted property holds on the wire.\n\n[Fail condition]\nFail_<state> per the listed verdicts; Fail_timeout if no qualifying SD message arrived.",
+  "verdicts": {
+    "Pass": "Nack echoed Eventgroup ID — normal",
+    "Fail_eventgroup_id": "Nack entry eventgroup_id not unknown sentinel",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

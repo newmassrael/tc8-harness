@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the Port Number field of the IPv4 Endpoint Option (UDP) is service UDP port (SOME/IP-SD §5.1.2)",
+  "approach": "[Objective]\nWire-format invariant for the IPv4 Endpoint Option (UDP): Port Number == service UDP port.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message containing the option (typically an OfferService).\nObservation: option's Port Number field == service UDP port.   ← key check\n\n[Pass condition]\nPort Number on the wire equals service UDP port.\n\n[Fail condition]\n• Fail_port — IPv4 endpoint UDP port mismatch\n• Fail_timeout — no qualifying SD message within listen window",
+  "verdicts": {
+    "Pass": "IPv4 Endpoint Option (UDP) Port Number = service UDP port — normal",
+    "Fail_port": "IPv4 endpoint UDP port mismatch",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

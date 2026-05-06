@@ -1,0 +1,9 @@
+{
+  "description": "unknown method로의 Fire&Forget가 Error를 반환하지 않는지을(를) 검증",
+  "approach": "[검증 목적]\nunknown method로의 Fire&Forget가 Error를 반환하지 않는지. Fire&Forget는 응답 받지 않으니 unknown method에 대해서도 Error 반환 금지 — silent drop.\n\n[시나리오 — 시간순]\nDUT이 서비스 offer; 테스터가 Method Request(또는 특정 자극) 전송; 결과 와이어 응답을 spec 속성에 대해 검증.\n\n[통과 조건]\nResponse / 동작이 주장된 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 unknown Fire&Forget에 silent — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_error_observed": "DUT이 Fire&Forget unknown method에 error 반환"
+  }
+}

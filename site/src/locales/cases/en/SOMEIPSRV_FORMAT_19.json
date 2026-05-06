@@ -1,0 +1,8 @@
+{
+  "description": "Verify that Type 2 entry Type is 0x07 (SubscribeEventgroupAck or Nack) (SubscribeAck/Nack)",
+  "approach": "[Objective]\nSpec invariant for the SubscribeAck/Nack: Type 2 entry Type == 0x07 (SubscribeEventgroupAck or Nack).\n\n[Scenario — chronological]\nTester drives DUT to emit a SubscribeAck/Nack (typically by sending a Subscribe).\nObservation: captured Type 2 entry Type matches expected.   ← key check\n\n[Pass condition]\nType 2 entry Type == 0x07 (SubscribeEventgroupAck or Nack).\n\n[Fail condition]\n• Fail_timeout — DUT did not emit a qualifying SubscribeAck/Nack within the listen window",
+  "verdicts": {
+    "Pass": "Type 2 entry Type matches expected — normal",
+    "Fail_timeout": "No qualifying SubscribeAck/Nack within listen window"
+  }
+}

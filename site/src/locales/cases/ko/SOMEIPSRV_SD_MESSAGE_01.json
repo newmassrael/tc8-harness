@@ -1,0 +1,9 @@
+{
+  "description": "DUT이 두 instance로 구성됐을 때 OfferService가 두 entry 운반을(를) 검증",
+  "approach": "[검증 목적]\nDUT이 두 instance로 구성됐을 때 OfferService가 두 entry 운반. 한 service에 여러 instance가 있으면 단일 OfferService에 entry 두 개 (per-instance entries).\n\n[시나리오 — 시간순]\nDUT이 qualifying SD message(OfferService / Subscribe Ack / Nack) 발신. 하네스가 캡처해 주장된 속성을 byte 단위로 검증.\n\n[통과 조건]\n주장된 속성이 와이어에 성립.\n\n[실패 조건]\n나열된 verdict별 Fail_<state>; qualifying SD message가 도착하지 않으면 Fail_timeout.",
+  "verdicts": {
+    "Pass": "OfferService가 두 distinct-instance entry 운반 — 정상",
+    "Fail_offer_entries": "OfferService entry가 두 distinct instance 아님",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

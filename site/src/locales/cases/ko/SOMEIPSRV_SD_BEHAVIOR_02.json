@@ -1,0 +1,10 @@
+{
+  "description": "Main Phase OfferService cyclic gap이 cyclic_offer_delay ± tolerance인지 검증 (SOME/IP-SD §4.2.1)",
+  "approach": "[검증 목적]\nRepetition Phase 후 DUT은 고정 cyclic_offer_delay로 OfferService를 발신하는 Main Phase 진입. cadence가 spec invariant.\n\n[시나리오 — 시간순]\n1. DUT이 Main Phase (Repetition Phase 후).\n2. 관찰: DUT → 테스터: cyclic OfferService #1 → #2.\n3. Δt(#2,#1) ≈ cyclic_offer_delay (허용오차 포함).\n\n[통과 조건]\ngap이 cyclic_offer_delay ± tolerance와 일치.\n\n[실패 조건]\n• Fail_phase2_no_first_main_offer — 첫 main offer 누락\n• Fail_phase3_no_second_main_offer — 두 번째 main offer 누락\n• Fail_phase3_cyclic_out_of_tolerance — gap이 범위 밖",
+  "verdicts": {
+    "Pass": "Main phase cyclic gap이 cyclic_offer_delay와 일치 — 정상",
+    "Fail_phase2_no_first_main_offer": "listen 윈도우 내 첫 main phase offer 없음",
+    "Fail_phase3_no_second_main_offer": "listen 윈도우 내 두 번째 main phase offer 없음",
+    "Fail_phase3_cyclic_out_of_tolerance": "Cyclic offer gap이 cyclic_offer_delay 허용오차 밖"
+  }
+}

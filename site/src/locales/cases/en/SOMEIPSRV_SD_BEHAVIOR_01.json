@@ -1,0 +1,11 @@
+{
+  "description": "Verify that Repetition Phase OfferService delay doubles between consecutive emits (SOME/IP-SD §4.2.1)",
+  "approach": "[Objective]\nThe Repetition Phase: after the InitialWait, OfferService is sent at intervals that double — RepBaseDelay, 2×, 4× — until either Repetition count is reached or main phase begins. Doubling is the spec invariant.\n\n[Scenario — chronological]\n1. DUT starts service.\n2. DUT → Tester: OfferService #1 → #2 → #3.\n3. Observation: Δt(#2,#1) ≈ RepBaseDelay; Δt(#3,#2) ≈ 2× RepBaseDelay (with tolerance).\n\n[Pass condition]\nGap doubles within the spec's tolerance band.\n\n[Fail condition]\n• Fail_phase<n>_no_offer<n> — offer n missing\n• Fail_phase3_gap_out_of_tolerance — gap not 2×",
+  "verdicts": {
+    "Pass": "Repetition phase gap doubled — normal",
+    "Fail_phase1_no_offer1": "No first offer within listen window",
+    "Fail_phase2_no_offer2": "No second offer within listen window",
+    "Fail_phase3_no_offer3": "No third offer within listen window",
+    "Fail_phase3_gap_out_of_tolerance": "Repetition phase gap not within 2× rep_base_delay tolerance"
+  }
+}

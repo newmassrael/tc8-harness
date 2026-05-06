@@ -1,0 +1,9 @@
+{
+  "description": "Subscribe Eventgroup entry type(0x06)이 Type 2(0x07) reply를 유발을(를) 검증",
+  "approach": "[검증 목적]\nSubscribe Eventgroup entry type(0x06)이 Type 2(0x07) reply를 유발. Subscribe entry type 0x06 → DUT이 Type 0x07(Ack) entry로 응답. Service ID 일치도 검증.\n\n[시나리오 — 시간순]\nDUT이 qualifying SD message(OfferService / Subscribe Ack / Nack) 발신. 하네스가 캡처해 주장된 속성을 byte 단위로 검증.\n\n[통과 조건]\n주장된 속성이 와이어에 성립.\n\n[실패 조건]\n나열된 verdict별 Fail_<state>; qualifying SD message가 도착하지 않으면 Fail_timeout.",
+  "verdicts": {
+    "Pass": "DUT이 Subscribe에 Type 2(0x07)로 응답 — 정상",
+    "Fail_service_id": "Ack entry service_id 불일치",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

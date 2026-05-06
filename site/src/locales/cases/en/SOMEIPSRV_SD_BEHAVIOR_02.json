@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Main Phase OfferService cyclic gap == cyclic_offer_delay ± tolerance (SOME/IP-SD §4.2.1)",
+  "approach": "[Objective]\nAfter Repetition Phase, DUT enters Main Phase emitting OfferService at fixed cyclic_offer_delay. The cadence is the spec invariant.\n\n[Scenario — chronological]\n1. DUT in Main Phase (after Repetition Phase).\n2. Observation: DUT → Tester: cyclic OfferService #1 → #2.\n3. Δt(#2,#1) ≈ cyclic_offer_delay (within tolerance).\n\n[Pass condition]\nGap matches cyclic_offer_delay ± tolerance.\n\n[Fail condition]\n• Fail_phase2_no_first_main_offer — first main offer missing\n• Fail_phase3_no_second_main_offer — second main offer missing\n• Fail_phase3_cyclic_out_of_tolerance — gap out of bounds",
+  "verdicts": {
+    "Pass": "Main phase cyclic gap matches cyclic_offer_delay — normal",
+    "Fail_phase2_no_first_main_offer": "No first main phase offer within listen window",
+    "Fail_phase3_no_second_main_offer": "No second main phase offer within listen window",
+    "Fail_phase3_cyclic_out_of_tolerance": "Cyclic offer gap not within cyclic_offer_delay tolerance"
+  }
+}

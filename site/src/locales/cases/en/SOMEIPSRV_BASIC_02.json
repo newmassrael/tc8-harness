@@ -1,0 +1,10 @@
+{
+  "description": "Verify that OfferService instance_id is not reserved (0x0000 / 0xFFFF) in reply to a FindService with instance_id=0xFFFF (SOME/IP §5.1.4)",
+  "approach": "[Objective]\nA wildcard FindService (instance_id = ANY = 0xFFFF) asks for any matching service. DUT must reply with a concrete instance_id, never the reserved sentinels 0x0000 or 0xFFFF — those would be ambiguous.\n\n[Scenario — chronological]\n1. Tester → DUT: FindService with instance_id = 0xFFFF.\n2. Observation: DUT → Tester: OfferService\n   • entry instance_id ≠ 0x0000 AND ≠ 0xFFFF   ← key check\n\n[Pass condition]\nOfferService entry carries a non-reserved instance_id.\n\n[Fail condition]\n• Fail_instance_zero — entry uses reserved 0x0000\n• Fail_instance_all — entry uses reserved 0xFFFF\n• Fail_timeout — no OfferService within listen window",
+  "verdicts": {
+    "Pass": "DUT replied with non-reserved instance_id — normal",
+    "Fail_instance_zero": "OfferService instance_id is reserved zero",
+    "Fail_instance_all": "OfferService instance_id is reserved all-ones",
+    "Fail_timeout": "No OfferService within listen window"
+  }
+}

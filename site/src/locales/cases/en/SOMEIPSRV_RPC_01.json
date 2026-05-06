@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Single UDP/TCP transport for all methods of SERVICE-ID-2",
+  "approach": "[Objective]\nSingle UDP/TCP transport for all methods of SERVICE-ID-2.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT replied to SERVICE-ID-2 method on shared transport — normal",
+    "Fail_phase1_no_offer": "No OfferService for SERVICE-ID-2 within listen window",
+    "Fail_phase2_no_response": "No Response for SERVICE-ID-2 method within listen window"
+  }
+}

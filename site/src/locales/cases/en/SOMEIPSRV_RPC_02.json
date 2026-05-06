@@ -1,0 +1,11 @@
+{
+  "description": "Verify that Single transport for all notifications of SERVICE-ID-2",
+  "approach": "[Objective]\nSingle transport for all notifications of SERVICE-ID-2.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT emitted SERVICE-ID-2 notification on shared transport — normal",
+    "Fail_phase1_no_offer": "No OfferService for SERVICE-ID-2 within listen window",
+    "Fail_phase2_subscribe_nacked": "Subscribe nacked (TTL=0)",
+    "Fail_phase2_no_subscribe_ack": "No SubscribeAck within listen window",
+    "Fail_phase3_no_notification": "No notification for SERVICE-ID-2 within listen window"
+  }
+}

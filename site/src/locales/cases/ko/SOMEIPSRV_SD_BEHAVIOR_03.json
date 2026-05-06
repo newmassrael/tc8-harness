@@ -1,0 +1,9 @@
+{
+  "description": ">1/2 cyclic_offer_delay 이후의 Unicast Find → DUT이 multicast OfferService로 응답하는지 검증 (SOME/IP-SD §4.2.1)",
+  "approach": "[검증 목적]\nMain Phase에서 마지막 cyclic OfferService 이후 시간이 cyclic_offer_delay의 절반보다 크면 DUT은 Unicast Find에 multicast OfferService로 응답해야 한다 — 이로써 모든 listener를 같은 wire timing에 동기화.\n\n[시나리오 — 시간순]\n1. DUT이 Main Phase.\n2. 마지막 cyclic offer 이후 > 1/2 × cyclic_offer_delay 대기.\n3. 테스터 → DUT (unicast): FindService.\n4. 관찰: DUT → 테스터: multicast dst_ip의 OfferService.\n\n[통과 조건]\nDUT 발신 offer가 multicast (요청자에게 unicast 아님).\n\n[실패 조건]\n• Fail_offer_not_multicast — DUT이 unicast 응답\n• Fail_no_offer_after_unicast_find — OfferService 자체 없음",
+  "verdicts": {
+    "Pass": "DUT이 unicast Find에 multicast 응답 — 정상",
+    "Fail_offer_not_multicast": "unicast Find 후 offer dst_ip가 multicast 아님",
+    "Fail_no_offer_after_unicast_find": "unicast Find 후 listen 윈도우 내 offer 없음"
+  }
+}

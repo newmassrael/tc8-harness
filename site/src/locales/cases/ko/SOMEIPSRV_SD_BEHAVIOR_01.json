@@ -1,0 +1,11 @@
+{
+  "description": "Repetition Phase OfferService 지연이 연속 emit 간 두 배로 증가하는지 검증 (SOME/IP-SD §4.2.1)",
+  "approach": "[검증 목적]\nRepetition Phase: InitialWait 후 OfferService가 두 배로 증가하는 간격으로 — RepBaseDelay, 2×, 4× — Repetition count 도달 또는 main phase 시작 전까지 발신. 두 배는 spec invariant.\n\n[시나리오 — 시간순]\n1. DUT 서비스 시작.\n2. DUT → 테스터: OfferService #1 → #2 → #3.\n3. 관찰: Δt(#2,#1) ≈ RepBaseDelay; Δt(#3,#2) ≈ 2× RepBaseDelay (허용오차 포함).\n\n[통과 조건]\nspec 허용대역 내 gap 두 배.\n\n[실패 조건]\n• Fail_phase<n>_no_offer<n> — offer n 누락\n• Fail_phase3_gap_out_of_tolerance — gap이 2× 아님",
+  "verdicts": {
+    "Pass": "Repetition phase gap이 두 배 — 정상",
+    "Fail_phase1_no_offer1": "listen 윈도우 내 첫 offer 없음",
+    "Fail_phase2_no_offer2": "listen 윈도우 내 두 번째 offer 없음",
+    "Fail_phase3_no_offer3": "listen 윈도우 내 세 번째 offer 없음",
+    "Fail_phase3_gap_out_of_tolerance": "Repetition phase gap이 2× rep_base_delay 허용오차 밖"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Multi-instance Method Responses sourced from distinct per-instance UDP ports",
+  "approach": "[Objective]\nMulti-instance Method Responses sourced from distinct per-instance UDP ports.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "Two instances replied from distinct UDP ports — normal",
+    "Fail_phase1_no_offer": "No two-entry offer with distinct UDP ports within listen window",
+    "Fail_phase2_no_response_from_instance_1": "No Response from instance 1 UDP port 30502",
+    "Fail_phase3_no_response_from_instance_2": "No Response from instance 2 UDP port 30504"
+  }
+}

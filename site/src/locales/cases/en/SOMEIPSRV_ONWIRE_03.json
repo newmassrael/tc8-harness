@@ -1,0 +1,10 @@
+{
+  "description": "Method Response copies the Request ID (Client ID + Session ID) from the Request",
+  "approach": "[Objective]\nMethod Response copies the Request ID (Client ID + Session ID) from the Request. The case completes the OfferService prelude, sends a Method Request, and verifies the resulting Response.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (or Error trigger).\n3. Observation: DUT → Tester: Method Response with the asserted property.   ← key check\n\n[Pass condition]\nResponse field meets the spec invariant.\n\n[Fail condition]\nPer phase: Fail_phase1_no_offer / Fail_phase2_* / Fail_phase2_no_response.",
+  "verdicts": {
+    "Pass": "Response Request ID echoes Request — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_request_id_not_echoed": "Response Request ID did not echo request",
+    "Fail_phase2_no_response": "No Response within listen window"
+  }
+}

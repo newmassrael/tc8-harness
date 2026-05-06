@@ -1,0 +1,11 @@
+{
+  "description": "Verify that Method-ID highest bit = 1 for events / notifications — verified via Subscribe → Ack → Notification chain (SOME/IP §5.1.4)",
+  "approach": "[Objective]\nSOME/IP encodes 'this is an event/notification' as Method-ID bit-15 = 1. Event subscription path: Subscribe → SubscribeAck → cyclic Notification. The notification must carry method_id with the MSB set.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with IPv4 Endpoint option.\n2. Tester → DUT: SubscribeEventgroup.\n3. DUT → Tester: SubscribeAck (TTL > 0).\n4. Observation: DUT → Tester: Notification with method_id bit-15 == 1.\n\n[Pass condition]\nNotification observed with the event-MSB.\n\n[Fail condition]\n• Fail_phase1_no_offer_with_endpoint — no offer with endpoint\n• Fail_phase2_subscribe_nacked — subscribe nacked\n• Fail_phase2_no_subscribe_ack — no SubscribeAck\n• Fail_phase3_no_notification — no event-MSB notification",
+  "verdicts": {
+    "Pass": "DUT-emitted notification carries event-MSB method_id — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_subscribe_nacked": "Subscribe nacked (TTL=0)",
+    "Fail_phase2_no_subscribe_ack": "No SubscribeAck within listen window",
+    "Fail_phase3_no_notification": "No notification with event MSB within listen window"
+  }
+}

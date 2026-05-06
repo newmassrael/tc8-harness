@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Receiver ignores top 2 bits of Request return_code",
+  "approach": "[Objective]\nReceiver ignores top 2 bits of Request return_code.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT ignored top 2 bits and replied OK — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_response_not_ok": "Response return_code not E_OK",
+    "Fail_phase2_no_response": "No Response within listen window"
+  }
+}

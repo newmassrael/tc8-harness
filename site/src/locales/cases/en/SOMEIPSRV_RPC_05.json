@@ -1,0 +1,9 @@
+{
+  "description": "Verify that Fire&Forget to unknown method must not return an Error",
+  "approach": "[Objective]\nFire&Forget to unknown method must not return an Error.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT silent on unknown Fire&Forget — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_error_observed": "DUT returned error for Fire&Forget unknown method"
+  }
+}

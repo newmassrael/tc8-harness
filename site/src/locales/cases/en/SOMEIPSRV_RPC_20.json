@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Error message echoes Request Interface Version",
+  "approach": "[Objective]\nError message echoes Request Interface Version.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "Error echoed Interface Version — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_iface_ver_mismatch": "Error message did not echo Interface Version",
+    "Fail_phase2_no_error": "No Error message within listen window"
+  }
+}

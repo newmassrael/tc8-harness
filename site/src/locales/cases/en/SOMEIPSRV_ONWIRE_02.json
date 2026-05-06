@@ -1,0 +1,10 @@
+{
+  "description": "Method ID MSB cleared in Method Response",
+  "approach": "[Objective]\nMethod ID MSB cleared in Method Response. The case completes the OfferService prelude, sends a Method Request, and verifies the resulting Response.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService.\n2. Tester → DUT: Method Request (or Error trigger).\n3. Observation: DUT → Tester: Method Response with the asserted property.   ← key check\n\n[Pass condition]\nResponse field meets the spec invariant.\n\n[Fail condition]\nPer phase: Fail_phase1_no_offer / Fail_phase2_* / Fail_phase2_no_response.",
+  "verdicts": {
+    "Pass": "Response method_id MSB cleared — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_method_id_msb_set": "Response method_id top bit set",
+    "Fail_phase2_no_response": "No Response within listen window"
+  }
+}

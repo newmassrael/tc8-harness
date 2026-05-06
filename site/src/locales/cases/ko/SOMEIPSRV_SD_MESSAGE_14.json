@@ -1,0 +1,9 @@
+{
+  "description": "SubscribeEventgroupNack TTL이 0 (unknown ServiceID)을(를) 검증",
+  "approach": "[검증 목적]\nSubscribeEventgroupNack TTL이 0 (unknown ServiceID). 거부 신호: Nack는 TTL=0으로 응답 — '구독 보류 안 함'을 의미.\n\n[시나리오 — 시간순]\nDUT이 qualifying SD message(OfferService / Subscribe Ack / Nack) 발신. 하네스가 캡처해 주장된 속성을 byte 단위로 검증.\n\n[통과 조건]\n주장된 속성이 와이어에 성립.\n\n[실패 조건]\n나열된 verdict별 Fail_<state>; qualifying SD message가 도착하지 않으면 Fail_timeout.",
+  "verdicts": {
+    "Pass": "Nack TTL = 0 — 정상",
+    "Fail_ttl": "Nack entry TTL이 0 아님",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the SD undefined flag bits (mask 0x3F) of the notification is 0",
+  "approach": "[Objective]\nThis case asserts a single SOME/IP-SD wire-format invariant: SD undefined flag bits (mask 0x3F) must equal 0. The harness drives DUT to emit a qualifying notification, captures it, and validates the field byte-precisely.\n\n[Scenario — chronological]\n1. Tester drives DUT to emit a notification (typically by completing OfferService prelude or sending a stimulus message).\n2. Observation: captured notification's SD undefined flag bits (mask 0x3F) == 0   ← key check\n\n[Pass condition]\nSD undefined flag bits (mask 0x3F) on the wire equals 0.\n\n[Fail condition]\n• Fail_undefined_flag_bits — Undefined flag bits nonzero\n• Fail_timeout — DUT did not emit a qualifying notification within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted SD undefined flag bits (mask 0x3F) == 0 — normal",
+    "Fail_undefined_flag_bits": "Undefined flag bits nonzero",
+    "Fail_timeout": "No qualifying notification within listen window"
+  }
+}

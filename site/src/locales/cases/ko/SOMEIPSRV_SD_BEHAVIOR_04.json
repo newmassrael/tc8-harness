@@ -1,0 +1,9 @@
+{
+  "description": "Multicast Find(Unicast Flag = 0) → DUT이 multicast OfferService로 응답하는지 검증 (SOME/IP-SD §4.2.1)",
+  "approach": "[검증 목적]\nUnicast Flag가 cleared된 Find는 명시적으로 multicast 응답을 요청 — DUT은 cyclic timing과 무관하게 따라야 한다.\n\n[시나리오 — 시간순]\n1. DUT이 Main Phase.\n2. 테스터 → DUT (multicast): Unicast Flag = 0인 FindService.\n3. 관찰: DUT → 테스터: multicast OfferService.\n\n[통과 조건]\nDUT 발신 offer가 multicast.\n\n[실패 조건]\n• Fail_offer_not_multicast — offer가 multicast 아님\n• Fail_no_offer_after_multicast_find — offer 자체 없음",
+  "verdicts": {
+    "Pass": "DUT이 multicast Find에 multicast 응답 — 정상",
+    "Fail_offer_not_multicast": "multicast Find 후 offer dst_ip가 multicast 아님",
+    "Fail_no_offer_after_multicast_find": "multicast Find 후 listen 윈도우 내 offer 없음"
+  }
+}

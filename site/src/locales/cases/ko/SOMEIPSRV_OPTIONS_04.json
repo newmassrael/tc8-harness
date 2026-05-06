@@ -1,0 +1,9 @@
+{
+  "description": "IPv4 Endpoint Option의 IPv4-Address 필드가 로컬 IP임을 검증 (SOME/IP-SD §5.1.2)",
+  "approach": "[검증 목적]\nIPv4 Endpoint Option에 대한 와이어-포맷 invariant: IPv4-Address == 로컬 IP.\n\n[시나리오 — 시간순]\nDUT이 옵션을 포함한 qualifying SD message 발신 (보통 OfferService).\n관찰: 옵션의 IPv4-Address 필드 == 로컬 IP.   ← 핵심 확인 지점\n\n[통과 조건]\n와이어상 IPv4-Address가 로컬 IP와 같음.\n\n[실패 조건]\n• Fail_ipv4 — IPv4 endpoint address가 DUT iface IP 아님\n• Fail_timeout — listen 윈도우 내 qualifying SD message 없음",
+  "verdicts": {
+    "Pass": "IPv4 Endpoint Option IPv4-Address = 로컬 IP — 정상",
+    "Fail_ipv4": "IPv4 endpoint address가 DUT iface IP 아님",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

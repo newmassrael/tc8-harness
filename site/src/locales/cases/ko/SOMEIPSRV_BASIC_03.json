@@ -1,0 +1,11 @@
+{
+  "description": "이벤트/notification에 대해 Method-ID 최상위 비트 = 1을 검증 — Subscribe → Ack → Notification 체인 사용 (SOME/IP §5.1.4)",
+  "approach": "[검증 목적]\nSOME/IP는 'event/notification임'을 Method-ID 비트-15 = 1로 인코딩. event 구독 경로: Subscribe → SubscribeAck → cyclic Notification. notification은 MSB가 set된 method_id 운반 필수.\n\n[시나리오 — 시간순]\n1. DUT → 테스터: IPv4 Endpoint option 포함 OfferService.\n2. 테스터 → DUT: SubscribeEventgroup.\n3. DUT → 테스터: SubscribeAck (TTL > 0).\n4. 관찰: DUT → 테스터: method_id 비트-15 == 1인 Notification.\n\n[통과 조건]\nevent-MSB notification 관찰.\n\n[실패 조건]\n• Fail_phase1_no_offer_with_endpoint — endpoint 포함 offer 없음\n• Fail_phase2_subscribe_nacked — subscribe nack됨\n• Fail_phase2_no_subscribe_ack — SubscribeAck 없음\n• Fail_phase3_no_notification — event-MSB notification 없음",
+  "verdicts": {
+    "Pass": "DUT 발신 notification이 event-MSB method_id 운반 — 정상",
+    "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
+    "Fail_phase2_subscribe_nacked": "Subscribe nack됨 (TTL=0)",
+    "Fail_phase2_no_subscribe_ack": "listen 윈도우 내 SubscribeAck 없음",
+    "Fail_phase3_no_notification": "listen 윈도우 내 event MSB notification 없음"
+  }
+}

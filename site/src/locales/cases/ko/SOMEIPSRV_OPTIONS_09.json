@@ -1,0 +1,9 @@
+{
+  "description": "IPv4 Multicast Option의 Type 필드가 0x14임을 검증 (SOME/IP-SD §5.1.2)",
+  "approach": "[검증 목적]\nIPv4 Multicast Option에 대한 와이어-포맷 invariant: Type == 0x14.\n\n[시나리오 — 시간순]\nDUT이 옵션을 포함한 qualifying SD message 발신 (보통 OfferService).\n관찰: 옵션의 Type 필드 == 0x14.   ← 핵심 확인 지점\n\n[통과 조건]\n와이어상 Type가 0x14와 같음.\n\n[실패 조건]\n• Fail_type — type 0x14의 IPv4 multicast option 없음\n• Fail_timeout — listen 윈도우 내 qualifying SD message 없음",
+  "verdicts": {
+    "Pass": "IPv4 Multicast Option Type = 0x14 — 정상",
+    "Fail_type": "type 0x14의 IPv4 multicast option 없음",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

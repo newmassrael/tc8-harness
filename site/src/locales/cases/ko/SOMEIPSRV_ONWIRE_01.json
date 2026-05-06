@@ -1,0 +1,10 @@
+{
+  "description": "Method Response transport src endpoint가 DUT SERVICE-ID-1 UDP endpoint와 일치하는지",
+  "approach": "[검증 목적]\nMethod Response transport src endpoint가 DUT SERVICE-ID-1 UDP endpoint와 일치하는지. 케이스는 OfferService prelude 완료, Method Request 발신, 결과 Response 검증.\nMethod Response의 src IP/UDP port가 OfferService에서 광고한 SERVICE-ID-1 endpoint와 일치해야 함\n\n[시나리오 — 시간순]\n1. DUT → 테스터: OfferService.\n2. 테스터 → DUT: Method Request (또는 Error trigger).\n3. 관찰: DUT → 테스터: 주장된 속성의 Method Response.   ← 핵심 확인 지점\n\n[통과 조건]\nResponse 필드가 spec invariant 충족.\n\n[실패 조건]\nphase별: Fail_phase1_no_offer / Fail_phase2_* / Fail_phase2_no_response.",
+  "verdicts": {
+    "Pass": "Response transport endpoint가 OfferService와 일치 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 OfferService 없음",
+    "Fail_phase2_response_transport_mismatch": "Response src endpoint가 DUT service endpoint와 불일치",
+    "Fail_phase2_no_response": "listen 윈도우 내 Response 없음"
+  }
+}

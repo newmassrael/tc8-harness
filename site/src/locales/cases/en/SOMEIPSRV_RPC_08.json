@@ -1,0 +1,9 @@
+{
+  "description": "Verify that DUT must not return Error for Requests already carrying an error code",
+  "approach": "[Objective]\nDUT must not return Error for Requests already carrying an error code.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "DUT silent on already-errored Request — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_error_observed": "DUT returned error for Request already carrying error"
+  }
+}

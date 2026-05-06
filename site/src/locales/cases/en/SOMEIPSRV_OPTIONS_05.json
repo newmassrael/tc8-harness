@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the Second Reserved field of the IPv4 Endpoint Option is 0x00 (SOME/IP-SD §5.1.2)",
+  "approach": "[Objective]\nWire-format invariant for the IPv4 Endpoint Option: Second Reserved == 0x00.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message containing the option (typically an OfferService).\nObservation: option's Second Reserved field == 0x00.   ← key check\n\n[Pass condition]\nSecond Reserved on the wire equals 0x00.\n\n[Fail condition]\n• Fail_reserved2 — IPv4 endpoint second reserved nonzero\n• Fail_timeout — no qualifying SD message within listen window",
+  "verdicts": {
+    "Pass": "IPv4 Endpoint Option Second Reserved = 0x00 — normal",
+    "Fail_reserved2": "IPv4 endpoint second reserved nonzero",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

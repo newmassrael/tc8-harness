@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Error return_code top 2 bits reserved and set to 0",
+  "approach": "[Objective]\nError return_code top 2 bits reserved and set to 0.\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "Error return_code top 2 bits = 0 — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_msb_set": "Error return_code top two bits set",
+    "Fail_phase2_no_error": "No Error message within listen window"
+  }
+}

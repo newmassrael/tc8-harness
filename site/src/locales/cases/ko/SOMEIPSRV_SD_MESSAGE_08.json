@@ -1,0 +1,9 @@
+{
+  "description": "OfferService가 적어도 하나의 IPv4 Endpoint Option 운반을(를) 검증",
+  "approach": "[검증 목적]\nOfferService가 적어도 하나의 IPv4 Endpoint Option 운반. OfferService는 client가 service에 연결할 endpoint(IP+포트) 정보 운반 — 적어도 하나 있어야.\n\n[시나리오 — 시간순]\nDUT이 qualifying SD message(OfferService / Subscribe Ack / Nack) 발신. 하네스가 캡처해 주장된 속성을 byte 단위로 검증.\n\n[통과 조건]\n주장된 속성이 와이어에 성립.\n\n[실패 조건]\n나열된 verdict별 Fail_<state>; qualifying SD message가 도착하지 않으면 Fail_timeout.",
+  "verdicts": {
+    "Pass": "OfferService가 IPv4 endpoint 운반 — 정상",
+    "Fail_endpoint_count": "Offer가 IPv4 endpoint option 운반 안 함",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

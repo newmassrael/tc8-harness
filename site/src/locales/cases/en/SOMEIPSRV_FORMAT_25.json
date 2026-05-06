@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the Type 2 entry Major Version of the SubscribeAck/Nack is configured SdServerServiceMajorVersion",
+  "approach": "[Objective]\nThis case asserts a single SOME/IP-SD wire-format invariant: Type 2 entry Major Version must equal configured SdServerServiceMajorVersion. The harness drives DUT to emit a qualifying SubscribeAck/Nack, captures it, and validates the field byte-precisely.\n\n[Scenario — chronological]\n1. Tester drives DUT to emit a SubscribeAck/Nack (typically by completing OfferService prelude or sending a stimulus message).\n2. Observation: captured SubscribeAck/Nack's Type 2 entry Major Version == configured SdServerServiceMajorVersion   ← key check\n\n[Pass condition]\nType 2 entry Major Version on the wire equals configured SdServerServiceMajorVersion.\n\n[Fail condition]\n• Fail_major_version — Entry major_version mismatch\n• Fail_timeout — DUT did not emit a qualifying SubscribeAck/Nack within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted Type 2 entry Major Version == configured SdServerServiceMajorVersion — normal",
+    "Fail_major_version": "Entry major_version mismatch",
+    "Fail_timeout": "No qualifying SubscribeAck/Nack within listen window"
+  }
+}

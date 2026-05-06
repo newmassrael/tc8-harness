@@ -1,0 +1,10 @@
+{
+  "description": "Verify that Error message carries no payload (length field = 8)",
+  "approach": "[Objective]\nError message carries no payload (length field = 8).\n\n[Scenario — chronological]\nDUT offers service; tester sends a Method Request (or specific stimulus); the resulting wire response is verified against the spec property.\n\n[Pass condition]\nResponse / behaviour matches the asserted property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "verdicts": {
+    "Pass": "Error length = 8 (no payload) — normal",
+    "Fail_phase1_no_offer": "No OfferService within listen window",
+    "Fail_phase2_payload_present": "Error message carried payload",
+    "Fail_phase2_no_error": "No Error message within listen window"
+  }
+}

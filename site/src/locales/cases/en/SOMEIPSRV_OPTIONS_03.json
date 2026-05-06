@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the First Reserved field of the IPv4 Endpoint Option is 0x00 (SOME/IP-SD §5.1.2)",
+  "approach": "[Objective]\nWire-format invariant for the IPv4 Endpoint Option: First Reserved == 0x00.\n\n[Scenario — chronological]\nDUT emits a qualifying SD message containing the option (typically an OfferService).\nObservation: option's First Reserved field == 0x00.   ← key check\n\n[Pass condition]\nFirst Reserved on the wire equals 0x00.\n\n[Fail condition]\n• Fail_reserved1 — IPv4 endpoint first reserved nonzero\n• Fail_timeout — no qualifying SD message within listen window",
+  "verdicts": {
+    "Pass": "IPv4 Endpoint Option First Reserved = 0x00 — normal",
+    "Fail_reserved1": "IPv4 endpoint first reserved nonzero",
+    "Fail_timeout": "No qualifying SD message within listen window"
+  }
+}

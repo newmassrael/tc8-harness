@@ -1,0 +1,12 @@
+{
+  "description": "Verify that Notification UDP src_port matches OfferService Endpoint Option port (TR_SOMEIP_00360 / 00361)",
+  "approach": "[Objective]\nNotification UDP src_port matches OfferService Endpoint Option port (TR_SOMEIP_00360 / 00361).\n\n[Scenario — chronological]\nDUT emits a qualifying SD message (OfferService / Subscribe Ack / Nack). The harness captures it and validates the asserted property byte-precisely.\n\n[Pass condition]\nThe asserted property holds on the wire.\n\n[Fail condition]\nFail_<state> per the listed verdicts; Fail_timeout if no qualifying SD message arrived.",
+  "verdicts": {
+    "Pass": "Notification src_port matches Offer endpoint port — normal",
+    "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
+    "Fail_phase2_subscribe_nacked": "Subscribe nacked (TTL=0)",
+    "Fail_phase2_no_subscribe_ack": "No SubscribeAck within listen window",
+    "Fail_phase3_no_notification": "No notification within listen window",
+    "Fail_phase3_src_port_mismatch": "Notification src_port does not match Offer endpoint port"
+  }
+}

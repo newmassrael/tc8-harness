@@ -1,0 +1,11 @@
+{
+  "description": "SERVICE-ID-2의 모든 notification에 대한 단일 transport을(를) 검증",
+  "approach": "[검증 목적]\nSERVICE-ID-2의 모든 notification에 대한 단일 transport. RPC_01의 event 측: 한 service의 모든 notification이 같은 endpoint 공유.\n\n[시나리오 — 시간순]\nDUT이 서비스 offer; 테스터가 Method Request(또는 특정 자극) 전송; 결과 와이어 응답을 spec 속성에 대해 검증.\n\n[통과 조건]\nResponse / 동작이 주장된 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "verdicts": {
+    "Pass": "DUT이 공유 transport에서 SERVICE-ID-2 notification 발신 — 정상",
+    "Fail_phase1_no_offer": "listen 윈도우 내 SERVICE-ID-2 OfferService 없음",
+    "Fail_phase2_subscribe_nacked": "Subscribe nack됨 (TTL=0)",
+    "Fail_phase2_no_subscribe_ack": "listen 윈도우 내 SubscribeAck 없음",
+    "Fail_phase3_no_notification": "listen 윈도우 내 SERVICE-ID-2 notification 없음"
+  }
+}

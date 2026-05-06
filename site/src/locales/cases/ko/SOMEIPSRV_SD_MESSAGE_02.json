@@ -1,0 +1,9 @@
+{
+  "description": "FindService(specific instance)가 그 single-entry의 OfferService 반환을(를) 검증",
+  "approach": "[검증 목적]\nFindService(specific instance)가 그 single-entry의 OfferService 반환. specific instance를 요청하면 DUT은 그 instance만의 single-entry OfferService 반환 (전체 list 아님).\n\n[시나리오 — 시간순]\nDUT이 qualifying SD message(OfferService / Subscribe Ack / Nack) 발신. 하네스가 캡처해 주장된 속성을 byte 단위로 검증.\n\n[통과 조건]\n주장된 속성이 와이어에 성립.\n\n[실패 조건]\n나열된 verdict별 Fail_<state>; qualifying SD message가 도착하지 않으면 Fail_timeout.",
+  "verdicts": {
+    "Pass": "DUT이 instance별 OfferService 응답 — 정상",
+    "Fail_phase1_no_offer_for_instance_1": "listen 윈도우 내 instance_id 1의 single-entry offer 없음",
+    "Fail_phase2_no_offer_for_instance_2": "listen 윈도우 내 instance_id 2의 single-entry offer 없음"
+  }
+}

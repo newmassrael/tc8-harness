@@ -1,0 +1,9 @@
+{
+  "description": "IPv4 Endpoint Option의 First Reserved 필드가 0x00임을 검증 (SOME/IP-SD §5.1.2)",
+  "approach": "[검증 목적]\nIPv4 Endpoint Option에 대한 와이어-포맷 invariant: First Reserved == 0x00.\n\n[시나리오 — 시간순]\nDUT이 옵션을 포함한 qualifying SD message 발신 (보통 OfferService).\n관찰: 옵션의 First Reserved 필드 == 0x00.   ← 핵심 확인 지점\n\n[통과 조건]\n와이어상 First Reserved가 0x00와 같음.\n\n[실패 조건]\n• Fail_reserved1 — IPv4 endpoint first reserved 0이 아님\n• Fail_timeout — listen 윈도우 내 qualifying SD message 없음",
+  "verdicts": {
+    "Pass": "IPv4 Endpoint Option First Reserved = 0x00 — 정상",
+    "Fail_reserved1": "IPv4 endpoint first reserved 0이 아님",
+    "Fail_timeout": "listen 윈도우 내 qualifying SD message 없음"
+  }
+}

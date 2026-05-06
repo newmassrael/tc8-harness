@@ -1,0 +1,9 @@
+{
+  "description": "Verify that the Type 2 entry Index First Option Run of the SubscribeAck/Nack is first option of the first run (= 0)",
+  "approach": "[Objective]\nThis case asserts a single SOME/IP-SD wire-format invariant: Type 2 entry Index First Option Run must equal first option of the first run (= 0). The harness drives DUT to emit a qualifying SubscribeAck/Nack, captures it, and validates the field byte-precisely.\n\n[Scenario — chronological]\n1. Tester drives DUT to emit a SubscribeAck/Nack (typically by completing OfferService prelude or sending a stimulus message).\n2. Observation: captured SubscribeAck/Nack's Type 2 entry Index First Option Run == first option of the first run (= 0)   ← key check\n\n[Pass condition]\nType 2 entry Index First Option Run on the wire equals first option of the first run (= 0).\n\n[Fail condition]\n• Fail_index_first — Entry IndexFirstOptionRun nonzero\n• Fail_timeout — DUT did not emit a qualifying SubscribeAck/Nack within the listen window",
+  "verdicts": {
+    "Pass": "DUT-emitted Type 2 entry Index First Option Run == first option of the first run (= 0) — normal",
+    "Fail_index_first": "Entry IndexFirstOptionRun nonzero",
+    "Fail_timeout": "No qualifying SubscribeAck/Nack within listen window"
+  }
+}

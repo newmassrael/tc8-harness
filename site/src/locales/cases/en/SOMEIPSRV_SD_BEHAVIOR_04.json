@@ -1,0 +1,9 @@
+{
+  "description": "Verify that a Multicast Find (Unicast Flag = 0) → DUT replies with multicast OfferService (SOME/IP-SD §4.2.1)",
+  "approach": "[Objective]\nA Find with the Unicast Flag cleared explicitly requests a multicast reply — DUT must obey regardless of cyclic timing.\n\n[Scenario — chronological]\n1. DUT in Main Phase.\n2. Tester → DUT (multicast): FindService with Unicast Flag = 0.\n3. Observation: DUT → Tester: multicast OfferService.\n\n[Pass condition]\nDUT-emitted offer is multicast.\n\n[Fail condition]\n• Fail_offer_not_multicast — offer not multicast\n• Fail_no_offer_after_multicast_find — no offer at all",
+  "verdicts": {
+    "Pass": "DUT replied multicast to multicast Find — normal",
+    "Fail_offer_not_multicast": "Offer dst_ip not multicast after multicast Find",
+    "Fail_no_offer_after_multicast_find": "No offer within listen window after multicast Find"
+  }
+}
