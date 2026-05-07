@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 
 #include "tc8/protocol_frames/someip_frame.h"
 
@@ -174,16 +175,46 @@ struct SomeIpCaptured {
     // First `kMaxPayloadBytes` bytes of the SOME/IP payload — wider
     // surface than `payload_byte0` for §5.1.6 SOMEIP_ETS Method
     // Response echo verification. ETS_005 (checkByteOrder UInt32 BE
-    // sum, 4 bytes), ETS_008 (echoCommonDatatypes reversed-args, first
-    // 8 bytes carry the echoed Double res1), and similar future cases
-    // index distinct positions to pin DUT-side serialisation. Bytes
-    // beyond `payload_len` stay 0; a 16-byte cap covers every echo
-    // assertion the seed cluster needs without committing to a heap
-    // copy of the full request/response payload (CommonAPI struct
-    // echoes peak at ≤ 28 bytes, but assertions are always against a
-    // discriminating prefix).
-    static constexpr std::size_t kMaxPayloadBytes = 16;
+    // sum, 4 bytes), ETS_008 (echoCommonDatatypes reversed-args
+    // 27-byte struct), ETS_046/_047/_053 (UTF FIXED 64-byte echo),
+    // and ETS_041/_050 (UTF DYNAMIC echo with 4-byte length prefix
+    // + 128-byte payload = 132 B max) all index distinct positions
+    // to pin DUT-side serialisation. Bytes beyond `payload_len` stay
+    // 0. The 144-byte cap is exact-fit for ETS_041/_050 (the spec's
+    // largest seed-cluster echo) plus a 12-byte margin; it preserves
+    // SCXML cond expressions of the form `captured.payload_bytes[N]`
+    // (compile-time index for SCE codegen) without committing to a
+    // heap copy of variable-length payloads. Raise further only if
+    // a future case body exceeds 144 B.
+    static constexpr std::size_t kMaxPayloadBytes = 144;
     std::uint8_t payload_bytes[kMaxPayloadBytes]{};
+
+    // Pin the leading `expected.size()` bytes of `payload_bytes` against a
+    // wire-literal pattern. Returns true iff every byte in the initializer
+    // list matches and `payload_len >= expected.size()` so partial-frame
+    // truncation never sneaks past as a match. Lets §5.1.6 SOMEIP_ETS Method
+    // Response echo conds collapse N byte-equality conjuncts into a single
+    // call site, e.g.
+    //   cond="cpp:captured.payload_bytes_eq({0xFE, 0xFF, 0x00, 0x68, ...})"
+    // Surplus payload bytes beyond the list length are ignored — the helper
+    // verifies a prefix, not the entire payload, by design (cases that need
+    // full-payload-length verification add `captured.payload_len == N`
+    // alongside).
+    bool payload_bytes_eq(std::initializer_list<std::uint8_t> expected) const {
+        if (expected.size() > kMaxPayloadBytes) {
+            return false;
+        }
+        if (payload_len < expected.size()) {
+            return false;
+        }
+        std::size_t i = 0;
+        for (auto b : expected) {
+            if (payload_bytes[i++] != b) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     // Tester-side TCP socket state populated by §5.1.6 SOMEIP_ETS_037
     // stimulus before SCXML start(). Set from
