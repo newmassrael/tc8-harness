@@ -31,13 +31,13 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 0 and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq"
                 target="pass"/>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 0 and captured.echo_id != expected.echo_id"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id != expected.echo_id"
                 target="fail_echo_id"/>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 0 and captured.echo_seq != expected.echo_seq"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_seq != expected.echo_seq"
                 target="fail_echo_seq"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>

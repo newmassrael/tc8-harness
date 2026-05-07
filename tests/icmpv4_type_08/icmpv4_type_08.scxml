@@ -32,10 +32,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 0 and captured.echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08)"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08)"
                 target="pass"/>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 0"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_payload_mismatch"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
