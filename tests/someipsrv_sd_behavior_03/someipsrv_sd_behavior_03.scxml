@@ -12,17 +12,20 @@
       ½× CYCLIC (~1 s) of wall time so the last cyclic Offer is
       reliably more than ½ CYCLIC ago when the Find arrives.
 
-  Phase 1 (listening_pre_find): deadline 5.5 s — long enough that the
-  scheduled stimulus has emitted and the DUT's reply is in flight. We
-  do not transition on someip_notification here so the pre-Find cyclic
-  Offer is silently dropped; deadline carries us into phase 2.
+  Phase 1 (listening_pre_find): deadline 3940 ms — ends 100 ms before
+  the scheduled Find emit (4040 ms) so the SOLICITED reply lands in
+  phase 2 rather than being silently absorbed here. All pre-Find traffic
+  is absorbed: init Offer at ~T_sd+75 ms, repetitions at +275/+675/
+  +1475 ms, post-repetition Offer (rep4) at ~T_sd+3075 ms.
 
-  Phase 2 (listening_offer_reply): deadline 4 s. Pass on any DUT
-  OfferService whose dst_ip == expected.sd_multicast_ip (vsomeip
-  cyclic Offers and the solicited reply both qualify — the spec
-  invariant is "multicast destination", and it must hold for whichever
-  Main Phase Offer arrives next regardless of solicited vs. scheduled).
-  Fail on any OfferService whose dst_ip is unicast.
+  Phase 2 (listening_offer_reply): deadline 1500 ms — sized to catch the
+  solicited reply (~50 ms after Find emit ⇒ ~150 ms into phase 2) while
+  excluding the first true Main-Phase cyclic at ~T_sd+6000 ms (well
+  past the 1500 ms window for any reasonable T_sd-T_kick offset). Pass
+  on the DUT's solicited multicast OfferService (dst_ip ==
+  expected.sd_multicast_ip), fail on a unicast solicited reply, fail
+  on deadline. The tightened window prevents a cyclic Offer from
+  masking a unicast solicited reply.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -42,14 +45,14 @@
 
   <state id="listening_pre_find">
     <onentry>
-      <send event="s1_pre_find_done" delay="5500ms"/>
+      <send event="s1_pre_find_done" delay="3940ms"/>
     </onentry>
     <transition event="s1_pre_find_done" target="listening_offer_reply"/>
   </state>
 
   <state id="listening_offer_reply">
     <onentry>
-      <send event="s2_deadline_exceeded" delay="4s"/>
+      <send event="s2_deadline_exceeded" delay="1500ms"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip"

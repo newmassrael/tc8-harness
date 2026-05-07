@@ -22,14 +22,21 @@ namespace tc8::sce {
 // TC8 v3.0 §5.1.5.4.3 SOMEIPSRV_SD_BEHAVIOR_03: Server Answer Behavior —
 // when more than ½ CYCLIC_OFFER_DELAY has elapsed since the last
 // emitted OfferService, a unicast FindService (Unicast Flag = 1) shall
-// be answered with a multicast OfferService. Stimulus schedules the
-// unicast Find emit at +4500 ms (TOTAL_REP_INTV + 1 cyclic + ½ cyclic
-// against the vsomeip default config), satisfying the "last Offer >
-// ½ CYCLIC ago" precondition before the Find lands.
+// be answered with a multicast OfferService.
+//
+// Timing: vsomeip's `last_offer_shorter_half_offer_delay_ago()` reads
+// the position within the current main_phase_timer cycle (period =
+// cyclic_offer_delay = 2000 ms, anchored at SD startup T_sd). Replies
+// multicast iff position ≥ 1000 ms. Stimulus emits the unicast Find at
+// kickStimulus+4040 ms; empirical T_sd-T_kick ≈ 440 ms so the Find
+// lands at ≈ T_sd+3500 ms = position 1500 ms in cycle 1 (well past
+// the 1000 ms threshold). Robust against ±400 ms T_sd jitter — the
+// safe Δ range is (-60, 940) ms, and the post-repetition Offer at
+// ~T_sd+3075 ms (rep4) is absorbed by Phase 1 for Δ < 765 ms.
 //
 // Uses the 4-arg `IStimulusScheduler` overload to defer the emit until
 // after `kickStimulus` returns; running synchronously inside
-// `kickStimulus` would block the harness for ~4.5 s before the SCXML
+// `kickStimulus` would block the harness for ~4 s before the SCXML
 // is initialized and the listen window has begun.
 template <>
 struct TestCaseTraits<cases::SdBehavior03SM>
@@ -43,13 +50,16 @@ struct TestCaseTraits<cases::SdBehavior03SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
-        // Emit at +4500 ms = TOTAL_REP_INTV (~1.5 s) + 1× CYCLIC (~2 s)
-        // + ½× CYCLIC (~1 s). Captures the iface name + DUT IP by value
-        // because the scheduler runs the action on the poll-loop thread
-        // long after this function returns.
+        // Emit at +4040 ms (lands at ~position 1500 ms within
+        // cyclic_offer_delay cycle, so vsomeip's
+        // last_offer_shorter_half_offer_delay_ago() returns false →
+        // multicast reply per SOMEIPSD §6.7.5.2 / SIP_SD_90).
+        // Captures iface name + DUT IP by value because the scheduler
+        // runs the action on the poll-loop thread long after this
+        // function returns.
         const std::string iface_owned(iface);
         const std::uint32_t dut_ip_be = cfg.someip.dut_iface_ip;
-        scheduler.schedule(std::chrono::milliseconds(4500),
+        scheduler.schedule(std::chrono::milliseconds(4040),
                            [iface_owned, dut_ip_be]() {
             // Unicast FindService (Unicast Flag = 1, the default 0xC0
             // sd_flags value carrying Reboot=1 + Unicast=1) addressed to

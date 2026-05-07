@@ -8,13 +8,20 @@
   Unicast=0) ~2.5 s after kickStimulus, allowing the DUT to enter Main
   Phase first.
 
-  Phase 1 (listening_pre_find, 3 s deadline): consume Repetition Phase
-  Offers via deadline-only transition (someip_notification not gated
-  here, so SomeIpSdOnlyBase silently absorbs each pre-Find Offer).
+  Phase 1 (listening_pre_find, 3940 ms deadline): ends 100 ms before
+  the scheduled Find emit (4040 ms) so the SOLICITED reply lands in
+  phase 2 rather than being silently absorbed here. All pre-Find
+  traffic absorbed: init Offer (~T_sd+75 ms), repetitions
+  (+275/+675/+1475 ms), and the post-repetition rep4 emission at
+  ~T_sd+3075 ms.
 
-  Phase 2 (listening_offer_reply, 4 s deadline): pass on any DUT
-  OfferService with dst_ip == expected.sd_multicast_ip, fail on a
-  unicast Offer, fail on deadline.
+  Phase 2 (listening_offer_reply, 1500 ms deadline): excludes the
+  first true Main-Phase cyclic at ~T_sd+6000 ms. Pass on the DUT's
+  solicited multicast OfferService, fail on a unicast solicited reply,
+  fail on deadline. vsomeip 3.7.1 IGNORES multicast Finds (SIP_SD_91)
+  so this case lands `fail_no_offer_after_multicast_find` on the
+  reference stack — a strict-spec DUT would pass via the solicited
+  multicast reply per SOMEIPSD §6.7.5.2.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -34,14 +41,14 @@
 
   <state id="listening_pre_find">
     <onentry>
-      <send event="s1_pre_find_done" delay="3s"/>
+      <send event="s1_pre_find_done" delay="3940ms"/>
     </onentry>
     <transition event="s1_pre_find_done" target="listening_offer_reply"/>
   </state>
 
   <state id="listening_offer_reply">
     <onentry>
-      <send event="s2_deadline_exceeded" delay="4s"/>
+      <send event="s2_deadline_exceeded" delay="1500ms"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip"

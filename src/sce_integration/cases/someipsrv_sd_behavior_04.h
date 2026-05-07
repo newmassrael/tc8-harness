@@ -21,9 +21,19 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.5.4.4 SOMEIPSRV_SD_BEHAVIOR_04: a multicast FindService
 // with Unicast Flag = 0 shall be answered with multicast OfferService.
-// Stimulus schedules the multicast Find emit at +2500 ms — past
-// TOTAL_REP_INTV (~1.5 s) so the DUT is in Main Phase when the Find
+// Stimulus schedules the multicast Find emit at +4040 ms — well past
+// TOTAL_REP_INTV (~1.5 s) and the post-repetition rep4 emission at
+// ~T_sd+3075 ms, so the DUT is fully in Main Phase when the Find
 // arrives. The Find carries sd_flags = 0x80 (Reboot=1, Unicast=0).
+//
+// Note: vsomeip 3.7.1 IGNORES multicast Finds (per its own comment at
+// `service_discovery_impl.cpp::send_uni_or_multicast_offerservice`,
+// citing SIP_SD_91); a strict-spec DUT would emit a multicast solicited
+// reply per SOMEIPSD §6.7.5.2 / TR_SOMEIP_00423 page 73. Tightened
+// Phase 2 deadline (1500 ms) excludes the next Main-Phase cyclic at
+// ~T_sd+6000 ms, so on vsomeip this test lands `fail_no_offer_after_
+// multicast_find` (run-and-fail-by-design). CI grep filter handles
+// the known deviation.
 template <>
 struct TestCaseTraits<cases::SdBehavior04SM>
     : SomeIpSdOnlyBase<cases::SdBehavior04SM> {
@@ -37,7 +47,7 @@ struct TestCaseTraits<cases::SdBehavior04SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         const std::string iface_owned(iface);
-        scheduler.schedule(std::chrono::milliseconds(2500),
+        scheduler.schedule(std::chrono::milliseconds(4040),
                            [iface_owned]() {
             // Multicast FindService with Unicast Flag = 0
             // (sd_flags = 0x80 — Reboot bit set, Unicast bit clear).
