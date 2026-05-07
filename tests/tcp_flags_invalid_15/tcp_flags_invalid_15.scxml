@@ -160,14 +160,17 @@
     <transition event="deadline_p4_dut_fin" target="fail_p4_no_dut_fin"/>
   </state>
   <state id="listening_p4_absence">
-    <!-- Phase 4 absence guard narrowed to DUT-emitted RST only:
-         Linux's tcp_timewait_state_process FW2 substate emits a
-         rate-limited challenge ACK on OOW segments per RFC 5961.
-         Catches RST-mishandling violation; permits the RFC 5961
-         challenge ACK that's a known Linux deviation. -->
+    <!-- Phase 4 absence guard restored to the strict spec shape:
+         RFC 793 §3.9 says DUT MUST IGNORE OTW-SEQ RST in any non-
+         CLOSED/SYN-SENT/LISTEN state. Linux's
+         tcp_timewait_state_process FW2 substate emits a rate-limited
+         challenge ACK on OOW segments per RFC 5961 — RFC 5961
+         conformant but RFC 793 violation. Linux DUT therefore lands
+         fail_p4_unexpected_response and is excluded from CI green
+         via grep filter in .github/workflows/smoke-test.yml. -->
     <onentry><send event="deadline_p4_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U)"
                 target="fail_p4_unexpected_response"/>
     <transition event="deadline_p4_absence" target="listening_p5_handshake_ack"/>
   </state>
@@ -278,13 +281,18 @@
     <transition event="deadline_p8_tw_ack" target="fail_p8_no_tw_ack"/>
   </state>
   <state id="listening_p8_absence">
-    <!-- Phase 8 absence guard narrowed to DUT-emitted RST only:
-         Linux's tcp_timewait_state_process TIME-WAIT substate emits
-         a rate-limited challenge ACK on OOW segments per RFC 5961.
-         Same Linux deviation as phase 4. -->
+    <!-- Phase 8 absence guard restored to the strict spec shape:
+         RFC 793 §3.9 says DUT MUST IGNORE OTW-SEQ RST in any non-
+         CLOSED/SYN-SENT/LISTEN state. Linux's
+         tcp_timewait_state_process TIME-WAIT substate emits a
+         rate-limited challenge ACK on OOW segments per RFC 5961 —
+         RFC 5961 conformant but RFC 793 violation. Same Linux
+         deviation as phase 4; Linux DUT lands
+         fail_p8_unexpected_response and is excluded from CI green
+         via grep filter in .github/workflows/smoke-test.yml. -->
     <onentry><send event="deadline_p8_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
                 target="fail_p8_unexpected_response"/>
     <transition event="deadline_p8_absence" target="pass"/>
   </state>
