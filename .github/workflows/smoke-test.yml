@@ -87,16 +87,47 @@ jobs:
         # active so a strict-RFC DUT under the same harness lands on
         # pass and the spec coverage report remains honest).
         #
-        # The grep -v below excludes 4 cases that always fail on a
-        # Linux DUT due to known kernel deviations from the spec's
+        # The grep -v below excludes cases that always fail on a Linux
+        # DUT due to known kernel/userland deviations from the spec's
         # MUST/SHOULD requirements. CI green here therefore means "no
         # regression in cases the Linux DUT is capable of passing."
-        # See:
-        #   - reference_linux_ip_reassembly_deviations.md
-        #     (REASSEMBLY_11/_13: ipfrag_time + post-CVE-2018-5391
-        #     overlap drop)
-        #   - reference_linux_syn_data_rto_deviations.md
-        #     (RETRANSMISSION_TO_08/_09: tcp_rto_max=120s ≠ spec 2*MSL=60s)
+        # See claudedocs/false_positive_audit_2026_05_07.md for the
+        # remediation history that produced this list. Per-case
+        # rationale:
+        #   - IPV4_REASSEMBLY_11/_13 — Linux static ipfrag_time ignores
+        #     TTL (RFC 791 §3.2) + post-CVE-2018-5391 overlap drop. See
+        #     reference_linux_ip_reassembly_deviations.md.
+        #   - TCP_RETRANSMISSION_TO_08/_09 — Linux tcp_rto_max=120s ≠
+        #     spec 2*MSL=60s plateau. See
+        #     reference_linux_syn_data_rto_deviations.md.
+        #   - SOMEIP_ETS_117 — vsomeip 3.7.1 Acks the malformed
+        #     Subscribe instead of Nack/ignore (PRS_SOMEIPSD_00393);
+        #     `sdi::process_eventgroupentry` uses the first endpoint
+        #     and silently disregards the second.
+        #   - ICMPV4_ERROR_02 — Linux's `ip_options_compile` emits
+        #     Pointer=20 (option-start convention) instead of TC8
+        #     literal Pointer=22. See
+        #     reference_icmp_parameter_problem_pointer.md.
+        #   - TCP_UNACCEPTABLE_04 — Linux EST silent-drops unacc-ACK
+        #     (`tcp_rcv_established` slow_path step5 → tcp_ack returns
+        #     -SKB_DROP_REASON_TCP_ACK_UNSENT_DATA → goto discard
+        #     without challenge_ack). See reference_unacc_ack_dispatch.md.
+        #   - TCP_UNACCEPTABLE_08 — phase 2 (bare ACK + unacceptable
+        #     ACK) races tc8-dut's UT close-path connector-thread join
+        #     against lingering syn-sent retransmits.
+        #   - TCP_UNACCEPTABLE_10 — Linux FW2 substate emits RST not
+        #     ACK on phase 2's unacc-ACK
+        #     (`tcp_timewait_state_process` line 130-135 →
+        #     `tcp_v4_send_reset`).
+        #   - TCP_FLAGS_INVALID_15 — Linux FW2/TW substates emit
+        #     RFC 5961 challenge ACKs on OOW segments instead of
+        #     RFC 793 §3.9 silent-ignore. See
+        #     reference_linux_tw_substate_oow.md.
+        #   - ARP_33/_34 — TC8 spec literal target_hw=broadcast on
+        #     gratuitous Responses; Linux's `arp_is_garp()` rejects
+        #     that shape (only matches target_hw == sender_hw) so the
+        #     RFC 826 merge override is not applied. See
+        #     reference_linux_arp_garp.md.
         # When the harness later runs against a strict-RFC DUT, drop
         # this filter — the cases land green there.
         run: |
@@ -106,7 +137,7 @@ jobs:
             --junit-xml reports/junit-smoke-positive.xml \
             $(./build/tc8-harness test --list-cases --exclude-deferred \
               | awk '/^  [A-Z]/{print $1}' \
-              | grep -vE '^(IPV4_REASSEMBLY_(11|13)|TCP_RETRANSMISSION_TO_(08|09))$')
+              | grep -vE '^(IPV4_REASSEMBLY_(11|13)|TCP_RETRANSMISSION_TO_(08|09)|SOMEIP_ETS_117|ICMPV4_ERROR_02|TCP_UNACCEPTABLE_(04|08|10)|TCP_FLAGS_INVALID_15|ARP_(33|34))$')
 
       - name: Run negative curated set (--workers 4)
         run: |
