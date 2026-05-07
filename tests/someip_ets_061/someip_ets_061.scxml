@@ -52,7 +52,7 @@
       <send event="phase2a_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0008 and captured.return_code == 0x00 and captured.session_id == 0x0001"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0008 and captured.return_code == 0x00 and captured.session_id == 0x0001 and captured.payload_len == 1 and captured.payload_byte0 == 0x42"
                 target="listening_phase2_b"/>
     <transition event="phase2a_deadline_exceeded" target="fail_phase2_response_missing"/>
   </state>
@@ -62,7 +62,7 @@
       <send event="phase2b_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0017 and captured.return_code == 0x00 and captured.session_id == 0x0002"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0017 and captured.return_code == 0x00 and captured.session_id == 0x0002 and captured.payload_len == 1 and captured.payload_byte0 == 0x01"
                 target="pass"/>
     <transition event="phase2b_deadline_exceeded" target="fail_phase2_response_missing"/>
   </state>
