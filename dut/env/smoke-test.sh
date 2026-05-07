@@ -3157,16 +3157,19 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIPSRV_SD_MESSAGE_07|ttl=99|fail:offer_entry_ttl_mismatch"
         "SOMEIPSRV_SD_MESSAGE_11|service_id=0x0000|fail:ack_entry_service_id_mismatch"
         "SOMEIPSRV_SD_MESSAGE_15|instance_id=0xFFFE|fail:nack_entry_echo_fields_mismatch"
-        # SD_MESSAGE_02 phase 1 cond: entries[0].instance_id ==
-        # expected.instance_id. Override flips the expected target
-        # away from the configured 0x0001 so the 1-entry Find-triggered
-        # Offer never matches phase 1 → phase 1 timeout. RPC_14/_17
-        # phase 2/3 read expected.service_id; flipping it forces
-        # phase 2 to time out before the real Response can match.
+        # SD_MESSAGE_02 phase 1 cond gates entries[0/1].service_id ==
+        # expected.service_id (instance_id is extracted from the 2-entry
+        # OfferService and compared against the captured slot in phase
+        # 2/3, so an expected.instance_id flip is no longer load-bearing
+        # after the spec-literal extraction refactor). Flip service_id
+        # so phase 1 conjunct fails → 2-entry Find never matches →
+        # listen window expires on fail_phase1_no_two_entry_offer.
+        # RPC_14/_17 phase 2/3 read expected.service_id; flipping it
+        # forces phase 2 to time out before the real Response can match.
         # SD_MESSAGE_01 + RPC_01/_02/_13 omitted — their conds rely
         # on captured-only invariants (entry-count + 0xF4E8 literal +
         # SSOT in someipsrv_si2::*) so an expect flip can't fault them.
-        "SOMEIPSRV_SD_MESSAGE_02|instance_id=0xFFFD|fail:no_single_entry_offer_for_instance_id_1_within_listen_window"
+        "SOMEIPSRV_SD_MESSAGE_02|service_id=0x0000|fail:no_two_entry_offer_for_findservice_any_within_listen_window"
         "SOMEIPSRV_RPC_14|service_id=0x0000|fail:no_response_from_instance_1_udp_port_30502"
         "SOMEIPSRV_RPC_17|service_id=0x0000|fail:no_response_from_instance_1_tcp_port_30501"
         # §5.1.6 SOMEIP_ETS NEG rows — _005/_027 cover the SD-side phase 1
@@ -3516,8 +3519,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # This validates the pass-guard dependency on tester_mac2 without
         # needing a DUT that actually does the wrong thing.
         "ARP_32|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2"
-        "ARP_33|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2"
-        "ARP_34|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2"
+        "ARP_33|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_is_mac1_not_mac2"
+        "ARP_34|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_is_mac1_not_mac2"
         "ARP_35|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2"
         # §4.2.4.2 Phase 3c Group D stateful-learning cases (ARP_39/40):
         # override the MAC the SCXML compares the DUT's UDP egress
@@ -3752,7 +3755,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "TCP_UNACCEPTABLE_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
         "TCP_UNACCEPTABLE_14|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
         "TCP_UNACCEPTABLE_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_to_unacceptable_ack_in_syn_recv"
-        "TCP_UNACCEPTABLE_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_to_synack_with_unacceptable_ack"
+        "TCP_UNACCEPTABLE_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_phase1_synack_with_unacceptable_ack"
         "TCP_UNACCEPTABLE_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
         "TCP_UNACCEPTABLE_10|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
         "TCP_UNACCEPTABLE_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
