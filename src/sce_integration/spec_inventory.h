@@ -8,11 +8,21 @@
 namespace tc8::sce {
 
 // One TC8-spec test case as mined from doc/spec/case_inventory.json.
-// `expected` and `defer_reason` come from doc/spec/inventory_overrides.json
-// (defaults: expected=true, empty reason). Both `id` and `category` are
-// stored verbatim from the spec body — case-folding to upper case for
-// comparison against harness-registered IDs is the consumer's job (see
-// SpecInventory::canonicalise).
+// Override fields come from doc/spec/inventory_overrides.json on two
+// independent axes (defaults: expected=true, linux_known_fail=false,
+// empty reason strings):
+//   - `expected:false` (+ `defer_reason`) — spec gap. The harness
+//     intentionally cannot cover this case (impossible against any
+//     reasonable DUT, e.g. wall-time-permanent-deferred shapes).
+//     Counted as a gap by the `--vs-spec` coverage report.
+//   - `linux_known_fail:true` (+ `linux_known_fail_ref`) — the case
+//     fails on the Linux DUT due to platform-specific RFC deviations,
+//     but a strict-RFC DUT under the same harness lands on pass.
+//     Kept ACTIVE in coverage reports so spec coverage stays honest;
+//     CI/smoke skip lists filter it via `--exclude-linux-known-fail`.
+// Both `id` and `category` are stored verbatim from the spec body —
+// case-folding to upper case for comparison against harness-registered
+// IDs is the consumer's job (see SpecInventory::canonicalise).
 struct SpecCase {
     std::string id;
     std::string category;
@@ -21,6 +31,8 @@ struct SpecCase {
     int line = 0;
     bool expected = true;
     std::string defer_reason;
+    bool linux_known_fail = false;
+    std::string linux_known_fail_ref;
 };
 
 // Loads doc/spec/case_inventory.json + doc/spec/inventory_overrides.json

@@ -50,6 +50,14 @@ private:
     // CI/smoke skip lists. Without this flag, the dump shows every
     // registered case regardless of override status.
     bool exclude_deferred_ = false;
+    // `--list-cases --exclude-linux-known-fail` strips cases marked
+    // `linux_known_fail:true` in doc/spec/inventory_overrides.json —
+    // platform-specific failures on a Linux DUT (kernel/userland
+    // deviations from RFC MUST/SHOULD) that pass on a strict-RFC DUT.
+    // Independent from `--exclude-deferred`; both can be combined.
+    // Spec coverage (`--vs-spec`) ignores this axis so reports stay
+    // honest about what the harness covers.
+    bool exclude_linux_known_fail_ = false;
     std::string inventory_path_;
     std::string overrides_path_;
     // Raw `KEY=VALUE` tokens collected from `--expect`. Parsed and pushed

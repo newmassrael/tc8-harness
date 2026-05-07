@@ -48,7 +48,14 @@ TestCommand::TestCommand(CLI::App &app) {
                    "With --list-cases (no --vs-spec), drop harness cases whose "
                    "canonical ID is marked expected:false in "
                    "doc/spec/inventory_overrides.json. Lets smoke/CI consume the "
-                   "JSON as the single source of truth for Linux-known-fails.");
+                   "JSON as the single source of truth for spec-deferred cases.");
+    sub_->add_flag("--exclude-linux-known-fail", exclude_linux_known_fail_,
+                   "With --list-cases (no --vs-spec), drop harness cases whose "
+                   "canonical ID is marked linux_known_fail:true in "
+                   "doc/spec/inventory_overrides.json — platform-specific "
+                   "failures on a Linux DUT that pass on a strict-RFC DUT. "
+                   "Independent from --exclude-deferred; combine for the full "
+                   "CI smoke skip list.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: doc/spec/case_inventory.json)");
@@ -88,11 +95,11 @@ int TestCommand::run(std::optional<std::string> bpf_override) {
 }
 
 int TestCommand::runListCases() const {
-    // Optional deferred-set lookup — only loaded when --exclude-deferred
-    // is set. Failure to load surfaces with stderr + non-zero exit so
+    // Optional override-set lookup — loaded when either filter flag is
+    // set. Failure to load surfaces with stderr + non-zero exit so
     // smoke/CI invocations don't silently fall back to the full list.
     std::optional<sce::SpecInventory> inv_for_filter;
-    if (exclude_deferred_) {
+    if (exclude_deferred_ || exclude_linux_known_fail_) {
         const std::string inv_path = inventory_path_.empty()
             ? std::string("doc/spec/case_inventory.json")
             : inventory_path_;
@@ -113,8 +120,13 @@ int TestCommand::runListCases() const {
     for (const auto *e : entries) {
         if (inv_for_filter.has_value()) {
             const auto canon = sce::SpecInventory::canonicalise(std::string{e->id});
-            if (const auto *sc = inv_for_filter->find(canon); sc != nullptr && !sc->expected) {
-                continue;
+            if (const auto *sc = inv_for_filter->find(canon); sc != nullptr) {
+                if (exclude_deferred_ && !sc->expected) {
+                    continue;
+                }
+                if (exclude_linux_known_fail_ && sc->linux_known_fail) {
+                    continue;
+                }
             }
         }
         if (e->category != current_category) {
@@ -130,8 +142,16 @@ int TestCommand::runListCases() const {
                     static_cast<int>(e->description.size()), e->description.data(), tag);
         ++emitted;
     }
-    if (exclude_deferred_) {
-        std::printf("\n%zu case(s) listed (deferred excluded).\n", emitted);
+    if (exclude_deferred_ || exclude_linux_known_fail_) {
+        std::string note;
+        if (exclude_deferred_) {
+            note = "deferred";
+        }
+        if (exclude_linux_known_fail_) {
+            note += note.empty() ? "" : "+";
+            note += "linux_known_fail";
+        }
+        std::printf("\n%zu case(s) listed (%s excluded).\n", emitted, note.c_str());
     } else {
         std::printf("\n%zu case(s) registered.\n", sce::CaseRegistry::instance().size());
     }

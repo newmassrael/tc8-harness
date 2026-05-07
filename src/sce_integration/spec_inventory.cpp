@@ -381,10 +381,16 @@ std::optional<SpecInventory> SpecInventory::load(const std::string &inventory_pa
             const std::string canon = canonicalise(id);
             const bool expected = findBoolField(body, "expected", true);
             std::string reason = findStringField(body, "reason");
+            const bool linux_known_fail =
+                findBoolField(body, "linux_known_fail", false);
+            std::string linux_known_fail_ref =
+                findStringField(body, "linux_known_fail_ref");
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
                     sc.defer_reason = std::move(reason);
+                    sc.linux_known_fail = linux_known_fail;
+                    sc.linux_known_fail_ref = std::move(linux_known_fail_ref);
                     break;
                 }
             }
