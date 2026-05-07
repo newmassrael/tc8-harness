@@ -3,22 +3,27 @@
   TC8 §5.1.5.3.2 SOMEIPSRV_SD_MESSAGE_02: When a FindService carries a
   specific Service Instance ID (not 0xFFFF), the DUT shall reply with an
   OfferService whose entries reference only the queried instance
-  (TR_SOMEIP_00351). Spec body issues two specific Finds (instance 0x0001
-  then instance 0x0002) and verifies each elicits a 1-entry OfferService.
+  (TR_SOMEIP_00351). Spec body chains:
+    1. TESTER → Find(instance_id=0xFFFF). DUT replies with 2-entry
+       OfferService. TESTER extracts entries[0/1].instance_id.
+    2. TESTER → Find(extractedInstID1). DUT replies with 1-entry
+       OfferService for that instance.
+    3. TESTER → Find(extractedInstID2). DUT replies with 1-entry
+       OfferService for that instance.
 
-  Two-phase observation:
-    Phase 1: Stimulus emits Find(instance_id=0x0001). Cond: 1-entry
-             OfferService whose entries[0].instance_id == 0x0001.
-             Cyclic 2-entry Offers silently dropped by the
-             sd_entry_count == 1 filter.
-    Phase 2: Stimulus subsequently emits Find(instance_id=0x0002). Cond:
-             1-entry OfferService whose entries[0].instance_id == 0x0002.
+  Three-phase observation:
+    Phase 1: stimulus emits Find(0xFFFF) at boot. Cond: 2-entry
+             OfferService whose service_id matches expected. Trait
+             dispatch override snapshots entries[0..1].instance_id
+             into captured.extracted_instance_id_1/2 on this match.
+    Phase 2: scheduleAfterStateEntry fires Find(extractedInstID1) on
+             phase 2 entry. Cond: 1-entry OfferService whose
+             entries[0].instance_id == captured.extracted_instance_id_1.
+    Phase 3: same shape with captured.extracted_instance_id_2.
 
-  The two Finds are issued sequentially in Traits::stimulus(); within
-  this 5 s phase 2 deadline both Find-triggered Offers will arrive.
-  Phase ordering tolerates either Offer arriving first — phase 1 cond
-  matches only the 0x0001 axis, phase 2 only the 0x0002 axis, so the
-  two cond branches are mutually exclusive and order-independent.
+  Replaces the prior "instance_id == expected.instance_id + 1"
+  hardcode (which baked in the tc8-dut sequential allocator) with a
+  spec-literal extraction from the observed 2-entry response.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -26,7 +31,7 @@
        version="1.0"
        name="someipsrv_sd_message_02"
        datamodel="null"
-       initial="listening_phase1">
+       initial="listening_phase1_find_all">
 
   <sce:context id="captured"
                cpp:type="tc8::SomeIpCaptured"
@@ -36,24 +41,34 @@
                cpp:type="tc8::SomeIpExpected"
                cpp:include="sce_integration/someip_expected.h"/>
 
-  <state id="listening_phase1">
+  <state id="listening_phase1_find_all">
     <onentry>
       <send event="phase1_deadline_exceeded" delay="6s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count == 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == expected.instance_id"
-                target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_for_instance_1"/>
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count == 2 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[1].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[1].service_id == expected.service_id"
+                target="listening_phase2_find_inst1"/>
+    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_two_entry_offer"/>
   </state>
 
-  <state id="listening_phase2">
+  <state id="listening_phase2_find_inst1">
     <onentry>
       <send event="phase2_deadline_exceeded" delay="6s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count == 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == expected.instance_id + 1"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count == 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == captured.extracted_instance_id_1"
+                target="listening_phase3_find_inst2"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_offer_for_instance_1"/>
+  </state>
+
+  <state id="listening_phase3_find_inst2">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count == 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == captured.extracted_instance_id_2"
                 target="pass"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_offer_for_instance_2"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_offer_for_instance_2"/>
   </state>
 
   <final id="pass">
@@ -62,15 +77,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer_for_instance_1">
+  <final id="fail_phase1_no_two_entry_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_single_entry_offer_for_instance_id_1_within_listen_window"}</content>
+      <content>{"verdict":"fail","reason":"no_two_entry_offer_for_findservice_any_within_listen_window"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_offer_for_instance_2">
+  <final id="fail_phase2_no_offer_for_instance_1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_single_entry_offer_for_instance_id_2_within_listen_window"}</content>
+      <content>{"verdict":"fail","reason":"no_single_entry_offer_for_extracted_instance_1_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_no_offer_for_instance_2">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_single_entry_offer_for_extracted_instance_2_within_listen_window"}</content>
     </donedata>
   </final>
 </scxml>

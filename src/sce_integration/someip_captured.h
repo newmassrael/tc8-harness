@@ -240,6 +240,20 @@ struct SomeIpCaptured {
     std::uint8_t sd_option_count = 0;
     SdOption sd_options[kMaxSdOptions]{};
 
+    // §5.1.5.3.2 SOMEIPSRV_SD_MESSAGE_02 dynamic instance extraction.
+    // The spec body (steps 6-7) extracts instance IDs from a 2-entry
+    // OfferService response to Find(instance_id=0xFFFF), then issues
+    // follow-up Finds with each extracted instance to assert each one
+    // returns a 1-entry OfferService for that instance only. SD_MESSAGE_02
+    // trait overrides dispatch to snapshot entries[0..1].instance_id
+    // whenever a 2-entry OfferService is observed; the SCXML phase 2/3
+    // conds compare incoming 1-entry replies against these slots so the
+    // verdict no longer hardcodes `expected.instance_id + 1` (which
+    // assumes the tc8-dut sequential allocator). Stays 0 for all other
+    // cases.
+    std::uint16_t extracted_instance_id_1 = 0;
+    std::uint16_t extracted_instance_id_2 = 0;
+
     // §5.1.5.3.9 SOMEIPSRV_SD_MESSAGE_09 cross-phase cache — UDP port
     // pulled from the most recent OfferService's IPv4 Endpoint Option
     // (option type 0x04, l4_proto 0x11). Updated by
