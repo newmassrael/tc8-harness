@@ -19,16 +19,20 @@ using Format26SM =
 namespace tc8::sce {
 
 // TC8 v3.0 §5.1.5.1.26 — TTL field of the Type 2 entry shall carry
-// the configured timer TTL (or 0 for Stop / Nack entries). Accept
-// either the configured TTL or 0 so the guard covers both Ack and
-// Nack paths without a second case.
+// the configured timer TTL on a SubscribeEventgroupAck (Pass Criteria
+// step 8 verifies "TTL set to <SERVICE-ID-1-TTL>"). The Synopsis
+// carve-out for Stop / Nack entries (TTL = 0) is not exercised by
+// this case — the trait stimulus subscribes to a configured
+// eventgroup so vsomeip replies with an Ack carrying TTL > 0; a Nack
+// (TTL = 0) lands fail_ttl, surfacing a vsomeip / configuration
+// regression that the prior `or ttl == 0` accept-clause masked.
 template <>
 struct TestCaseTraits<cases::Format26SM>
     : SomeIpSdOnlyBase<cases::Format26SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_26";
     static constexpr std::string_view kSpecSection = "5.1.5.1.26";
     static constexpr std::string_view kDescription =
-        "Type 2 entry TTL shall carry the configured TTL (or 0 for Stop / Nack)";
+        "Type 2 entry TTL on a SubscribeEventgroupAck shall carry the configured TTL";
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

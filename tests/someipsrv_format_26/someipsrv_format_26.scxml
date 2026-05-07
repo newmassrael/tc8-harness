@@ -2,10 +2,14 @@
 <!--
   TC8 §5.1.5.1.26 SOMEIPSRV_FORMAT_26: TTL field of the Type 2 entry
   shall carry the configured lifetime (SdServerTimerTTL /
-  SdClientTimerTTL), except for Stop- or Nack-Entries which shall use
-  a TTL of 0. tc8-dut responds to an unknown-eventgroup Subscribe with
-  a Nack, so TTL=0 is the conformant value; guard accepts either the
-  configured TTL or 0 to cover both Ack and Nack paths.
+  SdClientTimerTTL). Spec body Pass Criteria step 8 explicitly verifies
+  the Subscribe**Ack** TTL equals SERVICE-ID-1-TTL — the trait stimulus
+  subscribes to eventgroup 0x0002 (configured under TestEventUINT8 in
+  dut/ets/ets.fdepl + dut/dut_service/vsomeip.json) so vsomeip Acks with
+  TTL > 0. Strict cond rejects a Nack-shaped TTL=0 reply so a
+  vsomeip configuration regression that silently Nacks the Subscribe
+  surfaces here instead of masking through the false-positive
+  Nack-accept clause that the original guard carried.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -28,10 +32,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].type == 0x07 and (captured.sd_entries[0].ttl == expected.ttl or captured.sd_entries[0].ttl == 0)"
+                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == expected.ttl"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl != expected.ttl and captured.sd_entries[0].ttl != 0"
+                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl != expected.ttl"
                 target="fail_ttl"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
