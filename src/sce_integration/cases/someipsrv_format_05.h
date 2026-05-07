@@ -21,7 +21,7 @@ namespace tc8::sce {
 // (NOTIFICATION).
 template <>
 struct TestCaseTraits<cases::Format05SM>
-    : SomeIpAnyBase<cases::Format05SM> {
+    : SomeIpSdOnlyBase<cases::Format05SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_05";
     static constexpr std::string_view kSpecSection = "5.1.5.1.5";
     static constexpr std::string_view kDescription =

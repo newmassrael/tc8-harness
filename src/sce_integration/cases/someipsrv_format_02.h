@@ -20,7 +20,7 @@ namespace tc8::sce {
 // TC8 v3.0 §5.1.5.1.2 — After SD init, Session ID shall be 0x0001.
 template <>
 struct TestCaseTraits<cases::Format02SM>
-    : SomeIpAnyBase<cases::Format02SM> {
+    : SomeIpSdOnlyBase<cases::Format02SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_02";
     static constexpr std::string_view kSpecSection = "5.1.5.1.2";
     static constexpr std::string_view kDescription =
