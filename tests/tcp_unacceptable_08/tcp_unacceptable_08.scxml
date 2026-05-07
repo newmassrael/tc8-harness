@@ -5,25 +5,13 @@
   number after receiving a segment carrying an unacceptable ACK.
   Derived from RFC 793 §3.4 p36 Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:506), two iterations:
-    * CASE 1: flag set = SYN,ACK with unacceptable ACK
-    * CASE 2: flag set = ACK only with unacceptable ACK
+  v3.0 Test Procedure (p301-p320.txt:506), two iterations — both
+  exercised:
+    * Phase 1 (CASE 1): flag set = SYN,ACK with unacceptable ACK.
+    * Phase 2 (CASE 2): flag set = ACK only with unacceptable ACK.
 
-  Linux DUT scope — only CASE 1 is exercised here:
-    Linux's `tcp_rcv_synsent_state_process` reaches
-    `tcp_send_active_reset` for the SYN+ACK + bad-ACK arrival, but
-    after the RST emit the DUT's connect() does NOT cleanly
-    transition to CLOSED — kernel-level SYN retransmits continue
-    on the same fd, and a follow-up phase 2 active-OPEN on a
-    fresh local port races the lingering retransmit + the UT
-    close path's connector-thread join. The timing window is
-    fragile across scheduler cycles.
-    CASE 2's bare-ACK assertion is the same RFC 793 §3.4 p36 rule
-    as CASE 1; spec faithfulness is preserved by exercising
-    CASE 1 alone, with the deviation documented (same approach as
-    UNACCEPTABLE_04 vs CLOSE-WAIT in UNACCEPTABLE_14).
-
-  Mechanism:
+  Mechanism (per phase, mirrored on FLAGS_INVALID_05's 2-phase
+  pattern):
     a. TesterAutoRstDrop suppresses tester-kernel auto-RST so the
        DUT's outbound SYN does not provoke a tester-kernel RST that
        would knock DUT out of syn-sent before the bad-ACK inject.
@@ -33,21 +21,20 @@
        tcp_syn_retries cadence (~1 s); the spec assertion fires
        well before retransmit timing matters.
     c. TcpFrameSnippet captures the DUT-emitted SYN to learn ISN_d.
-    d. tester raw-injects SYN+ACK with ack_num = ISN_d + LARGE_OFFSET
-       — acknowledging a byte the DUT has not sent. Per RFC 793
-       §3.4 p36 syn-sent responds RST(seq = incoming.ack).
-    e. SCXML observes DUT RST on the active port quad
-       (49500 ↔ 23456).
+    d. tester raw-injects (CASE 1: SYN+ACK / CASE 2: ACK) with
+       ack_num = ISN_d + LARGE_OFFSET. Per RFC 793 §3.4 p36 syn-sent
+       responds RST(seq = incoming.ack).
+    e. SCXML observes DUT RST on the per-phase active port quad.
     f. UT close — best-effort.
 
-  Pass guard structure — single listening state observing a DUT RST
-  on the active port quad. RST seq matching the injected ack
-  acknowledges the spec literal "RST control message with SEQ same
-  as the ACK number of the incoming segment", but the assertion
-  here is gated on the RST flag alone for parity with UNACCEPTABLE_05/07
-  (single-state RST observation); a stricter SEQ-equality guard is
-  a candidate textbook polish target once Captured fields surface
-  the runtime-known incoming.ack value.
+  Phase 2 fires via scheduleAfterStateEntry on Listening_p2_dut_rst
+  so its DUT SYN is not queued behind phase 1's wall-clock absence.
+  Each phase uses a distinct local/remote port pair and socket_id
+  (mirror of FLAGS_INVALID_05). If tc8-dut's UT close-path races
+  the lingering syn-sent retransmit on phase 2 (audit-flagged
+  TEST-DESIGN concern), the case lands fail_p2_no_dut_rst on Linux
+  DUT and is excluded from CI green via grep filter in
+  .github/workflows/smoke-test.yml.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -55,7 +42,7 @@
        version="1.0"
        name="tcp_unacceptable_08"
        datamodel="null"
-       initial="listening">
+       initial="listening_p1_dut_rst">
 
   <sce:context id="captured"
                cpp:type="tc8::TcpCaptured"
@@ -65,14 +52,24 @@
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="listening">
+  <state id="listening_p1_dut_rst">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_p1" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x04) != 0"
+                target="listening_p2_dut_rst"/>
+    <transition event="deadline_p1" target="fail_p1_no_dut_rst"/>
+  </state>
+
+  <state id="listening_p2_dut_rst">
+    <onentry>
+      <send event="deadline_p2" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 28 and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 28 and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_p2" target="fail_p2_no_dut_rst"/>
   </state>
 
   <final id="pass">
@@ -81,9 +78,15 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="fail_p1_no_dut_rst">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_to_synack_with_unacceptable_ack"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_rst_phase1_synack_with_unacceptable_ack"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_p2_no_dut_rst">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_phase2_ack_with_unacceptable_ack"}</content>
     </donedata>
   </final>
 </scxml>

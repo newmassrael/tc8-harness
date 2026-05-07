@@ -6,11 +6,13 @@
   ACK, and remain in ESTABLISHED. Derived from RFC 793 §3.4 p37
   Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:357), two iterations:
-    * CASE 1: data segment with out-of-window SEQ.
-    * CASE 2: data segment with unacceptable ACK number.
+  v3.0 Test Procedure (p301-p320.txt:357), two iterations — both
+  exercised here:
+    * CASE 1 (phase 1): data segment with out-of-window SEQ.
+    * CASE 2 (phase 2): data segment with unacceptable ACK number
+      (after snd_nxt).
 
-  Linux DUT deviation — only CASE 1 is exercised here:
+  Linux DUT deviation — CASE 2 is silent-dropped:
     * CASE 1 OTW SEQ → Linux's `tcp_validate_incoming` reaches the
       `out_of_window` path and schedules an ACK
       (`inet_csk_schedule_ack`); the empty ACK is observable on
@@ -24,26 +26,23 @@
       Linux that genuinely silent-drops CASE 2 — the FW2 path
       emits an RST (UNACCEPTABLE_10's mini-socket substate) and
       every other non-EST state (FW1, CLOSING, LA, CW) takes the
-      `tcp_rcv_state_process` branch (line 6562-6568) which
-      explicitly fires `tcp_send_challenge_ack(sk)` as the spec
-      mandates. See reference_unacc_ack_dispatch memory for the
-      full source trace + dispatch table.
-      CASE 2 IS observable on UNACCEPTABLE_09 (FW1), _11 (CLOSING),
-      _12 (LA), _14 (CW), all of which carry 2-iter compounds.
-      UNACCEPTABLE_04 here covers only CASE 1.
+      `tcp_rcv_state_process` branch which explicitly fires
+      `tcp_send_challenge_ack(sk)` as the spec mandates. See
+      reference_unacc_ack_dispatch memory for the full source
+      trace + dispatch table.
+      Linux DUT therefore lands `fail_no_dut_ack_to_unacc_ack`
+      and is excluded from CI green via grep filter in
+      .github/workflows/smoke-test.yml. A strict-RFC DUT lands
+      pass without filter.
 
-  This deviation is the same class as the ICMP Parameter Problem
-  Pointer convention (TC8 says 22, Linux emits 20; ERROR_02 accepts
-  {20,22} to keep the harness green against stock Linux). Documenting
-  the carve-out keeps the case both spec-faithful and Linux-runnable.
-
-  Pass guard structure — two listening states walked in sequence:
-    listening_handshake_ack — consume the handshake third-leg ACK
+  Pass guard structure — three listening states walked in sequence:
+    listening_handshake_ack  — consume the handshake third-leg ACK
         (also a DUT pure-ACK with payload=0) so the post-stimulus
         ACK matching is unambiguous.
-    listening_data_ack — pass on the next DUT pure-ACK on the active
-        port quad (49500 ↔ 23456). Same 2-state shape as §4.8.6.2
-        CHECKSUM_01.
+    listening_otw_ack        — pass on next DUT pure-ACK after
+        phase 1 OTW-SEQ stimulus; transitions to phase 2.
+    listening_unacc_ack      — onentry schedules phase 2 stimulus
+        (unacc-ACK); pass on next DUT pure-ACK; deadline → fail.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -67,18 +66,28 @@
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
-                target="listening_data_ack"/>
+                target="listening_otw_ack"/>
     <transition event="deadline_handshake" target="fail_no_handshake_ack"/>
   </state>
 
-  <state id="listening_data_ack">
+  <state id="listening_otw_ack">
     <onentry>
-      <send event="deadline_data_ack" delay="5s"/>
+      <send event="deadline_otw_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="listening_unacc_ack"/>
+    <transition event="deadline_otw_ack" target="fail_no_otw_seq_ack"/>
+  </state>
+
+  <state id="listening_unacc_ack">
+    <onentry>
+      <send event="deadline_unacc_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
                 target="pass"/>
-    <transition event="deadline_data_ack" target="fail_no_otw_seq_ack"/>
+    <transition event="deadline_unacc_ack" target="fail_no_dut_ack_to_unacc_ack"/>
   </state>
 
   <final id="pass">
@@ -96,6 +105,12 @@
   <final id="fail_no_otw_seq_ack">
     <donedata>
       <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_data"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_ack_to_unacc_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_unacc_ack_data"}</content>
     </donedata>
   </final>
 </scxml>

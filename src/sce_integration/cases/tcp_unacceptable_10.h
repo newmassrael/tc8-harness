@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <unistd.h>
@@ -35,11 +36,23 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
     static constexpr std::array<std::uint8_t, 4> kCorruptPayload = {
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
-    // Single-iter (CASE 1 OTW SEQ only). CASE 2 in FW2 emits RST
-    // per Linux 6.5 tcp_minisocks.c::tcp_timewait_state_process
-    // FW2 substate (line 130-135) — RFC 793 §3.4 spec violation,
-    // NOT silent-drop. See SCXML preamble +
-    // reference_unacc_ack_dispatch for the dispatch table.
+    // Spec Test Procedure (v3.0 p301-p320.txt:609), two iterations,
+    // both exercised:
+    //   * Phase 1 — fired synchronously: data segment with OTW SEQ
+    //     (snd_nxt + kOutOfWindowSeqOffset).
+    //   * Phase 2 — deferred via scheduleAfterStateEntry on
+    //     Listening_unacc_ack: data segment with in-window SEQ +
+    //     unacceptable ACK (snd_nxt + kOutOfWindowSeqOffset).
+    //
+    // Linux 6.5 FW2 substate emits RST not ACK on phase 2's unacc-ACK
+    // (`tcp_minisocks.c::tcp_timewait_state_process` line 130-135 →
+    // `tcp_v4_send_reset`). Linux DUT therefore lands
+    // `fail_dut_rst_to_unacc_ack`; case is excluded from CI green via
+    // grep filter in .github/workflows/smoke-test.yml. A spec-compliant
+    // DUT emitting an empty ACK lands pass without filter. See SCXML
+    // preamble + reference_unacc_ack_dispatch memory for the source
+    // trace.
+    //
     // Mechanism:
     //   1. Active-OPEN handshake → ESTABLISHED.
     //   2. UT OpCloseTcpSocket — DUT FIN → DUT enters FIN-WAIT-1.
@@ -50,18 +63,20 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
     //   4. queryTcpSeqRange(tester_fd) — tester snd_nxt = ISN_t + 1
     //      (no tester data); rcv_nxt = ISN_d + 2 (DUT FIN
     //      consumed +1).
-    //   5. Build OTW-SEQ corrupt segment: seq_num = snd_nxt +
-    //      kOutOfWindowSeqOffset, ack_num = rcv_nxt; payload set
-    //      from kCorruptPayload because OTW-SEQ short-circuits in
-    //      tcp_validate_incoming BEFORE the FIN-WAIT-2 abort-on-
-    //      data RST path (which would fire only on payload + bad
-    //      SEQ in some kernel configurations). CASE 2 (bad-ACK)
-    //      is gated separately by tcp_ack's silent-drop and is
-    //      not observable here — see SCXML preamble.
-    //   6. Pcap observes DUT empty ACK on the data path.
+    //   5. Phase 1 — build OTW-SEQ corrupt segment: seq_num =
+    //      snd_nxt + kOutOfWindowSeqOffset, ack_num = rcv_nxt;
+    //      payload from kCorruptPayload. Pcap observes DUT empty
+    //      ACK on the data path.
+    //   6. Phase 2 — on listening_unacc_ack entry, re-query seq
+    //      range and inject in-window SEQ (tester snd_nxt) +
+    //      unacceptable ACK (tester rcv_nxt + kUnacceptableAckOffset).
+    //      Linux FW2 substate RSTs (Linux deviation); spec-compliant
+    //      DUT emits empty ACK. Same stimulus shape as
+    //      UNACCEPTABLE_09 CASE 2.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -72,33 +87,56 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
             cfg, iface, cfg.arp.dut_real_mac,
             /*req_id=*/2, /*socket_id=*/1);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        if (tester_fd >= 0) {
-            const auto seq_range = queryTcpSeqRange(tester_fd);
-            if (seq_range.has_value()) {
-                ::tc8::stimulus::TcpSegmentSpec data{};
-                data.src_port = kBasicsActiveRemotePort;
-                data.dst_port = kBasicsActiveLocalPort;
-                data.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
-                data.ack_num  = seq_range->rcv_nxt;
-                data.flags    = ::tc8::stimulus::kTcpFlagPsh
-                              | ::tc8::stimulus::kTcpFlagAck;
-                data.payload.assign(kCorruptPayload.begin(),
-                                    kCorruptPayload.end());
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+        if (tester_fd < 0) return;
+
+        const auto seq_range = queryTcpSeqRange(tester_fd);
+        if (!seq_range.has_value()) return;
+
+        ::tc8::stimulus::TcpSegmentSpec phase1{};
+        phase1.src_port = kBasicsActiveRemotePort;
+        phase1.dst_port = kBasicsActiveLocalPort;
+        phase1.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
+        phase1.ack_num  = seq_range->rcv_nxt;
+        phase1.flags    = ::tc8::stimulus::kTcpFlagPsh
+                        | ::tc8::stimulus::kTcpFlagAck;
+        phase1.payload.assign(kCorruptPayload.begin(),
+                              kCorruptPayload.end());
+        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, phase1,
+                     /*initial_wait=*/std::chrono::milliseconds(0));
+
+        ::tc8::TestConfig cfg_copy = cfg;
+        std::string       iface_str(iface);
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_unacc_ack),
+            [cfg_copy, iface_str, tester_fd]() {
+                using namespace ::tc8::sce::tcp;
+                const auto seq_range_p2 = queryTcpSeqRange(tester_fd);
+                if (!seq_range_p2.has_value()) return;
+                ::tc8::stimulus::TcpSegmentSpec phase2{};
+                phase2.src_port = kBasicsActiveRemotePort;
+                phase2.dst_port = kBasicsActiveLocalPort;
+                phase2.seq_num  = seq_range_p2->snd_nxt;
+                phase2.ack_num  = seq_range_p2->rcv_nxt + kUnacceptableAckOffset;
+                phase2.flags    = ::tc8::stimulus::kTcpFlagPsh
+                                | ::tc8::stimulus::kTcpFlagAck;
+                phase2.payload.assign(kCorruptPayload.begin(),
+                                      kCorruptPayload.end());
+                emitTcpFrame(cfg_copy, iface_str, cfg_copy.arp.dut_real_mac, phase2,
                              /*initial_wait=*/std::chrono::milliseconds(0));
-            }
-            (void)tester_fd;
-        }
-        std::this_thread::sleep_for(kTcpPilotPhaseGap);
+            });
+
+        (void)tester_fd;
     }
 
     static std::string_view verdictFor(State s) {
         switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack_within_listen_window";
-            case State::Fail_no_dut_fin:            return "fail:no_dut_fin_within_listen_window";
-            case State::Fail_no_data_ack:           return "fail:no_dut_ack_to_otw_seq_finwait2";
-            default:                                return "running";
+            case State::Pass:                          return "pass";
+            case State::Fail_no_handshake_ack:         return "fail:no_dut_handshake_ack_within_listen_window";
+            case State::Fail_no_dut_fin:               return "fail:no_dut_fin_within_listen_window";
+            case State::Fail_no_data_ack:              return "fail:no_dut_ack_to_otw_seq_finwait2";
+            case State::Fail_dut_rst_to_unacc_ack:     return "fail:dut_rst_to_unacc_ack_finwait2";
+            case State::Fail_no_dut_ack_to_unacc_ack:  return "fail:no_dut_ack_to_unacc_ack_finwait2";
+            default:                                   return "running";
         }
     }
 };

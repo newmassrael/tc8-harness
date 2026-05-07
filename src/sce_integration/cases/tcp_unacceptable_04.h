@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <unistd.h>
@@ -35,25 +36,37 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
     static constexpr std::array<std::uint8_t, 4> kCorruptPayload = {
         0xDEU, 0xADU, 0xBEU, 0xEFU};
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:357), two iterations.
-    // Linux deviation: only CASE 1 (OTW SEQ) is exercised here —
-    // ESTABLISHED is the only state on Linux 6.5 that silent-drops
-    // CASE 2 (tcp_rcv_established slow_path step5 → tcp_ack
+    // Spec Test Procedure (v3.0 p301-p320.txt:357), two iterations,
+    // both exercised:
+    //   * Phase 1 — fired synchronously: data segment with OTW SEQ
+    //     (snd_nxt + kOutOfWindowSeqOffset).
+    //   * Phase 2 — deferred via scheduleAfterStateEntry on
+    //     Listening_unacc_ack: data segment with in-window SEQ
+    //     (tester snd_nxt) + unacceptable ACK (tester rcv_nxt +
+    //     kUnacceptableAckOffset, after DUT's snd_nxt). In-window
+    //     SEQ ensures tcp_validate_incoming does NOT short-circuit
+    //     at the OTW path before tcp_ack examines the ACK. Same
+    //     stimulus shape as UNACCEPTABLE_09 CASE 2.
+    //
+    // Linux 6.5 ESTABLISHED silent-drops phase 2's unacc-ACK
+    // (tcp_rcv_established slow_path step5 → tcp_ack returns -1
     // -SKB_DROP_REASON_TCP_ACK_UNSENT_DATA → goto discard, no
-    // challenge ACK). FW2 RSTs via tcp_timewait_state_process; all
-    // other non-EST states challenge-ACK via tcp_rcv_state_process.
-    // See SCXML preamble + reference_unacc_ack_dispatch memory.
-    // CASE 2 against Linux is covered by UNACCEPTABLE_09 (FW1),
-    // _11 (CLOSING), _12 (LA), _14 (CW).
+    // challenge ACK). Linux DUT therefore lands
+    // `fail_no_dut_ack_to_unacc_ack`; case is excluded from CI green
+    // via grep filter in .github/workflows/smoke-test.yml. A
+    // strict-RFC DUT lands pass without filter. See SCXML preamble +
+    // reference_unacc_ack_dispatch memory for the source trace.
     //
     // Active-OPEN handshake → ESTABLISHED → query tester's
-    // snd_nxt / rcv_nxt → raw-inject DATA with seq = snd_nxt + 16 MB
-    // (safely OTW for any plausible window scale) → DUT empty ACK on
-    // the active port quad. Connection cleanup deferred to process
-    // exit (same rationale as CHECKSUM_02).
+    // snd_nxt / rcv_nxt → raw-inject phase 1 → on Listening_unacc_ack
+    // entry, re-query seq range and raw-inject phase 2 → expect a
+    // second DUT pure ACK on the same active port quad. The tester_fd
+    // remains open across phases (caller-owned per acceptOne contract;
+    // kept alive until process exit, same rationale as CHECKSUM_02).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -61,23 +74,45 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
             cfg, iface, cfg.arp.dut_real_mac);
 
         const int tester_fd = listener.acceptOne();
-        if (tester_fd >= 0) {
-            const auto seq_range = queryTcpSeqRange(tester_fd);
-            if (seq_range.has_value()) {
-                ::tc8::stimulus::TcpSegmentSpec data{};
-                data.src_port = kBasicsActiveRemotePort;
-                data.dst_port = kBasicsActiveLocalPort;
-                data.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
-                data.ack_num  = seq_range->rcv_nxt;
-                data.flags    = ::tc8::stimulus::kTcpFlagPsh
-                              | ::tc8::stimulus::kTcpFlagAck;
-                data.payload.assign(kCorruptPayload.begin(),
-                                    kCorruptPayload.end());
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+        if (tester_fd < 0) return;
+
+        const auto seq_range = queryTcpSeqRange(tester_fd);
+        if (!seq_range.has_value()) return;
+
+        ::tc8::stimulus::TcpSegmentSpec phase1{};
+        phase1.src_port = kBasicsActiveRemotePort;
+        phase1.dst_port = kBasicsActiveLocalPort;
+        phase1.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
+        phase1.ack_num  = seq_range->rcv_nxt;
+        phase1.flags    = ::tc8::stimulus::kTcpFlagPsh
+                        | ::tc8::stimulus::kTcpFlagAck;
+        phase1.payload.assign(kCorruptPayload.begin(),
+                              kCorruptPayload.end());
+        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, phase1,
+                     /*initial_wait=*/std::chrono::milliseconds(0));
+
+        ::tc8::TestConfig cfg_copy = cfg;
+        std::string       iface_str(iface);
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_unacc_ack),
+            [cfg_copy, iface_str, tester_fd]() {
+                using namespace ::tc8::sce::tcp;
+                const auto seq_range_p2 = queryTcpSeqRange(tester_fd);
+                if (!seq_range_p2.has_value()) return;
+                ::tc8::stimulus::TcpSegmentSpec phase2{};
+                phase2.src_port = kBasicsActiveRemotePort;
+                phase2.dst_port = kBasicsActiveLocalPort;
+                phase2.seq_num  = seq_range_p2->snd_nxt;
+                phase2.ack_num  = seq_range_p2->rcv_nxt + kUnacceptableAckOffset;
+                phase2.flags    = ::tc8::stimulus::kTcpFlagPsh
+                                | ::tc8::stimulus::kTcpFlagAck;
+                phase2.payload.assign(kCorruptPayload.begin(),
+                                      kCorruptPayload.end());
+                emitTcpFrame(cfg_copy, iface_str, cfg_copy.arp.dut_real_mac, phase2,
                              /*initial_wait=*/std::chrono::milliseconds(0));
-            }
-            (void)tester_fd;
-        }
+            });
+
+        (void)tester_fd;
     }
 
     static std::string_view verdictFor(State s) {
@@ -85,6 +120,7 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
             case State::Pass:                          return "pass";
             case State::Fail_no_handshake_ack:         return "fail:no_dut_handshake_ack_within_listen_window";
             case State::Fail_no_otw_seq_ack:           return "fail:no_dut_ack_to_otw_seq_data";
+            case State::Fail_no_dut_ack_to_unacc_ack:  return "fail:no_dut_ack_to_unacc_ack_data";
             default:                                   return "running";
         }
     }

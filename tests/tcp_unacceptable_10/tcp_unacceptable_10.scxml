@@ -6,11 +6,14 @@
   ACK, and remain in FIN-WAIT-2. Derived from RFC 793 §3.4 p37
   Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:609), two iterations:
-    * CASE 1: data segment with out-of-window SEQ.
-    * CASE 2: data segment with an unacceptable ACK number.
+  v3.0 Test Procedure (p301-p320.txt:609), two iterations — both
+  exercised:
+    * Phase 1 (CASE 1): data segment with OTW SEQ — empty ACK
+      expected.
+    * Phase 2 (CASE 2): data segment with unacceptable ACK — empty
+      ACK expected.
 
-  Linux DUT deviation — only CASE 1 is exercised here:
+  Linux DUT deviation — CASE 2 emits RST not ACK:
     * CASE 1 OTW SEQ → Linux's `tcp_validate_incoming` reaches
       the `out_of_window` path BEFORE entering state-specific
       processing and schedules an empty ACK; observable on pcap.
@@ -30,23 +33,26 @@
       `tcp_rcv_established` → `tcp_ack` short-circuit) and FW1 / CW
       / CLOSING / LA (challenge-ACK via `tcp_rcv_state_process`
       line 6562-6568); see reference_unacc_ack_dispatch memory.
-      UNACCEPTABLE_10 here covers only CASE 1; CASE 2 RST cannot
-      be tested as an "empty ACK" assertion against this kernel.
-      An earlier preamble revision claimed silent-drop here; the
-      pcap kernel ring upgrade (commit c8caa79) exposed the actual
-      RST emission and the source trace confirms.
+      Linux DUT therefore lands `fail_dut_rst_to_unacc_ack` and is
+      excluded from CI green via grep filter in
+      .github/workflows/smoke-test.yml. A spec-compliant DUT
+      emitting an empty ACK lands pass without filter.
 
   Mechanism: active-OPEN handshake → ESTABLISHED → UT
   OpCloseTcpSocket drives DUT into FIN-WAIT-1 → tester kernel
   auto-ACKs DUT FIN (NOT suppressed — _10 deliberately allows the
   collapse) → DUT advances to FIN-WAIT-2 → query tester SEQ/ACK →
-  raw-inject corrupt OTW-SEQ segment → DUT empty ACK on data path.
+  raw-inject corrupt OTW-SEQ segment (phase 1) → DUT empty ACK on
+  data path → on listening_unacc_ack entry, raw-inject in-window
+  SEQ + unacc-ACK (phase 2) → DUT empty ACK or RST.
 
-  Three DUT-origin observations on tcp_observed:
+  Four DUT-origin observations on tcp_observed:
     1. handshake third-leg ACK (pure ACK, ack = ISN_t + 1)
     2. close-elicited DUT FIN+ACK (UT close → FIN-WAIT-1; tester
        ACK transitions DUT to FIN-WAIT-2)
-    3. data-elicited empty ACK to corrupt segment
+    3. data-elicited empty ACK to corrupt segment (CASE 1)
+    4. unacc-ACK-elicited empty ACK (CASE 2 spec) or RST (Linux
+       deviation)
 
   Negative smoke flips ipv4.dut_iface_ip → first state's
   src_ip-conjunct unreachable → fail_no_handshake_ack.
@@ -93,8 +99,21 @@
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
-                target="pass"/>
+                target="listening_unacc_ack"/>
     <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+  </state>
+
+  <state id="listening_unacc_ack">
+    <onentry>
+      <send event="deadline_unacc_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="fail_dut_rst_to_unacc_ack"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                target="pass"/>
+    <transition event="deadline_unacc_ack" target="fail_no_dut_ack_to_unacc_ack"/>
   </state>
 
   <final id="pass">
@@ -118,6 +137,18 @@
   <final id="fail_no_data_ack">
     <donedata>
       <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_finwait2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_rst_to_unacc_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_to_unacc_ack_finwait2"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_dut_ack_to_unacc_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_unacc_ack_finwait2"}</content>
     </donedata>
   </final>
 </scxml>
