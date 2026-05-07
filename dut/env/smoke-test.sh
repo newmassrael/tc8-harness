@@ -14,9 +14,9 @@
 # --workers N (default 1) runs N parallel (tc8-dut, harness) pairs, each
 # pinned to its own netns pair (tc8-tester-$W / tc8-dut-$W), veth pair
 # (veth-tester-$W / veth-dut-$W), and vsomeip tmp directory
-# (/tmp/tc8-vsomeip-$W/). Cases are distributed round-robin across
-# workers. Each case still provisions a fresh tc8-dut (no cross-case
-# state), so round-robin is safe.
+# ($VSOMEIP_BASE/$W/, where $VSOMEIP_BASE is PID-scoped). Cases are
+# distributed round-robin across workers. Each case still provisions a
+# fresh tc8-dut (no cross-case state), so round-robin is safe.
 #
 # --dut-first inverts the default harness-first startup order. Used for
 # negative tests that prove a case detects non-conformance (e.g. FORMAT_02
@@ -48,8 +48,25 @@ CAPI_CFG=${CAPI_CFG:-$ROOT/dut/dut_service/commonapi.ini}
 # cleanup trap can tear down exactly the workers that were set up, even
 # if a setup-netns.sh invocation fails mid-bring-up. Also holds per-case
 # log tempfiles when --log-dir is not provided, and the stdout lock.
-WORK_ROOT=/tmp/tc8-workers
+#
+# PID-scoped (`.$$` suffix) so concurrent smoke-test.sh invocations on
+# the same host (e.g. CI runner + local dev) get fully isolated state —
+# in particular each run's `junit_records` files cannot bleed into the
+# other's $JUNIT_OUT aggregation. The legacy non-scoped path was
+# `/tmp/tc8-workers`; stale-scope GC below cleans up dirs left behind
+# by crashed prior runs whose owner shell is gone.
+WORK_ROOT=/tmp/tc8-workers.$$
 STDOUT_LOCK=$WORK_ROOT/stdout.lock
+
+# Per-run vsomeip + symlink scratch base. PID-scoped for the same
+# reason as $WORK_ROOT — each run's worker symlinks
+# (`$VSOMEIP_BASE/$W/tc8-{dut,harness}`) and vsomeip UDS sockets must
+# not collide with a concurrent run's. Workers nest as `$VSOMEIP_BASE/$W`,
+# replacing the legacy flat layout `/tmp/tc8-vsomeip-$W`. The
+# kill_worker_procs marker `$VSOMEIP_BASE/$W/tc8-dut` is unique per
+# (run-PID, worker-id) pair, so concurrent-run pkill no longer fans
+# out across runs.
+VSOMEIP_BASE=/tmp/tc8-vsomeip.$$
 
 # DUT-specific expected values for SOMEIPSRV_FORMAT_14..18,
 # FORMAT_19..28, and OPTIONS_04/07/15. Passed to the harness via
@@ -368,9 +385,9 @@ EOF
 
 # SIGKILL every process whose cmdline matches a per-worker binary path
 # and wait for them to disappear. The caller passes a symlink-via path
-# like /tmp/tc8-vsomeip-$W/tc8-dut — bring_up_worker creates that
-# symlink, run_case invokes through it, so argv[0] (and thus
-# /proc/PID/cmdline) contains the worker-scoped string.
+# like $VSOMEIP_BASE/$W/tc8-dut — bring_up_worker creates that symlink,
+# run_case invokes through it, so argv[0] (and thus /proc/PID/cmdline)
+# contains the per-(run-PID, worker-id) scoped string.
 #
 # Why not PGID-based kill: under `set -m` bash assigns a fresh PGID to
 # each backgrounded command, but `ip netns exec` forks internally and
@@ -404,7 +421,7 @@ kill_worker_procs() {
 # succeeds, so a crash mid-setup is still reachable by the cleanup trap.
 bring_up_worker() {
     local W=$1
-    mkdir -p "$WORK_ROOT/$W" "/tmp/tc8-vsomeip-$W"
+    mkdir -p "$WORK_ROOT/$W" "$VSOMEIP_BASE/$W"
     : >"$WORK_ROOT/$W/up"
     : >"$WORK_ROOT/$W/junit_records"
     env TESTER_NS="tc8-tester-$W" DUT_NS="tc8-dut-$W" \
@@ -419,9 +436,11 @@ bring_up_worker() {
     # worker-unique argv[0] in /proc/PID/cmdline. kill_worker_procs
     # pkills by that unique string, scoping the kill to this worker
     # only. Without these symlinks, concurrent workers share the real
-    # binary path and pkill would fan out across workers.
-    ln -sf "$TC8_DUT_BIN" "/tmp/tc8-vsomeip-$W/tc8-dut"
-    ln -sf "$HARNESS" "/tmp/tc8-vsomeip-$W/tc8-harness"
+    # binary path and pkill would fan out across workers. Path is
+    # additionally PID-scoped via $VSOMEIP_BASE so concurrent
+    # smoke-test.sh runs don't collide on the marker.
+    ln -sf "$TC8_DUT_BIN" "$VSOMEIP_BASE/$W/tc8-dut"
+    ln -sf "$HARNESS" "$VSOMEIP_BASE/$W/tc8-harness"
 
     # veth MAC is kernel-assigned per `ip link add` invocation. Capture
     # AFTER setup-netns.sh completes; feed it to ARP_13 expectations for
@@ -484,11 +503,11 @@ tear_down_worker() {
     # Reap any tc8-dut/harness still running under this worker's
     # symlink path (belt-and-suspenders — run_case/run_negative_case
     # already call kill_worker_procs per case).
-    kill_worker_procs "/tmp/tc8-vsomeip-$W/tc8-dut"
-    kill_worker_procs "/tmp/tc8-vsomeip-$W/tc8-harness"
+    kill_worker_procs "$VSOMEIP_BASE/$W/tc8-dut"
+    kill_worker_procs "$VSOMEIP_BASE/$W/tc8-harness"
     env TESTER_NS="tc8-tester-$W" DUT_NS="tc8-dut-$W" \
         "$HERE/cleanup.sh" >/dev/null 2>&1 || true
-    rm -rf "/tmp/tc8-vsomeip-$W" "$WORK_ROOT/$W"
+    rm -rf "$VSOMEIP_BASE/$W" "$WORK_ROOT/$W"
 }
 
 cleanup() {
@@ -505,16 +524,57 @@ cleanup() {
         done
         rm -rf "$WORK_ROOT"
     fi
+    rm -rf "$VSOMEIP_BASE"
 }
 trap cleanup EXIT
 
-# Leftovers from a prior hung run (vsomeip half-init blocks shutdown).
-# Broad pkill covers all workers' tc8-dut/harness; harmless when no
-# other smoke-test invocation is concurrent.
-pkill -9 -f "$TC8_DUT_BIN" 2>/dev/null || true
-pkill -9 -f "$HARNESS" 2>/dev/null || true
-rm -rf "$WORK_ROOT" /tmp/vsomeip-* /tmp/vsomeip.lck /tmp/tc8-vsomeip-*
-mkdir -p "$WORK_ROOT"
+# Leftover GC for prior smoke-test.sh runs that crashed before their EXIT
+# trap fired — vsomeip half-init can leave tc8-dut/harness alive,
+# blocking the next run's UDS bind. Two parts:
+#
+# 1. PID-scoped sibling scopes (current scheme). Each $WORK_ROOT /
+#    $VSOMEIP_BASE pair carries the owner shell's PID in its name. If
+#    the owner is gone, the run is dead — kill any leftover process
+#    pinned via that scope's symlink-path marker (unique per
+#    (owner-PID, worker-id), so concurrent live runs are unaffected)
+#    and rm the dirs. Live concurrent runs are detected via
+#    `kill -0 OWNER` and skipped.
+#
+# 2. Legacy non-scoped paths (`/tmp/tc8-workers`, `/tmp/tc8-vsomeip-N`
+#    flat). Pre-PID-scope smoke-test.sh versions used these; any
+#    leftover from those is reaped via the legacy symlink-path
+#    pattern. After the PID-scope migration nothing current writes to
+#    these paths, so the cleanup is a one-shot no-op on a clean host.
+shopt -s nullglob
+for stale in /tmp/tc8-vsomeip.*; do
+    [[ -d "$stale" ]] || continue
+    [[ "$stale" == "$VSOMEIP_BASE" ]] && continue
+    owner=${stale##*.}
+    [[ "$owner" =~ ^[0-9]+$ ]] || continue
+    if kill -0 "$owner" 2>/dev/null; then
+        continue
+    fi
+    pkill -KILL -f "$stale/" 2>/dev/null || true
+    rm -rf "$stale"
+done
+for stale in /tmp/tc8-workers.*; do
+    [[ -d "$stale" ]] || continue
+    [[ "$stale" == "$WORK_ROOT" ]] && continue
+    owner=${stale##*.}
+    [[ "$owner" =~ ^[0-9]+$ ]] || continue
+    if kill -0 "$owner" 2>/dev/null; then
+        continue
+    fi
+    rm -rf "$stale"
+done
+shopt -u nullglob
+unset stale owner
+
+# Legacy non-PID-scoped paths from pre-migration smoke-test.sh runs.
+pkill -KILL -f '/tmp/tc8-vsomeip-[0-9][0-9]*/tc8-' 2>/dev/null || true
+rm -rf /tmp/tc8-workers /tmp/vsomeip-* /tmp/vsomeip.lck /tmp/tc8-vsomeip-[0-9]*
+
+mkdir -p "$WORK_ROOT" "$VSOMEIP_BASE"
 : >"$STDOUT_LOCK"
 
 # Parallel bring-up: setup-netns.sh is idempotent and operates on
@@ -539,7 +599,7 @@ run_case() {
     local dut_ns="tc8-dut-$W"
     local veth_t="veth-tester-$W"
     local veth_d="veth-dut-$W"
-    local vsp="/tmp/tc8-vsomeip-$W/"
+    local vsp="$VSOMEIP_BASE/$W/"
     local mock_dut_link="$vsp/tc8-dut"
     local harness_link="$vsp/tc8-harness"
     local dut_mac
@@ -559,8 +619,8 @@ run_case() {
     # Scope the vsomeip tmp wipe to the sockets + lock file only — NEVER
     # remove the per-worker binary symlinks that kill_worker_procs uses
     # to pattern-match. A concurrent worker's state at
-    # /tmp/tc8-vsomeip-OTHER/ is never touched.
-    rm -f "/tmp/tc8-vsomeip-$W"/vsomeip-* "/tmp/tc8-vsomeip-$W"/vsomeip.lck 2>/dev/null || true
+    # $VSOMEIP_BASE/OTHER/ is never touched.
+    rm -f "$VSOMEIP_BASE/$W"/vsomeip-* "$VSOMEIP_BASE/$W"/vsomeip.lck 2>/dev/null || true
     : >"$hlog"
     : >"$dlog"
 
@@ -2453,7 +2513,7 @@ run_negative_case() {
     local dut_ns="tc8-dut-$W"
     local veth_t="veth-tester-$W"
     local veth_d="veth-dut-$W"
-    local vsp="/tmp/tc8-vsomeip-$W/"
+    local vsp="$VSOMEIP_BASE/$W/"
     local mock_dut_link="$vsp/tc8-dut"
     local harness_link="$vsp/tc8-harness"
     local dut_mac
@@ -2470,7 +2530,7 @@ run_negative_case() {
         keep_logs=0
     fi
 
-    rm -f "/tmp/tc8-vsomeip-$W"/vsomeip-* "/tmp/tc8-vsomeip-$W"/vsomeip.lck 2>/dev/null || true
+    rm -f "$VSOMEIP_BASE/$W"/vsomeip-* "$VSOMEIP_BASE/$W"/vsomeip.lck 2>/dev/null || true
     : >"$hlog"
     : >"$dlog"
 
