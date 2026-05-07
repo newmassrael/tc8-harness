@@ -94,6 +94,22 @@ struct TcpCaptured {
     // passes.
     std::uint32_t expected_ack_num_phase2 = 0U;
 
+    // §4.8.6.6 TCP_FLAGS_INVALID_08..13 5-phase active-OPEN expected
+    // acks — each FLAGS_INVALID case opens a fresh active connection
+    // per CASE iter (CASE ∈ {SYN, SYN+ACK, ACK, FIN, data}) on its
+    // own port quad. Phase N's challenge ACK from the OTW SEQ probe
+    // carries ack_num == DUT.rcv.nxt, which equals the post-handshake
+    // tester.snd_nxt for that phase's kernel-chosen ISN_t — distinct
+    // per phase, so the existing 2 slots collapse phase 3..5 onto
+    // each other. The harness model freezes captured fields before
+    // dispatch (TestRunner::kickStimulus runs synchronously before
+    // start()), so dispatch cannot reach a state-entry observer
+    // pattern; per-phase slots populated during stimulus are the
+    // straightforward shape.
+    std::uint32_t expected_ack_num_phase3 = 0U;
+    std::uint32_t expected_ack_num_phase4 = 0U;
+    std::uint32_t expected_ack_num_phase5 = 0U;
+
     // §4.8.6.11 TCP_RETRANSMISSION_TO_03 stimulus-progress flag.
     // Set by the case's `stimulus()` to true ONLY after
     // `driveActiveOpenEstablished + acceptOne + queryTcpSeqRange`
