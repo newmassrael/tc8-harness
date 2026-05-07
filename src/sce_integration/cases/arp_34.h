@@ -30,9 +30,15 @@ struct TestCaseTraits<cases::Arp34SM>
     // spec2 is a gratuitous ARP Response (MAC2). Both inject an entry for
     // `<tester_ip, MAC?>`; the merge clause still applies.
     //
-    // spec2.target_hw = sender_hw (not broadcast per TC8 spec): see the
-    // Linux `arp_is_garp()` note in arp_33.h for why the deviation is
-    // necessary on a Linux tc8-dut.
+    // spec2.target_hw = broadcast per the TC8 v3.0 spec literal. Linux's
+    // `arp_is_garp()` rejects this shape (recognises only target_hw ==
+    // sender_hw), so a Linux DUT does NOT apply the RFC 826 merge and
+    // the second-MAC dominance does not materialise on its UDP egress
+    // (cache stays at MAC1 from the spec1 Request). Linux DUT therefore
+    // lands fail_used_mac1 and is excluded from CI green via grep
+    // filter in .github/workflows/smoke-test.yml. A spec-compliant
+    // DUT that honours RFC 826 merge regardless of target_hw lands
+    // pass without filter.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0001;  // Request
@@ -46,7 +52,7 @@ struct TestCaseTraits<cases::Arp34SM>
         spec2.opcode = 0x0002;  // gratuitous Response
         spec2.sender_hw = ::tc8::stimulus::kTesterInjectedMac2;
         spec2.eth_src = ::tc8::stimulus::kTesterInjectedMac2;
-        spec2.target_hw = ::tc8::stimulus::kTesterInjectedMac2;  // == sender_hw (Linux garp recognition)
+        spec2.target_hw = ::tc8::stimulus::kEthBroadcast;  // TC8 spec literal
         spec2.sender_ip_be = cfg.arp.tester_ip;
         spec2.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec2);

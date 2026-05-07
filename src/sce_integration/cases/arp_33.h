@@ -27,26 +27,26 @@ struct TestCaseTraits<cases::Arp33SM>
         "ARP cache entry merge on two gratuitous Responses from different "
         "MACs — DUT UDP egress eth_dst must equal the second-injected MAC";
     // Gratuitous Response variant of ARP_32: both injections have
-    // opcode=2, target_ip = sender_ip = tester_ip, target_hw = sender_hw.
-    // Requires `arp_accept=1` on the DUT iface (setup-netns.sh enables
-    // it) for Linux to learn from gratuitous Responses.
+    // opcode=2, target_ip = sender_ip = tester_ip, target_hw =
+    // broadcast per the TC8 v3.0 spec literal. Requires `arp_accept=1`
+    // on the DUT iface (setup-netns.sh enables it) for Linux to learn
+    // from gratuitous Responses.
     //
-    // target_hw = sender_hw rather than broadcast (the TC8 spec text): the
-    // Linux kernel's `arp_is_garp()` only recognises a Response as
-    // gratuitous when target_hw == sender_hw, and only then does it
-    // apply the RFC 826 "merge" override that this case verifies.
-    // target_hw = broadcast would leave the second frame stuck behind
-    // the 1 s LOCKTIME and the merge would silently skip. Deviating from
-    // the spec's literal target_hw keeps the test's *pass criterion*
-    // (second-MAC dominance on DUT UDP egress) verifiable on a Linux
-    // tc8-dut; a real DUT under test should implement RFC 826 merge
-    // regardless of target_hw.
+    // target_hw = broadcast is the TC8 spec literal; Linux's
+    // `arp_is_garp()` only recognises a Response as gratuitous when
+    // target_hw == sender_hw, so a Linux DUT does NOT apply the
+    // RFC 826 "merge" override and the second-MAC dominance does not
+    // materialise on its UDP egress. Linux DUT therefore lands
+    // fail_used_mac1 / fail_dut_arp_request and is excluded from CI
+    // green via grep filter in .github/workflows/smoke-test.yml. A
+    // spec-compliant DUT that honours RFC 826 merge regardless of
+    // target_hw lands pass without filter.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0002;  // gratuitous Response
         spec1.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
         spec1.eth_src = ::tc8::stimulus::kTesterInjectedMac;
-        spec1.target_hw = ::tc8::stimulus::kTesterInjectedMac;  // == sender_hw (Linux garp recognition)
+        spec1.target_hw = ::tc8::stimulus::kEthBroadcast;  // TC8 spec literal
         spec1.sender_ip_be = cfg.arp.tester_ip;
         spec1.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec1);
@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::Arp33SM>
         spec2.opcode = 0x0002;
         spec2.sender_hw = ::tc8::stimulus::kTesterInjectedMac2;
         spec2.eth_src = ::tc8::stimulus::kTesterInjectedMac2;
-        spec2.target_hw = ::tc8::stimulus::kTesterInjectedMac2;
+        spec2.target_hw = ::tc8::stimulus::kEthBroadcast;  // TC8 spec literal
         spec2.sender_ip_be = cfg.arp.tester_ip;
         spec2.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec2);
