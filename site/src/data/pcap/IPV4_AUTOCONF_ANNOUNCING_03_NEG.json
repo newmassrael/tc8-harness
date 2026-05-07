@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_AUTOCONF_ANNOUNCING_03_NEG",
   "outcome": "pass",
-  "captured_at": "2026-05-05T12:54:40Z",
-  "tester_mac": "7a:81:ad:0f:e7:4b",
+  "captured_at": "2026-05-07T00:29:32Z",
+  "tester_mac": "a6:93:31:32:9e:e4",
   "tester_ip": null,
   "dut_mac": null,
   "dut_ip": null,
@@ -12,75 +12,75 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "7a:81:ad:0f:e7:4b",
+      "src_mac": "a6:93:31:32:9e:e4",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.117.114? Tell 0.0.0.0 (sender_mac=7a:81:ad:0f:e7:4b)",
+      "summary": "Who has 169.254.159.100? Tell 0.0.0.0 (sender_mac=a6:93:31:32:9e:e4)",
       "fields": {
         "opcode": 1,
-        "sender_mac": "7a:81:ad:0f:e7:4b",
+        "sender_mac": "a6:93:31:32:9e:e4",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.117.114"
+        "target_ip": "169.254.159.100"
       }
     },
     {
       "idx": 1,
-      "ts_us": 263050,
-      "ts_delta_us": 263050,
+      "ts_us": 265081,
+      "ts_delta_us": 265081,
       "direction": "tester_to_dut",
-      "src_mac": "7a:81:ad:0f:e7:4b",
+      "src_mac": "a6:93:31:32:9e:e4",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.117.114? Tell 0.0.0.0 (sender_mac=7a:81:ad:0f:e7:4b)",
+      "summary": "Who has 169.254.159.100? Tell 0.0.0.0 (sender_mac=a6:93:31:32:9e:e4)",
       "fields": {
         "opcode": 1,
-        "sender_mac": "7a:81:ad:0f:e7:4b",
+        "sender_mac": "a6:93:31:32:9e:e4",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.117.114"
+        "target_ip": "169.254.159.100"
       }
     },
     {
       "idx": 2,
-      "ts_us": 529848,
-      "ts_delta_us": 266798,
+      "ts_us": 557057,
+      "ts_delta_us": 291976,
       "direction": "tester_to_dut",
-      "src_mac": "7a:81:ad:0f:e7:4b",
+      "src_mac": "a6:93:31:32:9e:e4",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.117.114? Tell 0.0.0.0 (sender_mac=7a:81:ad:0f:e7:4b)",
+      "summary": "Who has 169.254.159.100? Tell 0.0.0.0 (sender_mac=a6:93:31:32:9e:e4)",
       "fields": {
         "opcode": 1,
-        "sender_mac": "7a:81:ad:0f:e7:4b",
+        "sender_mac": "a6:93:31:32:9e:e4",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.117.114"
+        "target_ip": "169.254.159.100"
       }
     },
     {
       "idx": 3,
-      "ts_us": 860071,
-      "ts_delta_us": 330223,
+      "ts_us": 836130,
+      "ts_delta_us": 279073,
       "direction": "tester_to_dut",
-      "src_mac": "7a:81:ad:0f:e7:4b",
+      "src_mac": "a6:93:31:32:9e:e4",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.117.114? Tell 169.254.117.114 (sender_mac=ca:fe:ba:be:00:01)",
+      "summary": "Who has 169.254.159.100? Tell 169.254.159.100 (sender_mac=ca:fe:ba:be:00:01)",
       "fields": {
         "opcode": 1,
         "sender_mac": "ca:fe:ba:be:00:01",
-        "sender_ip": "169.254.117.114",
+        "sender_ip": "169.254.159.100",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.117.114"
+        "target_ip": "169.254.159.100"
       }
     }
   ]

@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_07_NEG",
   "outcome": "pass",
-  "captured_at": "2026-05-05T12:54:40Z",
+  "captured_at": "2026-05-07T00:29:32Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": null,
   "dut_mac": null,
@@ -17,13 +17,13 @@
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.21.234? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
+      "summary": "Who has 169.254.201.221? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
       "fields": {
         "opcode": 1,
         "sender_mac": "5e:45:c1:4c:94:86",
         "sender_ip": "0.0.0.0",
         "target_mac": "de:ad:be:ef:00:00",
-        "target_ip": "169.254.21.234"
+        "target_ip": "169.254.201.221"
       }
     }
   ]

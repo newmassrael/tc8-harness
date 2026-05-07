@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_08",
   "outcome": "pass",
-  "captured_at": "2026-05-05T12:54:40Z",
-  "tester_mac": "7a:81:ad:0f:e7:4b",
+  "captured_at": "2026-05-07T00:29:32Z",
+  "tester_mac": "a6:93:31:32:9e:e4",
   "tester_ip": null,
   "dut_mac": null,
   "dut_ip": null,
@@ -12,18 +12,18 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "7a:81:ad:0f:e7:4b",
+      "src_mac": "a6:93:31:32:9e:e4",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.201.159? Tell 0.0.0.0 (sender_mac=7a:81:ad:0f:e7:4b)",
+      "summary": "Who has 169.254.33.97? Tell 0.0.0.0 (sender_mac=a6:93:31:32:9e:e4)",
       "fields": {
         "opcode": 1,
-        "sender_mac": "7a:81:ad:0f:e7:4b",
+        "sender_mac": "a6:93:31:32:9e:e4",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.201.159"
+        "target_ip": "169.254.33.97"
       }
     }
   ]

@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_05",
   "outcome": "pass",
-  "captured_at": "2026-05-05T12:54:40Z",
+  "captured_at": "2026-05-07T00:29:32Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "0.0.0.0",
   "dut_mac": "02:00:00:00:00:a1",
@@ -26,8 +26,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 43104,
-      "ts_delta_us": 43104,
+      "ts_us": 35129,
+      "ts_delta_us": 35129,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",

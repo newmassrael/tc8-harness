@@ -1,10 +1,10 @@
 {
   "case_id": "SOMEIPSRV_RPC_13",
   "outcome": "pass",
-  "captured_at": "2026-05-05T12:54:40Z",
+  "captured_at": "2026-05-07T00:29:32Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "8a:bb:e9:76:e5:dd",
+  "dut_mac": "72:bb:95:e9:d5:82",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -26,8 +26,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200132,
-      "ts_delta_us": 200132,
+      "ts_us": 200114,
+      "ts_delta_us": 200114,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -43,8 +43,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600388,
-      "ts_delta_us": 400256,
+      "ts_us": 600429,
+      "ts_delta_us": 400315,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -60,10 +60,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 951312,
-      "ts_delta_us": 350924,
+      "ts_us": 984673,
+      "ts_delta_us": 384244,
       "direction": "dut_to_tester",
-      "src_mac": "8a:bb:e9:76:e5:dd",
+      "src_mac": "72:bb:95:e9:d5:82",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.1",
       "dst_ip": "224.244.224.245",
@@ -77,8 +77,8 @@
     },
     {
       "idx": 4,
-      "ts_us": 951583,
-      "ts_delta_us": 271,
+      "ts_us": 984915,
+      "ts_delta_us": 242,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -94,8 +94,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1400661,
-      "ts_delta_us": 449078,
+      "ts_us": 1400658,
+      "ts_delta_us": 415743,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
