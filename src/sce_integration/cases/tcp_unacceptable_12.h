@@ -63,7 +63,7 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
     // and CLOSE-WAIT (UNACCEPTABLE_14) in honouring CASE 2; only EST
     // (_04) and FW2 orphan (_10) deviate (silent-drop and RST
     // respectively, see reference_unacc_ack_dispatch).
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -105,6 +105,18 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
                 continue;
             }
 
+            // Spec literal "ACK with proper SEQ and ACK numbers" — DUT
+            // emits a pure ACK on the data path with ack_num == DUT.rcv.
+            // nxt at injection. Tester FIN advanced rcv.nxt earlier, so
+            // the value equals tester.snd_nxt == seq_range->snd_nxt.
+            // Empirically confirmed via pcap 2026-05-07 for both CASE 1
+            // (OTW SEQ → tcp_send_dupack) and CASE 2 (LAST-ACK explicit
+            // tcp_send_challenge_ack on after(ack, snd_nxt)).
+            if (phase == 0U) {
+                c.expected_ack_num        = seq_range->snd_nxt;
+            } else {
+                c.expected_ack_num_phase2 = seq_range->snd_nxt;
+            }
             ::tc8::stimulus::TcpSegmentSpec data{};
             data.src_port = remote_port;
             data.dst_port = local_port;

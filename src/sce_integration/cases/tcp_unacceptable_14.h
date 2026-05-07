@@ -53,7 +53,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
     // auto-ACK before TCP_REPAIR mode reads the kernel's view of
     // SND.NXT — without it, the query can race the auto-ACK and
     // observe pre-FIN values.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -69,6 +69,14 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 const auto seq_range = queryTcpSeqRange(tester_fd);
                 if (seq_range.has_value()) {
+                    // Spec literal "ACK with proper SEQ and ACK numbers" —
+                    // tester FIN already advanced rcv.nxt before
+                    // injection, so DUT.rcv.nxt == tester.snd_nxt ==
+                    // seq_range->snd_nxt. Empirically confirmed via
+                    // pcap 2026-05-07 (OTW SEQ → tcp_send_dupack;
+                    // unacc ACK → tcp_send_challenge_ack on
+                    // after(ack, snd_nxt)).
+                    c.expected_ack_num = seq_range->snd_nxt;
                     ::tc8::stimulus::TcpSegmentSpec data{};
                     data.src_port = kBasicsActiveRemotePort;
                     data.dst_port = kBasicsActiveLocalPort;
@@ -102,6 +110,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 const auto seq_range = queryTcpSeqRange(tester_fd);
                 if (seq_range.has_value()) {
+                    c.expected_ack_num_phase2 = seq_range->snd_nxt;
                     ::tc8::stimulus::TcpSegmentSpec data{};
                     data.src_port = phase2_remote_port;
                     data.dst_port = phase2_local_port;

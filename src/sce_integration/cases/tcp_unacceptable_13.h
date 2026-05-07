@@ -60,7 +60,7 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
     // _09's per-phase probe-ACK shape (pure DUT ACK on the same
     // 4-tuple), differing only by the DUT being in TIME-WAIT instead
     // of FIN-WAIT-1.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -72,6 +72,12 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
                 cfg, iface, cfg.arp.dut_real_mac,
                 /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1);
             if (info.ok) {
+                // Spec literal "ACK with proper SEQ and ACK numbers" —
+                // tcp_timewait_state_process emits a pure ACK with
+                // ack_num == tw->tw_rcv_nxt == tester.snd_nxt at TW
+                // entry == info.tester_seq_post_fin. Empirically
+                // confirmed via pcap 2026-05-07.
+                c.expected_ack_num = info.tester_seq_post_fin;
                 ::tc8::stimulus::TcpSegmentSpec data{};
                 data.src_port = kBasicsActiveRemotePort;
                 data.dst_port = kBasicsActiveLocalPort;
@@ -97,6 +103,11 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
                 /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
                 phase2_local_port, phase2_remote_port);
             if (info.ok) {
+                // Same TW probe ACK shape as phase 1; phase 2 has its
+                // own active-OPEN with kernel-chosen ISN_t so a
+                // separate slot is required (per harness model the
+                // captured fields freeze before dispatch starts).
+                c.expected_ack_num_phase2 = info.tester_seq_post_fin;
                 ::tc8::stimulus::TcpSegmentSpec data{};
                 data.src_port = phase2_remote_port;
                 data.dst_port = phase2_local_port;

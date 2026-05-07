@@ -72,7 +72,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
     //                  short-circuit at the OTW path before
     //                  tcp_ack examines the ACK.
     //   7. Pcap observes DUT empty ACK on the data path.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -93,6 +93,12 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
             if (tester_fd >= 0) {
                 const auto seq_range = queryTcpSeqRange(tester_fd);
                 if (seq_range.has_value()) {
+                    // Spec literal "ACK with proper SEQ and ACK numbers" —
+                    // DUT challenge ACK in FW-1 (OTW SEQ → tcp_send_dupack
+                    // before tcp_ack) carries ack_num == DUT.rcv.nxt ==
+                    // tester.snd_nxt at injection time. Empirically
+                    // confirmed via pcap 2026-05-07.
+                    c.expected_ack_num = seq_range->snd_nxt;
                     ::tc8::stimulus::TcpSegmentSpec data{};
                     data.src_port = kBasicsActiveRemotePort;
                     data.dst_port = kBasicsActiveLocalPort;
@@ -129,6 +135,15 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
             if (tester_fd >= 0) {
                 const auto seq_range = queryTcpSeqRange(tester_fd);
                 if (seq_range.has_value()) {
+                    // Unacceptable ACK in FW-1: tcp_ack returns invalid
+                    // (after(ack, snd_nxt)) → tcp_send_challenge_ack with
+                    // tp->rcv.nxt unchanged because tcp_data_queue is
+                    // bypassed via discard_and_undo. ack_num == tester.
+                    // snd_nxt at injection. Phase 2 has its own active-
+                    // OPEN with kernel-chosen ISN_t, so a separate slot
+                    // is required (the harness-model writes captured
+                    // fields exactly once, before dispatch starts).
+                    c.expected_ack_num_phase2 = seq_range->snd_nxt;
                     ::tc8::stimulus::TcpSegmentSpec data{};
                     data.src_port = phase2_remote_port;
                     data.dst_port = phase2_local_port;

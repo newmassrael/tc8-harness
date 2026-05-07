@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
     // (_04), FIN-WAIT-2 (_10), and LAST-ACK (_12) silent-drop via
     // tcp_ack short-circuit but the CLOSING handler takes a
     // different branch and emits a dup-ACK on the data path.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -95,6 +95,19 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
                 continue;
             }
 
+            // Spec literal "ACK with proper SEQ and ACK numbers" — DUT
+            // emits a pure ACK on the data path with ack_num == DUT.rcv.
+            // nxt at injection. CLOSING reached this point via tester
+            // FIN consuming a virtual byte, so DUT.rcv.nxt == tester.
+            // snd_nxt == info.tester_seq_post_fin. Empirically confirmed
+            // via pcap 2026-05-07 for both CASE 1 (dup-ACK from OTW
+            // SEQ short-circuit) and CASE 2 (challenge ACK from
+            // tcp_send_challenge_ack on after(ack, snd_nxt)).
+            if (phase == 0U) {
+                c.expected_ack_num        = info.tester_seq_post_fin;
+            } else {
+                c.expected_ack_num_phase2 = info.tester_seq_post_fin;
+            }
             ::tc8::stimulus::TcpSegmentSpec data{};
             data.src_port = remote_port;
             data.dst_port = local_port;
