@@ -26,10 +26,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].ttl == expected.ttl"
+                cond="cpp:captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].ttl == expected.ttl"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].ttl != expected.ttl"
+                cond="cpp:captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].ttl != expected.ttl"
                 target="fail_ttl"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>

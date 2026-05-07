@@ -27,10 +27,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].minor_version == expected.minor_version"
+                cond="cpp:captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].minor_version == expected.minor_version"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].minor_version != expected.minor_version"
+                cond="cpp:captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].minor_version != expected.minor_version"
                 target="fail_minor_version"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
