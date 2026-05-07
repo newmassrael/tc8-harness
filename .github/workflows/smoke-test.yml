@@ -128,6 +128,13 @@ jobs:
         #     that shape (only matches target_hw == sender_hw) so the
         #     RFC 826 merge override is not applied. See
         #     reference_linux_arp_garp.md.
+        #   - SOMEIPSRV_SD_BEHAVIOR_04 — vsomeip 3.7.1 IGNORES multicast
+        #     FindService entries (`send_uni_or_multicast_offerservice`
+        #     marks the multicast branch SIP_SD_91 "shall be ignored"),
+        #     so the strict tightened test no longer masks via the next
+        #     cyclic Offer (Phase 2 deadline shrunk from 4 s to 1.5 s
+        #     to exclude that window). A strict-RFC DUT obeying TC8
+        #     §5.1.5.4.4 / TR_SOMEIP_00423 lands green automatically.
         # When the harness later runs against a strict-RFC DUT, drop
         # this filter — the cases land green there.
         run: |
@@ -137,7 +144,7 @@ jobs:
             --junit-xml reports/junit-smoke-positive.xml \
             $(./build/tc8-harness test --list-cases --exclude-deferred \
               | awk '/^  [A-Z]/{print $1}' \
-              | grep -vE '^(IPV4_REASSEMBLY_(11|13)|TCP_RETRANSMISSION_TO_(08|09)|SOMEIP_ETS_117|ICMPV4_ERROR_02|TCP_UNACCEPTABLE_(04|08|10)|TCP_FLAGS_INVALID_15|ARP_(33|34))$')
+              | grep -vE '^(IPV4_REASSEMBLY_(11|13)|TCP_RETRANSMISSION_TO_(08|09)|SOMEIP_ETS_117|ICMPV4_ERROR_02|TCP_UNACCEPTABLE_(04|08|10)|TCP_FLAGS_INVALID_15|ARP_(33|34)|SOMEIPSRV_SD_BEHAVIOR_04)$')
 
       - name: Run negative curated set (--workers 4)
         run: |
