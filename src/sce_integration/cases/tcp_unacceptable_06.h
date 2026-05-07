@@ -42,7 +42,15 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
     // snd_nxt + window so the DUT discards the segment per RFC 793
     // §3.9 p70 and emits a duplicate ACK as the unacceptable-segment
     // response.
-    static void stimulus(Captured& /*c*/,
+    //
+    // Spec literal (TC8 v3.0 p442 Pass Criteria step 3):
+    //   "DUT: Send an ACK indicating next expected SEQ number."
+    // The "next expected SEQ number" the DUT acks back equals the
+    // tester's snd_nxt at corrupt-segment receipt time — the OTW
+    // segment was discarded, so DUT's rcv_nxt is unchanged from
+    // the snapshot. expected_ack_num = seq_range->snd_nxt is the
+    // SCXML-side strict-pass conjunct value.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -55,6 +63,7 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
         if (tester_fd >= 0) {
             const auto seq_range = queryTcpSeqRange(tester_fd);
             if (seq_range.has_value()) {
+                c.expected_ack_num = seq_range->snd_nxt;
                 ::tc8::stimulus::TcpSegmentSpec syn{};
                 syn.src_port = kBasicsActiveRemotePort;
                 syn.dst_port = kBasicsActiveLocalPort;
