@@ -22,16 +22,17 @@ using SomeipEts117SM = ::SCE::Generated::someip_ets_117::someip_ets_117;
 namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_117 — SubscribeEventgroup with two options of
-// the same IPv4 Endpoint type. Per PRS_SOMEIPSD_00393 the DUT may Nack OR
-// ignore. Wire shape: canonical first option + extra IPv4 Endpoint option
-// in the array (unreferenced; entry's #Opt1 stays 1). vsomeip-deviation:
-// `sdi::process_eventgroupentry` accepts the Subscribe (uses the first
-// IPv4 Endpoint and silently disregards the second) and emits an Ack —
-// strictly non-spec but consistent across CommonAPI-SOMEIP runtime
-// versions. Verdict therefore accepts Nack OR Ack OR silent ignore: all
-// three confirm "DUT processed the duplicate-option Subscribe without
-// crashing". The "duplicate referenced" scenario (both options in
-// `#Opt1=2`) is exercised by ETS_173 phase 2 instead.
+// the same IPv4 Endpoint type. Per PRS_SOMEIPSD_00393 the DUT MUST Nack OR
+// silently ignore. Wire shape: canonical first option + extra IPv4
+// Endpoint option in the array (unreferenced; entry's #Opt1 stays 1).
+// vsomeip-deviation: `sdi::process_eventgroupentry` accepts the Subscribe
+// (uses the first IPv4 Endpoint and silently disregards the second) and
+// emits an Ack — strictly non-spec. Verdict is strict: Nack (Type 0x07
+// ttl==0) OR silent ignore → pass; Ack (Type 0x07 ttl>0) → fail. Linux
+// DUT (vsomeip 3.7.1) therefore lands fail; case is excluded from CI
+// green via grep filter in .github/workflows/smoke-test.yml. The
+// "duplicate referenced" scenario (both options in `#Opt1=2`) is
+// exercised by ETS_173 phase 2 instead.
 template <>
 struct TestCaseTraits<cases::SomeipEts117SM> : SomeIpAnyBase<cases::SomeipEts117SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_117";
@@ -67,6 +68,7 @@ struct TestCaseTraits<cases::SomeipEts117SM> : SomeIpAnyBase<cases::SomeipEts117
         switch (s) {
             case State::Pass:                                     return "pass";
             case State::Fail_phase1_no_offer:                     return "fail:no_offer_service_within_listen_window";
+            case State::Fail_dut_acked_malformed_subscribe:       return "fail:dut_acked_malformed_subscribe";
             default:                                              return "running";
         }
     }
