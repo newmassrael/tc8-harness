@@ -59,7 +59,16 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
     // convention (see project_tcp_flags_invalid_coverage memory). The
     // FIN-with-ACK shape carries a valid ack=ISN_d+1, identical to the
     // CASE 2/3/5 envelope.
-    static void stimulus(Captured& /*c*/,
+    //
+    // Spec literal (TC8 v3.0 p429 Pass Criteria step 3):
+    //   "DUT: Send an ACK with ACK number indicating the correct
+    //    expected next SEQ number."
+    // The DUT in SYN-RCVD has rcv_nxt = kTesterInitialSeq + 1 after
+    // absorbing the tester SYN. The OTW probe is discarded so DUT's
+    // rcv_nxt is unchanged; its challenge ACK carries
+    // ack_num = kTesterInitialSeq + 1. Same value across all 5
+    // CASE iterations — populated once before the loop.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -67,6 +76,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
+
+        c.expected_ack_num = kTesterInitialSeq + 1U;
 
         for (std::uint16_t phase = 0; phase < 5U; ++phase) {
             const std::uint16_t listen_port =
