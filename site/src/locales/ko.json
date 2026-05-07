@@ -59,7 +59,6 @@
   "case.deprecated.reasonUnknown": "구체적인 사유는 기록되지 않았으며, TC8 명세 개정 과정에서 제거되었습니다.",
   "index.filter.hideDeprecated": "사용 중단 케이스 숨기기",
   "case.related.heading": "관련 케이스",
-  "case.related.same_section": "같은 섹션",
   "case.nav.prev": "이전",
   "case.nav.next": "다음",
   "case.nav.index": "목록으로"

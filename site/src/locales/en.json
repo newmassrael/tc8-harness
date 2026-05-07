@@ -59,7 +59,6 @@
   "case.deprecated.reasonUnknown": "No specific reason recorded; the case was removed during a TC8 spec revision.",
   "index.filter.hideDeprecated": "Hide deprecated",
   "case.related.heading": "Related cases",
-  "case.related.same_section": "Same section",
   "case.nav.prev": "Previous",
   "case.nav.next": "Next",
   "case.nav.index": "Back to index"
