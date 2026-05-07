@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
     // OTW SEQ branch, so carrying ACK keeps the segment past the
     // early-drop. Same convention as FLAGS_INVALID_08 / _09 / _10 /
     // _11 / _13.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -101,6 +101,19 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
                 continue;
             }
 
+            // Spec literal "ACK with next expected SEQ number" — DUT
+            // challenge ACK in CLOSING carries ack_num == DUT.rcv.nxt
+            // == info.tester_seq_post_fin (tester FIN already
+            // consumed when entering CLOSING). Per-phase slot because
+            // each phase opens a fresh active-OPEN with kernel-chosen
+            // ISN_t.
+            switch (phase) {
+                case 0:  c.expected_ack_num        = info.tester_seq_post_fin; break;
+                case 1:  c.expected_ack_num_phase2 = info.tester_seq_post_fin; break;
+                case 2:  c.expected_ack_num_phase3 = info.tester_seq_post_fin; break;
+                case 3:  c.expected_ack_num_phase4 = info.tester_seq_post_fin; break;
+                default: c.expected_ack_num_phase5 = info.tester_seq_post_fin; break;
+            }
             ::tc8::stimulus::TcpSegmentSpec probe{};
             probe.src_port = remote_port;
             probe.dst_port = local_port;

@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid08SM>
     // CHECKSUM_02 / UNACCEPTABLE_04) — the active-OPEN socket is not
     // re-used and Linux teardown of N=5 sockets is well within the
     // smoke watchdog budget.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -70,6 +70,20 @@ struct TestCaseTraits<cases::TcpFlagsInvalid08SM>
                 continue;
             }
 
+            // Spec literal "ACK with next expected SEQ number" — the
+            // OTW SEQ probe (any flag set) elicits a DUT challenge
+            // ACK with ack_num == DUT.rcv.nxt == tester.snd_nxt at
+            // injection. Empirically confirmed via pcap 2026-05-07
+            // for all 5 CASE shapes (SYN / SYN+ACK / ACK / FIN /
+            // data). One slot per phase because each phase opens a
+            // fresh active-OPEN with kernel-chosen ISN_t.
+            switch (phase) {
+                case 0:  c.expected_ack_num        = seq_range->snd_nxt; break;
+                case 1:  c.expected_ack_num_phase2 = seq_range->snd_nxt; break;
+                case 2:  c.expected_ack_num_phase3 = seq_range->snd_nxt; break;
+                case 3:  c.expected_ack_num_phase4 = seq_range->snd_nxt; break;
+                default: c.expected_ack_num_phase5 = seq_range->snd_nxt; break;
+            }
             ::tc8::stimulus::TcpSegmentSpec probe{};
             probe.src_port = remote_port;
             probe.dst_port = local_port;
