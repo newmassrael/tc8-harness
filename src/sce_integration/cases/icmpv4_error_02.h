@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::Icmpv4Error02SM>
     static std::string_view verdictFor(State s) {
         switch (s) {
             case State::Pass:               return "pass";
-            case State::Fail_wrong_pointer: return "fail:parameter_problem_pointer_not_option_or_pointer_byte";
+            case State::Fail_wrong_pointer: return "fail:parameter_problem_pointer_not_22";
             case State::Fail_timeout:       return "fail:no_parameter_problem_within_listen_window";
             default:                        return "running";
         }

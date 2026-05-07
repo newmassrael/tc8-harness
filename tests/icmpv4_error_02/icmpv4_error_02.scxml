@@ -6,35 +6,24 @@
   length-10 Internet Timestamp option; the DUT MUST emit ICMP
   Parameter Problem (type=12).
 
-  Pass Pointer value — spec-vs-implementation:
-    * TC8 v3.0 spec literal: Pointer = 22 (IP header 20 + offset 2
-      of the pointer byte within the Timestamp option, 0-indexed).
-      RFC 792 "identifies the octet where the error was detected"
-      is interpretation-dependent: pointing at the specific bad
-      byte (pointer field) gives 22 under the spec's arithmetic.
-    * Linux kernel convention: Pointer = 20 — points at the option
-      TYPE byte (start of offending option). Also a valid RFC 792
-      reading: the offending OPTION begins at octet 20, so the
-      diagnostic bytes identify the option-start rather than the
-      specific bad field within the option.
-  Both are observed in the wild on conformant-ish stacks. Accept
-  {20, 22} so this test does not penalise a DUT for choosing the
-  Linux-style pointer while still catching emissions that point
-  elsewhere (DUT mis-identified the parameter problem's location
-  entirely). A pointer of 0 / a TTL byte / a data byte would still
-  fail the test.
+  Pass Pointer value — strict to TC8 v3.0 spec literal: Pointer = 22
+  (IP header 20 + offset 2 of the pointer byte within the Timestamp
+  option, 0-indexed). RFC 792 "identifies the octet where the error
+  was detected" — under TC8's arithmetic the diagnostic bytes point
+  at the specific bad field within the option, not the option's
+  type byte. Linux's choice of pointer=20 (option-start convention)
+  is a kernel-deviation: it produces a defensible RFC 792 reading
+  but does not match the spec literal, so Linux DUT lands fail and
+  is excluded from CI green via grep filter in
+  .github/workflows/smoke-test.yml.
 
   Shape: positive field-check (not absence), so we do not reuse
   icmpv4_negative_absence. Two field observations (type=12, pointer
   value) plus origin filter form a 3-state machine:
 
-    * pass — DUT replies type=12 AND pointer ∈ {20, 22} AND
-      src_ip==DUT.
-    * fail_wrong_pointer — DUT replies type=12 from DUT but pointer
-      is neither 20 nor 22 (DUT correctly identified a parameter
-      problem but mis-localized the offending byte entirely —
-      meaningful enough to surface separately from "no reply at
-      all").
+    * pass — DUT replies type=12 AND pointer == 22 AND src_ip==DUT.
+    * fail_wrong_pointer — DUT replies type=12 from DUT with pointer
+      != 22 (Linux DUT lands here at pointer == 20).
     * fail_timeout — no DUT-origin type=12 reply within the window.
 
   Dispatch narrows to type=12 in icmpv4_pilot_common::dispatchIcmpFrame,
@@ -72,10 +61,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 12 and (captured.icmp_pointer == 22 or captured.icmp_pointer == 20) and captured.src_ip == expected.dut_iface_ip"
+                cond="cpp:captured.type == 12 and captured.icmp_pointer == 22 and captured.src_ip == expected.dut_iface_ip"
                 target="pass"/>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 12 and captured.icmp_pointer != 22 and captured.icmp_pointer != 20 and captured.src_ip == expected.dut_iface_ip"
+                cond="cpp:captured.type == 12 and captured.icmp_pointer != 22 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_wrong_pointer"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
@@ -88,7 +77,7 @@
 
   <final id="fail_wrong_pointer">
     <donedata>
-      <content>{"verdict":"fail","reason":"parameter_problem_pointer_not_option_or_pointer_byte"}</content>
+      <content>{"verdict":"fail","reason":"parameter_problem_pointer_not_22"}</content>
     </donedata>
   </final>
 
