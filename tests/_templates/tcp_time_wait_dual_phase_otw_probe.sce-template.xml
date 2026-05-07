@@ -78,7 +78,7 @@
       <send event="deadline_p1_probe_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_handshake"/>
     <transition event="deadline_p1_probe_ack" target="fail_p1_no_probe_ack"/>
   </state>
@@ -118,7 +118,7 @@
       <send event="deadline_p2_probe_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U) and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
     <transition event="deadline_p2_probe_ack" target="fail_p2_no_probe_ack"/>
   </state>

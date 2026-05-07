@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
     // tester fd before returning, freeing the (49500, 23456) quad
     // for the raw-injected probe; the captured tester snd_nxt /
     // rcv_nxt pair feeds the corrupt segment's seq / ack base.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
@@ -64,6 +64,12 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
                 cfg, iface, cfg.arp.dut_real_mac,
                 /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1);
             if (info.ok) {
+                // tcp_timewait_state_process emits ACK with ack_num ==
+                // tw_rcv_nxt == tester.snd_nxt at TW entry ==
+                // info.tester_seq_post_fin. Empirically confirmed via
+                // pcap 2026-05-07 (FIN-flag and data-segment OTW probes
+                // both elicit the same ACK shape).
+                c.expected_ack_num = info.tester_seq_post_fin;
                 ::tc8::stimulus::TcpSegmentSpec probe{};
                 probe.src_port = kBasicsActiveRemotePort;
                 probe.dst_port = kBasicsActiveLocalPort;
@@ -87,6 +93,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
                 /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
                 phase2_local_port, phase2_remote_port);
             if (info.ok) {
+                c.expected_ack_num_phase2 = info.tester_seq_post_fin;
                 ::tc8::stimulus::TcpSegmentSpec probe{};
                 probe.src_port = phase2_remote_port;
                 probe.dst_port = phase2_local_port;
