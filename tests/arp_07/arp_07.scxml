@@ -32,10 +32,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
                 target="pass"/>
     <transition event="arp_observed"
-                cond="cpp:captured.opcode != 1"
+                cond="cpp:captured.opcode != 1 and captured.sender_hw == expected.dut_iface_mac"
                 target="fail_opcode"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>

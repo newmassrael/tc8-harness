@@ -29,10 +29,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_proto_ip == expected.dut_iface_ip"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.sender_proto_ip == expected.dut_iface_ip"
                 target="pass"/>
     <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_proto_ip != expected.dut_iface_ip"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.sender_proto_ip != expected.dut_iface_ip"
                 target="fail_sender_ip"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
