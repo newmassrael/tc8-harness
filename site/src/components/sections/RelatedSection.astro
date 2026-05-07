@@ -1,0 +1,38 @@
+---
+import { t } from '~/lib/i18n';
+import { sisterCases, displayStatus } from '~/lib/cases';
+import { casePath } from '~/lib/links';
+import type { CaseRecord, Locale } from '~/lib/types';
+
+interface Props {
+  case: CaseRecord;
+  locale: Locale;
+}
+
+const { case: c, locale } = Astro.props;
+const sisters = sisterCases(c);
+---
+
+{sisters.length > 0 && (
+  <section class="section related-section" id="related">
+    <h2>
+      {t(locale, 'case.related.heading')}
+      <span class="muted" style="font-size:11px;font-weight:400;margin-left:8px">
+        {t(locale, 'case.related.same_section')} §{c.section} · {sisters.length}
+      </span>
+    </h2>
+    <ul class="related-list">
+      {sisters.map((s) => {
+        const st = displayStatus(s);
+        return (
+          <li>
+            <a href={casePath(locale, s.case_id)} class={`related-pill status-${st}`}>
+              <span class="related-id mono">{s.case_id}</span>
+              <span class={`related-dot dot-${st}`} aria-hidden="true"></span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  </section>
+)}

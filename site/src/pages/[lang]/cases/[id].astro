@@ -1,8 +1,9 @@
 ---
 import BaseLayout from '~/layouts/BaseLayout.astro';
-import { allCases, getCase } from '~/lib/cases';
+import { allCases, getCase, neighbours } from '~/lib/cases';
 import { sections } from '~/lib/sections';
-import { locales } from '~/lib/i18n';
+import { t, locales } from '~/lib/i18n';
+import { casePath, indexPath } from '~/lib/links';
 import type { Locale } from '~/lib/types';
 
 export function getStaticPaths() {
@@ -22,8 +23,25 @@ if (!c) {
 }
 const altPath = `cases/${c!.case_id}/`;
 const visible = sections.filter((s) => s.requires(c!));
+const { prev, next } = neighbours(c!.case_id);
 ---
 
 <BaseLayout locale={lang} title={c!.case_id} altPath={altPath}>
   {visible.map(({ Component }) => <Component case={c!} locale={lang} />)}
+
+  <nav class="case-nav" aria-label="case navigation">
+    <a class={`case-nav-link ${prev ? '' : 'disabled'}`}
+       href={prev ? casePath(lang, prev.case_id) : '#'}
+       aria-disabled={prev ? 'false' : 'true'}>
+      <span class="case-nav-label muted">← {t(lang, 'case.nav.prev')}</span>
+      <span class="case-nav-id mono">{prev ? prev.case_id : '—'}</span>
+    </a>
+    <a class="case-nav-index" href={indexPath(lang)}>{t(lang, 'case.nav.index')}</a>
+    <a class={`case-nav-link next ${next ? '' : 'disabled'}`}
+       href={next ? casePath(lang, next.case_id) : '#'}
+       aria-disabled={next ? 'false' : 'true'}>
+      <span class="case-nav-label muted">{t(lang, 'case.nav.next')} →</span>
+      <span class="case-nav-id mono">{next ? next.case_id : '—'}</span>
+    </a>
+  </nav>
 </BaseLayout>

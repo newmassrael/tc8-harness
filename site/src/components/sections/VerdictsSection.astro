@@ -12,7 +12,7 @@ const { case: c, locale } = Astro.props;
 const verdicts = c.trait!.verdicts.map((v) => classifyVerdict(c, v, locale));
 ---
 
-<section class="section">
+<section class="section" id="verdicts">
   <h2>{t(locale, 'case.verdicts.heading')}</h2>
   <table class="verdict-table">
     <thead>

@@ -12,6 +12,8 @@ import VerdictsSection from '~/components/sections/VerdictsSection.astro';
 import PacketTimeline from '~/components/sections/PacketTimeline.astro';
 import ScxmlSection from '~/components/sections/ScxmlSection.astro';
 import SourcesSection from '~/components/sections/SourcesSection.astro';
+import RelatedSection from '~/components/sections/RelatedSection.astro';
+import { sisterCases } from './cases';
 import type { CaseRecord } from './types';
 
 export interface SectionDef {
@@ -22,11 +24,12 @@ export interface SectionDef {
 
 export const sections: SectionDef[] = [
   { id: 'header',   Component: HeaderSection,   requires: () => true },
-  { id: 'approach', Component: ApproachSection, requires: (c) => !!c.trait?.approach },
+  { id: 'approach', Component: ApproachSection, requires: (c) => !!c.trait?.approach || c.status === 'deprecated' },
   { id: 'verdicts', Component: VerdictsSection, requires: (c) => (c.trait?.verdicts?.length ?? 0) > 0 },
   { id: 'pcap',     Component: PacketTimeline,  requires: (c) => (c.pcap?.packets?.length ?? 0) > 0 },
   { id: 'scxml',    Component: ScxmlSection,    requires: (c) => !!c.scxml?.content },
   { id: 'sources',  Component: SourcesSection,  requires: (c) => !!c.sources },
+  { id: 'related',  Component: RelatedSection,  requires: (c) => sisterCases(c).length > 0 },
   // Reserved:
   //   { id: 'runs',    Component: RunHistory,    requires: (c) => !!c.runs },
   //   { id: 'diagram', Component: ScxmlDiagram,  requires: (c) => !!c.scxml?.diagram },

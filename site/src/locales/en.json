@@ -15,6 +15,9 @@
   "case.status": "Status",
   "case.status.active": "active",
   "case.status.deprecated": "deprecated",
+  "case.status.pass": "pass",
+  "case.status.fail": "fail",
+  "case.status.untested": "untested",
   "case.fallback": "English",
   "case.approach.heading": "Approach",
   "case.verdicts.heading": "Verdicts",
@@ -51,5 +54,13 @@
   "case.scxml.toggle": "Show / hide SCXML source",
   "case.deprecated.title": "Deprecated test case",
   "case.deprecated.notice": "This test case has been removed from the active TC8 spec.",
-  "index.filter.hideDeprecated": "Hide deprecated"
+  "case.deprecated.approachIntro": "This case is no longer part of the active TC8 spec, so the harness does not run a test for it. The entry is kept here so that links from older spec PDFs and engineering documents continue to resolve.",
+  "case.deprecated.reasonHeading": "Reason",
+  "case.deprecated.reasonUnknown": "No specific reason recorded; the case was removed during a TC8 spec revision.",
+  "index.filter.hideDeprecated": "Hide deprecated",
+  "case.related.heading": "Related cases",
+  "case.related.same_section": "Same section",
+  "case.nav.prev": "Previous",
+  "case.nav.next": "Next",
+  "case.nav.index": "Back to index"
 }

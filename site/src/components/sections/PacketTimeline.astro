@@ -37,7 +37,7 @@ function dirClass(d: PacketRecord['direction']): string {
 const outcomeKey = cap.outcome === 'pass' ? 'pcap.outcome.pass' : 'pcap.outcome.fail';
 ---
 
-<section class="section">
+<section class="section" id="pcap">
   <h2>
     {t(locale, 'pcap.heading')}
     <span class={`badge outcome-badge ${cap.outcome === 'pass' ? 'pass' : 'fail'}`} style="margin-left:8px;font-size:11px">

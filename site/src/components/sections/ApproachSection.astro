@@ -10,14 +10,24 @@ interface Props {
 
 const { case: c, locale } = Astro.props;
 const approach = localizedApproach(c, locale);
+const isDeprecatedFallback = c.status === 'deprecated' && !c.trait?.approach;
+const reason = (c.defer_reason || '').trim();
 ---
 
-<section class="section">
+<section class="section" id="approach">
   <h2>
     {t(locale, 'case.approach.heading')}
-    {approach.isFallback && (
+    {!isDeprecatedFallback && approach.isFallback && (
       <span class="fallback-marker">({t(locale, 'case.fallback')})</span>
     )}
   </h2>
-  <pre class="prose">{approach.text}</pre>
+  {isDeprecatedFallback ? (
+    <div class="prose deprecated-approach">
+      <p>{t(locale, 'case.deprecated.approachIntro')}</p>
+      <p class="reason-label muted">{t(locale, 'case.deprecated.reasonHeading')}</p>
+      <p class="reason-body">{reason || t(locale, 'case.deprecated.reasonUnknown')}</p>
+    </div>
+  ) : (
+    <pre class="prose">{approach.text}</pre>
+  )}
 </section>

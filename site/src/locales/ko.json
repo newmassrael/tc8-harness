@@ -15,6 +15,9 @@
   "case.status": "상태",
   "case.status.active": "활성",
   "case.status.deprecated": "사용 중단",
+  "case.status.pass": "통과",
+  "case.status.fail": "실패",
+  "case.status.untested": "미실행",
   "case.fallback": "영문",
   "case.approach.heading": "접근 방식",
   "case.verdicts.heading": "판정",
@@ -51,5 +54,13 @@
   "case.scxml.toggle": "SCXML 소스 펼치기 / 접기",
   "case.deprecated.title": "사용 중단된 테스트 케이스",
   "case.deprecated.notice": "이 테스트 케이스는 활성 TC8 명세에서 제거되었습니다.",
-  "index.filter.hideDeprecated": "사용 중단 케이스 숨기기"
+  "case.deprecated.approachIntro": "이 케이스는 활성 TC8 명세에 포함되어 있지 않으므로 하네스가 별도로 실행하지 않습니다. 이전 명세 PDF나 엔지니어링 문서에서 들어오는 링크가 깨지지 않도록 항목을 그대로 보존합니다.",
+  "case.deprecated.reasonHeading": "제거 사유",
+  "case.deprecated.reasonUnknown": "구체적인 사유는 기록되지 않았으며, TC8 명세 개정 과정에서 제거되었습니다.",
+  "index.filter.hideDeprecated": "사용 중단 케이스 숨기기",
+  "case.related.heading": "관련 케이스",
+  "case.related.same_section": "같은 섹션",
+  "case.nav.prev": "이전",
+  "case.nav.next": "다음",
+  "case.nav.index": "목록으로"
 }
