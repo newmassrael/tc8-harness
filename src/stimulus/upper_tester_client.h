@@ -28,18 +28,28 @@ std::vector<std::uint8_t> buildGetReceivedUdpRequest(
 //
 //   <opcode:u8=0x02> <req_id:u8> <src_port:u16> <dst_ip:u32>
 //   <dst_port:u16> <payload_len:u16> <payload[]>
+//   [<src_ip_override_be:u32>]   // optional, append-only
 //
 // The builder copies `payload` bytes verbatim. `payload_len` must fit
 // in `ut::kMaxPayload` — larger values silently truncate the UT
 // payload at the tc8-dut parser, which is enforced by a GTest in
 // `upper_tester_client_test`.
+//
+// `src_ip_override_be` (default 0) selects the tc8-dut's transient
+// socket bind source. 0 = legacy behaviour (bind to primary iface IP,
+// no trailer emitted on the wire — byte-identical to pre-extension
+// callers). Non-zero appends the 4-byte trailer; tc8-dut binds the
+// socket to (override, src_port). Used by §4.6.5.5
+// UDP_USER_INTERFACE_07 to verify the spec-mandated caller-specified
+// Source IP axis with the DIface-0 alias literal.
 std::vector<std::uint8_t> buildTriggerSendUdpRequest(
     std::uint8_t        req_id,
     std::uint16_t       src_port,
     std::uint32_t       dst_ip_be,
     std::uint16_t       dst_port,
     const std::uint8_t *payload,
-    std::uint16_t       payload_len);
+    std::uint16_t       payload_len,
+    std::uint32_t       src_ip_override_be = 0);
 
 // Build a 0x03 OpenTcpSocket request (passive). tc8-dut creates a
 // listening SOCK_STREAM bound to <local_port> and returns a socket_id

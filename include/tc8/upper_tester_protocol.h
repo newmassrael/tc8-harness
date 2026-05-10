@@ -89,16 +89,33 @@ enum Opcode : std::uint8_t {
     OpGetReceivedUdp = 0x01,
 
     // Request / Response: "Cause the DUT to emit a UDP datagram
-    // from <src_port> to <dst_ip>:<dst_port> carrying <payload>."
-    // The tc8-dut binds a transient UDP socket to (iface_ip, src_
-    // port) and calls sendto; the tester observes the emitted
-    // datagram via pcap. Used by FRAGMENTS_05 so the "TESTER: Cause
-    // DUT to send" procedure step is an explicit RPC rather than
-    // an inferred side-effect.
+    // from <src_port> to <dst_ip>:<dst_port> carrying <payload>,
+    // optionally binding the transient socket to a caller-specified
+    // source IP." The tc8-dut binds a transient UDP socket to
+    // (src_ip_override OR iface_ip, src_port) and calls sendto; the
+    // tester observes the emitted datagram via pcap. Used by
+    // FRAGMENTS_05 (no src_ip override) so the "TESTER: Cause DUT to
+    // send" procedure step is an explicit RPC rather than an inferred
+    // side-effect, and by §4.6.5.5 UDP_USER_INTERFACE_07 (src_ip
+    // override = `<DIface-0-IP>` alias) so the spec's caller-specified
+    // Source IP axis is observably distinct from the primary-iface
+    // default.
     //
     //   Request params:  <src_port:u16> <dst_ip:u32> <dst_port:u16>
     //                    <payload_len:u16> <payload[]>
+    //                    [<src_ip_be:u32>]   // optional, append-only
     //   Response params: (none beyond the status byte)
+    //
+    // Wire size: 12 + payload_len (legacy) OR 12 + payload_len + 4
+    // (with override). The trailer is append-only — legacy callers
+    // omit it and tc8-dut defaults the source binding to the primary
+    // iface IP (`iface_ip_be_`), preserving FRAGMENTS_05 / UI_01..06
+    // behaviour byte-for-byte. A non-zero `src_ip_be` instructs the
+    // bind to that address; the address MUST be locally configured
+    // (via netns alias `ip addr add`) or the bind syscall fails and
+    // the call collapses to kStatusSendFailed. Override == 0 is
+    // semantically equivalent to omitting the trailer (defensive
+    // parity for callers that thread the field unconditionally).
     OpTriggerSendUdp = 0x02,
 
     // §4.8.5 spec procedure `<openTCPSocket(typeOfSocket=…)>`.

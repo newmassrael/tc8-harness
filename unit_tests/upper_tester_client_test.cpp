@@ -83,6 +83,48 @@ TEST(UpperTesterClient, TriggerSendUdpClampsOversizePayload) {
     EXPECT_EQ(req[11], static_cast<std::uint8_t>(ut::kMaxPayload & 0xFFU));
 }
 
+TEST(UpperTesterClient, TriggerSendUdpDefaultOmitsSrcIpTrailer) {
+    // src_ip_override default = 0 must produce a byte-identical wire
+    // shape to the pre-extension legacy callers (FRAGMENTS_05 / UI_01..06).
+    // Same fixture as TriggerSendUdpRequestLayout — a regression here would
+    // tell legacy callers their wire shape silently grew.
+    const std::array<std::uint8_t, 8> payload{0x10, 0x20, 0x30, 0x40,
+                                              0x50, 0x60, 0x70, 0x80};
+    const auto legacy = buildTriggerSendUdpRequest(
+        0x07, 20001U, 0x010010ACU, 20000U, payload.data(), payload.size());
+    const auto explicit_zero = buildTriggerSendUdpRequest(
+        0x07, 20001U, 0x010010ACU, 20000U, payload.data(), payload.size(),
+        /*src_ip_override_be=*/0U);
+    EXPECT_EQ(legacy, explicit_zero);
+    EXPECT_EQ(legacy.size(), 12u + payload.size());
+}
+
+TEST(UpperTesterClient, TriggerSendUdpAppendsSrcIpTrailerWhenNonZero) {
+    // §4.6.5.5 UI_07 wire shape: 4-byte src_ip override appended after
+    // the payload. Verifies the trailer is present, in network byte
+    // order, and lands at exactly the post-payload offset (legacy
+    // bytes 0..11 + payload preserved verbatim).
+    const std::array<std::uint8_t, 8> payload{0x10, 0x20, 0x30, 0x40,
+                                              0x50, 0x60, 0x70, 0x80};
+    const std::uint32_t override_be = 0x050010ACU;  // 172.16.0.5 NBO
+    const auto req = buildTriggerSendUdpRequest(
+        0x07, 20027U, 0x010010ACU, 20000U, payload.data(), payload.size(),
+        override_be);
+    ASSERT_EQ(req.size(), 12u + payload.size() + 4u);
+    // Legacy header + payload bytes byte-identical to the no-override
+    // shape — only the trailer is added.
+    EXPECT_EQ(req[0], static_cast<std::uint8_t>(ut::OpTriggerSendUdp));
+    EXPECT_EQ(req[1], 0x07U);
+    for (std::size_t i = 0; i < payload.size(); ++i) {
+        EXPECT_EQ(req[12 + i], payload[i]) << "payload byte " << i;
+    }
+    // Trailer in NBO: 172.16.0.5 → AC 10 00 05.
+    EXPECT_EQ(req[12 + payload.size() + 0], 0xACU);
+    EXPECT_EQ(req[12 + payload.size() + 1], 0x10U);
+    EXPECT_EQ(req[12 + payload.size() + 2], 0x00U);
+    EXPECT_EQ(req[12 + payload.size() + 3], 0x05U);
+}
+
 TEST(UpperTesterClient, OpcodeConstantsAreDisjoint) {
     // Request opcodes must have bit 7 clear; response opcodes must have
     // bit 7 set. A tc8-dut parser testing `(byte & 0x80) == 0` to

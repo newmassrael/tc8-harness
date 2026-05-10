@@ -43,14 +43,17 @@ std::vector<std::uint8_t> buildTriggerSendUdpRequest(
     std::uint32_t       dst_ip_be,
     std::uint16_t       dst_port,
     const std::uint8_t *payload,
-    std::uint16_t       payload_len) {
+    std::uint16_t       payload_len,
+    std::uint32_t       src_ip_override_be) {
     // Clamp to kMaxPayload so a caller-bug-oversize buffer doesn't
     // silently bloat the UT datagram past the tc8-dut parser's bound.
     const std::uint16_t effective_len =
         (payload_len > ut::kMaxPayload) ? ut::kMaxPayload : payload_len;
 
+    const bool emit_override_trailer = (src_ip_override_be != 0U);
+
     std::vector<std::uint8_t> req;
-    req.reserve(12U + effective_len);
+    req.reserve(12U + effective_len + (emit_override_trailer ? 4U : 0U));
     req.push_back(static_cast<std::uint8_t>(ut::OpTriggerSendUdp));
     req.push_back(req_id);
     appendBe16(req, src_port);
@@ -59,6 +62,12 @@ std::vector<std::uint8_t> buildTriggerSendUdpRequest(
     appendBe16(req, effective_len);
     if (payload != nullptr && effective_len > 0) {
         req.insert(req.end(), payload, payload + effective_len);
+    }
+    // Append-only trailer: tc8-dut treats absence as "no override".
+    // Skipping the trailer for override==0 keeps legacy FRAGMENTS_05 /
+    // UI_01..06 callers byte-identical on the wire.
+    if (emit_override_trailer) {
+        appendIpv4Be(req, src_ip_override_be);
     }
     return req;
 }

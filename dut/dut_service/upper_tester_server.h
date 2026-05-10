@@ -76,7 +76,8 @@ private:
                       const std::vector<std::uint8_t> &body);
     bool triggerSendUdp(std::uint16_t src_port, std::uint32_t dst_ip_be,
                         std::uint16_t dst_port, const std::uint8_t *payload,
-                        std::uint16_t payload_len);
+                        std::uint16_t payload_len,
+                        std::uint32_t src_ip_override_be);
 
     std::optional<ReceiveRecord> lookupReceipt(std::uint16_t listen_port,
                                                 std::uint32_t expected_dst_ip_be);

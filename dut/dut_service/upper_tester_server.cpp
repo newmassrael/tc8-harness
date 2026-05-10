@@ -527,6 +527,13 @@ void UpperTesterServer::utServerLoop(int fd) {
         if (opcode == ut::OpTriggerSendUdp) {
             // Params: <src_port:u16> <dst_ip:u32> <dst_port:u16>
             //         <payload_len:u16> <payload[]>
+            //         [<src_ip_override_be:u32>]   // optional trailer
+            //
+            // Wire size: 12 + payload_len (legacy) OR 12 + payload_len + 4
+            // (with override). Anything else is malformed — staying strict
+            // on the bracketing keeps a future trailer extension from
+            // silently overlapping with a stale legacy caller's oversize
+            // payload bytes.
             if (n < 2 + 2 + 4 + 2 + 2) {
                 sendResponse(fd, peer, peer_len, response_opcode, req_id,
                              ut::kStatusMalformed, {});
@@ -536,13 +543,22 @@ void UpperTesterServer::utServerLoop(int fd) {
             const std::uint32_t dst_ip_be   = wireIpToNbo(buf + 4);
             const std::uint16_t dst_port    = readBe16(buf + 8);
             const std::uint16_t payload_len = readBe16(buf + 10);
-            if (static_cast<std::size_t>(n) < 12u + payload_len) {
+            const std::size_t legacy_size   = 12u + payload_len;
+            const std::size_t override_size = legacy_size + 4u;
+            std::uint32_t src_ip_override_be = 0;
+            if (static_cast<std::size_t>(n) == legacy_size) {
+                // Legacy caller — no trailer, default to primary iface.
+            } else if (static_cast<std::size_t>(n) == override_size) {
+                src_ip_override_be =
+                    wireIpToNbo(buf + 12u + payload_len);
+            } else {
                 sendResponse(fd, peer, peer_len, response_opcode, req_id,
                              ut::kStatusMalformed, {});
                 continue;
             }
             const bool ok = triggerSendUdp(src_port, dst_ip_be, dst_port,
-                                            buf + 12, payload_len);
+                                            buf + 12, payload_len,
+                                            src_ip_override_be);
             sendResponse(fd, peer, peer_len, response_opcode, req_id,
                          ok ? ut::kStatusOk : ut::kStatusSendFailed, {});
             continue;
@@ -1063,16 +1079,28 @@ bool UpperTesterServer::triggerSendUdp(std::uint16_t       src_port,
                                         std::uint32_t       dst_ip_be,
                                         std::uint16_t       dst_port,
                                         const std::uint8_t *payload,
-                                        std::uint16_t       payload_len) {
+                                        std::uint16_t       payload_len,
+                                        std::uint32_t       src_ip_override_be) {
     int fd = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (fd < 0) return false;
     int on = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
     ::setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
 
+    // §4.6.5.5 UI_07 spec axis: caller-specified Source IP. When the
+    // override is non-zero the caller is explicitly pinning the source
+    // to a netns-configured alias (e.g. `kDutAliasIp4Be` 172.16.0.5);
+    // bind() picks that exact address and the kernel writes it into
+    // the egress IP header. Override == 0 falls through to the primary
+    // iface IP, preserving FRAGMENTS_05 / UI_01..06 byte-identical
+    // wire shape. A non-local override fails bind with EADDRNOTAVAIL,
+    // which collapses to kStatusSendFailed at the caller.
+    const std::uint32_t bind_ip_be = (src_ip_override_be != 0U)
+        ? src_ip_override_be
+        : iface_ip_be_;
     sockaddr_in local{};
     local.sin_family      = AF_INET;
-    local.sin_addr.s_addr = iface_ip_be_;  // 0 falls through to INADDR_ANY
+    local.sin_addr.s_addr = bind_ip_be;  // 0 falls through to INADDR_ANY
     local.sin_port        = htons(src_port);
     if (::bind(fd, reinterpret_cast<sockaddr*>(&local), sizeof(local)) < 0) {
         ::close(fd);

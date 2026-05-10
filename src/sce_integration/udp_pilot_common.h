@@ -49,6 +49,32 @@ inline constexpr std::array<std::uint8_t, 8> kUdpDefaultData{
 // still observes the wire frame via AF_PACKET ETH_P_ALL).
 inline constexpr std::uint32_t kUdpHost2IpBe = 0x030010ACU;  // 172.16.0.3 NBO
 
+// §4.6.5.5 UDP_USER_INTERFACE_07/_08 caller-specified Source/Destination
+// IP axis. The spec gates these on `<DUTSupportsDynamicInterface>=TRUE`
+// (default FALSE — single-iface DUT auto-satisfies the axis with one
+// primary IP, vacuously passing both conformant and buggy DUTs). To
+// activate the axis the harness configures secondary IPs on each side:
+//
+//   * `kDutAliasIp4Be` (172.16.0.5) — DIface-0 alias on the DUT veth.
+//     UI_07 stimulus passes this as the `src_ip_override` for the
+//     OpTriggerSendUdp request; tc8-dut binds the transient socket to
+//     (alias, src_port) and sends, so wire src_ip == alias proves the
+//     DUT honoured the caller's choice instead of silently defaulting
+//     to the primary iface IP. SCXML cond literal must match.
+//   * `kTesterAliasIp4Be` (172.16.0.4) — AIface-0 alias on the tester
+//     veth. UI_08 stimulus passes this as the `target_ip_be` for the
+//     OpTriggerSendUdp request; tc8-dut sends to (alias, dst_port).
+//     Tester is configured with the alias so its kernel resolves DUT's
+//     ARP for it (single MAC across primary + alias). SCXML cond
+//     literal must match.
+//
+// Single source of truth shared with `dut/env/setup-netns.sh` — keeping
+// both ends in lockstep prevents silent drift if the addresses are ever
+// retuned. Picked outside `kUdpHost2IpBe` (172.16.0.3, FIELDS_04/_05
+// Host-2-IP) so the three secondary literals stay disjoint.
+inline constexpr std::uint32_t kDutAliasIp4Be    = 0x050010ACU;  // 172.16.0.5 NBO
+inline constexpr std::uint32_t kTesterAliasIp4Be = 0x040010ACU;  // 172.16.0.4 NBO
+
 // Default initial-wait before the first UDP-pilot stimulus emission.
 // tc8-dut's Upper Tester sockets bind after vsomeip has initialised,
 // which lags the harness's pcap-open by several hundred ms on
@@ -235,7 +261,8 @@ inline void emitCreateUdpReceivePorts(const ::tc8::TestConfig& cfg,
 }
 
 // Emit an Upper Tester TriggerSendUdp request — §4.4.4.6 FRAGMENTS_05
-// procedure step 1.
+// procedure step 1, plus §4.6.5.5 UI_07's caller-specified Source IP
+// axis when `dut_src_ip_override_be` is non-zero.
 inline void emitTriggerSendUdp(const ::tc8::TestConfig& cfg,
                                 std::string_view iface,
                                 std::uint8_t  req_id,
@@ -247,12 +274,14 @@ inline void emitTriggerSendUdp(const ::tc8::TestConfig& cfg,
                                 std::uint16_t tester_src_port = 20100,
                                 const std::array<std::uint8_t, 6>& dut_mac = {},
                                 std::chrono::milliseconds initial_wait =
-                                    kUdpPilotInitialWait) {
+                                    kUdpPilotInitialWait,
+                                std::uint32_t dut_src_ip_override_be = 0) {
     if (initial_wait.count() > 0) {
         std::this_thread::sleep_for(initial_wait);
     }
     const auto req = ::tc8::stimulus::buildTriggerSendUdpRequest(
-        req_id, dut_src_port, target_ip_be, target_port, payload, payload_len);
+        req_id, dut_src_port, target_ip_be, target_port, payload, payload_len,
+        dut_src_ip_override_be);
     ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
         tester_src_port, req);

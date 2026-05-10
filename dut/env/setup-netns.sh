@@ -56,6 +56,27 @@ ip -n "$DUT_NS"    link set "$VETH_D" up
 ip -n "$TESTER_NS" addr add "$TESTER_IP" dev "$VETH_T"
 ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$VETH_D"
 
+# §4.6.5.5 UDP_USER_INTERFACE_07/_08 caller-specified Source/Destination
+# IP axis: spec gates these on `<DUTSupportsDynamicInterface>=TRUE`. With
+# a single primary IP per side the axis collapses (only one valid source
+# / destination), so the cases vacuously pass on conformant DUT and would
+# also pass on a buggy DUT that ignores the caller's choice. Two extra
+# /24 addresses on each side make the axis exercisable:
+#
+#   * DIface-0 alias (DUT) 172.16.0.5 — UI_07 caller asks DUT to emit UDP
+#     with src=this alias; SCXML verifies wire src_ip matches.
+#   * AIface-0 alias (TESTER) 172.16.0.4 — UI_08 caller asks DUT to emit
+#     UDP with dst=this alias; SCXML verifies wire dst_ip matches.
+#
+# Both literals mirrored as compile-time constants in
+# `src/sce_integration/udp_pilot_common.h` (`kDutAliasIp4Be` /
+# `kTesterAliasIp4Be`) — single source of truth between netns setup and
+# stimulus / SCXML cond. Picked outside `kUdpHost2IpBe`=172.16.0.3
+# (already pinned by FIELDS_04/_05) so the three secondary literals stay
+# disjoint.
+ip -n "$DUT_NS"    addr add 172.16.0.5/24 dev "$VETH_D"
+ip -n "$TESTER_NS" addr add 172.16.0.4/24 dev "$VETH_T"
+
 # Disable TX checksum offload on both veth ends. Linux's veth driver
 # defaults to reporting CHECKSUM_PARTIAL on transmit, leaving the L4
 # checksum field carrying only the pseudo-header partial sum (the NIC
