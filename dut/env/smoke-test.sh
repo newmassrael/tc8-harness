@@ -2596,6 +2596,35 @@ run_negative_case() {
             ;;
     esac
 
+    # §4.2.4.2 Phase 3c Group D — mirror run_case's tester-side
+    # `arp_ignore=8` toggle for ARP_39/40. The negative path lands on
+    # `fail:udp_eth_dst_not_injected_macN` via the tester-kernel
+    # auto-Reply race (DUT learns kernel MAC ≠ overridden wrong-mac)
+    # so the verdict is correct without the toggle. Mirroring keeps
+    # the cross-cutting "run_case sysctl symmetric in run_negative_case"
+    # convention uniform with the ARP_38 precedent above and prevents
+    # a silent misbehaviour the day a NEG variant exercises the
+    # cache-stickiness path directly.
+    local toggle_arp_ignore=0
+    if [[ "$case_id" == "ARP_39" || "$case_id" == "ARP_40" ]]; then
+        toggle_arp_ignore=1
+        ip netns exec "$tester_ns" sysctl -qw "net.ipv4.conf.$veth_t.arp_ignore=8" >/dev/null
+    fi
+
+    # §4.2.4.2 Phase 3c Group E — mirror run_case's per-case neigh GC
+    # sysctl block for ARP_48/49. The negative path's wait_udp1 fail
+    # branch fires before the cache-expiry path becomes relevant
+    # (UDP1 emits with cached MAC1 whether REACHABLE or DELAY) so
+    # the verdict is correct without the toggle. Same forward-defense
+    # rationale as the ARP_38 / ARP_39/40 mirrors above.
+    local toggle_neigh_gc=0
+    if [[ "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ]]; then
+        toggle_neigh_gc=1
+        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.base_reachable_time_ms=500" >/dev/null
+        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.delay_first_probe_time=1"   >/dev/null
+        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=1"             >/dev/null
+    fi
+
     # Rebuild the expect array: keep every baseline entry whose key does
     # not match the wrong token's key, then append the wrong value. The
     # baseline combines SOME/IP and ARP tokens so this loop handles
@@ -3108,6 +3137,23 @@ run_negative_case() {
     if [[ $toggle_data_rto_recovery -eq 1 ]]; then
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_early_retrans=3" >/dev/null
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=1" >/dev/null
+    fi
+
+    # Mirror run_case's restoration of arp_ignore (ARP_39/40).
+    # Symmetric with the install block above.
+    if [[ $toggle_arp_ignore -eq 1 ]]; then
+        ip netns exec "$tester_ns" sysctl -qw "net.ipv4.conf.$veth_t.arp_ignore=0" >/dev/null
+    fi
+
+    # Mirror run_case's restoration of neigh GC sysctls (ARP_48/49).
+    # delay_first_probe_time restored to setup-netns.sh's Phase-2 value
+    # (30), NOT the kernel default (5) — keeps cross-case state symmetric
+    # with run_case (Phase 2 ARP_03/05 absence-window protection relies
+    # on the 30 s dwell).
+    if [[ $toggle_neigh_gc -eq 1 ]]; then
+        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.base_reachable_time_ms=30000" >/dev/null
+        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.delay_first_probe_time=30"    >/dev/null
+        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=60"              >/dev/null
     fi
 
     {
