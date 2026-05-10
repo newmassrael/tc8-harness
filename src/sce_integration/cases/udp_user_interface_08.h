@@ -28,13 +28,22 @@ struct TestCaseTraits<cases::UdpUserInterface08SM>
         "DUT-emit UDP datagram carries caller-specified Destination IP "
         "Address (RFC 768 'User Interface' MUST)";
 
+    // §4.6.5.5 UI_08 spec axis: TESTER asks DUT to emit a UDP message
+    // with dst=`<AIface-0-IP>` — the tester's interface IP. With a
+    // single primary IP per side the axis vacuously passes; the
+    // tester-side `kTesterAliasIp4Be` alias (configured in
+    // setup-netns.sh) makes it observable. Stimulus passes the alias
+    // as `target_ip_be`; the DUT egress UDP carries dst_ip=alias iff
+    // it honoured the caller's choice. SCXML cond literal gates the
+    // pass branch on the alias literal — a buggy DUT that silently
+    // emits to the primary tester_ip lands on `fail_wrong_dst_ip`.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::udp::emitTriggerSendUdp(
             cfg, iface, /*req_id=*/1,
             /*dut_src_port=*/20028,
-            /*target_ip_be=*/cfg.ipv4.tester_ip,
+            /*target_ip_be=*/::tc8::sce::udp::kTesterAliasIp4Be,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),

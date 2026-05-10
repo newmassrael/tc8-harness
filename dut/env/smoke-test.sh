@@ -178,6 +178,16 @@ ICMPV4_DUT_EXPECT_STATIC=(
 IPV4_DUT_EXPECT_STATIC=(
     --expect "ipv4.tester_ip=$TESTER_IP4"
     --expect "ipv4.dut_iface_ip=$DUT_IP4"
+    # §4.6.5.5 UDP_USER_INTERFACE_07/_08 caller-specified IP axis. The
+    # netns aliases (DUT 172.16.0.5 / TESTER 172.16.0.4) configured by
+    # `setup-netns.sh` make the spec axis observable; SCXML reads
+    # `expected.dut_alias_ip` / `expected.tester_alias_ip` while the
+    # stimulus pins the same literals via constants in
+    # `udp_pilot_common.h`. Pinning here lets `--negative
+    # ipv4.dut_alias_ip=10.99.99.99` flip only the SCXML expectation,
+    # exposing the strict-axis NEG row.
+    --expect "ipv4.dut_alias_ip=172.16.0.5"
+    --expect "ipv4.tester_alias_ip=172.16.0.4"
 )
 
 DUT_FIRST=0
@@ -4011,6 +4021,21 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "UDP_USER_INTERFACE_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
         "UDP_USER_INTERFACE_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
         "UDP_USER_INTERFACE_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
+        # §4.6.5.5 UI_07 strict-axis NEG: stimulus pins src_ip override
+        # to the conformant DIface-0 alias (kDutAliasIp4Be=172.16.0.5)
+        # via a constant in udp_pilot_common.h, so flipping
+        # `ipv4.dut_alias_ip` diverts ONLY the SCXML expectation. DUT
+        # still emits with src=alias, harness expected diverges, cond
+        # lands on `fail_wrong_src_ip_or_port` — proves the strict-axis
+        # cond literal is load-bearing rather than vacuous on the
+        # passing path.
+        "UDP_USER_INTERFACE_07|ipv4.dut_alias_ip=10.99.99.99|fail:dut_emitted_udp_with_wrong_user_interface_src_ip"
+        # §4.6.5.5 UI_08 strict-axis NEG: same pattern as UI_07 but on
+        # the destination axis. Stimulus pins target_ip to the AIface-0
+        # alias (kTesterAliasIp4Be=172.16.0.4); flipping
+        # `ipv4.tester_alias_ip` makes SCXML expect a different dst,
+        # forcing the cond to land on `fail_wrong_dst_ip`.
+        "UDP_USER_INTERFACE_08|ipv4.tester_alias_ip=10.99.99.99|fail:dut_emitted_udp_with_wrong_user_interface_dst_ip"
         "UDP_PADDING_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
         # §4.6.5.6 UDP_INTRODUCTION_03: SCXML observes ICMP via the
         # icmp_observed event with `captured.src_ip == expected.dut_iface_ip`

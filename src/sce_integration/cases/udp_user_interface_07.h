@@ -28,6 +28,16 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
         "DUT-emit UDP datagram carries caller-specified Source IP "
         "Address (RFC 768 'User Interface' MUST)";
 
+    // §4.6.5.5 UI_07 spec axis: TESTER asks DUT to emit a UDP message
+    // with src=`<DIface-0-IP>`. With a single primary IP per side the
+    // axis vacuously passes; the DUT-side `kDutAliasIp4Be` alias makes
+    // it observable. Stimulus passes the alias as the TriggerSendUdp
+    // src_ip override; tc8-dut binds the transient socket to
+    // (alias, dut_src_port) and sends, so wire src_ip carries the alias
+    // iff the DUT honoured the caller's choice. SCXML cond literal
+    // (the `0x050010ACU` = `kDutAliasIp4Be`) gates the pass branch on
+    // exact match — a buggy DUT that silently defaults to the primary
+    // iface IP lands on `fail_wrong_src_ip_or_port`.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
@@ -39,7 +49,9 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
             cases::kUdpFieldsTesterSrcPort,
-            cfg.arp.dut_real_mac);
+            cfg.arp.dut_real_mac,
+            ::tc8::sce::udp::kUdpPilotInitialWait,
+            /*dut_src_ip_override_be=*/::tc8::sce::udp::kDutAliasIp4Be);
     }
 
     static std::string_view verdictFor(State s) {

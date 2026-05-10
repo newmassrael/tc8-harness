@@ -21,11 +21,18 @@ namespace tc8 {
 struct Ipv4Expected {
     std::uint32_t tester_ip    = 0;  // network byte order
     std::uint32_t dut_iface_ip = 0;  // network byte order
+    // §4.6.5.5 UI_07/_08 caller-specified IP axis SCXML side. See
+    // `Ipv4Expectations` doc for the stimulus-vs-SCXML asymmetry that
+    // enables strict-axis NEG_ROWS.
+    std::uint32_t dut_alias_ip    = 0;
+    std::uint32_t tester_alias_ip = 0;
 };
 
 inline void applyTestConfig(Ipv4Expected &e, const TestConfig &cfg) {
-    e.tester_ip    = cfg.ipv4.tester_ip;
-    e.dut_iface_ip = cfg.ipv4.dut_iface_ip;
+    e.tester_ip       = cfg.ipv4.tester_ip;
+    e.dut_iface_ip    = cfg.ipv4.dut_iface_ip;
+    e.dut_alias_ip    = cfg.ipv4.dut_alias_ip;
+    e.tester_alias_ip = cfg.ipv4.tester_alias_ip;
 }
 
 }  // namespace tc8

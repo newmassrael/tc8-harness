@@ -2,16 +2,32 @@
 <!--
   TC8 §4.6.5.5 UDP_USER_INTERFACE_07: DUT-emitted UDP datagram carries
   the caller-specified Source IP Address (RFC 768 'User Interface'
-  MUST). Mapping <DIface-0-IP>=cfg.ipv4.dut_iface_ip — bind the
-  TriggerSendUdp transient socket to that IP; SCXML asserts
-  captured.src_ip == expected.dut_iface_ip (already part of the
-  template's standard guard).
+  MUST). Spec gates the case on `<DUTSupportsDynamicInterface>=TRUE`.
 
-  This case overlaps FIELDS_01's stimulus shape (the template's
-  built-in `captured.src_ip == expected.dut_iface_ip` conjunct
-  satisfies the assertion); the per-case predicate adds a tightly-
-  scoped src_port pin (20027) so this case is observably distinct
-  from sibling FIELDS_01 / UI_05 wire shapes.
+  Single-iface DUT auto-satisfies the axis (only one valid source IP),
+  so a buggy DUT that ignores the caller's choice still vacuously
+  passes. Activated here via the DIface-0 alias `kDutAliasIp4Be`
+  (172.16.0.5 = 0x050010AC NBO) configured by `dut/env/setup-netns.sh`:
+  the stimulus passes the alias as the OpTriggerSendUdp src_ip
+  override, tc8-dut binds the transient socket to (alias, 20027), and
+  the SCXML cond gates the pass branch on wire src_ip == alias. A DUT
+  that defaults to the primary iface IP lands on
+  `fail_wrong_src_ip_or_port`.
+
+  Hand-rolled (not `udp_field_check` template) because the template
+  hardcodes `src_ip == expected.dut_iface_ip` for the DUT-origin
+  filter; UI_07 needs `src_ip == kDutAliasIp4Be` instead, which
+  contradicts that bundled conjunct.
+
+  SCXML reads `expected.dut_alias_ip` (an `Ipv4Expected` slot pinned
+  by smoke-test's `IPV4_DUT_EXPECT_STATIC` to 172.16.0.5 NBO). The
+  stimulus pins the same value via the `kDutAliasIp4Be` constant in
+  `udp_pilot_common.h` — keeping the two surfaces independently
+  flippable lets the strict-axis negative row
+  (`ipv4.dut_alias_ip=10.99.99.99`) divert ONLY the SCXML
+  expectation, leaving DUT emit at the conformant alias and forcing
+  the cond to land on `fail_wrong_src_ip_or_port` (a strict-axis NEG
+  covering this case's pass guard).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -20,8 +36,51 @@
        name="udp_user_interface_07"
        datamodel="null"
        initial="listening">
-  <sce:use template="../_templates/udp_field_check.sce-template.xml"
-           pass_expr="captured.src_port == 20027"
-           fail_state="fail_wrong_src_ip_or_port"
-           fail_reason="dut_emitted_udp_with_wrong_user_interface_src_ip"/>
+  <sce:context id="captured"
+               cpp:type="tc8::UdpCaptured"
+               cpp:include="sce_integration/udp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <!--
+      Both transitions narrow on `dst_ip == expected.tester_ip` so
+      vsomeip's SD multicast (UDP 30490 → 224.244.224.245) and any
+      other DUT-origin multicast traffic falls outside dispatch.
+      `src_ip == expected.dut_alias_ip` is the spec-axis assertion:
+      DUT must honour the caller-specified Source IP. `src_port ==
+      20027` is the per-case attribution literal so this case's wire
+      frame is structurally distinct from sibling FIELDS_01 / UI_05
+      emissions on the same worker.
+    -->
+    <transition event="udp_observed"
+                cond="cpp:!captured.has_ut_response and captured.src_ip == expected.dut_alias_ip and captured.dst_ip == expected.tester_ip and captured.src_port == 20027"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:!captured.has_ut_response and captured.dst_ip == expected.tester_ip and (captured.src_ip != expected.dut_alias_ip or captured.src_port != 20027)"
+                target="fail_wrong_src_ip_or_port"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_src_ip_or_port">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_udp_with_wrong_user_interface_src_ip"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_originated_udp_within_listen_window"}</content>
+    </donedata>
+  </final>
 </scxml>

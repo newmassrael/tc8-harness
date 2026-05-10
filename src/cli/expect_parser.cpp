@@ -322,6 +322,18 @@ bool applyExpectToken(std::string_view token, ::tc8::Ipv4Expectations &e) {
             return false;
         }
         e.dut_iface_ip = ip;
+    } else if (key == "dut_alias_ip") {
+        std::uint32_t ip = 0;
+        if (!parseIpv4Dotted(val, ip)) {
+            return false;
+        }
+        e.dut_alias_ip = ip;
+    } else if (key == "tester_alias_ip") {
+        std::uint32_t ip = 0;
+        if (!parseIpv4Dotted(val, ip)) {
+            return false;
+        }
+        e.tester_alias_ip = ip;
     } else {
         return false;
     }
