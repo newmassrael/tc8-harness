@@ -462,6 +462,65 @@ inline constexpr std::uint16_t kTcpRetransmissionTo09LocalOffset = 182U;
 // path and fail to validate the spec's MUST.
 inline constexpr std::uint16_t kTcpChecksum04LocalOffset     = 180U;
 
+// §4.8.6.1 BASICS / §4.8.6.2 CHECKSUM / §4.8.6.6 FLAGS_INVALID_14 /
+// §4.8.6.3 UNACCEPTABLE active-OPEN port-quad reservations (+200..+221).
+// Each case (and each phase within a multi-phase case) binds a unique
+// 4-tuple via its offset so a TIME-WAIT / LAST_ACK residue from a
+// sibling on the same worker netns does not collide with the next
+// case's bind. See `reference_active_open_port_quad_collision.md` for
+// the BASICS_11 EADDRNOTAVAIL precedent that motivated this block —
+// the prior per-case-unique pattern at +20..+25 / +50..+56 /
+// +100..+182 is extended here to retire the last bare-port (offset 0)
+// callers of `driveActiveOpenEstablished` / `driveTcpToTimeWaitFw2` /
+// `driveCloseToTimeWaitClosing` / `driveCloseToClosing` (those four
+// helpers no longer carry default port arguments — the compiler
+// rejects any future caller that omits explicit ports).
+//
+// §4.8.6.1 BASICS_06..14 — UT-driven active-OPEN cluster. _08 / _10
+// each chain two distinct active-OPEN handshakes per case, so they
+// reserve two consecutive offsets. _11..14 chain post-CLOSE replay
+// observations on the same 4-tuple as their drive prelude (single
+// offset suffices).
+inline constexpr std::uint16_t kTcpBasics06LocalOffset             = 200U;
+inline constexpr std::uint16_t kTcpBasics07LocalOffset             = 201U;
+inline constexpr std::uint16_t kTcpBasics08Phase1LocalOffset       = 202U;
+inline constexpr std::uint16_t kTcpBasics08Phase2LocalOffset       = 203U;
+inline constexpr std::uint16_t kTcpBasics09LocalOffset             = 204U;
+inline constexpr std::uint16_t kTcpBasics10Phase1LocalOffset       = 205U;
+inline constexpr std::uint16_t kTcpBasics10Phase2LocalOffset       = 206U;
+inline constexpr std::uint16_t kTcpBasics11LocalOffset             = 207U;
+inline constexpr std::uint16_t kTcpBasics12LocalOffset             = 208U;
+inline constexpr std::uint16_t kTcpBasics13LocalOffset             = 209U;
+inline constexpr std::uint16_t kTcpBasics14LocalOffset             = 210U;
+
+// §4.8.6.2 CHECKSUM_01..03 — active-OPEN + raw-inject data + ACK
+// observation. _04 already lives at +180 (clock-driven ISN axis
+// requires same-port reuse) and is intentionally not in this block.
+inline constexpr std::uint16_t kTcpChecksum01LocalOffset           = 211U;
+inline constexpr std::uint16_t kTcpChecksum02LocalOffset           = 212U;
+inline constexpr std::uint16_t kTcpChecksum03LocalOffset           = 213U;
+
+// §4.8.6.6 FLAGS_INVALID_14 — two TIME-WAIT phases (FIN-flag OTW
+// probe + data-segment OTW probe). Each phase runs its own
+// driveTcpToTimeWaitFw2 prelude on a unique 4-tuple so the
+// 78-second TIME-WAIT window does not collide between phases or
+// with sibling cases on the same worker queue.
+inline constexpr std::uint16_t kTcpFlagsInvalid14Phase1LocalOffset = 214U;
+inline constexpr std::uint16_t kTcpFlagsInvalid14Phase2LocalOffset = 222U;
+
+// §4.8.6.3 UNACCEPTABLE_04/_06/_09/_10/_13/_14 — active-OPEN +
+// raw-inject sequences. _14 uses two phases on consecutive offsets so
+// each phase's 4-tuple is unique even within the case.
+inline constexpr std::uint16_t kTcpUnacceptable04LocalOffset       = 215U;
+inline constexpr std::uint16_t kTcpUnacceptable06LocalOffset       = 216U;
+inline constexpr std::uint16_t kTcpUnacceptable09Phase1LocalOffset = 217U;
+inline constexpr std::uint16_t kTcpUnacceptable09Phase2LocalOffset = 223U;
+inline constexpr std::uint16_t kTcpUnacceptable10LocalOffset       = 218U;
+inline constexpr std::uint16_t kTcpUnacceptable13Phase1LocalOffset = 219U;
+inline constexpr std::uint16_t kTcpUnacceptable13Phase2LocalOffset = 224U;
+inline constexpr std::uint16_t kTcpUnacceptable14Phase1LocalOffset = 220U;
+inline constexpr std::uint16_t kTcpUnacceptable14Phase2LocalOffset = 221U;
+
 // Emit one TCP segment (IPv4-layer wrapped) on `iface`. Caller supplies
 // the segment spec (flags / seq / ack / payload). Defaults to tester-
 // side SEQ / tester source port so BASICS traits populate only the
@@ -1537,13 +1596,20 @@ struct TcpTimeWaitInfo {
 // but the 50 ms cost is well inside its 5 s SCXML deadline and
 // keeping the prelude shape uniform across all eight call sites
 // removes a per-case decision point.
+// `local_port` + `remote_port` are intentionally non-default — every
+// caller must pick a unique 4-tuple so a TIME-WAIT / LAST_ACK residue
+// from a sibling on the same worker netns cannot collide with the
+// next case's bind. See `reference_active_open_port_quad_collision.md`
+// for the BASICS_11 EADDRNOTAVAIL precedent. Per-case offsets live
+// in the +200..+219 reservation block above (kTcpBasicsNNLocalOffset,
+// kTcpChecksumNNLocalOffset, kTcpUnacceptableNNLocalOffset).
 inline TesterTcpListener driveActiveOpenEstablished(
     const ::tc8::TestConfig &cfg,
     std::string_view iface,
     const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  open_req_id  = 1,
-    std::uint16_t local_port   = kBasicsActiveLocalPort,
-    std::uint16_t remote_port  = kBasicsActiveRemotePort) {
+    std::uint8_t  open_req_id,
+    std::uint16_t local_port,
+    std::uint16_t remote_port) {
     TesterTcpListener listener(remote_port);
     sendOpenTcpSocketActiveRequest(
         cfg, iface, dut_mac,
@@ -1704,15 +1770,18 @@ inline RawPassiveHandshakeInfo driveRawPassiveHandshake(
 //
 // Returns `ok=false` on any local syscall failure; the wire-level
 // transitions are observed by SCXML, not asserted here.
+// `local_port` + `remote_port` are intentionally non-default — see
+// `driveActiveOpenEstablished` block comment for the per-case
+// 4-tuple isolation rationale.
 inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
     const ::tc8::TestConfig &cfg,
     std::string_view iface,
     const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  open_req_id  = 1,
-    std::uint8_t  close_req_id = 2,
-    std::uint8_t  socket_id    = 1,
-    std::uint16_t local_port   = kBasicsActiveLocalPort,
-    std::uint16_t remote_port  = kBasicsActiveRemotePort) {
+    std::uint8_t  open_req_id,
+    std::uint8_t  close_req_id,
+    std::uint8_t  socket_id,
+    std::uint16_t local_port,
+    std::uint16_t remote_port) {
     auto listener = driveActiveOpenEstablished(
         cfg, iface, dut_mac, open_req_id, local_port, remote_port);
     const int tester_fd = listener.acceptOne();
@@ -1779,15 +1848,18 @@ inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
 // the kernel has no socket on the 4-tuple, so the iptables rule is
 // no longer load-bearing; releasing it eliminates cross-case state
 // pollution.
+// `local_port` + `remote_port` are intentionally non-default — see
+// `driveActiveOpenEstablished` block comment for the per-case
+// 4-tuple isolation rationale.
 inline TcpTimeWaitInfo driveCloseToTimeWaitClosing(
     const ::tc8::TestConfig &cfg,
     std::string_view iface,
     const std::array<std::uint8_t, 6> &dut_mac,
     int           tester_fd,
-    std::uint8_t  close_req_id = 2,
-    std::uint8_t  socket_id    = 1,
-    std::uint16_t local_port   = kBasicsActiveLocalPort,
-    std::uint16_t remote_port  = kBasicsActiveRemotePort) {
+    std::uint8_t  close_req_id,
+    std::uint8_t  socket_id,
+    std::uint16_t local_port,
+    std::uint16_t remote_port) {
     auto silent_close = [tester_fd]() {
         if (tester_fd < 0) return;
         int repair_on = 1;
@@ -1872,15 +1944,18 @@ inline TcpTimeWaitInfo driveCloseToTimeWaitClosing(
 // Returns `ok=false` on local syscall failure; tester_fd is closed
 // with plain ::close on the queryTcpSeqRange-failure path so the
 // helper does not leak the descriptor.
+// `local_port` + `remote_port` are intentionally non-default — see
+// `driveActiveOpenEstablished` block comment for the per-case
+// 4-tuple isolation rationale.
 inline TcpTimeWaitInfo driveCloseToClosing(
     const ::tc8::TestConfig &cfg,
     std::string_view iface,
     const std::array<std::uint8_t, 6> &dut_mac,
     int           tester_fd,
-    std::uint8_t  close_req_id = 2,
-    std::uint8_t  socket_id    = 1,
-    std::uint16_t local_port   = kBasicsActiveLocalPort,
-    std::uint16_t remote_port  = kBasicsActiveRemotePort) {
+    std::uint8_t  close_req_id,
+    std::uint8_t  socket_id,
+    std::uint16_t local_port,
+    std::uint16_t remote_port) {
     if (tester_fd < 0) return {};
 
     sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);

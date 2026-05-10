@@ -31,5 +31,7 @@
        initial="listening_p1_handshake">
   <sce:use template="../_templates/tcp_time_wait_dual_phase_otw_probe.sce-template.xml"
            p1_probe_fail_reason="no_dut_ack_to_otw_seq_in_time_wait"
-           p2_probe_fail_reason="no_dut_ack_to_unacceptable_ack_in_time_wait"/>
+           p2_probe_fail_reason="no_dut_ack_to_unacceptable_ack_in_time_wait"
+           p1_local_offset="kTcpUnacceptable13Phase1LocalOffset"
+           p2_local_offset="kTcpUnacceptable13Phase2LocalOffset"/>
 </scxml>

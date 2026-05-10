@@ -58,7 +58,10 @@ struct TestCaseTraits<cases::TcpBasics08SM>
         // -------- Phase 1: ESTABLISHED → CLOSE → FIN --------
         {
             auto listener1 = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac);
+                cfg, iface, cfg.arp.dut_real_mac,
+                /*open_req_id=*/1,
+                kBasicsActiveLocalPort  + kTcpBasics08Phase1LocalOffset,
+                kBasicsActiveRemotePort + kTcpBasics08Phase1LocalOffset);
             (void)listener1;
 
             // UT close on the DUT side closes the active fd; tc8-dut's
@@ -78,8 +81,8 @@ struct TestCaseTraits<cases::TcpBasics08SM>
 
         // -------- Phase 2: CLOSE-WAIT → CLOSE → FIN --------
         {
-            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + 1U;
-            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + 1U;
+            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpBasics08Phase2LocalOffset;
+            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpBasics08Phase2LocalOffset;
 
             auto listener2 = driveActiveOpenEstablished(
                 cfg, iface, cfg.arp.dut_real_mac,

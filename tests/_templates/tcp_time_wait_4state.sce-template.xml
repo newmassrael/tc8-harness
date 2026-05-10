@@ -44,6 +44,12 @@
   <sce:param name="replay_method" required="true"/>
   <sce:param name="replay_deadline" required="true"/>
   <sce:param name="replay_fail_reason" required="true"/>
+  <!-- Per-case unique 4-tuple offset (one of `kTcpBasicsNNLocalOffset`
+       in `src/sce_integration/tcp_pilot_common.h`). The driveTcpToTimeWaitFw2
+       prelude binds (kBasicsActiveLocalPort+offset, kBasicsActiveRemotePort
+       +offset); the template's pure-ACK / FIN / RST guards must match the
+       same 4-tuple so cross-case TIME-WAIT residue cannot alias.  -->
+  <sce:param name="local_offset" required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::TcpCaptured"
@@ -58,7 +64,7 @@
       <send event="deadline_handshake_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$local_offset})"
                 target="listening_close_fin"/>
     <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
   </state>
@@ -68,7 +74,7 @@
       <send event="deadline_close_fin" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$local_offset})"
                 target="listening_{$mid_label}"/>
     <transition event="deadline_close_fin" target="fail_no_close_fin"/>
   </state>
@@ -78,7 +84,7 @@
       <send event="deadline_{$mid_label}" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$local_offset})"
                 target="listening_{$replay_label}"/>
     <transition event="deadline_{$mid_label}" target="fail_no_{$mid_label}"/>
   </state>
@@ -88,7 +94,7 @@
       <send event="deadline_{$replay_label}" delay="{$replay_deadline}"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.{$replay_method}(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.{$replay_method}(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$local_offset})"
                 target="pass"/>
     <transition event="deadline_{$replay_label}" target="fail_no_{$replay_label}"/>
   </state>

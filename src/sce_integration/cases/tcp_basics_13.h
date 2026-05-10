@@ -56,7 +56,10 @@ struct TestCaseTraits<cases::TcpBasics13SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const auto info = driveTcpToTimeWaitFw2(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+            kBasicsActiveLocalPort  + kTcpBasics13LocalOffset,
+            kBasicsActiveRemotePort + kTcpBasics13LocalOffset);
         if (!info.ok) {
             // Helper failed (acceptOne / queryTcpSeqRange). The SCXML
             // observation chain's first deadline will fire and the
@@ -76,8 +79,8 @@ struct TestCaseTraits<cases::TcpBasics13SM>
             static_cast<int>(State::Listening_replay_ack),
             [iface_copy, cfg_copy, dut_mac, tester_seq, tester_ack]() {
                 ::tc8::stimulus::TcpSegmentSpec replay{};
-                replay.src_port = kBasicsActiveRemotePort;
-                replay.dst_port = kBasicsActiveLocalPort;
+                replay.src_port = kBasicsActiveRemotePort + kTcpBasics13LocalOffset;
+                replay.dst_port = kBasicsActiveLocalPort  + kTcpBasics13LocalOffset;
                 replay.seq_num  = tester_seq;
                 replay.ack_num  = tester_ack;
                 replay.flags    = ::tc8::stimulus::kTcpFlagFin

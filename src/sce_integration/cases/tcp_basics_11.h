@@ -58,7 +58,10 @@ struct TestCaseTraits<cases::TcpBasics11SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const auto info = driveTcpToTimeWaitFw2(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+            kBasicsActiveLocalPort  + kTcpBasics11LocalOffset,
+            kBasicsActiveRemotePort + kTcpBasics11LocalOffset);
         if (!info.ok) return;
 
         std::string                 iface_copy(iface);
@@ -75,8 +78,8 @@ struct TestCaseTraits<cases::TcpBasics11SM>
                     [iface_copy, cfg_copy, dut_mac,
                      tester_seq, tester_ack]() {
                         ::tc8::stimulus::TcpSegmentSpec replay{};
-                        replay.src_port = kBasicsActiveRemotePort;
-                        replay.dst_port = kBasicsActiveLocalPort;
+                        replay.src_port = kBasicsActiveRemotePort + kTcpBasics11LocalOffset;
+                        replay.dst_port = kBasicsActiveLocalPort  + kTcpBasics11LocalOffset;
                         replay.seq_num  = tester_seq;
                         replay.ack_num  = tester_ack;
                         replay.flags    = ::tc8::stimulus::kTcpFlagFin

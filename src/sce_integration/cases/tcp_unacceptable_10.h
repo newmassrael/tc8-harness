@@ -81,7 +81,10 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1,
+            kBasicsActiveLocalPort  + kTcpUnacceptable10LocalOffset,
+            kBasicsActiveRemotePort + kTcpUnacceptable10LocalOffset);
         const int tester_fd = listener.acceptOne();
         sendCloseTcpSocketRequest(
             cfg, iface, cfg.arp.dut_real_mac,
@@ -93,8 +96,8 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
         if (!seq_range.has_value()) return;
 
         ::tc8::stimulus::TcpSegmentSpec phase1{};
-        phase1.src_port = kBasicsActiveRemotePort;
-        phase1.dst_port = kBasicsActiveLocalPort;
+        phase1.src_port = kBasicsActiveRemotePort + kTcpUnacceptable10LocalOffset;
+        phase1.dst_port = kBasicsActiveLocalPort  + kTcpUnacceptable10LocalOffset;
         phase1.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
         phase1.ack_num  = seq_range->rcv_nxt;
         phase1.flags    = ::tc8::stimulus::kTcpFlagPsh
@@ -113,8 +116,8 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
                 const auto seq_range_p2 = queryTcpSeqRange(tester_fd);
                 if (!seq_range_p2.has_value()) return;
                 ::tc8::stimulus::TcpSegmentSpec phase2{};
-                phase2.src_port = kBasicsActiveRemotePort;
-                phase2.dst_port = kBasicsActiveLocalPort;
+                phase2.src_port = kBasicsActiveRemotePort + kTcpUnacceptable10LocalOffset;
+                phase2.dst_port = kBasicsActiveLocalPort  + kTcpUnacceptable10LocalOffset;
                 phase2.seq_num  = seq_range_p2->snd_nxt;
                 phase2.ack_num  = seq_range_p2->rcv_nxt + kUnacceptableAckOffset;
                 phase2.flags    = ::tc8::stimulus::kTcpFlagPsh

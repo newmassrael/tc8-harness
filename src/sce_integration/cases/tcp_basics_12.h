@@ -47,12 +47,18 @@ struct TestCaseTraits<cases::TcpBasics12SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1,
+            kBasicsActiveLocalPort  + kTcpBasics12LocalOffset,
+            kBasicsActiveRemotePort + kTcpBasics12LocalOffset);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
 
         const auto info = driveCloseToTimeWaitClosing(
-            cfg, iface, cfg.arp.dut_real_mac, tester_fd);
+            cfg, iface, cfg.arp.dut_real_mac, tester_fd,
+            /*close_req_id=*/2, /*socket_id=*/1,
+            kBasicsActiveLocalPort  + kTcpBasics12LocalOffset,
+            kBasicsActiveRemotePort + kTcpBasics12LocalOffset);
         if (!info.ok) return;
 
         std::string                 iface_copy(iface);
@@ -69,8 +75,8 @@ struct TestCaseTraits<cases::TcpBasics12SM>
                     [iface_copy, cfg_copy, dut_mac,
                      tester_seq, tester_ack]() {
                         ::tc8::stimulus::TcpSegmentSpec replay{};
-                        replay.src_port = kBasicsActiveRemotePort;
-                        replay.dst_port = kBasicsActiveLocalPort;
+                        replay.src_port = kBasicsActiveRemotePort + kTcpBasics12LocalOffset;
+                        replay.dst_port = kBasicsActiveLocalPort  + kTcpBasics12LocalOffset;
                         replay.seq_num  = tester_seq;
                         replay.ack_num  = tester_ack;
                         replay.flags    = ::tc8::stimulus::kTcpFlagFin

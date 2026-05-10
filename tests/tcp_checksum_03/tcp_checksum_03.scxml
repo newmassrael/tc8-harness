@@ -68,10 +68,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and captured.payload_len &gt; 0 and captured.tcp_checksum_valid()"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.payload_len &gt; 0 and captured.tcp_checksum_valid()"
                 target="pass"/>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and captured.payload_len &gt; 0 and not captured.tcp_checksum_valid()"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.payload_len &gt; 0 and not captured.tcp_checksum_valid()"
                 target="fail_bad_checksum"/>
     <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>

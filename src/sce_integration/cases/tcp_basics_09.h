@@ -65,7 +65,10 @@ struct TestCaseTraits<cases::TcpBasics09SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1,
+            kBasicsActiveLocalPort  + kTcpBasics09LocalOffset,
+            kBasicsActiveRemotePort + kTcpBasics09LocalOffset);
 
         // Stage b: tester FIN puts DUT in CLOSE-WAIT.
         const int tester_fd = listener.acceptOne();
@@ -96,7 +99,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
         // reverse-direction RST's dst_port would be unknowable to the
         // SCXML at compile time.
         emitTcpStimulus(cfg, iface, cfg.arp.dut_real_mac,
-                        /*dst_port=*/kBasicsActiveLocalPort,
+                        /*dst_port=*/kBasicsActiveLocalPort + kTcpBasics09LocalOffset,
                         /*flags=*/::tc8::stimulus::kTcpFlagSyn,
                         /*seq_num=*/kTesterInitialSeq,
                         /*ack_num=*/0U);

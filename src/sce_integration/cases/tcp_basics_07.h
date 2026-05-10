@@ -48,7 +48,10 @@ struct TestCaseTraits<cases::TcpBasics07SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1,
+            kBasicsActiveLocalPort  + kTcpBasics07LocalOffset,
+            kBasicsActiveRemotePort + kTcpBasics07LocalOffset);
         (void)listener;
 
         // queryTcpEstablishedSync reads tc8-dut's TCP_INFO and writes

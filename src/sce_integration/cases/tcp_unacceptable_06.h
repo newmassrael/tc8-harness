@@ -57,7 +57,10 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1,
+            kBasicsActiveLocalPort  + kTcpUnacceptable06LocalOffset,
+            kBasicsActiveRemotePort + kTcpUnacceptable06LocalOffset);
 
         const int tester_fd = listener.acceptOne();
         if (tester_fd >= 0) {
@@ -65,8 +68,8 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
             if (seq_range.has_value()) {
                 c.expected_ack_num = seq_range->snd_nxt;
                 ::tc8::stimulus::TcpSegmentSpec syn{};
-                syn.src_port = kBasicsActiveRemotePort;
-                syn.dst_port = kBasicsActiveLocalPort;
+                syn.src_port = kBasicsActiveRemotePort + kTcpUnacceptable06LocalOffset;
+                syn.dst_port = kBasicsActiveLocalPort  + kTcpUnacceptable06LocalOffset;
                 // SEQ far above snd_nxt + maximum plausible window
                 // scale (Linux default ~64 KB × 2^14 wscale ≈ 1 GB
                 // ceiling). 16 MB offset is safely OTW for any

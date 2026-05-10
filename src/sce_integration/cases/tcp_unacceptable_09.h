@@ -81,7 +81,10 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
         // -------- Phase 1: OTW SEQ in FIN-WAIT-1 --------
         {
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac);
+                cfg, iface, cfg.arp.dut_real_mac,
+                /*open_req_id=*/1,
+                kBasicsActiveLocalPort  + kTcpUnacceptable09Phase1LocalOffset,
+                kBasicsActiveRemotePort + kTcpUnacceptable09Phase1LocalOffset);
             const int tester_fd = listener.acceptOne();
             TesterAutoAckDrop ack_drop(cfg);
             // UT close drives DUT into FIN-WAIT-1 (no tester ACK
@@ -100,8 +103,8 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                     // confirmed via pcap 2026-05-07.
                     c.expected_ack_num = seq_range->snd_nxt;
                     ::tc8::stimulus::TcpSegmentSpec data{};
-                    data.src_port = kBasicsActiveRemotePort;
-                    data.dst_port = kBasicsActiveLocalPort;
+                    data.src_port = kBasicsActiveRemotePort + kTcpUnacceptable09Phase1LocalOffset;
+                    data.dst_port = kBasicsActiveLocalPort  + kTcpUnacceptable09Phase1LocalOffset;
                     data.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
                     data.ack_num  = seq_range->rcv_nxt - 1U;
                     data.flags    = ::tc8::stimulus::kTcpFlagPsh
@@ -118,8 +121,8 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
 
         // -------- Phase 2: unacceptable ACK in FIN-WAIT-1 --------
         {
-            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + 1U;
-            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + 1U;
+            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpUnacceptable09Phase2LocalOffset;
+            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable09Phase2LocalOffset;
 
             auto listener = driveActiveOpenEstablished(
                 cfg, iface, cfg.arp.dut_real_mac,

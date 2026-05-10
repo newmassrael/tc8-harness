@@ -70,7 +70,9 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
         {
             const auto info = driveTcpToTimeWaitFw2(
                 cfg, iface, cfg.arp.dut_real_mac,
-                /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1);
+                /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+                kBasicsActiveLocalPort  + kTcpUnacceptable13Phase1LocalOffset,
+                kBasicsActiveRemotePort + kTcpUnacceptable13Phase1LocalOffset);
             if (info.ok) {
                 // Spec literal "ACK with proper SEQ and ACK numbers" —
                 // tcp_timewait_state_process emits a pure ACK with
@@ -79,8 +81,8 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
                 // confirmed via pcap 2026-05-07.
                 c.expected_ack_num = info.tester_seq_post_fin;
                 ::tc8::stimulus::TcpSegmentSpec data{};
-                data.src_port = kBasicsActiveRemotePort;
-                data.dst_port = kBasicsActiveLocalPort;
+                data.src_port = kBasicsActiveRemotePort + kTcpUnacceptable13Phase1LocalOffset;
+                data.dst_port = kBasicsActiveLocalPort  + kTcpUnacceptable13Phase1LocalOffset;
                 data.seq_num  = info.tester_seq_post_fin + kOutOfWindowSeqOffset;
                 data.ack_num  = info.tester_ack_post_fin;
                 data.flags    = ::tc8::stimulus::kTcpFlagPsh
@@ -95,8 +97,8 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
 
         // -------- Phase 2: unacceptable ACK in TIME-WAIT --------
         {
-            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + 1U;
-            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + 1U;
+            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpUnacceptable13Phase2LocalOffset;
+            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable13Phase2LocalOffset;
 
             const auto info = driveTcpToTimeWaitFw2(
                 cfg, iface, cfg.arp.dut_real_mac,

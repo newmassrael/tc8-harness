@@ -61,7 +61,10 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1,
+            kBasicsActiveLocalPort  + kTcpChecksum02LocalOffset,
+            kBasicsActiveRemotePort + kTcpChecksum02LocalOffset);
 
         const int tester_fd = listener.acceptOne();
         if (tester_fd >= 0) {
@@ -73,8 +76,8 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
             const auto seq_range = queryTcpSeqRange(tester_fd);
             if (seq_range.has_value()) {
                 ::tc8::stimulus::TcpSegmentSpec spec{};
-                spec.src_port = kBasicsActiveRemotePort;
-                spec.dst_port = kBasicsActiveLocalPort;
+                spec.src_port = kBasicsActiveRemotePort + kTcpChecksum02LocalOffset;
+                spec.dst_port = kBasicsActiveLocalPort  + kTcpChecksum02LocalOffset;
                 spec.seq_num  = seq_range->snd_nxt;
                 spec.ack_num  = seq_range->rcv_nxt;
                 spec.flags    = ::tc8::stimulus::kTcpFlagPsh

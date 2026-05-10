@@ -65,7 +65,7 @@
       <send event="deadline_handshake" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="listening_otw_ack"/>
     <transition event="deadline_handshake" target="fail_no_handshake_ack"/>
   </state>
@@ -75,7 +75,7 @@
       <send event="deadline_otw_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="listening_unacc_ack"/>
     <transition event="deadline_otw_ack" target="fail_no_otw_seq_ack"/>
   </state>
@@ -85,7 +85,7 @@
       <send event="deadline_unacc_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="pass"/>
     <transition event="deadline_unacc_ack" target="fail_no_dut_ack_to_unacc_ack"/>
   </state>

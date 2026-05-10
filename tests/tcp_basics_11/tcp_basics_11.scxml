@@ -43,5 +43,6 @@
            replay_label="replay_rst"
            replay_method="is_dut_rst"
            replay_deadline="78s"
-           replay_fail_reason="no_dut_rst_after_2msl_post_time_wait"/>
+           replay_fail_reason="no_dut_rst_after_2msl_post_time_wait"
+           local_offset="kTcpBasics11LocalOffset"/>
 </scxml>

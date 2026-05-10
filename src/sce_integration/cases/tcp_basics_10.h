@@ -60,7 +60,10 @@ struct TestCaseTraits<cases::TcpBasics10SM>
         // -------- Phase 1: FINWAIT-1 entry --------
         {
             auto listener1 = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac);
+                cfg, iface, cfg.arp.dut_real_mac,
+                /*open_req_id=*/1,
+                kBasicsActiveLocalPort  + kTcpBasics10Phase1LocalOffset,
+                kBasicsActiveRemotePort + kTcpBasics10Phase1LocalOffset);
 
             const int tester_fd = listener1.acceptOne();
 
@@ -79,8 +82,8 @@ struct TestCaseTraits<cases::TcpBasics10SM>
 
         // -------- Phase 2: FINWAIT-2 entry --------
         {
-            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + 1U;
-            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + 1U;
+            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpBasics10Phase2LocalOffset;
+            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpBasics10Phase2LocalOffset;
 
             auto listener2 = driveActiveOpenEstablished(
                 cfg, iface, cfg.arp.dut_real_mac,

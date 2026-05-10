@@ -62,7 +62,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
         {
             const auto info = driveTcpToTimeWaitFw2(
                 cfg, iface, cfg.arp.dut_real_mac,
-                /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1);
+                /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+                kBasicsActiveLocalPort  + kTcpFlagsInvalid14Phase1LocalOffset,
+                kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase1LocalOffset);
             if (info.ok) {
                 // tcp_timewait_state_process emits ACK with ack_num ==
                 // tw_rcv_nxt == tester.snd_nxt at TW entry ==
@@ -71,8 +73,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
                 // both elicit the same ACK shape).
                 c.expected_ack_num = info.tester_seq_post_fin;
                 ::tc8::stimulus::TcpSegmentSpec probe{};
-                probe.src_port = kBasicsActiveRemotePort;
-                probe.dst_port = kBasicsActiveLocalPort;
+                probe.src_port = kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase1LocalOffset;
+                probe.dst_port = kBasicsActiveLocalPort  + kTcpFlagsInvalid14Phase1LocalOffset;
                 probe.seq_num  = info.tester_seq_post_fin + kOutOfWindowSeqOffset;
                 probe.ack_num  = info.tester_ack_post_fin;
                 probe.flags    = ::tc8::stimulus::kTcpFlagFin
@@ -85,8 +87,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
 
         // -------- Phase 2: OTW SEQ data segment in TIME-WAIT --------
         {
-            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + 1U;
-            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + 1U;
+            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid14Phase2LocalOffset;
+            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase2LocalOffset;
 
             const auto info = driveTcpToTimeWaitFw2(
                 cfg, iface, cfg.arp.dut_real_mac,

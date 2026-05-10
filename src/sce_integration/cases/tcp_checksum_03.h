@@ -58,7 +58,10 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.arp.dut_real_mac,
+            /*open_req_id=*/1,
+            kBasicsActiveLocalPort  + kTcpChecksum03LocalOffset,
+            kBasicsActiveRemotePort + kTcpChecksum03LocalOffset);
         (void)listener;
 
         // OpSendTcpData runs through the same UT RPC channel as

@@ -62,7 +62,10 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
         // -------- Phase 1: OTW SEQ in CLOSE-WAIT --------
         {
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac);
+                cfg, iface, cfg.arp.dut_real_mac,
+                /*open_req_id=*/1,
+                kBasicsActiveLocalPort  + kTcpUnacceptable14Phase1LocalOffset,
+                kBasicsActiveRemotePort + kTcpUnacceptable14Phase1LocalOffset);
             const int tester_fd = listener.acceptOne();
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);
@@ -78,8 +81,8 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                     // after(ack, snd_nxt)).
                     c.expected_ack_num = seq_range->snd_nxt;
                     ::tc8::stimulus::TcpSegmentSpec data{};
-                    data.src_port = kBasicsActiveRemotePort;
-                    data.dst_port = kBasicsActiveLocalPort;
+                    data.src_port = kBasicsActiveRemotePort + kTcpUnacceptable14Phase1LocalOffset;
+                    data.dst_port = kBasicsActiveLocalPort  + kTcpUnacceptable14Phase1LocalOffset;
                     data.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
                     data.ack_num  = seq_range->rcv_nxt;
                     data.flags    = ::tc8::stimulus::kTcpFlagPsh
@@ -96,8 +99,8 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
 
         // -------- Phase 2: unacceptable ACK in CLOSE-WAIT --------
         {
-            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + 1U;
-            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + 1U;
+            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpUnacceptable14Phase2LocalOffset;
+            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable14Phase2LocalOffset;
 
             auto listener = driveActiveOpenEstablished(
                 cfg, iface, cfg.arp.dut_real_mac,
