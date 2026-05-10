@@ -3,3 +3,5 @@ doc/spec/split/
 .serena/
 claudedocs/
 *.pdf
+.astro/
+node_modules/
