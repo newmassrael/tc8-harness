@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "tc8/iface_enumeration.h"
 #include "tc8/upper_tester_protocol.h"
 
 namespace tc8::dut {
@@ -247,12 +248,7 @@ bool UpperTesterServer::start() {
     // Pass-through: also disables TX checksum offload on every iface
     // so CHECKSUM_03's pcap-side validator sees finalised checksums on
     // veth (kernel default leaves CHECKSUM_PARTIAL on transmit).
-    struct IfaceInfo {
-        std::string                 name;
-        std::array<std::uint8_t, 6> mac{};
-        std::uint32_t               ip_be    = 0;
-        std::uint32_t               bcast_be = 0;
-    };
+    using ::tc8::iface_enum::IfaceInfo;
     std::vector<IfaceInfo> ifaces;
     {
         ifaddrs *ifa = nullptr;
@@ -290,6 +286,13 @@ bool UpperTesterServer::start() {
             freeifaddrs(ifa);
         }
     }
+    // getifaddrs returns one entry per AF_INET address — collapse to
+    // one entry per iface (first-seen wins) so a veth with the
+    // UI_07/_08 alias 172.16.0.5 stacked on top of 172.16.0.2 doesn't
+    // double-register as `dhcpv4_clients_[0]` + `dhcpv4_clients_[1]`
+    // sharing the same MAC. See `iface_enumeration.h` for the
+    // USAGE_01 collision context.
+    ifaces = ::tc8::iface_enum::dedupeByName(std::move(ifaces));
     std::sort(ifaces.begin(), ifaces.end(),
               [](const IfaceInfo &a, const IfaceInfo &b) {
                   return a.name < b.name;
