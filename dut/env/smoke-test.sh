@@ -1452,16 +1452,18 @@ run_case() {
         [TCP_PROBING_WINDOWS_06]=24
         # §4.8.6.11 TCP_RETRANSMISSION_TO_06 — active-OPEN +153 quad
         # with no tester listener + TesterAutoRstDrop suppressing
-        # auto-RSTs. SCXML 2-state: 5 s first_syn + 2.5 s syn_retx
-        # + ~2 s prelude. Strict timing assertion via
-        # `frame_delta_us()` window [800 ms, 1500 ms] gating Linux's
-        # TCP_TIMEOUT_INIT = 1 s.
+        # auto-RSTs. Kernel-side TCP_INFO observation (mirrors _03):
+        # single snapshot before retx 1 fires, gates `tcpi_rto` to the
+        # RFC 6298 §2.1 initial-RTO window [800 ms, 1500 ms]. Wall
+        # budget: ~2 s prelude + 2 s phase-1 polling deadline + SCXML
+        # evaluate tick. 12 s carries 2.5x safety margin.
         [TCP_RETRANSMISSION_TO_06]=12
         # §4.8.6.11 TCP_RETRANSMISSION_TO_05 — active-OPEN +155 quad
-        # observing 3 SYN retransmits with strictly-doubling
-        # `frame_delta_us` gates (initial RTO 800-1500 ms, retx2 >
-        # 1500 ms, retx3 > 3500 ms). 4-state SCXML: 5 + 2.5 + 3.5 +
-        # 5.5 = 16.5 s phase budget + ~2 s prelude.
+        # observing 3 SYN retransmits via kernel-side TCP_INFO
+        # snapshots (mirrors _04). Wall budget: ~2 s prelude + 2 s
+        # SYN-SENT probe + 2 s phase-1 (retx 1 at ~1 s) + 4 s phase-2
+        # (retx 2 at +2 s) + 8 s phase-3 (retx 3 at +4 s) = ~18 s
+        # worst-case. 22 s carries 22 % safety margin.
         [TCP_RETRANSMISSION_TO_05]=22
         # §4.8.6.11 TCP_RETRANSMISSION_TO_04 — active-OPEN +154 quad
         # ESTABLISHED + SEND + TesterAutoAckDrop blocking auto-ACKs
@@ -3965,8 +3967,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "TCP_PROBING_WINDOWS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
         "TCP_PROBING_WINDOWS_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
         "TCP_PROBING_WINDOWS_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_RETRANSMISSION_TO_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_syn"
-        "TCP_RETRANSMISSION_TO_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_syn"
+        "TCP_RETRANSMISSION_TO_06|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
+        "TCP_RETRANSMISSION_TO_05|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
         "TCP_RETRANSMISSION_TO_04|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
         "TCP_RETRANSMISSION_TO_03|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
         "TCP_SEQUENCE_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"

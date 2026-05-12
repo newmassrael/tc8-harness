@@ -12,48 +12,54 @@
     5. TESTER: Verify that the DUT used a timeout according to the
                referenced RFC.
 
-  Mechanism (active-OPEN with no listener + tester-RST suppression +
-  observe SYN retransmit at the RFC 6298 initial RTO ≈ 1 s):
-    1. UT OpOpenTcpSocket(Active) targets a tester-side endpoint
-       that has no bound listener — Linux's tester kernel would
-       normally answer with RST since the destination port is
-       unbound.
-    2. `TesterAutoRstDrop` installs an iptables OUTPUT rule that
-       drops tester-emitted RST segments toward the DUT, so the
-       DUT's SYN goes unanswered. The rule is held alive past
-       stimulus return via a `shared_ptr` captured by a delayed
-       `scheduler.schedule` lambda — same pattern PROBING_WINDOWS_*
-       use to keep an iptables rule installed across the SCXML
-       listen window.
-    3. The DUT's `tcp_send_syn(... TCP_TIMEOUT_INIT)` schedules the
-       first retransmit at ~1 s (Linux 6.x, RFC 6298-conformant).
+  Mechanism (kernel-side TCP_INFO observation, single snapshot before
+  retx fires):
+    The earlier pcap-timing approach (observe inter-frame delta between
+    first SYN and retx 1) was deterministic at workers=1 but flaked
+    under workers=4 parallel load — pcap's SOFTIRQ delivery raced the
+    SCXML's 2.5 s deadline guard on the retx-observation phase.
+    Replacing the wire-timing assertion with one synchronous
+    OpQueryTcpInfo (0x13) read off the DUT's connect-side fd (set by
+    openTcpActive BEFORE the connector worker is spawned —
+    upper_tester_server.cpp:1199, so the fd is queryable while in
+    TCP_SYN_SENT) makes the verdict a function of kernel state, not
+    pcap delivery latency. Stimulus phases:
 
-  Strict timing assertion (`frame_delta_us`):
-    The retransmit-state guard conjuncts on
-    `frame_delta_us() > 800000 and frame_delta_us() < 1500000`. This
-    is the only wire-observable surface for "DUT used the referenced
-    RFC's RTO" — `prev_observed_ts_us` is auto-seeded by
-    `dispatchTcpFrame` when the first-SYN guard fires, so the delta
-    measured is strictly the RFC 6298 initial RTO. A DUT with
-    sub-second initial RTO (e.g. immediate retransmit on idle) fails
-    the lower bound; a DUT that delays past 1.5 s (e.g. linear-2 s
-    retry) fails the upper bound.
+    1. Active OPEN to a tester-side port with no listener; tester-
+       kernel auto-RST is silently swallowed by `TesterAutoRstDrop` so
+       the DUT stays in TCP_SYN_SENT and the retransmit timer remains
+       armed at TCP_TIMEOUT_INIT (= 1 s on Linux 6.x).
+    2. **Phase 1 snapshot** (captured BEFORE retx 1 fires): poll
+       OpQueryTcpInfo at 50 ms cadence until the kernel reports state
+       == TCP_SYN_SENT AND retransmits == 0. The first valid snapshot
+       satisfying both is the initial-RTO observation — `tcpi_rto`
+       reflects the value the kernel will use for the upcoming retx,
+       i.e. RFC 6298 §2.1's initial RTO.
 
-  Two-state SCXML chain:
-    * listening_first_syn — observe the DUT's active-OPEN SYN.
-                            Deadline 5 s covers UT boot wait (1.5 s)
-                            + Active OpOpen RPC dispatch + DUT
-                            connect() spawn jitter on parallel
-                            workers.
-    * listening_syn_retx  — observe the SYN retransmit at the RFC
-                            6298 initial-RTO window. Deadline 2.5 s
-                            comfortably covers the upper-bound
-                            `frame_delta_us() < 1500000` and any
-                            scheduler jitter on a busy worker pool.
+  Pass criteria (single state, fail-first cond chain):
+    * ut_handshake_completed       — proves the DUT opened the socket
+      and the connector worker called connect() (set when the polling
+      loop first observes state == TCP_SYN_SENT). Doubles as the
+      negative-flip detector: ipv4.dut_iface_ip=10.99.99.99 → UT RPC
+      never reaches DUT → snap.valid stays false → flag stays false.
+    * ut_tcpi_p1_valid             — RPC round-trip succeeded.
+    * ut_tcpi_p1_state == 2 (TCP_SYN_SENT) — kernel armed the SYN.
+    * ut_tcpi_p1_retransmits == 0  — snapshot caught the initial-RTO
+      window before retx 1 doubled icsk_rto.
+    * ut_tcpi_p1_rto_us in [800000, 1500000] — RFC 6298 §2.1's "RTO
+      SHOULD be set to 1 second" with tolerance for Linux's HZ
+      quantisation and worker-thread scheduling jitter.
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
-  `is_dut_syn(...)` 's src_ip conjunct unreachable; case lands on
-  fail_no_first_syn via the 5 s phase-1 deadline.
+  SCXML shape — single state with a `<send delay="0ms"/>`-raised
+  evaluation event, multiple cond-keyed transitions; first matching
+  transition wins per W3C SCXML §3.13. Mirrors the _03/_04 evaluate
+  pattern exactly. delay=0ms is the minimal scheduler tick required to
+  flush the stimulus-mutated `captured` into the cond evaluator's view.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the UT RPC
+  request unreachable; queryTcpInfoSync returns valid=false on every
+  poll, ut_handshake_completed stays false, and the SCXML's first
+  cond verdicts as `fail:dut_handshake_did_not_complete`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -61,7 +67,7 @@
        version="1.0"
        name="tcp_retransmission_to_06"
        datamodel="null"
-       initial="listening_first_syn">
+       initial="evaluate_kernel_observations">
 
   <sce:context id="captured"
                cpp:type="tc8::TcpCaptured"
@@ -71,27 +77,26 @@
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="listening_first_syn">
+  <state id="evaluate_kernel_observations">
     <onentry>
-      <send event="deadline_first_syn" delay="5s"/>
+      <send event="evaluate" delay="0ms"/>
     </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset)"
-                target="listening_syn_retx"/>
-    <transition event="deadline_first_syn" target="fail_no_first_syn"/>
-  </state>
-
-  <state id="listening_syn_retx">
-    <onentry>
-      <send event="deadline_syn_retx" delay="2500ms"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset) and captured.frame_delta_us() &gt; 800000 and captured.frame_delta_us() &lt; 1500000"
-                target="pass"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo06LocalOffset) and (captured.frame_delta_us() &lt;= 800000 or captured.frame_delta_us() &gt;= 1500000)"
-                target="fail_rto_out_of_window"/>
-    <transition event="deadline_syn_retx" target="fail_no_syn_retx"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_handshake_completed"
+                target="fail_handshake_did_not_complete"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p1_valid"
+                target="fail_phase1_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_state != 2U"
+                target="fail_socket_not_syn_sent"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_retransmits != 0U"
+                target="fail_initial_window_missed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 800000U or captured.ut_tcpi_p1_rto_us &gt; 1500000U"
+                target="fail_initial_rto_out_of_window"/>
+    <transition event="evaluate" target="pass"/>
   </state>
 
   <final id="pass">
@@ -100,21 +105,33 @@
     </donedata>
   </final>
 
-  <final id="fail_no_first_syn">
+  <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_syn"}</content>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_syn_retx">
+  <final id="fail_phase1_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_within_listen_window"}</content>
+      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed"}</content>
     </donedata>
   </final>
 
-  <final id="fail_rto_out_of_window">
+  <final id="fail_socket_not_syn_sent">
     <donedata>
-      <content>{"verdict":"fail","reason":"syn_retransmit_rto_out_of_rfc6298_window"}</content>
+      <content>{"verdict":"fail","reason":"socket_state_not_syn_sent"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_initial_window_missed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"initial_rto_window_missed_retransmit_already_fired"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_initial_rto_out_of_window">
+    <donedata>
+      <content>{"verdict":"fail","reason":"initial_rto_out_of_rfc6298_window"}</content>
     </donedata>
   </final>
 </scxml>

@@ -14,45 +14,55 @@
                interval is increasing at a fast (at least more than
                linear) rate.
 
-  Mechanism (active-OPEN with no listener + tester-RST suppression +
-  observe 3 SYN retransmits with strictly increasing inter-frame
-  deltas):
-    1-2. Same as TCP_RETRANSMISSION_TO_06: UT OpOpenTcpSocket(Active)
-         + `TesterAutoRstDrop` shared_ptr held across the full SCXML
-         phase budget (~16 s; covers the 1 s + 2 s + 4 s = 7 s
-         exponential sequence plus margin).
-    3.   Linux's `tcp_retransmit_skb` doubles `icsk_rto` on every
-         retransmit while in SYN-SENT (RFC 6298 §5 step 5.5: "Set
-         RTO <- RTO * 2"), producing the 1 s / 2 s / 4 s sequence
-         that the SCXML chain matches against per-state
-         `frame_delta_us()` windows.
+  Mechanism (kernel-side TCP_INFO observation, three snapshots):
+    The earlier pcap-timing chain (observe SYN, retx1, retx2, retx3
+    inter-frame deltas in a 4-state SCXML) was deterministic at
+    workers=1 but flaked under workers=4 parallel load — pcap's
+    SOFTIRQ delivery raced the per-state deadline guards. Replacing
+    the wire-timing assertions with three synchronous OpQueryTcpInfo
+    (0x13) reads off the DUT's connect-side fd (set by openTcpActive
+    BEFORE the connector worker is spawned —
+    upper_tester_server.cpp:1199, so the fd is queryable while in
+    TCP_SYN_SENT) makes the verdict a function of kernel state, not
+    pcap delivery latency. Stimulus phases:
 
-  Strict timing assertion ("more than linear"):
-    The retx1 guard anchors the initial RTO to RFC 6298 §2.1
-    (`frame_delta_us > 800 ms and < 1500 ms`). With initial RTO
-    pinned at ~1 s, a *linear* DUT (constant interval ≤ 1.5 s) fails
-    the retx2 strict lower bound `frame_delta_us > 1500 ms` because
-    its second-leg interval cannot exceed the first-leg interval.
-    The retx3 lower bound `frame_delta_us > 3500 ms` rejects any
-    constant-2-s linear case once retx2 passes. Linux's exponential
-    sequence comfortably clears every gate.
+    1. Active OPEN to a tester-side port with no listener;
+       `TesterAutoRstDrop` swallows the tester-kernel's auto-RST so
+       the DUT stays in TCP_SYN_SENT and the retransmit timer doubles
+       on every fire per RFC 6298 §5 step 5.5. dut_ns sysctl
+       `tcp_syn_linear_timeouts=0` disables Linux's "first 4 retries
+       use linear RTO" deviation so doubling kicks in on retx 1.
+       Expected sequence on Linux 6.x: initial RTO ≈ 1 s, retx 1 at
+       +1 s (icsk_rto: 1 s → 2 s), retx 2 at +2 s (2 s → 4 s), retx 3
+       at +4 s (4 s → 8 s). Total to retx 3 ≈ 7 s wall-clock.
+    2. **Phase 1 snapshot** (post-retx 1): poll at 50 ms cadence
+       until `tcpi_retransmits >= 1`; deadline 2 s. Pass criterion:
+       `tcpi_rto >= 1500000` us (proves the kernel doubled icsk_rto
+       from the 1 s initial RTO — a non-doubling DUT would still
+       report ~1 s).
+    3. **Phase 2 snapshot** (post-retx 2): poll until
+       `tcpi_retransmits >= 2`; deadline 4 s. Pass criterion:
+       `tcpi_rto > p1.tcpi_rto` (strict growth proves a second
+       doubling — a constant-RTO DUT would leave p2.rto == p1.rto).
+    4. **Phase 3 snapshot** (post-retx 3): poll until
+       `tcpi_retransmits >= 3`; deadline 8 s. Pass criterion:
+       `tcpi_rto > p2.tcpi_rto` (strict growth proves a third
+       doubling). Three observations of strict growth across the
+       cluster pin the "more than linear" RFC 1122 §4.2.3.1 MUST.
 
-  Four-state SCXML chain:
-    * listening_first_syn  — observe DUT's active-OPEN SYN.
-                             Deadline 5 s covers UT boot wait + RPC
-                             dispatch jitter.
-    * listening_syn_retx_1 — observe SYN retx 1 within Linux's first
-                             RTO (~1 s) and verify the delta lies in
-                             RFC 6298's initial-RTO window.
-                             Deadline 2.5 s.
-    * listening_syn_retx_2 — observe SYN retx 2 with delta > 1.5 s
-                             (rejects 1 s linear). Deadline 3.5 s.
-    * listening_syn_retx_3 — observe SYN retx 3 with delta > 3.5 s
-                             (rejects 2 s linear). Deadline 5.5 s.
+  SCXML shape — single state with a `<send delay="0ms"/>`-raised
+  evaluation event, multiple cond-keyed transitions; first matching
+  transition wins per W3C SCXML §3.13. Transitions ordered fail-first
+  (handshake → query validity → retransmit-count thresholds → rto
+  growth) so the most-proximal cause short-circuits to its specific
+  verdict before falling through to pass. Mirrors _04's evaluate
+  pattern exactly, adjusted for SYN-side RTO baselines.
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
-  `is_dut_syn(...)` 's src_ip conjunct unreachable; case lands on
-  fail_no_first_syn via the 5 s phase-1 deadline.
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the UT RPC
+  request unreachable; queryTcpInfoSync returns valid=false on every
+  poll in the SYN-SENT probe loop, ut_handshake_completed stays
+  false, and the SCXML's first cond verdicts as
+  `fail:dut_handshake_did_not_complete`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -60,7 +70,7 @@
        version="1.0"
        name="tcp_retransmission_to_05"
        datamodel="null"
-       initial="listening_first_syn">
+       initial="evaluate_kernel_observations">
 
   <sce:context id="captured"
                cpp:type="tc8::TcpCaptured"
@@ -70,53 +80,41 @@
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="listening_first_syn">
+  <state id="evaluate_kernel_observations">
     <onentry>
-      <send event="deadline_first_syn" delay="5s"/>
+      <send event="evaluate" delay="0ms"/>
     </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset)"
-                target="listening_syn_retx_1"/>
-    <transition event="deadline_first_syn" target="fail_no_first_syn"/>
-  </state>
-
-  <state id="listening_syn_retx_1">
-    <onentry>
-      <send event="deadline_syn_retx_1" delay="2500ms"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset) and captured.frame_delta_us() &gt; 800000 and captured.frame_delta_us() &lt; 1500000"
-                target="listening_syn_retx_2"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset) and (captured.frame_delta_us() &lt;= 800000 or captured.frame_delta_us() &gt;= 1500000)"
-                target="fail_initial_rto_out_of_window"/>
-    <transition event="deadline_syn_retx_1" target="fail_no_syn_retx_1"/>
-  </state>
-
-  <state id="listening_syn_retx_2">
-    <onentry>
-      <send event="deadline_syn_retx_2" delay="3500ms"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset) and captured.frame_delta_us() &gt; 1500000"
-                target="listening_syn_retx_3"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset) and captured.frame_delta_us() &lt;= 1500000"
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_handshake_completed"
+                target="fail_handshake_did_not_complete"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p1_valid"
+                target="fail_phase1_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p2_valid"
+                target="fail_phase2_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p3_valid"
+                target="fail_phase3_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_retransmits &lt; 1"
+                target="fail_no_syn_retx_1"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p2_retransmits &lt; 2"
+                target="fail_no_syn_retx_2"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p3_retransmits &lt; 3"
+                target="fail_no_syn_retx_3"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 1500000"
+                target="fail_initial_rto_not_doubled"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p2_rto_us &lt;= captured.ut_tcpi_p1_rto_us"
                 target="fail_retx2_not_doubled"/>
-    <transition event="deadline_syn_retx_2" target="fail_no_syn_retx_2"/>
-  </state>
-
-  <state id="listening_syn_retx_3">
-    <onentry>
-      <send event="deadline_syn_retx_3" delay="5500ms"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset) and captured.frame_delta_us() &gt; 3500000"
-                target="pass"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo05LocalOffset) and captured.frame_delta_us() &lt;= 3500000"
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p3_rto_us &lt;= captured.ut_tcpi_p2_rto_us"
                 target="fail_retx3_not_doubled"/>
-    <transition event="deadline_syn_retx_3" target="fail_no_syn_retx_3"/>
+    <transition event="evaluate" target="pass"/>
   </state>
 
   <final id="pass">
@@ -125,9 +123,27 @@
     </donedata>
   </final>
 
-  <final id="fail_no_first_syn">
+  <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_syn"}</content>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase3_tcp_info_query_failed"}</content>
     </donedata>
   </final>
 
@@ -149,21 +165,21 @@
     </donedata>
   </final>
 
-  <final id="fail_initial_rto_out_of_window">
+  <final id="fail_initial_rto_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"syn_retx1_rto_out_of_rfc6298_initial_window"}</content>
+      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline"}</content>
     </donedata>
   </final>
 
   <final id="fail_retx2_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"syn_retx2_delta_not_greater_than_initial_rto"}</content>
+      <content>{"verdict":"fail","reason":"phase2_rto_not_greater_than_phase1"}</content>
     </donedata>
   </final>
 
   <final id="fail_retx3_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"syn_retx3_delta_not_greater_than_retx2_lower_bound"}</content>
+      <content>{"verdict":"fail","reason":"phase3_rto_not_greater_than_phase2"}</content>
     </donedata>
   </final>
 </scxml>
