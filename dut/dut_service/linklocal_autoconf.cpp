@@ -493,11 +493,32 @@ void LinklocalAutoconf::runLoop(Params params) {
         // announce. Currently invisible to §4.5.6.4 SCXML guards
         // (which require is_arp_probe()), but a wire-level deviation
         // worth closing.
+        // RFC 3927 §2.4 requires the wire-observable interval between
+        // Announce 1 and Announce 2 to equal ANNOUNCE_INTERVAL exactly
+        // (TC8 §4.5.6.3 _06 enforces ±50 ms tolerance). The naive
+        // `emit; sleep(interval); emit` shape produces wire delta =
+        // sleep_duration + sleep_jitter + emit2_latency. Under self-
+        // hosted CI workers=4 CPU saturation the sleep_jitter alone
+        // exceeds 50 ms — runs 25722823092 / 25631103237 / 25629911035
+        // all failed `announce_interval_outside_rfc3927_bounds_with_
+        // 50ms_tolerance`. Anchoring Announce 2's emit on an absolute
+        // deadline captured BEFORE Announce 1 makes the wire delta =
+        // announce_interval_ms + (emit2_latency - emit1_latency); the
+        // two emit latencies are symmetric AF_PACKET sendto calls
+        // (~50 us each on Linux), so they cancel and the residual is
+        // bounded by the final sleep chunk's wake-up jitter alone
+        // (<10 ms typical, well within tolerance).
+        const auto announce1_anchor = std::chrono::steady_clock::now();
         for (int i = 0; i < 2; ++i) {
             if (cease_requested_.load()) break;
             emitArpAnnounce(tentative_ll_be, params.flavor);
             if (i < 1) {
-                sleepInterruptible(params.announce_interval_ms);
+                const auto announce2_target =
+                    announce1_anchor + params.announce_interval_ms;
+                const auto sleep_dur = std::chrono::duration_cast<
+                    std::chrono::milliseconds>(
+                        announce2_target - std::chrono::steady_clock::now());
+                if (sleep_dur.count() > 0) sleepInterruptible(sleep_dur);
                 if (stop_requested_.load()) {
                     stopArpResponder();
                     return;
