@@ -15,48 +15,59 @@
                interval is increasing at a fast (at least more than
                linear) rate.
 
-  Mechanism (active-OPEN handshake + small SEND + TesterAutoAckDrop
-  blocking the auto-ACK + observe 3 data retransmits with
-  strictly-doubling inter-frame deltas):
-    1.   Tester listener.acceptOne completes the handshake; the DUT
-         is in ESTABLISHED. `queryTcpSeqRange` snapshots the
-         post-handshake tester snd_nxt / rcv_nxt for 4-tuple-clean
-         observation.
-    2.   `TesterAutoAckDrop` installs an iptables OUTPUT rule that
-         drops tester-emitted pure ACKs toward the DUT. The DUT's
-         data segment goes out, the tester kernel's auto-ACK is
-         silently swallowed, and `tcp_retransmit_timer` fires when
-         icsk_rto elapses with snd_una unchanged.
-    3.   On every data-retx fire (state == TCP_ESTABLISHED, NOT
-         TCP_SYN_SENT), Linux's `tcp_retransmit_timer` enters the
-         "Use normal (exponential) backoff" branch and doubles
-         `icsk_rto`. The 4-tuple-pinned SCXML chain observes the
-         resulting 200 ms / 400 ms / 800 ms inter-frame sequence.
+  Mechanism (kernel-side TCP_INFO observation, three snapshots):
+    The earlier pcap-timing chain (observe seg1, retx1, retx2, retx3
+    inter-frame deltas in a 4-state SCXML) was deterministic at
+    workers=1 but flaked under workers=4 parallel load — pcap's
+    SOFTIRQ delivery raced the per-state deadline guards on the
+    second / third retransmit observation. Replacing the wire-timing
+    assertions with three synchronous OpQueryTcpInfo (0x13) reads off
+    the DUT's connected fd makes the verdict a function of kernel
+    state, not pcap delivery latency. Stimulus phases:
 
-  Strict timing assertion ("more than linear"):
-    Linux's TCP_RTO_MIN baseline is 200 ms. Initial data RTO on a
-    fresh local-veth ESTABLISHED socket converges via the RTT
-    estimator to that floor. The retx1 guard anchors the initial
-    RTO in [80 ms, 400 ms]; with that anchor, a constant-interval
-    DUT (linear ≤ 400 ms) fails the retx2 strict lower bound
-    `frame_delta_us > 300000` because its second-leg interval
-    cannot exceed the first-leg upper bound. Similarly retx3's
-    `frame_delta_us > 600000` rejects 400 ms linear.
+    1. Active-OPEN handshake on +200 port quad; `queryTcpSeqRange`
+       snapshots tester snd_nxt / rcv_nxt for 4-tuple-clean prelude.
+    2. `TesterAutoAckDrop` (RAII over the full stimulus body)
+       suppresses tester-kernel auto-ACKs so seg1's RTO timer fires
+       three times without tester interference. RACK and TLP are
+       disabled in dut_ns (mirrors RETRANSMISSION_TO_03/_05/_06 via
+       the smoke-test sysctl override) so `tcp_retransmit_timer`
+       follows the canonical out_reset_timer doubling path.
+    3. UT SEND seg1 → DUT data segment 1 (8 B). Linux's data-RTO
+       sequence on a fresh local-veth ESTABLISHED socket: retx 1 at
+       ~200 ms post-seg1 (icsk_rto: 200 → 400 ms), retx 2 at +400 ms
+       (400 → 800 ms), retx 3 at +800 ms (800 → 1600 ms).
+    4. **Phase 1 snapshot** (post-retx 1): polled at 50 ms cadence
+       until `tcpi_retransmits >= 1`; deadline 2 s. Pass criterion:
+       `tcpi_rto >= 350 ms` (proves the kernel doubled icsk_rto from
+       the 200 ms baseline).
+    5. **Phase 2 snapshot** (post-retx 2): polled until
+       `tcpi_retransmits >= 2`; deadline 3 s. Pass criterion:
+       `tcpi_rto > p1.tcpi_rto` (proves the kernel doubled again).
+       A constant-RTO DUT would leave p2.rto == p1.rto.
+    6. **Phase 3 snapshot** (post-retx 3): polled until
+       `tcpi_retransmits >= 3`; deadline 5 s. Pass criterion:
+       `tcpi_rto > p2.tcpi_rto` (proves the kernel doubled a third
+       time). Three observations of strict growth across the cluster
+       pin the "more than linear" RFC 1122 §4.2.3.1 MUST.
 
-  Four-state SCXML chain:
-    * listening_seg1   — observe DUT's first data segment.
-                         Deadline 5 s covers handshake + SEND
-                         dispatch + parallel-worker jitter.
-    * listening_retx_1 — observe data retx 1 within Linux's
-                         initial RTO window. Deadline 1 s.
-    * listening_retx_2 — observe data retx 2 with delta > 300 ms.
-                         Deadline 1.5 s.
-    * listening_retx_3 — observe data retx 3 with delta > 600 ms.
-                         Deadline 2 s.
+  SCXML shape — single state with a `<send delay="0ms"/>`-raised
+  evaluation event, multiple cond-keyed transitions; first matching
+  transition wins per W3C SCXML §3.13. Transitions are ordered fail-
+  first (handshake → query validity → retransmit-count thresholds →
+  numeric rto growth) so the most-proximal cause short-circuits to
+  its specific verdict before falling through to pass. delay=0ms is
+  the minimal scheduler tick required to flush the stimulus-mutated
+  `captured` into the cond evaluator's view; pure eventless
+  transitions are not used because the SCE codegen consumes events
+  into Event enum members and an enum-less initial state would have
+  no firing edge at all.
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
-  `is_dut_data_segment(...)` 's src_ip conjunct unreachable; case
-  lands on fail_no_seg1 via the 5 s phase-1 deadline.
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active-OPEN
+  handshake fail at `driveActiveOpenEstablished`; the stimulus
+  returns early without setting `ut_handshake_completed`, so the
+  SCXML's first cond fires and verdicts as
+  `fail:dut_handshake_did_not_complete`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -64,7 +75,7 @@
        version="1.0"
        name="tcp_retransmission_to_04"
        datamodel="null"
-       initial="listening_seg1">
+       initial="evaluate_kernel_observations">
 
   <sce:context id="captured"
                cpp:type="tc8::TcpCaptured"
@@ -74,53 +85,41 @@
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="listening_seg1">
+  <state id="evaluate_kernel_observations">
     <onentry>
-      <send event="deadline_seg1" delay="5s"/>
+      <send event="evaluate" delay="0ms"/>
     </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset)"
-                target="listening_retx_1"/>
-    <transition event="deadline_seg1" target="fail_no_seg1"/>
-  </state>
-
-  <state id="listening_retx_1">
-    <onentry>
-      <send event="deadline_retx_1" delay="1s"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset) and captured.frame_delta_us() &gt; 80000 and captured.frame_delta_us() &lt; 400000"
-                target="listening_retx_2"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset) and (captured.frame_delta_us() &lt;= 80000 or captured.frame_delta_us() &gt;= 400000)"
-                target="fail_initial_rto_out_of_window"/>
-    <transition event="deadline_retx_1" target="fail_no_retx_1"/>
-  </state>
-
-  <state id="listening_retx_2">
-    <onentry>
-      <send event="deadline_retx_2" delay="1500ms"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset) and captured.frame_delta_us() &gt; 300000"
-                target="listening_retx_3"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset) and captured.frame_delta_us() &lt;= 300000"
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_handshake_completed"
+                target="fail_handshake_did_not_complete"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p1_valid"
+                target="fail_phase1_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p2_valid"
+                target="fail_phase2_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.ut_tcpi_p3_valid"
+                target="fail_phase3_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_retransmits &lt; 1"
+                target="fail_no_retx_1"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p2_retransmits &lt; 2"
+                target="fail_no_retx_2"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p3_retransmits &lt; 3"
+                target="fail_no_retx_3"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 350000"
+                target="fail_initial_rto_not_doubled"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p2_rto_us &lt;= captured.ut_tcpi_p1_rto_us"
                 target="fail_retx2_not_doubled"/>
-    <transition event="deadline_retx_2" target="fail_no_retx_2"/>
-  </state>
-
-  <state id="listening_retx_3">
-    <onentry>
-      <send event="deadline_retx_3" delay="2s"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset) and captured.frame_delta_us() &gt; 600000"
-                target="pass"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpRetransmissionTo04LocalOffset) and captured.frame_delta_us() &lt;= 600000"
+    <transition event="evaluate"
+                cond="cpp:captured.ut_tcpi_p3_rto_us &lt;= captured.ut_tcpi_p2_rto_us"
                 target="fail_retx3_not_doubled"/>
-    <transition event="deadline_retx_3" target="fail_no_retx_3"/>
+    <transition event="evaluate" target="pass"/>
   </state>
 
   <final id="pass">
@@ -129,9 +128,27 @@
     </donedata>
   </final>
 
-  <final id="fail_no_seg1">
+  <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase3_query_failed">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase3_tcp_info_query_failed"}</content>
     </donedata>
   </final>
 
@@ -153,21 +170,21 @@
     </donedata>
   </final>
 
-  <final id="fail_initial_rto_out_of_window">
+  <final id="fail_initial_rto_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"data_retx1_rto_out_of_baseline_window"}</content>
+      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline"}</content>
     </donedata>
   </final>
 
   <final id="fail_retx2_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"data_retx2_delta_not_greater_than_initial_rto"}</content>
+      <content>{"verdict":"fail","reason":"phase2_rto_not_greater_than_phase1"}</content>
     </donedata>
   </final>
 
   <final id="fail_retx3_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"data_retx3_delta_not_greater_than_retx2_lower_bound"}</content>
+      <content>{"verdict":"fail","reason":"phase3_rto_not_greater_than_phase2"}</content>
     </donedata>
   </final>
 </scxml>

@@ -3967,7 +3967,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "TCP_PROBING_WINDOWS_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
         "TCP_RETRANSMISSION_TO_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_syn"
         "TCP_RETRANSMISSION_TO_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_syn"
-        "TCP_RETRANSMISSION_TO_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
+        "TCP_RETRANSMISSION_TO_04|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
         "TCP_RETRANSMISSION_TO_03|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
         "TCP_SEQUENCE_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
         "TCP_SEQUENCE_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"

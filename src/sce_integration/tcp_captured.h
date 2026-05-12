@@ -158,6 +158,19 @@ struct TcpCaptured {
     std::uint8_t  ut_tcpi_p2_retransmits = 0U;
     std::uint32_t ut_tcpi_p2_unacked     = 0U;
 
+    // §4.8.6.11 TCP_RETRANSMISSION_TO_04 extends the kernel-side
+    // observation pattern from two snapshots (Karn's algorithm, _03)
+    // to three (exponential backoff across three successive data
+    // retransmits). `_p3_*` is taken after the third retx fires
+    // (tcpi_retransmits >= 3); the SCXML compares p1/p2/p3 rto_us in
+    // strict-growth order to assert RFC 1122 §4.2.3.1 / RFC 6298 §5
+    // "more than linear" backoff.
+    bool          ut_tcpi_p3_valid       = false;
+    std::uint8_t  ut_tcpi_p3_state       = 0U;
+    std::uint32_t ut_tcpi_p3_rto_us      = 0U;
+    std::uint8_t  ut_tcpi_p3_retransmits = 0U;
+    std::uint32_t ut_tcpi_p3_unacked     = 0U;
+
     // Stimulus-populated field: number of bytes the UT
     // OpReceiveTcpData call returned that ALSO matched the expected
     // payload byte-for-byte. §4.8.6.8 TCP_CLOSING_07/_08 set this to
