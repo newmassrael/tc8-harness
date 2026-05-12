@@ -54,20 +54,24 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
     static constexpr std::array<std::uint8_t, 8> kSegPayload = {
         'P','4','D','a','t','a','0','1'};
 
-    // Per-phase TCP_INFO poll cadence + deadline. Linux's data-RTO
-    // sequence on a fresh local-veth ESTABLISHED socket lands retx
-    // 1/2/3 at ~200 / 600 / 1400 ms post-seg1 (RTO_MIN=200 ms doubling
-    // each fire). Under workers=4 full-suite load the high-resolution
-    // timer fire can drift by several hundred ms — observed ~700 ms
-    // worst-case across the cluster. Polling instead returns as soon
-    // as the kernel reports tcpi_retransmits crossing each threshold
-    // (median ~250 ms past nominal; 95-th percentile ~1 s under
-    // stress). Per-phase deadlines scale with the doubling pattern
-    // so a slow retx 3 doesn't time-budget on the seg-1 envelope.
+    // Combined-poll cadence + total deadline. Linux's data-RTO sequence
+    // on a fresh local-veth ESTABLISHED socket lands retx 1/2/3 at
+    // ~200 / 600 / 1400 ms post-seg1 (RTO_MIN=200 ms doubling each
+    // fire). The earlier per-phase deadlines (2s/3s/5s sequential)
+    // collapsed phase-2's verdict under self-hosted CI workers=4 load
+    // — observed in run 25722823092 (`fail:no_dut_data_retransmit_2`)
+    // and prior runs `_data_retransmit_1`. Hrtimer drift under CI
+    // CPU saturation can stall consecutive retx fires; sequential
+    // deadlines force each phase to absorb its own jitter envelope
+    // and a single bad retx interval collapses the verdict even when
+    // the next retx is fine. Replacing with a single combined poll
+    // loop and one total deadline lets the budget flex across all
+    // three retx milestones. Each snapshot is captured ONCE at first
+    // observation of the corresponding `retransmits` threshold; fast
+    // polling at 50 ms cadence keeps the retx_1 → retx_2 → retx_3
+    // boundaries crisp so strict-growth on `tcpi_rto` is preserved.
     static constexpr std::chrono::milliseconds kPollInterval{50};
-    static constexpr std::chrono::milliseconds kPhase1Deadline{2000};
-    static constexpr std::chrono::milliseconds kPhase2Deadline{3000};
-    static constexpr std::chrono::milliseconds kPhase3Deadline{5000};
+    static constexpr std::chrono::milliseconds kTotalDeadline{8000};
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
@@ -118,18 +122,28 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
             kSegPayload.data(),
             static_cast<std::uint16_t>(kSegPayload.size()));
 
-        // Phase 1: poll TCP_INFO until kernel confirms retx 1 fired
-        // (tcpi_retransmits >= 1). `_p1_rto_us` after this point
-        // reflects the doubled `icsk_rto` value Linux installed when
-        // `tcp_retransmit_timer` re-armed.
-        const auto phase1_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p1{};
+        // Single combined poll loop covering retx 1/2/3 observations.
+        // p1 / p2 / p3 are captured ONCE at first observation of the
+        // respective retransmits threshold; the loop exits when p3 is
+        // captured or the total deadline elapses. Transient RPC
+        // failures (`probe.valid == false`) retry rather than abort,
+        // mirroring the _05 retry-on-invalid pattern. Per RFC 6298 §5
+        // step 5.5 + Linux's `tcp_retransmit_timer` doubling,
+        // `tcpi_rto` monotonically grows across retx fires — the
+        // SCXML's strict-growth cond (p1 < p2 < p3) rejects a linear
+        // (constant-RTO) DUT.
+        const auto poll_start = std::chrono::steady_clock::now();
+        ::tc8::sce::tcp::TcpInfoSnapshot p1{}, p2{}, p3{};
+        std::uint8_t req_id = 3;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            p1 = queryTcpInfoSync(cfg, /*req_id=*/3, /*socket_id=*/1);
-            if (!p1.valid) break;
-            if (p1.retransmits >= 1) break;
-            if (std::chrono::steady_clock::now() - phase1_start >= kPhase1Deadline) break;
+            const auto probe = queryTcpInfoSync(cfg, req_id++, /*socket_id=*/1);
+            if (probe.valid) {
+                if (!p1.valid && probe.retransmits >= 1) p1 = probe;
+                if (!p2.valid && probe.retransmits >= 2) p2 = probe;
+                if (!p3.valid && probe.retransmits >= 3) { p3 = probe; break; }
+            }
+            if (std::chrono::steady_clock::now() - poll_start >= kTotalDeadline) break;
         }
         c.ut_tcpi_p1_valid       = p1.valid;
         c.ut_tcpi_p1_state       = p1.state;
@@ -137,40 +151,12 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         c.ut_tcpi_p1_retransmits = p1.retransmits;
         c.ut_tcpi_p1_unacked     = p1.unacked;
 
-        // Phase 2: poll until retx 2 fires (tcpi_retransmits >= 2).
-        // Per RFC 6298 §5 step 5.5 + Linux's `tcp_retransmit_timer`
-        // doubling: `_p2_rto_us` MUST exceed `_p1_rto_us`. A linear
-        // (constant-RTO) DUT would leave p2.rto_us == p1.rto_us — the
-        // SCXML's strict-growth cond rejects it.
-        const auto phase2_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p2{};
-        while (true) {
-            std::this_thread::sleep_for(kPollInterval);
-            p2 = queryTcpInfoSync(cfg, /*req_id=*/4, /*socket_id=*/1);
-            if (!p2.valid) break;
-            if (p2.retransmits >= 2) break;
-            if (std::chrono::steady_clock::now() - phase2_start >= kPhase2Deadline) break;
-        }
         c.ut_tcpi_p2_valid       = p2.valid;
         c.ut_tcpi_p2_state       = p2.state;
         c.ut_tcpi_p2_rto_us      = p2.rto_us;
         c.ut_tcpi_p2_retransmits = p2.retransmits;
         c.ut_tcpi_p2_unacked     = p2.unacked;
 
-        // Phase 3: poll until retx 3 fires (tcpi_retransmits >= 3).
-        // Same strict-growth assertion: p3.rto_us > p2.rto_us proves
-        // the kernel doubled icsk_rto a third time. Three observations
-        // of strict growth across the cluster pin the "more than
-        // linear" RFC 1122 §4.2.3.1 / RFC 6298 §5 MUST.
-        const auto phase3_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p3{};
-        while (true) {
-            std::this_thread::sleep_for(kPollInterval);
-            p3 = queryTcpInfoSync(cfg, /*req_id=*/5, /*socket_id=*/1);
-            if (!p3.valid) break;
-            if (p3.retransmits >= 3) break;
-            if (std::chrono::steady_clock::now() - phase3_start >= kPhase3Deadline) break;
-        }
         c.ut_tcpi_p3_valid       = p3.valid;
         c.ut_tcpi_p3_state       = p3.state;
         c.ut_tcpi_p3_rto_us      = p3.rto_us;
