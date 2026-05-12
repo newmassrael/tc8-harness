@@ -54,24 +54,30 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
     static constexpr std::array<std::uint8_t, 8> kSegPayload = {
         'P','4','D','a','t','a','0','1'};
 
-    // Combined-poll cadence + total deadline. Linux's data-RTO sequence
-    // on a fresh local-veth ESTABLISHED socket lands retx 1/2/3 at
-    // ~200 / 600 / 1400 ms post-seg1 (RTO_MIN=200 ms doubling each
-    // fire). The earlier per-phase deadlines (2s/3s/5s sequential)
-    // collapsed phase-2's verdict under self-hosted CI workers=4 load
-    // — observed in run 25722823092 (`fail:no_dut_data_retransmit_2`)
-    // and prior runs `_data_retransmit_1`. Hrtimer drift under CI
-    // CPU saturation can stall consecutive retx fires; sequential
-    // deadlines force each phase to absorb its own jitter envelope
-    // and a single bad retx interval collapses the verdict even when
-    // the next retx is fine. Replacing with a single combined poll
-    // loop and one total deadline lets the budget flex across all
-    // three retx milestones. Each snapshot is captured ONCE at first
-    // observation of the corresponding `retransmits` threshold; fast
-    // polling at 50 ms cadence keeps the retx_1 → retx_2 → retx_3
-    // boundaries crisp so strict-growth on `tcpi_rto` is preserved.
+    // Combined-poll cadence with per-phase deadline reset. Linux's
+    // data-RTO sequence on a fresh local-veth ESTABLISHED socket
+    // lands retx 1/2/3 at ~200 / 600 / 1400 ms post-seg1 (RTO_MIN=200
+    // ms doubling each fire). Under self-hosted CI workers=4 CPU
+    // saturation the kernel's high-resolution retx timer fires can
+    // drift severely — runs 25631103237 / 25629911035 saw retx 1
+    // miss a 2 s deadline (`fail:no_dut_data_retransmit_1`); run
+    // 25722823092 saw retx 2 miss a 3 s sequential deadline
+    // (`fail:no_dut_data_retransmit_2`); the earlier single-budget
+    // refactor (8 s total) saw retx 3 miss in run 25725732851
+    // (`fail:phase3_tcp_info_query_failed`). All three failures
+    // share a common shape — one retx phase stalls past the
+    // window we allotted for it. Per-phase reset gives EACH
+    // subsequent retx its own 8 s envelope measured from the prior
+    // capture, so a single slow phase doesn't burn budget allocated
+    // to later phases. The absolute cap kAbsoluteDeadline (25 s)
+    // bounds total wall-time so a wedged DUT cannot hang the case
+    // forever. Each snapshot is captured ONCE at first observation
+    // of the corresponding `retransmits` threshold; fast polling at
+    // 50 ms cadence keeps the retx 1 → 2 → 3 boundaries crisp so
+    // strict-growth on `tcpi_rto` is preserved.
     static constexpr std::chrono::milliseconds kPollInterval{50};
-    static constexpr std::chrono::milliseconds kTotalDeadline{8000};
+    static constexpr std::chrono::milliseconds kPerPhaseDeadline{8000};
+    static constexpr std::chrono::milliseconds kAbsoluteDeadline{25000};
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
@@ -122,28 +128,40 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
             kSegPayload.data(),
             static_cast<std::uint16_t>(kSegPayload.size()));
 
-        // Single combined poll loop covering retx 1/2/3 observations.
-        // p1 / p2 / p3 are captured ONCE at first observation of the
-        // respective retransmits threshold; the loop exits when p3 is
-        // captured or the total deadline elapses. Transient RPC
-        // failures (`probe.valid == false`) retry rather than abort,
-        // mirroring the _05 retry-on-invalid pattern. Per RFC 6298 §5
-        // step 5.5 + Linux's `tcp_retransmit_timer` doubling,
-        // `tcpi_rto` monotonically grows across retx fires — the
-        // SCXML's strict-growth cond (p1 < p2 < p3) rejects a linear
-        // (constant-RTO) DUT.
+        // Combined poll loop with per-phase deadline reset.
+        // `phase_anchor` resets to `now()` each time a new phase
+        // captures, so retx 2 has 8 s from retx 1 capture (not from
+        // poll start), and retx 3 has 8 s from retx 2 capture. This
+        // absorbs correlated CI hrtimer drift — if all three retx
+        // events are individually slow, each gets its own 8 s budget.
+        // `kAbsoluteDeadline` caps total wall-time so a wedged DUT
+        // cannot hang forever. Transient RPC failures
+        // (`probe.valid == false`) retry rather than abort, mirroring
+        // the _05/_06 retry-on-invalid pattern.
         const auto poll_start = std::chrono::steady_clock::now();
+        auto phase_anchor = poll_start;
         ::tc8::sce::tcp::TcpInfoSnapshot p1{}, p2{}, p3{};
         std::uint8_t req_id = 3;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
             const auto probe = queryTcpInfoSync(cfg, req_id++, /*socket_id=*/1);
+            const auto now = std::chrono::steady_clock::now();
             if (probe.valid) {
-                if (!p1.valid && probe.retransmits >= 1) p1 = probe;
-                if (!p2.valid && probe.retransmits >= 2) p2 = probe;
-                if (!p3.valid && probe.retransmits >= 3) { p3 = probe; break; }
+                if (!p1.valid && probe.retransmits >= 1) {
+                    p1 = probe;
+                    phase_anchor = now;
+                }
+                if (!p2.valid && probe.retransmits >= 2) {
+                    p2 = probe;
+                    phase_anchor = now;
+                }
+                if (!p3.valid && probe.retransmits >= 3) {
+                    p3 = probe;
+                    break;
+                }
             }
-            if (std::chrono::steady_clock::now() - poll_start >= kTotalDeadline) break;
+            if (now - phase_anchor >= kPerPhaseDeadline) break;
+            if (now - poll_start >= kAbsoluteDeadline) break;
         }
         c.ut_tcpi_p1_valid       = p1.valid;
         c.ut_tcpi_p1_state       = p1.state;

@@ -1467,11 +1467,14 @@ run_case() {
         [TCP_RETRANSMISSION_TO_05]=22
         # §4.8.6.11 TCP_RETRANSMISSION_TO_04 — active-OPEN +154 quad
         # ESTABLISHED + SEND + TesterAutoAckDrop blocking auto-ACKs
-        # so DUT data RTO loop fires. 4-state SCXML observing 3
-        # retransmits with strictly-doubling `frame_delta_us` gates
-        # (initial 80-400 ms, retx2 > 300 ms, retx3 > 600 ms). 5 +
-        # 1 + 1.5 + 2 = 9.5 s phase + ~3 s prelude.
-        [TCP_RETRANSMISSION_TO_04]=15
+        # so DUT data RTO loop fires. Kernel-side TCP_INFO observation
+        # (mirrors _03): combined poll loop with per-phase reset (8 s
+        # per phase + 25 s absolute cap) to absorb correlated hrtimer
+        # drift under self-hosted CI workers=4 load — nominal retx
+        # 1/2/3 at +200/+600/+1400 ms cumulative, worst-case under
+        # contention each retx phase up to 8 s, total ~24 s. 30 s
+        # carries 25 % safety margin.
+        [TCP_RETRANSMISSION_TO_04]=30
         # §4.8.6.11 TCP_RETRANSMISSION_TO_03 — active-OPEN +156 quad
         # 2-phase Karn doubling preservation, kernel-side TCP_INFO
         # observation (Phase 9 2026-04-29). Wall budget: prelude ~2 s
