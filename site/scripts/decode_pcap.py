@@ -177,6 +177,120 @@ _DHCPV4_MSG_TYPES = {
 }
 
 
+# §4.8.5 Upper Tester wire protocol — see include/tc8/upper_tester_protocol.h.
+# tc8-dut binds the UT server to UDP kPort = 30600; tester injects requests
+# from an ephemeral src port and gets the response back on that same port.
+_UT_PORT = 30600
+_UT_RESPONSE_BIT = 0x80
+_UT_OPCODE_NAMES = {
+    0x01: "GetReceivedUdp",          0x02: "TriggerSendUdp",
+    0x03: "OpenTcpSocket",           0x04: "CloseTcpSocket",
+    0x05: "QueryTcpEstablished",     0x06: "SendTcpData",
+    0x07: "ReceiveTcpData",          0x08: "ShutdownTcpSocketWr",
+    0x09: "AbortTcpSocket",          0x0A: "SendTcpDataPattern",
+    0x0B: "ReceiveTcpDataOob",       0x0C: "StartLLAutoconf",
+    0x0D: "QueryLLAddress",          0x0E: "AbortLLAutoconf",
+    0x0F: "StartLLAutoconfBuggy",    0x10: "StartDhcpClient",
+    0x11: "QueryDhcpLease",          0x12: "AbortDhcpClient",
+    0x13: "QueryTcpInfo",            0x14: "CreateUdpReceivePorts",
+}
+_UT_STATUS_NAMES = {
+    0x00: "ok",         0x01: "malformed",     0x02: "unknown_opcode",
+    0x03: "send_failed",0x04: "bind_failed",   0x05: "unknown_socket",
+    0x06: "connect_failed",
+}
+
+
+def _dissect_ut(payload: bytes, p: Packet, src_port: int, dst_port: int) -> None:
+    """Parse a UT request/response carried in a kPort UDP datagram."""
+    p.protocol = "UT/UDP"
+    if len(payload) < 2:
+        p.summary = "UT (truncated)"
+        return
+    opcode_byte = payload[0]
+    req_id = payload[1]
+    is_response = bool(opcode_byte & _UT_RESPONSE_BIT)
+    request_opcode = opcode_byte & 0x7F
+    name = _UT_OPCODE_NAMES.get(request_opcode, f"op0x{request_opcode:02x}")
+    fields: dict = {
+        "src_port": src_port, "dst_port": dst_port,
+        "ut_opcode": opcode_byte,
+        "ut_request_opcode": request_opcode,
+        "ut_req_id": req_id,
+    }
+    if not is_response:
+        # Request — surface opcode + req_id only. Generator filters
+        # responses-only via has_ut_response, so request body parsing
+        # would just bloat the JSON.
+        fields["ut_is_request"] = True
+        p.fields = fields
+        p.summary = f"UT req {name} (id={req_id})"
+        return
+    # Response — parse status + per-opcode trailer.
+    fields["ut_is_response"] = True
+    fields["has_ut_response"] = True
+    if len(payload) < 3:
+        p.fields = fields
+        p.summary = f"UT resp {name} (truncated)"
+        return
+    status = payload[2]
+    fields["ut_status"] = status
+    body = payload[3:]
+    bits: list[str] = []
+    if request_opcode == 0x01 and body:  # GetReceivedUdp response
+        received = body[0]
+        fields["ut_received"] = received
+        bits.append(f"received={received}")
+        if received == 1 and len(body) >= 9:
+            src_ip_be = struct.unpack(">I", body[1:5])[0]
+            fields["ut_recv_src_ip"] = ".".join(str((src_ip_be >> s) & 0xFF) for s in (24, 16, 8, 0))
+            fields["ut_recv_src_ip_be"] = src_ip_be
+            fields["ut_recv_src_port"] = struct.unpack(">H", body[5:7])[0]
+            fields["ut_recv_payload_len"] = struct.unpack(">H", body[7:9])[0]
+            tail = body[9:9 + 16]
+            fields["ut_recv_payload_first16"] = list(tail)
+            bits.append(f"src={fields['ut_recv_src_ip']}:{fields['ut_recv_src_port']}")
+            bits.append(f"len={fields['ut_recv_payload_len']}")
+    elif request_opcode == 0x03 and body:  # OpenTcpSocket
+        fields["ut_socket_id"] = body[0]
+    elif request_opcode == 0x05 and body:  # QueryTcpEstablished
+        fields["ut_established"] = body[0]
+        bits.append(f"established={body[0]}")
+    elif request_opcode in (0x07, 0x0B) and len(body) >= 2:  # ReceiveTcpData / Oob
+        recv_len = struct.unpack(">H", body[:2])[0]
+        fields["ut_received_payload_len"] = recv_len
+        tail = body[2:2 + 16]
+        fields["ut_recv_payload_first16"] = list(tail)
+        bits.append(f"recv_len={recv_len}")
+    elif request_opcode == 0x0D and len(body) >= 4:  # QueryLLAddress
+        ip_be = struct.unpack(">I", body[:4])[0]
+        fields["ut_linklocal_ip_be"] = ip_be
+        fields["ut_linklocal_ip"] = ".".join(str((ip_be >> s) & 0xFF) for s in (24, 16, 8, 0))
+        bits.append(f"addr={fields['ut_linklocal_ip']}")
+    elif request_opcode == 0x11 and len(body) >= 4:  # QueryDhcpLease
+        ip_be = struct.unpack(">I", body[:4])[0]
+        fields["ut_lease_ip_be"] = ip_be
+        fields["ut_lease_ip"] = ".".join(str((ip_be >> s) & 0xFF) for s in (24, 16, 8, 0))
+        bits.append(f"lease={fields['ut_lease_ip']}")
+    elif request_opcode == 0x13 and len(body) >= 10:  # QueryTcpInfo
+        state = body[0]
+        rto_us = struct.unpack(">I", body[1:5])[0]
+        retx = body[5]
+        unacked = struct.unpack(">I", body[6:10])[0]
+        fields["ut_tcpi_state"] = state
+        fields["ut_tcpi_rto_us"] = rto_us
+        fields["ut_tcpi_retransmits"] = retx
+        fields["ut_tcpi_unacked"] = unacked
+        bits.append(f"state={state} rto={rto_us}us retx={retx} unacked={unacked}")
+    elif request_opcode == 0x14 and body:  # CreateUdpReceivePorts
+        fields["ut_create_actual_count"] = body[0]
+        bits.append(f"actual={body[0]}")
+    p.fields = fields
+    status_name = _UT_STATUS_NAMES.get(status, f"status=0x{status:02x}")
+    trailer = (" " + " ".join(bits)) if bits else ""
+    p.summary = f"UT resp {name} {status_name}{trailer}"
+
+
 def _dissect_dhcpv4(payload: bytes, p: Packet, src_port: int, dst_port: int) -> None:
     """Parse BOOTP + DHCP option 53 (Message Type) from a UDP 67/68 payload."""
     p.protocol = "DHCPv4"
@@ -421,6 +535,9 @@ def _dissect_udp(payload: bytes, p: Packet) -> None:
         # Preserve port info alongside the SOME/IP fields.
         p.fields.setdefault("src_port", sport)
         p.fields.setdefault("dst_port", dport)
+        return
+    if sport == _UT_PORT or dport == _UT_PORT:
+        _dissect_ut(inner, p, sport, dport)
         return
     p.fields = {"src_port": sport, "dst_port": dport, "length": length}
     p.summary = f"{sport} → {dport}, len={length}"
