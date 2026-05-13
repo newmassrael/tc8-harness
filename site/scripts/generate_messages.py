@@ -3023,10 +3023,30 @@ def label_packets(
                     final_outcome = cur.final_kind or "pass"
             elif verdict == "fail":
                 role = "fail-trigger"
-                label = (
-                    f"{phase_tag} fail trigger — transitions to "
-                    f"{matched.target}. Cond: {cond_text}"
-                )
+                # Honest-disclosure prefix when the live wire verdict was
+                # pass: the walker's saved-pcap-only inference matched a
+                # fail transition here, but the harness's libpcap saw
+                # additional evidence (DUT-emitted frame not retained in
+                # the saved pcap, side-channel state the walker doesn't
+                # reconstruct, etc.) that the live SCXML run consumed
+                # before this frame would have settled the verdict.
+                # Preserving the frame-level match keeps the debugging
+                # signal (which packet / cond combination tripped the
+                # walker) instead of silently demoting; the prefix tells
+                # the reader the live verdict overrode this inference.
+                if pcap_outcome == "pass":
+                    label = (
+                        "Walker-side fail-trigger candidate (overridden "
+                        "by outcome=pass; the harness saw evidence not "
+                        "retained in this pcap). "
+                        f"{phase_tag} fail trigger — transitions to "
+                        f"{matched.target}. Cond: {cond_text}"
+                    )
+                else:
+                    label = (
+                        f"{phase_tag} fail trigger — transitions to "
+                        f"{matched.target}. Cond: {cond_text}"
+                    )
                 msgs.append(AutoMessage(idx=idx, role=role, label=label))
                 cur = states_by_id.get(matched.target, cur)
                 if cur and cur.is_final:
@@ -3148,6 +3168,47 @@ def label_packets(
                 "simulate, or a pass cond depending on cross-protocol "
                 "state the evaluator doesn't model. See the SCXML pane "
                 "below for the pass criteria the harness verified."
+            ),
+        ))
+    # Walker-fail-trigger vs pass-outcome disclosure. The wire verdict
+    # was pass but the walker's saved-pcap-only inference matched one
+    # or more fail-transition conds on frames in this pcap. Two
+    # honest possibilities:
+    #   * Walker matching is precise but evidence is incomplete: the
+    #     DUT-emitted frame that would have settled the pass cond
+    #     isn't retained in the saved pcap, so the walker tripped on
+    #     an unrelated frame that *also* satisfies a fail cond
+    #     (ARP_07/_08..15 cluster: saved pcap drops the DUT ARP
+    #     Request, the natural ARP Reply to the tester's Subscribe
+    #     stimulus then trips fail_opcode/fail_sender_hw).
+    #   * The pass cond depends on side-channel / cross-protocol
+    #     state the walker doesn't reconstruct, so the SCXML guard
+    #     that would have steered around the fail transition never
+    #     settled strict-True.
+    # Surface the gap at case level so readers don't have to
+    # reverse-engineer the override from per-frame labels. The
+    # per-frame fail-trigger entries already carry an inline prefix
+    # noting the override; this case-note pins the broader signal.
+    elif (
+        pcap_outcome == "pass"
+        and any(m.role == "fail-trigger" for m in msgs)
+    ):
+        n_fails = sum(1 for m in msgs if m.role == "fail-trigger")
+        suffix = "label" if n_fails == 1 else "labels"
+        msgs.insert(0, AutoMessage(
+            idx=-1, role="case-note",
+            label=(
+                f"Outcome=pass overrides {n_fails} frame-level "
+                f"fail-trigger {suffix} below. The walker matched a "
+                "fail-transition cond on the marked packet(s), but the "
+                "harness's libpcap verdict came out pass — meaning the "
+                "live capture saw evidence (DUT-emitted frame, "
+                "side-channel state, ...) that the saved pcap does "
+                "not retain. The frame-level matches are kept for "
+                "debugging (which cond / packet combination tripped "
+                "the walker); the verdict is governed by the live wire "
+                "observation. See the SCXML pane for the pass criteria "
+                "the harness verified."
             ),
         ))
     # Symmetric fail-outcome marker. If the live run landed fail but the
