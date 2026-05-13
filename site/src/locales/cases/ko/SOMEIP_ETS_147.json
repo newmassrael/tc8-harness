@@ -1,11 +1,27 @@
 {
-  "description": "eg 0x02 Subscribe + triggerEventUINT8 trigger — DUT Ack + MSB-set notification을(를) 검증",
-  "approach": "[검증 목적]\nSubscribe + on-demand event trigger via Method call → DUT emits MSB-set notification (event subscription path).\n\n[시나리오 — 시간순]\n1. DUT → 테스터: IPv4 endpoint option 포함 OfferService.\n2. 테스터 → DUT: SubscribeEventgroup (케이스별 모양).\n3. 관찰: DUT → 테스터: SubscribeAck/Nack/event 주장된 동작에 따라.\n\n[통과 조건]\n관찰된 DUT 응답이 spec 속성과 일치.\n\n[실패 조건]\nverdict 리스트별 Fail_phase<n>_*.",
+  "description": "eg 0x02 Subscribe + triggerEventUINT8 trigger — DUT Ack + MSB-set notification 검증",
+  "approach": "[검증 목적]\nSERVICE-ID-1에서 eventgroup 0x02를 노출하는 DUT의 SOME/IP-SD 이벤트 구독 경로를 검증한다. PRS_SOMEIPSD에 따라 DUT는 (a) IPv4 endpoint option을 포함한 OfferService로 서비스를 광고하고, (b) Tester의 SubscribeEventgroup에 Type-7 엔트리(ttl>0)로 응답하고, (c) method-ID MSB가 설정된 Notification을 구독된 eventgroup으로 전달해야 한다.\n\n[시나리오 — 시간순]\n1. Phase 1 (deadline 6s): Tester는 DUT가 SERVICE-ID-1에 대해 IPv4 endpoint option이 포함된 OfferService(SD entry type=0x01)를 송신할 때까지 대기한다.\n2. Phase 2 (deadline 6s): Tester가 SubscribeEventgroup (eg=0x0002)을 보낸다. DUT는 SubscribeEventgroupAck(entry type=0x07, ttl>0)으로 응답해야 한다. ttl=0이면 Nack이므로 Fail_phase2_subscribe_nacked로 분기한다.\n3. Phase 3 (deadline 4s): DUT는 SERVICE-ID-1에 대해 method_id MSB가 set된(0x8000) Notification(message_type=0x02)을 송신해야 한다. 보통 vsomeip가 Subscribe 직후 push하는 initialEvent다.\n\n[통과 조건]\n세 phase의 transition 모두 각자의 deadline 내에 fire.\n\n[실패 조건]\nverdict 표의 Phase별 Fail_phase<n>_*에 매핑.\n\n[패킷별 의미]\nNote 칼럼은 각 캡처 프레임을 SCXML phase + 사양 조항에 매핑한다. Summary 칼럼(자동 디코딩)은 SOME/IP-SD entry type, service ID, eventgroup ID, ttl, IPv4 endpoint option 개수를 표시한다.",
   "verdicts": {
     "Pass": "DUT이 subscribe ack + notification 발신 — 정상",
     "Fail_phase1_no_offer_with_endpoint": "listen 윈도우 내 IPv4 endpoint 포함 OfferService 없음",
     "Fail_phase2_subscribe_nacked": "Subscribe nack됨 (TTL=0)",
     "Fail_phase2_no_subscribe_ack": "listen 윈도우 내 SubscribeAck 없음",
     "Fail_phase3_no_notification": "listen 윈도우 내 event MSB notification 없음"
-  }
+  },
+  "messages": [
+    { "idx": 0, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup 시도 (vsomeip 구독자는 OfferService 도착 전에도 송신을 시작하며, DUT가 서비스를 광고할 때까지 재시도). " },
+    { "idx": 1, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup 재전송 (아직 OfferService 없음). " },
+    { "idx": 2, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup 재전송." },
+    { "idx": 3, "role": "expected", "label": "Phase 1 PASS trigger — DUT OfferService (SD entry type=0x01), SERVICE-ID-1 + IPv4 endpoint option 포함. listening_phase1 cond (sd_entries[0].type==0x01 ∧ sd_ipv4_endpoint_count>=1) 만족 → listening_phase2로 전이. PRS_SOMEIPSD §OfferService 매핑." },
+    { "idx": 4, "role": "stimulus", "label": "Phase 2 — Tester SubscribeEventgroup (eg=0x0002)을 광고된 endpoint로 정상 전송." },
+    { "idx": 5, "role": "stimulus", "label": "Phase 2 — Ack 대기 중 Tester SubscribeEventgroup 재전송." },
+    { "idx": 6, "role": "expected", "label": "Phase 2 PASS trigger — DUT SubscribeEventgroupAck (SD entry type=0x07, ttl>0, eg=0x0002). listening_phase2 cond (type==0x07 ∧ ttl>0 ∧ eventgroup_id==expected.eventgroup_id) 만족 → listening_phase3로 전이. ttl=0 응답이면 fail_phase2_subscribe_nacked로 라우팅. PRS_SOMEIPSD §SubscribeEventgroupAck 매핑." },
+    { "idx": 7, "role": "note", "label": "Phase 3 — vsomeip Subscribe keepalive 재전송 (이미 ack된 구독이므로 verdict에 영향 없음)." },
+    { "idx": 8, "role": "note", "label": "Phase 3 — vsomeip Subscribe keepalive 재전송." },
+    { "idx": 9, "role": "expected", "label": "Phase 3 PASS trigger — DUT Notification (SERVICE-ID-1, message_type=0x02, method_id MSB set — TestEventUINT8=0x8001의 initialEvent). listening_phase3 cond (message_type==0x02 ∧ (method_id & 0x8000)==0x8000) 만족 → pass로 최종 전이. PRS_SOMEIPSD §InitialEvent 매핑." },
+    { "idx": 10, "role": "note", "label": "Pass 이후 teardown — vsomeip 종료 SD 메시지 (state machine과 무관)." },
+    { "idx": 11, "role": "note", "label": "Pass 이후 teardown — vsomeip endpoint 단위 SD 정리." },
+    { "idx": 12, "role": "note", "label": "Pass 이후 teardown — vsomeip endpoint 단위 SD 정리." },
+    { "idx": 13, "role": "note", "label": "Pass 이후 teardown — vsomeip endpoint 단위 SD 정리." }
+  ]
 }

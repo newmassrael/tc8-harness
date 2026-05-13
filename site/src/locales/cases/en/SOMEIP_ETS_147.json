@@ -1,11 +1,27 @@
 {
   "description": "Verify that Subscribe eg 0x02 + trigger triggerEventUINT8 — DUT Ack + MSB-set notification",
-  "approach": "[Objective]\nSubscribe + on-demand event trigger via Method call → DUT emits MSB-set notification.\n\n[Scenario — chronological]\n1. DUT → Tester: OfferService with IPv4 endpoint option.\n2. Tester → DUT: SubscribeEventgroup (per-case shape).\n3. Observation: DUT → Tester: SubscribeAck/Nack/event per the asserted behaviour.\n\n[Pass condition]\nObserved DUT response matches the spec property.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* per the verdict list.",
+  "approach": "[Objective]\nVerify the SOME/IP-SD event-subscription path on a DUT that exports eventgroup 0x02 on SERVICE-ID-1. Per PRS_SOMEIPSD, the DUT must (a) announce the service with an IPv4 endpoint option, (b) acknowledge the Tester's SubscribeEventgroup with a Type-7 entry (ttl>0), and (c) deliver the initial Notification on the subscribed eventgroup with the method-ID highest bit set.\n\n[Scenario — chronological]\n1. Phase 1 (deadline 6s): Tester listens for DUT OfferService (SD entry type=0x01) carrying at least one IPv4 endpoint option on SERVICE-ID-1.\n2. Phase 2 (deadline 6s): Tester sends SubscribeEventgroup (eg=0x0002). DUT must reply with SubscribeEventgroupAck (entry type=0x07, ttl>0). A ttl=0 reply is a Nack → Fail_phase2_subscribe_nacked.\n3. Phase 3 (deadline 4s): DUT must emit a Notification (message_type=0x02) with method_id MSB set (0x8000) on SERVICE-ID-1 — typically the initialEvent vsomeip pushes on Subscribe.\n\n[Pass condition]\nAll three transitions fire within the per-phase deadlines.\n\n[Fail condition]\nPer-phase Fail_phase<n>_* as listed in the verdict table.\n\n[Per-packet meaning]\nThe Note column maps each captured frame to its SCXML phase + spec clause. The Summary column (auto-decoded) shows the SOME/IP-SD entry type, service ID, eventgroup ID, ttl, and (for IPv4 endpoint options) the announced endpoint count.",
   "verdicts": {
     "Pass": "DUT acked subscribe + emitted notification — normal",
     "Fail_phase1_no_offer_with_endpoint": "No OfferService with IPv4 endpoint within listen window",
     "Fail_phase2_subscribe_nacked": "Subscribe nacked (TTL=0)",
     "Fail_phase2_no_subscribe_ack": "No SubscribeAck within listen window",
     "Fail_phase3_no_notification": "No notification with event MSB within listen window"
-  }
+  },
+  "messages": [
+    { "idx": 0, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup attempt (vsomeip subscriber emits even before OfferService arrives; will be retried until DUT announces the service)." },
+    { "idx": 1, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup retransmission (still no OfferService yet)." },
+    { "idx": 2, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup retransmission." },
+    { "idx": 3, "role": "expected", "label": "Phase 1 PASS trigger — DUT OfferService (SD entry type=0x01) for SERVICE-ID-1 with an IPv4 endpoint option. Satisfies listening_phase1 cond (sd_entries[0].type==0x01 ∧ sd_ipv4_endpoint_count>=1) — transitions to listening_phase2. Maps to PRS_SOMEIPSD §OfferService." },
+    { "idx": 4, "role": "stimulus", "label": "Phase 2 — Tester SubscribeEventgroup (eg=0x0002) now actually targets the announced endpoint." },
+    { "idx": 5, "role": "stimulus", "label": "Phase 2 — Tester SubscribeEventgroup retransmission while waiting for Ack." },
+    { "idx": 6, "role": "expected", "label": "Phase 2 PASS trigger — DUT SubscribeEventgroupAck (SD entry type=0x07, ttl>0, eg=0x0002). Satisfies listening_phase2 cond (type==0x07 ∧ ttl>0 ∧ eventgroup_id==expected.eventgroup_id) — transitions to listening_phase3. A ttl=0 reply here would route to fail_phase2_subscribe_nacked. Maps to PRS_SOMEIPSD §SubscribeEventgroupAck." },
+    { "idx": 7, "role": "note", "label": "Phase 3 — vsomeip Subscribe keepalive retransmission (does not affect the verdict; the subscription is already acked)." },
+    { "idx": 8, "role": "note", "label": "Phase 3 — vsomeip Subscribe keepalive retransmission." },
+    { "idx": 9, "role": "expected", "label": "Phase 3 PASS trigger — DUT Notification on SERVICE-ID-1 with message_type=0x02 and method_id high bit set (initialEvent for TestEventUINT8 = 0x8001). Satisfies listening_phase3 cond (message_type==0x02 ∧ (method_id & 0x8000)==0x8000). Final transition to pass. Maps to PRS_SOMEIPSD §InitialEvent." },
+    { "idx": 10, "role": "note", "label": "Post-pass teardown — vsomeip shutdown SD message (no longer state-machine-relevant)." },
+    { "idx": 11, "role": "note", "label": "Post-pass teardown — vsomeip per-endpoint SD cleanup." },
+    { "idx": 12, "role": "note", "label": "Post-pass teardown — vsomeip per-endpoint SD cleanup." },
+    { "idx": 13, "role": "note", "label": "Post-pass teardown — vsomeip per-endpoint SD cleanup." }
+  ]
 }
