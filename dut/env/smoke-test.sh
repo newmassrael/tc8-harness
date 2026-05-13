@@ -301,7 +301,7 @@ junit_record_case() {
 # single-threaded after all workers have completed. Cases are grouped
 # into <testsuite> blocks by their category prefix (case_id stripped
 # of trailing _NN and _neg suffixes), e.g. ARP_07 → suite "ARP",
-# IPv4_HEADER_05 → suite "IPV4_HEADER".
+# IPv4_HEADER_05 → suite "IPv4_HEADER".
 junit_emit_xml() {
     [[ -n "$JUNIT_OUT" ]] || return 0
     local total_records=0 W
@@ -722,7 +722,7 @@ run_case() {
     # ARP — pin is uniformly applied for consistency, not strict need.
     local toggle_dut_tester_neigh_pin=0
     case "$case_id" in
-        IPV4_AUTOCONF_ADDRESS_SELECTION_*|IPV4_AUTOCONF_CONFLICT_*|IPV4_AUTOCONF_ANNOUNCING_*|IPV4_AUTOCONF_LINKLOCAL_PACKETS_*|IPV4_AUTOCONF_NETWORK_PARTITIONS_*)
+        IPv4_AUTOCONF_ADDRESS_SELECTION_*|IPv4_AUTOCONF_CONFLICT_*|IPv4_AUTOCONF_ANNOUNCING_*|IPv4_AUTOCONF_LINKLOCAL_PACKETS_*|IPv4_AUTOCONF_NETWORK_PARTITIONS_*)
             toggle_dut_tester_neigh_pin=1
             local tester_mac_pin
             tester_mac_pin=$(cat "$WORK_ROOT/$W/tester_mac")
