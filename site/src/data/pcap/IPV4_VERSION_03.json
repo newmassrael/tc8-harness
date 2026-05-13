@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_VERSION_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -25,11 +25,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 61,
-      "ts_delta_us": 61,
+      "ts_us": 41,
+      "ts_delta_us": 41,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "82:8c:4f:04:22:6a",
+      "dst_mac": "f6:17:93:49:98:20",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",

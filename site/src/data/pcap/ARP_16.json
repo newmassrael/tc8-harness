@@ -1,7 +1,7 @@
 {
   "case_id": "ARP_16",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
   "dut_mac": "ce:e9:86:bf:01:8c",
@@ -28,8 +28,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 12,
-      "ts_delta_us": 12,
+      "ts_us": 9,
+      "ts_delta_us": 9,
       "direction": "dut_to_tester",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "02:00:00:00:00:a1",

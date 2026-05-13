@@ -1,10 +1,10 @@
 {
   "case_id": "TCP_MSS_OPTIONS_11",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "b2:05:1f:15:b9:1e",
+  "dut_mac": "ca:f6:1c:65:ac:bb",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -13,15 +13,15 @@
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "b2:05:1f:15:b9:1e",
+      "dst_mac": "ca:f6:1c:65:ac:bb",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49540 → 23496 [SYN] seq=2125056154 ack=0 win=64240",
+      "summary": "49540 → 23496 [SYN] seq=2664003669 ack=0 win=64240",
       "fields": {
         "src_port": 49540,
         "dst_port": 23496,
-        "seq": 2125056154,
+        "seq": 2664003669,
         "ack": 0,
         "flags": "SYN",
         "window": 64240
@@ -32,17 +32,17 @@
       "ts_us": 7,
       "ts_delta_us": 7,
       "direction": "dut_to_tester",
-      "src_mac": "b2:05:1f:15:b9:1e",
+      "src_mac": "ca:f6:1c:65:ac:bb",
       "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "23496 → 49540 [SYN|ACK] seq=2293852941 ack=2125056155 win=65160",
+      "summary": "23496 → 49540 [SYN|ACK] seq=2832800356 ack=2664003670 win=65160",
       "fields": {
         "src_port": 23496,
         "dst_port": 49540,
-        "seq": 2293852941,
-        "ack": 2125056155,
+        "seq": 2832800356,
+        "ack": 2664003670,
         "flags": "SYN|ACK",
         "window": 65160
       }
@@ -53,16 +53,16 @@
       "ts_delta_us": 7,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "b2:05:1f:15:b9:1e",
+      "dst_mac": "ca:f6:1c:65:ac:bb",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49540 → 23496 [ACK] seq=2125056155 ack=2293852942 win=502",
+      "summary": "49540 → 23496 [ACK] seq=2664003670 ack=2832800357 win=502",
       "fields": {
         "src_port": 49540,
         "dst_port": 23496,
-        "seq": 2125056155,
-        "ack": 2293852942,
+        "seq": 2664003670,
+        "ack": 2832800357,
         "flags": "ACK",
         "window": 502
       }

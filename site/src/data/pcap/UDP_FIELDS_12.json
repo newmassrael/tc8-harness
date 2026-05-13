@@ -1,7 +1,7 @@
 {
   "case_id": "UDP_FIELDS_12",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -65,8 +65,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200257,
-      "ts_delta_us": 200257,
+      "ts_us": 200234,
+      "ts_delta_us": 200234,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -104,15 +104,15 @@
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -121,8 +121,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600516,
-      "ts_delta_us": 400259,
+      "ts_us": 600364,
+      "ts_delta_us": 400130,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -177,8 +177,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 1017716,
-      "ts_delta_us": 417200,
+      "ts_us": 1014304,
+      "ts_delta_us": 413940,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -194,8 +194,8 @@
     },
     {
       "idx": 4,
-      "ts_us": 1053454,
-      "ts_delta_us": 35738,
+      "ts_us": 1045447,
+      "ts_delta_us": 31143,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -211,8 +211,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1069342,
-      "ts_delta_us": 15888,
+      "ts_us": 1077433,
+      "ts_delta_us": 31986,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -228,8 +228,8 @@
     },
     {
       "idx": 6,
-      "ts_us": 1085391,
-      "ts_delta_us": 16049,
+      "ts_us": 1113436,
+      "ts_delta_us": 36003,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -245,8 +245,8 @@
     },
     {
       "idx": 7,
-      "ts_us": 1101276,
-      "ts_delta_us": 15885,
+      "ts_us": 1133507,
+      "ts_delta_us": 20071,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -262,8 +262,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 1117404,
-      "ts_delta_us": 16128,
+      "ts_us": 1165441,
+      "ts_delta_us": 31934,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -279,8 +279,8 @@
     },
     {
       "idx": 9,
-      "ts_us": 1129284,
-      "ts_delta_us": 11880,
+      "ts_us": 1201478,
+      "ts_delta_us": 36037,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -296,8 +296,8 @@
     },
     {
       "idx": 10,
-      "ts_us": 1145395,
-      "ts_delta_us": 16111,
+      "ts_us": 1229445,
+      "ts_delta_us": 27967,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -313,8 +313,8 @@
     },
     {
       "idx": 11,
-      "ts_us": 1169330,
-      "ts_delta_us": 23935,
+      "ts_us": 1261460,
+      "ts_delta_us": 32015,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -330,8 +330,8 @@
     },
     {
       "idx": 12,
-      "ts_us": 1185333,
-      "ts_delta_us": 16003,
+      "ts_us": 1293472,
+      "ts_delta_us": 32012,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -347,8 +347,8 @@
     },
     {
       "idx": 13,
-      "ts_us": 1209438,
-      "ts_delta_us": 24105,
+      "ts_us": 1317539,
+      "ts_delta_us": 24067,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -364,8 +364,8 @@
     },
     {
       "idx": 14,
-      "ts_us": 1237355,
-      "ts_delta_us": 27917,
+      "ts_us": 1353569,
+      "ts_delta_us": 36030,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -381,8 +381,8 @@
     },
     {
       "idx": 15,
-      "ts_us": 1253397,
-      "ts_delta_us": 16042,
+      "ts_us": 1389413,
+      "ts_delta_us": 35844,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -398,110 +398,8 @@
     },
     {
       "idx": 16,
-      "ts_us": 1277431,
-      "ts_delta_us": 24034,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "8225 → 8739, len=9253",
-      "fields": {
-        "src_port": 8225,
-        "dst_port": 8739,
-        "length": 9253
-      }
-    },
-    {
-      "idx": 17,
-      "ts_us": 1293398,
-      "ts_delta_us": 15967,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "59625 → 60139, len=60653",
-      "fields": {
-        "src_port": 59625,
-        "dst_port": 60139,
-        "length": 60653
-      }
-    },
-    {
-      "idx": 18,
-      "ts_us": 1317392,
-      "ts_delta_us": 23994,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "45233 → 45747, len=46261",
-      "fields": {
-        "src_port": 45233,
-        "dst_port": 45747,
-        "length": 46261
-      }
-    },
-    {
-      "idx": 19,
-      "ts_us": 1345355,
-      "ts_delta_us": 27963,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "30841 → 31355, len=31869",
-      "fields": {
-        "src_port": 30841,
-        "dst_port": 31355,
-        "length": 31869
-      }
-    },
-    {
-      "idx": 20,
-      "ts_us": 1361423,
-      "ts_delta_us": 16068,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "16449 → 16963, len=17477",
-      "fields": {
-        "src_port": 16449,
-        "dst_port": 16963,
-        "length": 17477
-      }
-    },
-    {
-      "idx": 21,
-      "ts_us": 1377434,
-      "ts_delta_us": 16011,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "2057 → 2571, len=3085",
-      "fields": {
-        "src_port": 2057,
-        "dst_port": 2571,
-        "length": 3085
-      }
-    },
-    {
-      "idx": 22,
-      "ts_us": 1400756,
-      "ts_delta_us": 23322,
+      "ts_us": 1400652,
+      "ts_delta_us": 11239,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -539,15 +437,15 @@
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -555,9 +453,111 @@
       }
     },
     {
+      "idx": 17,
+      "ts_us": 1413486,
+      "ts_delta_us": 12834,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "8225 → 8739, len=9253",
+      "fields": {
+        "src_port": 8225,
+        "dst_port": 8739,
+        "length": 9253
+      }
+    },
+    {
+      "idx": 18,
+      "ts_us": 1437488,
+      "ts_delta_us": 24002,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "59625 → 60139, len=60653",
+      "fields": {
+        "src_port": 59625,
+        "dst_port": 60139,
+        "length": 60653
+      }
+    },
+    {
+      "idx": 19,
+      "ts_us": 1461299,
+      "ts_delta_us": 23811,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "45233 → 45747, len=46261",
+      "fields": {
+        "src_port": 45233,
+        "dst_port": 45747,
+        "length": 46261
+      }
+    },
+    {
+      "idx": 20,
+      "ts_us": 1505369,
+      "ts_delta_us": 44070,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "30841 → 31355, len=31869",
+      "fields": {
+        "src_port": 30841,
+        "dst_port": 31355,
+        "length": 31869
+      }
+    },
+    {
+      "idx": 21,
+      "ts_us": 1529373,
+      "ts_delta_us": 24004,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "16449 → 16963, len=17477",
+      "fields": {
+        "src_port": 16449,
+        "dst_port": 16963,
+        "length": 17477
+      }
+    },
+    {
+      "idx": 22,
+      "ts_us": 1561544,
+      "ts_delta_us": 32171,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "2057 → 2571, len=3085",
+      "fields": {
+        "src_port": 2057,
+        "dst_port": 2571,
+        "length": 3085
+      }
+    },
+    {
       "idx": 23,
-      "ts_us": 1409430,
-      "ts_delta_us": 8674,
+      "ts_us": 1585363,
+      "ts_delta_us": 23819,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -573,8 +573,8 @@
     },
     {
       "idx": 24,
-      "ts_us": 1429446,
-      "ts_delta_us": 20016,
+      "ts_us": 1625378,
+      "ts_delta_us": 40015,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -590,8 +590,8 @@
     },
     {
       "idx": 25,
-      "ts_us": 1445471,
-      "ts_delta_us": 16025,
+      "ts_us": 1661399,
+      "ts_delta_us": 36021,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -607,8 +607,8 @@
     },
     {
       "idx": 26,
-      "ts_us": 1465447,
-      "ts_delta_us": 19976,
+      "ts_us": 1701566,
+      "ts_delta_us": 40167,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -624,8 +624,8 @@
     },
     {
       "idx": 27,
-      "ts_us": 1489439,
-      "ts_delta_us": 23992,
+      "ts_us": 1721577,
+      "ts_delta_us": 20011,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -641,8 +641,8 @@
     },
     {
       "idx": 28,
-      "ts_us": 1521438,
-      "ts_delta_us": 31999,
+      "ts_us": 1749430,
+      "ts_delta_us": 27853,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -658,8 +658,8 @@
     },
     {
       "idx": 29,
-      "ts_us": 1545241,
-      "ts_delta_us": 23803,
+      "ts_us": 1785508,
+      "ts_delta_us": 36078,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -675,8 +675,8 @@
     },
     {
       "idx": 30,
-      "ts_us": 1577153,
-      "ts_delta_us": 31912,
+      "ts_us": 1809395,
+      "ts_delta_us": 23887,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -692,8 +692,8 @@
     },
     {
       "idx": 31,
-      "ts_us": 1613394,
-      "ts_delta_us": 36241,
+      "ts_us": 1837346,
+      "ts_delta_us": 27951,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -709,8 +709,8 @@
     },
     {
       "idx": 32,
-      "ts_us": 1633298,
-      "ts_delta_us": 19904,
+      "ts_us": 1853539,
+      "ts_delta_us": 16193,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -726,8 +726,8 @@
     },
     {
       "idx": 33,
-      "ts_us": 1653225,
-      "ts_delta_us": 19927,
+      "ts_us": 1877388,
+      "ts_delta_us": 23849,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -743,8 +743,8 @@
     },
     {
       "idx": 34,
-      "ts_us": 1673271,
-      "ts_delta_us": 20046,
+      "ts_us": 1909337,
+      "ts_delta_us": 31949,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -760,8 +760,8 @@
     },
     {
       "idx": 35,
-      "ts_us": 1693333,
-      "ts_delta_us": 20062,
+      "ts_us": 1941450,
+      "ts_delta_us": 32113,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -777,8 +777,8 @@
     },
     {
       "idx": 36,
-      "ts_us": 1709345,
-      "ts_delta_us": 16012,
+      "ts_us": 1965549,
+      "ts_delta_us": 24099,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -794,8 +794,8 @@
     },
     {
       "idx": 37,
-      "ts_us": 1725323,
-      "ts_delta_us": 15978,
+      "ts_us": 1997485,
+      "ts_delta_us": 31936,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -811,8 +811,8 @@
     },
     {
       "idx": 38,
-      "ts_us": 1741366,
-      "ts_delta_us": 16043,
+      "ts_us": 2041583,
+      "ts_delta_us": 44098,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -828,8 +828,8 @@
     },
     {
       "idx": 39,
-      "ts_us": 1757551,
-      "ts_delta_us": 16185,
+      "ts_us": 2053471,
+      "ts_delta_us": 11888,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -845,8 +845,8 @@
     },
     {
       "idx": 40,
-      "ts_us": 1777294,
-      "ts_delta_us": 19743,
+      "ts_us": 2081419,
+      "ts_delta_us": 27948,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -862,8 +862,8 @@
     },
     {
       "idx": 41,
-      "ts_us": 1801406,
-      "ts_delta_us": 24112,
+      "ts_us": 2109449,
+      "ts_delta_us": 28030,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -879,8 +879,8 @@
     },
     {
       "idx": 42,
-      "ts_us": 1837475,
-      "ts_delta_us": 36069,
+      "ts_us": 2129579,
+      "ts_delta_us": 20130,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -896,8 +896,8 @@
     },
     {
       "idx": 43,
-      "ts_us": 1853391,
-      "ts_delta_us": 15916,
+      "ts_us": 2161388,
+      "ts_delta_us": 31809,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -913,8 +913,8 @@
     },
     {
       "idx": 44,
-      "ts_us": 1873408,
-      "ts_delta_us": 20017,
+      "ts_us": 2185565,
+      "ts_delta_us": 24177,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -930,8 +930,8 @@
     },
     {
       "idx": 45,
-      "ts_us": 1901259,
-      "ts_delta_us": 27851,
+      "ts_us": 2209567,
+      "ts_delta_us": 24002,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -947,8 +947,8 @@
     },
     {
       "idx": 46,
-      "ts_us": 1933361,
-      "ts_delta_us": 32102,
+      "ts_us": 2245526,
+      "ts_delta_us": 35959,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -964,8 +964,8 @@
     },
     {
       "idx": 47,
-      "ts_us": 1953391,
-      "ts_delta_us": 20030,
+      "ts_us": 2285365,
+      "ts_delta_us": 39839,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -981,8 +981,8 @@
     },
     {
       "idx": 48,
-      "ts_us": 1973293,
-      "ts_delta_us": 19902,
+      "ts_us": 2317305,
+      "ts_delta_us": 31940,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -998,8 +998,8 @@
     },
     {
       "idx": 49,
-      "ts_us": 2497384,
-      "ts_delta_us": 524091,
+      "ts_us": 2853643,
+      "ts_delta_us": 536338,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -1015,11 +1015,11 @@
     },
     {
       "idx": 50,
-      "ts_us": 2497566,
-      "ts_delta_us": 182,
+      "ts_us": 2853834,
+      "ts_delta_us": 191,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "5a:1f:23:c9:40:9c",
+      "dst_mac": "fa:a5:f7:91:dc:72",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UDP",

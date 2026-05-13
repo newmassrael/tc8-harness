@@ -1,10 +1,10 @@
 {
   "case_id": "SOMEIPSRV_OPTIONS_11",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "82:8c:4f:04:22:6a",
+  "dut_mac": "f6:17:93:49:98:20",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -65,8 +65,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200240,
-      "ts_delta_us": 200240,
+      "ts_us": 200300,
+      "ts_delta_us": 200300,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -104,15 +104,15 @@
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -121,8 +121,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600498,
-      "ts_delta_us": 400258,
+      "ts_us": 600303,
+      "ts_delta_us": 400003,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -177,10 +177,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 1038536,
-      "ts_delta_us": 438038,
+      "ts_us": 952814,
+      "ts_delta_us": 352511,
       "direction": "dut_to_tester",
-      "src_mac": "82:8c:4f:04:22:6a",
+      "src_mac": "f6:17:93:49:98:20",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -227,11 +227,11 @@
     },
     {
       "idx": 4,
-      "ts_us": 1038790,
-      "ts_delta_us": 254,
+      "ts_us": 953093,
+      "ts_delta_us": 279,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "82:8c:4f:04:22:6a",
+      "dst_mac": "f6:17:93:49:98:20",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP-SD",
@@ -274,8 +274,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1238662,
-      "ts_delta_us": 199872,
+      "ts_us": 1178940,
+      "ts_delta_us": 225847,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f6",
@@ -299,8 +299,8 @@
     },
     {
       "idx": 6,
-      "ts_us": 1400607,
-      "ts_delta_us": 161945,
+      "ts_us": 1400359,
+      "ts_delta_us": 221419,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -338,15 +338,15 @@
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           }
         ],
         "src_port": 30490,
@@ -355,8 +355,8 @@
     },
     {
       "idx": 7,
-      "ts_us": 1489312,
-      "ts_delta_us": 88705,
+      "ts_us": 1428769,
+      "ts_delta_us": 28410,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f6",
@@ -380,8 +380,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 1739298,
-      "ts_delta_us": 249986,
+      "ts_us": 1679199,
+      "ts_delta_us": 250430,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f6",
@@ -405,8 +405,8 @@
     },
     {
       "idx": 9,
-      "ts_us": 1989351,
-      "ts_delta_us": 250053,
+      "ts_us": 1928983,
+      "ts_delta_us": 249784,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f6",

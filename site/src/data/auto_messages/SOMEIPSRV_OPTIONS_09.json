@@ -24,28 +24,33 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "fail-trigger",
+      "label": "Phase 1 (listening) fail trigger — transitions to fail_type. Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (sd_option_count >= 1) and !(sd_ipv4_multicast_count >= 1)"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     }
   ]
 }

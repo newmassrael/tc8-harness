@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_09",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": null,
-  "dut_mac": "82:8c:4f:04:22:6a",
+  "dut_mac": "f6:17:93:49:98:20",
   "dut_ip": null,
   "packets": [
     {
@@ -28,18 +28,18 @@
     },
     {
       "idx": 1,
-      "ts_us": 4,
-      "ts_delta_us": 4,
+      "ts_us": 3,
+      "ts_delta_us": 3,
       "direction": "dut_to_tester",
-      "src_mac": "82:8c:4f:04:22:6a",
+      "src_mac": "f6:17:93:49:98:20",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at 82:8c:4f:04:22:6a",
+      "summary": "172.16.0.1 is at f6:17:93:49:98:20",
       "fields": {
         "opcode": 2,
-        "sender_mac": "82:8c:4f:04:22:6a",
+        "sender_mac": "f6:17:93:49:98:20",
         "sender_ip": "172.16.0.1",
         "target_mac": "5e:45:c1:4c:94:86",
         "target_ip": "172.16.0.2"

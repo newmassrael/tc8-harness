@@ -261,11 +261,6 @@
       "idx": 51,
       "role": "stimulus",
       "label": "Phase 4 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 52,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
     }
   ]
 }

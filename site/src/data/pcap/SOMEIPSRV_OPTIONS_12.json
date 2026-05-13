@@ -1,10 +1,10 @@
 {
   "case_id": "SOMEIPSRV_OPTIONS_12",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "b2:05:1f:15:b9:1e",
+  "dut_mac": "ca:f6:1c:65:ac:bb",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -65,8 +65,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200172,
-      "ts_delta_us": 200172,
+      "ts_us": 200137,
+      "ts_delta_us": 200137,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -104,15 +104,15 @@
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -121,8 +121,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600308,
-      "ts_delta_us": 400136,
+      "ts_us": 600274,
+      "ts_delta_us": 400137,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -160,15 +160,15 @@
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -177,10 +177,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 982330,
-      "ts_delta_us": 382022,
+      "ts_us": 994642,
+      "ts_delta_us": 394368,
       "direction": "dut_to_tester",
-      "src_mac": "b2:05:1f:15:b9:1e",
+      "src_mac": "ca:f6:1c:65:ac:bb",
       "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -227,11 +227,11 @@
     },
     {
       "idx": 4,
-      "ts_us": 982560,
-      "ts_delta_us": 230,
+      "ts_us": 994843,
+      "ts_delta_us": 201,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "b2:05:1f:15:b9:1e",
+      "dst_mac": "ca:f6:1c:65:ac:bb",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP-SD",
@@ -274,8 +274,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1200112,
-      "ts_delta_us": 217552,
+      "ts_us": 1195051,
+      "ts_delta_us": 200208,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f6",
@@ -299,8 +299,8 @@
     },
     {
       "idx": 6,
-      "ts_us": 1400436,
-      "ts_delta_us": 200324,
+      "ts_us": 1400407,
+      "ts_delta_us": 205356,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -355,8 +355,8 @@
     },
     {
       "idx": 7,
-      "ts_us": 1450101,
-      "ts_delta_us": 49665,
+      "ts_us": 1445138,
+      "ts_delta_us": 44731,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f6",
@@ -380,8 +380,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 1700165,
-      "ts_delta_us": 250064,
+      "ts_us": 1695513,
+      "ts_delta_us": 250375,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f6",
@@ -405,8 +405,8 @@
     },
     {
       "idx": 9,
-      "ts_us": 1950520,
-      "ts_delta_us": 250355,
+      "ts_us": 1945608,
+      "ts_delta_us": 250095,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f6",

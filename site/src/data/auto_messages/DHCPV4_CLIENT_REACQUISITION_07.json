@@ -71,11 +71,6 @@
       "idx": 13,
       "role": "stimulus",
       "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
     }
   ]
 }

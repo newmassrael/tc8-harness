@@ -19,8 +19,8 @@
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
@@ -39,21 +39,6 @@
     },
     {
       "idx": 7,
-      "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 9,
-      "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 10,
       "role": "stimulus",
       "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
     }

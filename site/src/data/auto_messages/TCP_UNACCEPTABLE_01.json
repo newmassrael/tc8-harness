@@ -4,36 +4,26 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_first_synack) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_first_synack) — DUT frame (no transition matched)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening_first_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 2,
-      "role": "note",
-      "label": "Phase 1 (listening_first_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 3,
       "role": "expected",
       "label": "Phase 1 (listening_first_synack) progress trigger — advances to listening_second_synack. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort and dst_port == ::tc8::…"
     },
     {
+      "idx": 2,
+      "role": "note",
+      "label": "Phase 2 (listening_second_synack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 2 (listening_second_synack) — DUT frame (no transition matched)"
+    },
+    {
       "idx": 4,
-      "role": "note",
-      "label": "Phase 2 (listening_second_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 5,
-      "role": "note",
-      "label": "Phase 2 (listening_second_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 6,
       "role": "expected",
       "label": "Phase 2 (listening_second_synack) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort and dst_port == ::tc8::…"
     }

@@ -81,16 +81,6 @@
       "idx": 15,
       "role": "note",
       "label": "Phase 1 (listen_leg1) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 16,
-      "role": "stimulus",
-      "label": "Phase 1 (listen_leg1) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 17,
-      "role": "note",
-      "label": "Phase 1 (listen_leg1) — DUT frame (no transition matched)"
     }
   ]
 }

@@ -1,10 +1,10 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_06_NEG",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": null,
-  "dut_mac": "56:6b:8d:4a:ab:dc",
+  "dut_mac": "36:9f:3c:6c:ad:e9",
   "dut_ip": null,
   "packets": [
     {
@@ -28,18 +28,18 @@
     },
     {
       "idx": 1,
-      "ts_us": 3,
-      "ts_delta_us": 3,
+      "ts_us": 4,
+      "ts_delta_us": 4,
       "direction": "dut_to_tester",
-      "src_mac": "56:6b:8d:4a:ab:dc",
+      "src_mac": "36:9f:3c:6c:ad:e9",
       "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at 56:6b:8d:4a:ab:dc",
+      "summary": "172.16.0.1 is at 36:9f:3c:6c:ad:e9",
       "fields": {
         "opcode": 2,
-        "sender_mac": "56:6b:8d:4a:ab:dc",
+        "sender_mac": "36:9f:3c:6c:ad:e9",
         "sender_ip": "172.16.0.1",
         "target_mac": "7e:b1:ae:f4:32:5d",
         "target_ip": "172.16.0.2"

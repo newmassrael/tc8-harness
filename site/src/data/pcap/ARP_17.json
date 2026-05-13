@@ -1,7 +1,7 @@
 {
   "case_id": "ARP_17",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:39:28Z",
+  "captured_at": "2026-05-13T03:07:39Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
   "dut_mac": "5e:45:c1:4c:94:86",

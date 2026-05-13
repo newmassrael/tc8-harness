@@ -89,8 +89,8 @@
     },
     {
       "idx": 17,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl >…"
     }
   ]
 }
