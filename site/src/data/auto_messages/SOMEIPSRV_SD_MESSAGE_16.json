@@ -24,13 +24,13 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (true) and (sd_entries[0].ttl == 0 and sd_entries[0].service_id == ::tc8::sd_test_un…"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

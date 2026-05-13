@@ -4,33 +4,33 @@
   "messages": [
     {
       "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_dut_synack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_p1_dut_synack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 1,
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_dut_synack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (listening_p1_dut_synack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
       "role": "expected",
       "label": "Phase 1 (listening_p1_dut_synack) progress trigger — advances to listening_p1_absence. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort and dst_port == ::tc8::…"
     },
     {
-      "idx": 2,
-      "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 4,
-      "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
-    },
-    {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
@@ -44,43 +44,43 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
     },
     {
       "idx": 9,
-      "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
     },
     {
       "idx": 11,
-      "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 12,
-      "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 14,
       "role": "note",
       "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
     },
     {
-      "idx": 15,
+      "idx": 14,
       "role": "stimulus",
       "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 15,
+      "role": "note",
+      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
     },
     {
       "idx": 16,

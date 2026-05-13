@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_SUMMARY_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T03:34:59Z",
+  "captured_at": "2026-05-13T06:22:37Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "0.0.0.0",
   "dut_mac": "02:00:00:00:00:a1",
@@ -17,52 +17,52 @@
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0xf4ebc6df chaddr=7e:b1:ae:f4:32:5d",
+      "summary": "DHCPv4 Discover xid=0xe4a3dad8 chaddr=7e:b1:ae:f4:32:5d",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 4109092575,
+        "xid": 3835943640,
         "chaddr": "7e:b1:ae:f4:32:5d",
         "dhcp_msg_type": 1
       }
     },
     {
       "idx": 1,
-      "ts_us": 42949,
-      "ts_delta_us": 42949,
+      "ts_us": 128228,
+      "ts_delta_us": 128228,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "172.16.0.10",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Offer xid=0xf4ebc6df chaddr=7e:b1:ae:f4:32:5d",
+      "summary": "DHCPv4 Offer xid=0xe4a3dad8 chaddr=7e:b1:ae:f4:32:5d",
       "fields": {
         "src_port": 67,
         "dst_port": 68,
         "op": 2,
-        "xid": 4109092575,
+        "xid": 3835943640,
         "chaddr": "7e:b1:ae:f4:32:5d",
         "dhcp_msg_type": 2
       }
     },
     {
       "idx": 2,
-      "ts_us": 43008,
-      "ts_delta_us": 59,
+      "ts_us": 131971,
+      "ts_delta_us": 3743,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Request xid=0xf4ebc6df chaddr=7e:b1:ae:f4:32:5d",
+      "summary": "DHCPv4 Request xid=0xe4a3dad8 chaddr=7e:b1:ae:f4:32:5d",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 4109092575,
+        "xid": 3835943640,
         "chaddr": "7e:b1:ae:f4:32:5d",
         "dhcp_msg_type": 3
       }

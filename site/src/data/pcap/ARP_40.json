@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_40",
   "outcome": "pass",
-  "captured_at": "2026-05-13T03:34:59Z",
+  "captured_at": "2026-05-13T06:22:37Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "a6:3a:f6:08:11:8a",
+  "dut_mac": "a2:c4:a5:92:50:61",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -65,8 +65,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200116,
-      "ts_delta_us": 200116,
+      "ts_us": 200058,
+      "ts_delta_us": 200058,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -121,8 +121,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600425,
-      "ts_delta_us": 400309,
+      "ts_us": 600102,
+      "ts_delta_us": 400044,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -177,10 +177,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 953779,
-      "ts_delta_us": 353354,
+      "ts_us": 1004584,
+      "ts_delta_us": 404482,
       "direction": "dut_to_tester",
-      "src_mac": "a6:3a:f6:08:11:8a",
+      "src_mac": "a2:c4:a5:92:50:61",
       "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -227,8 +227,8 @@
     },
     {
       "idx": 4,
-      "ts_us": 953951,
-      "ts_delta_us": 172,
+      "ts_us": 1004999,
+      "ts_delta_us": 415,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -246,8 +246,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1154068,
-      "ts_delta_us": 200117,
+      "ts_us": 1204702,
+      "ts_delta_us": 199703,
       "direction": "other",
       "src_mac": "02:00:00:00:00:a3",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -265,8 +265,8 @@
     },
     {
       "idx": 6,
-      "ts_us": 1154077,
-      "ts_delta_us": 9,
+      "ts_us": 1204715,
+      "ts_delta_us": 13,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "02:00:00:00:00:a3",

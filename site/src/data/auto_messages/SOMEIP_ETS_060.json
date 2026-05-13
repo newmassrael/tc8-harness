@@ -4,33 +4,33 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_has_…"
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 2,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

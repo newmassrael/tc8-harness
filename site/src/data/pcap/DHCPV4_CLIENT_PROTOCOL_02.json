@@ -1,8 +1,8 @@
 {
   "case_id": "DHCPV4_CLIENT_PROTOCOL_02",
   "outcome": "pass",
-  "captured_at": "2026-05-13T03:34:59Z",
-  "tester_mac": "62:ae:00:cf:09:26",
+  "captured_at": "2026-05-13T06:22:37Z",
+  "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,
   "dut_ip": null,
@@ -12,18 +12,18 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "62:ae:00:cf:09:26",
+      "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0x62ae00cf chaddr=62:ae:00:cf:09:26",
+      "summary": "DHCPv4 Discover xid=0xcee986bf chaddr=ce:e9:86:bf:01:8c",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 1655570639,
-        "chaddr": "62:ae:00:cf:09:26",
+        "xid": 3471410879,
+        "chaddr": "ce:e9:86:bf:01:8c",
         "dhcp_msg_type": 1
       }
     }

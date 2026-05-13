@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_TTL_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T03:34:59Z",
+  "captured_at": "2026-05-13T06:22:37Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -29,7 +29,7 @@
       "ts_delta_us": 22,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "a6:3a:f6:08:11:8a",
+      "dst_mac": "a2:c4:a5:92:50:61",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",

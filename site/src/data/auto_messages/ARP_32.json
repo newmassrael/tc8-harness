@@ -15,12 +15,12 @@
     {
       "idx": 2,
       "role": "note",
-      "label": "Phase 1 (listening) — observed frame"
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "Phase 1 (listening) — observed frame"
     },
     {
       "idx": 4,

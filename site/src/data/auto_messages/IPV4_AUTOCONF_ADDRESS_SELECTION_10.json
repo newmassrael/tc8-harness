@@ -19,13 +19,13 @@
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 2 (seen_1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (seen_1) progress trigger — advances to seen_2. Cond: is_arp_probe() and frame_delta_us() >= 950000 and frame_delta_us() <= 2050000"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 2 (seen_1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (seen_2) pass trigger — transitions to pass. Cond: is_arp_probe() and frame_delta_us() >= 950000 and frame_delta_us() <= 2050000"
     }
   ]
 }

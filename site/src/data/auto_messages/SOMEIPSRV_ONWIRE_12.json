@@ -49,8 +49,8 @@
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: (service_id == expected.service_id and message_type == 0x81 and method_id == ::tc8::sd_test_unknown::kMethodId) and (return_code == 0x03)"
     }
   ]
 }
