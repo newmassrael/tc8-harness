@@ -45,7 +45,7 @@ export interface PacketCapture {
   packets: PacketRecord[];
 }
 
-export type MessageRole = 'stimulus' | 'expected' | 'fail-trigger' | 'note';
+export type MessageRole = 'stimulus' | 'expected' | 'fail-trigger' | 'note' | 'case-note';
 
 export interface MessageHighlight {
   /** Packet selector. ``idx`` is 0-based and matches PacketRecord.idx. */

@@ -136,12 +136,17 @@ def _dissect_ipv4(payload: bytes, p: Packet) -> bytes | None:
         p.protocol = "IPv4"
         p.summary = "truncated"
         return None
-    ihl = (payload[0] & 0x0F) * 4
-    proto = payload[9]
+    version      = (payload[0] >> 4) & 0x0F
+    ihl          = (payload[0] & 0x0F) * 4
+    total_length = struct.unpack(">H", payload[2:4])[0]
+    proto        = payload[9]
+    ttl          = payload[8]
     # §4.4 IPv4_FRAGMENTS / REASSEMBLY conds read these IP-header fields
     # via ``captured.ip_flags`` / ``ip_fragment_offset`` / ``ip_id``;
     # FRAGMENTS_05 verifies a non-fragment DUT egress carries DF=clear
     # MF=clear offset=0. Surface them so the walker can fire concrete.
+    # IPV4_HEADER_01 / TTL_01 / VERSION_01 / 03 / 04 read total_length /
+    # ttl / version off the same header.
     ip_id        = struct.unpack(">H", payload[4:6])[0]
     flags_frag   = struct.unpack(">H", payload[6:8])[0]
     ip_flags     = (flags_frag >> 13) & 0x07
@@ -165,6 +170,21 @@ def _dissect_ipv4(payload: bytes, p: Packet) -> bytes | None:
     p.fields.setdefault("ip_id", ip_id)
     p.fields.setdefault("ip_flags", ip_flags)
     p.fields.setdefault("ip_fragment_offset", ip_frag_off)
+    p.fields.setdefault("ttl", ttl)
+    p.fields.setdefault("total_length", total_length)
+    p.fields.setdefault("version", version)
+    p.fields.setdefault("ip_protocol", proto)
+    p.fields.setdefault("ihl", ihl // 4)
+    # IPV4_CHECKSUM_05 asserts the DUT-emitted header checksum agrees
+    # with the on-wire header bytes. RFC 791 §3.1 16-bit one's complement
+    # of all 16-bit words in the IP header (with the checksum field
+    # itself zero-treated) MUST sum to 0xFFFF.
+    s = 0
+    for off in range(0, ihl, 2):
+        s += struct.unpack(">H", payload[off:off+2])[0]
+    while s >> 16:
+        s = (s & 0xFFFF) + (s >> 16)
+    p.fields.setdefault("ip_header_checksum_ok", s == 0xFFFF)
     return None
 
 
@@ -655,12 +675,17 @@ def _dissect_tcp(payload: bytes, p: Packet) -> None:
     if flags & 0x008: flag_names.append("PSH")
     win, cksum, urg_ptr = struct.unpack(">HHH", payload[14:20])
     inner = payload[data_off:] if data_off <= len(payload) else b""
+    payload_len = max(0, len(payload) - data_off)
     tcp_fields = {
         "src_port": sport, "dst_port": dport,
         "seq": seq, "ack": ack, "flags": "|".join(flag_names) or "—",
         "window": win,
         "checksum": cksum, "urgent_pointer": urg_ptr,
         "data_offset": data_off // 4,
+        # §4.8.6.2 TCP_CHECKSUM_03 / §4.8.6.1 HEADER_01 cond
+        # ``captured.payload_len > 0`` distinguishes the spec-asserted
+        # DATA segment from the handshake ACK that precedes it.
+        "payload_len": payload_len,
     }
     # RFC 793 §3.1 TCP options — only kind=2 (Maximum Segment Size) is
     # surfaced today; §4.8.6.9 MSS_OPTIONS_11/_12 read

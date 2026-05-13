@@ -1102,6 +1102,13 @@ CAPTURED_ALIASES = {
     "eth_dst":          "dst_mac",
     "src_ip":           "src_ip",
     "dst_ip":           "dst_ip",
+    # §4.4 IPv4 conds (``ipv4_positive_reply`` template + several
+    # HEADER/TTL/VERSION rows) name the IP source/dest fields
+    # ``src_addr`` / ``dst_addr`` per the C++ ``Ipv4Captured`` struct.
+    # Lift them onto the decoder's ``src_ip`` / ``dst_ip`` so the
+    # walker can fire concrete without per-protocol alias chains.
+    "src_addr":         "src_ip",
+    "dst_addr":         "dst_ip",
     "sender_hw":        "sender_mac",
     "target_hw":        "target_mac",
     # ``sender_proto_ip`` / ``target_proto_ip`` in the C++ struct are
@@ -1168,7 +1175,13 @@ def _packet_view(packet: dict) -> dict:
     sd_entries = fields.get("sd_entries")
     if isinstance(sd_entries, list):
         fields.setdefault("sd_entry_count", len(sd_entries))
-        fields.setdefault("sd_entries_len", len(sd_entries))
+        # ``sd_entries_len`` is the SD header's entries-section BYTE
+        # length per RFC PRS_SOMEIPSD_00128 (each entry is exactly
+        # 16 B). The decoder doesn't surface the raw byte value, so
+        # derive it from the parsed entry count. SOMEIPSRV_FORMAT_11/_20
+        # conds use ``sd_entries_len >= 16 and (sd_entries_len % 16) == 0``
+        # which requires the byte form, not the entry count.
+        fields.setdefault("sd_entries_len", len(sd_entries) * 16)
         # Decoder names some SD entry fields differently from the
         # C++ ``SomeIpSdEntry`` struct the SCXML conds reference. Mirror
         # them under the cond-expected names so ``sd_entries[0].index_first``
@@ -1777,6 +1790,17 @@ def _helper_flags_reserved_bits_zero(view, _args) -> Any:
     return (v & 0x7FFF) == 0
 
 
+def _helper_header_checksum_valid(view, _args) -> Any:
+    """§4.4.6.5 IPV4_CHECKSUM_05 — DUT-emitted IP packet carries an
+    RFC 791 §3.1 16-bit one's-complement header checksum that agrees
+    with the on-wire header bytes. Decoder re-computes the sum and
+    surfaces the boolean as ``ip_header_checksum_ok``."""
+    v = view.get("ip_header_checksum_ok")
+    if not isinstance(v, bool):
+        return UNKNOWN
+    return v
+
+
 def _helper_tcp_checksum_valid(view, _args) -> Any:
     """§4.8.6.2 TCP_CHECKSUM_03 + TCP_HEADER_01 verify the segment's
     RFC 793 §3.1 pseudo-header checksum agrees with the wire bytes. The
@@ -2107,6 +2131,7 @@ CAPTURED_HELPERS = {
     "flags_reserved_bits_zero": _helper_flags_reserved_bits_zero,
     # tcp_captured.h / udp_captured.h checksum proxies
     "tcp_checksum_valid":       _helper_tcp_checksum_valid,
+    "header_checksum_valid":    _helper_header_checksum_valid,
     "pseudo_header_checksum_valid": _helper_pseudo_header_checksum_valid,
     # arp_captured.h §4.5 autoconf predicates
     "target_proto_ip_in_link_local_prefix": _helper_target_proto_ip_in_link_local_prefix,
@@ -2236,6 +2261,12 @@ class StateDef:
     is_final: bool
     final_kind: str         # "pass" / "fail" / "" (non-final)
     transitions: list[TransitionDef] = field(default_factory=list)
+    # Time-driven (cond-less) transition targets, indexed by event name.
+    # Stored separately from ``transitions`` because the walker only
+    # dispatches per-packet — these transitions never fire on a packet
+    # observation. Surface them so callers can introspect SCXML shape
+    # without re-parsing (e.g. absence-of-behavior pass detection).
+    deadline_targets: dict[str, str] = field(default_factory=dict)
 
 
 def _strip_ns(tag: str) -> str:
@@ -2296,6 +2327,7 @@ def _parse_states_from(elem, states: list[StateDef], seen: set[str],
                 continue
             phase_counter[0] += 1
             trs: list[TransitionDef] = []
+            deadline_targets: dict[str, str] = {}
             for tchild in child:
                 if _strip_ns(tchild.tag) != "transition":
                     continue
@@ -2305,7 +2337,12 @@ def _parse_states_from(elem, states: list[StateDef], seen: set[str],
                 if not cond_src or not target:
                     # Deadline / no-cond transitions are time-driven —
                     # they never match against a packet, so we don't
-                    # store them in the matcher's transition list.
+                    # store them in the matcher's transition list. We
+                    # still surface the event→target mapping so callers
+                    # (absence-of-behavior detector) can introspect the
+                    # SCXML shape.
+                    if event and target:
+                        deadline_targets[event] = target
                     continue
                 trs.append(TransitionDef(
                     event=event,
@@ -2316,6 +2353,7 @@ def _parse_states_from(elem, states: list[StateDef], seen: set[str],
             states.append(StateDef(
                 id=sid, phase_index=phase_counter[0], is_final=False,
                 final_kind="", transitions=trs,
+                deadline_targets=deadline_targets,
             ))
             seen.add(sid)
         elif tag == "final":
@@ -2456,6 +2494,11 @@ _CASE_UT_ESTABLISHED_ON_PASS: dict[str, int] = {
     # kernel handshakes; queryTcpEstablishedSync reads the active fd's
     # tcpi_state. Pass cond requires ut_established == 0x01.
     "TCP_BASICS_07": 0x01,
+    # tcp_mss_options_01.h: variant 'v' verification phase — DUT-active
+    # SYN+ACK on the listener's port reading the OpQueryTcpEstablished
+    # slot after kHandshakeWait. Pass cond mirrors BASICS_07: requires
+    # ut_established == 0x01.
+    "TCP_MSS_OPTIONS_01": 0x01,
 }
 
 
@@ -2733,6 +2776,58 @@ def label_packets(
                 idx=idx, role="note",
                 label=f"{phase_tag} — observed frame",
             ))
+
+    # Absence-of-behavior synthetic marker. A case where the SCXML wires
+    # ``<transition event="deadline_exceeded" target=<pass-final>/>`` —
+    # i.e. the test passes by the DUT *not* emitting a prohibited frame
+    # — surfaces zero per-packet "expected" labels because no observation
+    # cond fires. Without an inline summary the timeline reads as 100 %
+    # stimulus/note, which understates the verdict semantics. Emit a
+    # case-level note (idx == -1) so the renderer can pin it above the
+    # packet table.
+    if (
+        pcap_outcome == "pass"
+        and not any(m.role in ("expected", "fail-trigger") for m in msgs)
+        and any(
+            (target := states_by_id.get(tgt_id)) is not None
+            and target.is_final
+            and target.final_kind == "pass"
+            for s in states
+            for tgt_id in s.deadline_targets.values()
+        )
+    ):
+        msgs.insert(0, AutoMessage(
+            idx=-1, role="case-note",
+            label=(
+                "Absence-of-behavior pass — DUT did not emit the "
+                "prohibited frame within the SCXML deadline window. "
+                "Per the spec this silent absence IS the pass condition; "
+                "no per-packet ``expected`` label appears because the "
+                "verdict comes from the timer firing, not from an "
+                "observed frame."
+            ),
+        ))
+    # Symmetric fail-outcome marker. If the live run landed fail but the
+    # walker couldn't pin a specific fail transition to a packet (cond
+    # clauses opaque to the evaluator, decoder field unavailable, etc.),
+    # surface that honestly at the case level so the reader knows the
+    # verdict came from a wire observation the auto-labeller can't model
+    # — rather than silently rendering the timeline as 100 % stimulus.
+    elif (
+        pcap_outcome == "fail"
+        and not any(m.role in ("expected", "fail-trigger") for m in msgs)
+    ):
+        msgs.insert(0, AutoMessage(
+            idx=-1, role="case-note",
+            label=(
+                "Outcome=fail, but the auto-labeller could not pin a "
+                "specific SCXML fail transition to a packet on the wire — "
+                "the relevant cond clauses are opaque to the evaluator "
+                "(decoder field unavailable or helper not modelled). "
+                "See the SCXML pane below for the fail criteria this case "
+                "evaluates."
+            ),
+        ))
     return msgs
 
 

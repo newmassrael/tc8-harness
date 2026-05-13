@@ -12,7 +12,11 @@ const { case: c, locale } = Astro.props;
 const cap = c.pcap!;
 const msgs = localizedMessages(c, locale);
 const msgByIdx = new Map<number, MessageHighlight>();
-for (const m of msgs) msgByIdx.set(m.idx, m);
+const caseNotes: MessageHighlight[] = [];
+for (const m of msgs) {
+  if (m.role === 'case-note' || m.idx < 0) caseNotes.push(m);
+  else msgByIdx.set(m.idx, m);
+}
 
 function fmtMs(us: number): string {
   if (us < 1000) return `+${us} µs`;
@@ -50,6 +54,17 @@ const outcomeKey = cap.outcome === 'pass' ? 'pcap.outcome.pass' : 'pcap.outcome.
     {cap.tester_ip && <span>Tester: <code>{cap.tester_ip}</code> ({cap.tester_mac})</span>}
     {cap.dut_ip && <span style="margin-left:14px">DUT: <code>{cap.dut_ip}</code> ({cap.dut_mac})</span>}
   </div>
+
+  {caseNotes.length > 0 && (
+    <div class="pcap-case-notes">
+      {caseNotes.map((m) => (
+        <div class={`case-note role-${m.role}`}>
+          <span class={`role-badge role-${m.role}`}>{t(locale, `pcap.role.${m.role}` as any)}</span>
+          <span class="msg-label">{m.label}</span>
+        </div>
+      ))}
+    </div>
+  )}
 
   <table class="pcap-table">
     <thead>

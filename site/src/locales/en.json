@@ -49,6 +49,7 @@
   "pcap.role.expected": "Expected",
   "pcap.role.fail-trigger": "Fail trigger",
   "pcap.role.note": "Note",
+  "pcap.role.case-note": "Case note",
   "case.scxml.heading": "State machine (SCXML)",
   "case.scxml.lines": "lines",
   "case.scxml.toggle": "Show / hide SCXML source",

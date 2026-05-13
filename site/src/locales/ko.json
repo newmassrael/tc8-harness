@@ -49,6 +49,7 @@
   "pcap.role.expected": "기대",
   "pcap.role.fail-trigger": "실패 유발",
   "pcap.role.note": "참고",
+  "pcap.role.case-note": "케이스 노트",
   "case.scxml.heading": "상태 머신 (SCXML)",
   "case.scxml.lines": "줄",
   "case.scxml.toggle": "SCXML 소스 펼치기 / 접기",

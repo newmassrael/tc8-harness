@@ -276,8 +276,21 @@ pre {
 .role-badge.role-expected    { color: var(--good); background: rgba(109, 213, 140, 0.15); border: 1px solid rgba(109, 213, 140, 0.3); }
 .role-badge.role-fail-trigger{ color: var(--bad);  background: rgba(239, 111, 108, 0.15); border: 1px solid rgba(239, 111, 108, 0.3); }
 .role-badge.role-note        { color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); }
+.role-badge.role-case-note   { color: var(--good); background: rgba(109, 213, 140, 0.10); border: 1px solid rgba(109, 213, 140, 0.3); }
 
 .msg-label { color: var(--text); }
+
+.pcap-case-notes { margin-bottom: 12px; }
+.case-note {
+  padding: 10px 12px;
+  background: rgba(109, 213, 140, 0.05);
+  border-left: 3px solid var(--good);
+  border-radius: 3px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.case-note .msg-label { margin-left: 4px; }
 
 .scxml-details { margin-top: 4px; }
 .scxml-details > summary {
