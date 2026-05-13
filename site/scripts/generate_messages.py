@@ -1511,12 +1511,12 @@ def _sd_option_with_l4(view: dict, args: list[Any]) -> dict | None | object:
 def _helper_sd_first_option_with_l4(view, args) -> Any:
     """Return the first decoded SD option dict whose ``type`` and
     ``l4_proto`` match the supplied filters. Member access on the
-    returned dict reads ``.ipv4`` / ``.port`` directly; ``.length`` is
-    synthesized as 9 when both ``ipv4`` and ``port`` were parsed (the
-    decoder's full-data branch — IPv4 endpoint / multicast options have
-    a fixed Length=9 per SOMEIPSD §4.2.2). Reserved bytes aren't
-    surfaced by the decoder, so ``.reserved1`` / ``.reserved2`` resolve
-    to UNKNOWN via the dict's missing-key path.
+    returned dict reads the decoded fields directly: ``length`` (wire
+    Length, 9 for IPv4 endpoint/multicast/sd-endpoint per
+    PRS_SOMEIPSD §4.2.2), ``ipv4`` / ``port`` / ``l4_proto``,
+    ``reserved1`` / ``reserved2`` (spec MUST be 0x00 — surfaced so
+    conformance conds observe the wire byte rather than a synthesised
+    value).
 
     Returns UNKNOWN when arguments or sd_options field are missing —
     keeps the surrounding cond honest under partial decoder output.
@@ -1533,11 +1533,6 @@ def _helper_sd_first_option_with_l4(view, args) -> Any:
         return UNKNOWN
     if not isinstance(o, dict):
         return UNKNOWN
-    # Surface a derived ``length`` for fully-parsed IPv4 endpoint /
-    # multicast options. Spec mandates Length=9 and the decoder only
-    # populates ipv4+port when the wire length matched.
-    if "ipv4" in o and "port" in o and "length" not in o:
-        o = {**o, "length": 9}
     return o
 
 

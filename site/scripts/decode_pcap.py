@@ -241,13 +241,22 @@ _SD_ENTRY_TYPES = {
     0x00: "FindService", 0x01: "OfferService",
     0x06: "SubscribeEventgroup", 0x07: "SubscribeEventgroupAck",
 }
-# SD option types per PRS_SOMEIPSD_00200.
+# SD option types per PRS_SOMEIPSD §4.2.2 / SWS_SD §7.3 Table 11.
+# Matches the namespace ``::tc8::sd_option_type::k*`` in
+# ``src/sce_integration/someip_captured.h`` so SCXML conds that filter
+# by ``sd_first_option_with_l4(kIpv4Multicast, kUdp)`` see the same
+# integer the spec assigns.
 _SD_OPTION_TYPES = {
     0x01: "Cfg", 0x02: "LoadBalancing",
     0x04: "IPv4Endpoint", 0x06: "IPv6Endpoint",
-    0x09: "IPv4Multicast", 0x0A: "IPv6Multicast",
-    0x14: "IPv4SdEndpoint", 0x16: "IPv6SdEndpoint",
+    0x14: "IPv4Multicast", 0x16: "IPv6Multicast",
+    0x24: "IPv4SdEndpoint", 0x26: "IPv6SdEndpoint",
 }
+# Option types whose wire payload is the 8-byte IPv4 endpoint shape
+# (1B Reserved + 4B IPv4 + 1B Reserved + 1B L4 + 2B Port). The Endpoint /
+# Multicast / SD Endpoint variants differ only in semantics; the bytes
+# they carry are identical, so the same parse path covers all three.
+_SD_IPV4_OPTION_TYPES = (0x04, 0x14, 0x24)
 
 
 def _looks_like_someip(buf: bytes) -> bool:
@@ -341,19 +350,24 @@ def _dissect_sd_payload(payload: bytes, p: Packet, base_fields: dict) -> None:
             o_len = struct.unpack(">H", payload[j:j + 2])[0]
             o_type = payload[j + 2]
             o_end = j + 3 + o_len
-            if o_type in (0x04, 0x06):  # IPv4/IPv6 endpoint
-                if o_type == 0x04 and o_end - (j + 3) >= 8:
-                    ip_bytes = payload[j + 4:j + 8]
-                    o_proto = payload[j + 9]
-                    o_port = struct.unpack(">H", payload[j + 10:j + 12])[0]
-                    options.append({
-                        "type": o_type, "name": _SD_OPTION_TYPES.get(o_type, "?"),
-                        "ipv4": _ip(ip_bytes), "l4_proto": o_proto, "port": o_port,
-                    })
-                else:
-                    options.append({"type": o_type, "name": _SD_OPTION_TYPES.get(o_type, "?")})
-            else:
-                options.append({"type": o_type, "name": _SD_OPTION_TYPES.get(o_type, f"0x{o_type:02x}")})
+            entry: dict = {
+                "type": o_type,
+                "name": _SD_OPTION_TYPES.get(o_type, f"0x{o_type:02x}"),
+                "length": o_len,
+            }
+            # Per PRS_SOMEIPSD §4.2.2 IPv4 endpoint / multicast /
+            # sd-endpoint options share the same 8-byte wire payload
+            # (reserved+ipv4+reserved+l4_proto+port). Surface every
+            # field the SCXML grammar checks against — including the
+            # spec-MUST reserved bytes so conformance asserts can
+            # observe wire reality, not a synthesised value.
+            if o_type in _SD_IPV4_OPTION_TYPES and o_end - (j + 3) >= 8:
+                entry["reserved1"] = payload[j + 3]
+                entry["ipv4"] = _ip(payload[j + 4:j + 8])
+                entry["reserved2"] = payload[j + 8]
+                entry["l4_proto"] = payload[j + 9]
+                entry["port"] = struct.unpack(">H", payload[j + 10:j + 12])[0]
+            options.append(entry)
             j = o_end
 
     base_fields["sd_flags"] = flags
