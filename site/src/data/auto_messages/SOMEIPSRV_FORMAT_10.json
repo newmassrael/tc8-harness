@@ -4,8 +4,8 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_reserved == 0x000000"
     }
   ]
 }

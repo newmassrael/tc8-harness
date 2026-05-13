@@ -41,11 +41,6 @@
       "idx": 7,
       "role": "stimulus",
       "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 8,
-      "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
     }
   ]
 }

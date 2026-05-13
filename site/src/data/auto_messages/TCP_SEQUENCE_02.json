@@ -16,6 +16,11 @@
       "idx": 2,
       "role": "stimulus",
       "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
     }
   ]
 }

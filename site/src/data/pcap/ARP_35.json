@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_35",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:44:54Z",
+  "captured_at": "2026-05-13T07:16:32Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
-  "dut_mac": "32:cb:37:40:3c:eb",
+  "dut_mac": "5e:45:c1:4c:94:86",
   "dut_ip": "172.16.0.2",
   "packets": [
     {
@@ -28,8 +28,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 219488,
-      "ts_delta_us": 219488,
+      "ts_us": 263584,
+      "ts_delta_us": 263584,
       "direction": "other",
       "src_mac": "02:00:00:00:00:a2",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -47,18 +47,18 @@
     },
     {
       "idx": 2,
-      "ts_us": 219546,
-      "ts_delta_us": 58,
+      "ts_us": 263617,
+      "ts_delta_us": 33,
       "direction": "dut_to_tester",
-      "src_mac": "32:cb:37:40:3c:eb",
+      "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "02:00:00:00:00:a2",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.2 is at 32:cb:37:40:3c:eb",
+      "summary": "172.16.0.2 is at 5e:45:c1:4c:94:86",
       "fields": {
         "opcode": 2,
-        "sender_mac": "32:cb:37:40:3c:eb",
+        "sender_mac": "5e:45:c1:4c:94:86",
         "sender_ip": "172.16.0.2",
         "target_mac": "02:00:00:00:00:a2",
         "target_ip": "172.16.0.1"
@@ -66,10 +66,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 324781,
-      "ts_delta_us": 105235,
+      "ts_us": 365355,
+      "ts_delta_us": 101738,
       "direction": "dut_to_tester",
-      "src_mac": "32:cb:37:40:3c:eb",
+      "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -86,6 +86,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -128,10 +129,10 @@
     },
     {
       "idx": 4,
-      "ts_us": 525016,
-      "ts_delta_us": 200235,
+      "ts_us": 565540,
+      "ts_delta_us": 200185,
       "direction": "dut_to_tester",
-      "src_mac": "32:cb:37:40:3c:eb",
+      "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -148,6 +149,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -190,10 +192,10 @@
     },
     {
       "idx": 5,
-      "ts_us": 925217,
-      "ts_delta_us": 400201,
+      "ts_us": 965800,
+      "ts_delta_us": 400260,
       "direction": "dut_to_tester",
-      "src_mac": "32:cb:37:40:3c:eb",
+      "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -210,6 +212,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -252,10 +255,10 @@
     },
     {
       "idx": 6,
-      "ts_us": 1725445,
-      "ts_delta_us": 800228,
+      "ts_us": 1766050,
+      "ts_delta_us": 800250,
       "direction": "dut_to_tester",
-      "src_mac": "32:cb:37:40:3c:eb",
+      "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -272,6 +275,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -314,11 +318,11 @@
     },
     {
       "idx": 7,
-      "ts_us": 1755649,
-      "ts_delta_us": 30204,
+      "ts_us": 1791664,
+      "ts_delta_us": 25614,
       "direction": "tester_to_dut",
-      "src_mac": "9e:ae:c6:d1:f0:29",
-      "dst_mac": "32:cb:37:40:3c:eb",
+      "src_mac": "c6:8c:dc:1c:6a:39",
+      "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "SOME/IP-SD",
@@ -334,6 +338,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 6,
@@ -367,10 +372,10 @@
     },
     {
       "idx": 8,
-      "ts_us": 1755866,
-      "ts_delta_us": 217,
+      "ts_us": 1791896,
+      "ts_delta_us": 232,
       "direction": "dut_to_tester",
-      "src_mac": "32:cb:37:40:3c:eb",
+      "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "02:00:00:00:00:a2",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
@@ -387,6 +392,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 7,

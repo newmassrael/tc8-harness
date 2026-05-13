@@ -74,13 +74,18 @@
     },
     {
       "idx": 14,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 15,
       "role": "note",
       "label": "Phase 1 (listening) — DUT frame (no transition matched)"
     },
     {
-      "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "idx": 16,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
     }
   ]
 }

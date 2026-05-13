@@ -41,6 +41,11 @@
       "idx": 7,
       "role": "fail-trigger",
       "label": "Phase 2 (listening_post_claim) fail trigger — transitions to fail_reply_wrong_fields. Cond: is_arp_reply()"
+    },
+    {
+      "idx": 8,
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_RETRANSMISSION_TO_06",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:44:54Z",
+  "captured_at": "2026-05-13T07:16:32Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -13,15 +13,15 @@
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "b2:05:1f:15:b9:1e",
+      "dst_mac": "46:55:00:e4:66:5e",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49653 → 23609 [SYN] seq=1195818245 ack=0 win=64240",
+      "summary": "49653 → 23609 [SYN] seq=767047523 ack=0 win=64240",
       "fields": {
         "src_port": 49653,
         "dst_port": 23609,
-        "seq": 1195818245,
+        "seq": 767047523,
         "ack": 0,
         "flags": "SYN",
         "window": 64240

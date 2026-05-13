@@ -24,33 +24,28 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (sd_ipv4_multicast_count >= 1) and (sd_first_option_with_l4(::tc8::sd_option_type::k…"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

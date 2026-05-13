@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_ALLOCATING_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:44:54Z",
+  "captured_at": "2026-05-13T07:16:32Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,

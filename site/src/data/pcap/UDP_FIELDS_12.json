@@ -1,7 +1,7 @@
 {
   "case_id": "UDP_FIELDS_12",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:44:54Z",
+  "captured_at": "2026-05-13T07:16:32Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -29,6 +29,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -71,8 +72,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200160,
-      "ts_delta_us": 200160,
+      "ts_us": 200025,
+      "ts_delta_us": 200025,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -91,6 +92,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -133,8 +135,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600260,
-      "ts_delta_us": 400100,
+      "ts_us": 600058,
+      "ts_delta_us": 400033,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -153,6 +155,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -175,8 +178,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
@@ -185,8 +188,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -195,8 +198,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 969301,
-      "ts_delta_us": 369041,
+      "ts_us": 954277,
+      "ts_delta_us": 354219,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -212,8 +215,8 @@
     },
     {
       "idx": 4,
-      "ts_us": 992714,
-      "ts_delta_us": 23413,
+      "ts_us": 985631,
+      "ts_delta_us": 31354,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -229,8 +232,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1016825,
-      "ts_delta_us": 24111,
+      "ts_us": 1001663,
+      "ts_delta_us": 16032,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -246,8 +249,8 @@
     },
     {
       "idx": 6,
-      "ts_us": 1032840,
-      "ts_delta_us": 16015,
+      "ts_us": 1025520,
+      "ts_delta_us": 23857,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -263,8 +266,8 @@
     },
     {
       "idx": 7,
-      "ts_us": 1056685,
-      "ts_delta_us": 23845,
+      "ts_us": 1049521,
+      "ts_delta_us": 24001,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -280,8 +283,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 1084663,
-      "ts_delta_us": 27978,
+      "ts_us": 1077762,
+      "ts_delta_us": 28241,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -297,8 +300,8 @@
     },
     {
       "idx": 9,
-      "ts_us": 1112756,
-      "ts_delta_us": 28093,
+      "ts_us": 1097622,
+      "ts_delta_us": 19860,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -314,8 +317,8 @@
     },
     {
       "idx": 10,
-      "ts_us": 1148887,
-      "ts_delta_us": 36131,
+      "ts_us": 1121734,
+      "ts_delta_us": 24112,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -331,8 +334,8 @@
     },
     {
       "idx": 11,
-      "ts_us": 1168771,
-      "ts_delta_us": 19884,
+      "ts_us": 1141727,
+      "ts_delta_us": 19993,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -348,8 +351,8 @@
     },
     {
       "idx": 12,
-      "ts_us": 1208723,
-      "ts_delta_us": 39952,
+      "ts_us": 1157675,
+      "ts_delta_us": 15948,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -365,8 +368,8 @@
     },
     {
       "idx": 13,
-      "ts_us": 1236717,
-      "ts_delta_us": 27994,
+      "ts_us": 1181685,
+      "ts_delta_us": 24010,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -382,8 +385,8 @@
     },
     {
       "idx": 14,
-      "ts_us": 1252740,
-      "ts_delta_us": 16023,
+      "ts_us": 1205748,
+      "ts_delta_us": 24063,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -399,8 +402,8 @@
     },
     {
       "idx": 15,
-      "ts_us": 1292847,
-      "ts_delta_us": 40107,
+      "ts_us": 1221621,
+      "ts_delta_us": 15873,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -416,8 +419,8 @@
     },
     {
       "idx": 16,
-      "ts_us": 1312774,
-      "ts_delta_us": 19927,
+      "ts_us": 1245637,
+      "ts_delta_us": 24016,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -433,8 +436,8 @@
     },
     {
       "idx": 17,
-      "ts_us": 1352744,
-      "ts_delta_us": 39970,
+      "ts_us": 1265724,
+      "ts_delta_us": 20087,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -450,8 +453,8 @@
     },
     {
       "idx": 18,
-      "ts_us": 1396741,
-      "ts_delta_us": 43997,
+      "ts_us": 1281710,
+      "ts_delta_us": 15986,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -467,8 +470,76 @@
     },
     {
       "idx": 19,
-      "ts_us": 1400356,
-      "ts_delta_us": 3615,
+      "ts_us": 1313652,
+      "ts_delta_us": 31942,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "30841 → 31355, len=31869",
+      "fields": {
+        "src_port": 30841,
+        "dst_port": 31355,
+        "length": 31869
+      }
+    },
+    {
+      "idx": 20,
+      "ts_us": 1349718,
+      "ts_delta_us": 36066,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "16449 → 16963, len=17477",
+      "fields": {
+        "src_port": 16449,
+        "dst_port": 16963,
+        "length": 17477
+      }
+    },
+    {
+      "idx": 21,
+      "ts_us": 1373524,
+      "ts_delta_us": 23806,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "2057 → 2571, len=3085",
+      "fields": {
+        "src_port": 2057,
+        "dst_port": 2571,
+        "length": 3085
+      }
+    },
+    {
+      "idx": 22,
+      "ts_us": 1397685,
+      "ts_delta_us": 24161,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UDP",
+      "summary": "53457 → 53971, len=54485",
+      "fields": {
+        "src_port": 53457,
+        "dst_port": 53971,
+        "length": 54485
+      }
+    },
+    {
+      "idx": 23,
+      "ts_us": 1400130,
+      "ts_delta_us": 2445,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -487,6 +558,7 @@
         "message_type": 2,
         "return_code": 0,
         "sd_flags": 192,
+        "sd_reserved": 0,
         "sd_entries": [
           {
             "type": 1,
@@ -528,77 +600,9 @@
       }
     },
     {
-      "idx": 20,
-      "ts_us": 1416696,
-      "ts_delta_us": 16340,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "30841 → 31355, len=31869",
-      "fields": {
-        "src_port": 30841,
-        "dst_port": 31355,
-        "length": 31869
-      }
-    },
-    {
-      "idx": 21,
-      "ts_us": 1440598,
-      "ts_delta_us": 23902,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "16449 → 16963, len=17477",
-      "fields": {
-        "src_port": 16449,
-        "dst_port": 16963,
-        "length": 17477
-      }
-    },
-    {
-      "idx": 22,
-      "ts_us": 1456882,
-      "ts_delta_us": 16284,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "2057 → 2571, len=3085",
-      "fields": {
-        "src_port": 2057,
-        "dst_port": 2571,
-        "length": 3085
-      }
-    },
-    {
-      "idx": 23,
-      "ts_us": 1492728,
-      "ts_delta_us": 35846,
-      "direction": "dut_to_tester",
-      "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "53457 → 53971, len=54485",
-      "fields": {
-        "src_port": 53457,
-        "dst_port": 53971,
-        "length": 54485
-      }
-    },
-    {
       "idx": 24,
-      "ts_us": 1516866,
-      "ts_delta_us": 24138,
+      "ts_us": 1421711,
+      "ts_delta_us": 21581,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -614,8 +618,8 @@
     },
     {
       "idx": 25,
-      "ts_us": 1536890,
-      "ts_delta_us": 20024,
+      "ts_us": 1465666,
+      "ts_delta_us": 43955,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -631,8 +635,8 @@
     },
     {
       "idx": 26,
-      "ts_us": 1564751,
-      "ts_delta_us": 27861,
+      "ts_us": 1497597,
+      "ts_delta_us": 31931,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -648,8 +652,8 @@
     },
     {
       "idx": 27,
-      "ts_us": 1592735,
-      "ts_delta_us": 27984,
+      "ts_us": 1521744,
+      "ts_delta_us": 24147,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -665,8 +669,8 @@
     },
     {
       "idx": 28,
-      "ts_us": 1620801,
-      "ts_delta_us": 28066,
+      "ts_us": 1549680,
+      "ts_delta_us": 27936,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -682,8 +686,8 @@
     },
     {
       "idx": 29,
-      "ts_us": 1636786,
-      "ts_delta_us": 15985,
+      "ts_us": 1581656,
+      "ts_delta_us": 31976,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -699,8 +703,8 @@
     },
     {
       "idx": 30,
-      "ts_us": 1668852,
-      "ts_delta_us": 32066,
+      "ts_us": 1605602,
+      "ts_delta_us": 23946,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -716,8 +720,8 @@
     },
     {
       "idx": 31,
-      "ts_us": 1700756,
-      "ts_delta_us": 31904,
+      "ts_us": 1621748,
+      "ts_delta_us": 16146,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -733,8 +737,8 @@
     },
     {
       "idx": 32,
-      "ts_us": 1720819,
-      "ts_delta_us": 20063,
+      "ts_us": 1641763,
+      "ts_delta_us": 20015,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -750,8 +754,8 @@
     },
     {
       "idx": 33,
-      "ts_us": 1744912,
-      "ts_delta_us": 24093,
+      "ts_us": 1657790,
+      "ts_delta_us": 16027,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -767,8 +771,8 @@
     },
     {
       "idx": 34,
-      "ts_us": 1764754,
-      "ts_delta_us": 19842,
+      "ts_us": 1693661,
+      "ts_delta_us": 35871,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -784,8 +788,8 @@
     },
     {
       "idx": 35,
-      "ts_us": 1792810,
-      "ts_delta_us": 28056,
+      "ts_us": 1725646,
+      "ts_delta_us": 31985,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -801,8 +805,8 @@
     },
     {
       "idx": 36,
-      "ts_us": 1816790,
-      "ts_delta_us": 23980,
+      "ts_us": 1745939,
+      "ts_delta_us": 20293,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -818,8 +822,8 @@
     },
     {
       "idx": 37,
-      "ts_us": 1840846,
-      "ts_delta_us": 24056,
+      "ts_us": 1773907,
+      "ts_delta_us": 27968,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -835,8 +839,8 @@
     },
     {
       "idx": 38,
-      "ts_us": 1868806,
-      "ts_delta_us": 27960,
+      "ts_us": 1797783,
+      "ts_delta_us": 23876,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -852,8 +856,8 @@
     },
     {
       "idx": 39,
-      "ts_us": 1892583,
-      "ts_delta_us": 23777,
+      "ts_us": 1833763,
+      "ts_delta_us": 35980,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -869,8 +873,8 @@
     },
     {
       "idx": 40,
-      "ts_us": 1944870,
-      "ts_delta_us": 52287,
+      "ts_us": 1849705,
+      "ts_delta_us": 15942,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -886,8 +890,8 @@
     },
     {
       "idx": 41,
-      "ts_us": 1972802,
-      "ts_delta_us": 27932,
+      "ts_us": 1865800,
+      "ts_delta_us": 16095,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -903,8 +907,8 @@
     },
     {
       "idx": 42,
-      "ts_us": 2008809,
-      "ts_delta_us": 36007,
+      "ts_us": 1881644,
+      "ts_delta_us": 15844,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -920,8 +924,8 @@
     },
     {
       "idx": 43,
-      "ts_us": 2032874,
-      "ts_delta_us": 24065,
+      "ts_us": 1897959,
+      "ts_delta_us": 16315,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -937,8 +941,8 @@
     },
     {
       "idx": 44,
-      "ts_us": 2064615,
-      "ts_delta_us": 31741,
+      "ts_us": 1929744,
+      "ts_delta_us": 31785,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -954,8 +958,8 @@
     },
     {
       "idx": 45,
-      "ts_us": 2084730,
-      "ts_delta_us": 20115,
+      "ts_us": 1957729,
+      "ts_delta_us": 27985,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -971,8 +975,8 @@
     },
     {
       "idx": 46,
-      "ts_us": 2120800,
-      "ts_delta_us": 36070,
+      "ts_us": 1977644,
+      "ts_delta_us": 19915,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -988,8 +992,8 @@
     },
     {
       "idx": 47,
-      "ts_us": 2144725,
-      "ts_delta_us": 23925,
+      "ts_us": 2001758,
+      "ts_delta_us": 24114,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -1005,8 +1009,8 @@
     },
     {
       "idx": 48,
-      "ts_us": 2172728,
-      "ts_delta_us": 28003,
+      "ts_us": 2025804,
+      "ts_delta_us": 24046,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -1022,8 +1026,8 @@
     },
     {
       "idx": 49,
-      "ts_us": 2708871,
-      "ts_delta_us": 536143,
+      "ts_us": 2541858,
+      "ts_delta_us": 516054,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -1039,11 +1043,11 @@
     },
     {
       "idx": 50,
-      "ts_us": 2708993,
-      "ts_delta_us": 122,
+      "ts_us": 2542093,
+      "ts_delta_us": 235,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "fe:1d:90:4b:51:74",
+      "dst_mac": "56:24:e0:5b:b0:76",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UDP",

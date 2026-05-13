@@ -1,56 +1,16 @@
 {
   "case_id": "TCP_UNACCEPTABLE_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:44:54Z",
+  "captured_at": "2026-05-13T07:16:32Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "b2:05:1f:15:b9:1e",
-  "dut_ip": "172.16.0.1",
+  "dut_mac": null,
+  "dut_ip": null,
   "packets": [
     {
       "idx": 0,
       "ts_us": 0,
       "ts_delta_us": 0,
-      "direction": "tester_to_dut",
-      "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "b2:05:1f:15:b9:1e",
-      "src_ip": "172.16.0.2",
-      "dst_ip": "172.16.0.1",
-      "protocol": "TCP",
-      "summary": "49661 → 23617 [ACK|FIN] seq=2413866667 ack=270544961 win=64240",
-      "fields": {
-        "src_port": 49661,
-        "dst_port": 23617,
-        "seq": 2413866667,
-        "ack": 270544961,
-        "flags": "ACK|FIN",
-        "window": 64240
-      }
-    },
-    {
-      "idx": 1,
-      "ts_us": 7,
-      "ts_delta_us": 7,
-      "direction": "dut_to_tester",
-      "src_mac": "b2:05:1f:15:b9:1e",
-      "dst_mac": "6e:16:3b:ea:29:ea",
-      "src_ip": "172.16.0.1",
-      "dst_ip": "172.16.0.2",
-      "protocol": "TCP",
-      "summary": "23617 → 49661 [RST] seq=270544961 ack=0 win=0",
-      "fields": {
-        "src_port": 23617,
-        "dst_port": 49661,
-        "seq": 270544961,
-        "ack": 0,
-        "flags": "RST",
-        "window": 0
-      }
-    },
-    {
-      "idx": 2,
-      "ts_us": 1724041,
-      "ts_delta_us": 1724034,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -68,29 +28,29 @@
       }
     },
     {
-      "idx": 3,
-      "ts_us": 1724054,
-      "ts_delta_us": 13,
+      "idx": 1,
+      "ts_us": 22,
+      "ts_delta_us": 22,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "b2:05:1f:15:b9:1e",
+      "dst_mac": "46:55:00:e4:66:5e",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "12345 → 49152 [SYN|ACK] seq=321769440 ack=270544961 win=64240",
+      "summary": "12345 → 49152 [SYN|ACK] seq=4191280328 ack=270544961 win=64240",
       "fields": {
         "src_port": 12345,
         "dst_port": 49152,
-        "seq": 321769440,
+        "seq": 4191280328,
         "ack": 270544961,
         "flags": "SYN|ACK",
         "window": 64240
       }
     },
     {
-      "idx": 4,
-      "ts_us": 1967994,
-      "ts_delta_us": 243940,
+      "idx": 2,
+      "ts_us": 232015,
+      "ts_delta_us": 231993,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -108,9 +68,9 @@
       }
     },
     {
-      "idx": 5,
-      "ts_us": 2207989,
-      "ts_delta_us": 239995,
+      "idx": 3,
+      "ts_us": 459917,
+      "ts_delta_us": 227902,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -128,20 +88,20 @@
       }
     },
     {
-      "idx": 6,
-      "ts_us": 2208006,
-      "ts_delta_us": 17,
+      "idx": 4,
+      "ts_us": 459939,
+      "ts_delta_us": 22,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "b2:05:1f:15:b9:1e",
+      "dst_mac": "46:55:00:e4:66:5e",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "12345 → 49153 [SYN|ACK] seq=2965391664 ack=270544961 win=64240",
+      "summary": "12345 → 49153 [SYN|ACK] seq=2539559710 ack=270544961 win=64240",
       "fields": {
         "src_port": 12345,
         "dst_port": 49153,
-        "seq": 2965391664,
+        "seq": 2539559710,
         "ack": 270544961,
         "flags": "SYN|ACK",
         "window": 64240

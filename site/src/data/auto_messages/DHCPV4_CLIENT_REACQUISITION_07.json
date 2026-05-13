@@ -74,6 +74,11 @@
     },
     {
       "idx": 14,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 15,
       "role": "expected",
       "label": "Phase 4 (listening_for_lease_release) progress trigger — advances to listening_for_no_unbound_request. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     }

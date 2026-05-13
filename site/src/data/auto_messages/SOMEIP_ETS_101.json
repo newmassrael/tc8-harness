@@ -86,6 +86,11 @@
       "idx": 16,
       "role": "stimulus",
       "label": "Phase 3 (listening_phase3_burst_window) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 17,
+      "role": "stimulus",
+      "label": "Phase 3 (listening_phase3_burst_window) — Tester stimulus (no transition matched)"
     }
   ]
 }
