@@ -122,6 +122,14 @@ jobs:
       - name: Sanitize captures
         run: python3 site/scripts/sanitize_pcap.py .pcap-data/site/src/data/pcap
 
+      - name: Trim oversize captures
+        # GitHub rejects files >100 MB. SOMEIP_ETS_152's wrap-around test
+        # bursts ~100k SubscribeEventgroup frames in ~150s, producing a
+        # ~155 MB decoded JSON. Cap to head + tail with a synthetic
+        # ``[truncated]`` marker so the site timeline still renders the
+        # informative portions without tripping the repo file-size limit.
+        run: python3 site/scripts/trim_pcap.py .pcap-data/site/src/data/pcap
+
       - name: Auto-generate per-packet messages
         # Walk every freshly-decoded pcap, parse the inlined SCXML in the
         # main-branch case manifest, and emit per-idx role/label JSON
