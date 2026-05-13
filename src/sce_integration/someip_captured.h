@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <string>
 
 #include "tc8/protocol_frames/someip_frame.h"
 
+#include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
 namespace tc8 {
@@ -629,6 +632,39 @@ inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, s
     c.sd_option_count = parsed;
     c.sd_ipv4_endpoint_count = endpoint_count;
     c.sd_ipv4_multicast_count = multicast_count;
+}
+
+// Trace-recording hook (Evidence Export). See arp_captured.h for the
+// design overview; this overload exposes the §5.1 cond-gating subset
+// (service/method/client/session ids + msg_type + return_code +
+// transport 4-tuple) without enumerating the bulky SD entry/option
+// arrays — those rarely drive verdict-decider disclosure.
+inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
+    char buf[64];
+    auto emit_u = [&](const char *key, unsigned v) {
+        out.append(key);
+        std::snprintf(buf, sizeof(buf), "%u", v);
+        out.append(buf);
+    };
+    out.append("{");
+    emit_u("\"service_id\":", c.service_id);
+    emit_u(",\"method_id\":", c.method_id);
+    emit_u(",\"client_id\":", c.client_id);
+    emit_u(",\"session_id\":", c.session_id);
+    emit_u(",\"message_type\":", c.message_type);
+    emit_u(",\"return_code\":", c.return_code);
+    emit_u(",\"payload_len\":", c.payload_len);
+    out.append(",\"src_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.src_ip);
+    out.append(",\"dst_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
+    emit_u(",\"src_port\":", c.src_port);
+    emit_u(",\"dst_port\":", c.dst_port);
+    if (c.sd_entry_count != 0) {
+        emit_u(",\"sd_entry_count\":", c.sd_entry_count);
+        emit_u(",\"sd_option_count\":", c.sd_option_count);
+    }
+    out.append("}");
 }
 
 }  // namespace tc8

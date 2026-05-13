@@ -412,13 +412,24 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
 
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_s_);
 
+    // Evidence Export (Option 3) — every frame appended to the saved pcap
+    // gets a monotonic index, surfaced to the runner BEFORE
+    // pipeline.processFrame so the resulting transition (if any) can be
+    // correlated back. -1 stays the default (no pcap dumper, or frame
+    // dropped pre-dump); transitions recorded at -1 surface as
+    // verdict-decider-not-retained case notes via the site walker.
+    int next_pcap_frame_idx = 0;
+
     while (!SignalGuard::stopRequested() && !runner->isDone() && std::chrono::steady_clock::now() < deadline) {
         const int n = src->dispatch(
             /*max_frames=*/-1,
             [&](const pcap_pkthdr &hdr, const u_char *data) {
+                int this_frame_idx = -1;
                 if (dumper != nullptr) {
                     pcap_dump(reinterpret_cast<u_char *>(dumper), &hdr, data);
+                    this_frame_idx = next_pcap_frame_idx++;
                 }
+                runner->setNextPcapFrameIdx(this_frame_idx);
                 pipeline.processFrame(hdr, data, dlt);
             });
         if (n == -2) {
@@ -440,9 +451,12 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
             n2 = src2->dispatch(
                 /*max_frames=*/-1,
                 [&](const pcap_pkthdr &hdr, const u_char *data) {
+                    int this_frame_idx = -1;
                     if (dumper != nullptr) {
                         pcap_dump(reinterpret_cast<u_char *>(dumper), &hdr, data);
+                        this_frame_idx = next_pcap_frame_idx++;
                     }
+                    runner->setNextPcapFrameIdx(this_frame_idx);
                     pipeline.processFrame(hdr, data, dlt2);
                 });
             if (n2 == -2) {
@@ -470,6 +484,34 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     if (dumper != nullptr) {
         pcap_dump_close(dumper);
     }
+
+    // Evidence Export (Option 3) — emit the transition trace alongside the
+    // pcap so decode_pcap.py can merge it into the per-case JSON. The
+    // sidecar path is the pcap path with ``.pcap`` replaced by
+    // ``.trace.json`` (or ``<pcap>.trace.json`` when there's no .pcap
+    // suffix). Skipped silently when --pcap-dump wasn't requested — a
+    // run without a retained pcap has no frame-idx correlation anchor,
+    // so the walker has no use for the trace.
+    if (!pcap_dump_path_.empty()) {
+        std::string trace_path = pcap_dump_path_;
+        const auto suffix_pos = trace_path.rfind(".pcap");
+        if (suffix_pos != std::string::npos &&
+            suffix_pos == trace_path.size() - 5) {
+            trace_path.replace(suffix_pos, 5, ".trace.json");
+        } else {
+            trace_path.append(".trace.json");
+        }
+        const std::string trace_json = runner->dumpTraceJson();
+        if (FILE *fp = std::fopen(trace_path.c_str(), "wb")) {
+            std::fwrite(trace_json.data(), 1, trace_json.size(), fp);
+            std::fclose(fp);
+        } else {
+            std::fprintf(stderr,
+                         "warning: failed to write trace JSON to '%s'\n",
+                         trace_path.c_str());
+        }
+    }
+
     return verdict == "pass" ? 0 : 1;
 }
 

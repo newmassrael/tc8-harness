@@ -5,10 +5,12 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "tc8/captured_event.h"
 
+#include "captured_trace.h"
 #include "test_case_traits.h"
 #include "test_config.h"
 
@@ -161,6 +163,23 @@ public:
 
     virtual bool isDone() const = 0;
     virtual std::string_view verdict() const = 0;
+
+    // Evidence Export (Option 3 SSOT): the CLI dispatch callback calls
+    // ``setNextPcapFrameIdx`` with the saved-pcap frame index right
+    // before each ``pipeline.processFrame`` so a transition fired by
+    // the resulting ``onCaptured`` can be correlated back to a packet
+    // in the persisted pcap. Set to ``-1`` for frames that are not
+    // retained in the saved pcap (no dumper, or pre-filter drop) — any
+    // transition recorded while the slot holds -1 is treated as
+    // "verdict-decider not retained" by the site walker.
+    virtual void setNextPcapFrameIdx(int idx) = 0;
+
+    // Serialize the recorded transition trace as a JSON object compatible
+    // with site/scripts/generate_messages.py's ``captured_trace`` schema.
+    // Always returns valid JSON — at minimum
+    // ``{"schema_version":1,"steps":[]}`` for a case that fired no
+    // transitions before its deadline.
+    virtual std::string dumpTraceJson() const = 0;
 };
 
 // Drives an AOT-compiled SCXML state machine for a single TC8 test case.
@@ -224,6 +243,7 @@ public:
     }
 
     void onCaptured(const ::tc8::CapturedEvent &ev) override {
+        const State before = sm_.getCurrentState();
         if constexpr (has_iface_dispatch_v<Traits>) {
             // Cases that emit follow-up stimulus inside dispatch (e.g.
             // §4.5.6.2 ADDRESS_SELECTION_14's self-loop conflict cycle)
@@ -234,11 +254,23 @@ public:
         } else {
             Traits::dispatch(captured_, sm_, ev);
         }
+        const State after = sm_.getCurrentState();
+        if (before != after) {
+            // Frame-driven transition fired. Record the step before any
+            // subsequent `tick()` mutates state further — captured_'s
+            // post-dispatch field values are the ground truth the SCXML
+            // cond evaluated against.
+            recordTransition(before, after,
+                             /*event_name=*/eventNameForFrame(ev),
+                             /*pcap_frame_idx=*/next_pcap_frame_idx_);
+        }
+        next_pcap_frame_idx_ = -1;  // consumed
     }
 
     void tick() override {
         drainDueStimulus();
 
+        const State before = sm_.getCurrentState();
         // Use tick() (not step()) so the SCE scheduler pumps ready timers
         // into the event queue before eventless transitions run. Absence
         // cases like §4.2.4.1 ARP_03/05 rely on a `<send event="..."
@@ -247,6 +279,17 @@ public:
         // event stuck in the scheduler until another external event
         // arrives (which never happens in the absence flow).
         sm_.tick();
+        const State after = sm_.getCurrentState();
+        if (before != after) {
+            // Tick-driven transition — typically a ``deadline_exceeded``
+            // timer firing or a scheduled stimulus action that raised an
+            // event the SM consumed. No retained pcap frame; record with
+            // ``pcap_frame_idx = -1`` so the walker surfaces it as a
+            // synthetic verdict-decider note.
+            recordTransition(before, after,
+                             /*event_name=*/"deadline_exceeded",
+                             /*pcap_frame_idx=*/-1);
+        }
 
         // Detect the SCXML having entered any state with registered
         // observers AS A RESULT OF this tick (a `<send delay=…/>`
@@ -254,6 +297,46 @@ public:
         // `sm_.tick()` so the observer sees the post-step state and
         // fires inside the same poll iteration, not one cadence later.
         drainStateEntryObservers();
+    }
+
+    void setNextPcapFrameIdx(int idx) override {
+        next_pcap_frame_idx_ = idx;
+    }
+
+    std::string dumpTraceJson() const override {
+        std::string out;
+        out.reserve(256 + trace_.size() * 192);
+        out.append("{\"schema_version\":1");
+        out.append(",\"final_state\":\"");
+        ::tc8::sce::appendJsonEscaped(
+            out, StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
+        out.append("\",\"steps\":[");
+        for (std::size_t i = 0; i < trace_.size(); ++i) {
+            if (i != 0) out.append(",");
+            const auto &s = trace_[i];
+            out.append("{\"step\":");
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "%d", s.step_idx);
+            out.append(buf);
+            out.append(",\"event\":\"");
+            ::tc8::sce::appendJsonEscaped(out, s.event_name);
+            out.append("\",\"from_state\":\"");
+            ::tc8::sce::appendJsonEscaped(out, s.from_state_name);
+            out.append("\",\"to_state\":\"");
+            ::tc8::sce::appendJsonEscaped(out, s.to_state_name);
+            out.append("\",\"pcap_frame_idx\":");
+            if (s.pcap_frame_idx >= 0) {
+                std::snprintf(buf, sizeof(buf), "%d", s.pcap_frame_idx);
+                out.append(buf);
+            } else {
+                out.append("null");
+            }
+            out.append(",\"captured_delta\":");
+            out.append(s.captured_json);
+            out.append("}");
+        }
+        out.append("]}");
+        return out;
     }
 
     bool isDone() const override {
@@ -354,6 +437,54 @@ private:
         }
     }
 
+    // Resolve the SCXML event id string from a CapturedEvent variant
+    // alternative. The mapping mirrors each protocol's per-trait
+    // ``raiseExternal(Event::Foo_observed)`` convention (SD/notification
+    // cases use ``someip_notification`` instead of ``_observed``);
+    // imperatively-raised custom events (e.g. ipv4_linklocal_common's
+    // ``spec.conflicts_complete_event``) flow through onCaptured along
+    // a frame variant so the recorded name is the FRAME-driven one and
+    // not the custom event — the walker tolerates this by relaxing its
+    // event-name match (cond_text is still recoverable via from→to
+    // pair). Returns an empty string for variant types this build does
+    // not know about (defensive — current CapturedEvent has 7
+    // alternatives, all mapped below).
+    static const char *eventNameForFrame(const ::tc8::CapturedEvent &ev) {
+        return std::visit(
+            [](const auto &f) -> const char * {
+                using T = std::decay_t<decltype(f)>;
+                if constexpr (std::is_same_v<T, ::tc8::ArpFrame>)
+                    return "arp_observed";
+                else if constexpr (std::is_same_v<T, ::tc8::Icmpv4Frame>)
+                    return "icmp_observed";
+                else if constexpr (std::is_same_v<T, ::tc8::Ipv4Frame>)
+                    return "ipv4_observed";
+                else if constexpr (std::is_same_v<T, ::tc8::UdpFrame>)
+                    return "udp_observed";
+                else if constexpr (std::is_same_v<T, ::tc8::Dhcpv4Frame>)
+                    return "dhcp_observed";
+                else if constexpr (std::is_same_v<T, ::tc8::TcpFrame>)
+                    return "tcp_observed";
+                else if constexpr (std::is_same_v<T, ::tc8::SomeIpFrame>)
+                    return "someip_notification";
+                else
+                    return "";
+            },
+            ev);
+    }
+
+    void recordTransition(State from, State to, const char *event_name,
+                          int pcap_frame_idx) {
+        ::tc8::sce::TransitionStep step;
+        step.step_idx = static_cast<int>(trace_.size());
+        step.event_name = event_name;
+        step.from_state_name = StateMachine::PolicyType::getStateName(from);
+        step.to_state_name = StateMachine::PolicyType::getStateName(to);
+        step.pcap_frame_idx = pcap_frame_idx;
+        appendCapturedJson(step.captured_json, captured_);  // ADL
+        trace_.push_back(std::move(step));
+    }
+
     ::tc8::TestConfig                  cfg_;
     Captured                           captured_;
     Expected                           expected_;
@@ -362,6 +493,16 @@ private:
     std::vector<StateEntryObserver>    state_entry_observers_;
     int                                last_state_id_ = -1;
     std::string                        iface_;
+    // Evidence Export ledger — appended-to on every state change observed
+    // in onCaptured / tick. The walker reads this from the saved pcap's
+    // sidecar JSON to render the timeline (single source of truth for
+    // verdict-deciding evidence).
+    std::vector<::tc8::sce::TransitionStep> trace_;
+    // Buffer for the CLI dispatch loop's "the NEXT incoming captured
+    // event corresponds to frame index N in the saved pcap" hint. Reset
+    // to -1 on consumption inside onCaptured so a subsequent tick-driven
+    // transition doesn't mis-attribute itself to the last frame.
+    int                                next_pcap_frame_idx_ = -1;
 };
 
 }  // namespace tc8::sce

@@ -41,4 +41,16 @@ inline void applyTestConfig(UdpAndDhcpv4Captured & /*c*/,
                             const TestConfig & /*cfg*/) {
 }
 
+// Trace-recording hook (Evidence Export). Emits both sub-contexts in a
+// nested object so a verdict-decider case-note can show UDP and DHCPv4
+// fields side-by-side without the walker having to know about the
+// composite shape.
+inline void appendCapturedJson(std::string &out, const UdpAndDhcpv4Captured &c) {
+    out.append("{\"udp\":");
+    appendCapturedJson(out, c.udp);
+    out.append(",\"dhcpv4\":");
+    appendCapturedJson(out, c.dhcpv4);
+    out.append("}");
+}
+
 }  // namespace tc8

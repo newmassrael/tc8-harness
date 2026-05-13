@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdio>
+#include <string>
 
 #include "tc8/protocol_frames/dhcpv4_frame.h"
 
+#include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
 namespace tc8 {
@@ -568,6 +571,45 @@ inline void fillDhcpv4CapturedFromFrame(Dhcpv4Captured &c, const Dhcpv4Frame &f)
     c.options_data = f.options_data;
     c.options_len  = f.options_len;
     c.observed_ts_us = f.observed_ts_us;
+}
+
+// Trace-recording hook (Evidence Export). See arp_captured.h for the
+// design overview; this overload exposes the §4.7 cond-gating subset
+// (BOOTP op + message_type + IPs + xid + key addresses). Skips the
+// raw options blob since it's an unstable in-memory pointer at trace
+// time; the message_type alone disambiguates DISCOVER/OFFER/REQUEST/etc.
+inline void appendCapturedJson(std::string &out, const Dhcpv4Captured &c) {
+    char buf[64];
+    auto emit_u = [&](const char *key, unsigned v) {
+        out.append(key);
+        std::snprintf(buf, sizeof(buf), "%u", v);
+        out.append(buf);
+    };
+    out.append("{");
+    emit_u("\"op\":", c.op);
+    emit_u(",\"message_type\":", c.message_type);
+    emit_u(",\"htype\":", c.htype);
+    emit_u(",\"hlen\":", c.hlen);
+    out.append(",\"xid\":");
+    std::snprintf(buf, sizeof(buf), "%u", c.xid); out.append(buf);
+    emit_u(",\"flags\":", c.flags);
+    out.append(",\"src_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.src_ip);
+    out.append(",\"dst_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
+    emit_u(",\"src_port\":", c.src_port);
+    emit_u(",\"dst_port\":", c.dst_port);
+    out.append(",\"ciaddr\":");
+    ::tc8::sce::appendIpv4Json(out, c.ciaddr);
+    out.append(",\"yiaddr\":");
+    ::tc8::sce::appendIpv4Json(out, c.yiaddr);
+    out.append(",\"siaddr\":");
+    ::tc8::sce::appendIpv4Json(out, c.siaddr);
+    out.append(",\"eth_src\":");
+    ::tc8::sce::appendMacJson(out, c.eth_src);
+    out.append(",\"eth_dst\":");
+    ::tc8::sce::appendMacJson(out, c.eth_dst);
+    out.append("}");
 }
 
 }  // namespace tc8

@@ -33,6 +33,12 @@ public:
     std::string_view verdict() const override {
         return "pass";
     }
+
+    void setNextPcapFrameIdx(int /*idx*/) override {}
+
+    std::string dumpTraceJson() const override {
+        return "{\"schema_version\":1,\"steps\":[]}";
+    }
 };
 
 CaseEntry makeEntry(std::string_view id, bool deprecated = false) {

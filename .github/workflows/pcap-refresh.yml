@@ -108,8 +108,16 @@ jobs:
             name=$(basename "$pcap" .pcap)
             cid=${name^^}
             outcome="${OUTCOMES[$cid]:-pass}"
+            # Evidence Export — harness emits <pcap>.trace.json alongside
+            # every retained .pcap. decode_pcap.py merges the trace under
+            # ``captured_trace`` so the site walker renders the timeline
+            # from the harness's recorded transitions (single SSOT).
+            trace="${pcap%.pcap}.trace.json"
+            trace_arg=()
+            [[ -s "$trace" ]] && trace_arg=(--trace-json "$trace")
             if python3 site/scripts/decode_pcap.py "$cid" "$outcome" "$pcap" \
                  --captured-at "$captured_at" \
+                 "${trace_arg[@]}" \
                  --out ".pcap-data/site/src/data/pcap/${cid}.json"; then
               decoded=$((decoded+1))
             else

@@ -44,4 +44,15 @@ inline void applyTestConfig(ArpAndDhcpv4Captured & /*c*/,
                             const TestConfig & /*cfg*/) {
 }
 
+// Trace-recording hook (Evidence Export). Emits both sub-contexts in a
+// nested object so a verdict-decider case-note shows ARP and DHCPv4
+// fields side-by-side. Mirrors `UdpAndDhcpv4Captured`'s shape.
+inline void appendCapturedJson(std::string &out, const ArpAndDhcpv4Captured &c) {
+    out.append("{\"arp\":");
+    appendCapturedJson(out, c.arp);
+    out.append(",\"dhcpv4\":");
+    appendCapturedJson(out, c.dhcpv4);
+    out.append("}");
+}
+
 }  // namespace tc8

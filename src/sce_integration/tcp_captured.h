@@ -1,9 +1,12 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
+#include <string>
 
 #include "tc8/protocol_frames/tcp_frame.h"
 
+#include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
 namespace tc8 {
@@ -419,6 +422,37 @@ inline void fillTcpCapturedFromFrame(TcpCaptured &c, const TcpFrame &f) {
     c.checksum_valid = f.checksum_valid;
     c.mss            = f.mss;
     c.observed_ts_us = f.observed_ts_us;
+}
+
+// Trace-recording hook (Evidence Export). See arp_captured.h for the
+// design overview; this overload exposes the §4.8 cond-gating subset
+// (4-tuple + flags + seq/ack + MSS option + ut_established).
+inline void appendCapturedJson(std::string &out, const TcpCaptured &c) {
+    char buf[64];
+    auto emit_u = [&](const char *key, unsigned v) {
+        out.append(key);
+        std::snprintf(buf, sizeof(buf), "%u", v);
+        out.append(buf);
+    };
+    out.append("{\"src_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.src_ip);
+    out.append(",\"dst_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
+    emit_u(",\"src_port\":", c.src_port);
+    emit_u(",\"dst_port\":", c.dst_port);
+    emit_u(",\"seq_num\":", c.seq_num);
+    emit_u(",\"ack_num\":", c.ack_num);
+    emit_u(",\"flags\":", c.flags);
+    emit_u(",\"window\":", c.window);
+    emit_u(",\"data_offset\":", c.data_offset);
+    emit_u(",\"payload_len\":", c.payload_len);
+    if (c.mss != 0) {
+        emit_u(",\"mss\":", c.mss);
+    }
+    if (c.ut_established != 0xFF) {
+        emit_u(",\"ut_established\":", c.ut_established);
+    }
+    out.append("}");
 }
 
 }  // namespace tc8

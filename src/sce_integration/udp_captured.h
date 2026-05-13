@@ -4,10 +4,13 @@
 #include <array>
 #include <cstdint>
 #include <cstddef>
+#include <cstdio>
+#include <string>
 
 #include "tc8/protocol_frames/udp_frame.h"
 #include "tc8/upper_tester_protocol.h"
 
+#include "sce_integration/captured_trace.h"
 #include "test_config.h"
 #include "wire/ip_checksum.h"
 
@@ -291,6 +294,32 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
             }
         }
     }
+}
+
+// Trace-recording hook (Evidence Export). See arp_captured.h for the
+// design overview; this overload exposes the §4.6 cond-gating subset
+// (4-tuple + length/checksum + UT opcode/req/status when present).
+inline void appendCapturedJson(std::string &out, const UdpCaptured &c) {
+    char buf[64];
+    auto emit_u = [&](const char *key, unsigned v) {
+        out.append(key);
+        std::snprintf(buf, sizeof(buf), "%u", v);
+        out.append(buf);
+    };
+    out.append("{\"src_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.src_ip);
+    out.append(",\"dst_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
+    emit_u(",\"src_port\":", c.src_port);
+    emit_u(",\"dst_port\":", c.dst_port);
+    emit_u(",\"length\":", c.length);
+    emit_u(",\"checksum\":", c.checksum);
+    if (c.ut_opcode != 0 || c.ut_req_id != 0) {
+        emit_u(",\"ut_opcode\":", c.ut_opcode);
+        emit_u(",\"ut_req_id\":", c.ut_req_id);
+        emit_u(",\"ut_status\":", c.ut_status);
+    }
+    out.append("}");
 }
 
 }  // namespace tc8

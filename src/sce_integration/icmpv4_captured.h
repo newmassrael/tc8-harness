@@ -9,6 +9,7 @@
 
 #include "tc8/protocol_frames/icmpv4_frame.h"
 
+#include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
 namespace tc8 {
@@ -183,6 +184,34 @@ inline bool icmpv4EchoPayloadMatches(const Icmpv4Captured &c, std::string_view r
         return false;
     }
     return std::memcmp(c.payload_snapshot.data(), reference.data(), reference.size()) == 0;
+}
+
+// Trace-recording hook (Evidence Export). See arp_captured.h for the
+// design overview; this overload exposes the §4.3 cond-gating subset
+// (type/code + 4-tuple + Echo id/seq + Parameter Problem pointer).
+inline void appendCapturedJson(std::string &out, const Icmpv4Captured &c) {
+    char buf[64];
+    out.append("{\"type\":");
+    std::snprintf(buf, sizeof(buf), "%u", c.type); out.append(buf);
+    out.append(",\"code\":");
+    std::snprintf(buf, sizeof(buf), "%u", c.code); out.append(buf);
+    out.append(",\"src_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.src_ip);
+    out.append(",\"dst_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
+    if (c.echo_id != 0 || c.echo_seq != 0) {
+        out.append(",\"echo_id\":");
+        std::snprintf(buf, sizeof(buf), "%u", c.echo_id); out.append(buf);
+        out.append(",\"echo_seq\":");
+        std::snprintf(buf, sizeof(buf), "%u", c.echo_seq); out.append(buf);
+    }
+    if (c.icmp_pointer != 0) {
+        out.append(",\"icmp_pointer\":");
+        std::snprintf(buf, sizeof(buf), "%u", c.icmp_pointer); out.append(buf);
+    }
+    out.append(",\"payload_len\":");
+    std::snprintf(buf, sizeof(buf), "%u", c.payload_len); out.append(buf);
+    out.append("}");
 }
 
 }  // namespace tc8

@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import struct
+import sys
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
@@ -802,6 +803,12 @@ def main() -> int:
     ap.add_argument("--dut-ip")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--captured-at", default="")
+    ap.add_argument("--trace-json", type=Path,
+                    help="Path to harness-emitted transition trace JSON "
+                         "(Evidence Export). Merged into the output under "
+                         "``captured_trace``. Missing path is silently "
+                         "ignored — pre-trace pcaps stay backward "
+                         "compatible with the site walker's fallback path.")
     args = ap.parse_args()
 
     packets: list[Packet] = []
@@ -835,6 +842,21 @@ def main() -> int:
         "dut_mac": dut_mac, "dut_ip": dut_ip,
         "packets": [asdict(p) for p in packets],
     }
+
+    # Evidence Export — merge the harness-emitted transition trace if the
+    # sidecar exists. The harness writes <pcap>.trace.json alongside
+    # every retained .pcap (see src/cli/test_command.cpp::execute), so
+    # CI just passes ``--trace-json "${pcap%.pcap}.trace.json"``. Older
+    # pcaps without a sidecar fall through to the site walker's
+    # backward-compat cond-loop path.
+    if args.trace_json and args.trace_json.exists():
+        try:
+            out["captured_trace"] = json.loads(
+                args.trace_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"warning: malformed trace JSON {args.trace_json}: {exc}",
+                  file=sys.stderr)
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, indent=2, ensure_ascii=False),
                         encoding="utf-8")

@@ -3,10 +3,13 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdio>
+#include <string>
 
 #include "tc8/protocol_frames/arp_frame.h"
 #include "tc8/protocol_frames/udp_frame.h"
 
+#include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
 namespace tc8 {
@@ -263,6 +266,34 @@ inline void fillArpCapturedFromUdpFrame(ArpCaptured &c, const UdpFrame &u) {
     c.observed_udp_eth_dst = u.eth_dst;
     c.observed_udp_dst_ip = u.dst_ip;
     c.observed_ts_us = u.observed_ts_us;
+}
+
+// Trace-recording hook (Evidence Export). Resolved via ADL from
+// TestRunner<SM>::dumpTraceJson(); appends a JSON object capturing the
+// fields a reader of the verdict-decider case-note expects to see when
+// the matching wire frame is not retained in the saved pcap. Fields are
+// the same ones the §4.2 SCXML conds typically gate on (opcode +
+// sender_hw + sender/target proto IPs + observed_udp_*).
+inline void appendCapturedJson(std::string &out, const ArpCaptured &c) {
+    char buf[64];
+    out.append("{\"opcode\":");
+    std::snprintf(buf, sizeof(buf), "%u", c.opcode);
+    out.append(buf);
+    out.append(",\"sender_hw\":");
+    ::tc8::sce::appendMacJson(out, c.sender_hw);
+    out.append(",\"target_hw\":");
+    ::tc8::sce::appendMacJson(out, c.target_hw);
+    out.append(",\"sender_proto_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.sender_proto_ip);
+    out.append(",\"target_proto_ip\":");
+    ::tc8::sce::appendIpv4Json(out, c.target_proto_ip);
+    if (c.observed_udp_dst_ip != 0) {
+        out.append(",\"observed_udp_dst_ip\":");
+        ::tc8::sce::appendIpv4Json(out, c.observed_udp_dst_ip);
+        out.append(",\"observed_udp_eth_dst\":");
+        ::tc8::sce::appendMacJson(out, c.observed_udp_eth_dst);
+    }
+    out.append("}");
 }
 
 }  // namespace tc8
