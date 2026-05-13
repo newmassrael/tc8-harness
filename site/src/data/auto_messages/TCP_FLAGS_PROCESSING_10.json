@@ -44,16 +44,11 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 2 (absence_no_second_before_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 9,
       "role": "note",
       "label": "Phase 2 (absence_no_second_before_ack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 10,
+      "idx": 9,
       "role": "stimulus",
       "label": "Phase 2 (absence_no_second_before_ack) — Tester stimulus (no transition matched)"
     }

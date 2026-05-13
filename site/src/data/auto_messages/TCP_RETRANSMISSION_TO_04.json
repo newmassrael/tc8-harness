@@ -31,11 +31,6 @@
       "idx": 5,
       "role": "stimulus",
       "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
     }
   ]
 }

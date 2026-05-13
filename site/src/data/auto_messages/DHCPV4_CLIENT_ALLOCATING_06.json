@@ -4,13 +4,13 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_first_discover) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_for_first_discover) progress trigger — advances to listening_for_second_discover. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_first_discover) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_for_second_discover) pass trigger — transitions to pass. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     }
   ]
 }

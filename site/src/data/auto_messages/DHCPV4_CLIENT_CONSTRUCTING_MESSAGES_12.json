@@ -4,33 +4,33 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_d1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_for_d1) progress trigger — advances to listening_for_d2. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_d1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_for_d2) progress trigger — advances to listening_for_d3. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 2,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_d1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_for_d3) progress trigger — advances to listening_for_d4. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_d1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 4 (listening_for_d4) progress trigger — advances to listening_for_d5. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_d1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 5 (listening_for_d5) progress trigger — advances to listening_for_d6. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 5,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_d1) — Tester stimulus (no transition matched)"
+      "label": "Phase 6 (listening_for_d6) — Tester stimulus (no transition matched)"
     }
   ]
 }

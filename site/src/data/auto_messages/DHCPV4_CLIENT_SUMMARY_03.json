@@ -4,18 +4,18 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_for_discover) progress trigger — advances to listening_for_request. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_for_request) — DUT frame (no transition matched)"
     },
     {
       "idx": 2,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_for_request) pass trigger — transitions to pass. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     }
   ]
 }

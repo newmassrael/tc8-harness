@@ -46,11 +46,6 @@
       "idx": 8,
       "role": "stimulus",
       "label": "Phase 1 (listen_seg1_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 1 (listen_seg1_ack) — Tester stimulus (no transition matched)"
     }
   ]
 }

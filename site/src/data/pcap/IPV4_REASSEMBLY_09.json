@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_09",
   "outcome": "pass",
-  "captured_at": "2026-05-13T03:07:39Z",
+  "captured_at": "2026-05-13T03:34:59Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "5e:45:c1:4c:94:86",
+      "dst_mac": "a6:b1:56:17:47:12",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",

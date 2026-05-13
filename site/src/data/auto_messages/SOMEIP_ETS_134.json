@@ -54,13 +54,13 @@
     },
     {
       "idx": 10,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl == 0 and sd_entries[0].eventgroup_id == e…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 11,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl == 0 and sd_entries[0].eventgroup_id == e…"
     }
   ]
 }

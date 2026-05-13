@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_14",
   "outcome": "pass",
-  "captured_at": "2026-05-13T03:07:39Z",
+  "captured_at": "2026-05-13T03:34:59Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": null,
-  "dut_mac": "ca:f6:1c:65:ac:bb",
+  "dut_mac": "a6:3a:f6:08:11:8a",
   "dut_ip": null,
   "packets": [
     {
@@ -31,15 +31,15 @@
       "ts_us": 2,
       "ts_delta_us": 2,
       "direction": "dut_to_tester",
-      "src_mac": "ca:f6:1c:65:ac:bb",
+      "src_mac": "a6:3a:f6:08:11:8a",
       "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at ca:f6:1c:65:ac:bb",
+      "summary": "172.16.0.1 is at a6:3a:f6:08:11:8a",
       "fields": {
         "opcode": 2,
-        "sender_mac": "ca:f6:1c:65:ac:bb",
+        "sender_mac": "a6:3a:f6:08:11:8a",
         "sender_ip": "172.16.0.1",
         "target_mac": "6e:16:3b:ea:29:ea",
         "target_ip": "172.16.0.2"

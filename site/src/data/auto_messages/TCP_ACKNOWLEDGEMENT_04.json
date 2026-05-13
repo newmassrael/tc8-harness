@@ -31,11 +31,6 @@
       "idx": 5,
       "role": "expected",
       "label": "Phase 2 (listening_close_path) pass trigger — transitions to pass. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpAck04LocalOffset,…"
-    },
-    {
-      "idx": 6,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }
