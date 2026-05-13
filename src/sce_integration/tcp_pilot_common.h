@@ -133,7 +133,7 @@ inline constexpr std::uint32_t kOutOfWindowSeqOffset = 0x1000000U;
 // for the embryonic / fresh connection. 256 MB above the captured
 // ISN_d puts the ACK well past any plausible in-flight window. Used
 // by §4.8.6.3 UNACCEPTABLE_03 / _08 to drive the DUT's RFC 793
-// §3.4 unacceptable-ACK RST path.
+// RFC 793 §3.4 unacceptable-ACK RST path.
 inline constexpr std::uint32_t kUnacceptableAckOffset = 0x10000000U;
 
 // §4.8.6.9 TCP_MSS_OPTIONS raw-passive-handshake reservation block.
@@ -169,7 +169,7 @@ inline constexpr std::uint16_t kTcpMssOptions09Phase2LocalOffset  = 111U;
 
 // §4.8.6.1 BASICS_17 simultaneous-OPEN port-quad offset. Single
 // 4-tuple (DUT_local = tester_remote_port + offset, etc.) — RFC 793
-// §3.4 simultaneous-OPEN matches when both ends bind the same
+// RFC 793 §3.4 simultaneous-OPEN matches when both ends bind the same
 // (src_ip, src_port, dst_ip, dst_port) inverted pair, which is
 // what the helper's local_port + remote_port translation produces.
 inline constexpr std::uint16_t kTcpBasics17LocalOffset            = 120U;
@@ -1824,7 +1824,7 @@ inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
 //      ack = rcv_nxt - 1 (ISN_d + 1). The ack is RFC 793 acceptable
 //      (in [snd.una, snd.nxt]) but does NOT acknowledge the DUT FIN
 //      — DUT in FIN-WAIT-1 receives a non-acking FIN and per RFC
-//      793 §3.9 enters CLOSING. DUT replies pure ACK (which the
+//      793 RFC 793 §3.9 enters CLOSING. DUT replies pure ACK (which the
 //      ack_drop iptables rule does NOT block — it only matches
 //      pure ACKs egressing from the tester kernel, not DUT egress).
 //   4. Raw-inject tester ACK with seq = snd_nxt + 1 (ISN_t + 2,

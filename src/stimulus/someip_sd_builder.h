@@ -10,7 +10,7 @@
 namespace tc8::stimulus {
 
 // Target identity of a FindService — the "what we're looking for" half of
-// SOME/IP-SD §7.3 FindService semantics. Session ID and SD flags are not
+// SOME/IP-SD TR_SOMEIP §7.3 FindService semantics. Session ID and SD flags are not
 // part of the target (they belong to the emit cadence) and are set by
 // the low-level `FindServiceParams` or the high-level `emitFindServiceBoot`.
 struct FindServiceTarget {
@@ -95,7 +95,7 @@ int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target 
 
 
 // Tester endpoint advertised inside a SubscribeEventgroup's IPv4 Endpoint
-// option (SD §7.4.3). The DUT Ack/Nack is sent back to this address:port
+// option (SD TR_SOMEIP §7.4.3). The DUT Ack/Nack is sent back to this address:port
 // on UDP. `ipv4_be` is stored in network byte order (what sendto() wants
 // and what the option-array encoder streams onto the wire without swap).
 struct Ipv4Endpoint {
@@ -122,7 +122,7 @@ struct SubscribeEventgroupTarget {
     std::uint16_t eventgroup_id = 0x0001;  // SdConsumedEventGroupID
     std::uint8_t major_version = 1;
     std::uint32_t ttl = 3;        // seconds
-    std::uint8_t counter = 0;     // 4-bit subscribe counter (§7.1.3)
+    std::uint8_t counter = 0;     // 4-bit subscribe counter (TR_SOMEIP §7.1.3)
 };
 
 // Full parameters for one SubscribeEventgroup datagram — target identity

@@ -5,7 +5,7 @@
   Announces via OpStartLLAutoconfBuggy(flavor=AnnounceEthDstUnicast):
   Probes stay compliant so the precondition completes; the first
   Announce's Ethernet dst is set to the DUT iface MAC instead of
-  broadcast, violating RFC 3927 §2.4 / §2.5 last MUST.
+  broadcast, violating RFC 3927 §2.4 / RFC 3927 §2.5 last MUST.
 
   Pass = SCXML lands on fail_compliant_emit branch — i.e. the
   template's inverted pass_expr matched (eth_dst != broadcast).

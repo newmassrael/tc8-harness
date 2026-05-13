@@ -28,7 +28,7 @@ struct TestCaseTraits<cases::Arp38SM>
         "drop and emit its own ARP Request on subsequent UDP egress";
     // Stimulus: non-gratuitous Response where `target_proto_ip` is an
     // unused IPv4 host (172.16.0.99 — inside the /24 but unassigned). RFC
-    // 826 §2.3 step 4 ("Am I the target protocol address?") drops the
+    // 826 RFC 826 §2.3 step 4 ("Am I the target protocol address?") drops the
     // frame. DUT's cache stays cold for `tester_ip`. Same post-drop flow
     // as ARP_22/28.
     //

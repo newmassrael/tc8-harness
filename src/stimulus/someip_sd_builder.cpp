@@ -67,7 +67,7 @@ std::uint32_t ipv4OfInterface(std::string_view iface_name) {
 }  // namespace
 
 std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
-    // SOME/IP-SD §7.3 wire layout:
+    // SOME/IP-SD TR_SOMEIP §7.3 wire layout:
     //   [SOME/IP header 16B] [Flags 1B | Reserved 3B] [EntriesLen 4B]
     //   [Entry 16B] [OptionsLen 4B]
     //
@@ -505,7 +505,7 @@ int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target,
 }
 
 std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupParams &p) {
-    // SOME/IP-SD §7.3 + §7.1.3 wire layout for a SubscribeEventgroup:
+    // SOME/IP-SD TR_SOMEIP §7.3 + TR_SOMEIP §7.1.3 wire layout for a SubscribeEventgroup:
     //   [SOME/IP header 16B] [Flags 1B | Reserved 3B] [EntriesLen 4B]
     //   [Type 2 entry 16B]   [OptionsLen 4B] [IPv4 Endpoint option 12B]
     //
@@ -521,7 +521,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     //   12..13: Reserved (12b) | Counter (4b)
     //   14..15: Eventgroup ID
     //
-    // IPv4 Endpoint option (§7.4.3), 12B total:
+    // IPv4 Endpoint option (TR_SOMEIP §7.4.3), 12B total:
     //   0..1: Length = 9 (BE, option body size not counting the length field itself)
     //   2:    Type = 0x04 (IPv4 Endpoint)
     //   3:    Reserved = 0

@@ -2,7 +2,7 @@
 <!--
   TC8 §4.8.6.3 TCP_UNACCEPTABLE_03: TCP MUST send a RST after
   receiving an unacceptable ACK in SYN-RCVD state. Derived from RFC
-  793 §3.4 p35 Establishing a Connection (MUST).
+  793 RFC 793 §3.4 p35 Establishing a Connection (MUST).
 
   v3.0 Test Procedure (p301-p320.txt:328):
     1. TESTER: Cause DUT SYN-RCVD via passive open + tester SYN.
@@ -20,7 +20,7 @@
     d. snippet.tryCapture(500 ms)                         → ISN_d.
     e. tester raw-inject ACK(src=49152, ack=ISN_d + LARGE_OFFSET).
        The ACK acknowledges a byte the DUT has not sent — RFC 793
-       §3.4 p35 marks this "unacceptable" and Linux's
+       RFC 793 §3.4 p35 marks this "unacceptable" and Linux's
        `tcp_check_req` reaches `tcp_v4_send_reset` for the response.
     f. UT close.
 

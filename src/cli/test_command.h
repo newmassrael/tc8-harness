@@ -30,7 +30,7 @@ private:
     std::string iface_;
     // §4.7.6.5 USAGE_01 / RFC 2131 §3.6: optional second NIC for the
     // multi-interface DHCP procedure. Empty = single-iface case
-    // (today's path, every other §4.x case). When set, the harness
+    // (today's path, every other RFC 2131 §4.x case). When set, the harness
     // opens a second `PcapSource` and dispatches it round-robin with
     // the primary iface — both feed the same pipeline so SCXML guards
     // see a unified time-ordered event stream. Stimulus injection uses

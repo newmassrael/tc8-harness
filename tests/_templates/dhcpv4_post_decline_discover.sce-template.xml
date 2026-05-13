@@ -4,7 +4,7 @@
   DUT enters BOUND, emits ARP Probe, observes a tester-injected ARP
   Reply asserting the offered IP, emits DHCPDECLINE, and restarts the
   configuration process by emitting a fresh DHCPDISCOVER (RFC 2131
-  §3.1 first sentence MUST). Layered on top of the ALLOCATING_09
+  RFC 2131 §3.1 first sentence MUST). Layered on top of the ALLOCATING_09
   envelope plus a fifth listening state observing DISCOVER #2.
 
   Lifecycle (state count = 5):

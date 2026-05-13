@@ -140,7 +140,7 @@ struct TcpCaptured {
     //     injection + seg2 SEND (phase-2 verification: tcpi_rto
     //     stays at the doubled value — Karn's algorithm preserves
     //     RTO across retx-acknowledging ACKs per RFC 1122 §4.2.3.1
-    //     and RFC 6298 §3 / §5 step 5.3).
+    //     and RFC 6298 §3 / RFC 6298 §5 step 5.3).
     //
     // `_valid` sentinel mirrors the `ut_established == 0xFF` design:
     // false ⇒ stimulus never landed the snapshot (UT round-trip

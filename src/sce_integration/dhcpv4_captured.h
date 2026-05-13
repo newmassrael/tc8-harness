@@ -463,7 +463,7 @@ struct Dhcpv4Captured {
         return ciaddr == expected_be;
     }
 
-    // RFC 2132 §3 / §9.6 TLV walk: scan the captured options blob and
+    // RFC 2132 §3 / RFC 2132 §9.6 TLV walk: scan the captured options blob and
     // assert the absence of the option whose code = `code`. Returns
     // true (= invariant satisfied) iff no length-prefixed TLV with the
     // matching code is present before the END (0xFF) marker. PAD
@@ -494,7 +494,7 @@ struct Dhcpv4Captured {
         return false;  // fell off the end without END → malformed
     }
 
-    // RFC 2132 §3 / §9.6 TLV walk: scan the captured options blob for
+    // RFC 2132 §3 / RFC 2132 §9.6 TLV walk: scan the captured options blob for
     // a length-4 option matching `code` and compare its value to the
     // 4-byte NBO `expected_be` (`*_be == NBO bytes in memory`
     // convention). Returns false on absent option, on length mismatch,

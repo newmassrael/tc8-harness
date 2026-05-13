@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_INTRO_01";
+        "IPv4_AUTOCONF_INTRO_01";
     static constexpr std::string_view kSpecSection = "4.5.6.1";
     static constexpr std::string_view kDescription =
         "DUT does not assign IPv4 Link-Local address when DHCP-bound "
@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01SM> {
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
-    // Spec: lease_time_seconds = ParamListenTime*3 = 15 s (TC8 §3
+    // Spec: lease_time_seconds = ParamListenTime*3 = 15 s (TC8 RFC 3927 §3
     // ParamListenTime default is 5 s). Override the server emul
     // defaults so this case ships the spec-mandated lease without
     // mutating ServerEmulParams' static defaults (which other §4.7

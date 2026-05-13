@@ -26,7 +26,7 @@ namespace tc8 {
 //                     and captured.arp.target_proto_ip_in_link_local_prefix()"
 //               .../>
 //
-// First consumer: §4.5.6.1 IPV4_AUTOCONF_INTRO_01 (RFC 3927 §1.9) —
+// First consumer: §4.5.6.1 IPv4_AUTOCONF_INTRO_01 (RFC 3927 §1.9) —
 // DUT must complete DHCP successfully AND must NOT fall back to LL
 // probing after binding the routable lease. The two-protocol
 // observation is the SCXML's only way to express both invariants.

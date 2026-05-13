@@ -2,7 +2,7 @@
 <!--
   TC8 §4.8.6.1 TCP_BASICS_08: in ESTABLISHED or CLOSE-WAIT state, a
   CLOSE call MUST cause the DUT's TCP to emit a FIN. Derived from RFC
-  793 §3.2 p23 Terminology.
+  793 RFC 793 §3.2 p23 Terminology.
 
   v3.0 Test Procedure (p281-p300.txt:623) — two iterations:
     1. CASE: <wst> = ESTABLISHED

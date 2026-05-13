@@ -2,7 +2,7 @@
 <!--
   TC8 §4.8.6.17 TCP_SEQUENCE_01: from LISTEN, the DUT MUST acknowledge
   the tester's ISN by emitting SYN+ACK with ack_num == tester_seq+1
-  (RFC 793 §3.1 p13 Sequence Numbers, §3.4 p27 Three-Way Handshake).
+  (RFC 793 §3.1 p13 Sequence Numbers, RFC 793 §3.4 p27 Three-Way Handshake).
 
   v3.0 Test Procedure (p381-p400.txt:545-548):
     1. TESTER: Bring DUT to state LISTEN.

@@ -207,7 +207,7 @@ inline void emitStartLLAutoconfBuggy(
         /*tester_src_port=*/20100, req);
 }
 
-// §4.5.6.2 cadence-violation helper for IPV4_AUTOCONF_ADDRESS_SELECTION_10_NEG.
+// §4.5.6.2 cadence-violation helper for IPv4_AUTOCONF_ADDRESS_SELECTION_10_NEG.
 // Re-uses the standard 0x0C OpStartLLAutoconf opcode — cadence
 // violation is a parameter (probe_min/max), not a code path, so
 // fault-injection is unnecessary. 100 ms / 100 ms drives Probe2 ~
@@ -563,7 +563,7 @@ inline int emitArpRequestForDefenderTest(
 }
 
 // §4.5.6.5 LINKLOCAL_PACKETS_04 arbitrary link-local target. RFC 3927
-// §2.1 reserves 169.254.0.0/24 and 169.254.255.0/24 — a host claiming
+// RFC 3927 §2.1 reserves 169.254.0.0/24 and 169.254.255.0/24 — a host claiming
 // a link-local address MUST NOT pick from those ranges, so 169.254.0.1
 // is by construction never a DUT-claimed address. Spec step 9 calls for
 // "<ARBITRARY-IP-LINKLOCAL-ADDR>"; pinning a reserved-range value here

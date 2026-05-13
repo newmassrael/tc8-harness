@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.7 IPV4_REASSEMBLY_12: Check fragment with Low TTL value.
+  TC8 §4.4.4.7 IPv4_REASSEMBLY_12: Check fragment with Low TTL value.
   Per RFC 791 §3.2 the reassembly timer is "the maximum of TLB and
   TTL" — the timer must not be DECREASED if the arriving fragment's
   TTL is lower than the current setting. TESTER sends frag 0 (offset=0,
@@ -16,7 +16,7 @@
   baseline timer (50 percent margin) — a DUT that wrongly applied
   MIN-with-TTL on Low TTL could collapse the window below 1 s and
   lose the bucket; this case observes that it does not. Linux ignores
-  TTL entirely (single static `ipfrag_time` per netns, no §3.2
+  TTL entirely (single static `ipfrag_time` per netns, no RFC 791 §3.2
   MAX(TLB, TTL) coupling), so the bucket survives 2 s regardless of
   TTL — frag 1 lands at 1 s, reassembly completes, Echo Reply lands.
   A strict-RFC 791 DUT lands the same wire-level pass since MAX(2, 2)

@@ -7,7 +7,7 @@
   iteration on distinct port quads — kBasicsActiveLocalPort/+1,
   kBasicsActiveRemotePort/+1) via driveTcpToTimeWaitFw2, then
   raw-inject a corrupt segment whose response ought to be a DUT
-  empty ACK per RFC 793 §3.4 / §3.9 + Linux's
+  empty ACK per RFC 793 §3.4 / RFC 793 §3.9 + Linux's
   tcp_timewait_state_process behaviour.
 
   Per phase the SCXML walks the same four DUT-origin observations:

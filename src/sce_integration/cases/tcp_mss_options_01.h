@@ -95,7 +95,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
 
         // Iteration 2: ilen = 5. Wire bytes [0x02 0x05 0xAA 0xBB 0xCC]
         // — kind=2, length=5 (three data bytes, one more than the RFC
-        // 793 §3.1 MSS encoding's 2). Options vector is 5 B; builder
+        // 793 RFC 793 §3.1 MSS encoding's 2). Options vector is 5 B; builder
         // pads with NOP×3 → 8 B. Data Offset becomes 7.
         injectMalformedSyn(
             cfg, iface, cfg.arp.dut_real_mac,

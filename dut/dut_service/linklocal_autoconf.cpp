@@ -140,30 +140,30 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
             // Compliant emit — no mutation.
             break;
         case LinklocalAutoconfFlavor::SenderIpNonzero:
-            // §2.1.1: sender_proto_ip MUST be 0. Set to the DUT
+            // RFC 3927 §2.1.1: sender_proto_ip MUST be 0. Set to the DUT
             // iface IP so the violation is wire-recognisable.
             sender_ip_be = dut_iface_ip_be_;
             break;
         case LinklocalAutoconfFlavor::TargetOutsidePrefix:
-            // §2.1: target MUST be in 169.254/16. Use 192.168.1.66
+            // RFC 3927 §2.1: target MUST be in 169.254/16. Use 192.168.1.66
             // (RFC 1918 private — distinguishable on capture from
             // any veth-pair management traffic).
             target_ip_be = htonl(0xC0A80142U);
             break;
         case LinklocalAutoconfFlavor::TargetInReservedRange:
-            // §2.1: third octet MUST be in [1, 254]. Use 169.254.0.42
+            // RFC 3927 §2.1: third octet MUST be in [1, 254]. Use 169.254.0.42
             // (X=0 → in reserved 169.254.0/24 per RFC 3927). Still
             // in 169.254/16 so the prefix-only check (_08) doesn't
             // also fire — the violation is _01-specific.
             target_ip_be = htonl(0xA9FE002AU);
             break;
         case LinklocalAutoconfFlavor::TargetHwNonzero:
-            // §2.2.1: target_hw SHOULD be all zero. Use a locally-
+            // RFC 3927 §2.2.1: target_hw SHOULD be all zero. Use a locally-
             // administered well-known sentinel.
             target_hw = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00};
             break;
         case LinklocalAutoconfFlavor::SenderHwWrong:
-            // §2.2.1 (RFC 826 ar$sha): sender_hw MUST be the iface
+            // RFC 826 §2.2.1 (RFC 826 ar$sha): sender_hw MUST be the iface
             // MAC. Substitute a locally-administered sentinel that
             // is NEVER the DUT iface MAC under any topology so
             // false negatives are impossible.
@@ -222,7 +222,7 @@ void LinklocalAutoconf::emitArpAnnounce(std::uint32_t committed_ll_be,
         case LinklocalAutoconfFlavor::SenderHwWrong:
             break;
         case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
-            // §2.4 / §2.5 last MUST: ARP packets whose sender_proto_ip
+            // RFC 3927 §2.4 / RFC 3927 §2.5 last MUST: ARP packets whose sender_proto_ip
             // is in 169.254/16 MUST be broadcast. Direct the Ethernet
             // dst at the DUT iface MAC instead — a unicast that no
             // other host on the link should see, but which a
@@ -231,21 +231,21 @@ void LinklocalAutoconf::emitArpAnnounce(std::uint32_t committed_ll_be,
             eth_dst = dut_mac_;
             break;
         case LinklocalAutoconfFlavor::AnnounceSenderTargetMismatch:
-            // §2.4: Announce sets sender_proto_ip == target_proto_ip
+            // RFC 3927 §2.4: Announce sets sender_proto_ip == target_proto_ip
             // == announced LL. Drive sender to the iface IP (a
             // routable, non-LL value distinguishable on capture from
             // the committed LL).
             sender_ip_be = dut_iface_ip_be_;
             break;
         case LinklocalAutoconfFlavor::AnnounceSenderHwWrong:
-            // §2.4 (RFC 826 ar$sha): sender_hw MUST be the iface MAC.
+            // RFC 826 §2.4 (RFC 826 ar$sha): sender_hw MUST be the iface MAC.
             // Same locally-administered sentinel as the Probe-shape
             // SenderHwWrong flavor — distinct OUI from the Probe
             // sentinel keeps pcap-side disambiguation simple.
             sender_hw = {0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x01};
             break;
         case LinklocalAutoconfFlavor::AnnounceTargetHwNonzero:
-            // §2.4: target_hw SHOULD be all zero (the asker is the
+            // RFC 3927 §2.4: target_hw SHOULD be all zero (the asker is the
             // host itself, not a known target). Use the same locally-
             // administered sentinel as the Probe-shape TargetHwNonzero
             // flavor.
@@ -401,7 +401,7 @@ void LinklocalAutoconf::runLoop(Params params) {
         // rate-limit mode: each subsequent attempt waits
         // RATE_LIMIT_INTERVAL before picking a new address, so
         // emissions are throttled to one new address per interval
-        // (RFC 3927 §2.2.1 / §2.5). §4.5.6.2 _14 verifies the silence.
+        // (RFC 3927 §2.2.1 / RFC 3927 §2.5). §4.5.6.2 _14 verifies the silence.
         // Conflict counter and rate-limit flag are local to the
         // outer-loop iteration: a steady-state cease starts a fresh
         // probing attempt with a clean rate-limit budget, matching

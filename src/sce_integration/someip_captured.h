@@ -29,11 +29,11 @@ namespace tc8 {
 // see `someip_expected.h`.
 //
 // SD payload fields (`sd_*`) hold values parsed from an SD payload
-// (§7.3 wire format). They stay at 0 for non-SD frames or when the payload
+// (TR_SOMEIP §7.3 wire format). They stay at 0 for non-SD frames or when the payload
 // is shorter than the required boundary; guards that inspect them must
 // confirm `service_id == 0xFFFF` and the relevant length invariant.
 
-// Single SOME/IP-SD entry (16 bytes on the wire, §7.1). Layout of the
+// Single SOME/IP-SD entry (16 bytes on the wire, TR_SOMEIP §7.1). Layout of the
 // trailing 4 bytes depends on entry type family:
 //   Type 1 (FindService 0x00, OfferService / StopOffer 0x01):
 //     bytes 12..15 = Minor Version (32-bit BE).
@@ -63,7 +63,7 @@ struct SdEntry {
     std::uint16_t eventgroup_id = 0;     // bytes 14..15.
 };
 
-// Single SOME/IP-SD option (§7.3 Options Array). Wire layout for IPv4
+// Single SOME/IP-SD option (TR_SOMEIP §7.3 Options Array). Wire layout for IPv4
 // Endpoint (Type=0x04) and IPv4 Multicast (Type=0x14) options
 // (PRS_SOMEIPSD §4.2.2 / SWS_SD_00209..00215, 00390..00396):
 //
@@ -246,12 +246,12 @@ struct SomeIpCaptured {
     std::uint8_t sd_flags = 0;      // Byte 0 of SD payload: Reboot|Unicast|Reserved bits.
     std::uint32_t sd_reserved = 0;  // Bytes 1..3 of SD payload (24 bits, right-aligned).
 
-    // Length of the entries array in bytes. Per SD §7.3 each entry is 16
+    // Length of the entries array in bytes. Per SD TR_SOMEIP §7.3 each entry is 16
     // bytes, so valid values are multiples of 16. Stays 0 when the payload
     // is too short to reach the entries-length field.
     std::uint32_t sd_entries_len = 0;
 
-    // Length of the options array in bytes. Per SD §7.3 the options-length
+    // Length of the options array in bytes. Per SD TR_SOMEIP §7.3 the options-length
     // field follows the entries array. Stays 0 when the payload is too
     // short to reach it.
     std::uint32_t sd_options_len = 0;
@@ -376,7 +376,7 @@ inline void applyTestConfig(SomeIpCaptured & /*c*/, const TestConfig & /*cfg*/) 
 // wire-format documentation grouped in one place.
 inline void parseSdHeaderInto(SomeIpCaptured &c, const std::uint8_t *payload, std::size_t payload_len);
 
-// Decode the Options Array (§7.3, after the Entries Array). Caller passes
+// Decode the Options Array (TR_SOMEIP §7.3, after the Entries Array). Caller passes
 // the full SD payload; this routine seeks to the options block using the
 // already-populated `sd_entries_len` and `sd_options_len` fields. Walks
 // each option's [Length(2B BE), Type(1B), per-type tail] tuple, populates
@@ -465,7 +465,7 @@ inline void decodeSdEntry(SdEntry &dst, const std::uint8_t *src) {
     dst.eventgroup_id = static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[14]) << 8) | src[15]);
 }
 
-// Parse the SD payload layout (§7.3): 4-byte header (Flags + Reserved),
+// Parse the SD payload layout (TR_SOMEIP §7.3): 4-byte header (Flags + Reserved),
 // 4-byte LengthOfEntriesArray, Entries array (N * 16 bytes), 4-byte
 // LengthOfOptionsArray. Fills sd_flags/sd_reserved when >= 4 bytes are
 // available, sd_entries_len when >= 8 bytes are available, entries up to

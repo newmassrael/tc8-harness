@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection03SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection03SM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ADDRESS_SELECTION_03";
+        "IPv4_AUTOCONF_ADDRESS_SELECTION_03";
     static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT emits the ARP Probe with Ethernet destination = broadcast "
@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection03SM>
     // OpStartLLAutoconf with the fast envelope. tc8-dut emits one
     // DHCPDISCOVER (covering the spec precondition step "DUT: Sends
     // DHCPDISCOVER Message") then enters PROBE phase per RFC 3927
-    // §2.2.1. SCXML matches on the FIRST emitted Probe.
+    // RFC 3927 §2.2.1. SCXML matches on the FIRST emitted Probe.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {

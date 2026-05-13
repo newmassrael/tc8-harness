@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid06SM>
     // Each phase: TesterAutoRstDrop scope + active-OPEN to unbound
     // tester port + TcpFrameSnippet ISN_d learn + raw-inject ACK
     // (no SYN, no RST) with ack=ISN_d+1 (acceptable per RFC 793
-    // §3.4 — the only value in [SND.UNA, SND.NXT] for SYN-SENT).
+    // RFC 793 §3.4 — the only value in [SND.UNA, SND.NXT] for SYN-SENT).
     // CASE 1 carries no payload; CASE 2 carries 4 bytes of data
     // exercising the spec's `<stp> = data` iteration. Linux's
     // `tcp_rcv_synsent_state_process` drops the segment without

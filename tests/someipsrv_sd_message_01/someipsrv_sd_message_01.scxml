@@ -3,7 +3,7 @@
   TC8 §5.1.5.3.1 SOMEIPSRV_SD_MESSAGE_01: When the DUT is configured with
   Number Of Instances = 2 for SERVICE-ID-1, the OfferService SD message
   shall carry two distinct OfferService entries, one per instance.
-  Verifies SD §6.7.4.1.1 (TR_SOMEIP_00351): Service Instance ID identifies
+  Verifies SD SOMEIPSD §6.7.4.1.1 (TR_SOMEIP_00351): Service Instance ID identifies
   individual instances of a service.
 
   The harness brings up tc8-dut with TC8_DUT_INSTANCE_2=1 +

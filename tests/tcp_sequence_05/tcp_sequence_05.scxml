@@ -3,7 +3,7 @@
   TC8 §4.8.6.17 TCP_SEQUENCE_05: from ESTABLISHED, the DUT MUST
   acknowledge each tester data segment with a cumulative ACK whose
   ack_num covers the bytes received so far (RFC 793 §3.4 p27 ACK
-  generation, §3.7 p41 Receiving a Segment).
+  generation, RFC 793 §3.7 p41 Receiving a Segment).
 
   v3.0 Test Procedure (p381-p400.txt:689-692):
     1. TESTER: Bring DUT to ESTABLISHED state.

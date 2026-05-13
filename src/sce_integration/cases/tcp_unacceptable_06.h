@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
     // After active-OPEN ESTABLISHED, queryTcpSeqRange snapshots
     // tester's snd_nxt / rcv_nxt; the OTW SYN places SEQ far past
     // snd_nxt + window so the DUT discards the segment per RFC 793
-    // §3.9 p70 and emits a duplicate ACK as the unacceptable-segment
+    // RFC 793 §3.9 p70 and emits a duplicate ACK as the unacceptable-segment
     // response.
     //
     // Spec literal (TC8 v3.0 p442 Pass Criteria step 3):

@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
     //
     // The tester injects a single SYN+ACK at a passive listener; the
     // DUT in LISTEN never had a prior SYN-SENT context, so RFC 793
-    // §3.4 p35 mandates an RST response. Linux fills this path via
+    // RFC 793 §3.4 p35 mandates an RST response. Linux fills this path via
     // `tcp_v4_send_reset` whose SEQ derives from the incoming ACK.
     // The arbitrary `kTesterInitialSeq + 1` ack value avoids landing
     // on 0 (which a buggy emit-any-RST might use as a default) so

@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SdMessage13SM>
                          std::string_view iface) {
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0008;
-        // 24-bit TTL max — SOMEIP-SD §6.7.4.2 "TTL field shall be the
+        // 24-bit TTL max — SOMEIP-SD SOMEIPSD §6.7.4.2 "TTL field shall be the
         // same value as in the Subscribe that is being answered"; the
         // pass criterion verifies the DUT echoes this exact value back
         // in the Ack.

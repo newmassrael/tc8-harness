@@ -20,13 +20,13 @@
     1. handshake third-leg ACK (DUT pure ACK)
     2. close-elicited auto-ACK (DUT pure ACK acknowledging tester FIN)
     3. probe-elicited empty ACK (DUT pure ACK with rcv_nxt — RFC 793
-       §3.9 challenge-ACK semantics)
+       RFC 793 §3.9 challenge-ACK semantics)
 
   Distinct port quads (kBasicsActiveLocalPort+N /
   kBasicsActiveRemotePort+N for N in 0..4) keep per-phase
   observations isolated. CASE 4 (FIN) carries an ACK flag with
   rcv_nxt — Linux's tcp_v4_rcv silent-drops bare-FIN segments before
-  reaching the OTW SEQ branch (verified empirically in §08), so
+  reaching the OTW SEQ branch (verified empirically in 08), so
   carrying ACK keeps the segment past the early-drop and reaches
   the spec-targeted challenge ACK. Same convention as
   TCP_FLAGS_INVALID_08.

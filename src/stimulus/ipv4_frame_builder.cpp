@@ -173,7 +173,7 @@ std::vector<std::uint8_t> buildIcmpEchoRequestBody(
     std::uint16_t icmp_csum = inetChecksum(icmp.data(), icmp.size());
     if (corrupt_checksum) {
         // Flip one bit so the DUT's kernel rejects the frame per RFC
-        // 1122 §3.2.2.
+        // 1122 RFC 791 §3.2.2.
         icmp_csum = static_cast<std::uint16_t>(icmp_csum ^ 0x0001U);
     }
     icmp[2] = static_cast<std::uint8_t>((icmp_csum >> 8) & 0xFFU);

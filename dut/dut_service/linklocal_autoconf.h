@@ -27,7 +27,7 @@ namespace tc8::dut {
 //     satisfied — the tc8-dut is the DHCP "client" emitting one
 //     observable Discover before falling back to LL.
 //   * RFC 3927 PROBE phase: pick a random 169.254.X.Y address
-//     (X in [1, 254] per §2.1 reserved-range rule), wait
+//     (X in [1, 254] per RFC 3927 §2.1 reserved-range rule), wait
 //     PROBE_WAIT, emit 3 ARP Probes spaced PROBE_MIN..PROBE_MAX.
 //   * RFC 3927 ANNOUNCE phase: wait ANNOUNCE_WAIT after the third
 //     Probe, emit 2 ARP Announces spaced ANNOUNCE_INTERVAL.

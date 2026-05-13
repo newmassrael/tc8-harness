@@ -21,7 +21,7 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_136 — SubscribeEventgroup whose IPv4
 // Endpoint option's own Length field declares 4 bytes instead of the
-// canonical 9 required for the option type (SD §7.4.3). Per
+// canonical 9 required for the option type (SD TR_SOMEIP §7.4.3). Per
 // PRS_SOMEIPSD_00307 / 00393 the DUT must Nack or fully ignore. Lenient
 // verdict accepts both — vsomeip's SD parser bails out as soon as an
 // individual option's Length doesn't match its type's expected size.

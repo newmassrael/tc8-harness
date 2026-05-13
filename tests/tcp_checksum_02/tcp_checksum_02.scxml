@@ -3,7 +3,7 @@
   TC8 §4.8.6.2 TCP_CHECKSUM_02: Receiver TCP MUST check the checksum
   in any incoming segment and MUST NOT acknowledge in case of an
   error. Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST), RFC
-  793 §3.1 p16 Header.
+  793 RFC 793 §3.1 p16 Header.
 
   v3.0 Test Procedure (p301-p320.txt:161):
     1. TESTER: Cause DUT to move on to ESTABLISHED state at <wnp>.
@@ -35,7 +35,7 @@
   Absence-pass shape — the verdict polarity is INVERTED relative to
   most cases: deadline_exceeded → pass, observation → fail. This is
   the same shape as §4.2.4.1 ARP_03/05 (pre-cache absence) and
-  §4.3.3.2 ICMPV4_TYPE_04 (ipfrag_time absence), surfaced here for
+  §4.3.3.2 ICMPv4_TYPE_04 (ipfrag_time absence), surfaced here for
   TCP for the first time.
 
   Pass criterion: NO DUT-origin pure-ACK whose ack_num would

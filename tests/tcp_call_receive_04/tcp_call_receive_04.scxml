@@ -3,7 +3,7 @@
   TC8 §4.8.6.4 TCP_CALL_RECEIVE_04: For RECEIVE call in ESTABLISHED /
   FIN-WAIT-1 / FIN-WAIT-2 state, TCP MUST reassemble queued incoming
   segments and return them to the application. Derived from RFC 793
-  §3.9 p58 Event Processing (MUST).
+  RFC 793 §3.9 p58 Event Processing (MUST).
 
   v3.0 Test Procedure (p322):
     1. TESTER: Cause the DUT to move on to the <wst> state
@@ -30,7 +30,7 @@
   are deferred via scheduleAfterStateEntry to the matching SCXML
   observation state so the per-phase wire events arrive AFTER SCXML
   has armed the corresponding listening transitions. Mirrors
-  TCP_FLAGS_PROCESSING_02 / IPV4_FRAGMENTS_01..04 phasing.
+  TCP_FLAGS_PROCESSING_02 / IPv4_FRAGMENTS_01..04 phasing.
 
   SCXML chain (8 listening states + 8 fail terminals + pass):
     p1_handshake_ack → p1_complete →

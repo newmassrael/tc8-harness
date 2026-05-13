@@ -19,7 +19,7 @@
   observation chain is:
     1. handshake third-leg ACK (DUT-emitted pure ACK)
     2. probe-elicited ACK (DUT-emitted pure ACK with rcv_nxt — RFC
-       793 §3.9 challenge-ACK semantics; Linux's
+       793 RFC 793 §3.9 challenge-ACK semantics; Linux's
        tcp_validate_incoming OTW path schedules ack via
        inet_csk_schedule_ack)
 

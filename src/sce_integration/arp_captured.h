@@ -141,7 +141,7 @@ struct ArpCaptured {
     }
 
     // §4.5.6.2 ADDRESS_SELECTION_16: opcode-2 reply predicate.
-    // RFC 826 ARP Reply carries opcode 2; the §2.5 claim-condition
+    // RFC 826 ARP Reply carries opcode 2; the RFC 826 §2.5 claim-condition
     // assertion needs only this single field to distinguish the
     // DUT's defender Reply from its prior Probes (opcode 1) and
     // Announces (opcode 1) flowing through the same SCXML listening
@@ -180,7 +180,7 @@ struct ArpCaptured {
     // predicate: ARP Request with sender_proto_ip == target_proto_ip
     // (both non-zero). Distinguishes the post-claim Announce from a
     // Probe (sender_proto_ip == 0). The 169.254/16 prefix check is
-    // not strictly required by §2.4 (a host announcing a routable
+    // not strictly required by RFC 3927 §2.4 (a host announcing a routable
     // address would also match) but tightens the assertion against
     // ambient ARP noise on the iface.
     bool is_arp_announce() const noexcept {

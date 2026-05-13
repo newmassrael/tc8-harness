@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts175SM> : SomeIpAnyBase<cases::SomeipEts175
         ::tc8::stimulus::SubscribeEventgroupParams params{};
         params.target.eventgroup_id = 0x0002;
         params.session_id = 0x0001;
-        // Configuration Option (SD §7.4.6, Type 0x01). Body is a stream of
+        // Configuration Option (SD TR_SOMEIP §7.4.6, Type 0x01). Body is a stream of
         // length-prefixed UTF-8 strings ending with a 0-length terminator;
         // a single 0x00 byte is the minimal "empty list" representation.
         params.extra_options.push_back({

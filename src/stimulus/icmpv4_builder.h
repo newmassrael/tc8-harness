@@ -50,7 +50,7 @@ inline constexpr std::uint32_t kIcmpTimestampOriginate = 0x12345678U;
 // Internet Timestamp IP option bytes the TESTER injects. The option's
 // `length` byte claims 10 while the body on the wire is 8 B — that
 // size mismatch is the header parameter problem under test (RFC 791
-// §3.1 requires length = total option bytes, pointer = next-write
+// RFC 791 §3.1 requires length = total option bytes, pointer = next-write
 // offset ≤ length + 1). ERROR_02 additionally exercises the
 // Parameter Problem pointer=22 reply path: IP header length (20) +
 // offset of the pointer field within the option (byte 2, 0-indexed) =
@@ -237,7 +237,7 @@ struct IcmpMessageSpec {
     std::vector<std::uint8_t> ip_options;
 
     // IPv4 fragmentation knobs. §4.3.3.1 ERROR_02/03 + §4.3.3.2 TYPE_04
-    // stimuli are the sole consumers; every other §4.3/§4.4 case uses
+    // stimuli are the sole consumers; every other §4.3 / §4.4 case uses
     // the defaults (MF=0, offset=0) which emit a non-fragmented
     // datagram. `fragment_offset` is in 8-octet units per RFC 791 §3.1
     // (13-bit field, max 8191 = 65528 octets). The builder encodes

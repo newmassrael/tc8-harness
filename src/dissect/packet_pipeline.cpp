@@ -120,7 +120,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
         // vector of IP::option, not a raw byte range. §4.4 has no OPTIONS
         // subsection in TC8 v3.0 (IPv4_OPTIONS_01..14 deleted V2→V3); if
         // an ICMPv4 consumer carrying IP options in the stimulus (e.g.
-        // ICMPV4_TYPE_05 / ERROR_02/03/04) ever needs byte-level
+        // ICMPv4_TYPE_05 / ERROR_02/03/04) ever needs byte-level
         // observation, serialise on demand rather than point at
         // `ip->options()` internals.
         {
@@ -291,7 +291,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                     df.options_len  = static_cast<std::uint32_t>(body_size - 240);
                     // Walk the TLV chain to locate option 53 (Message
                     // Type) and detect the 0xFF END terminator. RFC 2132
-                    // §9.6 fixes len=1 for option 53. Pad option (0)
+                    // RFC 2132 §9.6 fixes len=1 for option 53. Pad option (0)
                     // and END (255) are length-less; every other code
                     // is followed by a 1-byte length. Stop on END or
                     // first malformed length to keep the parser safe

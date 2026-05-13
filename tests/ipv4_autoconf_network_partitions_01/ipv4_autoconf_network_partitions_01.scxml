@@ -6,7 +6,7 @@
   RFC 3927 §4 SHOULD: hosts SHOULD NOT send periodic gratuitous ARPs
   for a link-local address. Despite the case title, the spec body's
   Test Procedure does not simulate a partition heal — it merely
-  verifies that after a successful claim and an ordinary §2.5 ARP
+  verifies that after a successful claim and an ordinary RFC 3927 §2.5 ARP
   exchange, the DUT remains silent and does not emit any
   gratuitous-shape ARP Request.
 

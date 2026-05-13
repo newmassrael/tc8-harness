@@ -2,7 +2,7 @@
 <!--
   TC8 §4.8.6.11 TCP_RETRANSMISSION_TO_03: Karn's algorithm — TCP MUST
   preserve RTO doubling across an ACK that acknowledges a previously
-  retransmitted segment (RFC 1122 §4.2.3.1 p95 — RFC 6298 §3 / §5
+  retransmitted segment (RFC 1122 §4.2.3.1 p95 — RFC 6298 §3 / RFC 1122 §5
   step 5.3).
 
   v3.0 Test Procedure (p368):
@@ -50,7 +50,7 @@
        (proves the kernel-side retx fired) AND `tcpi_rto >= 350 ms`
        (proves doubling).
     6. Raw-inject Karn-excluded ACK acknowledging seg1's 8 B. RFC
-       6298 §3 forbids the RTT estimator from sampling this round-
+       6298 RFC 793 §3 forbids the RTT estimator from sampling this round-
        trip; §5.3 forbids resetting the retransmit timer.
     7. UT SEND seg2 (8 B) → Linux's `tcp_event_new_data_sent` →
        `tcp_rearm_rto` arms the new timer with the *current*
@@ -63,7 +63,7 @@
 
   SCXML shape — single state with a `<send delay="0ms"/>`-raised
   evaluation event, multiple cond-keyed transitions; first matching
-  transition wins per W3C SCXML §3.13. Transitions are ordered fail-
+  transition wins per W3C SCXML RFC 793 §3.13. Transitions are ordered fail-
   first (handshake → query validity → numeric thresholds) so the
   most-proximal cause short-circuits to its specific verdict before
   falling through to pass. delay=0ms is the minimal scheduler tick

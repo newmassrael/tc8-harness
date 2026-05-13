@@ -4,7 +4,7 @@
 
   Tester sends a SubscribeEventgroup whose IPv4 Endpoint option's own
   Length field declares 4 bytes instead of the canonical 9 bytes
-  required by the option type (SD §7.4.3). Per PRS_SOMEIPSD_00307 /
+  required by the option type (SD TR_SOMEIP §7.4.3). Per PRS_SOMEIPSD_00307 /
   00393 the DUT must Nack or fully ignore. Lenient verdict accepts both.
 
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.

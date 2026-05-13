@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfNetworkPartitions01SM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_NETWORK_PARTITIONS_01";
+        "IPv4_AUTOCONF_NETWORK_PARTITIONS_01";
     static constexpr std::string_view kSpecSection = "4.5.6.6";
     static constexpr std::string_view kDescription =
         "DUT does not emit periodic gratuitous ARPs for its claimed "
@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01SM>
     // RFC 3927 §2.5 last MUST; the SCXML's listening_post_claim guard
     // is the same broadcast-Reply contract _16/_11 assert. Once the
     // Reply lands, the SCXML transitions to listening_no_periodic
-    // where the absence window verifies the §4 SHOULD on periodic
+    // where the absence window verifies the RFC 3927 §4 SHOULD on periodic
     // gratuitous ARPs.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,

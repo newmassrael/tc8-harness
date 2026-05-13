@@ -3,7 +3,7 @@
   TC8 §5.1.5.3.15 SOMEIPSRV_SD_MESSAGE_15: SubscribeEventgroupNack shall
   echo the Instance ID, Eventgroup ID, Major Version and Reserved fields
   from the Subscribe being answered, and shall set TTL=0 (TR_SOMEIP
-  §6.7.4.2.4). The harness emits a SubscribeEventgroup with an
+  SOMEIPSD §6.7.4.2.4). The harness emits a SubscribeEventgroup with an
   UNKNOWN-SERVICE-ID (0xFFFE) and the configured instance / eventgroup /
   major version; the DUT's Nack must carry the configured echo on those
   three axes plus the all-zero reserved/counter byte pair.

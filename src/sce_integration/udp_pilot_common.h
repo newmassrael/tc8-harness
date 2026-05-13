@@ -17,7 +17,7 @@
 
 namespace tc8::sce::udp {
 
-// §4.4.4.5/6 UT-driven pilot. The three consumers (ADDRESSING_01,
+// RFC 1122 §4.4.4.5/6 UT-driven pilot. The three consumers (ADDRESSING_01,
 // ADDRESSING_02, FRAGMENTS_05) share a thin helper surface so the
 // per-case traits collapse to a spec-specific 5-line body.
 //

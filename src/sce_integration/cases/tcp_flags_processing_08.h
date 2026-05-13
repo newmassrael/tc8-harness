@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
     // (clear of FLAGS_INVALID_07's +0..+4 reservation), bare FIN
     // from kBasicsTesterPort + 71. Linux's tcp_rcv_state_process
     // LISTEN handler silently drops non-SYN segments per RFC 793
-    // §3.9; SCXML absence guard catches any DUT-emitted segment on
+    // RFC 793 §3.9; SCXML absence guard catches any DUT-emitted segment on
     // the listen 4-tuple.
     //
     // Phase 3 SYN-SENT: active-OPEN on (kBasicsActiveLocalPort + 52,

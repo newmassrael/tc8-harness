@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection16SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection16SM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ADDRESS_SELECTION_16";
+        "IPv4_AUTOCONF_ADDRESS_SELECTION_16";
     static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT replies to an ARP Request targeting its claimed IPv4 "
@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection16SM>
     // ARP-Request emit. Eliminates the wall-time coupling a
     // `schedule(delay,…)` would carry — SCXML's deadline becomes the
     // sole timing promise to the spec. §4.5.6.4 CONFLICT_11 shares
-    // the same helper from the AIFACE-LL Request angle of §2.5.
+    // the same helper from the AIFACE-LL Request angle of RFC 3927 §2.5.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,

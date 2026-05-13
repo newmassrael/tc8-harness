@@ -3,7 +3,7 @@
   TC8 §4.8.6.3 TCP_UNACCEPTABLE_06: TCP in ESTABLISHED state MUST send
   an ACK indicating the correct SEQ number it expects, after receiving
   a SYN with a SEQ number that is out of window. Derived from RFC 793
-  §3.4 p34 Establishing a Connection (MUST).
+  RFC 793 §3.4 p34 Establishing a Connection (MUST).
 
   v3.0 Test Procedure (p301-p320.txt:440):
     1. TESTER: Cause DUT ESTABLISHED via UT OpOpenTcpSocket(Active).

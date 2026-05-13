@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
     // ISN_d, then the tester injects an ACK with
     // ack_num = ISN_d + LARGE_OFFSET — which acknowledges a byte
     // the DUT has not sent — and DUT responds RST per RFC 793
-    // §3.4 p35.
+    // RFC 793 §3.4 p35.
     //
     // The pcap snippet is opened BEFORE the upstream SYN inject so
     // the kernel pcap ring has already armed when the SYN+ACK

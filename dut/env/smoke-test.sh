@@ -223,7 +223,7 @@ fi
 # per-case, because workers bring up netns once at startup (not per-case).
 NEED_SECOND_VETH=0
 for _case in "${CASES[@]}"; do
-    if [[ "$_case" == "DHCPV4_CLIENT_USAGE_01" ]]; then
+    if [[ "$_case" == "DHCPv4_CLIENT_USAGE_01" ]]; then
         NEED_SECOND_VETH=1
         break
     fi
@@ -301,7 +301,7 @@ junit_record_case() {
 # single-threaded after all workers have completed. Cases are grouped
 # into <testsuite> blocks by their category prefix (case_id stripped
 # of trailing _NN and _neg suffixes), e.g. ARP_07 → suite "ARP",
-# IPV4_HEADER_05 → suite "IPV4_HEADER".
+# IPv4_HEADER_05 → suite "IPV4_HEADER".
 junit_emit_xml() {
     [[ -n "$JUNIT_OUT" ]] || return 0
     local total_records=0 W
@@ -743,7 +743,7 @@ run_case() {
     # DUT's first sendto resolves immediately to kTesterInjectedMac
     # (which the SCXML cond on udp.eth_dst then verifies).
     case "$case_id" in
-        DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_05|DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_06)
+        DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05|DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_06)
             ip -n "$dut_ns" neigh replace "$DHCPV4_SERVER1_IP4" \
                 lladdr "$ARP_TESTER_INJECTED_MAC" \
                 dev "$veth_d" nud permanent
@@ -803,7 +803,7 @@ run_case() {
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=1"             >/dev/null
     fi
 
-    # §4.3.3.2 ICMPV4_TYPE_04 compresses Linux's IP fragment reassembly
+    # §4.3.3.2 ICMPv4_TYPE_04 compresses Linux's IP fragment reassembly
     # timer from the kernel default (30 s) down to 3 s per netns so the
     # tester-side post-send wait stays in the single-digit seconds
     # range. `net.ipv4.ipfrag_time` is the upper bound on how long the
@@ -812,7 +812,7 @@ run_case() {
     # timer expired, no Time Exceeded was emitted" without burning 30 s
     # of real time per case.
     #
-    # §4.4.4.6 IPV4_FRAGMENTS_02/03/04 explicitly DO NOT get this
+    # §4.4.4.6 IPv4_FRAGMENTS_02/03/04 explicitly DO NOT get this
     # toggle — they need frag 0's bucket to stay alive at the DUT
     # through the phase-1 absence window (2 s) + phase-gap (~500 ms) +
     # phase-2 arrival (~2.5 s), which is tight against a 3 s reassembly
@@ -826,11 +826,11 @@ run_case() {
     # cases.
     local toggle_ipfrag_time=0
     case "$case_id" in
-        ICMPV4_TYPE_04)
+        ICMPv4_TYPE_04)
             toggle_ipfrag_time=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=3" >/dev/null
             ;;
-        # §4.4.4.7 IPV4_REASSEMBLY_10/_11/_12 — collapse Linux's
+        # §4.4.4.7 IPv4_REASSEMBLY_10/_11/_12 — collapse Linux's
         # static reassembly timer from 30 s default to 2 s so the
         # spec's wait-vs-timer boundaries are exercised in seconds.
         # _10 verifies the ipIniReassembleTimeout boundary directly
@@ -849,7 +849,7 @@ run_case() {
         # The spec's recommendation is 15 s; we collapse to 2 s here
         # so each case completes in seconds rather than tens of
         # seconds.
-        IPV4_REASSEMBLY_10|IPV4_REASSEMBLY_11|IPV4_REASSEMBLY_12)
+        IPv4_REASSEMBLY_10|IPv4_REASSEMBLY_11|IPv4_REASSEMBLY_12)
             toggle_ipfrag_time=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=2" >/dev/null
             ;;
@@ -906,37 +906,37 @@ run_case() {
     local -A CASE_TIMEOUT_SEC=(
         [ARP_48]=9
         [ARP_49]=11
-        # §4.3.3.2 ICMPV4_TYPE_04 — stimulus blocks for 4 s so the
+        # §4.3.3.2 ICMPv4_TYPE_04 — stimulus blocks for 4 s so the
         # per-netns `ipfrag_time=3` reassembly timer elapses before
         # the SCXML listen window opens; SCXML adds 3 s absence
         # observation + 3 s margin.
-        [ICMPV4_TYPE_04]=10
-        # §4.4.4.6 IPV4_FRAGMENTS_02/03/04 — compound stimulus:
+        [ICMPv4_TYPE_04]=10
+        # §4.4.4.6 IPv4_FRAGMENTS_02/03/04 — compound stimulus:
         # phase1 frag-pair (2 × ~0.3 s send) + ~4 s inter-phase wait
         # for DUT reassembly timeout + phase2 frag-pair + 3 s listen
         # window + margin.
-        [IPV4_FRAGMENTS_02]=15
-        [IPV4_FRAGMENTS_03]=15
-        [IPV4_FRAGMENTS_04]=15
-        # §4.4.4.7 IPV4_REASSEMBLY_11 — stimulus emits frag 0 (200 ms
+        [IPv4_FRAGMENTS_02]=15
+        [IPv4_FRAGMENTS_03]=15
+        [IPv4_FRAGMENTS_04]=15
+        # §4.4.4.7 IPv4_REASSEMBLY_11 — stimulus emits frag 0 (200 ms
         # init), waits 3 s (exceeds the per-netns ipfrag_time=2
         # toggle), emits frag 1; on Linux the bucket has expired by
         # frag 1's arrival, so no Echo Reply and the SCXML 6 s listen
         # window times out. Linux known-fail; runnable on demand
         # against a strict-RFC 791 DUT that reassembles via MAX(TLB,
         # arriving TTL).
-        [IPV4_REASSEMBLY_11]=12
-        # §4.4.4.7 IPV4_REASSEMBLY_12 — stimulus emits frag 0 (200 ms
+        [IPv4_REASSEMBLY_11]=12
+        # §4.4.4.7 IPv4_REASSEMBLY_12 — stimulus emits frag 0 (200 ms
         # init), waits 1 s (under the per-netns ipfrag_time=2
         # toggle), emits frag 1; bucket alive at frag 1 → Echo Reply
         # within ~1.5 s + SCXML 5 s listen window + margin.
-        [IPV4_REASSEMBLY_12]=10
-        # §4.4.4.7 IPV4_REASSEMBLY_10 — synchronous 2-phase stimulus:
+        [IPv4_REASSEMBLY_12]=10
+        # §4.4.4.7 IPv4_REASSEMBLY_10 — synchronous 2-phase stimulus:
         # phase A frag-pair (1 s inter-frag wait, reassembles inside
         # ipfrag_time=2) + 200 ms gap + phase B frag-pair (3 s
         # inter-frag wait, exceeds ipfrag_time → no reply). Total
         # stimulus ~4.6 s + post-start phase_b 3 s deadline + margin.
-        [IPV4_REASSEMBLY_10]=12
+        [IPv4_REASSEMBLY_10]=12
         # §4.8.6.1 TCP_BASICS_04 — three iterations (SYN/FIN/Data),
         # each with a 5 s SCXML phase deadline (15 s upper bound) +
         # ~600 ms stimulus wall-time + handshake/teardown margin. In
@@ -1421,7 +1421,7 @@ run_case() {
         [TCP_OUT_OF_ORDER_05]=18
         # §4.8.6.12 TCP_PROBING_WINDOWS_02 — active-OPEN +148 quad +
         # raw-inject 1 B PSH+ACK with window=0x8000 (MSB set, RFC 793
-        # §3.1 unsigned) to drive Linux's tcp_ack_update_window +
+        # RFC 793 §3.1 unsigned) to drive Linux's tcp_ack_update_window +
         # 100 ms settle + UT OpSendTcpData (4 B). DUT must emit a
         # data segment proving the MSB-set window was honoured as
         # unsigned 32768. 5 s phase 1 + 3 s phase 2 + ~3 s prelude.
@@ -1487,7 +1487,7 @@ run_case() {
         # tester +160/+163/+164. driveRawPassiveHandshake emits SYN
         # (seq=tester_isn ∈ {kTesterInitialSeq, 0, 0xFFFFFFFF}) and
         # observes DUT SYN,ACK with ack_num == tester_isn + 1. RFC 793
-        # §3.1 modulo-32 wraparound for _04. Single 5 s SCXML deadline +
+        # RFC 793 §3.1 modulo-32 wraparound for _04. Single 5 s SCXML deadline +
         # ~3 s stimulus.
         [TCP_SEQUENCE_01]=10
         [TCP_SEQUENCE_03]=10
@@ -1525,36 +1525,36 @@ run_case() {
         # observing 3 DUT SYN,ACKs distinguished by dst_port. Outer
         # TesterAutoRstDrop. 3 × 5 s SCXML + ~3 s prelude.
         [TCP_CONNECTION_ESTAB_01]=20
-        # §4.5.6.2 IPV4_AUTOCONF_ADDRESS_SELECTION_01/03/05/06/07/08
+        # §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_01/03/05/06/07/08
         # — UT OpStartLLAutoconf with fast envelope. First Probe
         # lands at ~1500 ms initial wait + 200 ms dhcp_timeout +
         # 200 ms PROBE_WAIT ≈ 1.9 s. SCXML 4 s deadline. 8 s gives
         # ~2 s margin against worker scheduling jitter.
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_01]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_03]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_05]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_06]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_07]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_08]=8
-        # §4.5.6.2 IPV4_AUTOCONF_ADDRESS_SELECTION_09/_10 — RFC 3927
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_01]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_03]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_05]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_06]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_07]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_08]=8
+        # §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_09/_10 — RFC 3927
         # cadence defaults (PROBE_WAIT 1 s, PROBE_MIN..MAX 1..2 s).
         # Probe3 lands at ~1.5 + 0.2 + 1 + 2 × uniform(1, 2) =
         # 4.7..6.7 s. SCXML 12 s deadline gives ~5 s margin; 15 s
         # case_timeout absorbs stimulus + post-Probe3 settle.
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_09]=15
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_10]=15
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_09]=15
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_10]=15
         # §4.5.6.2 ADDRESS_SELECTION_*_NEG fault-injection self-
         # validation (Session 3). Cluster A negatives reuse the fast
         # envelope (first Probe ~1.9 s, 4 s SCXML deadline). _10_NEG
         # uses the fast envelope with probe_min=probe_max=100 ms so
         # Probe2 lands ~100 ms after Probe1; 6 s SCXML deadline. 8 s
         # for cluster A, 9 s for cadence — ~2-3 s margin.
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_01_NEG]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_05_NEG]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_06_NEG]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_07_NEG]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_08_NEG]=8
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_10_NEG]=9
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_01_NEG]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_05_NEG]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_06_NEG]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_07_NEG]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_08_NEG]=8
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_10_NEG]=9
         # §4.5.6.2 ADDRESS_SELECTION_11/_12/_13 probing-window CONFLICT
         # (Session 4). Tester observes DUT Probe1 (~1.9 s), injects
         # conflict ARP, DUT must re-pick. Re-pick wall:
@@ -1563,9 +1563,9 @@ run_case() {
         #   PROBE_WAIT (200 ms) of Y + Probe1 of Y ≈ 2.85 s typical.
         # 12 s SCXML window absorbs slow DUT detection + listener
         # join latency; 15 s case_timeout gives ~3 s margin.
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_11]=15
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_12]=15
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_13]=15
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_11]=15
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_12]=15
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_13]=15
         # §4.5.6.2 ADDRESS_SELECTION_14 conflict-resolution
         # (Session 5). 10 conflict cycles followed by a full
         # rate_limit silence window:
@@ -1574,7 +1574,7 @@ run_case() {
         #   = ~7 s wall.
         # 12 s SCXML deadline absorbs scheduling jitter; 15 s
         # case_timeout gives 3 s margin.
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_14]=15
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_14]=15
         # §4.5.6.2 ADDRESS_SELECTION_15 rate-limit-persistence
         # (Session 6). Same 10-cycle phase as _14, then a full
         # rate_limit silence window, post-silence Probe + 11th
@@ -1584,14 +1584,14 @@ run_case() {
         #   ≈ 10.5 s wall.
         # 15 s SCXML deadline absorbs scheduling jitter; 18 s
         # case_timeout gives ~3 s margin against worker contention.
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_15]=18
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_15]=18
         # §4.5.6.2 ADDRESS_SELECTION_16 claim-condition Reply
         # (Session 7). Wall budget: ~1.5 s initial wait + ~1.4 s
         # PROBE/ANNOUNCE + scheduled closure at 3.5 s + ~50 ms DUT
         # responder poll tick ≈ 3.6 s for the Reply. 8 s SCXML
         # deadline; 12 s case_timeout adds 4 s margin against
         # worker scheduling jitter.
-        [IPV4_AUTOCONF_ADDRESS_SELECTION_16]=12
+        [IPv4_AUTOCONF_ADDRESS_SELECTION_16]=12
         # §4.5.6.4 CONFLICT_06..10 defender always-cease cluster
         # (Session 8). Wall budget: ~1.5 s initial wait + ~2.85 s
         # to first DUT Announce (pre_claim → post_claim transition)
@@ -1599,15 +1599,15 @@ run_case() {
         # probe_wait + ~250 ms first re-pick Probe ≈ 4.85 s. 6 s
         # pre_claim + 4 s post_claim = 10 s SCXML budget; 13 s
         # case_timeout adds 3 s margin against worker contention.
-        [IPV4_AUTOCONF_CONFLICT_06]=13
-        [IPV4_AUTOCONF_CONFLICT_07]=13
-        [IPV4_AUTOCONF_CONFLICT_08]=13
-        [IPV4_AUTOCONF_CONFLICT_09]=13
-        [IPV4_AUTOCONF_CONFLICT_10]=13
+        [IPv4_AUTOCONF_CONFLICT_06]=13
+        [IPv4_AUTOCONF_CONFLICT_07]=13
+        [IPv4_AUTOCONF_CONFLICT_08]=13
+        [IPv4_AUTOCONF_CONFLICT_09]=13
+        [IPv4_AUTOCONF_CONFLICT_10]=13
         # §4.5.6.4 CONFLICT_11 broadcast-Reply assertion (Session 8).
         # Same wall envelope as ADDRESS_SELECTION_16 (claim-condition
         # Request → broadcast Reply); 12 s case_timeout matches.
-        [IPV4_AUTOCONF_CONFLICT_11]=12
+        [IPv4_AUTOCONF_CONFLICT_11]=12
         # §4.5.6.3 ANNOUNCING_01..05 — fast envelope, observe DUT's
         # first (or first two) Announce(s) after Probe phase. Wall
         # budget: ~1.5 s initial + 200 ms dhcp + 200 ms PROBE_WAIT +
@@ -1615,56 +1615,56 @@ run_case() {
         # ANNOUNCE_INTERVAL for _05) ≈ 2.7..2.9 s. SCXML 4 s deadline;
         # 8 s case_timeout matches the cluster A field-invariant
         # precedent.
-        [IPV4_AUTOCONF_ANNOUNCING_01]=8
-        [IPV4_AUTOCONF_ANNOUNCING_02]=8
-        [IPV4_AUTOCONF_ANNOUNCING_03]=8
-        [IPV4_AUTOCONF_ANNOUNCING_04]=8
-        [IPV4_AUTOCONF_ANNOUNCING_05]=8
+        [IPv4_AUTOCONF_ANNOUNCING_01]=8
+        [IPv4_AUTOCONF_ANNOUNCING_02]=8
+        [IPv4_AUTOCONF_ANNOUNCING_03]=8
+        [IPv4_AUTOCONF_ANNOUNCING_04]=8
+        [IPv4_AUTOCONF_ANNOUNCING_05]=8
         # §4.5.6.3 ANNOUNCING NEG cluster — same fast envelope as
         # _01..04, OpStartLLAutoconfBuggy with Announce-shape flavors;
         # SCXML deadline + case_timeout match the positive cluster.
-        [IPV4_AUTOCONF_ANNOUNCING_01_NEG]=8
-        [IPV4_AUTOCONF_ANNOUNCING_02_NEG]=8
-        [IPV4_AUTOCONF_ANNOUNCING_03_NEG]=8
-        [IPV4_AUTOCONF_ANNOUNCING_04_NEG]=8
+        [IPv4_AUTOCONF_ANNOUNCING_01_NEG]=8
+        [IPv4_AUTOCONF_ANNOUNCING_02_NEG]=8
+        [IPv4_AUTOCONF_ANNOUNCING_03_NEG]=8
+        [IPv4_AUTOCONF_ANNOUNCING_04_NEG]=8
         # §4.5.6.3 ANNOUNCING_06 — RFC 3927 cadence defaults
         # (ANNOUNCE_INTERVAL = 2000 ms ± 50 ms). Wall budget at RFC
         # cadence: ~1.5 s initial + 200 ms dhcp + 1 s PROBE_WAIT +
         # ~3 s 3 Probes + 2 s ANNOUNCE_WAIT + 2 s ANNOUNCE_INTERVAL
         # ≈ 9.7 s. SCXML 12 s deadline; 15 s case_timeout absorbs
         # stimulus + post-Announce settle and worker scheduling jitter.
-        [IPV4_AUTOCONF_ANNOUNCING_06]=15
+        [IPv4_AUTOCONF_ANNOUNCING_06]=15
         # §4.5.6.5 LINKLOCAL_PACKETS_04 — fast envelope two-Announce
         # gate then 3 s absence window for an arbitrary-target
         # AIFACE-LL Request. Wall budget: ~2.9 s through Announce 2 +
         # ~50 ms inject + 3 s absence + harness margin ≈ 6 s. 10 s
         # case_timeout carries comfortable buffer for worker jitter.
-        [IPV4_AUTOCONF_LINKLOCAL_PACKETS_04]=10
+        [IPv4_AUTOCONF_LINKLOCAL_PACKETS_04]=10
         # §4.5.6.6 NETWORK_PARTITIONS_01 — fast envelope two-Announce
         # gate, 3 s reply window, then 3 s no-periodic absence window.
         # Wall budget: ~2.9 s through Announce 2 + UT-query (~10s of ms)
         # + Reply (~50 ms responder tick) + 3 s absence ≈ 6 s. 12 s
         # case_timeout matches CONFLICT_11 / ADDRESS_SELECTION_16's
         # claim-condition cluster.
-        [IPV4_AUTOCONF_NETWORK_PARTITIONS_01]=12
-        # §4.7.6.1/.2 DHCPV4_CLIENT_PROTOCOL_01/02 + SUMMARY_04
+        [IPv4_AUTOCONF_NETWORK_PARTITIONS_01]=12
+        # §4.7.6.1 / §4.7.6.2 DHCPv4_CLIENT_PROTOCOL_01/02 + SUMMARY_04
         # passive-observation cluster (Session 1, 2026-04-28). Stimulus
         # is the §4.5 fast OpStartLLAutoconf which 1-shots a
         # DHCPDISCOVER ~1.7 s after the RPC (1.5 s initial wait +
         # 200 ms dhcp_timeout). SCXML 4 s deadline; 8 s case_timeout
         # mirrors the §4.5 cluster A field-invariant precedent and
         # gives ~2 s margin against worker scheduling jitter.
-        [DHCPV4_CLIENT_PROTOCOL_01]=8
-        [DHCPV4_CLIENT_PROTOCOL_02]=8
-        [DHCPV4_CLIENT_SUMMARY_04]=8
+        [DHCPv4_CLIENT_PROTOCOL_01]=8
+        [DHCPv4_CLIENT_PROTOCOL_02]=8
+        [DHCPv4_CLIENT_SUMMARY_04]=8
         # §4.7.6.3 ALLOCATING_01 + §4.7.6.7 CONSTRUCTING_MESSAGES_01/03
         # passive carry-over cluster (Session 2, 2026-04-28). Same
         # single-DISCOVER stimulus shape as PROTOCOL_01/02 / SUMMARY_04;
         # no server emulation needed, server-emul-free observation cases
         # before the lifecycle infra lands.
-        [DHCPV4_CLIENT_ALLOCATING_01]=8
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_01]=8
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_03]=8
+        [DHCPv4_CLIENT_ALLOCATING_01]=8
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_01]=8
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_03]=8
         # §4.7.6.1 SUMMARY_01 + §4.7.6.2 PROTOCOL_03 lifecycle cluster
         # (Session 2, 2026-04-28). Stimulus: OpStartDhcpClient (0x10)
         # kicks tc8-dut full DISCOVER → OFFER → REQUEST → ACK lifecycle
@@ -1673,87 +1673,87 @@ run_case() {
         # listening_for_request (OFFER → REQUEST round-trip) = 10 s
         # SCXML deadline; 14 s case_timeout = 4 s margin against worker
         # scheduling jitter at --workers 4.
-        [DHCPV4_CLIENT_SUMMARY_01]=14
-        [DHCPV4_CLIENT_PROTOCOL_03]=14
+        [DHCPv4_CLIENT_SUMMARY_01]=14
+        [DHCPv4_CLIENT_PROTOCOL_03]=14
         # §4.7.6.7 CONSTRUCTING_MESSAGES_04 + §4.7.6.3 ALLOCATING_05 +
         # §4.7.6.8 REQUEST_01 — REQUEST shape invariant cluster
         # (Session 4, 2026-04-28). Same lifecycle envelope as SUMMARY_01
         # / PROTOCOL_03 (DISCOVER → tester OFFER → REQUEST observation),
         # so the 14 s case_timeout carries unchanged.
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_04]=14
-        [DHCPV4_CLIENT_ALLOCATING_05]=14
-        [DHCPV4_CLIENT_REQUEST_01]=14
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_04]=14
+        [DHCPv4_CLIENT_ALLOCATING_05]=14
+        [DHCPv4_CLIENT_REQUEST_01]=14
         # §4.7.6.3 ALLOCATING_03 + §4.7.6.8 REQUEST_02 — REQUEST option
         # echo cluster (Session 4, 2026-04-28). Same lifecycle envelope
         # as the Stage 1 cases; pass criterion is `option_be32_equals`
         # against `expected.server_id_be` (Option 54) /
         # `expected.offered_ip_be` (Option 50).
-        [DHCPV4_CLIENT_ALLOCATING_03]=14
-        [DHCPV4_CLIENT_REQUEST_02]=14
+        [DHCPv4_CLIENT_ALLOCATING_03]=14
+        [DHCPv4_CLIENT_REQUEST_02]=14
         # §4.7.6.1 SUMMARY_03 — 576-octet padded OFFER ingest (Session 4,
         # 2026-04-28). Same envelope as SUMMARY_01; OFFER builder pads
         # with RFC 2131 §3 PADs before END so the IPv4 datagram is
         # exactly 576 B (RFC 791 minimum reassembly).
-        [DHCPV4_CLIENT_SUMMARY_03]=14
+        [DHCPv4_CLIENT_SUMMARY_03]=14
         # §4.7.6.1 SUMMARY_02 — multi-server xid filter (Session 4,
         # 2026-04-28). Two server emuls on Listening_for_request entry:
         # SERVER-1 with xid_offset=+1 (mismatched, MUST be discarded),
         # SERVER-2 matched-xid + distinct server_id. Pass = REQUEST
         # Option 54 = SERVER-2 ID.
-        [DHCPV4_CLIENT_SUMMARY_02]=14
+        [DHCPv4_CLIENT_SUMMARY_02]=14
         # §4.7.6.8 DHCPv4_CLIENT_REQUEST_06..08 RENEWING (Session 6a,
         # 2026-04-28). 1.5 s pilot + ~150 ms DISCOVER/OFFER/REQUEST/ACK
         # + 3 s T1 wait + RENEWING REQUEST observation ≈ 5 s typical.
         # SCXML deadlines 6 + 4 + 8 = 18 s cumulative; 14 s case_timeout
         # matches REQUEST_01/02 budget against worker scheduling jitter.
-        [DHCPV4_CLIENT_REQUEST_06]=14
-        [DHCPV4_CLIENT_REQUEST_07]=14
-        [DHCPV4_CLIENT_REQUEST_08]=14
+        [DHCPv4_CLIENT_REQUEST_06]=14
+        [DHCPv4_CLIENT_REQUEST_07]=14
+        [DHCPv4_CLIENT_REQUEST_08]=14
         # §4.7.6.8 DHCPv4_CLIENT_REQUEST_09..12 REBINDING (Session 6a,
         # 2026-04-28). Adds the T2 wait (5 s post-BOUND for the REBINDING
         # REQUEST emit) and state 4 deadline 6 s on top of the RENEWING
         # lifecycle; typical pass wall ≈ 7 s. 14 s case_timeout = 7 s
         # margin against worker contention.
-        [DHCPV4_CLIENT_REQUEST_09]=14
-        [DHCPV4_CLIENT_REQUEST_10]=14
-        [DHCPV4_CLIENT_REQUEST_11]=14
-        [DHCPV4_CLIENT_REQUEST_12]=14
-        # §4.7.6.7/.8 RENEWING REQUEST shape (Session 6b). Same pass
+        [DHCPv4_CLIENT_REQUEST_09]=14
+        [DHCPv4_CLIENT_REQUEST_10]=14
+        [DHCPv4_CLIENT_REQUEST_11]=14
+        [DHCPv4_CLIENT_REQUEST_12]=14
+        # §4.7.6.7 / §4.7.6.8 RENEWING REQUEST shape (Session 6b). Same pass
         # wall as REQUEST_06..08 (RENEWING template, T1=3 s pass at ~5 s
         # typical). 14 s case_timeout matches the RENEWING budget.
-        [DHCPV4_CLIENT_REACQUISITION_01]=14
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_02]=14
+        [DHCPv4_CLIENT_REACQUISITION_01]=14
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02]=14
         # §4.7.6.8 REBINDING REQUEST shape (Session 6b). Same pass wall
         # as REQUEST_09..12 (REBINDING template, T2=5 s pass at ~7 s
         # typical).
-        [DHCPV4_CLIENT_REACQUISITION_02]=14
+        [DHCPv4_CLIENT_REACQUISITION_02]=14
         # §4.7.6.3 ALLOCATING_09 + §4.7.6.8 REACQUISITION_08 (Session 6b)
         # `dhcpv4_post_bound_discover` template. ALLOCATING_09 pass wall
         # ≈ 4 s (NAK on RENEWING REQUEST → INIT restart → DISCOVER #2);
         # REACQUISITION_08 pass wall ≈ 7 s (no T1/T2 reply → lease
         # expiry at +6 s → INIT restart). 14 s case_timeout covers both.
-        [DHCPV4_CLIENT_ALLOCATING_09]=14
-        [DHCPV4_CLIENT_REACQUISITION_08]=14
+        [DHCPv4_CLIENT_ALLOCATING_09]=14
+        [DHCPv4_CLIENT_REACQUISITION_08]=14
         # §4.7.6.8 REACQUISITION_03/_04 timing (Session 6b). Same SCXML
         # lifecycle as REQUEST_06/_09 (RENEWING / REBINDING templates);
         # additional pass-criterion is the ACK→REQUEST interval bound.
-        [DHCPV4_CLIENT_REACQUISITION_03]=14
-        [DHCPV4_CLIENT_REACQUISITION_04]=14
+        [DHCPv4_CLIENT_REACQUISITION_03]=14
+        [DHCPv4_CLIENT_REACQUISITION_04]=14
         # §4.7.6.3 ALLOCATING_10 + §4.7.6.8 REACQUISITION_05 retx
         # (Session 6b). Promoted lease (kRetransmissionLeaseSeconds=12s)
         # → T1=6s, T2=10s, retx interval=2s. Pass wall ≈ 1.5s pilot +
         # 8s (T1 + retx) + jitter = ~10s. 14 s case_timeout leaves
         # 4 s margin.
-        [DHCPV4_CLIENT_ALLOCATING_10]=14
-        [DHCPV4_CLIENT_REACQUISITION_05]=14
+        [DHCPv4_CLIENT_ALLOCATING_10]=14
+        [DHCPv4_CLIENT_REACQUISITION_05]=14
         # §4.7.6.8 REACQUISITION_06 REBINDING retx (Session 6b). Same
         # 12 s lease; T2=10s, retx interval=1s. Pass wall ≈ 1.5s
         # pilot + 11s (T2 + retx) + jitter = ~13s. 18 s case_timeout
         # leaves 5 s margin.
-        [DHCPV4_CLIENT_REACQUISITION_06]=18
+        [DHCPv4_CLIENT_REACQUISITION_06]=18
         # §4.7.6.8 REACQUISITION_07 lease-release UDP absence (Session 6b).
         # 1.5s pilot + 6s lease + 3s absence window = ~10.5s typical.
-        [DHCPV4_CLIENT_REACQUISITION_07]=14
+        [DHCPv4_CLIENT_REACQUISITION_07]=14
         # §4.7.6.9 INITIALIZATION_ALLOCATION Stage A (Session 9, 2026-04-28).
         # _02 (DISCOVER ciaddr=0) and _03 (DISCOVER chaddr=DUT MAC) reuse
         # the §4.5 OpStartLLAutoconf 1-shot DISCOVER stimulus — same 8 s
@@ -1761,17 +1761,17 @@ run_case() {
         # DISCOVER xid) uses the SUMMARY_01 lifecycle envelope (DISCOVER
         # → tester OFFER → REQUEST observation) — same 14 s case_timeout
         # as SUMMARY_01 / PROTOCOL_03.
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_02]=8
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_03]=8
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_06]=14
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02]=8
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03]=8
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_06]=14
         # §4.7.6.9 INITIALIZATION_ALLOCATION Stage B (Session 9). Same
         # 2-state DISCOVER → absence-window envelope: _04 injects a
         # mismatched-xid OFFER (xid_offset=+1), _05 injects a stray ACK
         # (msg_type=5) — both expected to be silently discarded by the
         # DUT's SELECTING-phase pollForReply. SCXML budget: 6 s + 4 s =
         # 10 s deadline; 14 s case_timeout matches REQUEST_06 budget.
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_04]=14
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_05]=14
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_04]=14
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_05]=14
         # §4.7.6.9 INITIALIZATION_ALLOCATION_01 Stage C (Session 9). Full
         # post_bound_discover envelope + DUT-side [1, 10] s desync wait
         # between NAK ingest and restart DISCOVER per RFC 2131 §4.4.1.
@@ -1779,29 +1779,29 @@ run_case() {
         # + RENEWING REQUEST + NAK + [1, 10] s desync + DISCOVER ≈ [6, 15] s.
         # 22 s case_timeout = ~7 s margin against 10 s desync upper bound
         # plus worker scheduling jitter at --workers 4.
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_01]=22
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01]=22
         # §4.7.6.9 INITIALIZATION_ALLOCATION_08/_09/_10 Stage D (Session 9).
         # Cross-protocol BPF (ArpAndDhcpv4) — DUT firmware emits ARP
         # Probe + Announce/DECLINE post-BOUND. Wall: 1.5 s pilot +
         # ~150 ms DISCOVER/OFFER/REQUEST/ACK + Probe (≤50 ms) + listen
         # (1500 ms for _10) + Announce/DECLINE (~50 ms) ≈ 3.2 s. 14 s
         # case_timeout matches REQUEST_06 budget.
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_08]=14
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_09]=14
-        [DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_10]=14
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_08]=14
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_09]=14
+        [DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10]=14
         # §4.7.6.3 ALLOCATING_07 Stage A (Session 10). Same Stage D
         # cross-protocol envelope + 5th SCXML state observing the
         # restart DISCOVER #2. Pass wall ≈ INIT_ALLOC_09 (3.2 s) +
         # ~50 ms instant-restart DISCOVER ≈ 3.3 s. 14 s case_timeout
         # leaves ~10 s margin against worker scheduling jitter.
-        [DHCPV4_CLIENT_ALLOCATING_07]=14
+        [DHCPv4_CLIENT_ALLOCATING_07]=14
         # §4.7.6.3 ALLOCATING_08 Stage B (Session 10). RFC 2131 §3.1
         # SHOULD: ≥10 s wait between DECLINE and DISCOVER #2. Wall:
         # ALLOCATING_07 (3.2 s) + [10, 11] s desync + jitter ≈ [13.2, 14.5] s.
         # 22 s case_timeout = ~7 s margin against 11 s upper bound +
         # jitter (matches INIT_ALLOC_01's 10 s desync budget).
-        [DHCPV4_CLIENT_ALLOCATING_08]=22
-        # §4.5.6.1 IPV4_AUTOCONF_INTRO_01 (Session 3, 2026-04-28).
+        [DHCPv4_CLIENT_ALLOCATING_08]=22
+        # §4.5.6.1 IPv4_AUTOCONF_INTRO_01 (Session 3, 2026-04-28).
         # Cross-protocol DHCPv4 lifecycle + post-bind ARP-Probe absence
         # window. SCXML budget: 6 s listening_for_discover + 4 s
         # listening_for_request + 4 s listening_for_no_arp_probe = 14 s
@@ -1809,15 +1809,15 @@ run_case() {
         # DISCOVER + ~100 ms REQUEST + 4 s absence = ~6 s pass case;
         # 18 s case_timeout = 4 s margin against worker scheduling
         # jitter at --workers 4.
-        [IPV4_AUTOCONF_INTRO_01]=18
+        [IPv4_AUTOCONF_INTRO_01]=18
         # §4.7.6.7 CONSTRUCTING_MESSAGES_05/_06 (Session 11, 2026-04-28).
         # Cross-protocol UdpAndDhcpv4 lifecycle. SCXML budget: 6 + 4 + 6
         # = 16 s; typical pass wall: 1.5 s pilot + ~100 ms DISCOVER +
         # ~100 ms REQUEST + 400 ms relay before OpTriggerSendUdp +
         # ~50 ms egress ≈ 2.2 s. 18 s case_timeout = ~2 s margin against
         # worker scheduling jitter at --workers 4 plus pcap settle.
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_05]=18
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_06]=18
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05]=18
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_06]=18
         # §4.7.6.7 CONSTRUCTING_MESSAGES_12/_13 (Session 12, 2026-04-29).
         # Exponential-backoff retransmission cluster. CM_12 fast-envelope
         # (cap=3200 ms): pass at DISCOVER 6 ≈ 6.2 s + 1.5 s pilot ≈
@@ -1825,8 +1825,8 @@ run_case() {
         # (4 s/8 s intervals): pass at DISCOVER 3 ≈ 12 s + 1.5 s pilot
         # ≈ 13.5 s; 22 s case_timeout = ~8 s margin (matches INIT_ALLOC
         # _01's 22 s budget for similarly long timing cases).
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_12]=14
-        [DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_13]=22
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_12]=14
+        [DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13]=22
         # §4.7.6.5 USAGE_01 Topology 2 multi-iface lifecycle:
         # 1.5 s pilot wait + DISCOVER#1 ~immediate + s2 entry observer
         # fires emitStartDhcpClient(iface_index=1) (no pilot wait) +
@@ -1836,12 +1836,12 @@ run_case() {
         # an AF_PACKET socket on veth-dut2-W, which adds variable
         # vsomeip-base-state cost on the worker. 14 s case_timeout
         # gives ~12 s margin against worst-case spin-up.
-        [DHCPV4_CLIENT_USAGE_01]=14
+        [DHCPv4_CLIENT_USAGE_01]=14
         # §4.6 UDP cases: 1.5 s pilot UT-bind wait + 0.2 s probe + 0.2 s
         # gap + UT request + 5 s SCXML deadline = ~7 s typical envelope.
         # Default 7 s is tight under --workers 4 scheduler jitter; 10 s
         # gives ~3 s margin without bloating overall wall time. Applied
-        # to every new §4.6 case (+ IPV4_HEADER_05) since they share the
+        # to every new §4.6 case (+ IPv4_HEADER_05) since they share the
         # UT-driven envelope.
         [UDP_INTRODUCTION_01]=10
         [UDP_INTRODUCTION_02]=10
@@ -2123,7 +2123,7 @@ run_case() {
         [UDP_DATAGRAMLENGTH_01]=10
         [UDP_MESSAGEFORMAT_02]=10
         [UDP_PADDING_02]=10
-        [IPV4_HEADER_05]=10
+        [IPv4_HEADER_05]=10
         # §5.1.5.3 SD_MESSAGE_09 — three-phase SCXML (6 + 6 + 4 = 16 s
         # SCXML upper bound) + FindService + Subscribe stimulus
         # (~3 s). Mirrors BASIC_03 wall-time profile.
@@ -2346,7 +2346,7 @@ run_case() {
     # DISCOVERs from DIface-1 reach the same pipeline as DIface-0's.
     # Stimulus injection still uses the primary iface (UT server
     # listens INADDR_ANY → dispatches by iface_index byte).
-    if [[ "$case_id" == "DHCPV4_CLIENT_USAGE_01" ]]; then
+    if [[ "$case_id" == "DHCPv4_CLIENT_USAGE_01" ]]; then
         extra_args+=(--interface-secondary "veth-tester2-$W")
     fi
 
@@ -2565,10 +2565,10 @@ run_negative_case() {
     fi
 
     # Mirror run_case's per-case ipfrag_time toggle. The negative path
-    # for IPV4_REASSEMBLY_10/_12 lands on fail_*_echo_id (id flip)
+    # for IPv4_REASSEMBLY_10/_12 lands on fail_*_echo_id (id flip)
     # before any timer-coupled outcome differs, so the toggle does not
     # change the verdict — but symmetric sysctl state across run_case
-    # / run_negative_case is the project convention (see ICMPV4_TYPE_04
+    # / run_negative_case is the project convention (see ICMPv4_TYPE_04
     # below and the cross-cutting "mirror run_case sysctl toggles"
     # commit 9b726a0). _11 carries no negative row (positive path
     # already lands on fail_timeout on Linux); the toggle is gated on
@@ -2576,11 +2576,11 @@ run_negative_case() {
     # branch a no-op for that id.
     local toggle_ipfrag_time=0
     case "$case_id" in
-        ICMPV4_TYPE_04)
+        ICMPv4_TYPE_04)
             toggle_ipfrag_time=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=3" >/dev/null
             ;;
-        IPV4_REASSEMBLY_10|IPV4_REASSEMBLY_11|IPV4_REASSEMBLY_12)
+        IPv4_REASSEMBLY_10|IPv4_REASSEMBLY_11|IPv4_REASSEMBLY_12)
             toggle_ipfrag_time=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=2" >/dev/null
             ;;
@@ -2791,12 +2791,12 @@ run_negative_case() {
     local -A NEG_CASE_TIMEOUT_SEC=(
         [ARP_48]=9
         [ARP_49]=11
-        # §4.4.4.7 IPV4_REASSEMBLY_12 — same shape as positive
+        # §4.4.4.7 IPv4_REASSEMBLY_12 — same shape as positive
         # (1 s inter-fragment wait + Echo Reply + 5 s SCXML listen);
         # negative echo_id flip still sees the reply but lands on
         # fail_echo_id within the listen window, so the envelope
         # matches the positive ~6.5 s wall-time + margin.
-        [IPV4_REASSEMBLY_12]=10
+        [IPv4_REASSEMBLY_12]=10
         # §5.1.5 multi-instance / multi-service NEG envelopes:
         # SD_MESSAGE_02 NEG hits phase 1 timeout (6 s) + stimulus
         # envelope (~3.5 s for two emitFindServiceBoot calls) ≈ 9.5 s.
@@ -3099,7 +3099,7 @@ run_negative_case() {
         [UDP_USER_INTERFACE_08]=10
         [UDP_PADDING_02]=10
         [UDP_INTRODUCTION_03]=10
-        [IPV4_HEADER_05]=10
+        [IPv4_HEADER_05]=10
     )
     local case_timeout=${NEG_CASE_TIMEOUT_SEC[$case_id]:-7}
 
@@ -3679,35 +3679,35 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # goes out of reach and the case lands on fail_timeout. Proves
         # the src_addr filter is load-bearing — without it, SOME/IP SD
         # multicast and tester-originated frames would both false-pass.
-        "IPV4_HEADER_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        "IPV4_HEADER_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
-        "IPV4_VERSION_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        "IPV4_TTL_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        # IPV4_VERSION_01 / TTL_05 share ipv4_positive_reply's fail
+        "IPv4_HEADER_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
+        "IPv4_HEADER_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
+        "IPv4_VERSION_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
+        "IPv4_TTL_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
+        # IPv4_VERSION_01 / TTL_05 share ipv4_positive_reply's fail
         # reason (same as HEADER_03's timeout string). Also override
         # dut_iface_ip to force the pass path out of reach.
-        "IPV4_VERSION_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
-        "IPV4_TTL_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
-        # IPV4_CHECKSUM_05: overriding dut_iface_ip takes the pass+fail
+        "IPv4_VERSION_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
+        "IPv4_TTL_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
+        # IPv4_CHECKSUM_05: overriding dut_iface_ip takes the pass+fail
         # branches (both gated on src_addr match) out of reach; lands on
         # fail_timeout, proving the SCXML's src_addr conjunct is
         # load-bearing.
-        "IPV4_CHECKSUM_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        # §4.3.3.2 ICMPV4_TYPE_22: override icmpv4.dut_iface_ip so the
+        "IPv4_CHECKSUM_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
+        # §4.3.3.2 ICMPv4_TYPE_22: override icmpv4.dut_iface_ip so the
         # SCXML's `captured.src_ip == expected.dut_iface_ip` conjunct
         # goes out of reach; the DUT still emits the Echo Reply but
         # the src_ip comparison rejects it, landing the case on
         # fail_timeout. Proves the src_ip guard is load-bearing (same
         # pattern as the IPv4 positive-reply rows above).
-        "ICMPV4_TYPE_22|icmpv4.dut_iface_ip=10.99.99.99|fail:no_echo_reply_within_listen_window"
-        # §4.3.3.2 ICMPV4_TYPE_18: override icmpv4.dut_iface_ip — the
+        "ICMPv4_TYPE_22|icmpv4.dut_iface_ip=10.99.99.99|fail:no_echo_reply_within_listen_window"
+        # §4.3.3.2 ICMPv4_TYPE_18: override icmpv4.dut_iface_ip — the
         # SCXML's pass guard (type=3 AND code=2 AND src_ip match) and
         # the fail_wrong_code guard (type=3 AND code!=2 AND src_ip
         # match) both conjunct on src_ip, so both go out of reach.
         # The DUT still emits Destination Unreachable but the case
         # lands on fail_timeout.
-        "ICMPV4_TYPE_18|icmpv4.dut_iface_ip=10.99.99.99|fail:no_dest_unreachable_within_listen_window"
-        # §4.3.3.1 ICMPV4_ERROR_02: override icmpv4.dut_iface_ip —
+        "ICMPv4_TYPE_18|icmpv4.dut_iface_ip=10.99.99.99|fail:no_dest_unreachable_within_listen_window"
+        # §4.3.3.1 ICMPv4_ERROR_02: override icmpv4.dut_iface_ip —
         # both pass (pointer==22 + src_ip match) and fail_wrong_pointer
         # (pointer!=22 + src_ip match) guards conjunct on src_ip, so
         # both go out of reach. The DUT still emits Parameter Problem
@@ -3717,8 +3717,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # out of reach without masquerading as pass-on-timeout, so
         # they carry no negative row (shared limitation with
         # TYPE_05/10/16 and ERROR_04/05).
-        "ICMPV4_ERROR_02|icmpv4.dut_iface_ip=10.99.99.99|fail:no_parameter_problem_within_listen_window"
-        # §4.3.3.2 ICMPV4_TYPE_11: override icmpv4.dut_iface_ip — pass
+        "ICMPv4_ERROR_02|icmpv4.dut_iface_ip=10.99.99.99|fail:no_parameter_problem_within_listen_window"
+        # §4.3.3.2 ICMPv4_TYPE_11: override icmpv4.dut_iface_ip — pass
         # and all three fail_* guards (zero_receive / zero_transmit /
         # wrong_originate) conjunct on src_ip, so flipping the
         # expectation drives every branch out of reach. The DUT still
@@ -3733,8 +3733,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # reaching fail_zero_receive / fail_zero_transmit /
         # fail_wrong_originate requires a non-conformant DUT (same
         # class as ARP_46/47's RFC-constant guards).
-        "ICMPV4_TYPE_11|icmpv4.dut_iface_ip=10.99.99.99|fail:no_timestamp_reply_within_listen_window"
-        # §4.3.3.2 ICMPV4_TYPE_12: override icmpv4.echo_id — pass
+        "ICMPv4_TYPE_11|icmpv4.dut_iface_ip=10.99.99.99|fail:no_timestamp_reply_within_listen_window"
+        # §4.3.3.2 ICMPv4_TYPE_12: override icmpv4.echo_id — pass
         # conjuncts on `captured.echo_id == expected.echo_id`, so
         # flipping the expected value out of band drives the SCXML
         # into fail_id_mismatch (the explicit mismatch branch fires
@@ -3742,21 +3742,21 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # specificity). Proves the identifier-echo invariant the
         # spec asserts is load-bearing in the SCXML — not just
         # "any Timestamp Reply".
-        "ICMPV4_TYPE_12|icmpv4.echo_id=0xFFFE|fail:timestamp_reply_identifier_not_echoed"
+        "ICMPv4_TYPE_12|icmpv4.echo_id=0xFFFE|fail:timestamp_reply_identifier_not_echoed"
         # No row for `parameter_problem_pointer_not_option_or_pointer_byte`:
         # that fail reason fires only when the DUT's Pointer value is
         # neither 20 nor 22 — no CLI override flips Linux's pointer
         # emission off {20}, so reaching that branch requires a non-
         # conformant DUT (same class as ARP_46/47's hardcoded-constant
         # guards).
-        # §4.4.4.6 IPV4_FRAGMENTS_01: flipping icmpv4.echo_id moves
+        # §4.4.4.6 IPv4_FRAGMENTS_01: flipping icmpv4.echo_id moves
         # the pass conjunct (echo_id match) out of reach so the SCXML
         # lands on fail_echo_id (the explicit mismatch branch fires
         # before fail_data_mismatch since it has higher specificity).
         # Proves the echo_id match is load-bearing in the reassembly
         # path — not just "any DUT reply".
-        "IPV4_FRAGMENTS_01|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch"
-        # §4.4.4.6 IPV4_FRAGMENTS_02/03/04: flipping icmpv4.echo_id
+        "IPv4_FRAGMENTS_01|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch"
+        # §4.4.4.6 IPv4_FRAGMENTS_02/03/04: flipping icmpv4.echo_id
         # moves phase 2's pass conjunct out of reach — the DUT's
         # reassembled Echo Reply has the real kIcmpEchoId in its
         # header, but the SCXML compares against the wrong expected.
@@ -3765,10 +3765,10 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # FRAGMENTS_01's diagnostic granularity). Proves the phase 2
         # echo_id conjunct is load-bearing across all three
         # compound consumers.
-        "IPV4_FRAGMENTS_02|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_id_retry"
-        "IPV4_FRAGMENTS_03|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_src_retry"
-        "IPV4_FRAGMENTS_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_protocol_retry"
-        # §4.4.4.6 IPV4_FRAGMENTS_05: override ipv4.dut_iface_ip so the
+        "IPv4_FRAGMENTS_02|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_id_retry"
+        "IPv4_FRAGMENTS_03|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_src_retry"
+        "IPv4_FRAGMENTS_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_protocol_retry"
+        # §4.4.4.6 IPv4_FRAGMENTS_05: override ipv4.dut_iface_ip so the
         # SCXML pass-guard conjunct `captured.src_ip ==
         # expected.dut_iface_ip` goes out of reach. The DUT still emits
         # the UDP via TriggerSendUdp (ut.status==Ok) but the observed
@@ -3779,8 +3779,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # captured.ut_* fields which have no --expect backing, so no
         # CLI override flips a pass guard without also breaking the
         # stimulus.
-        "IPV4_FRAGMENTS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        # §4.4.4.7 IPV4_REASSEMBLY_04: flipping icmpv4.echo_id moves the
+        "IPv4_FRAGMENTS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
+        # §4.4.4.7 IPv4_REASSEMBLY_04: flipping icmpv4.echo_id moves the
         # pass conjunct (echo_id match on the unordered-reassembly Echo
         # Reply) out of reach. The DUT still reassembles by offset key
         # and emits Echo Reply with the real kIcmpEchoId, but the SCXML
@@ -3790,15 +3790,15 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # complements FRAGMENTS_01's same-axis check on the in-order
         # 2-fragment path. _06/_07/_09 (pure absence) carry no negative
         # row — their SCXML guards have no flippable conjunct, see the
-        # ICMPV4_TYPE_10/16 precedent.
-        "IPV4_REASSEMBLY_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_unordered_reassembly"
-        # §4.4.4.7 IPV4_REASSEMBLY_12: same axis as REASSEMBLY_04 —
+        # ICMPv4_TYPE_10/16 precedent.
+        "IPv4_REASSEMBLY_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_unordered_reassembly"
+        # §4.4.4.7 IPv4_REASSEMBLY_12: same axis as REASSEMBLY_04 —
         # flipping icmpv4.echo_id sends the pass conjunct out of reach
         # so the SCXML lands on fail_echo_id with the low-TTL reason
         # string. Proves the echo_id match is load-bearing on the
         # Low-TTL reassembly path.
-        "IPV4_REASSEMBLY_12|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_low_ttl_reassembly"
-        # §4.4.4.7 IPV4_REASSEMBLY_11 carries no negative row — the
+        "IPv4_REASSEMBLY_12|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_low_ttl_reassembly"
+        # §4.4.4.7 IPv4_REASSEMBLY_11 carries no negative row — the
         # case's positive path already lands on fail_timeout on Linux
         # (ipfrag_time=2 dut_ns toggle + 3 s inter-fragment wait =
         # bucket expired before frag 1, no Echo Reply). An echo_id
@@ -3806,7 +3806,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # diagnostic variance. Same precedent as _13 (overlap drop)
         # and _06/_07/_09 (pure absence): no flippable conjunct that
         # can be observed when no reply lands.
-        # §4.4.4.7 IPV4_REASSEMBLY_10: flipping icmpv4.echo_id sends
+        # §4.4.4.7 IPv4_REASSEMBLY_10: flipping icmpv4.echo_id sends
         # phase_a's pass conjunct out of reach. The DUT reassembles
         # Phase A (inside ipfrag_time=2 s) and emits Echo Reply with
         # the real id=0x1234, but the SCXML compares against 0xFFFE →
@@ -3814,7 +3814,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # is unreachable since phase_a's terminal final state already
         # ended the case. Proves the phase_a echo_id match is load-
         # bearing on the within-timer reassembly path.
-        "IPV4_REASSEMBLY_10|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_phase_a_within_timer"
+        "IPv4_REASSEMBLY_10|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_phase_a_within_timer"
         # §4.8.6.1 TCP_BASICS_01..05: every pass/fail branch conjuncts
         # on `captured.src_ip == expected.dut_iface_ip` so flipping the
         # expectation to an unreachable 10.99.99.99 sends every guard
@@ -4047,11 +4047,11 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # filter; flipping ipv4.dut_iface_ip sends the filter out of reach
         # → fail_timeout (no_dut_icmp_port_unreachable_within_listen_window).
         "UDP_INTRODUCTION_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_icmp_port_unreachable_within_listen_window"
-        # §4.4.4.1 IPV4_HEADER_05: per-case SCXML conjuncts on
+        # §4.4.4.1 IPv4_HEADER_05: per-case SCXML conjuncts on
         # `expected.dut_iface_ip` for src_ip filtering; flipping
         # icmpv4.dut_iface_ip sends every transition out of reach →
         # fail_timeout. Proves the src_ip filter is load-bearing.
-        "IPV4_HEADER_05|icmpv4.dut_iface_ip=10.99.99.99|fail:no_echo_reply_for_576_byte_datagram"
+        "IPv4_HEADER_05|icmpv4.dut_iface_ip=10.99.99.99|fail:no_echo_reply_for_576_byte_datagram"
     )
     # Filter NEG_ROWS to only those whose case_id appears in the
     # positional CASES array (when the user passed any). Keeps the

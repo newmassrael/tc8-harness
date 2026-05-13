@@ -23,7 +23,7 @@
   (TCP_TIMEWAIT_LEN = 60 * HZ) has fired, the kernel-side socket
   is gone, and the FIN reaches `tcp_v4_rcv` with no matching
   socket — `tcp_v4_send_reset` emits the closed-port RST per RFC
-  793 §3.4.
+  793 RFC 793 §3.4.
 
   See tests/_templates/tcp_time_wait_4state.sce-template.xml for
   the shared 4-state observation chain (incl. the COUPLING NOTE

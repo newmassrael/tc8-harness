@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
     // RstDrop scope = stimulus body only. After dtor fires, DUT's
     // continuing SYN retransmits draw tester-kernel RST+ACK with
     // ack=ISN_d+1 (acceptable), which Linux processes per RFC 793
-    // §3.9 → CLOSED silently. Absence guard remains satisfied because
+    // RFC 793 §3.9 → CLOSED silently. Absence guard remains satisfied because
     // DUT does not emit any segment in that path.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::TcpBasics05SM>
     //   2. TESTER: Send a TCP segment with `flag=ACK`     (ACK=phase2
     //      literal) to the same port.
     // After each: DUT MUST reply RST with SEQ = incoming.ACK (RFC 793
-    // §3.9 p65; `tcp_v4_send_reset` ACK-bearing branch picks
+    // RFC 793 §3.9 p65; `tcp_v4_send_reset` ACK-bearing branch picks
     // `rep.th.seq = th->ack_seq`).
     //
     // Stimulus walks the two iterations sequentially with a

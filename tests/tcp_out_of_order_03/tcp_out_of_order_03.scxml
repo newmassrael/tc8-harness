@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.8.6.10 TCP_OUT_OF_ORDER_03: TCP SHOULD be capable of queuing
-  out-of-order segments (RFC 1122 §4.2.2.20 p93 — RFC-793 §3.9).
+  out-of-order segments (RFC 1122 §4.2.2.20 p93 — RFC-793 RFC 1122 §3.9).
 
   v3.0 Test Procedure (p366):
     1. TESTER: Cause the DUT to move to ESTABLISHED state at <wnp>.

@@ -659,7 +659,7 @@ bool Dhcpv4Client::pollForReply(int                        sk,
         // Option 53 (Message Type) gate — `expected_msg_type == 0`
         // means accept any BOOTREPLY (BOUND phase callers want to
         // distinguish ACK vs NAK). Length-1 invariant comes from RFC
-        // 2132 §9.6.
+        // 2132 RFC 2131 §9.6.
         std::uint8_t  msg_type = 0;
         std::size_t   mt_len   = sizeof(msg_type);
         if (!findDhcpOption(opts, opts_len, 53, &msg_type, &mt_len) ||
@@ -693,7 +693,7 @@ bool Dhcpv4Client::pollForReply(int                        sk,
                             (static_cast<std::uint32_t>(lt_bytes[3]) <<  0);
         }
 
-        // §4.7.6.7 CM_05/_06 / RFC 2132 §9.3 Option Overload + §3.5
+        // §4.7.6.7 CM_05/_06 / RFC 2132 §9.3 Option Overload + RFC 2132 §3.5
         // Option 3 (Router). The router address may live in the main
         // options blob OR (when Option 52 is present) in `sname`
         // (offset 44, 64 B) / `file` (offset 108, 128 B). The walker
@@ -921,7 +921,7 @@ void Dhcpv4Client::runLoop(Params params) {
         // `sk` for ACK/NAK responses; otherwise it idles in steady
         // BOUND until abort. Returns true if the lifecycle should
         // restart from DISCOVER (NAK in RENEWING/REBINDING per RFC
-        // 2131 §3.1, or lease expiry per §4.4.5).
+        // 2131 RFC 2131 §3.1, or lease expiry per §4.4.5).
         const bool init_restart =
             runBoundPhaseMachine(sk, xid_be, ack_server_be, ack_lease_seconds);
         ::close(sk);
@@ -932,7 +932,7 @@ void Dhcpv4Client::runLoop(Params params) {
         // OpQueryDhcpLease doesn't briefly observe the stale lease
         // mid-restart. §4.7.6.7 CM_05/_06: also tear down the prior
         // default route — a NAK invalidates the binding (RFC 2131
-        // §3.1) and therefore the routing parameters that came with
+        // RFC 2131 §3.1) and therefore the routing parameters that came with
         // it. The next BOUND will re-install fresh on the new ACK.
         std::uint32_t to_remove = 0;
         {
