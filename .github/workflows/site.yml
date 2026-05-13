@@ -43,12 +43,16 @@ jobs:
 
       - name: Overlay pcap data
         run: |
-          mkdir -p site/src/data/pcap
+          mkdir -p site/src/data/pcap site/src/data/auto_messages
           if [ -d .pcap-overlay/site/src/data/pcap ]; then
             cp -r .pcap-overlay/site/src/data/pcap/. site/src/data/pcap/
             echo "overlaid $(ls site/src/data/pcap | wc -l) capture file(s)"
           else
             echo "pcap-data branch empty or absent; skipping overlay"
+          fi
+          if [ -d .pcap-overlay/site/src/data/auto_messages ]; then
+            cp -r .pcap-overlay/site/src/data/auto_messages/. site/src/data/auto_messages/
+            echo "overlaid $(ls site/src/data/auto_messages | wc -l) auto-message file(s)"
           fi
 
       - name: Set up Python

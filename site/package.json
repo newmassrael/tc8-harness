@@ -5,9 +5,10 @@
   "private": true,
   "scripts": {
     "manifest": "python3 scripts/build_manifest.py",
+    "lint:messages": "python3 scripts/lint_messages.py",
     "predev": "npm run manifest",
     "dev": "astro dev",
-    "build": "npm run manifest && astro build",
+    "build": "npm run manifest && npm run lint:messages && astro build",
     "preview": "astro preview",
     "check": "astro check"
   },

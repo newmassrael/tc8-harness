@@ -51,6 +51,24 @@ const koMap = buildMap(import.meta.glob<CaseOverride>(
 const enMap = buildMap(import.meta.glob<CaseOverride>(
   '../locales/cases/en/*.json', { eager: true, import: 'default' }));
 
+interface AutoMessages {
+  case_id: string;
+  generator_version: string;
+  messages: MessageHighlight[];
+}
+
+function buildAutoMap(modules: Record<string, AutoMessages>): Record<string, MessageHighlight[]> {
+  const out: Record<string, MessageHighlight[]> = {};
+  for (const [path, mod] of Object.entries(modules)) {
+    const id = path.split('/').pop()!.replace(/\.json$/, '').toUpperCase();
+    out[id] = mod.messages ?? [];
+  }
+  return out;
+}
+
+const autoMap = buildAutoMap(import.meta.glob<AutoMessages>(
+  '../data/auto_messages/*.json', { eager: true, import: 'default' }));
+
 export interface TranslationCoverage {
   en: number;
   ko: number;
@@ -102,11 +120,27 @@ export function localizedVerdictMeaning(
   return enMap[id]?.verdicts?.[state];
 }
 
+/**
+ * Merge per-packet messages across (ko-manual, en-manual, auto, empty)
+ * sources at idx granularity. The first source that owns a given idx wins
+ * — manual annotations override auto output but only for the specific
+ * packets the author wrote labels for; auto fills the rest.
+ *
+ * Priority per idx:
+ *   ko manual → en manual → auto → (skip)
+ *
+ * Returned list is sorted by idx ascending.
+ */
 export function localizedMessages(c: CaseRecord, locale: Locale): MessageHighlight[] {
   const id = c.case_id.toUpperCase();
-  if (locale === 'ko') {
-    const m = koMap[id]?.messages;
-    if (m && m.length) return m;
-  }
-  return enMap[id]?.messages ?? [];
+  const ko = locale === 'ko' ? (koMap[id]?.messages ?? []) : [];
+  const en = enMap[id]?.messages ?? [];
+  const auto = autoMap[id] ?? [];
+
+  const out = new Map<number, MessageHighlight>();
+  for (const m of auto) out.set(m.idx, m);
+  for (const m of en) out.set(m.idx, m);
+  for (const m of ko) out.set(m.idx, m);
+
+  return [...out.values()].sort((a, b) => a.idx - b.idx);
 }
