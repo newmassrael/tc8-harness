@@ -1,7 +1,7 @@
 {
   "case_id": "UDP_FIELDS_12",
-  "outcome": "pass",
-  "captured_at": "2026-05-13T07:16:32Z",
+  "outcome": "fail",
+  "captured_at": "2026-05-13T09:28:59Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -1033,12 +1033,15 @@
       "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
-      "protocol": "UDP",
-      "summary": "20100 → 30600, len=16",
+      "protocol": "UT/UDP",
+      "summary": "UT req GetReceivedUdp (id=1)",
       "fields": {
         "src_port": 20100,
         "dst_port": 30600,
-        "length": 16
+        "ut_opcode": 1,
+        "ut_request_opcode": 1,
+        "ut_req_id": 1,
+        "ut_is_request": true
       }
     },
     {
@@ -1050,12 +1053,40 @@
       "dst_mac": "56:24:e0:5b:b0:76",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
-      "protocol": "UDP",
-      "summary": "30600 → 20100, len=276",
+      "protocol": "UT/UDP",
+      "summary": "UT resp GetReceivedUdp ok received=1 src=172.16.0.1:20001 len=65507",
       "fields": {
         "src_port": 30600,
         "dst_port": 20100,
-        "length": 276
+        "ut_opcode": 129,
+        "ut_request_opcode": 1,
+        "ut_req_id": 1,
+        "ut_is_response": true,
+        "has_ut_response": true,
+        "ut_status": 0,
+        "ut_received": 1,
+        "ut_recv_src_ip": "172.16.0.1",
+        "ut_recv_src_ip_be": 2886729729,
+        "ut_recv_src_port": 20001,
+        "ut_recv_payload_len": 65507,
+        "ut_recv_payload_first16": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ]
       }
     }
   ]

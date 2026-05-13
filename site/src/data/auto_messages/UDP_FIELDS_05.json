@@ -29,28 +29,28 @@
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) progress trigger — advances to listening_phase2. Cond: has_ut_response and ut_opcode == 0x81 and ut_status == 0 and ut_received == 1 and ut_recv_src_ip == expected.tester_ip"
     },
     {
       "idx": 6,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — observed frame"
+      "label": "Phase 2 (listening_phase2) — observed frame"
     },
     {
       "idx": 7,
       "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 8,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 9,
       "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     }
   ]
 }

@@ -1,10 +1,10 @@
 {
   "case_id": "IPV4_AUTOCONF_ANNOUNCING_02",
   "outcome": "fail",
-  "captured_at": "2026-05-13T07:16:32Z",
+  "captured_at": "2026-05-13T09:28:59Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": null,
-  "dut_mac": "2a:e4:cf:90:a1:18",
+  "dut_mac": "c6:ac:71:7c:83:53",
   "dut_ip": null,
   "packets": [
     {
@@ -28,18 +28,18 @@
     },
     {
       "idx": 1,
-      "ts_us": 4,
-      "ts_delta_us": 4,
+      "ts_us": 5,
+      "ts_delta_us": 5,
       "direction": "dut_to_tester",
-      "src_mac": "2a:e4:cf:90:a1:18",
+      "src_mac": "c6:ac:71:7c:83:53",
       "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at 2a:e4:cf:90:a1:18",
+      "summary": "172.16.0.1 is at c6:ac:71:7c:83:53",
       "fields": {
         "opcode": 2,
-        "sender_mac": "2a:e4:cf:90:a1:18",
+        "sender_mac": "c6:ac:71:7c:83:53",
         "sender_ip": "172.16.0.1",
         "target_mac": "7e:b1:ae:f4:32:5d",
         "target_ip": "172.16.0.2"

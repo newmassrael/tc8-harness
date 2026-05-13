@@ -29,8 +29,8 @@
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: has_ut_response and ut_opcode == 0x81 and ut_status == 0 and ut_received == 1"
     }
   ]
 }

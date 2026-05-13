@@ -1,7 +1,7 @@
 {
   "case_id": "SOMEIPSRV_SD_MESSAGE_05",
   "outcome": "pass",
-  "captured_at": "2026-05-13T07:16:32Z",
+  "captured_at": "2026-05-13T09:28:59Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,

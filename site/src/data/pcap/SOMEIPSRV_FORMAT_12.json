@@ -1,10 +1,10 @@
 {
   "case_id": "SOMEIPSRV_FORMAT_12",
   "outcome": "pass",
-  "captured_at": "2026-05-13T07:16:32Z",
-  "tester_mac": "5e:45:c1:4c:94:86",
+  "captured_at": "2026-05-13T09:28:59Z",
+  "tester_mac": "4e:44:45:8f:7a:08",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "c6:8c:dc:1c:6a:39",
+  "dut_mac": "ee:e0:7b:ca:c3:83",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -12,7 +12,7 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "4e:44:45:8f:7a:08",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -72,10 +72,10 @@
     },
     {
       "idx": 1,
-      "ts_us": 200148,
-      "ts_delta_us": 200148,
+      "ts_us": 200141,
+      "ts_delta_us": 200141,
       "direction": "tester_to_dut",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "4e:44:45:8f:7a:08",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -135,10 +135,10 @@
     },
     {
       "idx": 2,
-      "ts_us": 600295,
-      "ts_delta_us": 400147,
+      "ts_us": 600264,
+      "ts_delta_us": 400123,
       "direction": "tester_to_dut",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "4e:44:45:8f:7a:08",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -178,8 +178,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
@@ -188,8 +188,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -198,10 +198,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 997237,
-      "ts_delta_us": 396942,
+      "ts_us": 977210,
+      "ts_delta_us": 376946,
       "direction": "dut_to_tester",
-      "src_mac": "c6:8c:dc:1c:6a:39",
+      "src_mac": "ee:e0:7b:ca:c3:83",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.1",
       "dst_ip": "224.244.224.245",
@@ -240,10 +240,10 @@
     },
     {
       "idx": 4,
-      "ts_us": 997400,
-      "ts_delta_us": 163,
+      "ts_us": 977407,
+      "ts_delta_us": 197,
       "direction": "tester_to_dut",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "4e:44:45:8f:7a:08",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -283,8 +283,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
@@ -293,8 +293,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -303,10 +303,10 @@
     },
     {
       "idx": 5,
-      "ts_us": 1400573,
-      "ts_delta_us": 403173,
+      "ts_us": 1400408,
+      "ts_delta_us": 423001,
       "direction": "tester_to_dut",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "4e:44:45:8f:7a:08",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -346,8 +346,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
@@ -356,8 +356,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           }
         ],
         "src_port": 30490,

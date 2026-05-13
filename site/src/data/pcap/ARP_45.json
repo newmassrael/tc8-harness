@@ -1,7 +1,7 @@
 {
   "case_id": "ARP_45",
   "outcome": "pass",
-  "captured_at": "2026-05-13T07:16:32Z",
+  "captured_at": "2026-05-13T09:28:59Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
   "dut_mac": "7e:b1:ae:f4:32:5d",
@@ -28,8 +28,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 13,
-      "ts_delta_us": 13,
+      "ts_us": 20,
+      "ts_delta_us": 20,
       "direction": "dut_to_tester",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "02:00:00:00:00:a1",
@@ -47,8 +47,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 259527,
-      "ts_delta_us": 259514,
+      "ts_us": 251274,
+      "ts_delta_us": 251254,
       "direction": "other",
       "src_mac": "02:00:00:00:00:a2",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -66,8 +66,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 259532,
-      "ts_delta_us": 5,
+      "ts_us": 251295,
+      "ts_delta_us": 21,
       "direction": "dut_to_tester",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "02:00:00:00:00:a2",

@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_FLAGS_INVALID_15",
   "outcome": "fail",
-  "captured_at": "2026-05-13T07:16:32Z",
+  "captured_at": "2026-05-13T09:28:59Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
   "dut_mac": "c6:8c:dc:1c:6a:39",

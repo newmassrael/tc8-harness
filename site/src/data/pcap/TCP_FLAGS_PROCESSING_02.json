@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_FLAGS_PROCESSING_02",
-  "outcome": "pass",
-  "captured_at": "2026-05-13T07:16:32Z",
+  "outcome": "fail",
+  "captured_at": "2026-05-13T09:28:59Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": "46:55:00:e4:66:5e",

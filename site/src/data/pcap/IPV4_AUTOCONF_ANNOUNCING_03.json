@@ -1,10 +1,10 @@
 {
   "case_id": "IPV4_AUTOCONF_ANNOUNCING_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T07:16:32Z",
-  "tester_mac": "5e:45:c1:4c:94:86",
+  "captured_at": "2026-05-13T09:28:59Z",
+  "tester_mac": "4e:44:45:8f:7a:08",
   "tester_ip": null,
-  "dut_mac": "c6:8c:dc:1c:6a:39",
+  "dut_mac": "ee:e0:7b:ca:c3:83",
   "dut_ip": null,
   "packets": [
     {
@@ -12,15 +12,15 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "4e:44:45:8f:7a:08",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 172.16.0.1? Tell 172.16.0.2 (sender_mac=5e:45:c1:4c:94:86)",
+      "summary": "Who has 172.16.0.1? Tell 172.16.0.2 (sender_mac=4e:44:45:8f:7a:08)",
       "fields": {
         "opcode": 1,
-        "sender_mac": "5e:45:c1:4c:94:86",
+        "sender_mac": "4e:44:45:8f:7a:08",
         "sender_ip": "172.16.0.2",
         "target_mac": "00:00:00:00:00:00",
         "target_ip": "172.16.0.1"
@@ -31,17 +31,17 @@
       "ts_us": 4,
       "ts_delta_us": 4,
       "direction": "dut_to_tester",
-      "src_mac": "c6:8c:dc:1c:6a:39",
-      "dst_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "ee:e0:7b:ca:c3:83",
+      "dst_mac": "4e:44:45:8f:7a:08",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at c6:8c:dc:1c:6a:39",
+      "summary": "172.16.0.1 is at ee:e0:7b:ca:c3:83",
       "fields": {
         "opcode": 2,
-        "sender_mac": "c6:8c:dc:1c:6a:39",
+        "sender_mac": "ee:e0:7b:ca:c3:83",
         "sender_ip": "172.16.0.1",
-        "target_mac": "5e:45:c1:4c:94:86",
+        "target_mac": "4e:44:45:8f:7a:08",
         "target_ip": "172.16.0.2"
       }
     }
