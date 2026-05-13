@@ -45,7 +45,7 @@
   (Linux `net.ipv4.ipfrag_time`, default 30 s). FRAGMENTS_02/03/04
   leave the default untouched so frag 0's bucket is still alive
   when phase 2's frag 1 arrives shortly after listening_phase2
-  entry. smoke-test.sh's ipfrag_time=3 toggle is ICMPV4_TYPE_04-only
+  entry. smoke-test.sh's ipfrag_time=3 toggle is ICMPv4_TYPE_04-only
   — explicitly NOT applied to FRAGMENTS cases.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"

@@ -26,8 +26,8 @@ class IStimulusScheduler;
 //     static constexpr std::string_view kCaseId;       // "SOMEIPSRV_FORMAT_01"
 //     static constexpr std::string_view kSpecSection;  // "5.1.5.1.1"
 //     static constexpr std::string_view kDescription;  // Synopsis row
-//     static constexpr bool             kDeprecated;   // §Deprecated / Deleted Test Case
-//     static constexpr int              kTopology;     // §Test setup — Topology N
+//     static constexpr bool             kDeprecated;   // Deprecated / Deleted Test Case
+//     static constexpr int              kTopology;     // Test setup — Topology N
 //     static constexpr ::tc8::BpfGroup  kBpfGroup;     // capture-filter bucket
 //
 //   (Category is derived from kCaseId — everything before the final

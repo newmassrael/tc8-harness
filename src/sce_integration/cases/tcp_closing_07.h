@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
         "incoming data while remaining in FIN-WAIT-1 (RFC 793 §3.5 "
         "p38 Closing a Connection)";
 
-    // 16-byte payload pattern. Distinct byte from §_03 (0xA5) and §_09
+    // 16-byte payload pattern. Distinct byte from sibling _03 (0xA5) and _09
     // (0x5A) so a pcap reader can attribute a stray data segment to
     // the correct case ID.
     static constexpr std::uint16_t kPayloadLen = 16U;

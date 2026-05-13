@@ -30,7 +30,7 @@ namespace tc8::dut {
 //     broadcast (e.g. 172.16.0.255 for 172.16.0.2/24) are silently
 //     DROPPED — this is the §4.4.4.5 IPv4_ADDRESSING_02 conformance
 //     behaviour, baked into the application layer per RFC 1122
-//     §3.2.1.3 "SHOULD silently discard."
+//     RFC 1122 §3.2.1.3 "SHOULD silently discard."
 //
 //   * UT RPC server — binds UDP INADDR_ANY on `ut::kPort` (30600),
 //     parses requests per `tc8/upper_tester_protocol.h`, and emits
@@ -51,7 +51,7 @@ public:
 
     // Start both listener threads. Returns false if either socket
     // fails to bind — caller should abort startup in that case (no
-    // UT = every §4.4.4.5/6 case will fail on timeout, which is a
+    // UT = every §4.4.4.5 / §4.4.4.6 case will fail on timeout, which is a
     // clearer failure mode than silent running without UT).
     bool start();
 

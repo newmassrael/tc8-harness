@@ -23,7 +23,7 @@ namespace tc8::dissect {
 // variant and ignores whatever it doesn't care about.
 //
 // Protocol coverage currently implemented: SOME/IP (§5.1). Other
-// groups (ARP §4.2, ICMPv4 §4.3, IPv4 §4.4/§4.5, UDP §4.6, DHCPv4 §4.7,
+// groups (ARP §4.2, ICMPv4 §4.3, IPv4 §4.4 / §4.5, UDP §4.6, DHCPv4 §4.7,
 // TCP §4.8) have `CapturedEvent` alternatives reserved; their decoders
 // are filled in alongside the first case in each section.
 class PacketPipeline {

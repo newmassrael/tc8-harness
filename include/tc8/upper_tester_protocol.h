@@ -12,7 +12,7 @@
 //
 // The spec leaves the wire format unspecified and points at AUTOSAR's
 // Testability Protocol as an example. This header defines the minimal
-// opcode surface the §4.4.4.5/6 cases (ADDRESSING_01/02, FRAGMENTS_05)
+// opcode surface the §4.4.4.5 / §4.4.4.6 cases (ADDRESSING_01/02, FRAGMENTS_05)
 // need. A future §4.8 TCP session or §4.7 DHCP session can extend it
 // by adding opcodes — additive, not edit, so the three landed cases
 // never regress.
@@ -398,7 +398,7 @@ enum Opcode : std::uint8_t {
     // self-reference-trap mitigation. Same six timing knobs as 0x0C
     // followed by a single `flavor` byte that tells tc8-dut to
     // deliberately mutate one ARP frame field per RFC 3927 §2.1 /
-    // §2.1.1 / §2.2.1 / §2.4 invariant. Drives the negative-path
+    // RFC 3927 §2.1.1 / RFC 3927 §2.2.1 / RFC 3927 §2.4 invariant. Drives the negative-path
     // verification of §4.5.6.2 ADDRESS_SELECTION cluster A and
     // §4.5.6.3 ANNOUNCING SCXML fail_state branches that conformant
     // emit can never trigger — without this opcode, those branches
@@ -498,7 +498,7 @@ enum Opcode : std::uint8_t {
     // §4.7 DHCPv4 client lease query. Returns the bound IPv4 address
     // (yiaddr from the matched ACK) in network byte order, or
     // 0.0.0.0 if the state machine has not yet reached BOUND. Used by
-    // §4.5.6.1 IPV4_AUTOCONF_INTRO_01 to confirm the DUT acquired a
+    // §4.5.6.1 IPv4_AUTOCONF_INTRO_01 to confirm the DUT acquired a
     // routable address (and therefore SHOULD NOT fall back to LL),
     // and by future §4.7 reacquisition cases.
     //
@@ -620,14 +620,14 @@ inline constexpr std::uint8_t kSocketTypeActive  = 0x01;
 // so cadence-violation negatives pass 100 ms timing knobs through the
 // standard 0x0C opcode.
 inline constexpr std::uint8_t kFlavorNone                          = 0x00;
-inline constexpr std::uint8_t kFlavorSenderIpNonzero               = 0x01;  // §2.1.1 sender_proto_ip MUST=0
-inline constexpr std::uint8_t kFlavorTargetOutsidePrefix           = 0x02;  // §2.1   target in 169.254/16 MUST
-inline constexpr std::uint8_t kFlavorTargetInReservedRange         = 0x03;  // §2.1   third octet ∈ [1,254] MUST
-inline constexpr std::uint8_t kFlavorTargetHwNonzero               = 0x04;  // §2.2.1 target_hw SHOULD=0
-inline constexpr std::uint8_t kFlavorSenderHwWrong                 = 0x05;  // §2.2.1 sender_hw=DUT MAC MUST
-inline constexpr std::uint8_t kFlavorAnnounceEthDstUnicast         = 0x06;  // §2.4   Announce eth_dst=broadcast MUST
-inline constexpr std::uint8_t kFlavorAnnounceSenderTargetMismatch  = 0x07;  // §2.4   Announce sender_ip==target_ip MUST
-inline constexpr std::uint8_t kFlavorAnnounceSenderHwWrong         = 0x08;  // §2.4   Announce sender_hw=DUT MAC MUST
-inline constexpr std::uint8_t kFlavorAnnounceTargetHwNonzero       = 0x09;  // §2.4   Announce target_hw=00:..:00 SHOULD
+inline constexpr std::uint8_t kFlavorSenderIpNonzero               = 0x01;  // RFC 3927 §2.1.1 sender_proto_ip MUST=0
+inline constexpr std::uint8_t kFlavorTargetOutsidePrefix           = 0x02;  // RFC 3927 §2.1   target in 169.254/16 MUST
+inline constexpr std::uint8_t kFlavorTargetInReservedRange         = 0x03;  // RFC 3927 §2.1   third octet ∈ [1,254] MUST
+inline constexpr std::uint8_t kFlavorTargetHwNonzero               = 0x04;  // RFC 3927 §2.2.1 target_hw SHOULD=0
+inline constexpr std::uint8_t kFlavorSenderHwWrong                 = 0x05;  // RFC 3927 §2.2.1 sender_hw=DUT MAC MUST
+inline constexpr std::uint8_t kFlavorAnnounceEthDstUnicast         = 0x06;  // RFC 3927 §2.4   Announce eth_dst=broadcast MUST
+inline constexpr std::uint8_t kFlavorAnnounceSenderTargetMismatch  = 0x07;  // RFC 3927 §2.4   Announce sender_ip==target_ip MUST
+inline constexpr std::uint8_t kFlavorAnnounceSenderHwWrong         = 0x08;  // RFC 3927 §2.4   Announce sender_hw=DUT MAC MUST
+inline constexpr std::uint8_t kFlavorAnnounceTargetHwNonzero       = 0x09;  // RFC 3927 §2.4   Announce target_hw=00:..:00 SHOULD
 
 }  // namespace tc8::ut

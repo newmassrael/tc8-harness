@@ -48,8 +48,8 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07SM>
     //
     // Per-phase port quads dodge BASICS_11/12/13/14, FLAGS_INVALID_14,
     // UNACCEPTABLE_13 (default +0 quad) and the §4.8 active-OPEN
-    // cluster's existing reservations (+0..+6 §15, +20..+25 §03..06,
-    // +30..+38 HEADER, +40..+41 MSS_OPTIONS, +50/+51/+52 §11/06/08).
+    // cluster's existing reservations (+0..+6 case 15, +20..+25 cases 03..06,
+    // +30..+38 HEADER, +40..+41 MSS_OPTIONS, +50/+51/+52 cases 11/06/08).
     //
     // URG-only segment shape: flags = kTcpFlagUrg only (no ACK / SYN
     // / RST / FIN). seq_num = tester's snd_nxt at probe time =

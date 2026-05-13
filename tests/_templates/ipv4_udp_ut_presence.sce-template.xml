@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   §4.4.4.5 UDP-receipt presence/absence shape driven by §4.8.5 Upper
-  Tester Confirmation. Shared body for IPV4_ADDRESSING_01 (positive,
-  limited broadcast, expected_received=1) and IPV4_ADDRESSING_02
+  Tester Confirmation. Shared body for IPv4_ADDRESSING_01 (positive,
+  limited broadcast, expected_received=1) and IPv4_ADDRESSING_02
   (negative, directed broadcast, expected_received=0).
 
   The SCXML watches UdpFrame events and ignores any whose payload

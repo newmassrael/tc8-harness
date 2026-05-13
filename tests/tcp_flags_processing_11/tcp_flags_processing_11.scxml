@@ -12,8 +12,8 @@
 
   Stimulus drives DUT to ESTABLISHED via active-OPEN on a unique
   port quad (kBasicsActiveLocalPort + 50, kBasicsActiveRemotePort
-  + 50) chosen to dodge §15 (+0..+6), §03..06 (+20..+25), §X.01
-  ..11 (+30..+38), §MSS_OPTIONS_11/12 (+40..+41) — see
+  + 50) chosen to dodge 15 (+0..+6), 03..06 (+20..+25), §X.01
+  ..11 (+30..+38), MSS_OPTIONS_11/12 (+40..+41) — see
   reference_active_open_port_quad_collision.md. Stimulus then
   raw-injects a duplicate of the post-handshake third-leg ACK
   (seq = snd_nxt = ISN_t + 1, ack = rcv_nxt = ISN_d + 1, no

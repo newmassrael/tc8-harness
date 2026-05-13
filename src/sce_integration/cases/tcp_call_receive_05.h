@@ -38,8 +38,8 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
         "the bytes and the wire-side data ACK proves end-to-end "
         "FIN+data processing";
 
-    // 16-byte payload pattern. Distinct byte from §_03 (0xA5), §_07
-    // (0x69), §_09 (0x5A) so a stray data segment in pcap can be
+    // 16-byte payload pattern. Distinct byte from sibling _03 (0xA5), _07
+    // (0x69), _09 (0x5A) so a stray data segment in pcap can be
     // attributed to the correct case ID.
     static constexpr std::uint16_t kPayloadLen = 16U;
     static constexpr std::uint16_t kUtRecvTimeoutMs = 2000U;
