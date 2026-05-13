@@ -65,8 +65,10 @@
         return std::nullopt;
     }
 
-{% if model.has_parallel_states or model.uses_in_predicate %}
-    // Helper: Convert State enum to string for In() predicate (W3C SCXML 5.9.2)
+    // Helper: Convert State enum back to its SCXML state id string.
+    // Always emitted (independent of In() predicate / parallel-state usage)
+    // so consumers can introspect transitions for trace recording, logging,
+    // and post-mortem analysis without hand-rolling a per-policy mapping.
     [[nodiscard]] static constexpr const char* getStateName(State state) noexcept {
         switch (state) {
 {% for state_id in model.states | list | sort %}
@@ -76,6 +78,7 @@
         }
     }
 
+{% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 5.9.2: Check if state is active (for In() predicate)
     // ARCHITECTURE.md Zero Duplication: Use InPredicateHelper (Single Source of Truth)
     // Thread-safe: called from JSEngine worker thread
