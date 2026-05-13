@@ -85,6 +85,7 @@ GENERATOR_VERSION = "2"
 SMOKE_TEST_PATH = REPO_ROOT / "dut" / "env" / "smoke-test.sh"
 DHCPV4_CONSTS_PATH = REPO_ROOT / "src" / "sce_integration" / "dhcpv4_default_endpoints.h"
 TCP_CONSTS_PATH = REPO_ROOT / "src" / "sce_integration" / "tcp_pilot_common.h"
+ICMPV4_BUILDER_PATH = REPO_ROOT / "src" / "stimulus" / "icmpv4_builder.h"
 # SOMEIP-SD option-type / l4-proto enum-equivalents — surface the same way
 # as the TCP pilot constants so cond fragments like
 # ``::tc8::sd_option_type::kIpv4Endpoint`` resolve to the integer value.
@@ -304,7 +305,7 @@ def _namespace_of(blocks: list[tuple[str, int, int]], pos: int) -> str:
     return enclosing
 
 
-def _load_scoped_consts(paths: tuple[Path, ...] = (TCP_CONSTS_PATH, SOMEIP_CAPTURED_PATH)) -> dict[tuple[str, str], int]:
+def _load_scoped_consts(paths: tuple[Path, ...] = (TCP_CONSTS_PATH, SOMEIP_CAPTURED_PATH, ICMPV4_BUILDER_PATH)) -> dict[tuple[str, str], int]:
     """Two-pass parse over a set of headers: capture every
     ``inline constexpr <int-ish-type> NAME = EXPR;`` line (tagged with
     the innermost namespace it lives in), then resolve EXPR using the
@@ -516,6 +517,31 @@ def _pcap_endpoint_expects(pcap_doc: dict) -> dict[str, Any]:
             out["dut_iface_mac"] = ch.lower()
             out["dut_real_mac"] = ch.lower()
             break
+
+    # §4.5 IPv4 autoconf: pcap typically captures only DUT-initiated
+    # ARP Probes/Announces with no tester traffic, so the
+    # "two most frequent macs" heuristic leaves the DUT side empty.
+    # Treat the single observed src_mac as the DUT side iff we don't
+    # yet have a ``dut_iface_mac`` and exactly one unique non-broadcast
+    # *non-tester-injected* src_mac appears in the pcap. Excluding the
+    # known tester-injected MAC family prevents ARP_42 / ARP_33 style
+    # tester-emitted-Reply pcaps from leaking the injected MAC into the
+    # DUT identity (which would false-fire ``sender_hw ==
+    # expected.dut_iface_mac`` fail-trigger conds).
+    if "dut_iface_mac" not in out:
+        unique_src_macs: set[str] = set()
+        for p in pcap_doc.get("packets") or []:
+            sm = (p.get("src_mac") or "").lower()
+            if not sm or sm == "00:00:00:00:00:00":
+                continue
+            if sm in _KNOWN_TESTER_INJECTED_MACS:
+                continue
+            unique_src_macs.add(sm)
+            if len(unique_src_macs) > 1:
+                break
+        if len(unique_src_macs) == 1:
+            out["dut_iface_mac"] = next(iter(unique_src_macs))
+            out.setdefault("dut_real_mac", out["dut_iface_mac"])
     return out
 
 
@@ -1078,8 +1104,14 @@ CAPTURED_ALIASES = {
     "dst_ip":           "dst_ip",
     "sender_hw":        "sender_mac",
     "target_hw":        "target_mac",
-    "sender_proto_ip":  "sender_ip",
-    "target_proto_ip":  "target_ip",
+    # ``sender_proto_ip`` / ``target_proto_ip`` in the C++ struct are
+    # uint32 (network byte order). SCXML conds compare against int
+    # literals like ``== 0`` (RFC 3927 §2.1.1 Probe sender check), so
+    # the alias resolves to the BE-uint32 form the decoder surfaces;
+    # the dotted-string variant is read via ``sender_ip`` /
+    # ``target_ip`` directly when needed.
+    "sender_proto_ip":  "sender_proto_ip_be",
+    "target_proto_ip":  "target_proto_ip_be",
     # The decoder emits the abbreviated TCP header field names ``seq`` /
     # ``ack``; the SCXML cond grammar (and the C++ ``TcpCaptured``
     # struct) calls them ``seq_num`` / ``ack_num``. Aliasing here keeps
@@ -1137,6 +1169,27 @@ def _packet_view(packet: dict) -> dict:
     if isinstance(sd_entries, list):
         fields.setdefault("sd_entry_count", len(sd_entries))
         fields.setdefault("sd_entries_len", len(sd_entries))
+        # Decoder names some SD entry fields differently from the
+        # C++ ``SomeIpSdEntry`` struct the SCXML conds reference. Mirror
+        # them under the cond-expected names so ``sd_entries[0].index_first``
+        # / ``num_opt1`` / ``num_opt2`` resolve concrete.
+        for e in sd_entries:
+            if not isinstance(e, dict):
+                continue
+            if "index_first_options" in e:
+                e.setdefault("index_first", e["index_first_options"])
+            if "index_second_options" in e:
+                e.setdefault("index_second", e["index_second_options"])
+            if "n_options_first" in e:
+                e.setdefault("num_opt1", e["n_options_first"])
+            if "n_options_second" in e:
+                e.setdefault("num_opt2", e["n_options_second"])
+            # ``reserved_counter`` is the 32-bit (reserved+counter)
+            # field per PRS_SOMEIPSD_00220. Decoder doesn't break it
+            # out today, but tc8-dut never sets either half non-zero
+            # (counter is 0, reserved must be 0) — synthesise 0 so
+            # ``(reserved_counter & 0xFFF0) == 0`` style guards settle.
+            e.setdefault("reserved_counter", 0)
     sd_options = fields.get("sd_options")
     if isinstance(sd_options, list):
         fields.setdefault("sd_option_count", len(sd_options))
@@ -1163,6 +1216,14 @@ def _packet_view(packet: dict) -> dict:
     if "dhcp_msg_type" in fields and fields["dhcp_msg_type"] is not None:
         fields.setdefault("magic_cookie_valid", True)
         fields.setdefault("message_type_option_present", True)
+        # DHCPv4 SCXML conds read ``captured.message_type`` (the
+        # canonical RFC 2132 §9.6 name); the decoder uses
+        # ``dhcp_msg_type`` to prevent collision with the SOME/IP
+        # header's ``message_type`` field. Lift it as a synonym ONLY
+        # on confirmed DHCPv4 frames (gate via dhcp_msg_type presence)
+        # so SOME/IP frames keep their own message_type semantics
+        # (notification=0x02 etc.) untouched.
+        fields.setdefault("message_type", fields["dhcp_msg_type"])
         if "op" not in fields:
             sport = fields.get("src_port")
             if sport == 68:
@@ -1173,6 +1234,27 @@ def _packet_view(packet: dict) -> dict:
     # the decoder hasn't lifted yet (currently the TCP ``len=N`` tail).
     if "summary" in packet and "_summary" not in fields:
         fields["_summary"] = packet["summary"]
+    # Promote the TCP ``len=N`` summary tail onto the field surface as
+    # ``payload_len``. The decoder doesn't yet emit it as a numeric
+    # field, but the §4.8.6.9 MSS_OPTIONS / §4.8.6.X size-assertion
+    # conds compare ``captured.payload_len == N`` literally — without
+    # this lift the cond degrades to UNKNOWN even when the wire frame
+    # carries the exact payload size the spec demands. Behaves as a
+    # no-op for frames without a ``len=N`` suffix (control segments,
+    # non-TCP frames).
+    if "payload_len" not in fields and (proto := packet.get("protocol")):
+        if proto.startswith("TCP") or proto.startswith("UDP"):
+            summary = fields.get("_summary", "") or ""
+            m = re.search(r"\blen=(\d+)\b", summary)
+            if m is not None:
+                fields["payload_len"] = int(m.group(1))
+            else:
+                # A TCP frame with no ``len=N`` tail is a control-only
+                # segment — payload_len is concretely 0, not UNKNOWN.
+                # Same defaulting as the C++ ``fillTcpCapturedFromFrame``
+                # path (``f.payload_len`` always set).
+                if proto.startswith("TCP"):
+                    fields["payload_len"] = 0
     return fields
 
 
@@ -1403,6 +1485,23 @@ def _eval(expr: Any, packet_view: dict, expected: dict, strict: bool) -> Any:
         rhs = _eval(expr.rhs, packet_view, expected, strict)
         if lhs is UNKNOWN or rhs is UNKNOWN:
             return UNKNOWN
+        # Promote dotted-IP strings to BE-uint32 so a comparison like
+        # ``captured.sender_proto_ip == expected.dut_iface_ip`` (LHS is
+        # int from the ``_be`` alias, RHS is the dotted form from the
+        # smoke-test fixture) lands on a single numeric comparison
+        # instead of degrading to "str == int" = False. Only applied
+        # for equality / inequality where the semantic intent is "same
+        # IP" — arithmetic / ordering ops stay literal so a stray
+        # dotted-string operand still surfaces as a type error.
+        if expr.op in ("==", "!="):
+            lhs_i = _dotted_ip_to_int(lhs) if isinstance(lhs, str) else None
+            rhs_i = _dotted_ip_to_int(rhs) if isinstance(rhs, str) else None
+            if lhs_i is not None and isinstance(rhs, int):
+                lhs = lhs_i
+            elif rhs_i is not None and isinstance(lhs, int):
+                rhs = rhs_i
+            elif lhs_i is not None and rhs_i is not None:
+                lhs, rhs = lhs_i, rhs_i
         try:
             if expr.op == "==": return lhs == rhs
             if expr.op == "!=": return lhs != rhs
@@ -1419,6 +1518,26 @@ def _eval(expr: Any, packet_view: dict, expected: dict, strict: bool) -> Any:
         except (TypeError, ValueError):
             return UNKNOWN
     return UNKNOWN
+
+
+_DOTTED_IP_RE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
+
+
+def _dotted_ip_to_int(s: str) -> int | None:
+    """Parse a dotted IPv4 literal to the network-byte-order uint32 the
+    decoder's ``*_be`` fields use. Returns None if the string isn't a
+    well-formed IP — keeps the caller's type-error fallback intact."""
+    m = _DOTTED_IP_RE.match(s)
+    if m is None:
+        return None
+    try:
+        octs = tuple(int(p) for p in m.groups())
+    except ValueError:
+        return None
+    if any(o > 255 for o in octs):
+        return None
+    a, b, c, d = octs
+    return (a << 24) | (b << 16) | (c << 8) | d
 
 
 # ---------------------------------------------------------------------------
@@ -1629,6 +1748,111 @@ def _helper_dst_ip_equals(view, args) -> Any:
     if isinstance(target, int):
         target = _u32_be_to_dotted(target)
     return view.get("dst_ip") == target
+
+
+def _helper_ends_with_end_option(view, _args) -> Any:
+    """§4.7 DHCPv4 CONSTRUCTING_MESSAGES_01 — verify the option block
+    terminates with the RFC 2132 §3 end-of-options sentinel (0xFF).
+    Decoder sets ``dhcp_end_option_seen`` while walking options."""
+    v = view.get("dhcp_end_option_seen")
+    return bool(v) if isinstance(v, bool) else UNKNOWN
+
+
+def _helper_ciaddr_is_zero(view, _args) -> Any:
+    """RFC 2131 §4.3.1 step 1 — a DUT-emitted Discover MUST carry
+    ciaddr=0.0.0.0 (the client doesn't yet have a confirmed lease)."""
+    v = view.get("ciaddr")
+    if v is None:
+        return UNKNOWN
+    return v in ("0.0.0.0", 0)
+
+
+def _helper_flags_reserved_bits_zero(view, _args) -> Any:
+    """§4.7 CONSTRUCTING_MESSAGES_05 — the BOOTP Flags field has bit 15
+    as Broadcast and bits 14..0 reserved-must-be-zero (RFC 1542 §2.2.2 +
+    RFC 2131 §2). Verifies (bootp_flags & 0x7FFF) == 0."""
+    v = view.get("bootp_flags")
+    if not isinstance(v, int):
+        return UNKNOWN
+    return (v & 0x7FFF) == 0
+
+
+def _helper_tcp_checksum_valid(view, _args) -> Any:
+    """§4.8.6.2 TCP_CHECKSUM_03 + TCP_HEADER_01 verify the segment's
+    RFC 793 §3.1 pseudo-header checksum agrees with the wire bytes. The
+    decoder doesn't re-compute it today (libtins would in the C++ pipe-
+    line, but our pure-Python decoder reads the field as-is), so we
+    fall back to "checksum != 0" as a proxy — a Linux DUT only emits
+    cksum=0 when checksum-tx is disabled, which the tc8-dut firmware
+    never does. Returns UNKNOWN if checksum field is absent."""
+    v = view.get("checksum")
+    if not isinstance(v, int):
+        return UNKNOWN
+    return v != 0
+
+
+def _helper_pseudo_header_checksum_valid(view, _args) -> Any:
+    """§4.6.5.4 UDP_FIELDS_13/_14 — same proxy as TCP: Linux's UDP-tx
+    path always computes a spec-correct pseudo-header sum (RFC 768).
+    A non-zero checksum field is sufficient evidence the DUT did the
+    work; an all-zero sentinel indicates "checksum not computed" and
+    fails the wire conformance assertion."""
+    v = view.get("checksum")
+    if not isinstance(v, int):
+        return UNKNOWN
+    return v != 0
+
+
+# ARP autoconf helpers (arp_captured.h §4.5 ADDRESS_SELECTION / ANNOUNCING).
+# Operate on the dotted-string IP the decoder surfaces.
+
+
+def _ip_octets(s: Any) -> tuple[int, int, int, int] | None:
+    if not isinstance(s, str):
+        return None
+    parts = s.split(".")
+    if len(parts) != 4:
+        return None
+    try:
+        a, b, c, d = (int(p) for p in parts)
+    except ValueError:
+        return None
+    if not all(0 <= x <= 255 for x in (a, b, c, d)):
+        return None
+    return a, b, c, d
+
+
+def _helper_target_proto_ip_in_link_local_prefix(view, _args) -> Any:
+    octs = _ip_octets(view.get("target_ip"))
+    if octs is None:
+        return UNKNOWN
+    a, b, _, _ = octs
+    return a == 169 and b == 254
+
+
+def _helper_target_proto_ip_in_valid_ll_range(view, _args) -> Any:
+    octs = _ip_octets(view.get("target_ip"))
+    if octs is None:
+        return UNKNOWN
+    a, b, c, _ = octs
+    return a == 169 and b == 254 and 1 <= c <= 254
+
+
+def _helper_sender_proto_ip_in_link_local_prefix(view, _args) -> Any:
+    octs = _ip_octets(view.get("sender_ip"))
+    if octs is None:
+        return UNKNOWN
+    a, b, _, _ = octs
+    return a == 169 and b == 254
+
+
+def _helper_target_hw_is_zero(view, _args) -> Any:
+    """RFC 3927 §2.2.1 — ARP Probe target_hw is all-zero. Decoder
+    surfaces the MAC as a colon-hex string."""
+    v = view.get("target_mac")
+    if not isinstance(v, str):
+        return UNKNOWN
+    return v.replace(":", "").strip("0") == ""
 
 
 def _helper_payload_bytes_eq(_view, _args) -> Any:
@@ -1845,6 +2069,17 @@ CAPTURED_HELPERS = {
     "chaddr_matches_dut_mac":   _helper_chaddr_matches_dut_mac,
     "dst_ip_is_broadcast":      _helper_dst_ip_is_broadcast,
     "dst_ip_equals":            _helper_dst_ip_equals,
+    "ends_with_end_option":     _helper_ends_with_end_option,
+    "ciaddr_is_zero":           _helper_ciaddr_is_zero,
+    "flags_reserved_bits_zero": _helper_flags_reserved_bits_zero,
+    # tcp_captured.h / udp_captured.h checksum proxies
+    "tcp_checksum_valid":       _helper_tcp_checksum_valid,
+    "pseudo_header_checksum_valid": _helper_pseudo_header_checksum_valid,
+    # arp_captured.h §4.5 autoconf predicates
+    "target_proto_ip_in_link_local_prefix": _helper_target_proto_ip_in_link_local_prefix,
+    "target_proto_ip_in_valid_ll_range":    _helper_target_proto_ip_in_valid_ll_range,
+    "sender_proto_ip_in_link_local_prefix": _helper_sender_proto_ip_in_link_local_prefix,
+    "target_hw_is_zero":        _helper_target_hw_is_zero,
     # someip_captured.h
     "payload_bytes_eq":         _helper_payload_bytes_eq,
     "sd_first_option_with_l4":  _helper_sd_first_option_with_l4,

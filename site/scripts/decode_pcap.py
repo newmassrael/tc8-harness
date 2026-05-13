@@ -97,14 +97,31 @@ def _dissect_arp(payload: bytes, p: Packet) -> None:
     if len(payload) < 28:
         p.summary = "truncated ARP"
         return
+    hw_type     = struct.unpack(">H", payload[0:2])[0]
+    proto_type  = struct.unpack(">H", payload[2:4])[0]
+    hw_addr_len = payload[4]
+    proto_addr_len = payload[5]
     opcode = struct.unpack(">H", payload[6:8])[0]
     sender_mac = _mac(payload[8:14])
     sender_ip = _ip(payload[14:18])
     target_mac = _mac(payload[18:24])
     target_ip = _ip(payload[24:28])
+    # Numeric form of the proto IPs for SCXML conds that compare against
+    # ``== 0`` (RFC 3927 §2.1.1 Probe sender check) — string equality
+    # would never match the int literal, so surface the BE-decoded
+    # uint32 alongside the dotted display form.
+    sender_proto_ip_be = struct.unpack(">I", payload[14:18])[0]
+    target_proto_ip_be = struct.unpack(">I", payload[24:28])[0]
+    # ARP_46/_47 verify the spec-mandated hardware/protocol identity
+    # bytes (HRD=1 Ethernet, HLN=6, PRO=0x0800 IPv4, PLN=4) so the
+    # walker needs them on the surface to fire a concrete pass.
     p.fields = {
+        "hw_type": hw_type, "proto_type": proto_type,
+        "hw_addr_len": hw_addr_len, "proto_addr_len": proto_addr_len,
         "opcode": opcode, "sender_mac": sender_mac, "sender_ip": sender_ip,
         "target_mac": target_mac, "target_ip": target_ip,
+        "sender_proto_ip_be": sender_proto_ip_be,
+        "target_proto_ip_be": target_proto_ip_be,
     }
     if opcode == 1:
         p.summary = f"Who has {target_ip}? Tell {sender_ip} (sender_mac={sender_mac})"
@@ -121,6 +138,14 @@ def _dissect_ipv4(payload: bytes, p: Packet) -> bytes | None:
         return None
     ihl = (payload[0] & 0x0F) * 4
     proto = payload[9]
+    # §4.4 IPv4_FRAGMENTS / REASSEMBLY conds read these IP-header fields
+    # via ``captured.ip_flags`` / ``ip_fragment_offset`` / ``ip_id``;
+    # FRAGMENTS_05 verifies a non-fragment DUT egress carries DF=clear
+    # MF=clear offset=0. Surface them so the walker can fire concrete.
+    ip_id        = struct.unpack(">H", payload[4:6])[0]
+    flags_frag   = struct.unpack(">H", payload[6:8])[0]
+    ip_flags     = (flags_frag >> 13) & 0x07
+    ip_frag_off  = flags_frag & 0x1FFF
     p.src_ip = _ip(payload[12:16])
     p.dst_ip = _ip(payload[16:20])
     upper = payload[ihl:]
@@ -133,6 +158,13 @@ def _dissect_ipv4(payload: bytes, p: Packet) -> bytes | None:
     else:
         p.protocol = f"IPv4 proto={proto}"
         p.summary = f"{len(payload)} B"
+    # Merge IP-layer fields after upper-layer dissection so the inner
+    # protocol's field map already exists.
+    if not hasattr(p, "fields") or p.fields is None:
+        p.fields = {}
+    p.fields.setdefault("ip_id", ip_id)
+    p.fields.setdefault("ip_flags", ip_flags)
+    p.fields.setdefault("ip_fragment_offset", ip_frag_off)
     return None
 
 
@@ -177,6 +209,23 @@ def _dissect_icmpv4(payload: bytes, p: Packet) -> None:
         if type_ in (0, 8) and len(payload) > 8:
             fields["echo_payload_first16"] = payload[8:24].hex()
             fields["echo_payload_len"] = len(payload) - 8
+        # Type 13/14 carry RFC 792 Timestamp triple after id+seq:
+        #   originate_timestamp:  4 B (bytes 8..11)
+        #   receive_timestamp:    4 B (bytes 12..15)
+        #   transmit_timestamp:   4 B (bytes 16..19)
+        # ICMPV4_TYPE_11 asserts the DUT's Timestamp Reply echoes the
+        # tester-injected originate value and fills the two outbound
+        # timestamps with kernel-clock ms-since-midnight UTC.
+        if type_ in (13, 14) and len(payload) >= 20:
+            fields["originate_timestamp"] = struct.unpack(">I", payload[8:12])[0]
+            fields["receive_timestamp"]   = struct.unpack(">I", payload[12:16])[0]
+            fields["transmit_timestamp"]  = struct.unpack(">I", payload[16:20])[0]
+    # Type 12 Parameter Problem: byte 4 is the pointer field (RFC 792
+    # "Parameter Problem Message" — offset into the offending IP header
+    # of the byte that triggered the error). ICMPV4_ERROR_02 asserts
+    # pointer == 22 (offset of IP Total Length field per spec).
+    if type_ == 12 and len(payload) >= 5:
+        fields["icmp_pointer"] = payload[4]
     p.fields = fields
     name = _ICMPV4_TYPES.get(type_)
     if type_ == 3:  # Destination Unreachable — code matters
@@ -317,32 +366,55 @@ def _dissect_dhcpv4(payload: bytes, p: Packet, src_port: int, dst_port: int) -> 
         p.summary = f"DHCPv4 (truncated, {len(payload)} B)"
         return
     op = payload[0]
+    htype = payload[1]
+    hlen = payload[2]
+    hops = payload[3]
     xid = struct.unpack(">I", payload[4:8])[0]
+    secs = struct.unpack(">H", payload[8:10])[0]
+    bootp_flags = struct.unpack(">H", payload[10:12])[0]
+    ciaddr = _ip(payload[12:16])
+    yiaddr = _ip(payload[16:20])
+    siaddr = _ip(payload[20:24])
+    giaddr = _ip(payload[24:28])
     chaddr = _mac(payload[28:34])
     cookie = payload[236:240]
     msg_type = None
+    end_option_seen = False
+    options_seen: list[int] = []
     if cookie == b"\x63\x82\x53\x63":
         i = 240
         while i < len(payload):
             opt = payload[i]
             if opt == 255:  # End
+                end_option_seen = True
                 break
             if opt == 0:    # Pad
                 i += 1
                 continue
+            options_seen.append(opt)
             if i + 1 >= len(payload):
                 break
             ln = payload[i + 1]
             val = payload[i + 2:i + 2 + ln]
-            if opt == 53 and ln >= 1:
+            if opt == 53 and ln >= 1 and msg_type is None:
                 msg_type = val[0]
-                break
             i += 2 + ln
     name = _DHCPV4_MSG_TYPES.get(msg_type) if msg_type is not None else None
     p.fields = {
         "src_port": src_port, "dst_port": dst_port,
-        "op": op, "xid": xid, "chaddr": chaddr,
+        "op": op, "htype": htype, "hlen": hlen, "hops": hops,
+        "xid": xid, "secs": secs, "bootp_flags": bootp_flags,
+        "ciaddr": ciaddr, "yiaddr": yiaddr, "siaddr": siaddr, "giaddr": giaddr,
+        "chaddr": chaddr,
         "dhcp_msg_type": msg_type,
+        # §4.7 DHCPv4 conformance reads these for the SCXML guards:
+        #   * CONSTRUCTING_MESSAGES_01 — `ends_with_end_option()`
+        #   * CONSTRUCTING_MESSAGES_05 — `flags_reserved_bits_zero()`
+        #     (the BOOTP Flags field's bits 14..0 are reserved-must-be-0)
+        #   * INITIALIZATION_ALLOCATION_02 — `ciaddr_is_zero()` (Discover
+        #     must have ciaddr=0.0.0.0 per RFC 2131 §4.3.1 step 1).
+        "dhcp_end_option_seen": end_option_seen,
+        "dhcp_options_seen": options_seen,
     }
     if name:
         p.summary = f"DHCPv4 {name} xid=0x{xid:08x} chaddr={chaddr}"
@@ -543,21 +615,27 @@ def _dissect_udp(payload: bytes, p: Packet) -> None:
     if len(payload) < 8:
         p.summary = "truncated"
         return
-    sport, dport, length = struct.unpack(">HHH", payload[:6])
+    sport, dport, length, cksum = struct.unpack(">HHHH", payload[:8])
     inner = payload[8:]
     if dport in (67, 68) or sport in (67, 68):
         _dissect_dhcpv4(inner, p, sport, dport)
+        p.fields.setdefault("checksum", cksum)
         return
     if dport == 30490 or sport == 30490 or _looks_like_someip(inner):
         _dissect_someip(inner, p)
         # Preserve port info alongside the SOME/IP fields.
         p.fields.setdefault("src_port", sport)
         p.fields.setdefault("dst_port", dport)
+        p.fields.setdefault("checksum", cksum)
         return
     if sport == _UT_PORT or dport == _UT_PORT:
         _dissect_ut(inner, p, sport, dport)
+        p.fields.setdefault("checksum", cksum)
         return
-    p.fields = {"src_port": sport, "dst_port": dport, "length": length}
+    p.fields = {
+        "src_port": sport, "dst_port": dport, "length": length,
+        "checksum": cksum,
+    }
     p.summary = f"{sport} → {dport}, len={length}"
 
 
@@ -575,13 +653,41 @@ def _dissect_tcp(payload: bytes, p: Packet) -> None:
     if flags & 0x001: flag_names.append("FIN")
     if flags & 0x004: flag_names.append("RST")
     if flags & 0x008: flag_names.append("PSH")
-    win = struct.unpack(">H", payload[14:16])[0]
+    win, cksum, urg_ptr = struct.unpack(">HHH", payload[14:20])
     inner = payload[data_off:] if data_off <= len(payload) else b""
     tcp_fields = {
         "src_port": sport, "dst_port": dport,
         "seq": seq, "ack": ack, "flags": "|".join(flag_names) or "—",
         "window": win,
+        "checksum": cksum, "urgent_pointer": urg_ptr,
+        "data_offset": data_off // 4,
     }
+    # RFC 793 §3.1 TCP options — only kind=2 (Maximum Segment Size) is
+    # surfaced today; §4.8.6.9 MSS_OPTIONS_11/_12 read
+    # ``captured.mss`` against ``> 0`` / ``!= 536`` (RFC 1122 default).
+    # Options live between byte 20 and the start of payload at
+    # ``data_off``. Walker uses 0 as the "no MSS option" sentinel
+    # (matches the C++ ``TcpCaptured::mss = 0`` default).
+    if data_off > 20 and data_off <= len(payload):
+        opts = payload[20:data_off]
+        i = 0
+        while i < len(opts):
+            kind = opts[i]
+            if kind == 0:   # End of Options
+                break
+            if kind == 1:   # NOP
+                i += 1
+                continue
+            if i + 1 >= len(opts):
+                break
+            olen = opts[i + 1]
+            if olen < 2 or i + olen > len(opts):
+                break
+            if kind == 2 and olen == 4:
+                tcp_fields["mss"] = struct.unpack(
+                    ">H", opts[i + 2:i + 4]
+                )[0]
+            i += olen
 
     # Peek for SOME/IP carried over TCP (ETS_037, SOMEIPSRV CHECKSUM, etc.).
     # Only attempt if payload is non-trivial and matches the SOME/IP magic.
