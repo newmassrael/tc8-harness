@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_45",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:22:37Z",
+  "captured_at": "2026-05-13T06:44:54Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
-  "dut_mac": "7e:b1:ae:f4:32:5d",
+  "dut_mac": "02:49:24:69:6b:cc",
   "dut_ip": null,
   "packets": [
     {
@@ -31,15 +31,15 @@
       "ts_us": 13,
       "ts_delta_us": 13,
       "direction": "dut_to_tester",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "02:49:24:69:6b:cc",
       "dst_mac": "02:00:00:00:00:a1",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.2 is at 7e:b1:ae:f4:32:5d",
+      "summary": "172.16.0.2 is at 02:49:24:69:6b:cc",
       "fields": {
         "opcode": 2,
-        "sender_mac": "7e:b1:ae:f4:32:5d",
+        "sender_mac": "02:49:24:69:6b:cc",
         "sender_ip": "172.16.0.2",
         "target_mac": "02:00:00:00:00:a1",
         "target_ip": "172.16.0.1"
@@ -47,8 +47,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 223645,
-      "ts_delta_us": 223632,
+      "ts_us": 243520,
+      "ts_delta_us": 243507,
       "direction": "other",
       "src_mac": "02:00:00:00:00:a2",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -66,18 +66,18 @@
     },
     {
       "idx": 3,
-      "ts_us": 223674,
-      "ts_delta_us": 29,
+      "ts_us": 243530,
+      "ts_delta_us": 10,
       "direction": "dut_to_tester",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "02:49:24:69:6b:cc",
       "dst_mac": "02:00:00:00:00:a2",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.2 is at 7e:b1:ae:f4:32:5d",
+      "summary": "172.16.0.2 is at 02:49:24:69:6b:cc",
       "fields": {
         "opcode": 2,
-        "sender_mac": "7e:b1:ae:f4:32:5d",
+        "sender_mac": "02:49:24:69:6b:cc",
         "sender_ip": "172.16.0.2",
         "target_mac": "02:00:00:00:00:a2",
         "target_ip": "172.16.0.1"

@@ -1,10 +1,10 @@
 {
   "case_id": "DHCPV4_CLIENT_USAGE_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:22:37Z",
-  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "captured_at": "2026-05-13T06:44:54Z",
+  "tester_mac": "02:49:24:69:6b:cc",
   "tester_ip": "0.0.0.0",
-  "dut_mac": "16:ef:8a:c2:8a:b4",
+  "dut_mac": "b6:e1:32:73:a4:e2",
   "dut_ip": "0.0.0.0",
   "packets": [
     {
@@ -12,38 +12,38 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "02:49:24:69:6b:cc",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0xa66e51d5 chaddr=7e:b1:ae:f4:32:5d",
+      "summary": "DHCPv4 Discover xid=0x700c5909 chaddr=02:49:24:69:6b:cc",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 2792247765,
-        "chaddr": "7e:b1:ae:f4:32:5d",
+        "xid": 1879857417,
+        "chaddr": "02:49:24:69:6b:cc",
         "dhcp_msg_type": 1
       }
     },
     {
       "idx": 1,
-      "ts_us": 51603,
-      "ts_delta_us": 51603,
+      "ts_us": 91980,
+      "ts_delta_us": 91980,
       "direction": "dut_to_tester",
-      "src_mac": "16:ef:8a:c2:8a:b4",
+      "src_mac": "b6:e1:32:73:a4:e2",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0xd73c203d chaddr=16:ef:8a:c2:8a:b4",
+      "summary": "DHCPv4 Discover xid=0x89f6b1c8 chaddr=b6:e1:32:73:a4:e2",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 3611041853,
-        "chaddr": "16:ef:8a:c2:8a:b4",
+        "xid": 2314645960,
+        "chaddr": "b6:e1:32:73:a4:e2",
         "dhcp_msg_type": 1
       }
     }

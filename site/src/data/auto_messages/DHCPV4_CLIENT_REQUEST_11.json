@@ -51,6 +51,11 @@
       "idx": 9,
       "role": "stimulus",
       "label": "Phase 4 (listening_for_rebinding_request) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 10,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_for_rebinding_request) — Tester stimulus (no transition matched)"
     }
   ]
 }

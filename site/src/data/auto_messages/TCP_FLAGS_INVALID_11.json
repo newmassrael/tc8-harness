@@ -39,23 +39,23 @@
     },
     {
       "idx": 7,
-      "role": "note",
-      "label": "Phase 3 (listening_p1_probe_ack) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 3 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 9,
       "role": "note",
       "label": "Phase 3 (listening_p1_probe_ack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 10,
+      "idx": 9,
       "role": "stimulus",
       "label": "Phase 3 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 10,
+      "role": "note",
+      "label": "Phase 3 (listening_p1_probe_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 11,
@@ -74,23 +74,23 @@
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "Phase 3 (listening_p1_probe_ack) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 3 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 16,
       "role": "note",
       "label": "Phase 3 (listening_p1_probe_ack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 17,
+      "idx": 16,
       "role": "stimulus",
       "label": "Phase 3 (listening_p1_probe_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 17,
+      "role": "note",
+      "label": "Phase 3 (listening_p1_probe_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 18,

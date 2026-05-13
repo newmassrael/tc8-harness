@@ -74,41 +74,46 @@
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "Phase 2 (listening_phase2_subscribe_seen) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2_subscribe_seen) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2_subscribe_seen) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 16,
       "role": "note",
       "label": "Phase 2 (listening_phase2_subscribe_seen) — DUT frame (no transition matched)"
     },
     {
-      "idx": 17,
+      "idx": 16,
       "role": "stimulus",
       "label": "Phase 2 (listening_phase2_subscribe_seen) — Tester stimulus (no transition matched)"
     },
     {
+      "idx": 17,
+      "role": "note",
+      "label": "Phase 2 (listening_phase2_subscribe_seen) — DUT frame (no transition matched)"
+    },
+    {
       "idx": 18,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2_subscribe_seen) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 19,
       "role": "expected",
       "label": "Phase 2 (listening_phase2_subscribe_seen) progress trigger — advances to listening_phase3_stop_seen. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl > 0"
     },
     {
-      "idx": 19,
+      "idx": 20,
       "role": "note",
       "label": "Phase 3 (listening_phase3_stop_seen) — DUT frame (no transition matched)"
     },
     {
-      "idx": 20,
+      "idx": 21,
       "role": "expected",
       "label": "Phase 3 (listening_phase3_stop_seen) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl ==…"
     },
     {
-      "idx": 21,
+      "idx": 22,
       "role": "note",
       "label": "Post-pass teardown (state machine already at final)"
     }

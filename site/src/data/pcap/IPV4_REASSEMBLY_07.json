@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_07",
   "outcome": "pass",
-  "captured_at": "2026-05-13T06:22:37Z",
+  "captured_at": "2026-05-13T06:44:54Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -25,8 +25,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 231507,
-      "ts_delta_us": 231507,
+      "ts_us": 227695,
+      "ts_delta_us": 227695,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",

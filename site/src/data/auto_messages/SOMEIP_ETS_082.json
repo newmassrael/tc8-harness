@@ -74,31 +74,26 @@
     },
     {
       "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2_first_subscribe_seen) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 15,
       "role": "note",
       "label": "Phase 2 (listening_phase2_first_subscribe_seen) — DUT frame (no transition matched)"
     },
     {
-      "idx": 16,
+      "idx": 15,
       "role": "expected",
       "label": "Phase 2 (listening_phase2_first_subscribe_seen) progress trigger — advances to listening_phase3_second_subscribe. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl >…"
     },
     {
-      "idx": 17,
+      "idx": 16,
       "role": "note",
       "label": "Phase 3 (listening_phase3_second_subscribe) — DUT frame (no transition matched)"
     },
     {
-      "idx": 18,
+      "idx": 17,
       "role": "stimulus",
       "label": "Phase 3 (listening_phase3_second_subscribe) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 19,
+      "idx": 18,
       "role": "expected",
       "label": "Phase 3 (listening_phase3_second_subscribe) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl >…"
     }
