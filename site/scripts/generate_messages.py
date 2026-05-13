@@ -1436,6 +1436,46 @@ def _build_arp_observed_udp_ctx(
     return {}
 
 
+def _build_dhcpv4_lease_ctx(packets: list[dict]) -> dict:
+    """Pre-scan packets for DHCP lease-cycle cross-frame timing.
+
+    Surfaces (when both anchor frames are present in the pcap):
+      ``case_decline_to_discover_us``
+        Microsecond delta from the first DHCPDECLINE (msg_type 4) to
+        the next DHCPDISCOVER (msg_type 1). RFC 2131 §3.1 second
+        sentence SHOULD: a client must wait at least 10 s after
+        DECLINE before restarting the configuration process. The
+        ``captured.dhcpv4.decline_to_discover_within_us(min, max)``
+        helper in ``dhcpv4_post_decline_discover.sce-template`` reads
+        this slot to verify the [9 s, 12 s] tolerance window
+        (ALLOCATING_08 wires the bound; ALLOCATING_07 passes ``true``
+        for the instant-restart MUST and never reads the slot).
+
+    Mirrors the existing cross-frame state pre-scans
+    (``_build_tcp_ut_static_ctx`` / ``sd_cached_offer_udp_port``) —
+    walker pre-scan, single source of truth, dict merged onto DHCP
+    frame views. Returns empty dict when the pcap doesn't contain
+    both anchor frames, leaving the helper at honest UNKNOWN.
+    """
+    first_decline_ts: int | None = None
+    out: dict = {}
+    for p in packets:
+        fields = p.get("fields") or {}
+        mt = fields.get("dhcp_msg_type")
+        ts = p.get("ts_us")
+        if mt is None or not isinstance(ts, int):
+            continue
+        if first_decline_ts is None:
+            if mt == 4:  # DECLINE
+                first_decline_ts = ts
+            continue
+        # Post-decline: look for the first DISCOVER (msg_type 1).
+        if mt == 1:
+            out["case_decline_to_discover_us"] = ts - first_decline_ts
+            break
+    return out
+
+
 def _resolve_ident(parts: tuple, packet_view: dict, expected: dict) -> Any:
     """Walk a dotted/indexed name through (captured / expected) namespaces.
 
@@ -2301,13 +2341,14 @@ def _helper_eth_dst_equals(view, args) -> Any:
 
 
 def _helper_decline_to_discover_within_us(view, args) -> Any:
-    """Cross-frame state: a sticky ``case_decline_to_discover_us`` slot
-    is pre-computed by the walker (see _build_dhcpv4_lease_ctx) holding
-    the µs delta between the case's first DHCP Decline frame and the
-    *next* DHCP Discover frame. The helper compares that against the
+    """RFC 2131 §3.1 second-sentence SHOULD: after DHCPDECLINE the
+    client waits ≥10 s before restarting. The pre-scan
+    ``_build_dhcpv4_lease_ctx`` populates ``case_decline_to_discover_us``
+    (µs delta between the first DECLINE and the next DISCOVER) onto
+    every DHCPv4 frame view; this helper compares the slot against the
     [min, max] window argued by the cond. Slot stays absent when the
-    pcap doesn't capture both endpoints — returns UNKNOWN so the walker
-    can degrade to candidate honestly."""
+    pcap lacks either anchor frame — returns UNKNOWN so the walker
+    degrades honestly."""
     if len(args) < 2:
         return UNKNOWN
     lo, hi = args[0], args[1]
@@ -2785,6 +2826,12 @@ def label_packets(
         expected.get("tester_mac"),
         expected.get("tester_mac2"),
     )
+    # DHCPv4 lease-cycle pre-scan (see _build_dhcpv4_lease_ctx). Holds
+    # the µs delta between the first DECLINE and the next DISCOVER so
+    # ALLOCATING_08's ``decline_to_discover_within_us`` helper resolves
+    # strict-True. Empty when either anchor frame is absent — helper
+    # stays at UNKNOWN, no false-pass.
+    dhcpv4_lease_ctx = _build_dhcpv4_lease_ctx(packets)
     # Case-keyed stimulus-sticky TCP fields (currently only
     # ``expected_ack_num`` for the two cases whose pass cond compares
     # against it). Mirrors the same merge semantics as the UT static
@@ -2833,6 +2880,13 @@ def label_packets(
         # observation fires, so merge only into ARP frame views.
         if arp_observed_udp_ctx and (p.get("protocol") or "") == "ARP":
             for k, v in arp_observed_udp_ctx.items():
+                view.setdefault(k, v)
+        # DHCPv4 lease-cycle cross-frame slots. The C++
+        # ``Dhcpv4Captured::decline_to_discover_within_us`` reads a
+        # walker-maintained ledger; merge onto every DHCPv4 frame view
+        # so any post-Discover frame's cond sees the same delta.
+        if dhcpv4_lease_ctx and (p.get("protocol") or "") == "DHCPv4":
+            for k, v in dhcpv4_lease_ctx.items():
                 view.setdefault(k, v)
         if case_tcp_static_ctx and (p.get("protocol") or "").startswith("TCP"):
             for k, v in case_tcp_static_ctx.items():
@@ -3058,23 +3112,24 @@ def label_packets(
                 "observed frame."
             ),
         ))
-    # Pass-outcome retention-shortfall marker. The case landed `pass` on
-    # the wire but the SCXML has *no* deadline → pass-final edge (every
-    # deadline lands on a fail-final), so the existing absence-of-behavior
+    # Pass-outcome auto-labeller-shortfall marker. The case landed `pass`
+    # on the wire but the SCXML has *no* deadline → pass-final edge
+    # (every deadline lands on a fail-final), so the absence-of-behavior
     # marker above doesn't fire. The walker also pinned zero packet-level
-    # labels — meaning no transition matched any frame in the saved pcap.
-    # Three honest possibilities:
-    #   1. The DUT-emitted frame matching the pass cond was observed by
-    #      the harness's libpcap into the C++ ``*Captured`` struct but
-    #      not retained in the saved pcap (truncation / netns-scope).
-    #   2. The pass cond depends on a side-channel field the walker
-    #      can't reconstruct from the saved frames (e.g. unicast
-    #      observed_udp_* on a Group C case where the saved pcap shows
-    #      only multicast + real-veth-MAC egress).
-    #   3. The cond uses a helper / field combination the auto-labeller
-    #      doesn't model.
-    # All three reduce to: trust the live verdict, surface the gap
-    # at the case level, point readers at the SCXML pane.
+    # labels — no transition matched any frame in the saved pcap.
+    # Honest possibilities (non-exhaustive):
+    #   * The DUT-emitted frame matching the pass cond was observed by
+    #     the harness's libpcap into the C++ ``*Captured`` struct but
+    #     not retained in the saved pcap (capture-scope shortfall —
+    #     ARP_08..15 / IPV4_AUTOCONF_ANNOUNCING_01..05 cluster).
+    #   * The SCXML uses time-gated phase advance (``<send delay="Ns"/>``
+    #     onentry) that the packet-driven walker doesn't simulate, so
+    #     the walker stalls in phase 1 while the live verdict came from
+    #     a later phase (SOMEIPSRV_SD_BEHAVIOR_02/_03).
+    #   * The pass cond depends on cross-protocol or side-channel state
+    #     the evaluator doesn't reconstruct from the saved frames.
+    # All reduce to: trust the live verdict, surface the gap at case
+    # level, point readers at the SCXML pane.
     elif (
         pcap_outcome == "pass"
         and not any(m.role in ("expected", "fail-trigger") for m in msgs)
@@ -3084,12 +3139,15 @@ def label_packets(
             label=(
                 "Outcome=pass, but the auto-labeller could not pin the "
                 "matching SCXML pass transition to a packet in the saved "
-                "pcap — either the DUT-emitted frame that fired the live "
-                "verdict isn't retained here (capture-scope shortfall) or "
-                "the pass cond relies on a side-channel field the "
-                "evaluator can't reconstruct from the saved frames. See "
-                "the SCXML pane below for the pass criteria the harness "
-                "verified."
+                "pcap. The live verdict came from the harness's libpcap "
+                "observation; the static walker cannot reconstruct the "
+                "same evidence here — typical causes are the relevant "
+                "DUT-emitted frame not being retained in this pcap "
+                "(capture-scope shortfall), an SCXML phase advanced by "
+                "an onentry timer the packet-driven walker doesn't "
+                "simulate, or a pass cond depending on cross-protocol "
+                "state the evaluator doesn't model. See the SCXML pane "
+                "below for the pass criteria the harness verified."
             ),
         ))
     # Symmetric fail-outcome marker. If the live run landed fail but the
