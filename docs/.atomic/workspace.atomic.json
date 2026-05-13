@@ -2211,6 +2211,9 @@
         },
         {
           "file": "tests/tcp_probing_windows_02/tcp_probing_windows_02.scxml"
+        },
+        {
+          "file": "src/capture/bpf_filter.cpp"
         }
       ]
     },
@@ -2270,6 +2273,9 @@
         },
         {
           "file": "tests/udp_user_interface_01/udp_user_interface_01.scxml"
+        },
+        {
+          "file": "src/capture/bpf_filter.cpp"
         }
       ]
     },
