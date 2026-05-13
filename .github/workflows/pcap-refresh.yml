@@ -131,14 +131,20 @@ jobs:
         run: python3 site/scripts/trim_pcap.py .pcap-data/site/src/data/pcap
 
       - name: Auto-generate per-packet messages
-        # Walk every freshly-decoded pcap, parse the inlined SCXML in the
-        # main-branch case manifest, and emit per-idx role/label JSON
-        # files alongside the captures on the pcap-data branch. The site
-        # overlays both at build time; ``localizedMessages`` merges these
-        # auto labels with hand-written locale overrides at idx
+        # ``build_manifest.py`` materialises ``site/src/data/cases/*.json``
+        # (each carrying the inlined SCXML) from the trait headers + .scxml
+        # files. Those manifests aren't tracked in git, so a fresh
+        # ``actions/checkout`` doesn't have them — without this step the
+        # generator silently skips every case (cases dir empty).
+        # Then walk every freshly-decoded pcap, parse the inlined SCXML
+        # in the manifest, and emit per-idx role/label JSON files
+        # alongside the captures on the pcap-data branch. The site
+        # overlays both at build time; ``localizedMessages`` merges
+        # these auto labels with hand-written locale overrides at idx
         # granularity (manual wins).
         run: |
           set -e
+          python3 site/scripts/build_manifest.py
           rm -rf .pcap-data/site/src/data/auto_messages
           mkdir -p .pcap-data/site/src/data/auto_messages
           python3 site/scripts/generate_messages.py \
