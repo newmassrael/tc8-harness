@@ -1080,7 +1080,26 @@ CAPTURED_ALIASES = {
     "target_hw":        "target_mac",
     "sender_proto_ip":  "sender_ip",
     "target_proto_ip":  "target_ip",
+    # The decoder emits the abbreviated TCP header field names ``seq`` /
+    # ``ack``; the SCXML cond grammar (and the C++ ``TcpCaptured``
+    # struct) calls them ``seq_num`` / ``ack_num``. Aliasing here keeps
+    # the decoder schema and the cond surface decoupled.
+    "seq_num":          "seq",
+    "ack_num":          "ack",
 }
+
+# Captured-struct boolean fields that initialise to ``false`` in the
+# C++ ``fillXxxCapturedFromFrame`` reset block. When the decoder
+# leaves them off a packet view we should treat them as concrete
+# False (not UNKNOWN) — otherwise ``!captured.has_ut_response`` on a
+# non-UT-response frame degrades to UNKNOWN and the cond never
+# settles strict-True. Order-of-resolution: explicit packet value
+# wins; this default only kicks in for absent fields.
+DEFAULT_FALSE_FIELDS = frozenset({
+    "has_ut_response",
+    "ut_is_request",
+    "ut_is_response",
+})
 
 # TCP flag-name → bit, used to materialise an integer when SCXML asks
 # ``captured.flags & 0xNN`` and the decoder stored flags as a "|"-joined
@@ -1157,6 +1176,104 @@ def _packet_view(packet: dict) -> dict:
     return fields
 
 
+# UT response opcode bytes that populate stimulus-sticky fields on the
+# C++ ``TcpCaptured`` struct. These survive across ``fillTcpCapturedFrom-
+# Frame`` calls because that function never touches them — the
+# stimulus writes them directly into the runner's captured_ before the
+# FSM kicks off (see ``include/tc8/upper_tester_protocol.h`` opcode
+# numbers ORed with kResponseBit = 0x80).
+_UT_RESP_QUERY_TCP_ESTABLISHED = 0x85   # OpQueryTcpEstablished response
+_UT_RESP_GET_RECEIVED_TCP_DATA = 0x8B   # OpGetReceivedTcpData response
+_UT_RESP_QUERY_TCP_INFO        = 0x93   # OpQueryTcpInfo response
+
+
+def _build_tcp_ut_static_ctx(packets: list[dict]) -> dict:
+    """Mirror the C++ stimulus-populated half of ``TcpCaptured``.
+
+    The harness's ``stimulus()`` block runs synchronously *before*
+    ``start()`` arms the FSM, and it writes UT-response bytes into
+    ``c.ut_established`` / ``c.ut_tcpi_pN_*`` / ``c.ut_received_pay-
+    load_len_pN``. ``fillTcpCapturedFromFrame`` does NOT touch any of
+    those fields, so by the time the SCXML evaluates a pass cond on a
+    buffered ``tcp_observed`` event, those fields hold the *final*
+    stimulus-populated value.
+
+    Single-snapshot fields (``ut_established``) lift trivially —
+    last-wins. Phase-slotted fields (``ut_tcpi_pN_*`` /
+    ``ut_received_payload_len_pN``) are trickier: the C++ stimulus
+    typically polls UT QueryTcpInfo in a loop using a fixed req_id
+    per phase, then writes the *final* in-loop value into the next
+    slot. We mirror that by grouping responses by their UT ``req_id``
+    and taking the last value seen per distinct id. If the pcap shows
+    > 3 distinct req_ids, the case's slot↔phase mapping isn't
+    inferrable from wire data (RETRANSMISSION_TO_04 increments req_id
+    per probe and slots conditionally on ``retransmits`` thresholds),
+    so we skip slot lifting entirely rather than risk planting
+    wrong values that fire false fail-triggers.
+
+    Returns a dict containing only the lifted UT-sticky fields. Empty
+    when the pcap has no UT responses.
+    """
+    out: dict = {}
+    # Group phase-slotted responses by req_id, in order of first
+    # appearance. ``order`` keeps insertion order; ``by_id`` stores the
+    # last seen response payload per req_id.
+    tcpi_order: list = []
+    tcpi_by_id: dict = {}
+    recv_order: list = []
+    recv_by_id: dict = {}
+    for p in packets:
+        fields = p.get("fields") or {}
+        if not fields.get("has_ut_response"):
+            continue
+        op = fields.get("ut_opcode")
+        if op == _UT_RESP_QUERY_TCP_ESTABLISHED:
+            if "ut_established" in fields:
+                out["ut_established"] = fields["ut_established"]
+        elif op == _UT_RESP_QUERY_TCP_INFO:
+            rid = fields.get("ut_req_id")
+            if rid is None:
+                continue
+            if rid not in tcpi_by_id:
+                tcpi_order.append(rid)
+            tcpi_by_id[rid] = fields
+        elif op == _UT_RESP_GET_RECEIVED_TCP_DATA:
+            rid = fields.get("ut_req_id")
+            if rid is None:
+                continue
+            if rid not in recv_by_id:
+                recv_order.append(rid)
+            recv_by_id[rid] = fields
+
+    # Slot p1/p2/p3 only when the pcap shows at most 3 distinct
+    # req_ids — otherwise the case is doing per-probe req_id bumps
+    # (RETRANSMISSION_TO_04 style) and we have no honest way to map
+    # which probe ended up in which slot.
+    if 1 <= len(tcpi_order) <= 3:
+        for slot, rid in enumerate(tcpi_order, start=1):
+            f = tcpi_by_id[rid]
+            prefix = f"ut_tcpi_p{slot}"
+            if "ut_tcpi_state" in f:
+                out[f"{prefix}_state"]       = f["ut_tcpi_state"]
+            if "ut_tcpi_rto_us" in f:
+                out[f"{prefix}_rto_us"]      = f["ut_tcpi_rto_us"]
+            if "ut_tcpi_retransmits" in f:
+                out[f"{prefix}_retransmits"] = f["ut_tcpi_retransmits"]
+            if "ut_tcpi_unacked" in f:
+                out[f"{prefix}_unacked"]     = f["ut_tcpi_unacked"]
+            out[f"{prefix}_valid"] = True
+    if 1 <= len(recv_order) <= 3:
+        for slot, rid in enumerate(recv_order, start=1):
+            f = recv_by_id[rid]
+            if "ut_received_payload_len" in f:
+                out[f"ut_received_payload_len_p{slot}"] = f["ut_received_payload_len"]
+        # Last response across all phases for the unslotted alias.
+        last_rid = recv_order[-1]
+        if "ut_received_payload_len" in recv_by_id[last_rid]:
+            out["ut_received_payload_len"] = recv_by_id[last_rid]["ut_received_payload_len"]
+    return out
+
+
 def _resolve_ident(parts: tuple, packet_view: dict, expected: dict) -> Any:
     """Walk a dotted/indexed name through (captured / expected) namespaces.
 
@@ -1180,7 +1297,15 @@ def _resolve_ident(parts: tuple, packet_view: dict, expected: dict) -> Any:
         return UNKNOWN
     name = parts[1]
     name = CAPTURED_ALIASES.get(name, name)
-    cur: Any = packet_view.get(name, UNKNOWN)
+    if name in packet_view:
+        cur: Any = packet_view[name]
+    elif name in DEFAULT_FALSE_FIELDS:
+        # Mirror the C++ ``fillXxxCapturedFromFrame`` reset block —
+        # captured bool that the decoder simply didn't surface for this
+        # frame is False, not UNKNOWN.
+        cur = False
+    else:
+        cur = UNKNOWN
     for seg in parts[2:]:
         if cur is UNKNOWN or cur is None:
             return UNKNOWN
@@ -1644,6 +1769,29 @@ def _eval_call(call: Call, packet_view: dict, expected: dict, strict: bool) -> A
     """Resolve a ``captured.method(args)`` call. Only ``captured.NAME``
     targets are supported — anything else stays UNKNOWN."""
     target = call.target
+    # C++ ``static_cast<u16>(intexpr)`` passthrough. The parser marked
+    # the cast type with ``Opaque(note="static_cast<...>")`` and the
+    # ``(args)`` block then materialised as the surrounding Call. For
+    # integer narrowing casts the result is the inner expr's value
+    # (we model uint16 truncation since SCXML port-arith casts to it),
+    # which lets ``captured.src_port == static_cast<u16>(kPort + offset)``
+    # resolve strict-True instead of degrading to UNKNOWN. The other
+    # casts (``reinterpret_cast<T*>``, ``const_cast``, ``dynamic_cast``)
+    # stay opaque — pointer arithmetic isn't modelled and the inner
+    # ``foo.data()`` would resolve UNKNOWN regardless.
+    if isinstance(target, Opaque) and len(call.args) == 1:
+        note = getattr(target, "note", "") or ""
+        if note.startswith("static_cast<"):
+            inner = _eval(call.args[0], packet_view, expected, strict)
+            if isinstance(inner, int):
+                # u16-wrap matches the SCXML idiom; wider casts (uint32
+                # / uint8) flow through the same path because the cond
+                # comparator's RHS is unsigned-sized and Python's int
+                # comparison is signless. Bounds-checking the actual
+                # template type would require parser-side type capture,
+                # which isn't worth the lift today.
+                return inner & 0xFFFF
+            return inner
     if not isinstance(target, Ident):
         return UNKNOWN
     if len(target.parts) != 2 or target.parts[0] != "captured":
@@ -1916,10 +2064,32 @@ def label_packets(
     # real test runner does.
     last_fired_ts_us: int | None = None
 
+    # Pre-scan: the C++ ``TcpCaptured`` struct retains stimulus-populated
+    # UT-response bytes across every frame the FSM dispatches because
+    # ``fillTcpCapturedFromFrame`` never resets them. The walker
+    # otherwise evaluates each packet's view in isolation, so a pass
+    # cond that depends on ``captured.ut_established == 0x01``
+    # never sees the lifted byte from the OpQueryTcpEstablished
+    # response packet. Materialise the same case-wide static UT state
+    # once and merge it into each TCP-protocol view below. Skipping for
+    # UDP packets matters: the C++ ``UdpCaptured`` struct *does* reset
+    # ``has_ut_response`` per frame (it's a per-frame discriminator,
+    # not a sticky field), so cross-frame leakage would break conds
+    # like §4.6 ``udp_field_check`` template's
+    # ``!captured.has_ut_response`` gate.
+    tcp_ut_static_ctx = _build_tcp_ut_static_ctx(packets)
+
     for p in packets:
         idx = p.get("idx", 0)
         direction = p.get("direction", "other")
         view = _packet_view(p)
+        # Only TCP frames inherit the stimulus-sticky UT context. UDP
+        # observers (including UT response frames themselves) keep
+        # per-frame semantics — matches the C++ ``fill*CapturedFrom-
+        # Frame`` asymmetry between ``TcpCaptured`` and ``UdpCaptured``.
+        if tcp_ut_static_ctx and (p.get("protocol") or "").startswith("TCP"):
+            for k, v in tcp_ut_static_ctx.items():
+                view.setdefault(k, v)
         # Surface the walker's last-fire baseline + this packet's ts to
         # the cond evaluator so ``captured.frame_delta_us()`` returns a
         # concrete delta. ``ts_us`` lifts the decoder's pcap-relative
