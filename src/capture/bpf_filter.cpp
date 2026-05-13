@@ -37,7 +37,18 @@ std::string udp() {
 }
 
 std::string tcp() {
-    return "tcp";
+    // §4.8 BASICS / CALL_RECEIVE / CLOSING / FLAGS_PROCESSING /
+    // MSS_OPTIONS / RETRANSMISSION_TO / URGENT_PTR — many cases drive
+    // the DUT through the §4.8.5 Upper Tester (UDP kPort=30600), and a
+    // few read kernel state back via OpQueryTcpInfo (0x13). The UT
+    // request/response itself never carries verdict-bearing TCP
+    // segments, but the on-disk pcap loses observability of the
+    // stimulus envelope without it — site/scripts/decode_pcap.py +
+    // generate_messages.py rely on the UDP UT frames to label the
+    // timeline. Widening the kernel BPF here is verdict-neutral
+    // because dispatchTcpFrame() pattern-matches on TcpFrame via
+    // std::get_if and silently ignores UdpFrame events.
+    return "tcp or (udp and port " + std::to_string(tc8::ut::kPort) + ")";
 }
 
 std::string dhcpv4() {
