@@ -34,13 +34,13 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptions…"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptions…"
     },
     {
       "idx": 8,

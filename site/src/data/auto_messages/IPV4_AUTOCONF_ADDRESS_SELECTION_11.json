@@ -24,8 +24,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 2 (await_repick) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (await_repick) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != first_probe_target_proto_ip"
     }
   ]
 }

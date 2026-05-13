@@ -9,8 +9,8 @@
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 2 (listening_for_d1_discover) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_for_d1_discover) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_discover() and chaddr_differs_from_snapshot()"
     }
   ]
 }

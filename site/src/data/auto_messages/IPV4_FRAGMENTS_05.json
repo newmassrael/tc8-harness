@@ -24,8 +24,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and src_port == 20001 and dst_port == 20000 and (ip_flags & 0x01) == 0 and ip_fragment_offset == 0"
     },
     {
       "idx": 5,

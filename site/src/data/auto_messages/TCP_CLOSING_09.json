@@ -44,8 +44,8 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_dut_data) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_dut_data) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 72U and dst_port…"
     },
     {
       "idx": 9,

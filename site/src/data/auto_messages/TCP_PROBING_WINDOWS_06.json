@@ -79,18 +79,18 @@
     },
     {
       "idx": 15,
-      "role": "note",
-      "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_probe1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06L…"
     },
     {
       "idx": 16,
-      "role": "note",
-      "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_probe1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06L…"
     },
     {
       "idx": 17,
-      "role": "note",
-      "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_probe1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06L…"
     }
   ]
 }

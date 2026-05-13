@@ -46,6 +46,11 @@
       "idx": 8,
       "role": "note",
       "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
     }
   ]
 }

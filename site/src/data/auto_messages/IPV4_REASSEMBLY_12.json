@@ -14,8 +14,8 @@
     },
     {
       "idx": 2,
-      "role": "fail-trigger",
-      "label": "Phase 1 (listening) fail trigger — transitions to fail_data_mismatch. Cond: type == 0"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: type == 0 and echo_id == expected.echo_id and echo_seq == expected.echo_seq and echo_payload_equals(std::string_view(reinterpret_cast<const…"
     }
   ]
 }

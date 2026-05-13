@@ -59,8 +59,8 @@
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 5 (listening_for_second_rebinding_request) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 5 (listening_for_second_rebinding_request) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac) and dst_ip_is_broadcast() and (frame_delta_within_us(0, 2000000))"
     }
   ]
 }

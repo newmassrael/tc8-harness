@@ -1,8 +1,8 @@
 {
   "case_id": "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:15:10Z",
-  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "captured_at": "2026-05-13T10:37:33Z",
+  "tester_mac": "0e:4c:ba:4f:d1:20",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,
   "dut_ip": null,
@@ -12,18 +12,18 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "0e:4c:ba:4f:d1:20",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0x7eb1aef4 chaddr=7e:b1:ae:f4:32:5d",
+      "summary": "DHCPv4 Discover xid=0x0e4cba4f chaddr=0e:4c:ba:4f:d1:20",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 2125573876,
-        "chaddr": "7e:b1:ae:f4:32:5d",
+        "xid": 239909455,
+        "chaddr": "0e:4c:ba:4f:d1:20",
         "dhcp_msg_type": 1
       }
     }

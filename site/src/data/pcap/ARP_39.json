@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_39",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:15:10Z",
+  "captured_at": "2026-05-13T10:37:33Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "36:80:01:90:d2:f9",
+  "dut_mac": "f2:f0:62:ba:bd:15",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -72,8 +72,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200283,
-      "ts_delta_us": 200283,
+      "ts_us": 200208,
+      "ts_delta_us": 200208,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -135,8 +135,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600434,
-      "ts_delta_us": 400151,
+      "ts_us": 600397,
+      "ts_delta_us": 400189,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -198,10 +198,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 950584,
-      "ts_delta_us": 350150,
+      "ts_us": 1037014,
+      "ts_delta_us": 436617,
       "direction": "dut_to_tester",
-      "src_mac": "36:80:01:90:d2:f9",
+      "src_mac": "f2:f0:62:ba:bd:15",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -252,8 +252,8 @@
     },
     {
       "idx": 4,
-      "ts_us": 950849,
-      "ts_delta_us": 265,
+      "ts_us": 1037207,
+      "ts_delta_us": 193,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -271,8 +271,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1150675,
-      "ts_delta_us": 199826,
+      "ts_us": 1237294,
+      "ts_delta_us": 200087,
       "direction": "other",
       "src_mac": "02:00:00:00:00:a2",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -290,8 +290,8 @@
     },
     {
       "idx": 6,
-      "ts_us": 1150691,
-      "ts_delta_us": 16,
+      "ts_us": 1237337,
+      "ts_delta_us": 43,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "02:00:00:00:00:a2",
@@ -333,8 +333,8 @@
     },
     {
       "idx": 7,
-      "ts_us": 1150692,
-      "ts_delta_us": 1,
+      "ts_us": 1237339,
+      "ts_delta_us": 2,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "02:00:00:00:00:a2",

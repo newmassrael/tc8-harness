@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_FRAGMENTS_02",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:15:10Z",
-  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "captured_at": "2026-05-13T10:37:33Z",
+  "tester_mac": "0e:4c:ba:4f:d1:20",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,23 +13,25 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "0e:4c:ba:4f:d1:20",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
       "summary": "Echo Request",
       "fields": {
         "type": 8,
-        "code": 0
+        "code": 0,
+        "echo_id": 4660,
+        "echo_seq": 22136
       }
     },
     {
       "idx": 1,
-      "ts_us": 31501,
-      "ts_delta_us": 31501,
+      "ts_us": 31425,
+      "ts_delta_us": 31425,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "0e:4c:ba:4f:d1:20",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -41,11 +43,11 @@
     },
     {
       "idx": 2,
-      "ts_us": 2284346,
-      "ts_delta_us": 2252845,
+      "ts_us": 2264936,
+      "ts_delta_us": 2233511,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "0e:4c:ba:4f:d1:20",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -57,18 +59,22 @@
     },
     {
       "idx": 3,
-      "ts_us": 2284379,
-      "ts_delta_us": 33,
+      "ts_us": 2265002,
+      "ts_delta_us": 66,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "a2:09:11:89:fd:cf",
+      "src_mac": "0e:4c:ba:4f:d1:20",
+      "dst_mac": "2e:b7:6f:04:b5:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
       "summary": "Echo Reply",
       "fields": {
         "type": 0,
-        "code": 0
+        "code": 0,
+        "echo_id": 4660,
+        "echo_seq": 22136,
+        "echo_payload_first16": "1122334455667788",
+        "echo_payload_len": 8
       }
     }
   ]

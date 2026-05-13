@@ -44,8 +44,8 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_p1_data_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable14Pha…"
     },
     {
       "idx": 9,

@@ -1,10 +1,10 @@
 {
   "case_id": "SOMEIPSRV_SD_MESSAGE_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:15:10Z",
-  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "captured_at": "2026-05-13T10:37:33Z",
+  "tester_mac": "0e:4c:ba:4f:d1:20",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "a2:09:11:89:fd:cf",
+  "dut_mac": "2e:b7:6f:04:b5:f5",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -12,7 +12,7 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "0e:4c:ba:4f:d1:20",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -104,10 +104,10 @@
     },
     {
       "idx": 1,
-      "ts_us": 200074,
-      "ts_delta_us": 200074,
+      "ts_us": 200331,
+      "ts_delta_us": 200331,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "0e:4c:ba:4f:d1:20",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -159,16 +159,6 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
-          },
-          {
-            "type": 4,
-            "name": "IPv4Endpoint",
-            "length": 9,
-            "reserved1": 0,
-            "ipv4": "172.16.0.2",
-            "reserved2": 0,
             "l4_proto": 6,
             "port": 30501
           },
@@ -179,8 +169,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30503
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
@@ -191,6 +181,16 @@
             "reserved2": 0,
             "l4_proto": 17,
             "port": 30504
+          },
+          {
+            "type": 4,
+            "name": "IPv4Endpoint",
+            "length": 9,
+            "reserved1": 0,
+            "ipv4": "172.16.0.2",
+            "reserved2": 0,
+            "l4_proto": 6,
+            "port": 30503
           }
         ],
         "src_port": 30490,
@@ -199,10 +199,10 @@
     },
     {
       "idx": 2,
-      "ts_us": 600229,
-      "ts_delta_us": 400155,
+      "ts_us": 600590,
+      "ts_delta_us": 400259,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "0e:4c:ba:4f:d1:20",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -294,10 +294,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 924024,
-      "ts_delta_us": 323795,
+      "ts_us": 987811,
+      "ts_delta_us": 387221,
       "direction": "dut_to_tester",
-      "src_mac": "a2:09:11:89:fd:cf",
+      "src_mac": "2e:b7:6f:04:b5:f5",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.1",
       "dst_ip": "224.244.224.245",
@@ -336,10 +336,10 @@
     },
     {
       "idx": 4,
-      "ts_us": 932096,
-      "ts_delta_us": 8072,
+      "ts_us": 987983,
+      "ts_delta_us": 172,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "0e:4c:ba:4f:d1:20",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -399,10 +399,10 @@
     },
     {
       "idx": 5,
-      "ts_us": 932117,
-      "ts_delta_us": 21,
+      "ts_us": 987990,
+      "ts_delta_us": 7,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "0e:4c:ba:4f:d1:20",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -462,10 +462,10 @@
     },
     {
       "idx": 6,
-      "ts_us": 1400298,
-      "ts_delta_us": 468181,
+      "ts_us": 1400809,
+      "ts_delta_us": 412819,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "0e:4c:ba:4f:d1:20",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",

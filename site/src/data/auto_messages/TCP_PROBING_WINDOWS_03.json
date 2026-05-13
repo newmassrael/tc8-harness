@@ -39,8 +39,8 @@
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 8,
@@ -49,8 +49,8 @@
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 10,
@@ -64,13 +64,13 @@
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 14,
@@ -84,8 +84,8 @@
     },
     {
       "idx": 16,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 17,
@@ -109,23 +109,23 @@
     },
     {
       "idx": 21,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 22,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 23,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 24,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_seg2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_seg2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     }
   ]
 }

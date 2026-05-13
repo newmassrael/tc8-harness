@@ -24,8 +24,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_for_renewing_request) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_for_renewing_request) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac) and (ciaddr_equals(expected.offered_ip_be))"
     }
   ]
 }

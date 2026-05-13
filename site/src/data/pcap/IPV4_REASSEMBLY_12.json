@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_REASSEMBLY_12",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:15:10Z",
-  "tester_mac": "ce:e9:86:bf:01:8c",
+  "captured_at": "2026-05-13T10:37:33Z",
+  "tester_mac": "16:f3:c2:e9:db:eb",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,23 +13,25 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "16:f3:c2:e9:db:eb",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
       "summary": "Echo Request",
       "fields": {
         "type": 8,
-        "code": 0
+        "code": 0,
+        "echo_id": 4660,
+        "echo_seq": 22136
       }
     },
     {
       "idx": 1,
-      "ts_us": 1031532,
-      "ts_delta_us": 1031532,
+      "ts_us": 1027675,
+      "ts_delta_us": 1027675,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "16:f3:c2:e9:db:eb",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -41,18 +43,22 @@
     },
     {
       "idx": 2,
-      "ts_us": 1031558,
-      "ts_delta_us": 26,
+      "ts_us": 1027714,
+      "ts_delta_us": 39,
       "direction": "tester_to_dut",
-      "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "e6:31:14:10:5e:a4",
+      "src_mac": "16:f3:c2:e9:db:eb",
+      "dst_mac": "7a:fe:88:75:65:77",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
       "summary": "Echo Reply",
       "fields": {
         "type": 0,
-        "code": 0
+        "code": 0,
+        "echo_id": 4660,
+        "echo_seq": 22136,
+        "echo_payload_first16": "1122334455667788",
+        "echo_payload_len": 8
       }
     }
   ]

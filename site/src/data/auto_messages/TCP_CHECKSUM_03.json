@@ -64,8 +64,8 @@
     },
     {
       "idx": 12,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp…"
     },
     {
       "idx": 13,
@@ -74,8 +74,8 @@
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp…"
     },
     {
       "idx": 15,
@@ -89,8 +89,8 @@
     },
     {
       "idx": 17,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp…"
     },
     {
       "idx": 18,

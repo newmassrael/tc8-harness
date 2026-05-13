@@ -1,7 +1,7 @@
 {
   "case_id": "SOMEIP_ETS_130",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:15:10Z",
+  "captured_at": "2026-05-13T10:37:33Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -72,8 +72,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200252,
-      "ts_delta_us": 200252,
+      "ts_us": 200271,
+      "ts_delta_us": 200271,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -135,8 +135,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600364,
-      "ts_delta_us": 400112,
+      "ts_us": 600494,
+      "ts_delta_us": 400223,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "01:00:5e:74:e0:f5",

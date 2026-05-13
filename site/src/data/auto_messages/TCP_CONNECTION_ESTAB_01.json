@@ -69,8 +69,8 @@
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "Phase 1 (listen_leg1) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listen_leg1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and dst_port ==…"
     },
     {
       "idx": 14,
@@ -91,11 +91,6 @@
       "idx": 17,
       "role": "note",
       "label": "Phase 1 (listen_leg1) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 18,
-      "role": "stimulus",
-      "label": "Phase 1 (listen_leg1) — Tester stimulus (no transition matched)"
     }
   ]
 }

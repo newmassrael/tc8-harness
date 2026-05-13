@@ -34,8 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_initial_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
     },
     {
       "idx": 7,
@@ -44,8 +44,8 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_initial_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
     },
     {
       "idx": 9,
@@ -54,8 +54,8 @@
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_initial_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
     },
     {
       "idx": 11,
@@ -64,8 +64,8 @@
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_initial_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
     }
   ]
 }

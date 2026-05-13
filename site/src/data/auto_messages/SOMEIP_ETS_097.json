@@ -876,16 +876,6 @@
       "idx": 174,
       "role": "note",
       "label": "Phase 3 (listening_phase3_handshake) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 175,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase3_handshake) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 176,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase3_handshake) — Tester stimulus (no transition matched)"
     }
   ]
 }

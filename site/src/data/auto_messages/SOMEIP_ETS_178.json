@@ -49,8 +49,8 @@
     },
     {
       "idx": 9,
-      "role": "note",
-      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl == 0 and sd_entries[0].eventgroup_id == e…"
     },
     {
       "idx": 10,

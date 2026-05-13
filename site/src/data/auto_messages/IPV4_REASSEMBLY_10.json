@@ -14,23 +14,23 @@
     },
     {
       "idx": 2,
-      "role": "fail-trigger",
-      "label": "Phase 1 (listening_phase_a) fail trigger — transitions to fail_phase_a_data_mismatch. Cond: type == 0 and src_ip == expected.dut_iface_ip"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase_a) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: type == 0 and src_ip == expected.dut_iface_ip and echo_id == expected.echo_id and echo_seq == expected.echo_seq and echo_payload_equals(std…"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "Phase 1 (listening_phase_a) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_phase_a) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "Phase 1 (listening_phase_a) — DUT frame (no transition matched)"
     }
   ]
 }

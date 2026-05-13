@@ -94,16 +94,11 @@
     },
     {
       "idx": 18,
-      "role": "stimulus",
-      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 19,
       "role": "note",
       "label": "Phase 2 (absence_no_second_data) — DUT frame (no transition matched)"
     },
     {
-      "idx": 20,
+      "idx": 19,
       "role": "stimulus",
       "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
     }

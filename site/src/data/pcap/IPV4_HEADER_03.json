@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_HEADER_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:15:10Z",
+  "captured_at": "2026-05-13T10:37:33Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -20,23 +20,27 @@
       "summary": "Echo Request",
       "fields": {
         "type": 8,
-        "code": 0
+        "code": 0,
+        "echo_id": 4660,
+        "echo_seq": 22136
       }
     },
     {
       "idx": 1,
-      "ts_us": 21,
-      "ts_delta_us": 21,
+      "ts_us": 40,
+      "ts_delta_us": 40,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "36:80:01:90:d2:f9",
+      "dst_mac": "f2:f0:62:ba:bd:15",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
       "summary": "Echo Reply",
       "fields": {
         "type": 0,
-        "code": 0
+        "code": 0,
+        "echo_id": 4660,
+        "echo_seq": 22136
       }
     }
   ]

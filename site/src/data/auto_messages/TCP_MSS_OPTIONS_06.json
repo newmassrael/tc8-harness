@@ -34,53 +34,53 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 16,

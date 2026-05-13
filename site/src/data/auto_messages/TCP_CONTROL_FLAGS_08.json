@@ -39,8 +39,8 @@
     },
     {
       "idx": 7,
-      "role": "note",
-      "label": "Phase 1 (listening_first_syn_ack) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_first_syn_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and dst_port…"
     },
     {
       "idx": 8,
@@ -54,13 +54,8 @@
     },
     {
       "idx": 10,
-      "role": "note",
-      "label": "Phase 1 (listening_first_syn_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_first_syn_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_first_syn_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and dst_port…"
     }
   ]
 }

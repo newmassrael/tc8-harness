@@ -4,18 +4,18 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 2,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 3,
@@ -24,13 +24,13 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 6,
@@ -39,13 +39,13 @@
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 9,
@@ -69,11 +69,6 @@
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 14,
       "role": "stimulus",
       "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
     }

@@ -29,8 +29,8 @@
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 6 (listening_for_d6) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 6 (listening_for_d6) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac) and frame_delta_within_us(0, 4200000)"
     }
   ]
 }

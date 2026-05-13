@@ -9,13 +9,13 @@
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_for_d2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_for_d2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac) and frame_delta_within_us(3000000, 5000000)"
     },
     {
       "idx": 2,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_for_d2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_for_d2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac) and frame_delta_within_us(3000000, 5000000)"
     }
   ]
 }

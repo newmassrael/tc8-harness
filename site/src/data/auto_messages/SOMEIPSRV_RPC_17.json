@@ -59,8 +59,8 @@
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == expected.service_id and message_type == 0x80 and return_code == 0x00 and method_id == 0x000A and src_port == 30501"
     },
     {
       "idx": 12,
@@ -74,8 +74,8 @@
     },
     {
       "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == expected.service_id and message_type == 0x80 and return_code == 0x00 and method_id == 0x000A and src_port == 30501"
     },
     {
       "idx": 15,
@@ -104,8 +104,8 @@
     },
     {
       "idx": 20,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase3) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_phase3) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == expected.service_id and message_type == 0x80 and return_code == 0x00 and method_id == 0x000A and src_port == 30503"
     },
     {
       "idx": 21,
@@ -119,8 +119,8 @@
     },
     {
       "idx": 23,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase3) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_phase3) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == expected.service_id and message_type == 0x80 and return_code == 0x00 and method_id == 0x000A and src_port == 30503"
     },
     {
       "idx": 24,

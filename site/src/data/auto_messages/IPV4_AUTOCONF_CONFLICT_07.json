@@ -44,8 +44,8 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_post_claim) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_post_claim) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and expected_responder_sender_ip_be != 0 and target_proto_ip != expected_responder_sender_ip_be"
     }
   ]
 }

@@ -69,8 +69,8 @@
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "Phase 3 (listening_dut_data_ack) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_dut_data_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 73U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 14,

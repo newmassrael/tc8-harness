@@ -49,8 +49,8 @@
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == expected.service_id and message_type == 0x80 and method_id == 0x0017 and return_code == 0x00 and payload_len == 1 and payload…"
     }
   ]
 }

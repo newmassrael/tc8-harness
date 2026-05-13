@@ -29,13 +29,13 @@
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 7,
@@ -59,13 +59,13 @@
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
     },
     {
       "idx": 12,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 13,
@@ -79,8 +79,8 @@
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpMssOptionsListenPort01v and dst_port…"
     },
     {
       "idx": 16,

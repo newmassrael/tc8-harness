@@ -24,13 +24,13 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2_find_inst1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2_find_inst1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count == 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2_find_inst1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2_find_inst1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count == 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
     },
     {
       "idx": 6,

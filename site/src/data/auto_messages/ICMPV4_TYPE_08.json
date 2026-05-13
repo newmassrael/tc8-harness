@@ -9,8 +9,8 @@
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: type == 0 and src_ip == expected.dut_iface_ip and echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08)"
     }
   ]
 }
