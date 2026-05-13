@@ -530,7 +530,13 @@ CATEGORY_TO_NS_CHAIN = {
     "ARP":              ("arp",),
     "ICMPV4":           ("icmpv4",),
     "IPV4_AUTOCONF":    ("ipv4",),
-    "IPV4":             ("ipv4",),
+    # §4.4 IPv4 base cases (HEADER / REASSEMBLY / FRAGMENTS / ADDRESSING_03)
+    # stimulate with ICMP echo and assert against the reply's echo_id /
+    # echo_seq fields. Smoke-test.sh pins these via
+    # ``icmpv4.echo_id`` / ``icmpv4.echo_seq`` (the values mirror what
+    # the tester injects), so the cond evaluator needs the icmpv4
+    # namespace alongside ipv4 to resolve ``expected.echo_id``.
+    "IPV4":             ("ipv4", "icmpv4"),
     "UDP":              ("udp", "ipv4"),
     "DHCPV4":           ("dhcpv4", "ipv4"),
     "TCP":              ("tcp", "ipv4"),
@@ -970,6 +976,36 @@ class Parser:
             base: Any = ScopedConst(name=scoped_idents[-1], namespace=ns)
         else:
             base = Ident(parts=tuple(parts))
+
+        # C++ cast operators carry a template argument list: skip the
+        # ``<T>`` chunk and let the trailing ``(expr)`` be parsed as a
+        # normal Call. Without this the LE/GE tokens leak into
+        # ``cmp_expr`` and the whole cond degrades to ``Opaque``, which
+        # breaks the uncertainty-rescue rules in the walker (§4.4
+        # IPv4_FRAGMENTS/REASSEMBLY conds reach for
+        # ``reinterpret_cast<const char*>(...)``).
+        _CAST_KEYWORDS = ("reinterpret_cast", "static_cast",
+                          "const_cast", "dynamic_cast")
+        if (isinstance(base, Ident) and len(base.parts) == 1
+                and base.parts[0] in _CAST_KEYWORDS):
+            t0 = self.peek()
+            if t0 is not None and t0.kind == "LE":
+                self.take()
+                depth = 1
+                while depth > 0:
+                    t = self.peek()
+                    if t is None:
+                        break
+                    self.take()
+                    if t.kind == "LE":
+                        depth += 1
+                    elif t.kind == "GE":
+                        depth -= 1
+                # The cast yields a value of the templated type; we
+                # can't see through it, so the surrounding Call's
+                # argument becomes Opaque rather than the cast
+                # identifier itself.
+                base = Opaque(note=f"{base.parts[0]}<...>")
 
         while True:
             t = self.peek()
@@ -1928,20 +1964,38 @@ def label_packets(
         # service-id / 4-tuple check) provides the discriminator
         # already, and expected.X now resolves to real values.
         #
-        # If any pass cond is *uncertain* (lenient TRUE but not strict
-        # TRUE — i.e. an opaque helper or unloaded expected.X clause
-        # was UNKNOWN-rescued), the real SCXML may have taken the pass
-        # branch in the live run. Refuse to fall through to fail so a
-        # passing test isn't auto-labelled as fail.
+        # If any pass cond is *uncertain* — lenient TRUE but not strict
+        # TRUE (UNKNOWN-rescue under at-least-one concrete TRUE), or
+        # *entirely opaque* (parse-error / fully-UNKNOWN evaluation under
+        # both modes) — the real SCXML may have taken the pass branch in
+        # the live run. Refuse to fall through to fail so a passing test
+        # isn't auto-labelled as fail. The opaque-pass guard handles
+        # conds like §4.4 IPv4_FRAGMENTS/REASSEMBLY's
+        # ``echo_payload_equals(reinterpret_cast<const char*>(...))``
+        # where the C++ template syntax trips the cond parser.
         matched: TransitionDef | None = None
         any_pass_uncertain = False
+        uncertain_pass: TransitionDef | None = None
         for t in cur.transitions:
             verdict = _verdict_for_target(t.target, states_by_id)
             if verdict == "fail":
                 continue
-            strict_ok = cond_matches(t.cond_ast, view, expected, strict=True)
-            lenient_ok = cond_matches(t.cond_ast, view, expected, strict=False)
+            strict_val = _eval(t.cond_ast, view, expected, strict=True)
+            lenient_val = _eval(t.cond_ast, view, expected, strict=False)
+            strict_ok = strict_val is True
+            lenient_ok = lenient_val is True
             if lenient_ok and not strict_ok:
+                any_pass_uncertain = True
+                # Concrete clauses pin this packet as a candidate for
+                # the pass branch — surface that in the label.
+                if uncertain_pass is None:
+                    uncertain_pass = t
+            elif lenient_val is UNKNOWN and strict_val is UNKNOWN:
+                # Pass cond fully opaque (parse-error or every clause
+                # UNKNOWN) — caller can't tell whether it would have
+                # fired. Treat as uncertain to block fail fall-through,
+                # but don't paint a candidate label (every packet would
+                # match, drowning the timeline).
                 any_pass_uncertain = True
             if strict_ok:
                 matched = t
@@ -2002,6 +2056,21 @@ def label_packets(
                 cur = next_st or cur
             continue
 
+        # No transition fired strictly. If a pass transition was
+        # uncertain (opaque helper or fully-UNKNOWN cond), surface that
+        # as an "expected candidate" so the timeline still flags the
+        # likely pass moment — the live SCXML may have taken this
+        # branch even though we can't prove it from the wire.
+        if uncertain_pass is not None:
+            cond_text = _short_cond(uncertain_pass.cond_src)
+            msgs.append(AutoMessage(
+                idx=idx, role="expected",
+                label=(
+                    f"{phase_tag} pass trigger (candidate — opaque cond "
+                    f"clause UNKNOWN). Cond: {cond_text}"
+                ),
+            ))
+            continue
         # No transition fired on this packet — classify by direction so
         # the reader still sees which phase the frame fell into.
         if direction == "tester_to_dut":

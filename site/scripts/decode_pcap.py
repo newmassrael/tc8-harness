@@ -159,7 +159,25 @@ def _dissect_icmpv4(payload: bytes, p: Packet) -> None:
         p.summary = "truncated"
         return
     type_, code = payload[0], payload[1]
-    p.fields = {"type": type_, "code": code}
+    fields: dict = {"type": type_, "code": code}
+    # RFC 792 Echo Request/Reply (type 8/0) and RFC 792 Timestamp
+    # Request/Reply (type 13/14) share an identifier+sequence header at
+    # offsets 4..7. SCXML conds for §4.3 ICMPV4_TYPE_* and §4.4
+    # IPv4_REASSEMBLY/FRAGMENTS read `captured.echo_id` /
+    # `captured.echo_seq` against `expected.echo_id` / `expected.echo_seq`
+    # (sourced from smoke-test.sh `icmpv4.echo_id` / `icmpv4.echo_seq`),
+    # so surface them whenever the wire shape carries them.
+    if type_ in (0, 8, 13, 14) and len(payload) >= 8:
+        fields["echo_id"] = (payload[4] << 8) | payload[5]
+        fields["echo_seq"] = (payload[6] << 8) | payload[7]
+        # Echo payload follows the id+seq header. Lift the first 16 B
+        # for surface (some conds use `echo_payload_equals(...)` against
+        # a hard-coded buffer; that helper stays opaque to the generator
+        # but the bytes are useful in the timeline UI).
+        if type_ in (0, 8) and len(payload) > 8:
+            fields["echo_payload_first16"] = payload[8:24].hex()
+            fields["echo_payload_len"] = len(payload) - 8
+    p.fields = fields
     name = _ICMPV4_TYPES.get(type_)
     if type_ == 3:  # Destination Unreachable — code matters
         code_name = _ICMPV4_DU_CODES.get(code, f"code={code}")
