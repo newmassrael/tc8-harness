@@ -14,123 +14,123 @@
     },
     {
       "idx": 2,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "fail-trigger",
+      "label": "Phase 1 (evaluate_kernel_observations) fail trigger — transitions to fail_rto_below_2msl_cap. Cond: ut_tcpi_p1_rto_us < 57000000"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 10,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 12,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 15,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 16,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 17,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 18,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 19,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 20,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 21,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 22,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 23,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 24,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     },
     {
       "idx": 25,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
     }
   ]
 }

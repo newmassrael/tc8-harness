@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_REASSEMBLY_12",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
-  "tester_mac": "16:f3:c2:e9:db:eb",
+  "captured_at": "2026-05-13T13:47:04Z",
+  "tester_mac": "a6:13:6d:64:4f:54",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "16:f3:c2:e9:db:eb",
+      "dst_mac": "a6:13:6d:64:4f:54",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -22,32 +22,38 @@
         "type": 8,
         "code": 0,
         "echo_id": 4660,
-        "echo_seq": 22136
+        "echo_seq": 22136,
+        "ip_id": 61463,
+        "ip_flags": 1,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 1,
-      "ts_us": 1027675,
-      "ts_delta_us": 1027675,
+      "ts_us": 1023680,
+      "ts_delta_us": 1023680,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "16:f3:c2:e9:db:eb",
+      "dst_mac": "a6:13:6d:64:4f:54",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
       "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
-        "code": 34
+        "code": 34,
+        "ip_id": 61463,
+        "ip_flags": 0,
+        "ip_fragment_offset": 1
       }
     },
     {
       "idx": 2,
-      "ts_us": 1027714,
-      "ts_delta_us": 39,
+      "ts_us": 1023699,
+      "ts_delta_us": 19,
       "direction": "tester_to_dut",
-      "src_mac": "16:f3:c2:e9:db:eb",
-      "dst_mac": "7a:fe:88:75:65:77",
+      "src_mac": "a6:13:6d:64:4f:54",
+      "dst_mac": "9a:a8:9f:71:17:5b",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -58,7 +64,10 @@
         "echo_id": 4660,
         "echo_seq": 22136,
         "echo_payload_first16": "1122334455667788",
-        "echo_payload_len": 8
+        "echo_payload_len": 8,
+        "ip_id": 14495,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

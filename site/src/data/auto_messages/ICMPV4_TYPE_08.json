@@ -10,7 +10,7 @@
     {
       "idx": 1,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: type == 0 and src_ip == expected.dut_iface_ip and echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08)"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: type == 0 and src_ip == expected.dut_iface_ip and echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08)"
     }
   ]
 }

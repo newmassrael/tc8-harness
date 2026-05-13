@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_10",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -22,13 +22,16 @@
         "type": 8,
         "code": 0,
         "echo_id": 4660,
-        "echo_seq": 22136
+        "echo_seq": 22136,
+        "ip_id": 61460,
+        "ip_flags": 1,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 1,
-      "ts_us": 1035549,
-      "ts_delta_us": 1035549,
+      "ts_us": 1035638,
+      "ts_delta_us": 1035638,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -38,16 +41,19 @@
       "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
-        "code": 34
+        "code": 34,
+        "ip_id": 61460,
+        "ip_flags": 0,
+        "ip_fragment_offset": 1
       }
     },
     {
       "idx": 2,
-      "ts_us": 1035571,
-      "ts_delta_us": 22,
+      "ts_us": 1035695,
+      "ts_delta_us": 57,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "66:f4:04:31:9f:5d",
+      "dst_mac": "ee:57:a9:75:39:41",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -58,13 +64,16 @@
         "echo_id": 4660,
         "echo_seq": 22136,
         "echo_payload_first16": "1122334455667788",
-        "echo_payload_len": 8
+        "echo_payload_len": 8,
+        "ip_id": 13477,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 3,
-      "ts_us": 1267536,
-      "ts_delta_us": 231965,
+      "ts_us": 1263597,
+      "ts_delta_us": 227902,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -76,29 +85,35 @@
         "type": 8,
         "code": 0,
         "echo_id": 4660,
-        "echo_seq": 22136
+        "echo_seq": 22136,
+        "ip_id": 61461,
+        "ip_flags": 1,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 4,
-      "ts_us": 3275443,
-      "ts_delta_us": 2007907,
+      "ts_us": 3279599,
+      "ts_delta_us": 2016002,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "66:f4:04:31:9f:5d",
+      "dst_mac": "ee:57:a9:75:39:41",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
       "summary": "Time Exceeded (code=1)",
       "fields": {
         "type": 11,
-        "code": 1
+        "code": 1,
+        "ip_id": 13631,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 5,
-      "ts_us": 4283754,
-      "ts_delta_us": 1008311,
+      "ts_us": 4311688,
+      "ts_delta_us": 1032089,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -108,7 +123,10 @@
       "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
-        "code": 34
+        "code": 34,
+        "ip_id": 61461,
+        "ip_flags": 0,
+        "ip_fragment_offset": 1
       }
     }
   ]

@@ -35,17 +35,17 @@
     {
       "idx": 6,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptions…"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptions…"
     },
     {
       "idx": 7,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptions…"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

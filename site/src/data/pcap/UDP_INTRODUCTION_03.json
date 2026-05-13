@@ -1,8 +1,8 @@
 {
   "case_id": "UDP_INTRODUCTION_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
-  "tester_mac": "0e:4c:ba:4f:d1:20",
+  "captured_at": "2026-05-13T13:47:04Z",
+  "tester_mac": "82:ce:dd:43:6a:98",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -12,15 +12,18 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "0e:4c:ba:4f:d1:20",
-      "dst_mac": "2e:b7:6f:04:b5:f5",
+      "src_mac": "82:ce:dd:43:6a:98",
+      "dst_mac": "fe:06:e7:39:f4:00",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
       "summary": "Destination Unreachable: port unreachable",
       "fields": {
         "type": 3,
-        "code": 3
+        "code": 3,
+        "ip_id": 29582,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

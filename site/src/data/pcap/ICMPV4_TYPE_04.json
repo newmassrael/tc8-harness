@@ -1,7 +1,7 @@
 {
   "case_id": "ICMPV4_TYPE_04",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "16:f3:c2:e9:db:eb",
+      "dst_mac": "a6:13:6d:64:4f:54",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -22,7 +22,10 @@
         "type": 0,
         "code": 0,
         "echo_id": 0,
-        "echo_seq": 0
+        "echo_seq": 0,
+        "ip_id": 16962,
+        "ip_flags": 0,
+        "ip_fragment_offset": 1
       }
     }
   ]

@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_REASSEMBLY_11",
   "outcome": "fail",
-  "captured_at": "2026-05-13T10:37:33Z",
-  "tester_mac": "0e:4c:ba:4f:d1:20",
+  "captured_at": "2026-05-13T13:47:04Z",
+  "tester_mac": "82:ce:dd:43:6a:98",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "0e:4c:ba:4f:d1:20",
+      "dst_mac": "82:ce:dd:43:6a:98",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -22,39 +22,48 @@
         "type": 8,
         "code": 0,
         "echo_id": 4660,
-        "echo_seq": 22136
+        "echo_seq": 22136,
+        "ip_id": 61462,
+        "ip_flags": 1,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 1,
-      "ts_us": 2027267,
-      "ts_delta_us": 2027267,
+      "ts_us": 2023378,
+      "ts_delta_us": 2023378,
       "direction": "tester_to_dut",
-      "src_mac": "0e:4c:ba:4f:d1:20",
-      "dst_mac": "2e:b7:6f:04:b5:f5",
+      "src_mac": "82:ce:dd:43:6a:98",
+      "dst_mac": "fe:06:e7:39:f4:00",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
       "summary": "Time Exceeded (code=1)",
       "fields": {
         "type": 11,
-        "code": 1
+        "code": 1,
+        "ip_id": 65423,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 2,
-      "ts_us": 3023335,
-      "ts_delta_us": 996068,
+      "ts_us": 3015354,
+      "ts_delta_us": 991976,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "0e:4c:ba:4f:d1:20",
+      "dst_mac": "82:ce:dd:43:6a:98",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
       "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
-        "code": 34
+        "code": 34,
+        "ip_id": 61462,
+        "ip_flags": 0,
+        "ip_fragment_offset": 1
       }
     }
   ]

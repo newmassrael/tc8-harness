@@ -10,7 +10,7 @@
     {
       "idx": 1,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: type == 14 and src_ip == expected.dut_iface_ip and originate_timestamp == ::tc8::stimulus::kIcmpTimestampOriginate and receive_timestamp !=…"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: type == 14 and src_ip == expected.dut_iface_ip and originate_timestamp == ::tc8::stimulus::kIcmpTimestampOriginate and receive_timestamp !=…"
     }
   ]
 }

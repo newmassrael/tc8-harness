@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_04",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -22,13 +22,16 @@
         "type": 8,
         "code": 0,
         "echo_id": 4660,
-        "echo_seq": 22136
+        "echo_seq": 22136,
+        "ip_id": 61456,
+        "ip_flags": 1,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 1,
-      "ts_us": 227313,
-      "ts_delta_us": 227313,
+      "ts_us": 215232,
+      "ts_delta_us": 215232,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -38,13 +41,16 @@
       "summary": "type=176 code=177",
       "fields": {
         "type": 176,
-        "code": 177
+        "code": 177,
+        "ip_id": 61456,
+        "ip_flags": 1,
+        "ip_fragment_offset": 2
       }
     },
     {
       "idx": 2,
-      "ts_us": 443369,
-      "ts_delta_us": 216056,
+      "ts_us": 443065,
+      "ts_delta_us": 227833,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -54,13 +60,16 @@
       "summary": "type=160 code=161",
       "fields": {
         "type": 160,
-        "code": 161
+        "code": 161,
+        "ip_id": 61456,
+        "ip_flags": 1,
+        "ip_fragment_offset": 1
       }
     },
     {
       "idx": 3,
-      "ts_us": 659414,
-      "ts_delta_us": 216045,
+      "ts_us": 671054,
+      "ts_delta_us": 227989,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -70,16 +79,19 @@
       "summary": "type=192 code=193",
       "fields": {
         "type": 192,
-        "code": 193
+        "code": 193,
+        "ip_id": 61456,
+        "ip_flags": 0,
+        "ip_fragment_offset": 3
       }
     },
     {
       "idx": 4,
-      "ts_us": 659441,
-      "ts_delta_us": 27,
+      "ts_us": 671094,
+      "ts_delta_us": 40,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "66:f4:04:31:9f:5d",
+      "dst_mac": "ee:57:a9:75:39:41",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -90,7 +102,10 @@
         "echo_id": 4660,
         "echo_seq": 22136,
         "echo_payload_first16": "a0a1a2a3a4a5a6a7b0b1b2b3b4b5b6b7",
-        "echo_payload_len": 24
+        "echo_payload_len": 24,
+        "ip_id": 13418,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

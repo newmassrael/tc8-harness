@@ -15,7 +15,7 @@
     {
       "idx": 2,
       "role": "expected",
-      "label": "Phase 2 (listening_for_request) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: op == 1 and message_type == 3 and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+      "label": "Phase 2 (listening_for_request) pass trigger — transitions to pass. Cond: op == 1 and message_type == 3 and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     }
   ]
 }

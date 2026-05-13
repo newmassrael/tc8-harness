@@ -1,7 +1,7 @@
 {
   "case_id": "ICMPV4_TYPE_08",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -24,16 +24,19 @@
         "echo_id": 4660,
         "echo_seq": 22136,
         "echo_payload_first16": "454355204e4554574f524b2056414c49",
-        "echo_payload_len": 27
+        "echo_payload_len": 27,
+        "ip_id": 16962,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 1,
-      "ts_us": 24,
-      "ts_delta_us": 24,
+      "ts_us": 16,
+      "ts_delta_us": 16,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "66:f4:04:31:9f:5d",
+      "dst_mac": "ee:57:a9:75:39:41",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -44,7 +47,10 @@
         "echo_id": 4660,
         "echo_seq": 22136,
         "echo_payload_first16": "454355204e4554574f524b2056414c49",
-        "echo_payload_len": 27
+        "echo_payload_len": 27,
+        "ip_id": 6087,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

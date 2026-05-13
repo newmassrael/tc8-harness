@@ -1,8 +1,8 @@
 {
   "case_id": "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
-  "tester_mac": "0e:4c:ba:4f:d1:20",
+  "captured_at": "2026-05-13T13:47:04Z",
+  "tester_mac": "82:ce:dd:43:6a:98",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,
   "dut_ip": null,
@@ -12,19 +12,36 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "0e:4c:ba:4f:d1:20",
+      "src_mac": "82:ce:dd:43:6a:98",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0x0e4cba4f chaddr=0e:4c:ba:4f:d1:20",
+      "summary": "DHCPv4 Discover xid=0x82cedd43 chaddr=82:ce:dd:43:6a:98",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 239909455,
-        "chaddr": "0e:4c:ba:4f:d1:20",
-        "dhcp_msg_type": 1
+        "htype": 1,
+        "hlen": 6,
+        "hops": 0,
+        "xid": 2194595139,
+        "secs": 0,
+        "bootp_flags": 0,
+        "ciaddr": "0.0.0.0",
+        "yiaddr": "0.0.0.0",
+        "siaddr": "0.0.0.0",
+        "giaddr": "0.0.0.0",
+        "chaddr": "82:ce:dd:43:6a:98",
+        "dhcp_msg_type": 1,
+        "dhcp_end_option_seen": true,
+        "dhcp_options_seen": [
+          53
+        ],
+        "checksum": 56779,
+        "ip_id": 0,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

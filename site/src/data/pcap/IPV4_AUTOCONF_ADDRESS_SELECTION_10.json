@@ -1,10 +1,10 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_10",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": null,
-  "dut_mac": "f2:f0:62:ba:bd:15",
+  "dut_mac": "92:f7:6f:8a:51:1d",
   "dut_ip": null,
   "packets": [
     {
@@ -19,11 +19,17 @@
       "protocol": "ARP",
       "summary": "Who has 172.16.0.1? Tell 172.16.0.2 (sender_mac=5e:45:c1:4c:94:86)",
       "fields": {
+        "hw_type": 1,
+        "proto_type": 2048,
+        "hw_addr_len": 6,
+        "proto_addr_len": 4,
         "opcode": 1,
         "sender_mac": "5e:45:c1:4c:94:86",
         "sender_ip": "172.16.0.2",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "172.16.0.1"
+        "target_ip": "172.16.0.1",
+        "sender_proto_ip_be": 2886729730,
+        "target_proto_ip_be": 2886729729
       }
     },
     {
@@ -31,75 +37,99 @@
       "ts_us": 3,
       "ts_delta_us": 3,
       "direction": "dut_to_tester",
-      "src_mac": "f2:f0:62:ba:bd:15",
+      "src_mac": "92:f7:6f:8a:51:1d",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at f2:f0:62:ba:bd:15",
+      "summary": "172.16.0.1 is at 92:f7:6f:8a:51:1d",
       "fields": {
+        "hw_type": 1,
+        "proto_type": 2048,
+        "hw_addr_len": 6,
+        "proto_addr_len": 4,
         "opcode": 2,
-        "sender_mac": "f2:f0:62:ba:bd:15",
+        "sender_mac": "92:f7:6f:8a:51:1d",
         "sender_ip": "172.16.0.1",
         "target_mac": "5e:45:c1:4c:94:86",
-        "target_ip": "172.16.0.2"
+        "target_ip": "172.16.0.2",
+        "sender_proto_ip_be": 2886729729,
+        "target_proto_ip_be": 2886729730
       }
     },
     {
       "idx": 2,
-      "ts_us": 1219571,
-      "ts_delta_us": 1219568,
+      "ts_us": 1239360,
+      "ts_delta_us": 1239357,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.159.235? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
+      "summary": "Who has 169.254.98.29? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
       "fields": {
+        "hw_type": 1,
+        "proto_type": 2048,
+        "hw_addr_len": 6,
+        "proto_addr_len": 4,
         "opcode": 1,
         "sender_mac": "5e:45:c1:4c:94:86",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.159.235"
+        "target_ip": "169.254.98.29",
+        "sender_proto_ip_be": 0,
+        "target_proto_ip_be": 2852020765
       }
     },
     {
       "idx": 3,
-      "ts_us": 3221358,
-      "ts_delta_us": 2001787,
+      "ts_us": 2808417,
+      "ts_delta_us": 1569057,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.159.235? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
+      "summary": "Who has 169.254.98.29? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
       "fields": {
+        "hw_type": 1,
+        "proto_type": 2048,
+        "hw_addr_len": 6,
+        "proto_addr_len": 4,
         "opcode": 1,
         "sender_mac": "5e:45:c1:4c:94:86",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.159.235"
+        "target_ip": "169.254.98.29",
+        "sender_proto_ip_be": 0,
+        "target_proto_ip_be": 2852020765
       }
     },
     {
       "idx": 4,
-      "ts_us": 4803303,
-      "ts_delta_us": 1581945,
+      "ts_us": 4026424,
+      "ts_delta_us": 1218007,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.159.235? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
+      "summary": "Who has 169.254.98.29? Tell 0.0.0.0 (sender_mac=5e:45:c1:4c:94:86)",
       "fields": {
+        "hw_type": 1,
+        "proto_type": 2048,
+        "hw_addr_len": 6,
+        "proto_addr_len": 4,
         "opcode": 1,
         "sender_mac": "5e:45:c1:4c:94:86",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.159.235"
+        "target_ip": "169.254.98.29",
+        "sender_proto_ip_be": 0,
+        "target_proto_ip_be": 2852020765
       }
     }
   ]

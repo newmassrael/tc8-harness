@@ -25,12 +25,12 @@
     {
       "idx": 4,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: !has_ut_response and src_ip == expected.dut_alias_ip and dst_ip == expected.tester_ip and src_port == 20027"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: !has_ut_response and src_ip == expected.dut_alias_ip and dst_ip == expected.tester_ip and src_port == 20027"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

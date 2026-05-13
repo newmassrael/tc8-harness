@@ -45,17 +45,17 @@
     {
       "idx": 8,
       "role": "expected",
-      "label": "Phase 3 (listening_dut_data) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 72U and dst_port…"
+      "label": "Phase 3 (listening_dut_data) progress trigger — advances to listening_remain_in_cw. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 72U and dst_port…"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Phase 3 (listening_dut_data) — DUT frame (no transition matched)"
+      "label": "Phase 4 (listening_remain_in_cw) — DUT frame (no transition matched)"
     },
     {
       "idx": 10,
       "role": "stimulus",
-      "label": "Phase 3 (listening_dut_data) — Tester stimulus (no transition matched)"
+      "label": "Phase 4 (listening_remain_in_cw) — Tester stimulus (no transition matched)"
     }
   ]
 }

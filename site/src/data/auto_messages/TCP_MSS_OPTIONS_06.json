@@ -35,132 +35,132 @@
     {
       "idx": 6,
       "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "label": "Phase 1 (listening_phase1) progress trigger — advances to listening_phase2. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 7,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 8,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 9,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 10,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 11,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 12,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 13,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 14,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 15,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 16,
       "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 17,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 18,
       "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 19,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 20,
       "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 21,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 22,
       "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 23,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 24,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 25,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06b, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 26,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 27,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 28,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 29,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 30,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 31,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

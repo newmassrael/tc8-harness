@@ -5,7 +5,7 @@
     {
       "idx": 0,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: op == 1 and chaddr_matches_dut_mac(expected.dut_iface_mac) and has_message_type_option() and message_type == 1"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: op == 1 and chaddr_matches_dut_mac(expected.dut_iface_mac) and has_message_type_option() and message_type == 1"
     }
   ]
 }

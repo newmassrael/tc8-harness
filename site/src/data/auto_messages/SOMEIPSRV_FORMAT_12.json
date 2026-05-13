@@ -5,32 +5,32 @@
     {
       "idx": 0,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entries[0].type == 0x01 and sd_entries[0].index_first == 0"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_entries[0].type == 0x01 and sd_entries[0].index_first == 0"
     },
     {
       "idx": 1,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entries[0].type == 0x01 and sd_entries[0].index_first == 0"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entries[0].type == 0x01 and sd_entries[0].index_first == 0"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entries[0].type == 0x01 and sd_entries[0].index_first == 0"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 5,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entries[0].type == 0x01 and sd_entries[0].index_first == 0"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

@@ -59,8 +59,8 @@
     },
     {
       "idx": 11,
-      "role": "note",
-      "label": "Phase 4 (listening_replay_ack) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 4 (listening_replay_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 12,
@@ -69,11 +69,16 @@
     },
     {
       "idx": 13,
+      "role": "note",
+      "label": "Phase 4 (listening_replay_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 14,
       "role": "expected",
       "label": "Phase 4 (listening_replay_ack) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics14LocalOffs…"
     },
     {
-      "idx": 14,
+      "idx": 15,
       "role": "note",
       "label": "Post-pass teardown (state machine already at final)"
     }

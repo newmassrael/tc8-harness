@@ -40,22 +40,22 @@
     {
       "idx": 7,
       "role": "expected",
-      "label": "Phase 1 (listening_first_syn_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and dst_port…"
+      "label": "Phase 1 (listening_first_syn_ack) progress trigger — advances to listening_second_syn_ack. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and dst_port…"
     },
     {
       "idx": 8,
       "role": "stimulus",
-      "label": "Phase 1 (listening_first_syn_ack) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_second_syn_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 9,
       "role": "stimulus",
-      "label": "Phase 1 (listening_first_syn_ack) — Tester stimulus (no transition matched)"
+      "label": "Phase 2 (listening_second_syn_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 10,
       "role": "expected",
-      "label": "Phase 1 (listening_first_syn_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and dst_port…"
+      "label": "Phase 2 (listening_second_syn_ack) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and dst_port…"
     }
   ]
 }

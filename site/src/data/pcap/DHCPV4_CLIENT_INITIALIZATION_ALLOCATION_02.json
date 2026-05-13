@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_02",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,
@@ -22,9 +22,26 @@
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
+        "htype": 1,
+        "hlen": 6,
+        "hops": 0,
         "xid": 1846950890,
+        "secs": 0,
+        "bootp_flags": 0,
+        "ciaddr": "0.0.0.0",
+        "yiaddr": "0.0.0.0",
+        "siaddr": "0.0.0.0",
+        "giaddr": "0.0.0.0",
         "chaddr": "6e:16:3b:ea:29:ea",
-        "dhcp_msg_type": 1
+        "dhcp_msg_type": 1,
+        "dhcp_end_option_seen": true,
+        "dhcp_options_seen": [
+          53
+        ],
+        "checksum": 35485,
+        "ip_id": 0,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

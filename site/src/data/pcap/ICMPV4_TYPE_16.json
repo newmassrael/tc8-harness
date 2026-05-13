@@ -1,7 +1,7 @@
 {
   "case_id": "ICMPV4_TYPE_16",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -20,7 +20,10 @@
       "summary": "Information Request",
       "fields": {
         "type": 15,
-        "code": 0
+        "code": 0,
+        "ip_id": 16962,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

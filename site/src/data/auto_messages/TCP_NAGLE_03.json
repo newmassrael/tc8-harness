@@ -54,8 +54,8 @@
     },
     {
       "idx": 10,
-      "role": "expected",
-      "label": "Phase 2 (absence_or_aggregate) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalO…"
+      "role": "stimulus",
+      "label": "Phase 2 (absence_or_aggregate) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 11,
@@ -84,8 +84,8 @@
     },
     {
       "idx": 16,
-      "role": "expected",
-      "label": "Phase 2 (absence_or_aggregate) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalO…"
+      "role": "stimulus",
+      "label": "Phase 2 (absence_or_aggregate) — Tester stimulus (no transition matched)"
     }
   ]
 }

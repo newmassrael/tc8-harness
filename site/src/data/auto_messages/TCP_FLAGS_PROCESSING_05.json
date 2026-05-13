@@ -24,83 +24,83 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_p1_prelude_synack) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
     },
     {
       "idx": 5,
-      "role": "note",
-      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_prelude_synack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_p1_prelude_synack) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
     },
     {
       "idx": 7,
-      "role": "note",
-      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 8,
-      "role": "note",
-      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_p1_prelude_synack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 10,
-      "role": "note",
-      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 11,
       "role": "expected",
       "label": "Phase 1 (listening_p1_prelude_synack) progress trigger — advances to listening_p1_verify_synack. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort + 10U and dst_port == :…"
     },
     {
-      "idx": 12,
+      "idx": 8,
       "role": "note",
       "label": "Phase 2 (listening_p1_verify_synack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 13,
+      "idx": 9,
       "role": "stimulus",
       "label": "Phase 2 (listening_p1_verify_synack) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 14,
+      "idx": 10,
       "role": "note",
       "label": "Phase 2 (listening_p1_verify_synack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 15,
+      "idx": 11,
       "role": "expected",
       "label": "Phase 2 (listening_p1_verify_synack) progress trigger — advances to listening_p2_prelude_synack. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort + 10U and dst_port == :…"
     },
     {
-      "idx": 16,
+      "idx": 12,
       "role": "note",
       "label": "Phase 3 (listening_p2_prelude_synack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 17,
+      "idx": 13,
       "role": "stimulus",
       "label": "Phase 3 (listening_p2_prelude_synack) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 18,
+      "idx": 14,
       "role": "note",
       "label": "Phase 3 (listening_p2_prelude_synack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 19,
+      "idx": 15,
       "role": "expected",
       "label": "Phase 3 (listening_p2_prelude_synack) progress trigger — advances to listening_p2_verify_synack. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and dst_port == :…"
+    },
+    {
+      "idx": 16,
+      "role": "note",
+      "label": "Phase 4 (listening_p2_verify_synack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 17,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_p2_verify_synack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 18,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_p2_verify_synack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 19,
+      "role": "note",
+      "label": "Phase 4 (listening_p2_verify_synack) — DUT frame (no transition matched)"
     },
     {
       "idx": 20,
@@ -109,16 +109,6 @@
     },
     {
       "idx": 21,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_p2_verify_synack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 22,
-      "role": "note",
-      "label": "Phase 4 (listening_p2_verify_synack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 23,
       "role": "expected",
       "label": "Phase 4 (listening_p2_verify_synack) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and dst_port == :…"
     }

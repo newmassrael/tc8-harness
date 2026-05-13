@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_ADDRESSING_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -22,7 +22,10 @@
         "type": 8,
         "code": 0,
         "echo_id": 4660,
-        "echo_seq": 22136
+        "echo_seq": 22136,
+        "ip_id": 16962,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

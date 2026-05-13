@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_05",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "0.0.0.0",
   "dut_mac": "02:00:00:00:00:a1",
@@ -17,34 +17,72 @@
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0x3ce5538a chaddr=5e:45:c1:4c:94:86",
+      "summary": "DHCPv4 Discover xid=0x63d9a830 chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
         "op": 1,
-        "xid": 1021662090,
+        "htype": 1,
+        "hlen": 6,
+        "hops": 0,
+        "xid": 1675208752,
+        "secs": 0,
+        "bootp_flags": 0,
+        "ciaddr": "0.0.0.0",
+        "yiaddr": "0.0.0.0",
+        "siaddr": "0.0.0.0",
+        "giaddr": "0.0.0.0",
         "chaddr": "5e:45:c1:4c:94:86",
-        "dhcp_msg_type": 1
+        "dhcp_msg_type": 1,
+        "dhcp_end_option_seen": true,
+        "dhcp_options_seen": [
+          53,
+          55
+        ],
+        "checksum": 12828,
+        "ip_id": 0,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 1,
-      "ts_us": 43046,
-      "ts_delta_us": 43046,
+      "ts_us": 47131,
+      "ts_delta_us": 47131,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "172.16.0.10",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Ack xid=0x3ce5538a chaddr=5e:45:c1:4c:94:86",
+      "summary": "DHCPv4 Ack xid=0x63d9a830 chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 67,
         "dst_port": 68,
         "op": 2,
-        "xid": 1021662090,
+        "htype": 1,
+        "hlen": 6,
+        "hops": 0,
+        "xid": 1675208752,
+        "secs": 0,
+        "bootp_flags": 0,
+        "ciaddr": "0.0.0.0",
+        "yiaddr": "172.16.0.50",
+        "siaddr": "0.0.0.0",
+        "giaddr": "0.0.0.0",
         "chaddr": "5e:45:c1:4c:94:86",
-        "dhcp_msg_type": 5
+        "dhcp_msg_type": 5,
+        "dhcp_end_option_seen": true,
+        "dhcp_options_seen": [
+          53,
+          54,
+          51,
+          1
+        ],
+        "checksum": 38606,
+        "ip_id": 0,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
       }
     }
   ]

@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_16",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
-  "dut_mac": "16:f3:c2:e9:db:eb",
+  "dut_mac": "a6:13:6d:64:4f:54",
   "dut_ip": null,
   "packets": [
     {
@@ -19,30 +19,42 @@
       "protocol": "ARP",
       "summary": "Who has 172.16.0.2? Tell 172.16.0.1 (sender_mac=02:00:00:00:00:a1)",
       "fields": {
+        "hw_type": 1,
+        "proto_type": 2048,
+        "hw_addr_len": 6,
+        "proto_addr_len": 4,
         "opcode": 1,
         "sender_mac": "02:00:00:00:00:a1",
         "sender_ip": "172.16.0.1",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "172.16.0.2"
+        "target_ip": "172.16.0.2",
+        "sender_proto_ip_be": 2886729729,
+        "target_proto_ip_be": 2886729730
       }
     },
     {
       "idx": 1,
-      "ts_us": 11,
-      "ts_delta_us": 11,
+      "ts_us": 12,
+      "ts_delta_us": 12,
       "direction": "dut_to_tester",
-      "src_mac": "16:f3:c2:e9:db:eb",
+      "src_mac": "a6:13:6d:64:4f:54",
       "dst_mac": "02:00:00:00:00:a1",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.2 is at 16:f3:c2:e9:db:eb",
+      "summary": "172.16.0.2 is at a6:13:6d:64:4f:54",
       "fields": {
+        "hw_type": 1,
+        "proto_type": 2048,
+        "hw_addr_len": 6,
+        "proto_addr_len": 4,
         "opcode": 2,
-        "sender_mac": "16:f3:c2:e9:db:eb",
+        "sender_mac": "a6:13:6d:64:4f:54",
         "sender_ip": "172.16.0.2",
         "target_mac": "02:00:00:00:00:a1",
-        "target_ip": "172.16.0.1"
+        "target_ip": "172.16.0.1",
+        "sender_proto_ip_be": 2886729730,
+        "target_proto_ip_be": 2886729729
       }
     }
   ]

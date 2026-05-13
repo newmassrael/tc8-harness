@@ -5,72 +5,77 @@
     {
       "idx": 0,
       "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
+      "label": "Phase 1 (listening_phase1) progress trigger — advances to listening_phase2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
     },
     {
       "idx": 1,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 5,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 6,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 7,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 8,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_ipv4…"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Phase 1 (listening_phase1) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) progress trigger — advances to listening_phase3. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl > 0 and sd_entries[0].eventgroup_id == ex…"
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_phase3) pass trigger — transitions to pass. Cond: service_id == expected.service_id and message_type == 0x02 and src_port == cached_offer_endpoint_udp_port"
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_phase1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 14,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

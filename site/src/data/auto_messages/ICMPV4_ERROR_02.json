@@ -9,8 +9,8 @@
     },
     {
       "idx": 1,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: type == 12 and icmp_pointer == 22 and src_ip == expected.dut_iface_ip"
+      "role": "fail-trigger",
+      "label": "Phase 1 (listening) fail trigger — transitions to fail_wrong_pointer. Cond: type == 12 and icmp_pointer != 22 and src_ip == expected.dut_iface_ip"
     }
   ]
 }

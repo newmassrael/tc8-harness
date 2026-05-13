@@ -64,58 +64,48 @@
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase3_second_ack) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 3 (listening_phase3_second_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "Phase 3 (listening_phase3_second_ack) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 3 (listening_phase3_second_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase3_second_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase3_second_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 16,
       "role": "note",
       "label": "Phase 3 (listening_phase3_second_ack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 17,
+      "idx": 15,
       "role": "expected",
       "label": "Phase 3 (listening_phase3_second_ack) progress trigger — advances to listening_phase4_reboot_ack. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl > 0 and sd_entries[0].eventgroup_id == 0x…"
     },
     {
-      "idx": 18,
-      "role": "note",
-      "label": "Phase 4 (listening_phase4_reboot_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 19,
+      "idx": 16,
       "role": "stimulus",
       "label": "Phase 4 (listening_phase4_reboot_ack) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 20,
+      "idx": 17,
       "role": "note",
       "label": "Phase 4 (listening_phase4_reboot_ack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 21,
-      "role": "expected",
-      "label": "Phase 4 (listening_phase4_reboot_ack) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl > 0 and sd_entries[0].eventgroup_id == 0x…"
+      "idx": 18,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_phase4_reboot_ack) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 22,
+      "idx": 19,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "Phase 4 (listening_phase4_reboot_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 20,
+      "role": "expected",
+      "label": "Phase 4 (listening_phase4_reboot_ack) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl > 0 and sd_entries[0].eventgroup_id == 0x…"
     }
   ]
 }

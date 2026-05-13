@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_HEADER_08",
   "outcome": "pass",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -18,7 +18,11 @@
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
       "summary": "truncated",
-      "fields": {}
+      "fields": {
+        "ip_id": 16962,
+        "ip_flags": 0,
+        "ip_fragment_offset": 0
+      }
     }
   ]
 }

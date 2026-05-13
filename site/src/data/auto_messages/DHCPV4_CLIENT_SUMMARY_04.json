@@ -5,7 +5,7 @@
     {
       "idx": 0,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac) and flags_reserved_bits_zero()"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac) and flags_reserved_bits_zero()"
     }
   ]
 }

@@ -20,12 +20,12 @@
     {
       "idx": 3,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpSequence03ListenPort and dst_port ==…"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpSequence03ListenPort and dst_port ==…"
     },
     {
       "idx": 4,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

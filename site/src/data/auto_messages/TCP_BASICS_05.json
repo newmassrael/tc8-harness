@@ -10,17 +10,17 @@
     {
       "idx": 1,
       "role": "expected",
-      "label": "Phase 1 (listening_synack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsClosedPort and (flags & 0x04) != 0…"
+      "label": "Phase 1 (listening_synack) progress trigger — advances to listening_ack. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsClosedPort and (flags & 0x04) != 0…"
     },
     {
       "idx": 2,
       "role": "note",
-      "label": "Phase 1 (listening_synack) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 3,
       "role": "expected",
-      "label": "Phase 1 (listening_synack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsClosedPort and (flags & 0x04) != 0…"
+      "label": "Phase 2 (listening_ack) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsClosedPort and (flags & 0x04) != 0…"
     }
   ]
 }

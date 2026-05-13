@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_13",
   "outcome": "fail",
-  "captured_at": "2026-05-13T10:37:33Z",
+  "captured_at": "2026-05-13T13:47:04Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -24,13 +24,16 @@
         "echo_id": 4660,
         "echo_seq": 22136,
         "echo_payload_first16": "454355204e455457",
-        "echo_payload_len": 8
+        "echo_payload_len": 8,
+        "ip_id": 61464,
+        "ip_flags": 1,
+        "ip_fragment_offset": 0
       }
     },
     {
       "idx": 1,
-      "ts_us": 223557,
-      "ts_delta_us": 223557,
+      "ts_us": 223531,
+      "ts_delta_us": 223531,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -40,13 +43,16 @@
       "summary": "type=68 code=85",
       "fields": {
         "type": 68,
-        "code": 85
+        "code": 85,
+        "ip_id": 61464,
+        "ip_flags": 1,
+        "ip_fragment_offset": 2
       }
     },
     {
       "idx": 2,
-      "ts_us": 459516,
-      "ts_delta_us": 235959,
+      "ts_us": 459537,
+      "ts_delta_us": 236006,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -56,13 +62,16 @@
       "summary": "type=79 code=82",
       "fields": {
         "type": 79,
-        "code": 82
+        "code": 82,
+        "ip_id": 61464,
+        "ip_flags": 1,
+        "ip_fragment_offset": 2
       }
     },
     {
       "idx": 3,
-      "ts_us": 675545,
-      "ts_delta_us": 216029,
+      "ts_us": 699564,
+      "ts_delta_us": 240027,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -72,7 +81,10 @@
       "summary": "type=68 code=65",
       "fields": {
         "type": 68,
-        "code": 65
+        "code": 65,
+        "ip_id": 61464,
+        "ip_flags": 0,
+        "ip_fragment_offset": 3
       }
     }
   ]

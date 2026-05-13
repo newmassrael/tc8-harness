@@ -35,27 +35,42 @@
     {
       "idx": 6,
       "role": "expected",
-      "label": "Phase 1 (listen_seg1_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
+      "label": "Phase 1 (listen_seg1_ack) progress trigger — advances to listen_seg2_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 1 (listen_seg1_ack) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listen_seg2_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 8,
       "role": "expected",
-      "label": "Phase 1 (listen_seg1_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
+      "label": "Phase 2 (listen_seg2_ack) progress trigger — advances to listen_seg3_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Phase 1 (listen_seg1_ack) — DUT frame (no transition matched)"
+      "label": "Phase 3 (listen_seg3_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 10,
       "role": "expected",
-      "label": "Phase 1 (listen_seg1_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
+      "label": "Phase 3 (listen_seg3_ack) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
+    },
+    {
+      "idx": 11,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 12,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 13,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

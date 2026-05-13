@@ -29,23 +29,23 @@
     },
     {
       "idx": 5,
-      "role": "note",
-      "label": "Phase 2 (listening_oob_check) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_oob_check) pass trigger — transitions to pass. Cond: ut_received_payload_len == 1U"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_oob_check) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 2 (listening_oob_check) — DUT frame (no transition matched)"
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 8,
-      "role": "expected",
-      "label": "Phase 2 (listening_oob_check) pass trigger — transitions to pass. Cond: ut_received_payload_len == 1U"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 9,

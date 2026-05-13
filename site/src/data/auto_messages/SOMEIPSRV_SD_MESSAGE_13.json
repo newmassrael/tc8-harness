@@ -25,27 +25,27 @@
     {
       "idx": 4,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (true) and (sd_entries[0].ttl == 0xFFFFFF and sd_entries[0].reserved_counter == 0 an…"
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (true) and (sd_entries[0].ttl == 0xFFFFFF and sd_entries[0].reserved_counter == 0 an…"
     },
     {
       "idx": 5,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (true) and (sd_entries[0].ttl == 0xFFFFFF and sd_entries[0].reserved_counter == 0 an…"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 7,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (true) and (sd_entries[0].ttl == 0xFFFFFF and sd_entries[0].reserved_counter == 0 an…"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     },
     {
       "idx": 8,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x07 and (true) and (sd_entries[0].ttl == 0xFFFFFF and sd_entries[0].reserved_counter == 0 an…"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }
