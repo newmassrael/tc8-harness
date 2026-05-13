@@ -1085,7 +1085,7 @@ def _packet_view(packet: dict) -> dict:
         )
         fields.setdefault(
             "sd_ipv4_multicast_count",
-            sum(1 for o in sd_options if (o.get("type") == 0x09)),
+            sum(1 for o in sd_options if (o.get("type") == 0x14)),
         )
     # Materialise TCP flags as int when present as the "|"-joined string.
     flags = fields.get("flags")
