@@ -85,6 +85,10 @@ GENERATOR_VERSION = "2"
 SMOKE_TEST_PATH = REPO_ROOT / "dut" / "env" / "smoke-test.sh"
 DHCPV4_CONSTS_PATH = REPO_ROOT / "src" / "sce_integration" / "dhcpv4_default_endpoints.h"
 TCP_CONSTS_PATH = REPO_ROOT / "src" / "sce_integration" / "tcp_pilot_common.h"
+# SOMEIP-SD option-type / l4-proto enum-equivalents — surface the same way
+# as the TCP pilot constants so cond fragments like
+# ``::tc8::sd_option_type::kIpv4Endpoint`` resolve to the integer value.
+SOMEIP_CAPTURED_PATH = REPO_ROOT / "src" / "sce_integration" / "someip_captured.h"
 
 
 def _coerce_value(raw: str) -> Any:
@@ -253,46 +257,119 @@ def _load_dhcpv4_default_consts(path: Path = DHCPV4_CONSTS_PATH) -> dict[str, An
     return out
 
 
-def _load_scoped_consts(path: Path = TCP_CONSTS_PATH) -> dict[str, int]:
-    """Two-pass parse over ``tcp_pilot_common.h``: first capture every
-    ``inline constexpr <int-ish-type> NAME = EXPR;`` line, then resolve
-    EXPR using the partially-populated map. Handles the cross-reference
-    cases like ``kTcpMssOptionsTesterSrcPort02 = kBasicsTesterPort + 52U``
-    without needing a full C++ parser.
+_NAMESPACE_OPEN_RE = re.compile(r"^\s*namespace\s+(\w+)\s*\{", re.MULTILINE)
+_NAMESPACE_CLOSE_RE = re.compile(r"^\s*\}\s*//.*?namespace", re.MULTILINE)
 
-    Returns ``{name: int}``. Non-integer / time-typed constants
-    (``std::chrono::milliseconds`` etc.) are skipped — the SCXML grammar
-    only references the integer-valued constants.
+
+def _scan_namespace_blocks(text: str) -> list[tuple[str, int, int]]:
+    """Return ``[(namespace, body_start, body_end)]`` for every named
+    namespace block in ``text``. Nested namespaces produce nested
+    ranges — the resolver picks the innermost match.
+
+    Pairing is stack-based over the merged stream of open/close
+    positions so a nested namespace doesn't accidentally swallow its
+    parent's closing brace. Both regexes only match the documented
+    forms used in this repo's headers (``namespace foo {`` open,
+    ``} // namespace`` close); inline braces from class definitions
+    don't match either pattern.
     """
-    if not path.exists():
-        return {}
-    text = path.read_text(encoding="utf-8")
-    raw: dict[str, str] = {}
-    for m in re.finditer(
-        r"^inline\s+constexpr\s+(?:std::)?(?:uint|int)\w*_t\s+(\w+)\s*=\s*([^;]+);",
-        text, re.MULTILINE,
-    ):
-        raw[m.group(1)] = m.group(2).strip()
+    events: list[tuple[int, str, str]] = []  # (pos, "open"/"close", name)
+    for m in _NAMESPACE_OPEN_RE.finditer(text):
+        events.append((m.end(), "open", m.group(1)))
+    for m in _NAMESPACE_CLOSE_RE.finditer(text):
+        events.append((m.start(), "close", ""))
+    events.sort(key=lambda e: e[0])
+    blocks: list[tuple[str, int, int]] = []
+    stack: list[tuple[str, int]] = []  # (name, body_start)
+    for pos, kind, name in events:
+        if kind == "open":
+            stack.append((name, pos))
+        elif stack:
+            ns_name, body_start = stack.pop()
+            blocks.append((ns_name, body_start, pos))
+    return blocks
 
-    out: dict[str, int] = {}
-    resolving: set[str] = set()
 
-    def resolve(name: str) -> int | None:
-        if name in out:
-            return out[name]
-        if name in resolving or name not in raw:
-            return None
-        resolving.add(name)
-        try:
-            v = _eval_int_expr(raw[name], resolve)
-        finally:
-            resolving.discard(name)
-        if v is not None:
-            out[name] = v
-        return v
+def _namespace_of(blocks: list[tuple[str, int, int]], pos: int) -> str:
+    """Find the innermost namespace that brackets ``pos``. Returns "" for
+    file-scope declarations."""
+    enclosing = ""
+    smallest_range = float("inf")
+    for name, start, end in blocks:
+        if start <= pos < end:
+            rng = end - start
+            if rng < smallest_range:
+                smallest_range = rng
+                enclosing = name
+    return enclosing
 
-    for n in raw:
-        resolve(n)
+
+def _load_scoped_consts(paths: tuple[Path, ...] = (TCP_CONSTS_PATH, SOMEIP_CAPTURED_PATH)) -> dict[tuple[str, str], int]:
+    """Two-pass parse over a set of headers: capture every
+    ``inline constexpr <int-ish-type> NAME = EXPR;`` line (tagged with
+    the innermost namespace it lives in), then resolve EXPR using the
+    partially-populated map. Handles cross-references like
+    ``kTcpMssOptionsTesterSrcPort02 = kBasicsTesterPort + 52U`` without
+    needing a full C++ parser.
+
+    Two sources today: ``tcp_pilot_common.h`` (port offsets referenced
+    by TCP cases via ``::tc8::sce::tcp::kFoo``) and ``someip_captured.h``
+    (option types, l4 protos, multi-service identities, SD test
+    sentinels referenced via ``::tc8::<ns>::kFoo``).
+
+    Returns ``{(namespace, name): int}``. Namespace-aware so the two
+    ``kServiceId`` constants in someip_captured.h (``someipsrv_si2`` =
+    0xF4E8 vs ``sd_test_unknown`` = 0xFFFE) don't collide.
+
+    Non-integer / time-typed constants (``std::chrono::milliseconds``)
+    are skipped — the SCXML grammar only references integer values.
+    """
+    raw: dict[tuple[str, str], str] = {}
+    name_to_namespaces: dict[str, list[str]] = {}
+    for path in paths:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        blocks = _scan_namespace_blocks(text)
+        for m in re.finditer(
+            r"^inline\s+constexpr\s+(?:std::)?(?:uint|int)\w*_t\s+(\w+)\s*=\s*([^;]+);",
+            text, re.MULTILINE,
+        ):
+            name = m.group(1)
+            ns = _namespace_of(blocks, m.start())
+            key = (ns, name)
+            raw.setdefault(key, m.group(2).strip())
+            name_to_namespaces.setdefault(name, []).append(ns)
+
+    out: dict[tuple[str, str], int] = {}
+    resolving: set[tuple[str, str]] = set()
+
+    def resolve(name: str, current_ns: str = "") -> int | None:
+        # When an expression references another constant by bare name,
+        # search the current namespace first (intra-block cross-refs are
+        # the common shape), then file scope as a fallback. Single match
+        # only — ambiguous bare names stay None.
+        candidates = [(current_ns, name), ("", name)]
+        # Plus any other namespace that defines this exact bare name.
+        for ns in name_to_namespaces.get(name, []):
+            if (ns, name) not in candidates:
+                candidates.append((ns, name))
+        for key in candidates:
+            if key in out:
+                return out[key]
+            if key in raw and key not in resolving:
+                resolving.add(key)
+                try:
+                    v = _eval_int_expr(raw[key], lambda n: resolve(n, key[0]))
+                finally:
+                    resolving.discard(key)
+                if v is not None:
+                    out[key] = v
+                    return v
+        return None
+
+    for k in list(raw):
+        resolve(k[1], k[0])
     return out
 
 
@@ -677,8 +754,25 @@ class Opaque:
 
 @dataclass
 class ScopedConst:
-    """``::tc8::sce::tcp::kFoo`` form — resolves against the
-    tcp_pilot_common.h constant table at eval time."""
+    """``::tc8::<...>::kFoo`` form — resolves against the constant table
+    at eval time. ``namespace`` is the immediate enclosing namespace
+    name (the segment immediately before ``kFoo``); ``name`` is the
+    identifier. The two together disambiguate the kServiceId clash
+    between ``someipsrv_si2`` (0xF4E8) and ``sd_test_unknown`` (0xFFFE)
+    in someip_captured.h."""
+    name: str
+    namespace: str = ""
+
+
+@dataclass
+class Member:
+    """``<call-or-other>.field`` chain. Only emitted when the base of the
+    member access isn't a plain ``captured.X`` / ``expected.X`` Ident
+    (those keep using ``Ident`` with extra ``parts``). Today the only
+    producer is ``captured.sd_first_option_with_l4(...).field`` —
+    the helper returns a dict and Member's eval reads ``.field`` out
+    of it."""
+    target: Any
     name: str
 
 
@@ -863,9 +957,11 @@ class Parser:
             break
 
         if had_scope:
-            # Treat ``...::kFoo`` as a named constant. The evaluator
-            # looks ``kFoo`` up in tcp_pilot_common.h's constexpr table.
-            base: Any = ScopedConst(name=scoped_idents[-1])
+            # ``::tc8::<ns>::kFoo`` → keep the immediate namespace so
+            # the constant table lookup can disambiguate same-name
+            # entries living in different namespaces.
+            ns = scoped_idents[-2] if len(scoped_idents) >= 2 else ""
+            base: Any = ScopedConst(name=scoped_idents[-1], namespace=ns)
         else:
             base = Ident(parts=tuple(parts))
 
@@ -877,7 +973,11 @@ class Parser:
                 if isinstance(base, Ident):
                     base = Ident(parts=base.parts + (next_id.text,))
                 else:
-                    base = Opaque(note="member-of-opaque")
+                    # ``call(...).field`` and ``foo[i].field`` keep their
+                    # left-hand result as the Member's target so the
+                    # evaluator can dispatch on its runtime value (dict
+                    # member lookup for sd_first_option_with_l4 results).
+                    base = Member(target=base, name=next_id.text)
             elif t and t.kind == "LBRACK":
                 self.take()
                 idx_expr = self.or_expr()
@@ -1079,10 +1179,35 @@ def _eval(expr: Any, packet_view: dict, expected: dict, strict: bool) -> Any:
     if isinstance(expr, Ident):
         return _resolve_ident(expr.parts, packet_view, expected)
     if isinstance(expr, ScopedConst):
-        v = scoped_consts().get(expr.name, UNKNOWN)
-        return v if v is not UNKNOWN else UNKNOWN
+        table = scoped_consts()
+        # Prefer the exact (namespace, name) match; fall back to file
+        # scope when the namespace is empty (covers TCP constants that
+        # live directly in ``tc8::sce::tcp`` but the loader records as
+        # the immediate ``tcp`` namespace).
+        v = table.get((expr.namespace, expr.name))
+        if v is None:
+            v = table.get(("", expr.name))
+        if v is None:
+            # Last-resort: bare-name match if there's exactly one
+            # candidate. Keeps ``::tc8::sce::tcp::kFoo`` cond fragments
+            # working for the historical TCP constants without
+            # requiring the loader to capture the deeper namespace
+            # chain.
+            candidates = [val for (ns, nm), val in table.items() if nm == expr.name]
+            if len(candidates) == 1:
+                v = candidates[0]
+        return v if v is not None else UNKNOWN
     if isinstance(expr, Call):
         return _eval_call(expr, packet_view, expected, strict)
+    if isinstance(expr, Member):
+        base = _eval(expr.target, packet_view, expected, strict)
+        if base is UNKNOWN or base is None:
+            return UNKNOWN
+        if isinstance(base, dict):
+            return base[expr.name] if expr.name in base else UNKNOWN
+        # Anything else (int / bool / str) can't be member-accessed — the
+        # cond is using a shape we don't model. Honest UNKNOWN.
+        return UNKNOWN
     if isinstance(expr, (Opaque, InitList)):
         return UNKNOWN
     if isinstance(expr, UnOp):
@@ -1346,11 +1471,81 @@ def _helper_payload_bytes_eq(_view, _args) -> Any:
 
 
 def _helper_frame_delta_us(view, _args) -> Any:
-    # Decoder stores ts_delta_us per packet, but the C++ helper measures
-    # delta since the last *transition-firing* frame, which the
-    # generator doesn't track. UNKNOWN keeps RTO-bound cases from
-    # falsely settling — pass triggers fall back to direction labels.
-    return UNKNOWN
+    """Microseconds between this packet's pcap arrival timestamp and the
+    most recent transition-firing packet's timestamp. Matches the C++
+    ``Captured::frame_delta_us()`` semantics (delta from
+    ``prev_observed_ts_us``, which advances only on dispatch-fire).
+
+    Walker stashes ``_last_fired_ts_us`` (int or None) on the packet
+    view before each evaluation. Returns 0 on the first transition (no
+    prior fire) so a packet that's the FIRST observation can't
+    accidentally satisfy a ``frame_delta_us() >= 1.95s`` cadence
+    check."""
+    ts = view.get("ts_us")
+    last = view.get("_last_fired_ts_us")
+    if not isinstance(ts, int):
+        return UNKNOWN
+    if not isinstance(last, int):
+        return 0
+    return ts - last
+
+
+def _sd_option_with_l4(view: dict, args: list[Any]) -> dict | None | object:
+    """Shared body of sd_first_option_with_l4 / sd_has_option_with_l4.
+    Returns the matching option dict, ``None`` if no match, or UNKNOWN
+    if the arguments / sd_options field are missing."""
+    if len(args) < 2 or args[0] is UNKNOWN or args[1] is UNKNOWN:
+        return UNKNOWN
+    want_type, want_l4 = args[0], args[1]
+    options = view.get("sd_options")
+    if not isinstance(options, list):
+        return UNKNOWN
+    for o in options:
+        if not isinstance(o, dict):
+            continue
+        if o.get("type") == want_type and o.get("l4_proto") == want_l4:
+            return o
+    return None
+
+
+def _helper_sd_first_option_with_l4(view, args) -> Any:
+    """Return the first decoded SD option dict whose ``type`` and
+    ``l4_proto`` match the supplied filters. Member access on the
+    returned dict reads ``.ipv4`` / ``.port`` directly; ``.length`` is
+    synthesized as 9 when both ``ipv4`` and ``port`` were parsed (the
+    decoder's full-data branch — IPv4 endpoint / multicast options have
+    a fixed Length=9 per SOMEIPSD §4.2.2). Reserved bytes aren't
+    surfaced by the decoder, so ``.reserved1`` / ``.reserved2`` resolve
+    to UNKNOWN via the dict's missing-key path.
+
+    Returns UNKNOWN when arguments or sd_options field are missing —
+    keeps the surrounding cond honest under partial decoder output.
+    """
+    o = _sd_option_with_l4(view, args)
+    if o is UNKNOWN:
+        return UNKNOWN
+    if o is None:
+        # Option type / l4_proto filter matched no entry — every
+        # subsequent ``.field`` access can't be satisfied, so UNKNOWN
+        # rather than False keeps fail-trigger strict mode from
+        # over-firing (the SCXML's matching pass clause for a different
+        # SD frame should drive the real verdict).
+        return UNKNOWN
+    if not isinstance(o, dict):
+        return UNKNOWN
+    # Surface a derived ``length`` for fully-parsed IPv4 endpoint /
+    # multicast options. Spec mandates Length=9 and the decoder only
+    # populates ipv4+port when the wire length matched.
+    if "ipv4" in o and "port" in o and "length" not in o:
+        o = {**o, "length": 9}
+    return o
+
+
+def _helper_sd_has_option_with_l4(view, args) -> Any:
+    o = _sd_option_with_l4(view, args)
+    if o is UNKNOWN:
+        return UNKNOWN
+    return o is not None
 
 
 CAPTURED_HELPERS = {
@@ -1378,6 +1573,8 @@ CAPTURED_HELPERS = {
     "dst_ip_equals":            _helper_dst_ip_equals,
     # someip_captured.h
     "payload_bytes_eq":         _helper_payload_bytes_eq,
+    "sd_first_option_with_l4":  _helper_sd_first_option_with_l4,
+    "sd_has_option_with_l4":    _helper_sd_has_option_with_l4,
     # cross-protocol
     "frame_delta_us":           _helper_frame_delta_us,
 }
@@ -1651,10 +1848,25 @@ def label_packets(
     final_outcome = ""  # "pass" / "fail" once the SM lands in a final
 
     msgs: list[AutoMessage] = []
+    # Tracks the pcap-relative ts_us of the most recent packet that
+    # caused the SM to fire a transition. Mirrors the C++
+    # ``prev_observed_ts_us`` snapshot pattern (advances only on a
+    # successful dispatch, NOT on every observed frame) so
+    # ``frame_delta_us()`` cadence checks see the same baseline the
+    # real test runner does.
+    last_fired_ts_us: int | None = None
+
     for p in packets:
         idx = p.get("idx", 0)
         direction = p.get("direction", "other")
         view = _packet_view(p)
+        # Surface the walker's last-fire baseline + this packet's ts to
+        # the cond evaluator so ``captured.frame_delta_us()`` returns a
+        # concrete delta. ``ts_us`` lifts the decoder's pcap-relative
+        # field onto the view (the helper reads from view, not from p).
+        view["_last_fired_ts_us"] = last_fired_ts_us
+        if "ts_us" not in view and "ts_us" in p:
+            view["ts_us"] = p["ts_us"]
 
         if final_outcome:
             # SM already at a final — post-verdict frames are teardown.
@@ -1721,6 +1933,11 @@ def label_packets(
 
         phase_tag = f"Phase {cur.phase_index} ({cur.id})"
         if matched is not None:
+            # Advance the frame_delta_us baseline so the NEXT packet's
+            # cadence check measures from this firing frame's ts.
+            ts = view.get("ts_us")
+            if isinstance(ts, int):
+                last_fired_ts_us = ts
             verdict = _verdict_for_target(matched.target, states_by_id)
             cond_text = _short_cond(matched.cond_src)
             if verdict == "pass":
