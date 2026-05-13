@@ -9,19 +9,8 @@
     "Fail_phase3_no_notification": "listen 윈도우 내 event MSB notification 없음"
   },
   "messages": [
-    { "idx": 0, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup 시도 (vsomeip 구독자는 OfferService 도착 전에도 송신을 시작하며, DUT가 서비스를 광고할 때까지 재시도). " },
-    { "idx": 1, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup 재전송 (아직 OfferService 없음). " },
-    { "idx": 2, "role": "stimulus", "label": "Phase 1 — Tester SubscribeEventgroup 재전송." },
-    { "idx": 3, "role": "expected", "label": "Phase 1 PASS trigger — DUT OfferService (SD entry type=0x01), SERVICE-ID-1 + IPv4 endpoint option 포함. listening_phase1 cond (sd_entries[0].type==0x01 ∧ sd_ipv4_endpoint_count>=1) 만족 → listening_phase2로 전이. PRS_SOMEIPSD §OfferService 매핑." },
-    { "idx": 4, "role": "stimulus", "label": "Phase 2 — Tester SubscribeEventgroup (eg=0x0002)을 광고된 endpoint로 정상 전송." },
-    { "idx": 5, "role": "stimulus", "label": "Phase 2 — Ack 대기 중 Tester SubscribeEventgroup 재전송." },
-    { "idx": 6, "role": "expected", "label": "Phase 2 PASS trigger — DUT SubscribeEventgroupAck (SD entry type=0x07, ttl>0, eg=0x0002). listening_phase2 cond (type==0x07 ∧ ttl>0 ∧ eventgroup_id==expected.eventgroup_id) 만족 → listening_phase3로 전이. ttl=0 응답이면 fail_phase2_subscribe_nacked로 라우팅. PRS_SOMEIPSD §SubscribeEventgroupAck 매핑." },
-    { "idx": 7, "role": "note", "label": "Phase 3 — vsomeip Subscribe keepalive 재전송 (이미 ack된 구독이므로 verdict에 영향 없음)." },
-    { "idx": 8, "role": "note", "label": "Phase 3 — vsomeip Subscribe keepalive 재전송." },
-    { "idx": 9, "role": "expected", "label": "Phase 3 PASS trigger — DUT Notification (SERVICE-ID-1, message_type=0x02, method_id MSB set — TestEventUINT8=0x8001의 initialEvent). listening_phase3 cond (message_type==0x02 ∧ (method_id & 0x8000)==0x8000) 만족 → pass로 최종 전이. PRS_SOMEIPSD §InitialEvent 매핑." },
-    { "idx": 10, "role": "note", "label": "Pass 이후 teardown — vsomeip 종료 SD 메시지 (state machine과 무관)." },
-    { "idx": 11, "role": "note", "label": "Pass 이후 teardown — vsomeip endpoint 단위 SD 정리." },
-    { "idx": 12, "role": "note", "label": "Pass 이후 teardown — vsomeip endpoint 단위 SD 정리." },
-    { "idx": 13, "role": "note", "label": "Pass 이후 teardown — vsomeip endpoint 단위 SD 정리." }
+    { "idx": 0,  "role": "expected", "label": "Phase 1 PASS trigger — DUT OfferService (SD entry type=0x01), SERVICE-ID-1 + IPv4 endpoint option 포함. listening_phase1 cond (sd_entries[0].type==0x01 ∧ sd_ipv4_endpoint_count>=1) 만족 → listening_phase2로 전이. PRS_SOMEIPSD §OfferService 매핑." },
+    { "idx": 10, "role": "expected", "label": "Phase 2 PASS trigger — DUT SubscribeEventgroupAck (SD entry type=0x07, ttl>0, eg=0x0002). listening_phase2 cond (type==0x07 ∧ ttl>0 ∧ eventgroup_id==expected.eventgroup_id) 만족 → listening_phase3로 전이. ttl=0 응답이면 fail_phase2_subscribe_nacked로 라우팅. PRS_SOMEIPSD §SubscribeEventgroupAck 매핑." },
+    { "idx": 11, "role": "expected", "label": "Phase 3 PASS trigger — DUT Notification (SERVICE-ID-1, message_type=0x02, method_id MSB set — TestEventUINT8=0x8001의 initialEvent). listening_phase3 cond (message_type==0x02 ∧ (method_id & 0x8000)==0x8000) 만족 → pass로 최종 전이. PRS_SOMEIPSD §InitialEvent 매핑." }
   ]
 }

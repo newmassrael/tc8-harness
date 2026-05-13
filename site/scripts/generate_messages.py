@@ -936,17 +936,25 @@ def _packet_view(packet: dict) -> dict:
         v = packet.get(k)
         if v is not None and k not in fields:
             fields[k] = v
-    # Convenience aliases for SOME/IP-SD entry counts (the SCXML uses
-    # ``captured.sd_entry_count`` and ``captured.sd_ipv4_endpoint_count``
-    # as scalars; the decoder gives us the underlying lists).
+    # Convenience aliases for SOME/IP-SD entry / option counts (the
+    # SCXML uses ``captured.sd_entry_count`` / ``sd_option_count`` and
+    # the per-option-type counts ``sd_ipv4_endpoint_count`` and
+    # ``sd_ipv4_multicast_count`` as scalars; the decoder gives us the
+    # underlying lists, so we derive the cardinalities here).
     sd_entries = fields.get("sd_entries")
     if isinstance(sd_entries, list):
         fields.setdefault("sd_entry_count", len(sd_entries))
+        fields.setdefault("sd_entries_len", len(sd_entries))
     sd_options = fields.get("sd_options")
     if isinstance(sd_options, list):
+        fields.setdefault("sd_option_count", len(sd_options))
         fields.setdefault(
             "sd_ipv4_endpoint_count",
             sum(1 for o in sd_options if (o.get("type") == 0x04)),
+        )
+        fields.setdefault(
+            "sd_ipv4_multicast_count",
+            sum(1 for o in sd_options if (o.get("type") == 0x09)),
         )
     # Materialise TCP flags as int when present as the "|"-joined string.
     flags = fields.get("flags")
@@ -1353,20 +1361,40 @@ def _strip_ns(tag: str) -> str:
 SCE_USE_TAG = "use"
 TESTS_DIR = REPO_ROOT / "tests"
 
+# ``{$name}`` placeholders the SCE codegen substitutes when expanding a
+# template. The consumer's ``<sce:use ... name="value" .../>`` attribute
+# block provides the values — we mirror the substitution before parsing
+# so cond strings tokenise cleanly.
+_TEMPLATE_PARAM_RE = re.compile(r"\{\$([A-Za-z_][A-Za-z0-9_]*)\}")
 
-def _load_template(rel_path: str, case_id: str):
+
+def _load_template(rel_path: str, case_id: str, params: dict[str, str]):
     """Resolve a ``../_templates/foo.sce-template.xml`` path against the
     consumer case's directory and return the parsed ``<sce:template>``
-    root element. Returns ``None`` if the file isn't there (e.g. when
-    the generator runs on a pcap-data tree that lacks the harness
-    source). Templates parse fine through ElementTree because they
-    declare the SCXML namespace at the root."""
+    root element with ``{$name}`` placeholders substituted from the
+    consumer's ``<sce:use>`` attribute block. Returns ``None`` if the
+    file isn't there or substitution leaves an unresolved placeholder.
+    """
     case_dir = TESTS_DIR / case_id.lower()
     tpath = (case_dir / rel_path).resolve()
     if not tpath.exists():
         return None
     try:
-        return ET.fromstring(tpath.read_text(encoding="utf-8"))
+        raw = tpath.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if params:
+        def _sub(m: re.Match) -> str:
+            name = m.group(1)
+            if name in params:
+                return params[name]
+            # Leave unresolved placeholders alone so a missing param
+            # surfaces visibly in the cond string; the cond parser
+            # will degrade those clauses to Opaque.
+            return m.group(0)
+        raw = _TEMPLATE_PARAM_RE.sub(_sub, raw)
+    try:
+        return ET.fromstring(raw)
     except ET.ParseError:
         return None
 
@@ -1440,7 +1468,10 @@ def parse_scxml(content: str, case_id: str = "") -> tuple[list[StateDef], str]:
         if _strip_ns(child.tag) == SCE_USE_TAG:
             tpath = child.attrib.get("template", "")
             if tpath and case_id:
-                template_root = _load_template(tpath, case_id)
+                # Every other attribute on <sce:use> is a substitution
+                # value for the template's ``{$name}`` placeholders.
+                params = {k: v for k, v in child.attrib.items() if k != "template"}
+                template_root = _load_template(tpath, case_id, params)
                 break
 
     initial = root.attrib.get("initial", "")
