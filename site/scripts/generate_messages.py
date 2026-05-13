@@ -1637,6 +1637,96 @@ def _helper_payload_bytes_eq(_view, _args) -> Any:
     return UNKNOWN
 
 
+# C++ echo payload constants the §4.3/§4.4 SCXML conds compare against
+# via ``captured.echo_payload_equals(...)``. The decoder surfaces
+# ``echo_payload_first16`` (up to 16 B hex) + ``echo_payload_len``;
+# matching the first min(ref_len, 16) bytes plus the length is
+# concrete-enough to fire the pass branch (random payload bytes
+# matching 16 spec-literal bytes by accident has effectively-zero
+# probability for these constants).
+#
+# Wire format: bytes literal here, sized to match the C++ array.
+_ECHO_PAYLOAD_CONSTS: dict[str, bytes] = {
+    # ipv4_fragments_common.h
+    "kFragmentsEchoPayload": bytes((
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+    )),
+    # ipv4_reassembly_common.h
+    "kReassembly04EchoPayload": bytes((
+        0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
+        0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7,
+        0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7,
+    )),
+    "kReassembly13EchoPayload": b"ECU NETWORK VALIDATION TEST",
+    # icmpv4_captured.h
+    "kIcmpv4EchoPayloadType08": b"ECU NETWORK VALIDATION TEST",
+}
+
+
+def _find_known_payload_const(node: Any) -> bytes | None:
+    """Walk a Call / Member / BinOp tree looking for any ``ScopedConst``
+    whose name is in ``_ECHO_PAYLOAD_CONSTS``. The C++ idiom for
+    echo_payload_equals nests the constant inside
+    ``std::string_view(reinterpret_cast<const char*>(arr.data()),
+    arr.size())`` so a plain arg-eval can't see the array name —
+    walking the un-evaluated AST gets us the bare name. We skip past
+    structural ScopedConsts like ``std::string_view`` and keep
+    looking for a spec-literal payload name.
+    """
+    if isinstance(node, ScopedConst):
+        ref = _ECHO_PAYLOAD_CONSTS.get(node.name)
+        if ref is not None:
+            return ref
+    if isinstance(node, Call):
+        hit = _find_known_payload_const(node.target)
+        if hit is not None:
+            return hit
+        for a in node.args:
+            hit = _find_known_payload_const(a)
+            if hit is not None:
+                return hit
+    if isinstance(node, Member):
+        return _find_known_payload_const(node.target)
+    if isinstance(node, BinOp):
+        return (
+            _find_known_payload_const(node.lhs)
+            or _find_known_payload_const(node.rhs)
+        )
+    if isinstance(node, UnOp):
+        return _find_known_payload_const(node.operand)
+    return None
+
+
+def _eval_echo_payload_equals(call: Call, view: dict) -> Any:
+    """Compare the decoder's ``echo_payload_first16`` + ``echo_payload_len``
+    against a C++ spec-literal constant the cond references via either
+    a bare ``::tc8::kFoo`` ScopedConst or a wrapped
+    ``std::string_view(reinterpret_cast<const char*>(Arr.data()),
+    Arr.size())`` shape. Returns UNKNOWN when the constant isn't in
+    our table or the decoder didn't surface a payload — the walker's
+    uncertainty-rescue keeps the fail branch off.
+    """
+    ref: bytes | None = None
+    for a in call.args:
+        ref = _find_known_payload_const(a)
+        if ref is not None:
+            break
+    if ref is None:
+        return UNKNOWN
+    captured_len = view.get("echo_payload_len")
+    captured_hex = view.get("echo_payload_first16")
+    if not isinstance(captured_len, int) or not isinstance(captured_hex, str):
+        return UNKNOWN
+    if captured_len != len(ref):
+        return False
+    cmp_len = min(len(ref), 16)
+    try:
+        captured_prefix = bytes.fromhex(captured_hex)[:cmp_len]
+    except ValueError:
+        return UNKNOWN
+    return captured_prefix == ref[:cmp_len]
+
+
 def _helper_frame_delta_us(view, _args) -> Any:
     """Microseconds between this packet's pcap arrival timestamp and the
     most recent transition-firing packet's timestamp. Matches the C++
@@ -1797,6 +1887,12 @@ def _eval_call(call: Call, packet_view: dict, expected: dict, strict: bool) -> A
     if len(target.parts) != 2 or target.parts[0] != "captured":
         return UNKNOWN
     name = target.parts[1]
+    if name == "echo_payload_equals":
+        # Needs the un-evaluated args AST to dig the spec constant name
+        # out from under ``std::string_view(reinterpret_cast<...>(...))``
+        # — _eval'ing the args first would flatten the ScopedConst into
+        # UNKNOWN. Route around the generic helper dispatch.
+        return _eval_echo_payload_equals(call, packet_view)
     helper = CAPTURED_HELPERS.get(name)
     if helper is None:
         return UNKNOWN
