@@ -1,0 +1,95 @@
+# tc8-harness — Mnemosyne workspace config (adoption 2026-05-12, Round 273-278 substrate)
+#
+# 평가 사슬: project_mnemosyne_adoption_deferred.md → adopt-ready
+# - P0 (multi-prefix TC ID extractor) → inventory_prefixes 8 카테고리
+# - P1 (RFC §X.Y skip) → external_section_prefixes = ["RFC"]
+# - P2 (TestCase 엔티티) → InventoryEntry (5번째 closed-form, Round 273)
+#
+# Adoption shape — 하이브리드 (case_inventory.json SSOT 유지 + inventory_entries 는 sync target):
+# - doc/spec/case_inventory.json (PDF→python→JSON→C++) → 영구 SSOT
+# - inventory_entries (atomic store)            → cite-time 검증 surface
+# - doc/coverage/SPEC_COVERAGE.md               → atomic store 렌더링 결과 (단일 readable artifact)
+
+[workspace]
+# Mnemosyne 자체 도그푸드 패턴: 원본 마크다운 삭제 + GENERATED.md 단일 artifact (Round 251).
+# TC8 spec 자산 (`doc/spec/*` PDF/JSON) 은 별개 immutable legacy — Mnemosyne 관리 surface 밖.
+docs = ["docs/GENERATED.md"]
+default_doc = "docs/GENERATED.md"
+
+[schema]
+changelog_titles = ["Changelog"]
+entry_id_prefix = "Round "
+anchor_convention = "section_number"
+medium_name = "design_doc"
+
+[style]
+locale = "ko"
+
+[style.thresholds]
+max_paragraph_length = 1500
+max_sentence_length = 400
+max_section_body_length = 8000
+
+# TC8 / SOME/IP / SCXML 영문 표기 정착 — 흔한 대소문자 변형 표준화
+[terminology.glossary]
+"TC8" = ["tc8", "Tc8"]
+"SOME/IP" = ["some/ip", "someip", "Some/IP", "SomeIP"]
+"SOME/IP-SD" = ["some/ip-sd", "someip-sd", "Some/IP-SD"]
+"DHCPv4" = ["dhcpv4", "DHCPV4", "Dhcpv4"]
+"DUT" = ["dut", "Dut"]
+
+[code_refs]
+paths = [
+ "include/",
+ "src/",
+ "dut/",
+ "tests/",
+]
+# P0: TC8 카테고리. case_inventory.json 정본은 mixed-case (`IPv4_HEADER_05` 등 PDF 그대로)이지만
+# 코드에는 UPPERCASE drift 가 공존 — 양 표기 모두 스캔해서 drift 를 InventoryMissing 으로 surface.
+# 정본 표기만 inventory_entries 에 시드됨 → drift 표기는 cleanup target (Phase E).
+inventory_prefixes = [
+ "ARP_",
+ "TCP_",
+ "UDP_",
+ "SOMEIPSRV_",
+ "SOMEIP_ETS_",
+ # mixed-case (정본 = spec PDF)
+ "IPv4_",
+ "ICMPv4_",
+ "DHCPv4_",
+ # UPPERCASE (drift surface)
+ "IPV4_",
+ "ICMPV4_",
+ "DHCPV4_",
+]
+# P1 axis 1 — <PREFIX> <NUMERIC> §<id> form (RFC 791 §3.1 style, doc number-keyed).
+external_section_prefixes = ["RFC"]
+
+# P1 axis 2 (Round 284) — <PREFIX> §<id> form (doc-name-keyed; AUTOSAR family lacks numeric doc id).
+# Bare "AUTOSAR" 는 옵트인 안 함 — generic token 이라 internal §<id> 도 silently skip 위험.
+external_section_prefixes_bare = ["TR_SOMEIP", "SOMEIPSD", "SWS_SD"]
+# Phase F 2026-05-13 — baseline 0 도달 후 reject 승격. 새 위반 = build fail.
+severity_missing = "reject"
+severity_binding = "reject"
+severity_inventory = "reject"
+comment_only = true
+
+# Round 285 — inventory-axis orphan_ledger 등록. 의도된 historical 인용 (deprecated TC ID)
+# 을 explicit whitelist. 새로운 unintended deprecated 인용은 여전히 reject 로 차단됨.
+
+[[orphan_ledger]]
+kind = "inventory_citation"
+doc  = "src/dissect/packet_pipeline.cpp"
+from = "src/dissect/packet_pipeline.cpp"
+to   = "IPv4_OPTIONS_01"
+reason = "Historical: IPv4_OPTIONS_01..14 deleted V2→V3, documents why dissector skips IP options"
+since  = "2026-05-13 (TC8 adoption Phase E closure)"
+
+[[orphan_ledger]]
+kind = "inventory_citation"
+doc  = "src/sce_integration/ipv4_captured.h"
+from = "src/sce_integration/ipv4_captured.h"
+to   = "IPv4_OPTIONS_01"
+reason = "Historical: same rationale as packet_pipeline.cpp:121"
+since  = "2026-05-13 (TC8 adoption Phase E closure)"

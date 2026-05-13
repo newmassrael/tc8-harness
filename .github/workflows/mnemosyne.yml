@@ -1,0 +1,61 @@
+name: mnemosyne
+
+# Mnemosyne 어댑션 게이트 — Round 273-285 substrate.
+# 잡 내용:
+#   1. validate-workspace  — T1 cross-ref orphan reject + round-trip + style + atomic ledger
+#   2. verify-generated    — atomic store ↔ docs/GENERATED.md sync 검증
+#   3. validate-code-refs  — § / inventory 인용 정합성 (severity = reject)
+#
+# 어떤 단계든 exit != 0 이면 잡 실패. PR 의 코드 코멘트가 stale §<id> 나
+# deprecated TC ID 를 도입하면 머지 차단됨.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/pcap-refresh.yml'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/pcap-refresh.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate-workspace + verify-generated + validate-code-refs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo install of mnemosyne-cli
+        id: cache-mnemosyne
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/mnemosyne-cli
+          # Pin to upstream commit so the gate is reproducible. Bump when
+          # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
+          key: mnemosyne-cli-${{ runner.os }}-a4f00a4
+
+      - name: Install mnemosyne-cli (cache miss only)
+        if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
+        # a4f00a4 = Round 285 (inventory orphan_ledger axis).
+        run: |
+          cargo install --git https://github.com/newmassrael/mnemosyne \
+            --rev a4f00a4 mnemosyne-cli
+
+      - name: validate-workspace
+        run: mnemosyne-cli validate-workspace
+
+      - name: verify-generated
+        run: mnemosyne-cli verify-generated
+
+      - name: validate-code-refs
+        run: mnemosyne-cli validate-code-refs
