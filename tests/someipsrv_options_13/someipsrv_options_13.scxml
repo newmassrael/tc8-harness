@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §5.1.5.5.13 SOMEIPSRV_OPTIONS_13: Layer-4 Protocol field [8 bits]
+  TC8 §5.1.5.2 SOMEIPSRV_OPTIONS_13: Layer-4 Protocol field [8 bits]
   of the IPv4 Multicast Option shall be 0x11 (UDP) (SWS_SD_00395).
   presence_gate filters to SubscribeAck frames carrying at least one
   IPv4 Multicast Option; pass_expr asserts that option's L4-Proto

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.7 DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_12:
+  TC8 §4.7.6.6 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_12:
     "The retransmission delay should be doubled with subsequent
      retransmissions, up to a maximum of 64 seconds"
     (RFC 2131 §4.1, MUST).

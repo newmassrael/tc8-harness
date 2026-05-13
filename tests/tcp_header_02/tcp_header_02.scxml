@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.8.6.X TCP_HEADER_02: DUT accepts a TCP packet containing
+  TC8 §4.8.6.16 TCP_HEADER_02: DUT accepts a TCP packet containing
   valid header field values. Derived from RFC 793 §3.9 Event
   Processing.
 

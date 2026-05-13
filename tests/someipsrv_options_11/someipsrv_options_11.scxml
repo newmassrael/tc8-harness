@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §5.1.5.5.11 SOMEIPSRV_OPTIONS_11: IPv4-Address field [32 bits] of
+  TC8 §5.1.5.2 SOMEIPSRV_OPTIONS_11: IPv4-Address field [32 bits] of
   the IPv4 Multicast Option shall be set to the multicast IP address
   of the eventgroup (SWS_SD_00393). expected.mcast_ipv4 is supplied
   via the harness expect mcast_ipv4=224.244.224.246 CLI key,

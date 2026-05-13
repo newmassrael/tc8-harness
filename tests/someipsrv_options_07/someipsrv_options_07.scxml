@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §5.1.5.5.7 SOMEIPSRV_OPTIONS_07: Port Number field of the IPv4
+  TC8 §5.1.5.2 SOMEIPSRV_OPTIONS_07: Port Number field of the IPv4
   Endpoint Option shall carry the configured UDP port for the service
   (SWS_SD_00215). The expected value is injected via the smoke-test
   `udp_port` expectation key (30502 for service 0xF4E7).

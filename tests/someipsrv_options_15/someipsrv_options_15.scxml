@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §5.1.5.5.15 SOMEIPSRV_OPTIONS_15: Layer-4 Protocol field of the
+  TC8 §5.1.5.2 SOMEIPSRV_OPTIONS_15: Layer-4 Protocol field of the
   IPv4 Endpoint Option shall be 0x06 (TCP) per SWS_SD_00214 — the
   "Checking For TCP" companion to OPTIONS_06. Spec calls out
   SERVICE-ID-2; vsomeip OfferService for service 0xF4E7 already emits

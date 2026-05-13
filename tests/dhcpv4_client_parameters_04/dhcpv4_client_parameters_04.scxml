@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.5 DHCPV4_CLIENT_PARAMETERS_04: if the client includes a
+  TC8 §4.7.6.4 DHCPv4_CLIENT_PARAMETERS_04: if the client includes a
   Parameter Request List (Option 55) in DISCOVER, the same byte sequence
   MUST appear in any subsequent DHCPREQUEST (RFC 2131 §4.3.6, MUST).
 

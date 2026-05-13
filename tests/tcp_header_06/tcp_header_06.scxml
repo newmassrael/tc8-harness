@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.8.6.X TCP_HEADER_06: DUT accepts a TCP packet whose Reserved
+  TC8 §4.8.6.16 TCP_HEADER_06: DUT accepts a TCP packet whose Reserved
   field carries a non-zero value (DUT MUST ignore the Reserved field).
   Derived from RFC 4413 §4.2.3.
 

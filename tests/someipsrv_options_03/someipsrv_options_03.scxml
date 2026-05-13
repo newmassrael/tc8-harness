@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §5.1.5.5.3 SOMEIPSRV_OPTIONS_03: First Reserved field of the IPv4
+  TC8 §5.1.5.2 SOMEIPSRV_OPTIONS_03: First Reserved field of the IPv4
   Endpoint Option (the byte preceding the IPv4 Address field) shall be
   0x00 per SWS_SD_00211. Asserts the field on both the UDP and TCP
   Endpoint Options vsomeip emits in OfferService — addressed by L4

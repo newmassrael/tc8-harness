@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §5.1.5.5.2 SOMEIPSRV_OPTIONS_02: Type field of the IPv4 Endpoint
+  TC8 §5.1.5.2 SOMEIPSRV_OPTIONS_02: Type field of the IPv4 Endpoint
   Option shall be 0x04 (SOMEIP_OPTION_IPV4_ENDPOINT) per SWS_SD_00210.
   vsomeip OfferService for service 0xF4E7 emits exactly two IPv4
   Endpoint Options (UDP + TCP); checking that every parsed option is

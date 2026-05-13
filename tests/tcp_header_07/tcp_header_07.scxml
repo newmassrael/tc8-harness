@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.8.6.X TCP_HEADER_07: DUT discards TCP packet whose Data
+  TC8 §4.8.6.16 TCP_HEADER_07: DUT discards TCP packet whose Data
   Offset field carries an invalid non-zero value < 5. Derived from
   RFC 793 §3.1 (minimum header is 20 B = 5 words).
 

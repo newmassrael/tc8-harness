@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.7 DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_04: Source IP
+  TC8 §4.7.6.6 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_04: Source IP
   address field of DHCPREQUEST Message is 0 (RFC 2131 §4.1).
 
   Spec Test Procedure (tc8_p241-p260.txt: CONSTRUCTING_MESSAGES_04):

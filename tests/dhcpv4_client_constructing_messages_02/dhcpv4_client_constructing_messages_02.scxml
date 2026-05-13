@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.7 DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_02: DHCP clients MUST
+  TC8 §4.7.6.6 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02: DHCP clients MUST
   use the IP address provided in the 'server identifier' option for any
   unicast requests to the DHCP server (RFC 2131 §4.1).
 
