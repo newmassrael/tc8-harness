@@ -111,6 +111,11 @@
       "idx": 21,
       "role": "note",
       "label": "Phase 3 (listening_dut_data_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 22,
+      "role": "note",
+      "label": "Phase 3 (listening_dut_data_ack) — DUT frame (no transition matched)"
     }
   ]
 }

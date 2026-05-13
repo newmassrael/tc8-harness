@@ -1,8 +1,8 @@
 {
   "case_id": "SOMEIPSRV_OPTIONS_06",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
-  "tester_mac": "a6:13:6d:64:4f:54",
+  "captured_at": "2026-05-13T14:19:21Z",
+  "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -12,7 +12,7 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "a6:13:6d:64:4f:54",
+      "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -69,9 +69,15 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6423,
-        "ip_id": 25231,
+        "ip_id": 33979,
         "ip_flags": 2,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 1,
+        "total_length": 96,
+        "version": 4,
+        "ip_protocol": 17,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_13",
   "outcome": "fail",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -27,13 +27,19 @@
         "echo_payload_len": 8,
         "ip_id": 61464,
         "ip_flags": 1,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 36,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 1,
-      "ts_us": 223531,
-      "ts_delta_us": 223531,
+      "ts_us": 235672,
+      "ts_delta_us": 235672,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -46,13 +52,19 @@
         "code": 85,
         "ip_id": 61464,
         "ip_flags": 1,
-        "ip_fragment_offset": 2
+        "ip_fragment_offset": 2,
+        "ttl": 64,
+        "total_length": 44,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 2,
-      "ts_us": 459537,
-      "ts_delta_us": 236006,
+      "ts_us": 467578,
+      "ts_delta_us": 231906,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -65,13 +77,19 @@
         "code": 82,
         "ip_id": 61464,
         "ip_flags": 1,
-        "ip_fragment_offset": 2
+        "ip_fragment_offset": 2,
+        "ttl": 64,
+        "total_length": 28,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 3,
-      "ts_us": 699564,
-      "ts_delta_us": 240027,
+      "ts_us": 703730,
+      "ts_delta_us": 236152,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -84,7 +102,13 @@
         "code": 65,
         "ip_id": 61464,
         "ip_flags": 0,
-        "ip_fragment_offset": 3
+        "ip_fragment_offset": 3,
+        "ttl": 64,
+        "total_length": 31,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

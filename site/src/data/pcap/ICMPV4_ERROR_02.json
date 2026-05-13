@@ -1,8 +1,8 @@
 {
   "case_id": "ICMPV4_ERROR_02",
   "outcome": "fail",
-  "captured_at": "2026-05-13T13:47:04Z",
-  "tester_mac": "a6:13:6d:64:4f:54",
+  "captured_at": "2026-05-13T14:19:21Z",
+  "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "a6:13:6d:64:4f:54",
+      "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -25,16 +25,22 @@
         "echo_seq": 22136,
         "ip_id": 16962,
         "ip_flags": 1,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 36,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 7,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 1,
-      "ts_us": 21,
-      "ts_delta_us": 21,
+      "ts_us": 28,
+      "ts_delta_us": 28,
       "direction": "tester_to_dut",
-      "src_mac": "a6:13:6d:64:4f:54",
-      "dst_mac": "9a:a8:9f:71:17:5b",
+      "src_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "8a:b4:de:88:be:ad",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -43,9 +49,15 @@
         "type": 12,
         "code": 0,
         "icmp_pointer": 20,
-        "ip_id": 3866,
+        "ip_id": 61126,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 64,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

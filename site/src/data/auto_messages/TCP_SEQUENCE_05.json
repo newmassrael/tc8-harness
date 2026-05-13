@@ -56,21 +56,6 @@
       "idx": 10,
       "role": "expected",
       "label": "Phase 3 (listen_seg3_ack) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
-    },
-    {
-      "idx": 11,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 12,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 13,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

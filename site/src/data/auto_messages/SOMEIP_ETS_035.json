@@ -69,13 +69,13 @@
     },
     {
       "idx": 13,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: service_id == expected.service_id and message_type == 0x80 and method_id == 0x000A and return_code == 0x00 and payload_len == 1 and payload…"
+      "role": "fail-trigger",
+      "label": "Phase 2 (listening_phase2) fail trigger — transitions to fail_phase2_payload_mismatch. Cond: service_id == expected.service_id and message_type == 0x80 and method_id == 0x000A and (payload_len != 1 or payload_byte0 != 0x42 or src_po…"
     },
     {
       "idx": 14,
       "role": "note",
-      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
+      "label": "Post-fail teardown (state machine already at final)"
     }
   ]
 }

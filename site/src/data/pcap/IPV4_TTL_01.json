@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_TTL_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -25,16 +25,22 @@
         "echo_seq": 22136,
         "ip_id": 16962,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 28,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 1,
-      "ts_us": 20,
-      "ts_delta_us": 20,
+      "ts_us": 27,
+      "ts_delta_us": 27,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "ee:57:a9:75:39:41",
+      "dst_mac": "82:a1:e0:1c:4d:2c",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -44,9 +50,15 @@
         "code": 0,
         "echo_id": 4660,
         "echo_seq": 22136,
-        "ip_id": 14256,
+        "ip_id": 56512,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 28,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

@@ -1,7 +1,7 @@
 {
   "case_id": "ARP_42",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
   "dut_mac": null,
@@ -26,7 +26,7 @@
         "opcode": 2,
         "sender_mac": "02:00:00:00:00:a1",
         "sender_ip": "172.16.0.1",
-        "target_mac": "a6:13:6d:64:4f:54",
+        "target_mac": "ce:e9:86:bf:01:8c",
         "target_ip": "172.16.0.2",
         "sender_proto_ip_be": 2886729729,
         "target_proto_ip_be": 2886729730

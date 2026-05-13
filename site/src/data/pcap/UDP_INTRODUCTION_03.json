@@ -1,8 +1,8 @@
 {
   "case_id": "UDP_INTRODUCTION_03",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
-  "tester_mac": "82:ce:dd:43:6a:98",
+  "captured_at": "2026-05-13T14:19:21Z",
+  "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -12,8 +12,8 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "82:ce:dd:43:6a:98",
-      "dst_mac": "fe:06:e7:39:f4:00",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "86:e1:db:ae:77:f3",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -21,9 +21,15 @@
       "fields": {
         "type": 3,
         "code": 3,
-        "ip_id": 29582,
+        "ip_id": 26413,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 57,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

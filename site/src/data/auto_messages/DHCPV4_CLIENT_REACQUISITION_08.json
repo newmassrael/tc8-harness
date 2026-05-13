@@ -74,11 +74,6 @@
     },
     {
       "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_for_second_discover) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 15,
       "role": "expected",
       "label": "Phase 4 (listening_for_second_discover) pass trigger — transitions to pass. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     }

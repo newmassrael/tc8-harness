@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_06",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "0.0.0.0",
   "dut_mac": "02:00:00:00:00:a1",
@@ -17,7 +17,7 @@
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0xd5509286 chaddr=6e:16:3b:ea:29:ea",
+      "summary": "DHCPv4 Discover xid=0xaf5ece20 chaddr=6e:16:3b:ea:29:ea",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
@@ -25,7 +25,7 @@
         "htype": 1,
         "hlen": 6,
         "hops": 0,
-        "xid": 3578827398,
+        "xid": 2942225952,
         "secs": 0,
         "bootp_flags": 0,
         "ciaddr": "0.0.0.0",
@@ -39,23 +39,29 @@
           53,
           55
         ],
-        "checksum": 46716,
+        "checksum": 41172,
         "ip_id": 0,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 278,
+        "version": 4,
+        "ip_protocol": 17,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 1,
-      "ts_us": 23287,
-      "ts_delta_us": 23287,
+      "ts_us": 35364,
+      "ts_delta_us": 35364,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "172.16.0.10",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Offer xid=0xd5509286 chaddr=6e:16:3b:ea:29:ea",
+      "summary": "DHCPv4 Offer xid=0xaf5ece20 chaddr=6e:16:3b:ea:29:ea",
       "fields": {
         "src_port": 67,
         "dst_port": 68,
@@ -63,7 +69,7 @@
         "htype": 1,
         "hlen": 6,
         "hops": 0,
-        "xid": 3578827398,
+        "xid": 2942225952,
         "secs": 0,
         "bootp_flags": 0,
         "ciaddr": "0.0.0.0",
@@ -80,23 +86,29 @@
           1,
           52
         ],
-        "checksum": 27806,
+        "checksum": 22262,
         "ip_id": 0,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 576,
+        "version": 4,
+        "ip_protocol": 17,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 2,
-      "ts_us": 23353,
-      "ts_delta_us": 66,
+      "ts_us": 35510,
+      "ts_delta_us": 146,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Request xid=0xd5509286 chaddr=6e:16:3b:ea:29:ea",
+      "summary": "DHCPv4 Request xid=0xaf5ece20 chaddr=6e:16:3b:ea:29:ea",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
@@ -104,7 +116,7 @@
         "htype": 1,
         "hlen": 6,
         "hops": 0,
-        "xid": 3578827398,
+        "xid": 2942225952,
         "secs": 0,
         "bootp_flags": 0,
         "ciaddr": "0.0.0.0",
@@ -120,23 +132,29 @@
           54,
           55
         ],
-        "checksum": 20132,
+        "checksum": 14588,
         "ip_id": 0,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 290,
+        "version": 4,
+        "ip_protocol": 17,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 3,
-      "ts_us": 131663,
-      "ts_delta_us": 108310,
+      "ts_us": 155789,
+      "ts_delta_us": 120279,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "172.16.0.10",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Ack xid=0xd5509286 chaddr=6e:16:3b:ea:29:ea",
+      "summary": "DHCPv4 Ack xid=0xaf5ece20 chaddr=6e:16:3b:ea:29:ea",
       "fields": {
         "src_port": 67,
         "dst_port": 68,
@@ -144,7 +162,7 @@
         "htype": 1,
         "hlen": 6,
         "hops": 0,
-        "xid": 3578827398,
+        "xid": 2942225952,
         "secs": 0,
         "bootp_flags": 0,
         "ciaddr": "0.0.0.0",
@@ -161,16 +179,22 @@
           1,
           52
         ],
-        "checksum": 27038,
+        "checksum": 21494,
         "ip_id": 0,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 576,
+        "version": 4,
+        "ip_protocol": 17,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 4,
-      "ts_us": 554220,
-      "ts_delta_us": 422557,
+      "ts_us": 587192,
+      "ts_delta_us": 431403,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
       "dst_mac": "02:00:00:00:00:a1",
@@ -183,9 +207,15 @@
         "dst_port": 20000,
         "length": 9,
         "checksum": 61108,
-        "ip_id": 55279,
+        "ip_id": 9575,
         "ip_flags": 2,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 29,
+        "version": 4,
+        "ip_protocol": 17,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

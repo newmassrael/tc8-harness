@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_FRAGMENTS_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -25,13 +25,19 @@
         "echo_seq": 22136,
         "ip_id": 61441,
         "ip_flags": 1,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 28,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 1,
-      "ts_us": 19229,
-      "ts_delta_us": 19229,
+      "ts_us": 27488,
+      "ts_delta_us": 27488,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "6e:16:3b:ea:29:ea",
@@ -44,16 +50,22 @@
         "code": 34,
         "ip_id": 61441,
         "ip_flags": 0,
-        "ip_fragment_offset": 1
+        "ip_fragment_offset": 1,
+        "ttl": 64,
+        "total_length": 28,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 2,
-      "ts_us": 19266,
-      "ts_delta_us": 37,
+      "ts_us": 27516,
+      "ts_delta_us": 28,
       "direction": "tester_to_dut",
       "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "ee:57:a9:75:39:41",
+      "dst_mac": "82:a1:e0:1c:4d:2c",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -65,9 +77,15 @@
         "echo_seq": 22136,
         "echo_payload_first16": "1122334455667788",
         "echo_payload_len": 8,
-        "ip_id": 12724,
+        "ip_id": 54656,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 36,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

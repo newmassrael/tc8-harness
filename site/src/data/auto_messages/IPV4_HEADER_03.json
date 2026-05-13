@@ -9,8 +9,8 @@
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: src_addr == expected.dut_iface_ip"
     }
   ]
 }

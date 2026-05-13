@@ -49,11 +49,6 @@
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_for_rebinding_request) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 10,
       "role": "expected",
       "label": "Phase 4 (listening_for_rebinding_request) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac) and dst_ip_is_broadcast() and (option_absent(50))"
     }

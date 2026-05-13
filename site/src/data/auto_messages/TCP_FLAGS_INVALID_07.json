@@ -124,28 +124,28 @@
     },
     {
       "idx": 24,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_p3_probe_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_p3_probe_ack) progress trigger — advances to listening_p4_probe_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 2U, ::tc8::sce::tcp::kBasicsTesterPort + 2U…"
     },
     {
       "idx": 25,
       "role": "note",
-      "label": "Phase 3 (listening_p3_probe_ack) — DUT frame (no transition matched)"
+      "label": "Phase 4 (listening_p4_probe_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 26,
       "role": "stimulus",
-      "label": "Phase 3 (listening_p3_probe_ack) — Tester stimulus (no transition matched)"
+      "label": "Phase 4 (listening_p4_probe_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 27,
       "role": "note",
-      "label": "Phase 3 (listening_p3_probe_ack) — DUT frame (no transition matched)"
+      "label": "Phase 4 (listening_p4_probe_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 28,
-      "role": "expected",
-      "label": "Phase 3 (listening_p3_probe_ack) progress trigger — advances to listening_p4_probe_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 2U, ::tc8::sce::tcp::kBasicsTesterPort + 2U…"
+      "role": "stimulus",
+      "label": "Phase 4 (listening_p4_probe_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 29,

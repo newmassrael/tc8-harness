@@ -3,6 +3,11 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Absence-of-behavior pass — DUT did not emit the prohibited frame within the SCXML deadline window. Per the spec this silent absence IS the pass condition; no per-packet ``expected`` label appears because the verdict comes from the timer firing, not from an observed frame."
+    },
+    {
       "idx": 0,
       "role": "note",
       "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
@@ -294,36 +299,56 @@
     },
     {
       "idx": 58,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
     },
     {
       "idx": 59,
-      "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 60,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
     },
     {
       "idx": 61,
-      "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 62,
-      "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 63,
       "role": "stimulus",
       "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
     },
     {
+      "idx": 62,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 63,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
       "idx": 64,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 65,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 66,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 67,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 68,
       "role": "stimulus",
       "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
     }

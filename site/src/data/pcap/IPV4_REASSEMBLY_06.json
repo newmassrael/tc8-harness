@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_06",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "82:ce:dd:43:6a:98",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -23,16 +23,22 @@
         "code": 170,
         "ip_id": 61457,
         "ip_flags": 1,
-        "ip_fragment_offset": 1
+        "ip_fragment_offset": 1,
+        "ttl": 64,
+        "total_length": 28,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     },
     {
       "idx": 1,
-      "ts_us": 231452,
-      "ts_delta_us": 231452,
+      "ts_us": 232044,
+      "ts_delta_us": 232044,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "82:ce:dd:43:6a:98",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -42,7 +48,13 @@
         "code": 187,
         "ip_id": 61457,
         "ip_flags": 0,
-        "ip_fragment_offset": 2
+        "ip_fragment_offset": 2,
+        "ttl": 64,
+        "total_length": 28,
+        "version": 4,
+        "ip_protocol": 1,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

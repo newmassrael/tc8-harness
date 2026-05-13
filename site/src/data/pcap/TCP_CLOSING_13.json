@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_CLOSING_13",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "a6:13:6d:64:4f:54",
+      "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
@@ -28,9 +28,16 @@
         "checksum": 33498,
         "urgent_pointer": 0,
         "data_offset": 5,
+        "payload_len": 0,
         "ip_id": 16962,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 40,
+        "version": 4,
+        "ip_protocol": 6,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]

@@ -36,26 +36,6 @@
       "idx": 6,
       "role": "note",
       "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 7,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 8,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 9,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 10,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

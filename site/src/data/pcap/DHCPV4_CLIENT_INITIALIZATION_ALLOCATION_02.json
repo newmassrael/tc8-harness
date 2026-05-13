@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_02",
   "outcome": "pass",
-  "captured_at": "2026-05-13T13:47:04Z",
+  "captured_at": "2026-05-13T14:19:21Z",
   "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,
@@ -41,7 +41,13 @@
         "checksum": 35485,
         "ip_id": 0,
         "ip_flags": 0,
-        "ip_fragment_offset": 0
+        "ip_fragment_offset": 0,
+        "ttl": 64,
+        "total_length": 272,
+        "version": 4,
+        "ip_protocol": 17,
+        "ihl": 5,
+        "ip_header_checksum_ok": true
       }
     }
   ]
