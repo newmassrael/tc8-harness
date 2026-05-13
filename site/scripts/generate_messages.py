@@ -696,6 +696,7 @@ TOKEN_SPEC = [
     ("MINUS",   r"-"),
     ("STAR",    r"\*"),
     ("SLASH",   r"/"),
+    ("PERCENT", r"%"),
     ("BANG",    r"!"),
     ("LPAREN",  r"\("),
     ("RPAREN",  r"\)"),
@@ -919,6 +920,9 @@ class Parser:
             elif t and t.kind == "SLASH":
                 self.take()
                 lhs = BinOp("/", lhs, self.unary())
+            elif t and t.kind == "PERCENT":
+                self.take()
+                lhs = BinOp("%", lhs, self.unary())
             else:
                 break
         return lhs
@@ -1369,6 +1373,69 @@ def _build_tcp_ut_static_ctx(packets: list[dict]) -> dict:
     return out
 
 
+def _build_arp_observed_udp_ctx(
+    packets: list[dict],
+    dut_mac: str | None,
+    tester_mac: str | None = None,
+    tester_mac2: str | None = None,
+) -> dict:
+    """Mirror the C++ ``ArpCaptured::observed_udp_*`` side-channel.
+
+    The harness's ``fillArpCapturedFromFrame`` populates two extra
+    fields when a DUT-emitted UDP frame is seen post-ARP-learning:
+    ``observed_udp_dst_ip`` and ``observed_udp_eth_dst``. SCXMLs for
+    §4.2.4 ARP cases gate their pass cond on those fields rather than
+    the bare ARP Request, so the walker needs the lifted values on
+    every ARP packet view to fire a strict-True transition.
+
+    Filter logic mirrors the C++ side-channel: the first DUT-emitted
+    *unicast* UDP frame whose eth_dst is one of the known tester
+    MACs (primary tester_mac for the Group A/B cases; tester_mac2 —
+    the second-injection MAC — for Group C cache-merge cases) wins.
+    Multicast SOME/IP-SD Offers from the DUT are skipped because the
+    cond is verifying point-to-point post-ARP egress, not the cyclic
+    Offer storm.
+
+    When no qualifying frame exists, returns an empty dict — the cond
+    keeps degrading to UNKNOWN as before.
+    """
+    if not dut_mac:
+        return {}
+    dut_mac_lc = dut_mac.lower()
+    tester_macs = {m.lower() for m in (tester_mac, tester_mac2) if m}
+    for p in packets:
+        src_mac = (p.get("src_mac") or "").lower()
+        if src_mac != dut_mac_lc:
+            continue
+        proto = p.get("protocol") or ""
+        if not (proto.startswith("SOME/IP") or proto == "UDP"):
+            continue
+        dst_ip = p.get("dst_ip")
+        dst_mac = (p.get("dst_mac") or "").lower()
+        if not dst_ip or not dst_mac:
+            continue
+        # Skip multicast/broadcast DUT egress — the cond observes the
+        # unicast post-ARP frame, not the SD Offer storm. Multicast
+        # MACs start with 01:00:5e on IPv4; broadcast is ff:ff:ff:ff:ff:ff.
+        if dst_mac == "ff:ff:ff:ff:ff:ff" or dst_mac.startswith("01:00:5e"):
+            continue
+        # When tester MAC hints are available, require the unicast dst
+        # to match one of them. Falls back to "any unicast" when no
+        # hint is provided — keeps the helper robust to future ARP
+        # cases that don't pre-populate tester_mac.
+        if tester_macs and dst_mac not in tester_macs:
+            continue
+        dst_ip_be = _dotted_ip_to_int(dst_ip)
+        out: dict = {
+            "observed_udp_eth_dst": dst_mac,
+        }
+        if dst_ip_be is not None:
+            out["observed_udp_dst_ip_be"] = dst_ip_be
+            out["observed_udp_dst_ip"] = dst_ip
+        return out
+    return {}
+
+
 def _resolve_ident(parts: tuple, packet_view: dict, expected: dict) -> Any:
     """Walk a dotted/indexed name through (captured / expected) namespaces.
 
@@ -1384,12 +1451,43 @@ def _resolve_ident(parts: tuple, packet_view: dict, expected: dict) -> Any:
     if head == "expected":
         if len(parts) < 2 or not isinstance(parts[1], str):
             return UNKNOWN
+        # 3-part form ``expected.NS.field`` (e.g. ``expected.dhcpv4.offered_ip_be``
+        # used by the ArpAndDhcpv4 cross-protocol SCXMLs). The expected
+        # dict is flat — smoke-test.sh's namespaced ``--expect dhcpv4.X``
+        # blocks all land at the top level. Strip the inner namespace
+        # token and read the field by its bare name.
+        if (len(parts) >= 3
+                and isinstance(parts[1], str)
+                and parts[1] in _CROSS_NAMESPACE_HINTS
+                and isinstance(parts[2], str)):
+            field = parts[2]
+            v = expected.get(field, UNKNOWN)
+            if v is UNKNOWN:
+                return UNKNOWN
+            # Walk any remaining segments (rare — keeps parity with the
+            # general dotted-ident path below).
+            for seg in parts[3:]:
+                if isinstance(seg, str) and isinstance(v, dict) and seg in v:
+                    v = v[seg]
+                else:
+                    return UNKNOWN
+            return v
         v = expected.get(parts[1], UNKNOWN)
         return UNKNOWN if v is UNKNOWN else v
     if head != "captured":
         return UNKNOWN
     if len(parts) < 2:
         return UNKNOWN
+    # 3-part ``captured.NS.field`` (e.g. ``captured.arp.opcode``) collapses
+    # to the bare 2-part form: every protocol's fields are flattened onto
+    # the same packet view (only one protocol is active per frame), so
+    # the NS hint is documentation rather than routing. The hint set
+    # gates against typos.
+    if (len(parts) >= 3
+            and isinstance(parts[1], str)
+            and parts[1] in _CROSS_NAMESPACE_HINTS
+            and isinstance(parts[2], str)):
+        parts = (parts[0], parts[2]) + tuple(parts[3:])
     name = parts[1]
     name = CAPTURED_ALIASES.get(name, name)
     if name in packet_view:
@@ -1528,6 +1626,7 @@ def _eval(expr: Any, packet_view: dict, expected: dict, strict: bool) -> Any:
             if expr.op == "-":  return lhs - rhs
             if expr.op == "*":  return lhs * rhs
             if expr.op == "/":  return lhs // rhs if rhs else UNKNOWN
+            if expr.op == "%":  return lhs % rhs if rhs else UNKNOWN
         except (TypeError, ValueError):
             return UNKNOWN
     return UNKNOWN
@@ -2103,6 +2202,125 @@ def _helper_sd_distinct_endpoint_ports_for_l4(view, args) -> Any:
     return len(ports)
 
 
+# Cross-namespace helper hint set: ``captured.NS.method(args)`` (3-part
+# target) is allowed for these inner namespace names. The walker doesn't
+# need per-protocol routing because ``_packet_view`` already flattens
+# every protocol's fields onto the same packet view (only one protocol
+# is active per frame). The hint set exists so a typo like
+# ``captured.foo.bar()`` cleanly degrades to UNKNOWN instead of trying
+# to resolve the helper in an arbitrary namespace.
+_CROSS_NAMESPACE_HINTS = frozenset({"arp", "dhcpv4", "udp", "ipv4", "tcp", "icmpv4", "someip"})
+
+
+def _helper_is_dhcp_arp_probe(view, args) -> Any:
+    """RFC 2131 §4.4.1 + RFC 5227 ARP Probe distinguished by:
+    opcode==1, sender_proto_ip==0, target_proto_ip==offered_ip_be. The
+    ``offered_ip_be`` arg is a 32-bit BE int (matches the decoder's
+    ``target_proto_ip_be`` surface)."""
+    if not args or args[0] is UNKNOWN:
+        return UNKNOWN
+    offered_ip_be = args[0]
+    if not isinstance(offered_ip_be, int):
+        return UNKNOWN
+    if view.get("opcode") != 1:
+        return False
+    spi = view.get("sender_proto_ip_be")
+    tpi = view.get("target_proto_ip_be")
+    if spi is None or tpi is None:
+        return UNKNOWN
+    return spi == 0 and tpi == offered_ip_be
+
+
+def _helper_is_dhcp_arp_announce(view, args) -> Any:
+    """Post-Probe Announce per RFC 2131 §4.4.1: opcode==1,
+    sender_proto_ip==target_proto_ip==offered_ip_be."""
+    if not args or args[0] is UNKNOWN:
+        return UNKNOWN
+    offered_ip_be = args[0]
+    if not isinstance(offered_ip_be, int):
+        return UNKNOWN
+    if view.get("opcode") != 1:
+        return False
+    spi = view.get("sender_proto_ip_be")
+    tpi = view.get("target_proto_ip_be")
+    if spi is None or tpi is None:
+        return UNKNOWN
+    return spi == offered_ip_be and tpi == offered_ip_be
+
+
+def _helper_option_be32_equals(view, args) -> Any:
+    """Read a DHCP option's 4-byte BE value and compare against the
+    given int. Decoder surfaces option values via ``dhcp_option_values``
+    (opt_code -> hex string of the value bytes); we accept either that
+    or a raw bytes form. Returns UNKNOWN when option values aren't
+    surfaced (older pcap decode); the walker degrades to candidate."""
+    if len(args) < 2 or args[0] is UNKNOWN or args[1] is UNKNOWN:
+        return UNKNOWN
+    opt_code, want = args[0], args[1]
+    if not isinstance(opt_code, int) or not isinstance(want, int):
+        return UNKNOWN
+    values = view.get("dhcp_option_values")
+    if not isinstance(values, dict):
+        return UNKNOWN
+    raw = values.get(opt_code) if opt_code in values else values.get(str(opt_code))
+    if raw is None:
+        return False  # option absent; cond is asking for a specific value
+    if isinstance(raw, str):
+        try:
+            b = bytes.fromhex(raw)
+        except ValueError:
+            return UNKNOWN
+    elif isinstance(raw, (bytes, bytearray)):
+        b = bytes(raw)
+    else:
+        return UNKNOWN
+    if len(b) != 4:
+        return False
+    got = int.from_bytes(b, "big")
+    return got == want
+
+
+def _helper_eth_src_equals(view, args) -> Any:
+    if not args or args[0] is UNKNOWN:
+        return UNKNOWN
+    target = args[0]
+    sm = view.get("src_mac")
+    if not isinstance(sm, str) or not isinstance(target, str):
+        return UNKNOWN
+    return sm.lower() == target.lower()
+
+
+def _helper_eth_dst_equals(view, args) -> Any:
+    if not args or args[0] is UNKNOWN:
+        return UNKNOWN
+    target = args[0]
+    dm = view.get("dst_mac")
+    if not isinstance(dm, str) or not isinstance(target, str):
+        return UNKNOWN
+    return dm.lower() == target.lower()
+
+
+def _helper_decline_to_discover_within_us(view, args) -> Any:
+    """Cross-frame state: a sticky ``case_decline_to_discover_us`` slot
+    is pre-computed by the walker (see _build_dhcpv4_lease_ctx) holding
+    the µs delta between the case's first DHCP Decline frame and the
+    *next* DHCP Discover frame. The helper compares that against the
+    [min, max] window argued by the cond. Slot stays absent when the
+    pcap doesn't capture both endpoints — returns UNKNOWN so the walker
+    can degrade to candidate honestly."""
+    if len(args) < 2:
+        return UNKNOWN
+    lo, hi = args[0], args[1]
+    if lo is UNKNOWN or hi is UNKNOWN:
+        return UNKNOWN
+    if not isinstance(lo, int) or not isinstance(hi, int):
+        return UNKNOWN
+    delta = view.get("case_decline_to_discover_us")
+    if not isinstance(delta, int):
+        return UNKNOWN
+    return lo <= delta <= hi
+
+
 CAPTURED_HELPERS = {
     # tcp_captured.h
     "is_pure_dut_ack":          _helper_is_pure_dut_ack,
@@ -2147,6 +2365,15 @@ CAPTURED_HELPERS = {
     "sd_distinct_endpoint_ports_for_l4": _helper_sd_distinct_endpoint_ports_for_l4,
     # cross-protocol
     "frame_delta_us":           _helper_frame_delta_us,
+    # arp_and_dhcpv4_captured.h cross-protocol predicates
+    "is_dhcp_arp_probe":        _helper_is_dhcp_arp_probe,
+    "is_dhcp_arp_announce":     _helper_is_dhcp_arp_announce,
+    # dhcpv4_captured.h option-value comparators + ethernet shape
+    "option_be32_equals":       _helper_option_be32_equals,
+    "eth_src_equals":           _helper_eth_src_equals,
+    "eth_dst_equals":           _helper_eth_dst_equals,
+    # cross-frame lease timing (see _build_dhcpv4_lease_ctx)
+    "decline_to_discover_within_us": _helper_decline_to_discover_within_us,
 }
 
 
@@ -2179,9 +2406,17 @@ def _eval_call(call: Call, packet_view: dict, expected: dict, strict: bool) -> A
             return inner
     if not isinstance(target, Ident):
         return UNKNOWN
-    if len(target.parts) != 2 or target.parts[0] != "captured":
+    if not (len(target.parts) >= 2 and target.parts[0] == "captured"):
         return UNKNOWN
-    name = target.parts[1]
+    if len(target.parts) == 3:
+        ns = target.parts[1]
+        if ns not in _CROSS_NAMESPACE_HINTS:
+            return UNKNOWN
+        name = target.parts[2]
+    elif len(target.parts) == 2:
+        name = target.parts[1]
+    else:
+        return UNKNOWN
     if name == "echo_payload_equals":
         # Needs the un-evaluated args AST to dig the spec constant name
         # out from under ``std::string_view(reinterpret_cast<...>(...))``
@@ -2540,6 +2775,16 @@ def label_packets(
     # like §4.6 ``udp_field_check`` template's
     # ``!captured.has_ut_response`` gate.
     tcp_ut_static_ctx = _build_tcp_ut_static_ctx(packets)
+    # ARP observed_udp_* side-channel (see _build_arp_observed_udp_ctx
+    # docstring). Reads expected.dut_iface_mac for the DUT-side filter.
+    # Stays empty when the pcap has no DUT-emitted UDP frame — the
+    # cond keeps degrading to UNKNOWN as it always did.
+    arp_observed_udp_ctx = _build_arp_observed_udp_ctx(
+        packets,
+        expected.get("dut_iface_mac"),
+        expected.get("tester_mac"),
+        expected.get("tester_mac2"),
+    )
     # Case-keyed stimulus-sticky TCP fields (currently only
     # ``expected_ack_num`` for the two cases whose pass cond compares
     # against it). Mirrors the same merge semantics as the UT static
@@ -2582,6 +2827,12 @@ def label_packets(
         # Frame`` asymmetry between ``TcpCaptured`` and ``UdpCaptured``.
         if tcp_ut_static_ctx and (p.get("protocol") or "").startswith("TCP"):
             for k, v in tcp_ut_static_ctx.items():
+                view.setdefault(k, v)
+        # ARP cross-protocol observed_udp lift. The C++ ArpCaptured
+        # carries these on every ARP frame after the side-channel
+        # observation fires, so merge only into ARP frame views.
+        if arp_observed_udp_ctx and (p.get("protocol") or "") == "ARP":
+            for k, v in arp_observed_udp_ctx.items():
                 view.setdefault(k, v)
         if case_tcp_static_ctx and (p.get("protocol") or "").startswith("TCP"):
             for k, v in case_tcp_static_ctx.items():
@@ -2805,6 +3056,40 @@ def label_packets(
                 "no per-packet ``expected`` label appears because the "
                 "verdict comes from the timer firing, not from an "
                 "observed frame."
+            ),
+        ))
+    # Pass-outcome retention-shortfall marker. The case landed `pass` on
+    # the wire but the SCXML has *no* deadline → pass-final edge (every
+    # deadline lands on a fail-final), so the existing absence-of-behavior
+    # marker above doesn't fire. The walker also pinned zero packet-level
+    # labels — meaning no transition matched any frame in the saved pcap.
+    # Three honest possibilities:
+    #   1. The DUT-emitted frame matching the pass cond was observed by
+    #      the harness's libpcap into the C++ ``*Captured`` struct but
+    #      not retained in the saved pcap (truncation / netns-scope).
+    #   2. The pass cond depends on a side-channel field the walker
+    #      can't reconstruct from the saved frames (e.g. unicast
+    #      observed_udp_* on a Group C case where the saved pcap shows
+    #      only multicast + real-veth-MAC egress).
+    #   3. The cond uses a helper / field combination the auto-labeller
+    #      doesn't model.
+    # All three reduce to: trust the live verdict, surface the gap
+    # at the case level, point readers at the SCXML pane.
+    elif (
+        pcap_outcome == "pass"
+        and not any(m.role in ("expected", "fail-trigger") for m in msgs)
+    ):
+        msgs.insert(0, AutoMessage(
+            idx=-1, role="case-note",
+            label=(
+                "Outcome=pass, but the auto-labeller could not pin the "
+                "matching SCXML pass transition to a packet in the saved "
+                "pcap — either the DUT-emitted frame that fired the live "
+                "verdict isn't retained here (capture-scope shortfall) or "
+                "the pass cond relies on a side-channel field the "
+                "evaluator can't reconstruct from the saved frames. See "
+                "the SCXML pane below for the pass criteria the harness "
+                "verified."
             ),
         ))
     # Symmetric fail-outcome marker. If the live run landed fail but the
