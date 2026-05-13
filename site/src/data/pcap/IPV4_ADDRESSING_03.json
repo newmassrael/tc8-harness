@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_ADDRESSING_03",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
+  "captured_at": "2026-05-13T02:15:02Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -17,7 +17,7 @@
       "src_ip": "172.16.0.1",
       "dst_ip": "127.0.0.1",
       "protocol": "ICMPv4",
-      "summary": "type=8 code=0",
+      "summary": "Echo Request",
       "fields": {
         "type": 8,
         "code": 0

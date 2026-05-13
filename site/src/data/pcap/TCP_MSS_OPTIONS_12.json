@@ -1,10 +1,10 @@
 {
   "case_id": "TCP_MSS_OPTIONS_12",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
-  "tester_mac": "4e:63:e3:e2:f3:e9",
+  "captured_at": "2026-05-13T02:15:02Z",
+  "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "4a:3b:2d:1b:a4:71",
+  "dut_mac": "da:c4:49:47:c3:5d",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -12,94 +12,99 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
-      "dst_mac": "4a:3b:2d:1b:a4:71",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "da:c4:49:47:c3:5d",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "13022 → 49224 [ACK] seq=859980650 ack=270544961",
+      "summary": "13022 → 49224 [ACK] seq=690876789 ack=270544961 win=64240 len=1460",
       "fields": {
         "src_port": 13022,
         "dst_port": 49224,
-        "seq": 859980650,
+        "seq": 690876789,
         "ack": 270544961,
-        "flags": "ACK"
+        "flags": "ACK",
+        "window": 64240
       }
     },
     {
       "idx": 1,
-      "ts_us": 11,
-      "ts_delta_us": 11,
+      "ts_us": 15,
+      "ts_delta_us": 15,
       "direction": "dut_to_tester",
-      "src_mac": "4a:3b:2d:1b:a4:71",
-      "dst_mac": "4e:63:e3:e2:f3:e9",
+      "src_mac": "da:c4:49:47:c3:5d",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "49224 → 13022 [RST] seq=270544961 ack=0",
+      "summary": "49224 → 13022 [RST] seq=270544961 ack=0 win=0",
       "fields": {
         "src_port": 49224,
         "dst_port": 13022,
         "seq": 270544961,
         "ack": 0,
-        "flags": "RST"
+        "flags": "RST",
+        "window": 0
       }
     },
     {
       "idx": 2,
-      "ts_us": 572869,
-      "ts_delta_us": 572858,
+      "ts_us": 504842,
+      "ts_delta_us": 504827,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
-      "dst_mac": "4a:3b:2d:1b:a4:71",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "da:c4:49:47:c3:5d",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49541 → 23497 [SYN] seq=1420241113 ack=0",
+      "summary": "49541 → 23497 [SYN] seq=1250698179 ack=0 win=64240",
       "fields": {
         "src_port": 49541,
         "dst_port": 23497,
-        "seq": 1420241113,
+        "seq": 1250698179,
         "ack": 0,
-        "flags": "SYN"
+        "flags": "SYN",
+        "window": 64240
       }
     },
     {
       "idx": 3,
-      "ts_us": 572876,
-      "ts_delta_us": 7,
+      "ts_us": 504848,
+      "ts_delta_us": 6,
       "direction": "dut_to_tester",
-      "src_mac": "4a:3b:2d:1b:a4:71",
-      "dst_mac": "4e:63:e3:e2:f3:e9",
+      "src_mac": "da:c4:49:47:c3:5d",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "23497 → 49541 [SYN|ACK] seq=2945889473 ack=1420241114",
+      "summary": "23497 → 49541 [SYN|ACK] seq=2776346524 ack=1250698180 win=65160",
       "fields": {
         "src_port": 23497,
         "dst_port": 49541,
-        "seq": 2945889473,
-        "ack": 1420241114,
-        "flags": "SYN|ACK"
+        "seq": 2776346524,
+        "ack": 1250698180,
+        "flags": "SYN|ACK",
+        "window": 65160
       }
     },
     {
       "idx": 4,
-      "ts_us": 572882,
-      "ts_delta_us": 6,
+      "ts_us": 504855,
+      "ts_delta_us": 7,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
-      "dst_mac": "4a:3b:2d:1b:a4:71",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "da:c4:49:47:c3:5d",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49541 → 23497 [ACK] seq=1420241114 ack=2945889474",
+      "summary": "49541 → 23497 [ACK] seq=1250698180 ack=2776346525 win=502",
       "fields": {
         "src_port": 49541,
         "dst_port": 23497,
-        "seq": 1420241114,
-        "ack": 2945889474,
-        "flags": "ACK"
+        "seq": 1250698180,
+        "ack": 2776346525,
+        "flags": "ACK",
+        "window": 502
       }
     }
   ]

@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_REASSEMBLY_11",
   "outcome": "fail",
-  "captured_at": "2026-05-07T00:29:32Z",
-  "tester_mac": "4e:63:e3:e2:f3:e9",
+  "captured_at": "2026-05-13T02:15:02Z",
+  "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,11 +13,11 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "4e:63:e3:e2:f3:e9",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=8 code=0",
+      "summary": "Echo Request",
       "fields": {
         "type": 8,
         "code": 0
@@ -25,15 +25,15 @@
     },
     {
       "idx": 1,
-      "ts_us": 2015344,
-      "ts_delta_us": 2015344,
+      "ts_us": 2015467,
+      "ts_delta_us": 2015467,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
-      "dst_mac": "4a:3b:2d:1b:a4:71",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "da:c4:49:47:c3:5d",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
-      "summary": "type=11 code=1",
+      "summary": "Time Exceeded (code=1)",
       "fields": {
         "type": 11,
         "code": 1
@@ -41,15 +41,15 @@
     },
     {
       "idx": 2,
-      "ts_us": 3035554,
-      "ts_delta_us": 1020210,
+      "ts_us": 3015697,
+      "ts_delta_us": 1000230,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "4e:63:e3:e2:f3:e9",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=17 code=34",
+      "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
         "code": 34

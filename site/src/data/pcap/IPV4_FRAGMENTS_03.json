@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_FRAGMENTS_03",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
-  "tester_mac": "ce:e9:86:bf:01:8c",
+  "captured_at": "2026-05-13T02:15:02Z",
+  "tester_mac": "6a:84:bb:b6:35:38",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,11 +13,11 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "6a:84:bb:b6:35:38",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=8 code=0",
+      "summary": "Echo Request",
       "fields": {
         "type": 8,
         "code": 0
@@ -25,15 +25,15 @@
     },
     {
       "idx": 1,
-      "ts_us": 23388,
-      "ts_delta_us": 23388,
+      "ts_us": 19339,
+      "ts_delta_us": 19339,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "6a:84:bb:b6:35:38",
       "src_ip": "172.16.0.99",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=17 code=34",
+      "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
         "code": 34
@@ -41,15 +41,15 @@
     },
     {
       "idx": 2,
-      "ts_us": 2274166,
-      "ts_delta_us": 2250778,
+      "ts_us": 2253892,
+      "ts_delta_us": 2234553,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "6a:84:bb:b6:35:38",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=17 code=34",
+      "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
         "code": 34
@@ -57,15 +57,15 @@
     },
     {
       "idx": 3,
-      "ts_us": 2274192,
-      "ts_delta_us": 26,
+      "ts_us": 2253946,
+      "ts_delta_us": 54,
       "direction": "tester_to_dut",
-      "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "3a:36:55:79:d0:32",
+      "src_mac": "6a:84:bb:b6:35:38",
+      "dst_mac": "02:35:7a:fa:ba:90",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
-      "summary": "type=0 code=0",
+      "summary": "Echo Reply",
       "fields": {
         "type": 0,
         "code": 0

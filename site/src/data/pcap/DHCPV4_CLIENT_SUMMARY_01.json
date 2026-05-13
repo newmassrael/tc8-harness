@@ -1,8 +1,8 @@
 {
   "case_id": "DHCPV4_CLIENT_SUMMARY_01",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
-  "tester_mac": "4e:63:e3:e2:f3:e9",
+  "captured_at": "2026-05-13T02:15:02Z",
+  "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "0.0.0.0",
   "dut_mac": "02:00:00:00:00:a1",
   "dut_ip": "172.16.0.10",
@@ -12,50 +12,59 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
+      "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "68 → 67, len=258",
+      "summary": "DHCPv4 Discover xid=0x66a96abe chaddr=7e:b1:ae:f4:32:5d",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
-        "length": 258
+        "op": 1,
+        "xid": 1722378942,
+        "chaddr": "7e:b1:ae:f4:32:5d",
+        "dhcp_msg_type": 1
       }
     },
     {
       "idx": 1,
-      "ts_us": 26892,
-      "ts_delta_us": 26892,
+      "ts_us": 43093,
+      "ts_delta_us": 43093,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "172.16.0.10",
       "dst_ip": "255.255.255.255",
-      "protocol": "UDP",
-      "summary": "67 → 68, len=270",
+      "protocol": "DHCPv4",
+      "summary": "DHCPv4 Offer xid=0x66a96abe chaddr=7e:b1:ae:f4:32:5d",
       "fields": {
         "src_port": 67,
         "dst_port": 68,
-        "length": 270
+        "op": 2,
+        "xid": 1722378942,
+        "chaddr": "7e:b1:ae:f4:32:5d",
+        "dhcp_msg_type": 2
       }
     },
     {
       "idx": 2,
-      "ts_us": 26948,
-      "ts_delta_us": 56,
+      "ts_us": 50944,
+      "ts_delta_us": 7851,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
+      "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "68 → 67, len=270",
+      "summary": "DHCPv4 Request xid=0x66a96abe chaddr=7e:b1:ae:f4:32:5d",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
-        "length": 270
+        "op": 1,
+        "xid": 1722378942,
+        "chaddr": "7e:b1:ae:f4:32:5d",
+        "dhcp_msg_type": 3
       }
     }
   ]

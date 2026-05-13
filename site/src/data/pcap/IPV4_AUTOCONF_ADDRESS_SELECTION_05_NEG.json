@@ -1,10 +1,10 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_05_NEG",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
+  "captured_at": "2026-05-13T02:15:02Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": null,
-  "dut_mac": null,
+  "dut_mac": "56:08:a7:7f:29:fb",
   "dut_ip": null,
   "packets": [
     {
@@ -17,13 +17,32 @@
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.93.132? Tell 0.0.0.0 (sender_mac=ca:fe:ba:be:00:00)",
+      "summary": "Who has 172.16.0.1? Tell 172.16.0.2 (sender_mac=5e:45:c1:4c:94:86)",
       "fields": {
         "opcode": 1,
-        "sender_mac": "ca:fe:ba:be:00:00",
-        "sender_ip": "0.0.0.0",
+        "sender_mac": "5e:45:c1:4c:94:86",
+        "sender_ip": "172.16.0.2",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.93.132"
+        "target_ip": "172.16.0.1"
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 4,
+      "ts_delta_us": 4,
+      "direction": "dut_to_tester",
+      "src_mac": "56:08:a7:7f:29:fb",
+      "dst_mac": "5e:45:c1:4c:94:86",
+      "src_ip": null,
+      "dst_ip": null,
+      "protocol": "ARP",
+      "summary": "172.16.0.1 is at 56:08:a7:7f:29:fb",
+      "fields": {
+        "opcode": 2,
+        "sender_mac": "56:08:a7:7f:29:fb",
+        "sender_ip": "172.16.0.1",
+        "target_mac": "5e:45:c1:4c:94:86",
+        "target_ip": "172.16.0.2"
       }
     }
   ]

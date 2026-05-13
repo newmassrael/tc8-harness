@@ -1,8 +1,8 @@
 {
   "case_id": "ICMPV4_TYPE_12",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
-  "tester_mac": "a6:93:31:32:9e:e4",
+  "captured_at": "2026-05-13T02:15:02Z",
+  "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -17,7 +17,7 @@
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=13 code=0",
+      "summary": "Timestamp Request",
       "fields": {
         "type": 13,
         "code": 0
@@ -25,15 +25,15 @@
     },
     {
       "idx": 1,
-      "ts_us": 29,
-      "ts_delta_us": 29,
+      "ts_us": 26,
+      "ts_delta_us": 26,
       "direction": "tester_to_dut",
-      "src_mac": "a6:93:31:32:9e:e4",
-      "dst_mac": "2a:b1:1b:5c:43:f7",
+      "src_mac": "6e:16:3b:ea:29:ea",
+      "dst_mac": "e6:f5:b6:eb:6f:a6",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
-      "summary": "type=14 code=0",
+      "summary": "Timestamp Reply",
       "fields": {
         "type": 14,
         "code": 0

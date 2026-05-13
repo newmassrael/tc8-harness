@@ -1,10 +1,10 @@
 {
   "case_id": "TCP_CLOSING_03",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
-  "tester_mac": "4e:63:e3:e2:f3:e9",
+  "captured_at": "2026-05-13T02:15:02Z",
+  "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "4a:3b:2d:1b:a4:71",
+  "dut_mac": "da:c4:49:47:c3:5d",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -12,113 +12,119 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
-      "dst_mac": "4a:3b:2d:1b:a4:71",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "da:c4:49:47:c3:5d",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49571 → 23527 [SYN] seq=4279869784 ack=0",
+      "summary": "49571 → 23527 [SYN] seq=4106196101 ack=0 win=64240",
       "fields": {
         "src_port": 49571,
         "dst_port": 23527,
-        "seq": 4279869784,
+        "seq": 4106196101,
         "ack": 0,
-        "flags": "SYN"
+        "flags": "SYN",
+        "window": 64240
       }
     },
     {
       "idx": 1,
-      "ts_us": 7,
-      "ts_delta_us": 7,
+      "ts_us": 11,
+      "ts_delta_us": 11,
       "direction": "dut_to_tester",
-      "src_mac": "4a:3b:2d:1b:a4:71",
-      "dst_mac": "4e:63:e3:e2:f3:e9",
+      "src_mac": "da:c4:49:47:c3:5d",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "23527 → 49571 [SYN|ACK] seq=210244377 ack=4279869785",
+      "summary": "23527 → 49571 [SYN|ACK] seq=36570867 ack=4106196102 win=65160",
       "fields": {
         "src_port": 23527,
         "dst_port": 49571,
-        "seq": 210244377,
-        "ack": 4279869785,
-        "flags": "SYN|ACK"
+        "seq": 36570867,
+        "ack": 4106196102,
+        "flags": "SYN|ACK",
+        "window": 65160
       }
     },
     {
       "idx": 2,
-      "ts_us": 13,
-      "ts_delta_us": 6,
+      "ts_us": 22,
+      "ts_delta_us": 11,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
-      "dst_mac": "4a:3b:2d:1b:a4:71",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "da:c4:49:47:c3:5d",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49571 → 23527 [ACK] seq=4279869785 ack=210244378",
+      "summary": "49571 → 23527 [ACK] seq=4106196102 ack=36570868 win=502",
       "fields": {
         "src_port": 49571,
         "dst_port": 23527,
-        "seq": 4279869785,
-        "ack": 210244378,
-        "flags": "ACK"
+        "seq": 4106196102,
+        "ack": 36570868,
+        "flags": "ACK",
+        "window": 502
       }
     },
     {
       "idx": 3,
-      "ts_us": 185700,
-      "ts_delta_us": 185687,
+      "ts_us": 165826,
+      "ts_delta_us": 165804,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "4e:63:e3:e2:f3:e9",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "23527 → 49571 [ACK|RST] seq=210244378 ack=4279869785",
+      "summary": "23527 → 49571 [ACK|RST] seq=36570868 ack=4106196102 win=65535 len=16",
       "fields": {
         "src_port": 23527,
         "dst_port": 49571,
-        "seq": 210244378,
-        "ack": 4279869785,
-        "flags": "ACK|RST"
+        "seq": 36570868,
+        "ack": 4106196102,
+        "flags": "ACK|RST",
+        "window": 65535
       }
     },
     {
       "idx": 4,
-      "ts_us": 3220978,
-      "ts_delta_us": 3035278,
+      "ts_us": 3195066,
+      "ts_delta_us": 3029240,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "4e:63:e3:e2:f3:e9",
+      "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "23527 → 49571 [ACK] seq=210244383 ack=4279869785",
+      "summary": "23527 → 49571 [ACK] seq=36570873 ack=4106196102 win=65535",
       "fields": {
         "src_port": 23527,
         "dst_port": 49571,
-        "seq": 210244383,
-        "ack": 4279869785,
-        "flags": "ACK"
+        "seq": 36570873,
+        "ack": 4106196102,
+        "flags": "ACK",
+        "window": 65535
       }
     },
     {
       "idx": 5,
-      "ts_us": 3220989,
-      "ts_delta_us": 11,
+      "ts_us": 3195073,
+      "ts_delta_us": 7,
       "direction": "tester_to_dut",
-      "src_mac": "4e:63:e3:e2:f3:e9",
-      "dst_mac": "4a:3b:2d:1b:a4:71",
+      "src_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "da:c4:49:47:c3:5d",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49571 → 23527 [RST] seq=4279869785 ack=0",
+      "summary": "49571 → 23527 [RST] seq=4106196102 ack=0 win=0",
       "fields": {
         "src_port": 49571,
         "dst_port": 23527,
-        "seq": 4279869785,
+        "seq": 4106196102,
         "ack": 0,
-        "flags": "RST"
+        "flags": "RST",
+        "window": 0
       }
     }
   ]

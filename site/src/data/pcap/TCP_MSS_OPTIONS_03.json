@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_MSS_OPTIONS_03",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
+  "captured_at": "2026-05-13T02:15:02Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -17,51 +17,54 @@
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "49205 → 13003 [SYN] seq=270544960 ack=0",
+      "summary": "49205 → 13003 [SYN] seq=270544960 ack=0 win=65535",
       "fields": {
         "src_port": 49205,
         "dst_port": 13003,
         "seq": 270544960,
         "ack": 0,
-        "flags": "SYN"
+        "flags": "SYN",
+        "window": 65535
       }
     },
     {
       "idx": 1,
-      "ts_us": 45,
-      "ts_delta_us": 45,
+      "ts_us": 39,
+      "ts_delta_us": 39,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "72:bb:95:e9:d5:82",
+      "dst_mac": "56:08:a7:7f:29:fb",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "13003 → 49205 [SYN|ACK] seq=3729730066 ack=270544961",
+      "summary": "13003 → 49205 [SYN|ACK] seq=3290193515 ack=270544961 win=64240",
       "fields": {
         "src_port": 13003,
         "dst_port": 49205,
-        "seq": 3729730066,
+        "seq": 3290193515,
         "ack": 270544961,
-        "flags": "SYN|ACK"
+        "flags": "SYN|ACK",
+        "window": 64240
       }
     },
     {
       "idx": 2,
-      "ts_us": 287656,
-      "ts_delta_us": 287611,
+      "ts_us": 293670,
+      "ts_delta_us": 293631,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "TCP",
-      "summary": "49205 → 13003 [ACK] seq=270544961 ack=3729730067",
+      "summary": "49205 → 13003 [ACK] seq=270544961 ack=3290193516 win=65535",
       "fields": {
         "src_port": 49205,
         "dst_port": 13003,
         "seq": 270544961,
-        "ack": 3729730067,
-        "flags": "ACK"
+        "ack": 3290193516,
+        "flags": "ACK",
+        "window": 65535
       }
     }
   ]

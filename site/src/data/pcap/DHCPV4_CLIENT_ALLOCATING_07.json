@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_ALLOCATING_07",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
+  "captured_at": "2026-05-13T02:15:02Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "0.0.0.0",
   "dut_mac": "02:00:00:00:00:a1",
@@ -28,18 +28,18 @@
     },
     {
       "idx": 1,
-      "ts_us": 5,
-      "ts_delta_us": 5,
+      "ts_us": 4,
+      "ts_delta_us": 4,
       "direction": "dut_to_tester",
-      "src_mac": "72:bb:95:e9:d5:82",
+      "src_mac": "56:08:a7:7f:29:fb",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at 72:bb:95:e9:d5:82",
+      "summary": "172.16.0.1 is at 56:08:a7:7f:29:fb",
       "fields": {
         "opcode": 2,
-        "sender_mac": "72:bb:95:e9:d5:82",
+        "sender_mac": "56:08:a7:7f:29:fb",
         "sender_ip": "172.16.0.1",
         "target_mac": "5e:45:c1:4c:94:86",
         "target_ip": "172.16.0.2"
@@ -47,76 +47,88 @@
     },
     {
       "idx": 2,
-      "ts_us": 148,
-      "ts_delta_us": 143,
+      "ts_us": 73,
+      "ts_delta_us": 69,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "68 → 67, len=258",
+      "summary": "DHCPv4 Discover xid=0x25f34deb chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
-        "length": 258
+        "op": 1,
+        "xid": 636702187,
+        "chaddr": "5e:45:c1:4c:94:86",
+        "dhcp_msg_type": 1
       }
     },
     {
       "idx": 3,
-      "ts_us": 43537,
-      "ts_delta_us": 43389,
+      "ts_us": 35465,
+      "ts_delta_us": 35392,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "172.16.0.10",
       "dst_ip": "255.255.255.255",
-      "protocol": "UDP",
-      "summary": "67 → 68, len=270",
+      "protocol": "DHCPv4",
+      "summary": "DHCPv4 Offer xid=0x25f34deb chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 67,
         "dst_port": 68,
-        "length": 270
+        "op": 2,
+        "xid": 636702187,
+        "chaddr": "5e:45:c1:4c:94:86",
+        "dhcp_msg_type": 2
       }
     },
     {
       "idx": 4,
-      "ts_us": 43686,
-      "ts_delta_us": 149,
+      "ts_us": 39128,
+      "ts_delta_us": 3663,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "68 → 67, len=270",
+      "summary": "DHCPv4 Request xid=0x25f34deb chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
-        "length": 270
+        "op": 1,
+        "xid": 636702187,
+        "chaddr": "5e:45:c1:4c:94:86",
+        "dhcp_msg_type": 3
       }
     },
     {
       "idx": 5,
-      "ts_us": 151611,
-      "ts_delta_us": 107925,
+      "ts_us": 151734,
+      "ts_delta_us": 112606,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "172.16.0.10",
       "dst_ip": "255.255.255.255",
-      "protocol": "UDP",
-      "summary": "67 → 68, len=270",
+      "protocol": "DHCPv4",
+      "summary": "DHCPv4 Ack xid=0x25f34deb chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 67,
         "dst_port": 68,
-        "length": 270
+        "op": 2,
+        "xid": 636702187,
+        "chaddr": "5e:45:c1:4c:94:86",
+        "dhcp_msg_type": 5
       }
     },
     {
       "idx": 6,
-      "ts_us": 151755,
-      "ts_delta_us": 144,
+      "ts_us": 151848,
+      "ts_delta_us": 114,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -134,8 +146,8 @@
     },
     {
       "idx": 7,
-      "ts_us": 259470,
-      "ts_delta_us": 107715,
+      "ts_us": 248112,
+      "ts_delta_us": 96264,
       "direction": "dut_to_tester",
       "src_mac": "02:00:de:ad:00:01",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -153,36 +165,42 @@
     },
     {
       "idx": 8,
-      "ts_us": 303109,
-      "ts_delta_us": 43639,
+      "ts_us": 275304,
+      "ts_delta_us": 27192,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "68 → 67, len=270",
+      "summary": "DHCPv4 Decline xid=0x25f34deb chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
-        "length": 270
+        "op": 1,
+        "xid": 636702187,
+        "chaddr": "5e:45:c1:4c:94:86",
+        "dhcp_msg_type": 4
       }
     },
     {
       "idx": 9,
-      "ts_us": 335057,
-      "ts_delta_us": 31948,
+      "ts_us": 291281,
+      "ts_delta_us": 15977,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "68 → 67, len=258",
+      "summary": "DHCPv4 Discover xid=0x83b9e683 chaddr=5e:45:c1:4c:94:86",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
-        "length": 258
+        "op": 1,
+        "xid": 2209998467,
+        "chaddr": "5e:45:c1:4c:94:86",
+        "dhcp_msg_type": 1
       }
     }
   ]

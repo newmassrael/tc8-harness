@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_13",
   "outcome": "fail",
-  "captured_at": "2026-05-07T00:29:32Z",
+  "captured_at": "2026-05-13T02:15:02Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -17,7 +17,7 @@
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=8 code=0",
+      "summary": "Echo Request",
       "fields": {
         "type": 8,
         "code": 0
@@ -25,8 +25,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 239566,
-      "ts_delta_us": 239566,
+      "ts_us": 223834,
+      "ts_delta_us": 223834,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -41,8 +41,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 455601,
-      "ts_delta_us": 216035,
+      "ts_us": 459684,
+      "ts_delta_us": 235850,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -57,8 +57,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 683606,
-      "ts_delta_us": 228005,
+      "ts_us": 679550,
+      "ts_delta_us": 219866,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",

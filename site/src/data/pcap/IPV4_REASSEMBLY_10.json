@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_REASSEMBLY_10",
   "outcome": "pass",
-  "captured_at": "2026-05-07T00:29:32Z",
-  "tester_mac": "a6:93:31:32:9e:e4",
+  "captured_at": "2026-05-13T02:15:02Z",
+  "tester_mac": "6e:16:3b:ea:29:ea",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,11 +13,11 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "a6:93:31:32:9e:e4",
+      "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=8 code=0",
+      "summary": "Echo Request",
       "fields": {
         "type": 8,
         "code": 0
@@ -25,15 +25,15 @@
     },
     {
       "idx": 1,
-      "ts_us": 1023282,
-      "ts_delta_us": 1023282,
+      "ts_us": 1031312,
+      "ts_delta_us": 1031312,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "a6:93:31:32:9e:e4",
+      "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=17 code=34",
+      "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
         "code": 34
@@ -41,15 +41,15 @@
     },
     {
       "idx": 2,
-      "ts_us": 1023304,
-      "ts_delta_us": 22,
+      "ts_us": 1031351,
+      "ts_delta_us": 39,
       "direction": "tester_to_dut",
-      "src_mac": "a6:93:31:32:9e:e4",
-      "dst_mac": "2a:b1:1b:5c:43:f7",
+      "src_mac": "6e:16:3b:ea:29:ea",
+      "dst_mac": "e6:f5:b6:eb:6f:a6",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
-      "summary": "type=0 code=0",
+      "summary": "Echo Reply",
       "fields": {
         "type": 0,
         "code": 0
@@ -57,15 +57,15 @@
     },
     {
       "idx": 3,
-      "ts_us": 1255249,
-      "ts_delta_us": 231945,
+      "ts_us": 1251430,
+      "ts_delta_us": 220079,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "a6:93:31:32:9e:e4",
+      "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=8 code=0",
+      "summary": "Echo Request",
       "fields": {
         "type": 8,
         "code": 0
@@ -73,15 +73,15 @@
     },
     {
       "idx": 4,
-      "ts_us": 3287066,
-      "ts_delta_us": 2031817,
+      "ts_us": 3259339,
+      "ts_delta_us": 2007909,
       "direction": "tester_to_dut",
-      "src_mac": "a6:93:31:32:9e:e4",
-      "dst_mac": "2a:b1:1b:5c:43:f7",
+      "src_mac": "6e:16:3b:ea:29:ea",
+      "dst_mac": "e6:f5:b6:eb:6f:a6",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
-      "summary": "type=11 code=1",
+      "summary": "Time Exceeded (code=1)",
       "fields": {
         "type": 11,
         "code": 1
@@ -89,15 +89,15 @@
     },
     {
       "idx": 5,
-      "ts_us": 4283114,
-      "ts_delta_us": 996048,
+      "ts_us": 4275459,
+      "ts_delta_us": 1016120,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "a6:93:31:32:9e:e4",
+      "dst_mac": "6e:16:3b:ea:29:ea",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
-      "summary": "type=17 code=34",
+      "summary": "Address Mask Request (code=34)",
       "fields": {
         "type": 17,
         "code": 34
