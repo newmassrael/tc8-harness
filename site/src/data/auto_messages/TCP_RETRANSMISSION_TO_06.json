@@ -1,0 +1,11 @@
+{
+  "case_id": "TCP_RETRANSMISSION_TO_06",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "case_id": "SOMEIPSRV_FORMAT_26",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_entries[0].type == 0x07 and sd_entries[0].ttl == expected.ttl"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 7,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 8,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    }
+  ]
+}

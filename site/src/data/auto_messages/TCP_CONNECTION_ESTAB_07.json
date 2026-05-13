@@ -1,0 +1,41 @@
+{
+  "case_id": "TCP_CONNECTION_ESTAB_07",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listen_dut_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Phase 1 (listen_dut_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (listen_dut_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "stimulus",
+      "label": "Phase 1 (listen_dut_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "expected",
+      "label": "Phase 1 (listen_dut_ack) progress trigger — advances to listen_dut_fin. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (flags & 0x…"
+    },
+    {
+      "idx": 5,
+      "role": "expected",
+      "label": "Phase 2 (listen_dut_fin) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (flags & 0x…"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    }
+  ]
+}

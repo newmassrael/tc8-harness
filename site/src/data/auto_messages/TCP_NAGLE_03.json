@@ -1,0 +1,51 @@
+{
+  "case_id": "TCP_NAGLE_03",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_first_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Phase 1 (listening_first_data) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_first_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (listening_first_data) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_first_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "expected",
+      "label": "Phase 1 (listening_first_data) progress trigger — advances to absence_or_aggregate. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalO…"
+    },
+    {
+      "idx": 6,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_or_aggregate) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_or_aggregate) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_or_aggregate) — Tester stimulus (no transition matched)"
+    }
+  ]
+}

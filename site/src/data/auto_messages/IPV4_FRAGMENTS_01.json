@@ -1,0 +1,21 @@
+{
+  "case_id": "IPV4_FRAGMENTS_01",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "fail-trigger",
+      "label": "Phase 1 (listening) fail trigger — transitions to fail_data_mismatch. Cond: type == 0 and src_ip == expected.dut_iface_ip"
+    }
+  ]
+}

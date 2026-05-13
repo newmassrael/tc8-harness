@@ -1,0 +1,31 @@
+{
+  "case_id": "TCP_HEADER_05",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "expected",
+      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_data_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 33U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 2 (listening_data_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_data_ack) — Tester stimulus (no transition matched)"
+    }
+  ]
+}

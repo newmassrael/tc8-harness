@@ -1,0 +1,11 @@
+{
+  "case_id": "ICMPV4_TYPE_18",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: type == 3 and code == 2 and src_ip == expected.dut_iface_ip"
+    }
+  ]
+}

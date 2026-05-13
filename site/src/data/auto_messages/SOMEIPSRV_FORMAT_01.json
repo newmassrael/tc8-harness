@@ -1,0 +1,11 @@
+{
+  "case_id": "SOMEIPSRV_FORMAT_01",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: client_id == 0x0000"
+    }
+  ]
+}

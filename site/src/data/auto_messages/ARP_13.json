@@ -1,0 +1,16 @@
+{
+  "case_id": "ARP_13",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "fail-trigger",
+      "label": "Phase 1 (listening) fail trigger — transitions to fail_sender_hw. Cond: opcode == 1 and sender_hw != expected.dut_iface_mac"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Post-fail teardown (state machine already at final)"
+    }
+  ]
+}

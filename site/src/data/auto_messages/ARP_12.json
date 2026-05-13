@@ -1,0 +1,16 @@
+{
+  "case_id": "ARP_12",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "fail-trigger",
+      "label": "Phase 1 (listening) fail trigger — transitions to fail_opcode. Cond: opcode != 1 and sender_hw == expected.dut_iface_mac"
+    }
+  ]
+}

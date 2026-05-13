@@ -1,7 +1,7 @@
 {
   "case_id": "UDP_FIELDS_06",
   "outcome": "pass",
-  "captured_at": "2026-05-13T02:15:02Z",
+  "captured_at": "2026-05-13T02:39:28Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -65,8 +65,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200084,
-      "ts_delta_us": 200084,
+      "ts_us": 200256,
+      "ts_delta_us": 200256,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -104,15 +104,15 @@
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
             "name": "IPv4Endpoint",
             "ipv4": "172.16.0.2",
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           }
         ],
         "src_port": 30490,
@@ -121,8 +121,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600127,
-      "ts_delta_us": 400043,
+      "ts_us": 600423,
+      "ts_delta_us": 400167,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -177,8 +177,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 1000436,
-      "ts_delta_us": 400309,
+      "ts_us": 987717,
+      "ts_delta_us": 387294,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "7e:b1:ae:f4:32:5d",
@@ -194,11 +194,11 @@
     },
     {
       "idx": 4,
-      "ts_us": 1000537,
-      "ts_delta_us": 101,
+      "ts_us": 987862,
+      "ts_delta_us": 145,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "da:c4:49:47:c3:5d",
+      "dst_mac": "56:6b:8d:4a:ab:dc",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UDP",
@@ -211,11 +211,11 @@
     },
     {
       "idx": 5,
-      "ts_us": 1000571,
-      "ts_delta_us": 34,
+      "ts_us": 987888,
+      "ts_delta_us": 26,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "da:c4:49:47:c3:5d",
+      "dst_mac": "56:6b:8d:4a:ab:dc",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UDP",

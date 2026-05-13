@@ -1,0 +1,11 @@
+{
+  "case_id": "ICMPV4_ERROR_04",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "note",
+      "label": "Phase 1 (listening) — observed frame"
+    }
+  ]
+}

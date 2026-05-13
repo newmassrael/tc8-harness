@@ -1,0 +1,36 @@
+{
+  "case_id": "IPV4_AUTOCONF_INTRO_01",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+    }
+  ]
+}

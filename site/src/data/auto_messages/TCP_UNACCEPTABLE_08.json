@@ -1,0 +1,51 @@
+{
+  "case_id": "TCP_UNACCEPTABLE_08",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_dut_rst) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Phase 1 (listening_p1_dut_rst) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "expected",
+      "label": "Phase 1 (listening_p1_dut_rst) progress trigger — advances to listening_p2_dut_rst. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and dst_port == ::…"
+    },
+    {
+      "idx": 3,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p2_dut_rst) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p2_dut_rst) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p2_dut_rst) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Phase 2 (listening_p2_dut_rst) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p2_dut_rst) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "note",
+      "label": "Phase 2 (listening_p2_dut_rst) — DUT frame (no transition matched)"
+    }
+  ]
+}

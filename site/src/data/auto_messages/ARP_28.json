@@ -1,0 +1,51 @@
+{
+  "case_id": "ARP_28",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "note",
+      "label": "Phase 1 (listening) — observed frame"
+    },
+    {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    }
+  ]
+}

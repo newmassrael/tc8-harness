@@ -1,0 +1,11 @@
+{
+  "case_id": "IPV4_REASSEMBLY_09",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "note",
+      "label": "Phase 1 (listening) — observed frame"
+    }
+  ]
+}

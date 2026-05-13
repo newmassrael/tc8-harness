@@ -1,0 +1,216 @@
+{
+  "case_id": "SOMEIP_ETS_128",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) progress trigger — advances to listening_phase2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
+    },
+    {
+      "idx": 1,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
+    },
+    {
+      "idx": 2,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 4,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 7,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 8,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 10,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 11,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 12,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 13,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 14,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 15,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 16,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 17,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 18,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 19,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 20,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 21,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 22,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 23,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 24,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 25,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 26,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 27,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 28,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 29,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 30,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 31,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 32,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 33,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 34,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 35,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 36,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 37,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 38,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 39,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 40,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 41,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "case_id": "TCP_SEQUENCE_01",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    }
+  ]
+}

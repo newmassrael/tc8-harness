@@ -1,0 +1,11 @@
+{
+  "case_id": "SOMEIPSRV_FORMAT_17",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "expected",
+      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_entries[0].type == 0x01 and sd_entries[0].ttl == expected.ttl"
+    }
+  ]
+}

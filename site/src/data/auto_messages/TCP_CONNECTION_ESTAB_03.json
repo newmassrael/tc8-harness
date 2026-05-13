@@ -1,0 +1,66 @@
+{
+  "case_id": "TCP_CONNECTION_ESTAB_03",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listen_leg1) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "note",
+      "label": "Phase 1 (listen_leg1) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "expected",
+      "label": "Phase 1 (listen_leg1) progress trigger — advances to listen_leg2. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalO…"
+    },
+    {
+      "idx": 3,
+      "role": "stimulus",
+      "label": "Phase 2 (listen_leg2) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "note",
+      "label": "Phase 2 (listen_leg2) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "expected",
+      "label": "Phase 2 (listen_leg2) progress trigger — advances to listen_leg3. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalO…"
+    },
+    {
+      "idx": 6,
+      "role": "stimulus",
+      "label": "Phase 3 (listen_leg3) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "note",
+      "label": "Phase 3 (listen_leg3) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "expected",
+      "label": "Phase 3 (listen_leg3) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalO…"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 10,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 11,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "case_id": "DHCPV4_CLIENT_ALLOCATING_01",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "case_id": "ARP_39",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "stimulus",
+      "label": "Phase 1 (wait_dut_request) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (wait_dut_request) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (wait_dut_request) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (wait_dut_request) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 1 (wait_dut_request) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Phase 1 (wait_dut_request) — observed frame"
+    },
+    {
+      "idx": 6,
+      "role": "stimulus",
+      "label": "Phase 1 (wait_dut_request) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 1 (wait_dut_request) — Tester stimulus (no transition matched)"
+    }
+  ]
+}

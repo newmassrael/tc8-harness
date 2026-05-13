@@ -1,0 +1,56 @@
+{
+  "case_id": "SOMEIP_ETS_021",
+  "generator_version": "2",
+  "messages": [
+    {
+      "idx": 0,
+      "role": "expected",
+      "label": "Phase 1 (listening_phase1) progress trigger — advances to listening_phase2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id"
+    },
+    {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "note",
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 9,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+    }
+  ]
+}
