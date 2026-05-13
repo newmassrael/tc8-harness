@@ -2778,14 +2778,165 @@ _CASE_UT_ESTABLISHED_ON_PASS: dict[str, int] = {
 }
 
 
+def _lookup_transition_cond_src(states_by_id: dict, step: dict) -> str:
+    """Return the SCXML cond source for a trace step.
+
+    The C++ harness records (from_state, to_state, event) per transition
+    but not the cond text — the SCXML is the authoritative source for
+    the cond, so the walker re-resolves it here. Falls back to whatever
+    ``transition_cond_text`` the trace carried (if any) when the SCXML
+    lookup misses (e.g. a synthetic step whose target state isn't in
+    states_by_id).
+    """
+    explicit = step.get("transition_cond_text")
+    if explicit:
+        return explicit
+    src = states_by_id.get(step.get("from_state", ""))
+    if not src:
+        return ""
+    target = step.get("to_state")
+    event = step.get("event") or ""
+    for t in src.transitions:
+        if t.target != target:
+            continue
+        if event and t.event and t.event != event:
+            continue
+        return t.cond_src
+    return ""
+
+
+def _label_via_trace(
+    states: list[StateDef], packets: list[dict],
+    trace: dict,
+) -> list[AutoMessage]:
+    """Option 3 SSOT path: render timeline directly from the harness's
+    recorded transition trace, bypassing the cond-evaluation loop entirely.
+
+    Each ``trace.steps[i]`` represents one SCXML transition the live
+    state machine fired, with the Captured fields it observed at that
+    moment plus a ``pcap_frame_idx`` linking back to the saved pcap.
+    Steps with ``pcap_frame_idx == null`` correspond to wire events the
+    harness's libpcap observed but the saved pcap did not retain (the
+    Mode B "capture-scope shortfall" pattern documented in
+    [[feedback-design-lightweight-bias]]). They surface as case-level
+    notes so the reader sees the verdict-decider evidence even though
+    the frame itself is absent below.
+
+    Walker drift is structurally impossible under this path: the walker
+    consumes harness ground truth, not a frame-by-frame simulation. The
+    Phase E lint (``trace.final_state === outcome``) closes the loop.
+    """
+    states_by_id = {s.id: s for s in states}
+
+    step_by_frame: dict[int, dict] = {}
+    synthetic_steps: list[dict] = []
+    for step in trace.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        pfi = step.get("pcap_frame_idx")
+        if isinstance(pfi, int):
+            step_by_frame[pfi] = step
+        else:
+            synthetic_steps.append(step)
+
+    final_state_id = trace.get("final_state") or ""
+    final_state = states_by_id.get(final_state_id)
+    final_kind = final_state.final_kind if final_state and final_state.is_final else ""
+
+    msgs: list[AutoMessage] = []
+
+    # Synthetic (non-retained-frame) steps surface as case-level notes
+    # pinned at the top of the timeline so the reader sees verdict-decider
+    # evidence before the per-frame stream. Ordered by ``step`` so a case
+    # with multiple non-retained events preserves harness wall-time order.
+    for step in sorted(synthetic_steps, key=lambda s: s.get("step", 0)):
+        from_s = step.get("from_state", "?")
+        to_s = step.get("to_state", "?")
+        cond_text = _short_cond(_lookup_transition_cond_src(states_by_id, step))
+        target_state = states_by_id.get(to_s)
+        verdict = (target_state.final_kind
+                   if target_state and target_state.is_final else "")
+        delta = step.get("captured_delta") or {}
+        delta_text = ", ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
+        verdict_tag = verdict or "progress"
+        msgs.append(AutoMessage(
+            idx=-1, role="case-note",
+            label=(
+                f"Verdict-decider not retained in saved pcap "
+                f"(step {step.get('step', '?')}, {from_s} → {to_s}, "
+                f"{verdict_tag}). Harness Captured at trace time: "
+                f"{delta_text}. Cond: {cond_text}"
+            ),
+        ))
+
+    reached_final = False
+    for p in packets:
+        idx = p.get("idx", 0)
+        direction = p.get("direction", "other")
+        step = step_by_frame.get(idx)
+
+        if step is None:
+            if reached_final:
+                msgs.append(AutoMessage(
+                    idx=idx, role="note",
+                    label=(
+                        f"Post-{final_kind or 'verdict'} teardown "
+                        f"(state machine already at {final_state_id or 'final'})"
+                    ),
+                ))
+            elif direction == "tester_to_dut":
+                msgs.append(AutoMessage(
+                    idx=idx, role="stimulus",
+                    label="Tester stimulus (no transition fired)",
+                ))
+            elif direction == "dut_to_tester":
+                msgs.append(AutoMessage(
+                    idx=idx, role="note",
+                    label="DUT frame (no transition fired)",
+                ))
+            else:
+                msgs.append(AutoMessage(
+                    idx=idx, role="note",
+                    label="Observed frame (no transition fired)",
+                ))
+            continue
+
+        from_s = step.get("from_state", "?")
+        to_s = step.get("to_state", "?")
+        cond_text = _short_cond(_lookup_transition_cond_src(states_by_id, step))
+        target_state = states_by_id.get(to_s)
+        verdict = (target_state.final_kind
+                   if target_state and target_state.is_final else "")
+        if verdict == "pass":
+            role = "expected"
+            label = (f"Step {step.get('step', '?')} ({from_s}) pass trigger — "
+                     f"transitions to {to_s}. Cond: {cond_text}")
+        elif verdict == "fail":
+            role = "fail-trigger"
+            label = (f"Step {step.get('step', '?')} ({from_s}) fail trigger — "
+                     f"transitions to {to_s}. Cond: {cond_text}")
+        else:
+            role = "expected"
+            label = (f"Step {step.get('step', '?')} ({from_s}) progress trigger — "
+                     f"advances to {to_s}. Cond: {cond_text}")
+        msgs.append(AutoMessage(idx=idx, role=role, label=label))
+        if target_state and target_state.is_final:
+            reached_final = True
+
+    return msgs
+
+
 def label_packets(
     states: list[StateDef], initial: str, packets: list[dict],
     expected: dict | None = None, case_id: str = "",
     pcap_outcome: str = "",
+    captured_trace: dict | None = None,
 ) -> list[AutoMessage]:
     expected = expected or {}
     if not states:
         return []
+    if isinstance(captured_trace, dict) and captured_trace.get("steps") is not None:
+        return _label_via_trace(states, packets, captured_trace)
     states_by_id = {s.id: s for s in states}
     current_id = initial or (states[0].id if not states[0].is_final else "")
     if current_id and current_id not in states_by_id:
@@ -3272,6 +3423,7 @@ def generate_for(case_id: str) -> tuple[bool, str]:
     msgs = label_packets(
         states, initial, packets, expected, case_id=cid,
         pcap_outcome=pcap_doc.get("outcome", ""),
+        captured_trace=pcap_doc.get("captured_trace"),
     )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
