@@ -314,6 +314,10 @@ def _dissect_sd_payload(payload: bytes, p: Packet, base_fields: dict) -> None:
         p.summary = "SOME/IP-SD (truncated)"
         return
     flags = payload[0]
+    # 24-bit Reserved field per PRS_SOMEIPSD §4.2 SD message layout —
+    # MUST be 0x000000. Surface so SOMEIPSRV_FORMAT_10's conformance
+    # cond can compare against the wire value rather than UNKNOWN.
+    sd_reserved = (payload[1] << 16) | (payload[2] << 8) | payload[3]
     entries_len = struct.unpack(">I", payload[4:8])[0]
     i = 8
     entries: list[dict] = []
@@ -371,6 +375,7 @@ def _dissect_sd_payload(payload: bytes, p: Packet, base_fields: dict) -> None:
             j = o_end
 
     base_fields["sd_flags"] = flags
+    base_fields["sd_reserved"] = sd_reserved
     base_fields["sd_entries"] = entries
     base_fields["sd_options"] = options
     p.fields = base_fields

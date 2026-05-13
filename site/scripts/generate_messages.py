@@ -574,6 +574,12 @@ def build_expected_dict(case_id: str, pcap_doc: dict) -> dict[str, Any]:
         for k, v in sm.items():
             if "." not in k:
                 out.setdefault(k, v)
+        # SD_BEHAVIOR_03/_04 cond uses ``expected.sd_multicast_ip``;
+        # smoke-test.sh declares it as the bare ``mcast_ipv4`` value.
+        # Surface the alias so the dst_ip check resolves to a concrete
+        # dotted string rather than UNKNOWN.
+        if "mcast_ipv4" in sm and "sd_multicast_ip" not in out:
+            out["sd_multicast_ip"] = sm["mcast_ipv4"]
     # DHCPv4 default endpoints — the dhcpv4_expected.h struct binds the
     # ``server_id_be`` / ``offered_ip_be`` / ``second_server_id_be``
     # fields to ``kDefaultServerIdBe`` / ``kDefaultOfferedIpBe`` /
@@ -1543,6 +1549,28 @@ def _helper_sd_has_option_with_l4(view, args) -> Any:
     return o is not None
 
 
+def _helper_sd_distinct_endpoint_ports_for_l4(view, args) -> Any:
+    """Count unique IPv4 endpoint ports (kIpv4Endpoint = 0x04) carried by
+    the captured SD options for a given L4 protocol. Mirrors the C++
+    helper used by multi-service SOMEIPSRV_RPC_13/_14/_17 +
+    SD_BEHAVIOR_03/_04 conds to verify that two services share or
+    differ on their unreliable/reliable endpoint port."""
+    if len(args) < 1 or args[0] is UNKNOWN:
+        return UNKNOWN
+    want_l4 = args[0]
+    options = view.get("sd_options")
+    if not isinstance(options, list):
+        return UNKNOWN
+    ports: set[int] = set()
+    for o in options:
+        if (isinstance(o, dict)
+                and o.get("type") == 0x04
+                and o.get("l4_proto") == want_l4
+                and isinstance(o.get("port"), int)):
+            ports.add(o["port"])
+    return len(ports)
+
+
 CAPTURED_HELPERS = {
     # tcp_captured.h
     "is_pure_dut_ack":          _helper_is_pure_dut_ack,
@@ -1570,6 +1598,7 @@ CAPTURED_HELPERS = {
     "payload_bytes_eq":         _helper_payload_bytes_eq,
     "sd_first_option_with_l4":  _helper_sd_first_option_with_l4,
     "sd_has_option_with_l4":    _helper_sd_has_option_with_l4,
+    "sd_distinct_endpoint_ports_for_l4": _helper_sd_distinct_endpoint_ports_for_l4,
     # cross-protocol
     "frame_delta_us":           _helper_frame_delta_us,
 }
