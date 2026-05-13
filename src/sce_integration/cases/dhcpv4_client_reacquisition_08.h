@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientReacquisition08SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition08SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_REACQUISITION_08";
+        "DHCPv4_CLIENT_REACQUISITION_08";
     static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "Lease expiration before DHCPACK: client moves to INIT and "

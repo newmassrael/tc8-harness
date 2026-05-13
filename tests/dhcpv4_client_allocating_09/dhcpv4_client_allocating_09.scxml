@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_09: if the client receives a
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_09: if the client receives a
   DHCPNAK message, the client restarts the configuration process
   (RFC 2131 §3.1).
 

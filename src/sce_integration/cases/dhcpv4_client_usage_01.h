@@ -23,7 +23,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientUsage01SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_USAGE_01";
+        "DHCPv4_CLIENT_USAGE_01";
     static constexpr std::string_view kSpecSection = "4.7.6.5";
     static constexpr std::string_view kDescription =
         "DUT with multiple network interfaces uses DHCP through each "

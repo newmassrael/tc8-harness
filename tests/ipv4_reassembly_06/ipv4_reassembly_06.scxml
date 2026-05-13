@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.7 IPV4_REASSEMBLY_06: DUT does not reassemble fragments
+  TC8 §4.4.4.7 IPv4_REASSEMBLY_06: DUT does not reassemble fragments
   when no first fragment (offset=0) is sent. TESTER injects two IP
   fragments at offsets 1 (MF=1) and 2 (MF=0) — the bucket has body
   slices for octets 8..23 but no offset=0 head, so a conformant DUT

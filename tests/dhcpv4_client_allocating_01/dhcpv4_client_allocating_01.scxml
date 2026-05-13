@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_01: The client broadcasts a
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_01: The client broadcasts a
   DHCPDISCOVER message on its local physical subnet (RFC 2131 §3.1).
 
   Spec Test Procedure (tc8_p221-p240.txt: ALLOCATING_01):

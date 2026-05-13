@@ -64,12 +64,12 @@
   Cluster regression on a single worker netns shares state across
   cases. FLAGS_INVALID_15's phases use offsets +0..+6, and Linux
   retains tester-side TCP state on those tuples (TIME-WAIT, half-
-  orphan listeners) for tens of seconds after §15 finishes. A
-  fresh §03 active-OPEN to (+0) on the same worker draws a stray
+  orphan listeners) for tens of seconds after 15 finishes. A
+  fresh 03 active-OPEN to (+0) on the same worker draws a stray
   ACK from the leftover state, which Linux's
   tcp_rcv_synsent_state_process answers with RFC 793 §3.4
   RST(seq=incoming.ack), false-firing the absence guard. Choosing
-  +20 (well clear of §15's +0..+6 range) eliminates the cross-case
+  +20 (well clear of 15's +0..+6 range) eliminates the cross-case
   contamination — see reference_active_open_port_quad_collision.md
   for the BASICS_11 incident the pattern was first documented in.
 -->

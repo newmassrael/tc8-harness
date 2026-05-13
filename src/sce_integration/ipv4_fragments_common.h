@@ -20,7 +20,7 @@ namespace tc8::sce::ipv4::fragments {
 
 using ::tc8::sce::IStimulusScheduler;
 
-// §4.4.4.6 IPV4_FRAGMENTS_01..04 reassembled Echo Request payload —
+// §4.4.4.6 IPv4_FRAGMENTS_01..04 reassembled Echo Request payload —
 // the 8 B "Data" region the DUT must echo back verbatim on the
 // reassembled reply. FRAGMENTS_01's pass criterion asserts byte-
 // equality; FRAGMENTS_02/03/04 phase 2 inherit the same check so

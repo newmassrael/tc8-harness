@@ -35,7 +35,7 @@
 
   CASE 4 (FIN) carries an ACK flag with rcv_nxt - 1 — Linux drops
   bare-FIN segments before reaching the OTW SEQ branch (verified
-  empirically in §08), so carrying ACK keeps the segment past the
+  empirically in 08), so carrying ACK keeps the segment past the
   early-drop. Same convention as FLAGS_INVALID_08 / _09 / _10 / _11.
 
   Negative smoke (ipv4.dut_iface_ip flip): pass guard's

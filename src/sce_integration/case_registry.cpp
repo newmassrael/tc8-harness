@@ -13,8 +13,8 @@ namespace {
 
 // Parse "SOMEIPSRV_FORMAT_01" → ("SOMEIPSRV_FORMAT", 1, ""). Tolerates any
 // trailing numeric suffix after the final underscore, including zero-padded
-// forms like "SOMEIP_ETS_025", and also a known variant tag suffix such as
-// "_NEG" (e.g. "IPV4_AUTOCONF_ADDRESS_SELECTION_06_NEG" →
+// forms like "SOMEIP_ETS_001", and also a known variant tag suffix such as
+// "_NEG" (e.g. "IPv4_AUTOCONF_ADDRESS_SELECTION_06_NEG" →
 // ("IPV4_AUTOCONF_ADDRESS_SELECTION", 6, "_NEG")). The variant tag is
 // stripped before digit parsing so a positive case and its negative variant
 // share the same (category, number) primary sort key — listSorted then

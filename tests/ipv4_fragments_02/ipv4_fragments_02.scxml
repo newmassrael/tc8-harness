@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.6 IPV4_FRAGMENTS_02: IP Reconstruct fragments, negative
+  TC8 §4.4.4.6 IPv4_FRAGMENTS_02: IP Reconstruct fragments, negative
   test on id. DUT must NOT reassemble a fragment pair whose
   Identification fields differ. RFC 791 §3.2 — the (src, dst, id,
   protocol) tuple is the reassembly-bucket key; differing id places

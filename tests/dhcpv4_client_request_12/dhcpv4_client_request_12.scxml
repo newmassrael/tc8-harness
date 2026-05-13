@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REQUEST_12: DHCPREQUEST generated during
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REQUEST_12: DHCPREQUEST generated during
   REBINDING state — destination IP MUST be 0xFFFFFFFF (broadcast)
   per RFC 2131 §4.4.5.
 

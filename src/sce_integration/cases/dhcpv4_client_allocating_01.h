@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientAllocating01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating01SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_ALLOCATING_01";
+        "DHCPv4_CLIENT_ALLOCATING_01";
     static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER carries IPv4 destination = 255.255.255.255 limited "

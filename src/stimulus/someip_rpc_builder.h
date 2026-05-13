@@ -161,9 +161,9 @@ int emitBundledMethodRequestsTcp(std::string_view iface,
 
 // Reads `SOL_TCP / TCP_INFO` from `fd` (must be SOCK_STREAM) into
 // `*out_tcpi_state` and unconditionally closes `fd`. tcpi_state values
-// are from `<netinet/tcp.h>`: TCP_ESTABLISHED=1, TCP_SYN_SENT=2,
-// TCP_FIN_WAIT1=4, TCP_FIN_WAIT2=5, TCP_TIME_WAIT=6, TCP_CLOSE=7,
-// TCP_CLOSE_WAIT=8, ... Returns 0 on success, negative on getsockopt
+// are from `<netinet/tcp.h>`: `TCP_ESTABLISHED=1`, `TCP_SYN_SENT=2`,
+// `TCP_FIN_WAIT1=4`, `TCP_FIN_WAIT2=5`, `TCP_TIME_WAIT=6`, `TCP_CLOSE=7`,
+// `TCP_CLOSE_WAIT=8`, ... Returns 0 on success, negative on getsockopt
 // failure (in which case `*out_tcpi_state` stays 0 and `fd` is still
 // closed). Used by §5.1.6 ETS_037 to verdict DUT-side FIN absence after
 // a tester resetInterface stimulus.

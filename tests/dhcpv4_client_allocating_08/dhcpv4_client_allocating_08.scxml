@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_08: After DHCPDECLINE the client
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_08: After DHCPDECLINE the client
   SHOULD wait a minimum of ten seconds before restarting the
   configuration process (RFC 2131 §3.1 second sentence, SHOULD).
 

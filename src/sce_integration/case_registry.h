@@ -60,7 +60,7 @@ private:
 };
 
 // Case IDs are shaped "<CATEGORY>_<digits>" (e.g. "SOMEIPSRV_FORMAT_01",
-// "SOMEIP_ETS_025") OR "<CATEGORY>_<digits>_<TAG>" where TAG is one
+// "SOMEIP_ETS_001") OR "<CATEGORY>_<digits>_<TAG>" where TAG is one
 // of a small set of known variant tags. The numeric segment drives
 // sort order in listSorted(); the category is the prefix before the
 // digits (the variant tag, if present, is stripped from both ends

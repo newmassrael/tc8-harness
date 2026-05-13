@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REACQUISITION_04: T2 = 0.875 × lease (RFC
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REACQUISITION_04: T2 = 0.875 × lease (RFC
   2131 §4.4.5). Verify the interval from "sending of last DHCPACK
   Message" to the REBINDING REQUEST is within T2 ± ParamToleranceTime.
 

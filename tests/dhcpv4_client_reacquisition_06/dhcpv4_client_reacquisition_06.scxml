@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REACQUISITION_06: in REBINDING state, on
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REACQUISITION_06: in REBINDING state, on
   no ACK response, the client SHOULD wait one-half of the remaining
   lease time before retransmitting the DHCPREQUEST (RFC 2131 §4.4.5).
 

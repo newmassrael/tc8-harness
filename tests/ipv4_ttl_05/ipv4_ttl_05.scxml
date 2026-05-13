@@ -11,7 +11,7 @@
   replies), so a dedicated SCXML for it would add no observational
   power.
 
-  Body shared with IPV4_HEADER_03 / IPV4_VERSION_01 via sce:template
+  Body shared with IPv4_HEADER_03 / IPv4_VERSION_01 via sce:template
   (tests/_templates/ipv4_positive_reply.sce-template.xml).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation02SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation02SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_02";
+        "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02";
     static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER 'ciaddr' field is 0 in INIT state — the client has "

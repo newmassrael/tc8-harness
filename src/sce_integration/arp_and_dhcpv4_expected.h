@@ -14,7 +14,7 @@ namespace tc8 {
 // sub-context's existing convention so the Captured-side helper
 // predicates accept them without renaming.
 //
-// First consumer: §4.5.6.1 IPV4_AUTOCONF_INTRO_01.
+// First consumer: §4.5.6.1 IPv4_AUTOCONF_INTRO_01.
 struct ArpAndDhcpv4Expected {
     ArpExpected     arp{};
     Dhcpv4Expected  dhcpv4{};

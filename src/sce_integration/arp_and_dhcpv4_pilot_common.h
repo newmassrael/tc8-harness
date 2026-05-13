@@ -12,7 +12,7 @@
 
 namespace tc8::sce {
 
-// Cross-protocol dispatcher for §4.5.6.1 IPV4_AUTOCONF_INTRO_01 and
+// Cross-protocol dispatcher for §4.5.6.1 IPv4_AUTOCONF_INTRO_01 and
 // future cases that bind the `ArpAndDhcpv4Captured` Named Context.
 //
 // On `ArpFrame`: copies the wire fields into `c.arp` via the existing

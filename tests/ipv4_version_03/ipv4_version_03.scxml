@@ -3,7 +3,7 @@
   TC8 §4.4.4.4 IPv4_VERSION_03: the DUT's IPv4 packet carries a
   Version field equal to 4.
 
-  Body shared with IPV4_HEADER_01 / IPV4_TTL_01 via sce:template
+  Body shared with IPv4_HEADER_01 / IPv4_TTL_01 via sce:template
   (see tests/_templates/ipv4_field_check.sce-template.xml).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

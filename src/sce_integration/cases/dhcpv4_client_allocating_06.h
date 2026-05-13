@@ -21,7 +21,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientAllocating06SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating06SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_ALLOCATING_06";
+        "DHCPv4_CLIENT_ALLOCATING_06";
     static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER is retransmitted on no DHCPOFFER (RFC 2131 §3.1, MUST)";

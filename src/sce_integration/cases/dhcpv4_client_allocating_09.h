@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientAllocating09SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating09SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_ALLOCATING_09";
+        "DHCPv4_CLIENT_ALLOCATING_09";
     static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "DHCPNAK received in RENEWING state restarts the configuration "

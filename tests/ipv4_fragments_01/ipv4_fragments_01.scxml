@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.6 IPV4_FRAGMENTS_01: DUT reassembles a 2-fragment Echo
+  TC8 §4.4.4.6 IPv4_FRAGMENTS_01: DUT reassembles a 2-fragment Echo
   Request and emits an Echo Reply whose Identifier, Sequence Number,
   and Data are those of the reassembled Echo Request.
 

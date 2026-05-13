@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing04SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing04SM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ANNOUNCING_04";
+        "IPv4_AUTOCONF_ANNOUNCING_04";
     static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "DUT-emitted ARP Announcement has ARP target_hw = all zeroes "

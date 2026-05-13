@@ -21,7 +21,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Icmpv4Error03SM>
     : Icmpv4TypedBase<cases::Icmpv4Error03SM, std::uint8_t{12}> {
-    static constexpr std::string_view kCaseId      = "ICMPV4_ERROR_03";
+    static constexpr std::string_view kCaseId      = "ICMPv4_ERROR_03";
     static constexpr std::string_view kSpecSection = "4.3.3.1";
     static constexpr std::string_view kDescription =
         "DUT must not emit ICMP Parameter Problem for a malformed "

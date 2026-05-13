@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientAllocating08SM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientAllocating08SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_ALLOCATING_08";
+        "DHCPv4_CLIENT_ALLOCATING_08";
     static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "After DHCPDECLINE the client SHOULD wait a minimum of ten "

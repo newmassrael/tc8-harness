@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_03: DHCPREQUEST MUST include
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_03: DHCPREQUEST MUST include
   Option 54 (Server Identifier) with value = the OFFER's server-id
   (RFC 2131 §3.1, §4.3.2).
 

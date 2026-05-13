@@ -37,7 +37,7 @@ std::string someip();
 // simultaneously watch ARP presence/absence and DUT-emitted UDP.
 std::string arpAndUdp();
 
-// §4.5.6.1 IPV4_AUTOCONF_INTRO_01 cross-protocol — observe DHCPv4 +
+// §4.5.6.1 IPv4_AUTOCONF_INTRO_01 cross-protocol — observe DHCPv4 +
 // assert absence of ARP Probes in 169.254/16. Narrower than `arpAndUdp`
 // — pinned to BOOTP ports 67/68 so SOME/IP SD multicast does not leak
 // into the capture stream.

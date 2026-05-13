@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.7 IPV4_REASSEMBLY_13: IP fragments overlap check —
+  TC8 §4.4.4.7 IPv4_REASSEMBLY_13: IP fragments overlap check —
   RFC 791 §3.2 "An Example Reassembly Procedure" (page 29) mandates
   that on partial overlap, the more recently arrived copy wins.
   TESTER injects 4 fragments at offsets 0, 2 (wrong data, 24 B), 2

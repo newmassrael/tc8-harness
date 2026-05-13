@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientAllocating07SM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientAllocating07SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_ALLOCATING_07";
+        "DHCPv4_CLIENT_ALLOCATING_07";
     static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "ARP-detected address-in-use → DHCPDECLINE + restart "

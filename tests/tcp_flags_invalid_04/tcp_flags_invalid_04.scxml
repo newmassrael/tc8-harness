@@ -48,12 +48,12 @@
 
   ## Port-quad selection — kBasicsActiveLocalPort + 21 / +21
 
-  Same cross-case isolation rationale as FLAGS_INVALID_03: §15's
+  Same cross-case isolation rationale as FLAGS_INVALID_03: 15's
   +0..+6 offsets leave tester-side TCP state on a single-worker
   cluster run, and a fresh active-OPEN on the same tuple draws a
   stray ACK that triggers RFC 793 §3.4 RST(seq=incoming.ack) from
   the SYN-SENT DUT, false-firing this case's absence guard. +21
-  is clear of both §15 and FLAGS_INVALID_03 (+20).
+  is clear of both 15 and FLAGS_INVALID_03 (+20).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

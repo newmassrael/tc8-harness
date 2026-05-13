@@ -12,7 +12,7 @@
     3. TESTER: Send UDP to <AIface-0-BcastIP>:<unusedUDPDstPort1>.
     4. TESTER: Verify via UT that the application layer did not receive.
 
-  Mechanism: identical wire shape to IPV4_ADDRESSING_02 (directed
+  Mechanism: identical wire shape to IPv4_ADDRESSING_02 (directed
   broadcast → DUT data listener silent-drops via `ipi_addr ==
   iface_broadcast` filter, RFC 1122 §3.2.1.3). The two cases differ
   only in the spec invariant they pin (RFC 1122 §3.2.1.3 IP-layer

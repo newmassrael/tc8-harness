@@ -20,7 +20,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Ipv4Fragments01SM>
     : Ipv4FragmentEchoBase<cases::Ipv4Fragments01SM> {
-    static constexpr std::string_view kCaseId      = "IPV4_FRAGMENTS_01";
+    static constexpr std::string_view kCaseId      = "IPv4_FRAGMENTS_01";
     static constexpr std::string_view kSpecSection = "4.4.4.6";
     static constexpr std::string_view kDescription =
         "DUT reassembles a 2-fragment Echo Request and emits an Echo "

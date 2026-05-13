@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REQUEST_08: DHCPREQUEST generated during
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REQUEST_08: DHCPREQUEST generated during
   RENEWING state — 'ciaddr' MUST be filled in with client's IP address
   (RFC 2131 §4.4.5).
 

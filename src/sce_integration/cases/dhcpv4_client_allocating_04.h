@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientAllocating04SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating04SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_ALLOCATING_04";
+        "DHCPv4_CLIENT_ALLOCATING_04";
     static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST 'secs' field equals the originating DHCPDISCOVER's "

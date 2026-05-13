@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection12SM>
     : LinklocalProbeSnapshotBase<cases::Ipv4AutoconfAddressSelection12SM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ADDRESS_SELECTION_12";
+        "IPv4_AUTOCONF_ADDRESS_SELECTION_12";
     static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT re-picks LL address after probing-window ARP Reply "

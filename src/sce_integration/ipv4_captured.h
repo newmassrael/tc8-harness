@@ -25,7 +25,7 @@ namespace tc8 {
 // vector of `IP::option`, not a raw byte range. §4.4 has no OPTIONS
 // subsection in TC8 v3.0 (IPv4_OPTIONS_01..14 deleted V2→V3). If an
 // ICMPv4 consumer that carries IP options in the stimulus ever needs
-// byte-level observation (e.g. ICMPV4_TYPE_05 / ERROR_02/03/04 — all
+// byte-level observation (e.g. ICMPv4_TYPE_05 / ERROR_02/03/04 — all
 // stimulate with an Internet Timestamp option), a serialisation helper
 // should be added rather than caching stale pointers here.
 // `Ipv4Frame::options_data` / `options_len` are left untouched for that
@@ -49,7 +49,7 @@ struct Ipv4Captured {
     // the captured scalar fields (including the checksum field in its
     // wire position) and verify the RFC 1071 one's-complement sum is
     // zero. Exposed as a member method so SCE's `captured.` → `this->
-    // captured_->` codegen rewrite covers the call — the ICMPV4_TYPE_08
+    // captured_->` codegen rewrite covers the call — the ICMPv4_TYPE_08
     // precedent is `echo_payload_equals` on `Icmpv4Captured`.
     //
     // Limited to the IHL=5 (no-options) case: every DUT Echo Reply the
@@ -57,7 +57,7 @@ struct Ipv4Captured {
     // options reconstruction would be dead weight here. IPv4_OPTIONS_*
     // are v3.0-deleted, so the only realistic future IHL>5 observer is
     // an ICMPv4 case where the DUT echoes an options header back (see
-    // ICMPV4_TYPE_05 stimulus shape) — extend via raw-bytes snapshot in
+    // ICMPv4_TYPE_05 stimulus shape) — extend via raw-bytes snapshot in
     // `Ipv4Frame` if such a case lands.
     bool header_checksum_valid() const {
         if (ihl != 5U) return false;

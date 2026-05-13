@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientAllocating05SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating05SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_ALLOCATING_05";
+        "DHCPv4_CLIENT_ALLOCATING_05";
     static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST destination IP = 255.255.255.255 limited broadcast "

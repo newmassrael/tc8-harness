@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_07: ARP-detected address-in-use
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_07: ARP-detected address-in-use
   → DHCPDECLINE → restart configuration process (RFC 2131 §3.1, MUST).
 
   Spec body: tc8_p241-p260.txt:95..145, Topology 4. Pass criteria

@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation04SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation04SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_04";
+        "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_04";
     static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "DUT silently discards DHCPOFFER with mismatched xid; does not "

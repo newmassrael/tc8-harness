@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REACQUISITION_02: on DHCPACK timeout the
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REACQUISITION_02: on DHCPACK timeout the
   client moves to REBINDING state and sends DHCPREQUEST via IP
   broadcast (RFC 2131 §4.4.5).
 

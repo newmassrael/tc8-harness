@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfConflict10SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfConflict10SM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_CONFLICT_10";
+        "IPv4_AUTOCONF_CONFLICT_10";
     static constexpr std::string_view kSpecSection = "4.5.6.4";
     static constexpr std::string_view kDescription =
         "DUT immediately ceases claim and re-probes after a single "

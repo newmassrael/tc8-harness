@@ -21,7 +21,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Icmpv4Type22SM>
     : Icmpv4TypedBase<cases::Icmpv4Type22SM, std::uint8_t{0}> {
-    static constexpr std::string_view kCaseId      = "ICMPV4_TYPE_22";
+    static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_22";
     static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "DUT responds to an ICMP Echo Request by sending an ICMP Echo "

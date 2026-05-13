@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_06: the client times out and
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_06: the client times out and
   retransmits DHCPDISCOVER if no DHCPOFFER arrives (RFC 2131 §3.1, MUST).
 
   Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_06):

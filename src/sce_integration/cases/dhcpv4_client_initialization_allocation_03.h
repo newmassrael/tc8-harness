@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation03SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation03SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_03";
+        "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03";
     static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER 'chaddr' field carries the DUT iface MAC — the "

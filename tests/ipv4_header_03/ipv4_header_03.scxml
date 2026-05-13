@@ -10,7 +10,7 @@
   src_addr". The negative-mode row flips `ipv4.dut_iface_ip` to a value
   the DUT never emits, which takes the pass path out of reach.
 
-  Body shared with IPV4_TTL_05 / IPV4_VERSION_01 via sce:template
+  Body shared with IPv4_TTL_05 / IPv4_VERSION_01 via sce:template
   (tests/_templates/ipv4_positive_reply.sce-template.xml).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

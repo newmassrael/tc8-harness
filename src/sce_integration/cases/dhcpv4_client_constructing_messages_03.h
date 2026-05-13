@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages03SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages03SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_03";
+        "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_03";
     static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER carries IPv4 source address = 0 prior to client "

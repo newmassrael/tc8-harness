@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_08:
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_08:
     "The client SHOULD perform a check on the suggested address to
      ensure that the address is not already in use ... the client must
      fill in its own hardware address as the sender's hardware address,

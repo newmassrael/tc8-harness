@@ -16,7 +16,7 @@
   TestRunner arms the SCXML 3 s listen window only AFTER the DUT's
   reassembly timer has elapsed. That window catches any post-
   timeout Time Exceeded emission without eroding the absence-
-  verdict's coverage. `CASE_TIMEOUT_SEC[ICMPV4_TYPE_04]` in
+  verdict's coverage. `CASE_TIMEOUT_SEC[ICMPv4_TYPE_04]` in
   smoke-test.sh widens the harness watchdog accordingly.
 
   No negative smoke row: absence-shape; any expectation flip also

@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientReacquisition01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition01SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_REACQUISITION_01";
+        "DHCPv4_CLIENT_REACQUISITION_01";
     static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "RENEWING state DHCPREQUEST: IP destination unicast to Option 54 "

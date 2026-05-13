@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_01:
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01:
     "The client SHOULD wait a random time between one and ten seconds
      to desynchronize the use of DHCP at startup" (RFC 2131 §4.4.1).
 

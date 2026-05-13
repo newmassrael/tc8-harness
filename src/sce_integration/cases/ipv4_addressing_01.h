@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     using State = SM::PolicyType::State;
     using Event = SM::PolicyType::Event;
 
-    static constexpr std::string_view kCaseId       = "IPV4_ADDRESSING_01";
+    static constexpr std::string_view kCaseId       = "IPv4_ADDRESSING_01";
     static constexpr std::string_view kSpecSection  = "4.4.4.5";
     static constexpr std::string_view kDescription  =
         "DUT accepts an IPv4 UDP packet whose Destination Address is "
@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     //   1. TESTER sends a UDP Message to <limitedBroadcastAddress>.
     //   2. TESTER verifies via Upper Tester that the DUT received it.
     //
-    // Shared stimulus body with IPV4_ADDRESSING_02 in udp_pilot_common's
+    // Shared stimulus body with IPv4_ADDRESSING_02 in udp_pilot_common's
     // `emitAddressingProbeAndQuery` — both cases are structurally
     // identical except for the broadcast literal and the SCXML's
     // `{$expected_received}` polarity.

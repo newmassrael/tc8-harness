@@ -20,7 +20,7 @@ namespace tc8 {
 //   <sce:context id="captured" cpp:type="tc8::UdpCaptured"
 //                cpp:include="sce_integration/udp_captured.h"/>
 //
-// §4.4.4.6 IPV4_FRAGMENTS_05 watches `ip_flags` / `ip_fragment_offset`
+// §4.4.4.6 IPv4_FRAGMENTS_05 watches `ip_flags` / `ip_fragment_offset`
 // to assert MF=0 + offset=0 on a DUT-emitted UDP datagram. §4.4.4.5
 // IPv4_ADDRESSING_01/02 watch the `has_ut_response` / `ut_received`
 // pair to decode a §4.8.5 Confirmation from the UDP payload.

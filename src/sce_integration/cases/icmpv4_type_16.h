@@ -21,7 +21,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Icmpv4Type16SM>
     : Icmpv4TypedBase<cases::Icmpv4Type16SM, std::uint8_t{16}> {
-    static constexpr std::string_view kCaseId      = "ICMPV4_TYPE_16";
+    static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_16";
     static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "DUT does not respond to an ICMP Information Request with an "

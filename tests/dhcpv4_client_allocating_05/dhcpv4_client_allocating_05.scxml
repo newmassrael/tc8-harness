@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_05: DHCPREQUEST is sent to
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_05: DHCPREQUEST is sent to
   the same IP broadcast address as the DHCPDISCOVER (RFC 2131 §3.1).
 
   Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_05):

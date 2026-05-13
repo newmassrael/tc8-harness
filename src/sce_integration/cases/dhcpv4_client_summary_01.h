@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientSummary01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientSummary01SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_SUMMARY_01";
+        "DHCPv4_CLIENT_SUMMARY_01";
     static constexpr std::string_view kSpecSection = "4.7.6.1";
     static constexpr std::string_view kDescription =
         "DUT-side DHCPv4 client listens on UDP port 68 — full DISCOVER "

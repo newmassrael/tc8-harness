@@ -21,7 +21,7 @@ bool endsWith(std::string_view s, std::string_view suffix) {
 }
 
 // Derive category from a spec case_id by stripping the trailing _<digits>.
-// Example: ARP_07 → ARP; IPV4_HEADER_05 → IPV4_HEADER. Falls back to the
+// Example: ARP_07 → ARP; IPv4_HEADER_05 → IPV4_HEADER. Falls back to the
 // full id if no digit-suffixed segment is present.
 std::string deriveCategory(const std::string &id) {
     auto pos = id.rfind('_');

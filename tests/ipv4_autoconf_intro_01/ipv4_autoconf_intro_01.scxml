@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.5.6.1 IPV4_AUTOCONF_INTRO_01: Link-Local address configurability
+  TC8 §4.5.6.1 IPv4_AUTOCONF_INTRO_01: Link-Local address configurability
   condition (in presence of operable routable address) — RFC 3927 §1.9
   "When an operable routable address is available on an interface, the
   host SHOULD NOT also assign an IPv4 Link-Local address on that interface."
@@ -22,7 +22,7 @@
     OpStartDhcpClient kicks the DUT lifecycle. State-entry observers fire
     OFFER on Listening_for_request entry and ACK on
     Listening_for_no_arp_probe entry — same observer pattern as
-    DHCPV4_CLIENT_SUMMARY_01 / PROTOCOL_03, with ParamListenTime*3 lease.
+    DHCPv4_CLIENT_SUMMARY_01 / PROTOCOL_03, with ParamListenTime*3 lease.
     The 4 s no-arp-probe absence window is generous against fast-envelope
     ParamListenTime (5 s spec default) — a compliant DUT (tc8-dut firmware
     does not have an LL fallback hooked into Dhcpv4Client) will never

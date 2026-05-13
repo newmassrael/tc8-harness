@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_04: the DHCPREQUEST message
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_04: the DHCPREQUEST message
   MUST use the same value in the BOOTP header's 'secs' field as the
   originating DHCPDISCOVER (RFC 2131 §4.3.2, MUST).
 

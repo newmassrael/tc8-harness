@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.2 DHCPV4_CLIENT_PROTOCOL_01: First four octets of the
+  TC8 §4.7.6.2 DHCPv4_CLIENT_PROTOCOL_01: First four octets of the
   'options' field of the DHCP message contain the magic cookie
   99, 130, 83, 99 (RFC 1497 / RFC 2131 §3).
 

@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation10SM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientInitializationAllocation10SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_10";
+        "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10";
     static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "After Probe listen window expires without conflict, DUT broadcasts "

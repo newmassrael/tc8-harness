@@ -24,7 +24,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection06NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection06NegSM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ADDRESS_SELECTION_06_NEG";
+        "IPv4_AUTOCONF_ADDRESS_SELECTION_06_NEG";
     static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of _06: tc8-dut SenderIpNonzero fault-"

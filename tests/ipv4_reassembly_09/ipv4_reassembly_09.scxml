@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.7 IPV4_REASSEMBLY_09: DUT discards a single-fragment Echo
+  TC8 §4.4.4.7 IPv4_REASSEMBLY_09: DUT discards a single-fragment Echo
   Request whose MF=1 (More Fragments). The fragment carries the full
   16 B Echo Request body in the offset=0 slot but advertises that more
   fragments are coming; with no offset>0 fragment ever arriving, a

@@ -5,7 +5,7 @@
   Information Request (type=15); a conformant DUT must not emit an
   Information Reply (type=16) within the listen window.
 
-  Body shared with ICMPV4_TYPE_10 via sce:template
+  Body shared with ICMPv4_TYPE_10 via sce:template
   (tests/_templates/icmpv4_negative_absence.sce-template.xml).
   Dispatch filters to type=16 so the tester's own outbound type=15
   never self-triggers the fail path.

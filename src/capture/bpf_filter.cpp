@@ -58,7 +58,7 @@ std::string arpAndUdp() {
 }
 
 std::string arpAndDhcpv4() {
-    // §4.5.6.1 IPV4_AUTOCONF_INTRO_01: observe BOTH ARP frames (assert
+    // §4.5.6.1 IPv4_AUTOCONF_INTRO_01: observe BOTH ARP frames (assert
     // absence of post-bind LL probe) AND the DHCPv4 lifecycle. Narrower
     // than `arpAndUdp` — bare `udp` would also match SOME/IP SD multicast
     // (UDP 30490) which adds spurious capture noise on netns shared with

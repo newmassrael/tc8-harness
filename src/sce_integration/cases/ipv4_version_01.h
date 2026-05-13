@@ -20,7 +20,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Ipv4Version01SM>
     : Ipv4ObservationBase<cases::Ipv4Version01SM> {
-    static constexpr std::string_view kCaseId      = "IPV4_VERSION_01";
+    static constexpr std::string_view kCaseId      = "IPv4_VERSION_01";
     static constexpr std::string_view kSpecSection = "4.4.4.4";
     static constexpr std::string_view kDescription =
         "DUT accepts an ICMPv4 Echo Request whose IPv4 header carries "

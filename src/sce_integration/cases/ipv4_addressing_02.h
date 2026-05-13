@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::Ipv4Addressing02SM> {
     using State = SM::PolicyType::State;
     using Event = SM::PolicyType::Event;
 
-    static constexpr std::string_view kCaseId       = "IPV4_ADDRESSING_02";
+    static constexpr std::string_view kCaseId       = "IPv4_ADDRESSING_02";
     static constexpr std::string_view kSpecSection  = "4.4.4.5";
     static constexpr std::string_view kDescription  =
         "DUT silently discards an IPv4 UDP packet whose Destination "
@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::Ipv4Addressing02SM> {
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
-    // Shared stimulus body with IPV4_ADDRESSING_01 via
+    // Shared stimulus body with IPv4_ADDRESSING_01 via
     // `emitAddressingProbeAndQuery`. The SCXML's
     // `{$expected_received}=0` parameter flips this case's polarity;
     // the probe's `dst_ip = <directedBroadcastAddress>` is the only

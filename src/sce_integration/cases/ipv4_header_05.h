@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::Ipv4Header05SM> {
     using State = SM::PolicyType::State;
     using Event = SM::PolicyType::Event;
 
-    static constexpr std::string_view kCaseId       = "IPV4_HEADER_05";
+    static constexpr std::string_view kCaseId       = "IPv4_HEADER_05";
     static constexpr std::string_view kSpecSection  = "4.4.4.1";
     static constexpr std::string_view kDescription  =
         "DUT accepts an IP datagram of up to 576 octets and replies "

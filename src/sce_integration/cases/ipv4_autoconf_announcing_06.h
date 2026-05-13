@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing06SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing06SM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ANNOUNCING_06";
+        "IPv4_AUTOCONF_ANNOUNCING_06";
     static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "Time interval between consecutive ARP Announcements is in "

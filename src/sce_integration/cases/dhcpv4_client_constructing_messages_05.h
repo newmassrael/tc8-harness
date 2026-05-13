@@ -23,7 +23,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages05SM>
     : Dhcpv4UdpBase<cases::Dhcpv4ClientConstructingMessages05SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_05";
+        "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05";
     static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "DUT parses Option Overload value=2 (sname holds options) and "

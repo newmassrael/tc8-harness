@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientParameters04SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientParameters04SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_PARAMETERS_04";
+        "DHCPv4_CLIENT_PARAMETERS_04";
     static constexpr std::string_view kSpecSection = "4.7.6.5";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST repeats the DISCOVER's Option 55 (Parameter Request "

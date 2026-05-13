@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.7 IPV4_REASSEMBLY_11: Check fragment with Large TTL value.
+  TC8 §4.4.4.7 IPv4_REASSEMBLY_11: Check fragment with Large TTL value.
   Per RFC 791 §3.2 "the waiting time will be increased if the Time to
   Live in the arriving fragment is greater than the current timer
   value." TESTER sends frag 0 (offset=0, MF=1, TTL=LargeTTLValue) and

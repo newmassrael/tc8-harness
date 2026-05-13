@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.6 IPV4_FRAGMENTS_04: IP Reconstruct fragments, negative
+  TC8 §4.4.4.6 IPv4_FRAGMENTS_04: IP Reconstruct fragments, negative
   test on protocol. DUT must NOT reassemble a fragment pair whose
   Protocol fields differ. Reassembly-bucket tuple includes protocol
   byte; differing protocol places the two fragments in distinct

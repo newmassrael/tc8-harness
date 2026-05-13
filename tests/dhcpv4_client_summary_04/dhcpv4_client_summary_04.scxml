@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.1 DHCPV4_CLIENT_SUMMARY_04: The remaining bits of the
+  TC8 §4.7.6.1 DHCPv4_CLIENT_SUMMARY_04: The remaining bits of the
   'flags' field are reserved for future use and MUST be set to zero
   by clients (RFC 2131 §2 Protocol Summary).
 

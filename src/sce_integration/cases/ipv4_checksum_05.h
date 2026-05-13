@@ -20,7 +20,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Ipv4Checksum05SM>
     : Ipv4ObservationBase<cases::Ipv4Checksum05SM> {
-    static constexpr std::string_view kCaseId      = "IPV4_CHECKSUM_05";
+    static constexpr std::string_view kCaseId      = "IPv4_CHECKSUM_05";
     static constexpr std::string_view kSpecSection = "4.4.4.2";
     static constexpr std::string_view kDescription =
         "DUT's Echo Reply carries an IPv4 header checksum matching the "

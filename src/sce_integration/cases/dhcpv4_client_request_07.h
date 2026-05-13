@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientRequest07SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest07SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_REQUEST_07";
+        "DHCPv4_CLIENT_REQUEST_07";
     static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST generated during RENEWING state: 'requested IP address' "

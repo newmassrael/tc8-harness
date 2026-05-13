@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation01SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_01";
+        "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01";
     static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "After NAK in RENEWING the DUT waits a random [1, 10] s before "

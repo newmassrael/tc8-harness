@@ -24,7 +24,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing03NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing03NegSM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ANNOUNCING_03_NEG";
+        "IPv4_AUTOCONF_ANNOUNCING_03_NEG";
     static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "Self-validation of _03: tc8-dut AnnounceSenderHwWrong "

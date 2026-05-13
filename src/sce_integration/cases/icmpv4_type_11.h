@@ -22,7 +22,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Icmpv4Type11SM>
     : Icmpv4TypedBase<cases::Icmpv4Type11SM, std::uint8_t{14}> {
-    static constexpr std::string_view kCaseId      = "ICMPV4_TYPE_11";
+    static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_11";
     static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "ICMP Timestamp Reply echoes Originate Timestamp and fills "

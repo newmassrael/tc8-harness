@@ -47,11 +47,11 @@
 
   ## Port-quad selection — kBasicsActiveLocalPort + 24 / +25
 
-  Cross-case isolation: §15's +0..+6 offsets leave tester-side TCP
+  Cross-case isolation: 15's +0..+6 offsets leave tester-side TCP
   state on a single-worker cluster run, and a fresh active-OPEN on
   the same tuple draws a stray ACK that triggers RFC 793 §3.4
   RST(seq=incoming.ack) from the SYN-SENT DUT, contaminating this
-  case's prelude. +24 / +25 are clear of §15 and FLAGS_INVALID_03/04/05.
+  case's prelude. +24 / +25 are clear of 15 and FLAGS_INVALID_03/04/05.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

@@ -4,7 +4,7 @@
   Time-to-Live value of zero (RFC 1122 section 3.2.1.7). Pass when the
   DUT's ICMP Echo Reply IPv4 header carries TTL > 0.
 
-  Body shared with IPV4_HEADER_01 / IPV4_VERSION_03 via sce:template
+  Body shared with IPv4_HEADER_01 / IPv4_VERSION_03 via sce:template
   (see tests/_templates/ipv4_field_check.sce-template.xml).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

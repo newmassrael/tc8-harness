@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REQUEST_07: DHCPREQUEST generated during
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REQUEST_07: DHCPREQUEST generated during
   RENEWING state — 'requested IP address' (Option 50) MUST NOT be
   filled (RFC 2131 §4.3.6 table 5).
 

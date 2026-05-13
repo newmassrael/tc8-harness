@@ -21,7 +21,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Icmpv4Error05SM>
     : Icmpv4AnyBase<cases::Icmpv4Error05SM> {
-    static constexpr std::string_view kCaseId      = "ICMPV4_ERROR_05";
+    static constexpr std::string_view kCaseId      = "ICMPv4_ERROR_05";
     static constexpr std::string_view kSpecSection = "4.3.3.1";
     static constexpr std::string_view kDescription =
         "DUT silently discards an ICMP message of unknown type (RFC 1122 "

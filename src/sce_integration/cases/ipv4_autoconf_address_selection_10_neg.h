@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection10NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection10NegSM> {
     static constexpr std::string_view kCaseId =
-        "IPV4_AUTOCONF_ADDRESS_SELECTION_10_NEG";
+        "IPv4_AUTOCONF_ADDRESS_SELECTION_10_NEG";
     static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of _10: tc8-dut probe_min=probe_max=100 ms "

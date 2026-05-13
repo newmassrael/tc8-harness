@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.1 DHCPV4_CLIENT_SUMMARY_02: Discard DHCPOFFER messages
+  TC8 §4.7.6.1 DHCPv4_CLIENT_SUMMARY_02: Discard DHCPOFFER messages
   whose xid does not match the most recent DHCPDISCOVER (RFC 2131
   §4.3.1, MUST).
 

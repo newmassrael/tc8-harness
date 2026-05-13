@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REACQUISITION_01: at time T1 the client
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REACQUISITION_01: at time T1 the client
   moves to RENEWING state and sends a DHCPREQUEST to the server via IP
   unicast (RFC 2131 §4.4.5).
 

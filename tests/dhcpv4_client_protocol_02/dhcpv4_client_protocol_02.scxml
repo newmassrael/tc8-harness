@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.2 DHCPV4_CLIENT_PROTOCOL_02: The "DHCP message type"
+  TC8 §4.7.6.2 DHCPv4_CLIENT_PROTOCOL_02: The "DHCP message type"
   option (option code 53) MUST be present in every DHCP message — this
   case verifies the statement for DHCPDISCOVER (RFC 2131 §3).
 

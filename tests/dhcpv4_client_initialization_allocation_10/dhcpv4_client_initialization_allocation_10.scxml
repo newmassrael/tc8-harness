@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_10:
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10:
     "The client SHOULD broadcast an ARP reply to announce the client's
      new IP address and clear any outdated ARP cache entries in hosts
      on the client's subnet" (RFC 2131 §4.4.1).

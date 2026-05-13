@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.8 DHCPV4_CLIENT_REACQUISITION_07: if the lease expires
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REACQUISITION_07: if the lease expires
   before the client receives a DHCPACK, the client moves to INIT state
   and MUST immediately stop any other network processing (RFC 2131
   §4.4.5).

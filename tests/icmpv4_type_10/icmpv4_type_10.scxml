@@ -5,7 +5,7 @@
   conformant DUT (Linux per RFC 1122 §3.2.2) silently drops the frame
   and must not emit an Echo Reply.
 
-  Body shared with ICMPV4_TYPE_16 via sce:template
+  Body shared with ICMPv4_TYPE_16 via sce:template
   (tests/_templates/icmpv4_negative_absence.sce-template.xml).
   Dispatch filters to type=0 (Echo Reply) so the tester's own
   outbound Echo Request never self-triggers the fail path.

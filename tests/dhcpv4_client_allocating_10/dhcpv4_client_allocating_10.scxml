@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.3 DHCPV4_CLIENT_ALLOCATING_10: the client times out and
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_10: the client times out and
   retransmits the DHCPREQUEST message if the client receives neither a
   DHCPACK or a DHCPNAK message (RFC 2131 §3.1).
 

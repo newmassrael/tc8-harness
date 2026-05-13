@@ -16,7 +16,7 @@ enum class BpfGroup {
     SomeIp,     // §5.1
     ArpAndUdp,  // §4.2 cross-protocol (ARP entry-learning cases observe
                 //  both ARP presence/absence and DUT-emitted UDP frames)
-    ArpAndDhcpv4, // §4.5.6.1 IPV4_AUTOCONF_INTRO_01 cross-protocol —
+    ArpAndDhcpv4, // §4.5.6.1 IPv4_AUTOCONF_INTRO_01 cross-protocol —
                   //  observe DHCPv4 lifecycle AND assert absence of ARP
                   //  Probes in 169.254/16 (RFC 3927 §1.9). Narrower than
                   //  ArpAndUdp — excludes SOME/IP SD multicast noise the

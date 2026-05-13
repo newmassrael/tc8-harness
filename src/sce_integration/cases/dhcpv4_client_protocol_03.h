@@ -22,7 +22,7 @@ template <>
 struct TestCaseTraits<cases::Dhcpv4ClientProtocol03SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientProtocol03SM> {
     static constexpr std::string_view kCaseId =
-        "DHCPV4_CLIENT_PROTOCOL_03";
+        "DHCPv4_CLIENT_PROTOCOL_03";
     static constexpr std::string_view kSpecSection = "4.7.6.2";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST emitted on transition to REQUESTING carries Option "

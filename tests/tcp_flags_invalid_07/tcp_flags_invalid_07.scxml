@@ -30,7 +30,7 @@
   case-by-case as we have done for FLAGS_INVALID_12 / UNACCEPTABLE
   CASE 2 silent-drop patterns. CASE 4 = FIN+ACK (not bare FIN):
   Linux's tcp_v4_rcv drops bare FIN before reaching tcp_check_req's
-  OTW-SEQ branch, mirroring the §08~§13 cluster convention. CASE 2
+  OTW-SEQ branch, mirroring the 08~13 cluster convention. CASE 2
   (SYN+ACK) is the empirical-risk case in this state: Linux's
   tcp_check_req has a special handling path for SYN+ACK arriving on
   a request_sock; if this case's probe_ack times out empirically,

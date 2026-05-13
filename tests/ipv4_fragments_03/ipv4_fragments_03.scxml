@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.4.4.6 IPV4_FRAGMENTS_03: IP Reconstruct fragments, negative
+  TC8 §4.4.4.6 IPv4_FRAGMENTS_03: IP Reconstruct fragments, negative
   test on source. DUT must NOT reassemble a fragment pair whose
   Source Address fields differ. Tuple key includes src_addr, so
   differing src places the two fragments in distinct buckets.

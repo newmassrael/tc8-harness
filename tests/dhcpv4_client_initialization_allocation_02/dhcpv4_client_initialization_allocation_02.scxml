@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.7.6.9 DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_02:
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02:
     "The client begins in INIT state and forms a DHCPDISCOVER message ...
      The client sets 'ciaddr' to 0x00000000" (RFC 2131 §4.4.1, MUST).
 
