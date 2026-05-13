@@ -4,13 +4,13 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_seg1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_seg1) — DUT frame (no transition matched)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening_seg1) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_seg1) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 2,
@@ -19,16 +19,46 @@
     },
     {
       "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (listening_seg1) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_seg1) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Phase 1 (listening_seg1) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 6,
       "role": "expected",
       "label": "Phase 1 (listening_seg1) progress trigger — advances to listening_probe. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
-      "idx": 4,
+      "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_probe) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 8,
       "role": "note",
       "label": "Phase 2 (listening_probe) — DUT frame (no transition matched)"
     },
     {
-      "idx": 5,
+      "idx": 9,
+      "role": "note",
+      "label": "Phase 2 (listening_probe) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 10,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_probe) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 11,
       "role": "stimulus",
       "label": "Phase 2 (listening_probe) — Tester stimulus (no transition matched)"
     }

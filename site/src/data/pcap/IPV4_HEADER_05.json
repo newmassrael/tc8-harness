@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_HEADER_05",
   "outcome": "pass",
-  "captured_at": "2026-05-13T09:28:59Z",
+  "captured_at": "2026-05-13T10:15:10Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -25,11 +25,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 40,
-      "ts_delta_us": 40,
+      "ts_us": 26,
+      "ts_delta_us": 26,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "c6:ac:71:7c:83:53",
+      "dst_mac": "a2:09:11:89:fd:cf",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",

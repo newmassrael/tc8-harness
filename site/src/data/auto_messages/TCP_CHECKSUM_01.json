@@ -4,28 +4,28 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_data_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum01LocalOf…"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (listening_data_ack) — DUT frame (no transition matched)"
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_data_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_data_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum01LocalOf…"
     },
     {
       "idx": 5,
@@ -34,33 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "note",
-      "label": "Phase 2 (listening_data_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_data_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 8,
-      "role": "note",
-      "label": "Phase 2 (listening_data_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 9,
-      "role": "note",
-      "label": "Phase 2 (listening_data_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 10,
       "role": "expected",
       "label": "Phase 2 (listening_data_ack) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum01LocalOf…"
-    },
-    {
-      "idx": 11,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

@@ -1,16 +1,59 @@
 {
   "case_id": "TCP_FLAGS_INVALID_02",
-  "outcome": "fail",
-  "captured_at": "2026-05-13T09:28:59Z",
+  "outcome": "pass",
+  "captured_at": "2026-05-13T10:15:10Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "56:24:e0:5b:b0:76",
+  "dut_mac": "e6:31:14:10:5e:a4",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
       "idx": 0,
       "ts_us": 0,
       "ts_delta_us": 0,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UT/UDP",
+      "summary": "UT req OpenTcpSocket (id=1)",
+      "fields": {
+        "src_port": 20100,
+        "dst_port": 30600,
+        "ut_opcode": 3,
+        "ut_request_opcode": 3,
+        "ut_req_id": 1,
+        "ut_is_request": true
+      }
+    },
+    {
+      "idx": 1,
+      "ts_us": 228,
+      "ts_delta_us": 228,
+      "direction": "tester_to_dut",
+      "src_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "e6:31:14:10:5e:a4",
+      "src_ip": "172.16.0.2",
+      "dst_ip": "172.16.0.1",
+      "protocol": "UT/UDP",
+      "summary": "UT resp OpenTcpSocket ok",
+      "fields": {
+        "src_port": 30600,
+        "dst_port": 20100,
+        "ut_opcode": 131,
+        "ut_request_opcode": 3,
+        "ut_req_id": 1,
+        "ut_is_response": true,
+        "has_ut_response": true,
+        "ut_status": 0,
+        "ut_socket_id": 1
+      }
+    },
+    {
+      "idx": 2,
+      "ts_us": 355601,
+      "ts_delta_us": 355373,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -28,12 +71,12 @@
       }
     },
     {
-      "idx": 1,
-      "ts_us": 15,
-      "ts_delta_us": 15,
+      "idx": 3,
+      "ts_us": 355612,
+      "ts_delta_us": 11,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "56:24:e0:5b:b0:76",
+      "dst_mac": "e6:31:14:10:5e:a4",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
@@ -48,9 +91,9 @@
       }
     },
     {
-      "idx": 2,
-      "ts_us": 239987,
-      "ts_delta_us": 239972,
+      "idx": 4,
+      "ts_us": 587542,
+      "ts_delta_us": 231930,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -68,31 +111,31 @@
       }
     },
     {
-      "idx": 3,
-      "ts_us": 240005,
-      "ts_delta_us": 18,
+      "idx": 5,
+      "ts_us": 587555,
+      "ts_delta_us": 13,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "56:24:e0:5b:b0:76",
+      "dst_mac": "e6:31:14:10:5e:a4",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "12345 → 49153 [SYN|ACK] seq=2470495700 ack=270544961 win=64240",
+      "summary": "12345 → 49153 [SYN|ACK] seq=2452022049 ack=270544961 win=64240",
       "fields": {
         "src_port": 12345,
         "dst_port": 49153,
-        "seq": 2470495700,
+        "seq": 2452022049,
         "ack": 270544961,
         "flags": "SYN|ACK",
         "window": 64240
       }
     },
     {
-      "idx": 4,
-      "ts_us": 240011,
-      "ts_delta_us": 6,
+      "idx": 6,
+      "ts_us": 587565,
+      "ts_delta_us": 10,
       "direction": "dut_to_tester",
-      "src_mac": "56:24:e0:5b:b0:76",
+      "src_mac": "e6:31:14:10:5e:a4",
       "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -105,6 +148,26 @@
         "ack": 0,
         "flags": "RST",
         "window": 0
+      }
+    },
+    {
+      "idx": 7,
+      "ts_us": 831386,
+      "ts_delta_us": 243821,
+      "direction": "dut_to_tester",
+      "src_mac": "00:00:00:00:00:00",
+      "dst_mac": "ce:e9:86:bf:01:8c",
+      "src_ip": "172.16.0.1",
+      "dst_ip": "172.16.0.2",
+      "protocol": "UT/UDP",
+      "summary": "UT req CloseTcpSocket (id=2)",
+      "fields": {
+        "src_port": 20100,
+        "dst_port": 30600,
+        "ut_opcode": 4,
+        "ut_request_opcode": 4,
+        "ut_req_id": 2,
+        "ut_is_request": true
       }
     }
   ]

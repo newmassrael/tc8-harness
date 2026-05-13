@@ -4,21 +4,31 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
       "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
       "role": "expected",
       "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_absence. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 35U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
-      "idx": 3,
+      "idx": 5,
       "role": "note",
       "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
     }

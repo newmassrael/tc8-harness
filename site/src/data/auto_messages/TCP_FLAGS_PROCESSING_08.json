@@ -49,11 +49,31 @@
     },
     {
       "idx": 9,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_dut_rst) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 10,
       "role": "note",
       "label": "Phase 1 (listening_p1_dut_rst) — DUT frame (no transition matched)"
     },
     {
-      "idx": 10,
+      "idx": 11,
+      "role": "note",
+      "label": "Phase 1 (listening_p1_dut_rst) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 12,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_dut_rst) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 13,
+      "role": "note",
+      "label": "Phase 1 (listening_p1_dut_rst) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 14,
       "role": "stimulus",
       "label": "Phase 1 (listening_p1_dut_rst) — Tester stimulus (no transition matched)"
     }

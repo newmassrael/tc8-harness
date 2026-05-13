@@ -4,8 +4,8 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
     },
     {
       "idx": 1,
@@ -14,6 +14,1316 @@
     },
     {
       "idx": 2,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 3,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 6,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 10,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 11,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 12,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 13,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 14,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 15,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 16,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 17,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 18,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 19,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 20,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 21,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 22,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 23,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 24,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 25,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 26,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 27,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 28,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 29,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 30,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 31,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 32,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 33,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 34,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 35,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 36,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 37,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 38,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 39,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 40,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 41,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 42,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 43,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 44,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 45,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 46,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 47,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 48,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 49,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 50,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 51,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 52,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 53,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 54,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 55,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 56,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 57,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 58,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 59,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 60,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 61,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 62,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 63,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 64,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 65,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 66,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 67,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 68,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 69,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 70,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 71,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 72,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 73,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 74,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 75,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 76,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 77,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 78,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 79,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 80,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 81,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 82,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 83,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 84,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 85,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 86,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 87,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 88,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 89,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 90,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 91,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 92,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 93,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 94,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 95,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 96,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 97,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 98,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 99,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 100,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 101,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 102,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 103,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 104,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 105,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 106,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 107,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 108,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 109,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 110,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 111,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 112,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 113,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 114,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 115,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 116,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 117,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 118,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 119,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 120,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 121,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 122,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 123,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 124,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 125,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 126,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 127,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 128,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 129,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 130,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 131,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 132,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 133,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 134,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 135,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 136,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 137,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 138,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 139,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 140,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 141,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 142,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 143,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 144,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 145,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 146,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 147,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 148,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 149,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 150,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 151,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 152,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 153,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 154,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 155,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 156,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 157,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 158,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 159,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 160,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 161,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 162,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 163,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 164,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 165,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 166,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 167,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 168,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 169,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 170,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 171,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 172,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 173,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 174,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 175,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 176,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 177,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 178,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 179,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 180,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 181,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 182,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 183,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 184,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 185,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 186,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 187,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 188,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 189,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 190,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 191,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 192,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 193,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 194,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 195,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 196,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 197,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 198,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 199,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 200,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 201,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 202,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 203,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 204,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 205,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 206,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 207,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 208,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 209,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 210,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 211,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 212,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 213,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 214,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 215,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 216,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 217,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 218,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 219,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 220,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 221,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 222,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 223,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 224,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 225,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 226,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 227,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 228,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 229,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 230,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 231,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 232,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 233,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 234,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 235,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 236,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 237,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 238,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 239,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 240,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 241,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 242,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 243,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 244,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 245,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 246,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 247,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 248,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 249,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 250,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 251,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 252,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 253,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 254,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 255,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 256,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 257,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 258,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 259,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 260,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 261,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 262,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 263,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 264,
       "role": "stimulus",
       "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
     }

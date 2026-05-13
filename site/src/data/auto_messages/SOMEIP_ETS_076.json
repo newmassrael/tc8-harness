@@ -19,8 +19,8 @@
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
@@ -44,41 +44,11 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 10,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 11,
-      "role": "note",
-      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 12,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 14,
-      "role": "note",
-      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 15,
       "role": "expected",
       "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: service_id == expected.service_id and method_id == 0x00FF and message_type == 0x81"
     }

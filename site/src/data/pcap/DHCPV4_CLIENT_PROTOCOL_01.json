@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_PROTOCOL_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T09:28:59Z",
+  "captured_at": "2026-05-13T10:15:10Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,

@@ -4,33 +4,33 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_oob_check. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalO…"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (listening_oob_check) — DUT frame (no transition matched)"
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_oob_check) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_oob_check. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalO…"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_oob_check) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_oob_check) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
@@ -44,8 +44,38 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_oob_check) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_oob_check) pass trigger — transitions to pass. Cond: ut_received_payload_len == 1U"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 10,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 11,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 12,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 13,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
+    },
+    {
+      "idx": 14,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at final)"
     }
   ]
 }

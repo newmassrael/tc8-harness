@@ -4,28 +4,28 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_initial_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (listening_initial_ack) — DUT frame (no transition matched)"
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_initial_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_initial_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
     },
     {
       "idx": 5,
@@ -54,6 +54,16 @@
     },
     {
       "idx": 10,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_initial_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 11,
+      "role": "note",
+      "label": "Phase 2 (listening_initial_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 12,
       "role": "stimulus",
       "label": "Phase 2 (listening_initial_ack) — Tester stimulus (no transition matched)"
     }

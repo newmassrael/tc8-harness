@@ -4,6 +4,16 @@
   "messages": [
     {
       "idx": 0,
+      "role": "note",
+      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 2,
       "role": "stimulus",
       "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
     }

@@ -24,13 +24,13 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_first_data) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_first_data) — DUT frame (no transition matched)"
     },
     {
       "idx": 5,
-      "role": "note",
-      "label": "Phase 1 (listening_first_data) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_first_data) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 6,
@@ -39,23 +39,23 @@
     },
     {
       "idx": 7,
-      "role": "expected",
-      "label": "Phase 1 (listening_first_data) progress trigger — advances to absence_no_second_data. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle02LocalO…"
+      "role": "note",
+      "label": "Phase 1 (listening_first_data) — DUT frame (no transition matched)"
     },
     {
       "idx": 8,
       "role": "stimulus",
-      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+      "label": "Phase 1 (listening_first_data) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_first_data) — DUT frame (no transition matched)"
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_first_data) progress trigger — advances to absence_no_second_data. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle02LocalO…"
     },
     {
       "idx": 11,
@@ -64,11 +64,46 @@
     },
     {
       "idx": 12,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 13,
       "role": "note",
       "label": "Phase 2 (absence_no_second_data) — DUT frame (no transition matched)"
     },
     {
-      "idx": 13,
+      "idx": 14,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 15,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 16,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 17,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 18,
+      "role": "stimulus",
+      "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 19,
+      "role": "note",
+      "label": "Phase 2 (absence_no_second_data) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 20,
       "role": "stimulus",
       "label": "Phase 2 (absence_no_second_data) — Tester stimulus (no transition matched)"
     }

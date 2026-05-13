@@ -4,13 +4,13 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (evaluate_isn_observations) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (evaluate_isn_observations) — DUT frame (no transition matched)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (evaluate_isn_observations) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_isn_observations) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 2,
@@ -21,6 +21,46 @@
       "idx": 3,
       "role": "note",
       "label": "Phase 1 (evaluate_isn_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 4,
+      "role": "note",
+      "label": "Phase 1 (evaluate_isn_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_isn_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Phase 1 (evaluate_isn_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_isn_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_isn_observations) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Phase 1 (evaluate_isn_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 10,
+      "role": "note",
+      "label": "Phase 1 (evaluate_isn_observations) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 11,
+      "role": "stimulus",
+      "label": "Phase 1 (evaluate_isn_observations) — Tester stimulus (no transition matched)"
     }
   ]
 }

@@ -1,10 +1,10 @@
 {
   "case_id": "SOMEIP_ETS_167",
-  "outcome": "fail",
-  "captured_at": "2026-05-13T09:28:59Z",
+  "outcome": "pass",
+  "captured_at": "2026-05-13T10:15:10Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "56:24:e0:5b:b0:76",
+  "dut_mac": "e6:31:14:10:5e:a4",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -72,8 +72,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200303,
-      "ts_delta_us": 200303,
+      "ts_us": 200271,
+      "ts_delta_us": 200271,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -135,8 +135,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600298,
-      "ts_delta_us": 399995,
+      "ts_us": 600504,
+      "ts_delta_us": 400233,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -178,8 +178,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
@@ -188,8 +188,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -198,10 +198,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 1002210,
-      "ts_delta_us": 401912,
+      "ts_us": 969904,
+      "ts_delta_us": 369400,
       "direction": "dut_to_tester",
-      "src_mac": "56:24:e0:5b:b0:76",
+      "src_mac": "e6:31:14:10:5e:a4",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.1",
       "dst_ip": "224.244.224.245",
@@ -240,8 +240,8 @@
     },
     {
       "idx": 4,
-      "ts_us": 1002498,
-      "ts_delta_us": 288,
+      "ts_us": 970129,
+      "ts_delta_us": 225,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -303,8 +303,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1400328,
-      "ts_delta_us": 397830,
+      "ts_us": 1400750,
+      "ts_delta_us": 430621,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -346,8 +346,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
@@ -356,8 +356,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           }
         ],
         "src_port": 30490,
@@ -366,10 +366,10 @@
     },
     {
       "idx": 6,
-      "ts_us": 2002571,
-      "ts_delta_us": 602243,
+      "ts_us": 1970222,
+      "ts_delta_us": 569472,
       "direction": "dut_to_tester",
-      "src_mac": "56:24:e0:5b:b0:76",
+      "src_mac": "e6:31:14:10:5e:a4",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.1",
       "dst_ip": "224.244.224.245",
@@ -408,11 +408,11 @@
     },
     {
       "idx": 7,
-      "ts_us": 2002777,
-      "ts_delta_us": 206,
+      "ts_us": 1970408,
+      "ts_delta_us": 186,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "56:24:e0:5b:b0:76",
+      "dst_mac": "e6:31:14:10:5e:a4",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP-SD",
@@ -471,8 +471,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 3000480,
-      "ts_delta_us": 997703,
+      "ts_us": 3000945,
+      "ts_delta_us": 1030537,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -514,8 +514,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
@@ -524,8 +524,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           }
         ],
         "src_port": 30490,
@@ -534,10 +534,10 @@
     },
     {
       "idx": 9,
-      "ts_us": 5002986,
-      "ts_delta_us": 2002506,
+      "ts_us": 4970810,
+      "ts_delta_us": 1969865,
       "direction": "dut_to_tester",
-      "src_mac": "56:24:e0:5b:b0:76",
+      "src_mac": "e6:31:14:10:5e:a4",
       "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -553,17 +553,17 @@
         "interface_version": 1,
         "message_type": 0,
         "return_code": 0,
-        "src_port": 57340,
+        "src_port": 42939,
         "dst_port": 30502
       }
     },
     {
       "idx": 10,
-      "ts_us": 5008477,
-      "ts_delta_us": 5491,
+      "ts_us": 4976311,
+      "ts_delta_us": 5501,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "56:24:e0:5b:b0:76",
+      "dst_mac": "e6:31:14:10:5e:a4",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP",
@@ -579,13 +579,13 @@
         "message_type": 128,
         "return_code": 0,
         "src_port": 30502,
-        "dst_port": 57340
+        "dst_port": 42939
       }
     },
     {
       "idx": 11,
-      "ts_us": 5954426,
-      "ts_delta_us": 945949,
+      "ts_us": 5914345,
+      "ts_delta_us": 938034,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -647,10 +647,10 @@
     },
     {
       "idx": 12,
-      "ts_us": 6003542,
-      "ts_delta_us": 49116,
+      "ts_us": 5971259,
+      "ts_delta_us": 56914,
       "direction": "dut_to_tester",
-      "src_mac": "56:24:e0:5b:b0:76",
+      "src_mac": "e6:31:14:10:5e:a4",
       "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -666,17 +666,17 @@
         "interface_version": 1,
         "message_type": 0,
         "return_code": 0,
-        "src_port": 37857,
+        "src_port": 50960,
         "dst_port": 30502
       }
     },
     {
       "idx": 13,
-      "ts_us": 6009048,
-      "ts_delta_us": 5506,
+      "ts_us": 5976556,
+      "ts_delta_us": 5297,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "56:24:e0:5b:b0:76",
+      "dst_mac": "e6:31:14:10:5e:a4",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP",
@@ -692,15 +692,15 @@
         "message_type": 128,
         "return_code": 0,
         "src_port": 30502,
-        "dst_port": 37857
+        "dst_port": 50960
       }
     },
     {
       "idx": 14,
-      "ts_us": 7004053,
-      "ts_delta_us": 995005,
+      "ts_us": 6971868,
+      "ts_delta_us": 995312,
       "direction": "dut_to_tester",
-      "src_mac": "56:24:e0:5b:b0:76",
+      "src_mac": "e6:31:14:10:5e:a4",
       "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -716,17 +716,17 @@
         "interface_version": 1,
         "message_type": 0,
         "return_code": 0,
-        "src_port": 59935,
+        "src_port": 52760,
         "dst_port": 30502
       }
     },
     {
       "idx": 15,
-      "ts_us": 7009497,
-      "ts_delta_us": 5444,
+      "ts_us": 6977338,
+      "ts_delta_us": 5470,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "56:24:e0:5b:b0:76",
+      "dst_mac": "e6:31:14:10:5e:a4",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP",
@@ -742,7 +742,7 @@
         "message_type": 128,
         "return_code": 0,
         "src_port": 30502,
-        "dst_port": 59935
+        "dst_port": 52760
       }
     }
   ]

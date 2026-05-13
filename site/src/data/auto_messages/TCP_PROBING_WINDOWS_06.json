@@ -24,13 +24,13 @@
     },
     {
       "idx": 4,
-      "role": "note",
-      "label": "Phase 1 (listening_seg1) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_seg1) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_seg1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_seg1) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
@@ -39,26 +39,56 @@
     },
     {
       "idx": 7,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_seg1) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "note",
+      "label": "Phase 1 (listening_seg1) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 9,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_seg1) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 10,
       "role": "expected",
       "label": "Phase 1 (listening_seg1) progress trigger — advances to listening_probe1. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
-      "idx": 8,
+      "idx": 11,
+      "role": "note",
+      "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 12,
       "role": "stimulus",
       "label": "Phase 2 (listening_probe1) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 9,
+      "idx": 13,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_probe1) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 14,
       "role": "note",
       "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
     },
     {
-      "idx": 10,
+      "idx": 15,
       "role": "note",
       "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
     },
     {
-      "idx": 11,
+      "idx": 16,
+      "role": "note",
+      "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 17,
       "role": "note",
       "label": "Phase 2 (listening_probe1) — DUT frame (no transition matched)"
     }

@@ -4,21 +4,41 @@
   "messages": [
     {
       "idx": 0,
+      "role": "note",
+      "label": "Phase 1 (listening_p1_dut_syn) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_dut_syn) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 2,
       "role": "expected",
       "label": "Phase 1 (listening_p1_dut_syn) progress trigger — advances to listening_p1_absence. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 22U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
     },
     {
-      "idx": 1,
+      "idx": 3,
       "role": "note",
       "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
     },
     {
-      "idx": 2,
+      "idx": 4,
+      "role": "note",
+      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 5,
       "role": "stimulus",
       "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 3,
+      "idx": 6,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 7,
       "role": "note",
       "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
     }

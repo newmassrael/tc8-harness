@@ -4,31 +4,41 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_otw_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (listening_otw_ack) — DUT frame (no transition matched)"
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
       "role": "expected",
-      "label": "Phase 2 (listening_otw_ack) progress trigger — advances to listening_unacc_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
+      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_otw_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
     },
     {
       "idx": 5,
+      "role": "note",
+      "label": "Phase 2 (listening_otw_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 6,
+      "role": "expected",
+      "label": "Phase 2 (listening_otw_ack) progress trigger — advances to listening_unacc_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
+    },
+    {
+      "idx": 7,
       "role": "note",
       "label": "Phase 3 (listening_unacc_ack) — DUT frame (no transition matched)"
     }

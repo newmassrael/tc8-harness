@@ -4,58 +4,58 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_p1_handshake) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_p1_handshake) — DUT frame (no transition matched)"
     },
     {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_handshake) — Tester stimulus (no transition matched)"
+    },
+    {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_p1_handshake) progress trigger — advances to listening_p1_close. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable14Pha…"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_p1_handshake) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (listening_p1_close) — DUT frame (no transition matched)"
+      "label": "Phase 1 (listening_p1_handshake) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
       "role": "expected",
-      "label": "Phase 2 (listening_p1_close) progress trigger — advances to listening_p1_data_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable14Pha…"
+      "label": "Phase 1 (listening_p1_handshake) progress trigger — advances to listening_p1_close. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable14Pha…"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 3 (listening_p1_data_ack) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_p1_close) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 2 (listening_p1_close) progress trigger — advances to listening_p1_data_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable14Pha…"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 3 (listening_p1_data_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 8,
-      "role": "note",
-      "label": "Phase 3 (listening_p1_data_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 9,
       "role": "stimulus",
       "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 10,
+      "idx": 9,
       "role": "note",
       "label": "Phase 3 (listening_p1_data_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 10,
+      "role": "stimulus",
+      "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 11,
@@ -69,6 +69,26 @@
     },
     {
       "idx": 13,
+      "role": "stimulus",
+      "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 14,
+      "role": "note",
+      "label": "Phase 3 (listening_p1_data_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 15,
+      "role": "stimulus",
+      "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 16,
+      "role": "note",
+      "label": "Phase 3 (listening_p1_data_ack) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 17,
       "role": "stimulus",
       "label": "Phase 3 (listening_p1_data_ack) — Tester stimulus (no transition matched)"
     }

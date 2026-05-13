@@ -26,6 +26,36 @@
       "idx": 4,
       "role": "note",
       "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 6,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 7,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 8,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 9,
+      "role": "note",
+      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 10,
+      "role": "stimulus",
+      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
     }
   ]
 }

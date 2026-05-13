@@ -1,10 +1,10 @@
 {
   "case_id": "SOMEIP_ETS_117",
   "outcome": "fail",
-  "captured_at": "2026-05-13T09:28:59Z",
+  "captured_at": "2026-05-13T10:15:10Z",
   "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "2a:e4:cf:90:a1:18",
+  "dut_mac": "a2:09:11:89:fd:cf",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -72,8 +72,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200150,
-      "ts_delta_us": 200150,
+      "ts_us": 200225,
+      "ts_delta_us": 200225,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -135,8 +135,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600264,
-      "ts_delta_us": 400114,
+      "ts_us": 600284,
+      "ts_delta_us": 400059,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -198,10 +198,10 @@
     },
     {
       "idx": 3,
-      "ts_us": 1003741,
-      "ts_delta_us": 403477,
+      "ts_us": 971752,
+      "ts_delta_us": 371468,
       "direction": "dut_to_tester",
-      "src_mac": "2a:e4:cf:90:a1:18",
+      "src_mac": "a2:09:11:89:fd:cf",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.1",
       "dst_ip": "224.244.224.245",
@@ -240,8 +240,8 @@
     },
     {
       "idx": 4,
-      "ts_us": 1003874,
-      "ts_delta_us": 133,
+      "ts_us": 971983,
+      "ts_delta_us": 231,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -303,8 +303,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1400354,
-      "ts_delta_us": 396480,
+      "ts_us": 1400589,
+      "ts_delta_us": 428606,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -366,10 +366,10 @@
     },
     {
       "idx": 6,
-      "ts_us": 2003952,
-      "ts_delta_us": 603598,
+      "ts_us": 1972118,
+      "ts_delta_us": 571529,
       "direction": "dut_to_tester",
-      "src_mac": "2a:e4:cf:90:a1:18",
+      "src_mac": "a2:09:11:89:fd:cf",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.1",
       "dst_ip": "224.244.224.245",
@@ -408,11 +408,11 @@
     },
     {
       "idx": 7,
-      "ts_us": 2004113,
-      "ts_delta_us": 161,
+      "ts_us": 1972450,
+      "ts_delta_us": 332,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "2a:e4:cf:90:a1:18",
+      "dst_mac": "a2:09:11:89:fd:cf",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP-SD",
@@ -471,8 +471,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 3000505,
-      "ts_delta_us": 996392,
+      "ts_us": 3000710,
+      "ts_delta_us": 1028260,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -514,8 +514,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
@@ -524,8 +524,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
@@ -534,10 +534,10 @@
     },
     {
       "idx": 9,
-      "ts_us": 4504256,
-      "ts_delta_us": 1503751,
+      "ts_us": 4472380,
+      "ts_delta_us": 1471670,
       "direction": "dut_to_tester",
-      "src_mac": "2a:e4:cf:90:a1:18",
+      "src_mac": "a2:09:11:89:fd:cf",
       "dst_mac": "7e:b1:ae:f4:32:5d",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -598,11 +598,11 @@
     },
     {
       "idx": 10,
-      "ts_us": 4504544,
+      "ts_us": 4472668,
       "ts_delta_us": 288,
       "direction": "tester_to_dut",
       "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "2a:e4:cf:90:a1:18",
+      "dst_mac": "a2:09:11:89:fd:cf",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP-SD",

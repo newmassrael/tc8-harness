@@ -4,78 +4,78 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
       "role": "note",
       "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
+      "idx": 1,
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+    },
+    {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_ack_1. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (listening_ack_1) — DUT frame (no transition matched)"
+      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
       "role": "expected",
-      "label": "Phase 2 (listening_ack_1) progress trigger — advances to listening_ack_2. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
+      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_ack_1. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 3 (listening_ack_2) — DUT frame (no transition matched)"
+      "label": "Phase 2 (listening_ack_1) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
       "role": "expected",
-      "label": "Phase 3 (listening_ack_2) progress trigger — advances to listening_ack_3. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
+      "label": "Phase 2 (listening_ack_1) progress trigger — advances to listening_ack_2. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 4 (listening_ack_3) — DUT frame (no transition matched)"
+      "label": "Phase 3 (listening_ack_2) — DUT frame (no transition matched)"
     },
     {
       "idx": 8,
       "role": "expected",
-      "label": "Phase 4 (listening_ack_3) progress trigger — advances to listening_ack_4. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
+      "label": "Phase 3 (listening_ack_2) progress trigger — advances to listening_ack_3. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Phase 5 (listening_ack_4) — DUT frame (no transition matched)"
+      "label": "Phase 4 (listening_ack_3) — DUT frame (no transition matched)"
     },
     {
       "idx": 10,
       "role": "expected",
-      "label": "Phase 5 (listening_ack_4) progress trigger — advances to listening_ack_5. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
+      "label": "Phase 4 (listening_ack_3) progress trigger — advances to listening_ack_4. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
     },
     {
       "idx": 11,
       "role": "note",
-      "label": "Phase 6 (listening_ack_5) — DUT frame (no transition matched)"
+      "label": "Phase 5 (listening_ack_4) — DUT frame (no transition matched)"
     },
     {
       "idx": 12,
       "role": "expected",
-      "label": "Phase 6 (listening_ack_5) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
+      "label": "Phase 5 (listening_ack_4) progress trigger — advances to listening_ack_5. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
     },
     {
       "idx": 13,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "Phase 6 (listening_ack_5) — DUT frame (no transition matched)"
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "expected",
+      "label": "Phase 6 (listening_ack_5) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05Local…"
     },
     {
       "idx": 15,
@@ -94,16 +94,6 @@
     },
     {
       "idx": 18,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 19,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
-    },
-    {
-      "idx": 20,
       "role": "note",
       "label": "Post-pass teardown (state machine already at final)"
     }

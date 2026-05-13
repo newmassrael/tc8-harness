@@ -1,5 +1,5 @@
 {
-  "case_id": "SOMEIPSRV_FORMAT_20",
+  "case_id": "UDP_FIELDS_02",
   "generator_version": "2",
   "messages": [
     {
@@ -29,26 +29,6 @@
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 9,
       "role": "stimulus",
       "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
     }

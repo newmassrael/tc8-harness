@@ -1008,529 +1008,224 @@
       "label": "Phase 3 (listening_phase2B) — observed frame"
     },
     {
-      "idx": 130868,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130869,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130870,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130871,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130872,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130873,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130874,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130875,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130876,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130877,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130878,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130879,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130880,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130881,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130882,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130883,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130884,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130885,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130886,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130887,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130888,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130889,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130890,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130891,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130892,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130893,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130894,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130895,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130896,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130897,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130898,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130899,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130900,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130901,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130902,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130903,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130904,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130905,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130906,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130907,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130908,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130909,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130910,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130911,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130912,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130913,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130914,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130915,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130916,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130917,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130918,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130919,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130920,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130921,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130922,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130923,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130924,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130925,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130926,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130927,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
-      "idx": 130928,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
-    },
-    {
       "idx": 130929,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130930,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130931,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130932,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130933,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130934,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130935,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130936,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130937,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130938,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130939,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130940,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130941,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130942,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130943,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130944,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130945,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130946,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130947,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130948,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130949,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130950,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130951,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130952,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130953,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130954,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130955,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130956,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130957,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130958,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130959,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130960,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130961,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130962,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130963,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130964,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130965,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130966,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130967,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130968,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130969,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130970,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130971,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 130972,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_phase2A) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 130973,
@@ -1859,151 +1554,456 @@
     },
     {
       "idx": 131038,
-      "role": "stimulus",
-      "label": "Phase 3 (listening_phase2B) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131039,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131040,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131041,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131042,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131043,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131044,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131045,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131046,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131047,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131048,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131049,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131050,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131051,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131052,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131053,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131054,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131055,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131056,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131057,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131058,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131059,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131060,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131061,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131062,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131063,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131064,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131065,
       "role": "expected",
-      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131066,
       "role": "expected",
-      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     },
     {
       "idx": 131067,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131068,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131069,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131070,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131071,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131072,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131073,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131074,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131075,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131076,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131077,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131078,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131079,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131080,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131081,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131082,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131083,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131084,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131085,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131086,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131087,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131088,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131089,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131090,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131091,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131092,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131093,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131094,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131095,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131096,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131097,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131098,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131099,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131100,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131101,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131102,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131103,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131104,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131105,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131106,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131107,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131108,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131109,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131110,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131111,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131112,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131113,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131114,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131115,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131116,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131117,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131118,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131119,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131120,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131121,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131122,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131123,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131124,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131125,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131126,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131127,
+      "role": "expected",
+      "label": "Phase 2 (listening_phase2A) progress trigger — advances to listening_phase2B. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
+    },
+    {
+      "idx": 131128,
       "role": "expected",
       "label": "Phase 3 (listening_phase2B) progress trigger — advances to listening_phase2A. Cond: service_id == 0xFFFF and sd_entry_count >= 1"
     }

@@ -19,8 +19,8 @@
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 4,
@@ -49,68 +49,68 @@
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 12,
-      "role": "note",
-      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 13,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_phase2) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 16,
-      "role": "note",
-      "label": "Phase 2 (listening_phase2) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 17,
       "role": "expected",
       "label": "Phase 2 (listening_phase2) progress trigger — advances to listening_phase3. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x07 and sd_entries[0].ttl > 0 and sd_entries[0].eventgroup_id == ex…"
     },
     {
+      "idx": 11,
+      "role": "expected",
+      "label": "Phase 3 (listening_phase3) progress trigger — advances to listening_phase4_settle. Cond: service_id == expected.service_id and message_type == 0x02 and method_id == 0x8001"
+    },
+    {
+      "idx": 12,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 13,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 14,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 15,
+      "role": "note",
+      "label": "Phase 4 (listening_phase4_settle) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 16,
+      "role": "stimulus",
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 17,
+      "role": "note",
+      "label": "Phase 4 (listening_phase4_settle) — DUT frame (no transition matched)"
+    },
+    {
       "idx": 18,
       "role": "stimulus",
-      "label": "Phase 3 (listening_phase3) — Tester stimulus (no transition matched)"
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 19,
-      "role": "note",
-      "label": "Phase 3 (listening_phase3) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 20,
       "role": "stimulus",
-      "label": "Phase 3 (listening_phase3) — Tester stimulus (no transition matched)"
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 21,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase3) progress trigger — advances to listening_phase4_settle. Cond: service_id == expected.service_id and message_type == 0x02 and method_id == 0x8001"
+      "role": "stimulus",
+      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 22,
@@ -134,31 +134,6 @@
     },
     {
       "idx": 26,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 27,
-      "role": "note",
-      "label": "Phase 4 (listening_phase4_settle) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 28,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 29,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 30,
-      "role": "stimulus",
-      "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 31,
       "role": "stimulus",
       "label": "Phase 4 (listening_phase4_settle) — Tester stimulus (no transition matched)"
     }

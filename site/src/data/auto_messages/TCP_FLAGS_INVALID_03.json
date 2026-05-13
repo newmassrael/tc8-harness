@@ -24,18 +24,18 @@
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 1 (listening_dut_syn) progress trigger — advances to listening_absence. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 20U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+      "role": "stimulus",
+      "label": "Phase 1 (listening_dut_syn) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_absence) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 1 (listening_dut_syn) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
-      "role": "note",
-      "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Phase 1 (listening_dut_syn) progress trigger — advances to listening_absence. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 20U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
     },
     {
       "idx": 7,
@@ -59,13 +59,13 @@
     },
     {
       "idx": 11,
-      "role": "note",
-      "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Phase 2 (listening_absence) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_absence) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
     },
     {
       "idx": 13,
@@ -79,6 +79,16 @@
     },
     {
       "idx": 15,
+      "role": "note",
+      "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
+    },
+    {
+      "idx": 16,
+      "role": "stimulus",
+      "label": "Phase 2 (listening_absence) — Tester stimulus (no transition matched)"
+    },
+    {
+      "idx": 17,
       "role": "note",
       "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
     }

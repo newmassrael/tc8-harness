@@ -109,13 +109,13 @@
     },
     {
       "idx": 21,
-      "role": "expected",
-      "label": "Phase 3 (listening_phase3_stop_seen) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl ==…"
+      "role": "stimulus",
+      "label": "Phase 3 (listening_phase3_stop_seen) — Tester stimulus (no transition matched)"
     },
     {
       "idx": 22,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "expected",
+      "label": "Phase 3 (listening_phase3_stop_seen) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl ==…"
     }
   ]
 }

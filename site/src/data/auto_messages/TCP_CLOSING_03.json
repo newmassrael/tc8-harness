@@ -14,23 +14,23 @@
     },
     {
       "idx": 2,
-      "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 3,
       "role": "stimulus",
       "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
     },
     {
-      "idx": 4,
+      "idx": 3,
       "role": "note",
       "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
     },
     {
-      "idx": 5,
+      "idx": 4,
       "role": "expected",
       "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_spec_silence. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": 5,
+      "role": "note",
+      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
     },
     {
       "idx": 6,
@@ -39,81 +39,6 @@
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_spec_silence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 8,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_spec_silence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 10,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 11,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_spec_silence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 12,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 13,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 14,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_spec_silence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 15,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_spec_silence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 16,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 17,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_spec_silence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 18,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 19,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 20,
-      "role": "stimulus",
-      "label": "Phase 2 (listening_spec_silence) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 21,
-      "role": "note",
-      "label": "Phase 2 (listening_spec_silence) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 22,
       "role": "fail-trigger",
       "label": "Phase 2 (listening_spec_silence) fail trigger — transitions to fail_dut_response_to_rst. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U and dst_port…"
     }
