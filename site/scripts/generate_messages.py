@@ -396,18 +396,49 @@ def _eval_int_expr(expr: str, resolve_name) -> int | None:
     return add_sub()
 
 
+_KNOWN_TESTER_INJECTED_MACS = {
+    "02:00:00:00:00:a1",  # ARP_TESTER_INJECTED_MAC
+    "02:00:00:00:00:a2",  # ARP_TESTER_INJECTED_MAC2
+    "02:00:00:00:00:a3",  # ARP_TESTER_INJECTED_MAC3
+}
+
+
 def _pcap_endpoint_expects(pcap_doc: dict) -> dict[str, Any]:
     """Surface per-capture identity (MACs) under the keys SCXML conds
     reference. The DUT MAC is kernel-assigned per veth pair so it can
-    only be read from the pcap manifest's auto-detected endpoints. The
-    Tester MAC for non-ARP cases is the auto-detected veth source MAC;
-    ARP cases override this with the injected MAC (smoke-test.sh)."""
+    only be read from the pcap manifest's auto-detected endpoints.
+
+    The decoder's ``_autodetect_endpoints`` picks "first emitter is the
+    tester" — fine for ARP / ICMPv4 / SOME/IP where the tester drives
+    the stimulus, but inverted for DHCP / TCP active-OPEN where the DUT
+    emits first. Two corrections compensate:
+
+    1. If the auto-detected ``dut_mac`` matches a known ARP injected
+       MAC (kTesterInjectedMac family), the autodetect got the labels
+       backwards — swap before exporting.
+    2. For DHCP captures, the ``chaddr`` field on the BOOTP header is
+       the client's hardware address by RFC 2131 §2 — i.e. the DUT.
+       Override ``dut_iface_mac`` from the first DHCP frame's chaddr
+       so DHCP conds resolve correctly even when (1) doesn't apply.
+    """
     out: dict[str, Any] = {}
-    if pcap_doc.get("dut_mac"):
-        out["dut_iface_mac"] = pcap_doc["dut_mac"].lower()
-        out["dut_real_mac"] = pcap_doc["dut_mac"].lower()
-    if pcap_doc.get("tester_mac"):
-        out["pcap_tester_mac"] = pcap_doc["tester_mac"].lower()
+    dut_mac = (pcap_doc.get("dut_mac") or "").lower()
+    tester_mac = (pcap_doc.get("tester_mac") or "").lower()
+    if dut_mac and dut_mac in _KNOWN_TESTER_INJECTED_MACS:
+        dut_mac, tester_mac = tester_mac, dut_mac
+    if dut_mac:
+        out["dut_iface_mac"] = dut_mac
+        out["dut_real_mac"] = dut_mac
+    if tester_mac:
+        out["pcap_tester_mac"] = tester_mac
+
+    # DHCP chaddr override: scan the first packet that carries a chaddr.
+    for p in pcap_doc.get("packets") or []:
+        ch = (p.get("fields") or {}).get("chaddr")
+        if isinstance(ch, str) and ch:
+            out["dut_iface_mac"] = ch.lower()
+            out["dut_real_mac"] = ch.lower()
+            break
     return out
 
 
@@ -960,6 +991,23 @@ def _packet_view(packet: dict) -> dict:
     flags = fields.get("flags")
     if isinstance(flags, str) and flags and flags != "—":
         fields["flags"] = _flags_to_int(flags)
+    # DHCPv4 cookie / options-walk proxy: the decoder's option-53 parser
+    # only populates ``dhcp_msg_type`` when the magic cookie matched
+    # *and* a Message Type option was found, so its presence is the
+    # generator-side proxy for the C++ ``magic_cookie_valid`` /
+    # ``message_type_option_present`` flags. The decoder doesn't surface
+    # ``op`` for DHCP frames yet, so we infer it from the port pair: a
+    # source port 68 (BOOTPC) frame is a DUT-emitted BOOTREQUEST in
+    # tc8-harness's topology (the tester server emul listens on 67).
+    if "dhcp_msg_type" in fields and fields["dhcp_msg_type"] is not None:
+        fields.setdefault("magic_cookie_valid", True)
+        fields.setdefault("message_type_option_present", True)
+        if "op" not in fields:
+            sport = fields.get("src_port")
+            if sport == 68:
+                fields["op"] = 1  # BOOTREQUEST (client-emitted)
+            elif sport == 67:
+                fields["op"] = 2  # BOOTREPLY (server-emitted)
     # Stash the summary string so helpers can reach into it for fields
     # the decoder hasn't lifted yet (currently the TCP ``len=N`` tail).
     if "summary" in packet and "_summary" not in fields:
@@ -1196,6 +1244,63 @@ def _helper_is_dut_data_segment(view, args) -> Any:
     return pl > 0
 
 
+# DHCPv4 helpers (dhcpv4_captured.h). The decoder's option-53 walker
+# only populates ``dhcp_msg_type`` when the magic-cookie matched and a
+# Message Type option was found, so its presence on a packet is the
+# generator-side proxy for the C++ ``magic_cookie_valid &&
+# message_type_option_present`` short-circuit.
+
+
+def _dhcp_msg_type(view: dict) -> int | None:
+    mt = view.get("dhcp_msg_type")
+    return mt if isinstance(mt, int) else None
+
+
+def _is_dhcp_op_request(view: dict) -> bool | None:
+    """``op == BOOTREQUEST (1)`` shared prefix of DUT-emit DHCP
+    predicates. Returns UNKNOWN when the decoder didn't reach the
+    BOOTP fixed header (truncated capture)."""
+    op = view.get("op")
+    return op == 1 if isinstance(op, int) else None
+
+
+def _dhcp_emit_match(view: dict, mt_value: int) -> Any:
+    if view.get("dhcp_msg_type") is None:
+        return False  # not a DHCP packet, or cookie/options invalid
+    op_ok = _is_dhcp_op_request(view)
+    if op_ok is None:
+        return UNKNOWN
+    if not op_ok:
+        return False
+    return _dhcp_msg_type(view) == mt_value
+
+
+def _helper_is_dhcp_discover(view, _args):   return _dhcp_emit_match(view, 1)
+def _helper_is_dhcp_request(view, _args):    return _dhcp_emit_match(view, 3)
+def _helper_is_dhcp_decline(view, _args):    return _dhcp_emit_match(view, 4)
+def _helper_is_dhcp_release(view, _args):    return _dhcp_emit_match(view, 7)
+def _helper_is_dhcp_inform(view, _args):     return _dhcp_emit_match(view, 8)
+
+
+def _helper_has_message_type_option(view, _args) -> Any:
+    return view.get("dhcp_msg_type") is not None
+
+
+def _helper_source_ip_is_zero(view, _args) -> Any:
+    s = view.get("src_ip")
+    return s == "0.0.0.0" if isinstance(s, str) else UNKNOWN
+
+
+def _helper_chaddr_matches_dut_mac(view, args) -> Any:
+    if not args or args[0] is UNKNOWN:
+        return UNKNOWN
+    target = args[0]
+    chaddr = view.get("chaddr")
+    if not isinstance(chaddr, str) or not isinstance(target, str):
+        return UNKNOWN
+    return chaddr.lower() == target.lower()
+
+
 # ARP helpers (arp_captured.h)
 def _helper_is_arp_probe(view, _args) -> Any:
     # RFC 5227: opcode==1, sender_ip==0.0.0.0
@@ -1250,23 +1355,31 @@ def _helper_frame_delta_us(view, _args) -> Any:
 
 CAPTURED_HELPERS = {
     # tcp_captured.h
-    "is_pure_dut_ack":     _helper_is_pure_dut_ack,
-    "is_dut_fin_ack":      _helper_is_dut_fin_ack,
-    "is_dut_rst":          _helper_is_dut_rst,
-    "is_dut_syn":          _helper_is_dut_syn,
-    "is_dut_data_segment": _helper_is_dut_data_segment,
+    "is_pure_dut_ack":          _helper_is_pure_dut_ack,
+    "is_dut_fin_ack":           _helper_is_dut_fin_ack,
+    "is_dut_rst":               _helper_is_dut_rst,
+    "is_dut_syn":               _helper_is_dut_syn,
+    "is_dut_data_segment":      _helper_is_dut_data_segment,
     # arp_captured.h
-    "is_arp_probe":        _helper_is_arp_probe,
-    "is_arp_reply":        _helper_is_arp_reply,
-    "is_arp_announce":     _helper_is_arp_announce,
-    "is_eth_broadcast":    _helper_is_eth_broadcast,
+    "is_arp_probe":             _helper_is_arp_probe,
+    "is_arp_reply":             _helper_is_arp_reply,
+    "is_arp_announce":          _helper_is_arp_announce,
+    "is_eth_broadcast":         _helper_is_eth_broadcast,
     # dhcpv4_captured.h
-    "dst_ip_is_broadcast": _helper_dst_ip_is_broadcast,
-    "dst_ip_equals":       _helper_dst_ip_equals,
+    "is_dhcp_discover":         _helper_is_dhcp_discover,
+    "is_dhcp_request":          _helper_is_dhcp_request,
+    "is_dhcp_decline":          _helper_is_dhcp_decline,
+    "is_dhcp_release":          _helper_is_dhcp_release,
+    "is_dhcp_inform":           _helper_is_dhcp_inform,
+    "has_message_type_option":  _helper_has_message_type_option,
+    "source_ip_is_zero":        _helper_source_ip_is_zero,
+    "chaddr_matches_dut_mac":   _helper_chaddr_matches_dut_mac,
+    "dst_ip_is_broadcast":      _helper_dst_ip_is_broadcast,
+    "dst_ip_equals":            _helper_dst_ip_equals,
     # someip_captured.h
-    "payload_bytes_eq":    _helper_payload_bytes_eq,
+    "payload_bytes_eq":         _helper_payload_bytes_eq,
     # cross-protocol
-    "frame_delta_us":      _helper_frame_delta_us,
+    "frame_delta_us":           _helper_frame_delta_us,
 }
 
 
