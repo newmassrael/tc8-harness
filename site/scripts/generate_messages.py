@@ -17,15 +17,24 @@ Design notes:
   hand-written tokenizer + recursive-descent parser tied to the cond
   grammar tc8-harness actually writes (captured.X / expected.Y member
   access, indexed sd_entries, bitwise & + comparisons, ``and`` / ``or`` /
-  ``not`` joins). Anything outside that surface (function calls,
-  initializer lists, namespaced constants) is treated as UNKNOWN under
-  Kleene three-valued logic, so opaque sub-clauses don't force a
-  conservative match into a false-positive.
-- ``expected.X`` evaluates to UNKNOWN by design. The trait-header values
-  aren't available here; we still want the rest of the cond to do the
-  filtering. AND chains drop UNKNOWN clauses when there's at least one
-  concrete TRUE; OR chains drop UNKNOWN clauses when there's at least
-  one concrete TRUE/FALSE that decides the result.
+  ``not`` joins, captured.method(...) helpers, scoped constants).
+- ``expected.X`` resolves through a runtime-config loader that parses
+  ``dut/env/smoke-test.sh``'s ``--expect name=value`` blocks plus the
+  DHCPv4 default-endpoint constants. Anything not represented in those
+  sources stays UNKNOWN. Per-capture identity fields (``dut_iface_mac``,
+  ``tester_mac``) come from the pcap manifest's auto-detected endpoints.
+- ``::tc8::sce::tcp::kFoo`` scoped constants resolve through a regex
+  parser over ``src/sce_integration/tcp_pilot_common.h`` that handles
+  simple integer arithmetic across constant cross-refs.
+- ``captured.is_pure_dut_ack(...)`` / ``is_dut_rst`` / ``is_dut_fin_ack``
+  / ``is_dut_syn`` / ``is_dut_data_segment`` are reimplemented in Python
+  so TCP guard chains that wrap the 4-tuple check in a single call still
+  evaluate when their args resolve.
+- Three-valued Kleene logic. Pass/progress transitions use lenient mode
+  (UNKNOWN drops from AND when concrete TRUE settles the result) plus a
+  DUT-direction guard. Fail transitions use strict mode (UNKNOWN poisons)
+  so an ``X != expected.Y`` clause can't false-fire when expected.Y is
+  still missing.
 - Output is locale-neutral English. Localised override files keep
   responsibility for translation; this generator never writes Korean.
 """
@@ -54,7 +63,471 @@ CASES_DIR = DEFAULT_CASES_DIR
 PCAP_DIR = DEFAULT_PCAP_DIR
 OUT_DIR = DEFAULT_OUT_DIR
 
-GENERATOR_VERSION = "1"
+GENERATOR_VERSION = "2"
+
+
+# ---------------------------------------------------------------------------
+# Runtime-config loaders
+#
+# The harness puts the values that satisfy ``expected.X`` cond clauses
+# into two places:
+#   * ``dut/env/smoke-test.sh`` — protocol-prefixed ``--expect`` blocks
+#     (TC8_DUT_EXPECT / ARP_DUT_EXPECT_STATIC / ICMPV4 / IPV4)
+#   * ``src/sce_integration/dhcpv4_default_endpoints.h`` — constexpr
+#     server / offered-IP defaults
+# Plus scoped TCP constants live in
+# ``src/sce_integration/tcp_pilot_common.h`` as a flat ``inline constexpr``
+# table referenced by name via ``::tc8::sce::tcp::kFoo`` from SCXML cond
+# clauses (and from per-case overrides that add offsets).
+# ---------------------------------------------------------------------------
+
+
+SMOKE_TEST_PATH = REPO_ROOT / "dut" / "env" / "smoke-test.sh"
+DHCPV4_CONSTS_PATH = REPO_ROOT / "src" / "sce_integration" / "dhcpv4_default_endpoints.h"
+TCP_CONSTS_PATH = REPO_ROOT / "src" / "sce_integration" / "tcp_pilot_common.h"
+
+
+def _coerce_value(raw: str) -> Any:
+    """Turn a smoke-test.sh ``--expect`` RHS into a Python value the
+    evaluator can compare against captured fields. IP strings stay as
+    dotted strings (matches the decoder's ``src_ip`` / ``dst_ip``
+    representation); MACs stay lowercased; integers parse from hex or
+    decimal with optional 0x prefix.
+
+    Returns ``None`` for unexpanded ``$VAR`` literals so the pcap-derived
+    endpoint identity (``_pcap_endpoint_expects``) can fill the slot
+    instead of pinning a placeholder.
+    """
+    s = raw.strip().strip('"').strip("'")
+    if not s:
+        return None
+    # Unexpanded shell variable — caller should drop and let the pcap
+    # manifest's auto-detected MAC/IP take over.
+    if s.startswith("$"):
+        return None
+    # Dotted-quad IPv4 — keep as string for direct dotted-string match
+    if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", s):
+        return s
+    # MAC — normalise case so it matches decoder output
+    if re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", s):
+        return s.lower()
+    # Hex / dec integer
+    try:
+        return int(s, 16) if s.lower().startswith("0x") else int(s)
+    except ValueError:
+        return s
+
+
+def _load_smoke_test_expects(path: Path = SMOKE_TEST_PATH) -> dict[str, Any]:
+    """Build a flat ``{key: value}`` dict of every ``--expect`` value
+    declared at file scope in smoke-test.sh. Protocol-prefixed keys
+    (``arp.tester_ip``) are stored under their bare name (``tester_ip``)
+    plus the prefixed form, so a SCXML cond can reach them either way.
+
+    Variable substitutions (``$TESTER_IP4``, ``$DUT_IP4``,
+    ``$ICMPV4_TESTER_ECHO_ID``, etc.) are resolved against a shell-var
+    scan over the same file — limited to the top-of-file fixture block.
+    Per-worker dynamic values (``$dut_mac``) stay unresolved and fall
+    back to UNKNOWN; the pcap manifest's auto-detected ``dut_mac`` /
+    ``tester_mac`` cover that gap (see ``_pcap_endpoint_expects``).
+    """
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+
+    # First pass: shell-vars at the top of the file (FOO=bar form).
+    shell_vars: dict[str, str] = {}
+    for m in re.finditer(r"^([A-Z][A-Z0-9_]*)=([^\s#$()]+)\s*$",
+                         text, re.MULTILINE):
+        shell_vars.setdefault(m.group(1), m.group(2))
+
+    def expand(s: str) -> str:
+        return re.sub(r"\$([A-Z][A-Z0-9_]*)",
+                      lambda m: shell_vars.get(m.group(1), m.group(0)), s)
+
+    out: dict[str, Any] = {}
+    # Every line of the shape ``--expect name=value`` (possibly quoted).
+    # Protocol-namespaced keys (e.g. ``arp.tester_ip``) stay namespaced;
+    # the resolver picks the right namespace at lookup time based on
+    # the case's category prefix so values don't pollute across
+    # protocols (the unprefixed ``tester_ip`` from the SOME/IP block
+    # otherwise leaks into ARP / ICMPv4 expectations).
+    for m in re.finditer(
+        r'--expect\s+"?([A-Za-z_][A-Za-z_0-9.]*)=([^"\s)]+)"?',
+        text,
+    ):
+        raw_key, raw_val = m.group(1), m.group(2)
+        val = _coerce_value(expand(raw_val))
+        if val is None:
+            continue
+        out[raw_key] = val
+    return out
+
+
+def _load_smoke_test_case_overrides(path: Path = SMOKE_TEST_PATH) -> dict[str, dict[str, Any]]:
+    """Capture per-case ``CASE_EXPECT_OVERRIDES`` entries from
+    smoke-test.sh. Each entry has the form
+    ``[CASE_ID]="key=value[,key=value...]"`` and last-wins per the
+    harness's ``expect_parser``. Returns ``{case_id: {key: value}}``;
+    callers merge over the global expects."""
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    out: dict[str, dict[str, Any]] = {}
+    for m in re.finditer(
+        r'^\s*\[([A-Z][A-Z0-9_]+)\]\s*=\s*"([^"\n]*=[^"\n]*)"',
+        text, re.MULTILINE,
+    ):
+        cid = m.group(1)
+        rhs = m.group(2)
+        parsed: dict[str, Any] = {}
+        for pair in rhs.split(","):
+            if "=" not in pair:
+                continue
+            k, _, v = pair.partition("=")
+            val = _coerce_value(v)
+            if val is None:
+                continue
+            parsed[k.strip()] = val
+        if parsed:
+            out.setdefault(cid, {}).update(parsed)
+    return out
+
+
+def _decode_be32_shift_block(body: str) -> int | None:
+    """Decode a 4-line ``(BYTE << 0) | (BYTE << 8) | (BYTE << 16) |
+    (BYTE << 24)`` constant declaration into the resulting u32 value.
+
+    DHCPv4 default endpoints use this idiom; the comment on the
+    preceding line carries the dotted-decimal but we parse the
+    expression directly so the source-of-truth stays the C++."""
+    nums = re.findall(
+        r"<\s*(?:std::|::)?u?int32_t\s*>\(\s*(\d+)U?\s*\)\s*<<\s*(\d+)",
+        body,
+    )
+    if len(nums) != 4:
+        return None
+    val = 0
+    for byte_s, shift_s in nums:
+        val |= (int(byte_s) & 0xFF) << int(shift_s)
+    return val
+
+
+def _u32_be_to_dotted(value: int) -> str:
+    """``kDefaultServerIdBe`` stores the IPv4 in little-endian-shifted
+    form (byte 0 = MSB of the dotted form). Recover the dotted string."""
+    return ".".join(str((value >> (i * 8)) & 0xFF) for i in range(4))
+
+
+def _load_dhcpv4_default_consts(path: Path = DHCPV4_CONSTS_PATH) -> dict[str, Any]:
+    """Pull the ``kDefault*`` / ``kSecond*`` u32 IP constants out of
+    dhcpv4_default_endpoints.h and surface them under both their bare
+    name and (the same name, e.g. ``server_id_be``) so they're reachable
+    from ``expected.server_id_be`` cond fragments."""
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    out: dict[str, Any] = {}
+    for m in re.finditer(
+        r"inline\s+constexpr\s+std::uint32_t\s+(\w+)\s*=([^;]+);",
+        text,
+    ):
+        name, body = m.group(1), m.group(2)
+        val = _decode_be32_shift_block(body)
+        if val is None:
+            # Plain integer constant
+            mn = re.search(r"=\s*([0-9]+)U?\s*;", m.group(0))
+            if mn:
+                val = int(mn.group(1))
+            else:
+                continue
+        out[name] = val
+        # Map kFooBar → foo_bar (SCXML conds reference snake_case names)
+        snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name.lstrip("k")).lower()
+        out.setdefault(snake, val)
+        # IP-shaped fields: also expose the dotted-string form so equality
+        # comparisons against pcap-decoder strings work without an extra
+        # conversion layer at eval time.
+        if snake.endswith("_be") or snake.endswith("_ip"):
+            out.setdefault(snake.removesuffix("_be"), _u32_be_to_dotted(val))
+    return out
+
+
+def _load_scoped_consts(path: Path = TCP_CONSTS_PATH) -> dict[str, int]:
+    """Two-pass parse over ``tcp_pilot_common.h``: first capture every
+    ``inline constexpr <int-ish-type> NAME = EXPR;`` line, then resolve
+    EXPR using the partially-populated map. Handles the cross-reference
+    cases like ``kTcpMssOptionsTesterSrcPort02 = kBasicsTesterPort + 52U``
+    without needing a full C++ parser.
+
+    Returns ``{name: int}``. Non-integer / time-typed constants
+    (``std::chrono::milliseconds`` etc.) are skipped — the SCXML grammar
+    only references the integer-valued constants.
+    """
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    raw: dict[str, str] = {}
+    for m in re.finditer(
+        r"^inline\s+constexpr\s+(?:std::)?(?:uint|int)\w*_t\s+(\w+)\s*=\s*([^;]+);",
+        text, re.MULTILINE,
+    ):
+        raw[m.group(1)] = m.group(2).strip()
+
+    out: dict[str, int] = {}
+    resolving: set[str] = set()
+
+    def resolve(name: str) -> int | None:
+        if name in out:
+            return out[name]
+        if name in resolving or name not in raw:
+            return None
+        resolving.add(name)
+        try:
+            v = _eval_int_expr(raw[name], resolve)
+        finally:
+            resolving.discard(name)
+        if v is not None:
+            out[name] = v
+        return v
+
+    for n in raw:
+        resolve(n)
+    return out
+
+
+_INT_EXPR_TOKEN_RE = re.compile(r"""
+    \s+ |
+    (?P<HEX>0[xX][0-9A-Fa-f]+[Uu]?[Ll]?[Ll]?) |
+    (?P<INT>\d+[Uu]?[Ll]?[Ll]?) |
+    (?P<NAME>[A-Za-z_][A-Za-z0-9_]*) |
+    (?P<OP>[+\-*/&|()])
+""", re.VERBOSE)
+
+
+def _eval_int_expr(expr: str, resolve_name) -> int | None:
+    """Evaluate a tiny integer expression (literals + names + +-*/&|()).
+    Names get resolved through the caller-supplied callback so we
+    support cross-references between ``inline constexpr`` declarations.
+
+    Returns ``None`` on any unsupported construct so a stray
+    ``std::chrono::milliseconds(...)`` line silently drops out of the
+    constant table without poisoning the rest of the parse."""
+    tokens: list[tuple[str, str]] = []
+    pos = 0
+    while pos < len(expr):
+        m = _INT_EXPR_TOKEN_RE.match(expr, pos)
+        if not m:
+            return None
+        pos = m.end()
+        if m.lastgroup is None:
+            continue
+        tokens.append((m.lastgroup, m.group()))
+
+    # Tiny recursive-descent: + and -, then * / & |, then unary - and primary
+    idx = 0
+
+    def peek():
+        return tokens[idx] if idx < len(tokens) else None
+
+    def consume():
+        nonlocal idx
+        t = tokens[idx]
+        idx += 1
+        return t
+
+    def primary() -> int | None:
+        nonlocal idx
+        t = peek()
+        if t is None:
+            return None
+        kind, txt = t
+        if kind == "OP" and txt == "(":
+            consume()
+            v = add_sub()
+            t2 = peek()
+            if t2 and t2[1] == ")":
+                consume()
+            return v
+        if kind == "OP" and txt == "-":
+            consume()
+            v = primary()
+            return None if v is None else -v
+        if kind == "HEX":
+            consume()
+            return int(txt.rstrip("uUlL"), 16)
+        if kind == "INT":
+            consume()
+            return int(txt.rstrip("uUlL"))
+        if kind == "NAME":
+            consume()
+            return resolve_name(txt)
+        return None
+
+    def mul_div() -> int | None:
+        v = primary()
+        while v is not None:
+            t = peek()
+            if t is None or t[0] != "OP" or t[1] not in ("*", "/", "&", "|"):
+                break
+            op = consume()[1]
+            r = primary()
+            if r is None:
+                return None
+            if op == "*": v = v * r
+            elif op == "/": v = v // r if r else None
+            elif op == "&": v = v & r
+            elif op == "|": v = v | r
+        return v
+
+    def add_sub() -> int | None:
+        v = mul_div()
+        while v is not None:
+            t = peek()
+            if t is None or t[0] != "OP" or t[1] not in ("+", "-"):
+                break
+            op = consume()[1]
+            r = mul_div()
+            if r is None:
+                return None
+            v = v + r if op == "+" else v - r
+        return v
+
+    return add_sub()
+
+
+def _pcap_endpoint_expects(pcap_doc: dict) -> dict[str, Any]:
+    """Surface per-capture identity (MACs) under the keys SCXML conds
+    reference. The DUT MAC is kernel-assigned per veth pair so it can
+    only be read from the pcap manifest's auto-detected endpoints. The
+    Tester MAC for non-ARP cases is the auto-detected veth source MAC;
+    ARP cases override this with the injected MAC (smoke-test.sh)."""
+    out: dict[str, Any] = {}
+    if pcap_doc.get("dut_mac"):
+        out["dut_iface_mac"] = pcap_doc["dut_mac"].lower()
+        out["dut_real_mac"] = pcap_doc["dut_mac"].lower()
+    if pcap_doc.get("tester_mac"):
+        out["pcap_tester_mac"] = pcap_doc["tester_mac"].lower()
+    return out
+
+
+# case-id prefix → ordered list of namespaces to consult in smoke-test.sh.
+# The harness applies *all* ``--expect`` blocks at every case start (see
+# ``expect_args`` in ``dut/env/smoke-test.sh:run_case``); routing to a
+# specific expected struct happens via the SCXML's ``cpp:type``. TCP /
+# UDP SCXMLs use ``Ipv4Expected`` so their ``expected.dut_iface_ip``
+# reads from the ``ipv4.*`` block; DHCPv4 routes both ``dhcpv4.*`` and
+# the constexpr defaults from dhcpv4_default_endpoints.h.
+CATEGORY_TO_NS_CHAIN = {
+    "ARP":              ("arp",),
+    "ICMPV4":           ("icmpv4",),
+    "IPV4_AUTOCONF":    ("ipv4",),
+    "IPV4":             ("ipv4",),
+    "UDP":              ("udp", "ipv4"),
+    "DHCPV4":           ("dhcpv4", "ipv4"),
+    "TCP":              ("tcp", "ipv4"),
+    "SOMEIPSRV":        ("someip",),
+    "SOMEIP_ETS":       ("someip",),
+}
+
+
+def _ns_chain_for_case(case_id: str) -> tuple[str, ...]:
+    cid = case_id.upper()
+    # Longest-prefix wins (IPV4_AUTOCONF before IPV4).
+    for prefix in sorted(CATEGORY_TO_NS_CHAIN, key=len, reverse=True):
+        if cid.startswith(prefix + "_") or cid == prefix:
+            return CATEGORY_TO_NS_CHAIN[prefix]
+    return ()
+
+
+def build_expected_dict(case_id: str, pcap_doc: dict) -> dict[str, Any]:
+    """Layered lookup. Namespaced smoke-test values first in priority
+    order (e.g. ``tcp.*`` then ``ipv4.*`` for TCP cases), then unprefixed
+    smoke-test values for SOME/IP, then DHCPv4 constexpr defaults
+    (mapped to the ``server_id_be`` / ``offered_ip_be`` field names the
+    SCXML expects via dhcpv4_expected.h), then per-capture identity.
+
+    Earliest layer wins so a protocol-specific override (ARP's injected
+    MAC) doesn't get shadowed by a less-specific value from a later
+    namespace.
+    """
+    chain = _ns_chain_for_case(case_id)
+    sm = smoke_expects()
+    pe = _pcap_endpoint_expects(pcap_doc)
+    dh = dhcp_consts()
+
+    out: dict[str, Any] = {}
+    for ns in chain:
+        for k, v in sm.items():
+            if k.startswith(ns + "."):
+                out.setdefault(k[len(ns) + 1:], v)
+    # SOME/IP block uses bare (unprefixed) keys; apply only for someip.
+    if "someip" in chain:
+        for k, v in sm.items():
+            if "." not in k:
+                out.setdefault(k, v)
+    # DHCPv4 default endpoints — the dhcpv4_expected.h struct binds the
+    # ``server_id_be`` / ``offered_ip_be`` / ``second_server_id_be``
+    # fields to ``kDefaultServerIdBe`` / ``kDefaultOfferedIpBe`` /
+    # ``kSecondServerIdBe``. We surface those bindings here so the
+    # SCXML's ``expected.server_id_be`` resolves to the constant value
+    # without needing a C++ parser.
+    if "dhcpv4" in chain:
+        for field_name, const_name in [
+            ("server_id_be",        "kDefaultServerIdBe"),
+            ("offered_ip_be",       "kDefaultOfferedIpBe"),
+            ("second_server_id_be", "kSecondServerIdBe"),
+        ]:
+            v = dh.get(const_name)
+            if v is not None:
+                out.setdefault(field_name, v)
+                out.setdefault(field_name.removesuffix("_be"),
+                               _u32_be_to_dotted(v))
+    # Per-capture identity available to every case.
+    for k, v in pe.items():
+        out.setdefault(k, v)
+    # Per-case overrides (CASE_EXPECT_OVERRIDES dict in smoke-test.sh)
+    # win — they're the harness's last-wins ``--expect`` append for the
+    # specific case. SOMEIP_ETS_147 flipping eventgroup_id from 0x0001
+    # to 0x0002 is the canonical example.
+    for k, v in smoke_case_overrides().get(case_id.upper(), {}).items():
+        out[k] = v
+    return out
+
+
+# Cached loaders — file IO once per process.
+_SMOKE_EXPECTS: dict[str, Any] | None = None
+_SMOKE_CASE_OVERRIDES: dict[str, dict[str, Any]] | None = None
+_DHCP_CONSTS: dict[str, Any] | None = None
+_SCOPED_CONSTS: dict[str, int] | None = None
+
+
+def smoke_expects() -> dict[str, Any]:
+    global _SMOKE_EXPECTS
+    if _SMOKE_EXPECTS is None:
+        _SMOKE_EXPECTS = _load_smoke_test_expects()
+    return _SMOKE_EXPECTS
+
+
+def smoke_case_overrides() -> dict[str, dict[str, Any]]:
+    global _SMOKE_CASE_OVERRIDES
+    if _SMOKE_CASE_OVERRIDES is None:
+        _SMOKE_CASE_OVERRIDES = _load_smoke_test_case_overrides()
+    return _SMOKE_CASE_OVERRIDES
+
+
+def dhcp_consts() -> dict[str, Any]:
+    global _DHCP_CONSTS
+    if _DHCP_CONSTS is None:
+        _DHCP_CONSTS = _load_dhcpv4_default_consts()
+    return _DHCP_CONSTS
+
+
+def scoped_consts() -> dict[str, int]:
+    global _SCOPED_CONSTS
+    if _SCOPED_CONSTS is None:
+        _SCOPED_CONSTS = _load_scoped_consts()
+    return _SCOPED_CONSTS
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +642,13 @@ class InitList:
 class Opaque:
     """Anything else we couldn't classify — evaluates to UNKNOWN."""
     note: str = ""
+
+
+@dataclass
+class ScopedConst:
+    """``::tc8::sce::tcp::kFoo`` form — resolves against the
+    tcp_pilot_common.h constant table at eval time."""
+    name: str
 
 
 # ---------------------------------------------------------------------------
@@ -327,29 +807,34 @@ class Parser:
     def primary(self) -> Any:
         """Identifier chain: optional ``::`` prefix, dots, [index], (args)."""
         parts: list = []
+        scoped_idents: list[str] = []
 
-        # Leading or interior scope (``::tc8::sce::tcp::kFoo``). We collapse
-        # the entire scoped name into one Opaque token — callers don't
-        # know symbolic constant values.
+        # Leading or interior scope (``::tc8::sce::tcp::kFoo``). We capture
+        # the *last* segment of any scoped name so the evaluator can look
+        # it up in the constant table — everything between the leading
+        # ``::`` and the last ``::`` is namespace clutter we discard.
         had_scope = False
         if self.peek() and self.peek().kind == "SCOPE":  # type: ignore[union-attr]
             had_scope = True
             self.take()
         ident = self.expect("IDENT")
         parts.append(ident.text)
+        scoped_idents.append(ident.text)
 
         while True:
             t = self.peek()
             if t and t.kind == "SCOPE":
                 had_scope = True
                 self.take()
-                self.expect("IDENT")  # consume — keep entire scoped name opaque
+                next_id = self.expect("IDENT")
+                scoped_idents.append(next_id.text)
                 continue
             break
 
         if had_scope:
-            # Opaque named constant; may still be followed by member access etc
-            base: Any = Opaque(note="scoped-constant")
+            # Treat ``...::kFoo`` as a named constant. The evaluator
+            # looks ``kFoo`` up in tcp_pilot_common.h's constexpr table.
+            base: Any = ScopedConst(name=scoped_idents[-1])
         else:
             base = Ident(parts=tuple(parts))
 
@@ -467,21 +952,30 @@ def _packet_view(packet: dict) -> dict:
     flags = fields.get("flags")
     if isinstance(flags, str) and flags and flags != "—":
         fields["flags"] = _flags_to_int(flags)
+    # Stash the summary string so helpers can reach into it for fields
+    # the decoder hasn't lifted yet (currently the TCP ``len=N`` tail).
+    if "summary" in packet and "_summary" not in fields:
+        fields["_summary"] = packet["summary"]
     return fields
 
 
-def _resolve_ident(parts: tuple, packet_view: dict) -> Any:
+def _resolve_ident(parts: tuple, packet_view: dict, expected: dict) -> Any:
     """Walk a dotted/indexed name through (captured / expected) namespaces.
 
-    Returns ``UNKNOWN`` if any segment can't be resolved — including any
-    access into ``expected``, since trait-side constants aren't loaded
-    here. Returns the value when fully resolved against captured data.
+    captured.X reads from ``packet_view`` via field aliases.
+    expected.X reads from the per-case expected dict (smoke-test.sh
+    fixture + DHCPv4 defaults + per-capture identity). Missing
+    expected.X → UNKNOWN so the strict / lenient Kleene rules decide
+    whether the surrounding cond can still settle.
     """
     if not parts:
         return UNKNOWN
     head = parts[0]
     if head == "expected":
-        return UNKNOWN
+        if len(parts) < 2 or not isinstance(parts[1], str):
+            return UNKNOWN
+        v = expected.get(parts[1], UNKNOWN)
+        return UNKNOWN if v is UNKNOWN else v
     if head != "captured":
         return UNKNOWN
     if len(parts) < 2:
@@ -507,7 +1001,7 @@ def _resolve_ident(parts: tuple, packet_view: dict) -> Any:
     return cur
 
 
-def _eval(expr: Any, packet_view: dict, strict: bool) -> Any:
+def _eval(expr: Any, packet_view: dict, expected: dict, strict: bool) -> Any:
     """Returns int / bool / UNKNOWN.
 
     ``strict=False`` is the lenient pass-trigger mode: UNKNOWN clauses
@@ -527,11 +1021,16 @@ def _eval(expr: Any, packet_view: dict, strict: bool) -> Any:
     if isinstance(expr, BoolLit):
         return expr.value
     if isinstance(expr, Ident):
-        return _resolve_ident(expr.parts, packet_view)
-    if isinstance(expr, (Opaque, Call, InitList)):
+        return _resolve_ident(expr.parts, packet_view, expected)
+    if isinstance(expr, ScopedConst):
+        v = scoped_consts().get(expr.name, UNKNOWN)
+        return v if v is not UNKNOWN else UNKNOWN
+    if isinstance(expr, Call):
+        return _eval_call(expr, packet_view, expected, strict)
+    if isinstance(expr, (Opaque, InitList)):
         return UNKNOWN
     if isinstance(expr, UnOp):
-        v = _eval(expr.operand, packet_view, strict)
+        v = _eval(expr.operand, packet_view, expected, strict)
         if v is UNKNOWN:
             return UNKNOWN
         if expr.op == "not":
@@ -542,18 +1041,18 @@ def _eval(expr: Any, packet_view: dict, strict: bool) -> Any:
     if isinstance(expr, BinOp):
         if expr.op == "and":
             return _bool_and(
-                _eval(expr.lhs, packet_view, strict),
-                _eval(expr.rhs, packet_view, strict),
+                _eval(expr.lhs, packet_view, expected, strict),
+                _eval(expr.rhs, packet_view, expected, strict),
                 strict,
             )
         if expr.op == "or":
             return _bool_or(
-                _eval(expr.lhs, packet_view, strict),
-                _eval(expr.rhs, packet_view, strict),
+                _eval(expr.lhs, packet_view, expected, strict),
+                _eval(expr.rhs, packet_view, expected, strict),
                 strict,
             )
-        lhs = _eval(expr.lhs, packet_view, strict)
-        rhs = _eval(expr.rhs, packet_view, strict)
+        lhs = _eval(expr.lhs, packet_view, expected, strict)
+        rhs = _eval(expr.rhs, packet_view, expected, strict)
         if lhs is UNKNOWN or rhs is UNKNOWN:
             return UNKNOWN
         try:
@@ -572,6 +1071,214 @@ def _eval(expr: Any, packet_view: dict, strict: bool) -> Any:
         except (TypeError, ValueError):
             return UNKNOWN
     return UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# Captured method helpers
+#
+# The C++ helpers live in ``src/sce_integration/*_captured.h``. Each
+# wraps a recurring 4-tuple + flag-mask check that recurs across many
+# SCXML guards. Re-implementing the integer-typed ones here lets TCP
+# cases with single-call conds still match.
+# ---------------------------------------------------------------------------
+
+
+# TCP flag bit positions (mirrors tcp_captured.h's hard-coded constants).
+_TCP_FIN = 0x01
+_TCP_SYN = 0x02
+_TCP_RST = 0x04
+_TCP_PSH = 0x08
+_TCP_ACK = 0x10
+
+
+def _packet_flags_int(view: dict) -> int | None:
+    f = view.get("flags")
+    if isinstance(f, int):
+        return f
+    return None
+
+
+def _packet_payload_len(view: dict) -> int | None:
+    """Decoder's TCP path stores ``len=N`` inside the summary string but
+    doesn't yet surface ``payload_len`` as a numeric field. Fall back
+    to parsing the summary's ``len=`` tail; absence is honest UNKNOWN."""
+    pl = view.get("payload_len")
+    if isinstance(pl, int):
+        return pl
+    summary = view.get("_summary", "")
+    m = re.search(r"\blen=(\d+)\b", summary)
+    return int(m.group(1)) if m else None
+
+
+def _4tuple_match(view: dict, args: list[Any]) -> bool | None:
+    """Common preamble for ``is_pure_dut_ack`` / ``is_dut_rst`` etc.
+    Returns True / False / None — None means at least one operand
+    couldn't be resolved (typically a stray UNKNOWN ScopedConst offset).
+    """
+    if len(args) < 4:
+        return None
+    e_dut_ip, e_tester_ip, e_src_port, e_dst_port = args[:4]
+    if any(v is UNKNOWN for v in (e_dut_ip, e_tester_ip, e_src_port, e_dst_port)):
+        return None
+    sip = view.get("src_ip")
+    dip = view.get("dst_ip")
+    sp = view.get("src_port")
+    dp = view.get("dst_port")
+    if sip is None or dip is None or sp is None or dp is None:
+        return False
+    return (sip == e_dut_ip and dip == e_tester_ip
+            and sp == e_src_port and dp == e_dst_port)
+
+
+def _helper_is_pure_dut_ack(view, args) -> Any:
+    base = _4tuple_match(view, args)
+    if base is None: return UNKNOWN
+    if not base: return False
+    flags = _packet_flags_int(view)
+    pl = _packet_payload_len(view)
+    if flags is None: return UNKNOWN
+    if (flags & _TCP_ACK) == 0: return False
+    if (flags & (_TCP_SYN | _TCP_FIN | _TCP_RST)) != 0: return False
+    if pl is not None and pl != 0: return False
+    return True
+
+
+def _helper_is_dut_fin_ack(view, args) -> Any:
+    base = _4tuple_match(view, args)
+    if base is None: return UNKNOWN
+    if not base: return False
+    flags = _packet_flags_int(view)
+    if flags is None: return UNKNOWN
+    if (flags & _TCP_FIN) == 0: return False
+    if (flags & _TCP_ACK) == 0: return False
+    if (flags & (_TCP_SYN | _TCP_RST)) != 0: return False
+    return True
+
+
+def _helper_is_dut_rst(view, args) -> Any:
+    base = _4tuple_match(view, args)
+    if base is None: return UNKNOWN
+    if not base: return False
+    flags = _packet_flags_int(view)
+    if flags is None: return UNKNOWN
+    return (flags & _TCP_RST) != 0
+
+
+def _helper_is_dut_syn(view, args) -> Any:
+    base = _4tuple_match(view, args)
+    if base is None: return UNKNOWN
+    if not base: return False
+    flags = _packet_flags_int(view)
+    if flags is None: return UNKNOWN
+    if (flags & _TCP_SYN) == 0: return False
+    if (flags & (_TCP_ACK | _TCP_FIN | _TCP_RST)) != 0: return False
+    return True
+
+
+def _helper_is_dut_data_segment(view, args) -> Any:
+    base = _4tuple_match(view, args)
+    if base is None: return UNKNOWN
+    if not base: return False
+    flags = _packet_flags_int(view)
+    pl = _packet_payload_len(view)
+    if flags is None: return UNKNOWN
+    if (flags & _TCP_ACK) == 0: return False
+    if (flags & (_TCP_SYN | _TCP_FIN | _TCP_RST)) != 0: return False
+    if pl is None: return UNKNOWN
+    return pl > 0
+
+
+# ARP helpers (arp_captured.h)
+def _helper_is_arp_probe(view, _args) -> Any:
+    # RFC 5227: opcode==1, sender_ip==0.0.0.0
+    if view.get("opcode") == 1 and view.get("sender_ip") == "0.0.0.0":
+        return True
+    return False
+
+
+def _helper_is_arp_reply(view, _args) -> Any:
+    return view.get("opcode") == 2
+
+
+def _helper_is_arp_announce(view, _args) -> Any:
+    # opcode==1, sender_ip == target_ip (gratuitous)
+    si = view.get("sender_ip")
+    ti = view.get("target_ip")
+    if view.get("opcode") == 1 and si == ti and si and si != "0.0.0.0":
+        return True
+    return False
+
+
+def _helper_is_eth_broadcast(view, _args) -> Any:
+    return view.get("dst_mac", "").lower() == "ff:ff:ff:ff:ff:ff"
+
+
+def _helper_dst_ip_is_broadcast(view, _args) -> Any:
+    return view.get("dst_ip") == "255.255.255.255"
+
+
+def _helper_dst_ip_equals(view, args) -> Any:
+    if not args or args[0] is UNKNOWN:
+        return UNKNOWN
+    target = args[0]
+    if isinstance(target, int):
+        target = _u32_be_to_dotted(target)
+    return view.get("dst_ip") == target
+
+
+def _helper_payload_bytes_eq(_view, _args) -> Any:
+    # Decoder doesn't surface raw payload bytes; treat as UNKNOWN so
+    # the surrounding cond (payload_len check etc.) can still settle.
+    return UNKNOWN
+
+
+def _helper_frame_delta_us(view, _args) -> Any:
+    # Decoder stores ts_delta_us per packet, but the C++ helper measures
+    # delta since the last *transition-firing* frame, which the
+    # generator doesn't track. UNKNOWN keeps RTO-bound cases from
+    # falsely settling — pass triggers fall back to direction labels.
+    return UNKNOWN
+
+
+CAPTURED_HELPERS = {
+    # tcp_captured.h
+    "is_pure_dut_ack":     _helper_is_pure_dut_ack,
+    "is_dut_fin_ack":      _helper_is_dut_fin_ack,
+    "is_dut_rst":          _helper_is_dut_rst,
+    "is_dut_syn":          _helper_is_dut_syn,
+    "is_dut_data_segment": _helper_is_dut_data_segment,
+    # arp_captured.h
+    "is_arp_probe":        _helper_is_arp_probe,
+    "is_arp_reply":        _helper_is_arp_reply,
+    "is_arp_announce":     _helper_is_arp_announce,
+    "is_eth_broadcast":    _helper_is_eth_broadcast,
+    # dhcpv4_captured.h
+    "dst_ip_is_broadcast": _helper_dst_ip_is_broadcast,
+    "dst_ip_equals":       _helper_dst_ip_equals,
+    # someip_captured.h
+    "payload_bytes_eq":    _helper_payload_bytes_eq,
+    # cross-protocol
+    "frame_delta_us":      _helper_frame_delta_us,
+}
+
+
+def _eval_call(call: Call, packet_view: dict, expected: dict, strict: bool) -> Any:
+    """Resolve a ``captured.method(args)`` call. Only ``captured.NAME``
+    targets are supported — anything else stays UNKNOWN."""
+    target = call.target
+    if not isinstance(target, Ident):
+        return UNKNOWN
+    if len(target.parts) != 2 or target.parts[0] != "captured":
+        return UNKNOWN
+    name = target.parts[1]
+    helper = CAPTURED_HELPERS.get(name)
+    if helper is None:
+        return UNKNOWN
+    args = [_eval(a, packet_view, expected, strict) for a in call.args]
+    try:
+        return helper(packet_view, args)
+    except Exception:
+        return UNKNOWN
 
 
 def _bool_and(a: Any, b: Any, strict: bool) -> Any:
@@ -607,10 +1314,11 @@ def _bool_or(a: Any, b: Any, strict: bool) -> Any:
     return bool(a) or bool(b)
 
 
-def cond_matches(expr: Any, packet_view: dict, strict: bool = False) -> bool:
+def cond_matches(expr: Any, packet_view: dict, expected: dict,
+                 strict: bool = False) -> bool:
     """A transition matches when its cond evaluates to concrete TRUE.
     Caller controls strict vs lenient handling of UNKNOWN clauses."""
-    return _eval(expr, packet_view, strict) is True
+    return _eval(expr, packet_view, expected, strict) is True
 
 
 # ---------------------------------------------------------------------------
@@ -642,25 +1350,39 @@ def _strip_ns(tag: str) -> str:
     return tag.split("}", 1)[1] if "}" in tag else tag
 
 
-def parse_scxml(content: str) -> tuple[list[StateDef], str]:
-    """Return (states-in-document-order, initial-state-id).
+SCE_USE_TAG = "use"
+TESTS_DIR = REPO_ROOT / "tests"
 
-    Parses both ``<state>`` (with transitions) and ``<final>`` (verdict
-    sinks) so the walker can detect when the SM has reached pass/fail.
-    """
+
+def _load_template(rel_path: str, case_id: str):
+    """Resolve a ``../_templates/foo.sce-template.xml`` path against the
+    consumer case's directory and return the parsed ``<sce:template>``
+    root element. Returns ``None`` if the file isn't there (e.g. when
+    the generator runs on a pcap-data tree that lacks the harness
+    source). Templates parse fine through ElementTree because they
+    declare the SCXML namespace at the root."""
+    case_dir = TESTS_DIR / case_id.lower()
+    tpath = (case_dir / rel_path).resolve()
+    if not tpath.exists():
+        return None
     try:
-        root = ET.fromstring(content)
+        return ET.fromstring(tpath.read_text(encoding="utf-8"))
     except ET.ParseError:
-        return [], ""
+        return None
 
-    initial = root.attrib.get("initial", "")
-    states: list[StateDef] = []
-    phase_idx = 0
-    for child in root:
+
+def _parse_states_from(elem, states: list[StateDef], seen: set[str],
+                       phase_counter: list[int]) -> None:
+    """Append ``<state>`` and ``<final>`` direct children of ``elem`` to
+    ``states``. Skips ids already in ``seen`` so a consumer SCXML's
+    inline state (rare) wins over a template's same-id state."""
+    for child in elem:
         tag = _strip_ns(child.tag)
         if tag == "state":
             sid = child.attrib.get("id", "")
-            phase_idx += 1
+            if sid in seen:
+                continue
+            phase_counter[0] += 1
             trs: list[TransitionDef] = []
             for tchild in child:
                 if _strip_ns(tchild.tag) != "transition":
@@ -680,17 +1402,54 @@ def parse_scxml(content: str) -> tuple[list[StateDef], str]:
                     target=target,
                 ))
             states.append(StateDef(
-                id=sid, phase_index=phase_idx, is_final=False,
+                id=sid, phase_index=phase_counter[0], is_final=False,
                 final_kind="", transitions=trs,
             ))
+            seen.add(sid)
         elif tag == "final":
             sid = child.attrib.get("id", "")
+            if sid in seen:
+                continue
             kind = "pass" if sid.lower() == "pass" else "fail" \
                 if sid.lower().startswith("fail") else ""
             states.append(StateDef(
                 id=sid, phase_index=0, is_final=True,
                 final_kind=kind, transitions=[],
             ))
+            seen.add(sid)
+
+
+def parse_scxml(content: str, case_id: str = "") -> tuple[list[StateDef], str]:
+    """Return (states-in-document-order, initial-state-id).
+
+    Parses both ``<state>`` (with transitions) and ``<final>`` (verdict
+    sinks) so the walker can detect when the SM has reached pass/fail.
+    Resolves ``<sce:use template="..."/>`` directives by reading the
+    referenced template and parsing its states as if they were inline
+    children of the consumer SCXML — that's how the SCE codegen treats
+    them (see tests/_templates/*.sce-template.xml for the body shared
+    by Group C ARP / TCP basics / SOMEIPSRV OPTIONS family cases).
+    """
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError:
+        return [], ""
+
+    template_root = None
+    for child in root:
+        if _strip_ns(child.tag) == SCE_USE_TAG:
+            tpath = child.attrib.get("template", "")
+            if tpath and case_id:
+                template_root = _load_template(tpath, case_id)
+                break
+
+    initial = root.attrib.get("initial", "")
+    states: list[StateDef] = []
+    seen: set[str] = set()
+    phase_counter = [0]
+    _parse_states_from(root, states, seen, phase_counter)
+    if template_root is not None:
+        _parse_states_from(template_root, states, seen, phase_counter)
     return states, initial
 
 
@@ -735,7 +1494,9 @@ class AutoMessage:
 
 def label_packets(
     states: list[StateDef], initial: str, packets: list[dict],
+    expected: dict | None = None,
 ) -> list[AutoMessage]:
+    expected = expected or {}
     if not states:
         return []
     states_by_id = {s.id: s for s in states}
@@ -776,19 +1537,43 @@ def label_packets(
         #     stops ``captured.X != expected.Y`` from claiming a fail on
         #     every Tester frame just because we don't know the
         #     expected value.
+        # Two-pass match.
+        #
+        # First pass: pass/progress transitions. Fire only on strict
+        # cond TRUE (no UNKNOWN-rescue). The decoder's auto-detected
+        # packet direction is sometimes wrong (the TCP active-OPEN path
+        # where DUT initiates inverts the "first emitter is tester"
+        # heuristic), so we *don't* gate on direction — the cond's own
+        # ``captured.src_ip == expected.dut_iface_ip`` (or equivalent
+        # service-id / 4-tuple check) provides the discriminator
+        # already, and expected.X now resolves to real values.
+        #
+        # If any pass cond is *uncertain* (lenient TRUE but not strict
+        # TRUE — i.e. an opaque helper or unloaded expected.X clause
+        # was UNKNOWN-rescued), the real SCXML may have taken the pass
+        # branch in the live run. Refuse to fall through to fail so a
+        # passing test isn't auto-labelled as fail.
         matched: TransitionDef | None = None
+        any_pass_uncertain = False
         for t in cur.transitions:
             verdict = _verdict_for_target(t.target, states_by_id)
             if verdict == "fail":
-                if not cond_matches(t.cond_ast, view, strict=True):
+                continue
+            strict_ok = cond_matches(t.cond_ast, view, expected, strict=True)
+            lenient_ok = cond_matches(t.cond_ast, view, expected, strict=False)
+            if lenient_ok and not strict_ok:
+                any_pass_uncertain = True
+            if strict_ok:
+                matched = t
+                break
+        if matched is None and not any_pass_uncertain:
+            for t in cur.transitions:
+                verdict = _verdict_for_target(t.target, states_by_id)
+                if verdict != "fail":
                     continue
-            else:
-                if direction == "tester_to_dut":
-                    continue
-                if not cond_matches(t.cond_ast, view, strict=False):
-                    continue
-            matched = t
-            break
+                if cond_matches(t.cond_ast, view, expected, strict=True):
+                    matched = t
+                    break
 
         phase_tag = f"Phase {cur.phase_index} ({cur.id})"
         if matched is not None:
@@ -815,16 +1600,20 @@ def label_packets(
                 if cur and cur.is_final:
                     final_outcome = cur.final_kind or "fail"
             else:
-                # Forward transition into another non-final phase.
+                # Forward transition into another non-final phase. A
+                # fired cond means the packet matches a DUT-observable
+                # criterion (src_ip / 4-tuple check) the SCXML treats
+                # as expected behaviour, so label as "expected"
+                # regardless of the pcap's auto-detected direction —
+                # the cond is a more reliable discriminator than the
+                # heuristic that flips on TCP active-OPEN.
                 next_st = states_by_id.get(matched.target)
                 next_label = matched.target if next_st else "?"
                 label = (
                     f"{phase_tag} progress trigger — advances to "
                     f"{next_label}. Cond: {cond_text}"
                 )
-                # DUT-emitted packet → "expected"; tester-emitted → "stimulus".
-                role = "expected" if direction == "dut_to_tester" else "stimulus"
-                msgs.append(AutoMessage(idx=idx, role=role, label=label))
+                msgs.append(AutoMessage(idx=idx, role="expected", label=label))
                 cur = next_st or cur
             continue
 
@@ -880,8 +1669,9 @@ def generate_for(case_id: str) -> tuple[bool, str]:
     if not packets:
         return False, f"{cid}: no packets"
 
-    states, initial = parse_scxml(scxml_src)
-    msgs = label_packets(states, initial, packets)
+    states, initial = parse_scxml(scxml_src, case_id=cid)
+    expected = build_expected_dict(cid, pcap_doc)
+    msgs = label_packets(states, initial, packets, expected)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / f"{cid}.json"
