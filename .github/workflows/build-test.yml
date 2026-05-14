@@ -168,11 +168,9 @@ jobs:
 
       - name: Spec-coverage gate (--list-cases --vs-spec --strict)
         # Fails the build when expected spec cases are unregistered.
-        # Deferred-by-override entries (TCP_RETRANSMISSION_TO_08/_09)
-        # are exempt; everything else missing breaks CI by design.
-        # NOTE: this gate trips on uncovered §4.6 UDP / §5 SOMEIP work
-        # — flip to a non-strict warning once the team is comfortable
-        # with the "missing"  count, OR add per-section overrides as
-        # cases get carved out for future sessions.
+        # Coverage is 543 / 543 active (100 %), deferred = 0 as of
+        # 2026-05-03 (see memory/project_deferral_closeout_2026_05_03.md);
+        # any future spec-inventory drift must either register the case
+        # or land an explicit `expected:false` override in
+        # doc/spec/inventory_overrides.json.
         run: ./build/tc8-harness test --list-cases --vs-spec --strict
-        continue-on-error: true
