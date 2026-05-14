@@ -5,3 +5,5 @@ claudedocs/
 *.pdf
 .astro/
 node_modules/
+__pycache__/
+*.pyc
