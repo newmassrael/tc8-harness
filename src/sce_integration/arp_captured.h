@@ -272,7 +272,7 @@ inline void fillArpCapturedFromUdpFrame(ArpCaptured &c, const UdpFrame &u) {
 // TestRunner<SM>::dumpTraceJson(); appends a JSON object capturing the
 // fields a reader of the verdict-decider case-note expects to see when
 // the matching wire frame is not retained in the saved pcap. Fields are
-// the same ones the §4.2 SCXML conds typically gate on (opcode +
+// the same ones ARP SCXML conds typically gate on (opcode +
 // sender_hw + sender/target proto IPs + observed_udp_*).
 inline void appendCapturedJson(std::string &out, const ArpCaptured &c) {
     char buf[64];

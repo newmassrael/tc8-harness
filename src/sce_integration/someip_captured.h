@@ -635,7 +635,7 @@ inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, s
 }
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
-// design overview; this overload exposes the §5.1 cond-gating subset
+// design overview; this overload exposes the SOME/IP cond-gating subset
 // (service/method/client/session ids + msg_type + return_code +
 // transport 4-tuple) without enumerating the bulky SD entry/option
 // arrays — those rarely drive verdict-decider disclosure.

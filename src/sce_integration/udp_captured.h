@@ -297,7 +297,7 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
 }
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
-// design overview; this overload exposes the §4.6 cond-gating subset
+// design overview; this overload exposes the UDP cond-gating subset
 // (4-tuple + length/checksum + UT opcode/req/status when present).
 inline void appendCapturedJson(std::string &out, const UdpCaptured &c) {
     char buf[64];

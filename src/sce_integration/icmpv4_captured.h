@@ -187,7 +187,7 @@ inline bool icmpv4EchoPayloadMatches(const Icmpv4Captured &c, std::string_view r
 }
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
-// design overview; this overload exposes the §4.3 cond-gating subset
+// design overview; this overload exposes the ICMPv4 cond-gating subset
 // (type/code + 4-tuple + Echo id/seq + Parameter Problem pointer).
 inline void appendCapturedJson(std::string &out, const Icmpv4Captured &c) {
     char buf[64];

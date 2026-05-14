@@ -425,7 +425,7 @@ inline void fillTcpCapturedFromFrame(TcpCaptured &c, const TcpFrame &f) {
 }
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
-// design overview; this overload exposes the §4.8 cond-gating subset
+// design overview; this overload exposes the TCP cond-gating subset
 // (4-tuple + flags + seq/ack + MSS option + ut_established).
 inline void appendCapturedJson(std::string &out, const TcpCaptured &c) {
     char buf[64];

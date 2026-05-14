@@ -144,7 +144,7 @@ inline void fillIpv4CapturedFromFrame(Ipv4Captured &c, const Ipv4Frame &f) {
 }
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
-// design overview; this overload exposes the §4.4 header subset most
+// design overview; this overload exposes the IPv4 header subset most
 // SCXML conds gate on (version/ihl/ttl + 3-tuple + total_length).
 inline void appendCapturedJson(std::string &out, const Ipv4Captured &c) {
     char buf[64];

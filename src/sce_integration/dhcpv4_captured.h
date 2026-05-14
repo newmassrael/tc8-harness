@@ -574,7 +574,7 @@ inline void fillDhcpv4CapturedFromFrame(Dhcpv4Captured &c, const Dhcpv4Frame &f)
 }
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
-// design overview; this overload exposes the §4.7 cond-gating subset
+// design overview; this overload exposes the DHCPv4 cond-gating subset
 // (BOOTP op + message_type + IPs + xid + key addresses). Skips the
 // raw options blob since it's an unstable in-memory pointer at trace
 // time; the message_type alone disambiguates DISCOVER/OFFER/REQUEST/etc.
