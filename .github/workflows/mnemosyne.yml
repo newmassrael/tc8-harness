@@ -46,14 +46,14 @@ jobs:
           path: ~/.cargo/bin/mnemosyne-cli
           # Pin to upstream commit so the gate is reproducible. Bump when
           # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
-          key: mnemosyne-cli-${{ runner.os }}-a4f00a4
+          key: mnemosyne-cli-${{ runner.os }}-76581f68
 
       - name: Install mnemosyne-cli (cache miss only)
         if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        # a4f00a4 = Round 285 (inventory orphan_ledger axis).
+        # 76581f68 = Round 291 (parser↔atomic section_id key bridge).
         run: |
           cargo install --git https://github.com/newmassrael/mnemosyne \
-            --rev a4f00a4 mnemosyne-cli
+            --rev 76581f68 mnemosyne-cli
 
       - name: validate-workspace
         run: mnemosyne-cli validate-workspace
