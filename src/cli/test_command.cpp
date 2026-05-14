@@ -479,6 +479,45 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         }
     }
 
+    // Post-verdict drain: keep the dumper writing for a bounded window
+    // after the runner has verdicted so response packets which the
+    // stimulus emits synchronously but the kernel ring delivers AFTER
+    // the verdict-firing frame (e.g. OpQueryTcpEstablished UT response
+    // in TCP_BASICS_02 / _07 / MSS_OPTIONS_01) still land in the saved
+    // pcap. The runner is already frozen at the verdict-firing
+    // transition — we deliberately do NOT call pipeline.processFrame()
+    // or setNextPcapFrameIdx() during drain so the transition trace
+    // stays the single source of truth and the drained frames simply
+    // extend the pcap past the last trace-referenced index. Skipped on
+    // signal-stop (user wants out) and on dispatch error (best-effort
+    // here, verdict has already decided the run).
+    constexpr int kPostVerdictDrainMs = 100;
+    if (dumper != nullptr && !SignalGuard::stopRequested()) {
+        const auto drain_deadline = std::chrono::steady_clock::now() +
+                                    std::chrono::milliseconds(kPostVerdictDrainMs);
+        while (std::chrono::steady_clock::now() < drain_deadline) {
+            const int dn = src->dispatch(
+                /*max_frames=*/-1,
+                [&](const pcap_pkthdr &hdr, const u_char *data) {
+                    pcap_dump(reinterpret_cast<u_char *>(dumper), &hdr, data);
+                });
+            int dn2 = 0;
+            if (src2) {
+                dn2 = src2->dispatch(
+                    /*max_frames=*/-1,
+                    [&](const pcap_pkthdr &hdr, const u_char *data) {
+                        pcap_dump(reinterpret_cast<u_char *>(dumper), &hdr, data);
+                    });
+            }
+            if (dn < 0 || dn2 < 0) {
+                break;
+            }
+            if (dn == 0 && dn2 == 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            }
+        }
+    }
+
     const auto verdict = runner->verdict();
     std::printf("verdict  : %.*s\n", static_cast<int>(verdict.size()), verdict.data());
     if (dumper != nullptr) {

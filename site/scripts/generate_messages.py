@@ -2750,34 +2750,6 @@ _CASE_EXPECTED_ACK_NUM: dict[str, int] = {
 }
 
 
-# Case-keyed assumed ``ut_established`` value for cases whose stimulus
-# calls ``queryTcpEstablishedSync`` synchronously before ``start()`` but
-# whose UT response often falls off the harness pcap dump (the dispatch
-# loop exits on the first matching tcp_observed packet and the dumper
-# closes before all stimulus-tail UT frames drain from the kernel ring
-# — see investigation notes in
-# ``[[project-site-timeline-2026-05-13-pm5]]``). The live runtime had
-# ``ut_established == 0x01`` by construction whenever the case passed
-# (the cond requires it), so we lift the same value here when the pcap
-# reports a pass outcome. For non-pass pcaps we leave it UNKNOWN so the
-# walker's existing uncertainty-rescue / fail-trigger path stays honest.
-_CASE_UT_ESTABLISHED_ON_PASS: dict[str, int] = {
-    # tcp_basics_02.h: passive OPEN — DUT in SYN-RCVD; tester's connect
-    # completes the handshake; queryTcpEstablishedSync polls the listener
-    # fd's accept state. Pass cond requires ut_established == 0x01.
-    "TCP_BASICS_02": 0x01,
-    # tcp_basics_07.h: active OPEN — DUT in SYN-SENT; tester's listening
-    # kernel handshakes; queryTcpEstablishedSync reads the active fd's
-    # tcpi_state. Pass cond requires ut_established == 0x01.
-    "TCP_BASICS_07": 0x01,
-    # tcp_mss_options_01.h: variant 'v' verification phase — DUT-active
-    # SYN+ACK on the listener's port reading the OpQueryTcpEstablished
-    # slot after kHandshakeWait. Pass cond mirrors BASICS_07: requires
-    # ut_established == 0x01.
-    "TCP_MSS_OPTIONS_01": 0x01,
-}
-
-
 def _lookup_transition_cond_src(states_by_id: dict, step: dict) -> str:
     """Return the SCXML cond source for a trace step.
 
@@ -2993,14 +2965,6 @@ def label_packets(
         eack = _CASE_EXPECTED_ACK_NUM.get(case_id.upper())
         if eack is not None:
             case_tcp_static_ctx["expected_ack_num"] = eack
-        # Only inject the assumed ut_established value when the live
-        # pcap recorded a pass outcome — for failure outcomes the cond
-        # SHOULD stay UNKNOWN so the walker reaches the fail-trigger
-        # or candidate branch honestly.
-        if pcap_outcome == "pass":
-            ute = _CASE_UT_ESTABLISHED_ON_PASS.get(case_id.upper())
-            if ute is not None:
-                case_tcp_static_ctx["ut_established"] = ute
 
     # SOME/IP-SD cross-frame Offer-endpoint cache (mirrors C++
     # ``fillSomeIpCapturedFromFrame`` cache update at
