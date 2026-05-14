@@ -1,0 +1,358 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+/* SCE Forge: Auto-generated from Extended SCXML (sce:kind="buffer-pool") */
+/* Runtime: header-only, no SCE-side helper crate. */
+/* Do not edit — regenerate from the source SCXML file. */
+/*
+ * watching-zenoh RFC §5.E DMA-aligned slot table with the seven-state
+ * lifecycle FSM and tag-checked `sce_slot_handle_t` author API per
+ * spec lines 1116-1180 + 1232-1242. C lacks Rust's lifetimes and
+ * Drop, so the per-slot state is enforced at runtime: every transition
+ * inspects the handle's `state` tag and refuses operations that the
+ * FSM does not allow (returns false / NULL and leaves the pool
+ * untouched). The eleven legal transitions are pinned in
+ * `sce-build/src/forge/buffer_pool_fsm.rs` and mirrored here as
+ * `STATE_COUNT` / `TRANSITION_COUNT` macros.
+ *
+ * C5 cache-maintenance pinning (cache-policy: maintain): emits
+ * `sce_dcache_clean_by_addr` before `link_arm_tx` (spec lines
+ * 1186-1188) and `sce_dcache_invalidate_by_addr` on `link_arm_rx`
+ * gated on `platform.has_speculative_prefetch` (spec lines
+ * 1189-1198 + 1199-1212). Per spec lines 1222-1227, these calls
+ * are FSM-driven; author authoring of the cache trio via
+ * `<sce:extern>` is rejected at parse time
+ * (`pool/cache-maintenance-misplaced`). The 3 cache extern
+ * declarations also auto-flow into the `<snake>_externs.h`
+ * sidecar via the parser's auto-inject hook so deploy reviewers
+ * see the dependency surface in one place.
+ *
+ * A sidecar linker fragment (`{{ snake_name }}_pool.ld`) is emitted
+ * alongside this header — it carries the SECTIONS{} entry with
+ * explicit `ALIGN()` directives + inter-pool sentinel per §5.E lines
+ * 1031-1086.
+ *
+ * Generated from `name="{{ name }}"` with section `{{ section }}`,
+ * alignment `{{ alignment }}`, cache-policy `{{ cache_policy }}`.
+ */
+
+#ifndef {{ guard }}
+#define {{ guard }}
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+/* B7-ε Layer 1 ownership pull-through. `sce-c-runtime/include/sce/
+ * sample.h` provides the `SCE_CONSUMABLE` / `SCE_CALLABLE_WHEN` /
+ * `SCE_SET_TYPESTATE` / `SCE_PARAM_TYPESTATE` / `SCE_WARN_UNUSED`
+ * attribute family + `sce_sample_t` borrow type + 3 function decls
+ * downstream subscriber callbacks build against. Removing this
+ * include silently disables Layer 1 typestate analysis on consumer
+ * builds (Clang ≥ 9 with `-Wconsumed -Wthread-safety`); the
+ * `pool/sample-typestate-attributes-disabled` codegen-invariant
+ * diagnostic guards against template regression. RFC §5.E lines
+ * 1276-1346 + 1520-1525. */
+#include <sce/sample.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Number of slots in the pool (`<sce:slot-count>`). */
+#define {{ upper_name }}_SLOT_COUNT ((size_t){{ slot_count }})
+
+/* Bytes per slot (`<sce:slot-size>`). */
+#define {{ upper_name }}_SLOT_SIZE ((size_t){{ slot_size }})
+
+/* SRAM region name (`<sce:section>`). Round-tripped here so that the
+ * sidecar linker fragment and any downstream tooling can read it
+ * without re-parsing the SCXML. */
+#define {{ upper_name }}_SECTION "{{ section }}"
+
+/* DMA alignment in bytes (`<sce:alignment>`). The same value drives
+ * `aligned()` on the storage variable below and `ALIGN()` in the
+ * sidecar linker fragment. */
+#define {{ upper_name }}_ALIGNMENT ({{ alignment }}u)
+
+/* DMA channel binding (`<sce:dma-channel>`). Empty when the pool is
+ * purely CPU-managed. */
+#define {{ upper_name }}_DMA_CHANNEL "{{ dma_channel }}"
+
+/* Cache policy (`<sce:cache-policy>`) — `maintain` / `non-cacheable`
+ * / `none`. C5 wires the maintenance calls below when this is
+ * `maintain`; the other two policies emit no maintenance calls. */
+#define {{ upper_name }}_CACHE_POLICY "{{ cache_policy }}"
+
+{%- if cache_maintain %}
+
+/* C5 cache-maintenance externs (spec §5.I lines 1736-1740). The
+ * implementations live in `sce_intrinsics_runtime` (or a target
+ * plugin's vendor crate per RFC §5.I lines 1760-1787). Forward
+ * declarations also appear in the sidecar `{{ snake_name }}_externs.h`
+ * for deploy-review transparency; both forward declarations are
+ * legal and unify at link time because the symbols are identical. */
+extern void sce_dcache_clean_by_addr(const void *start, size_t len);
+{%- if has_speculative_prefetch %}
+extern void sce_dcache_invalidate_by_addr(void *start, size_t len);
+{%- endif %}
+{%- endif %}
+
+/* Number of declared lifecycle states. Mirrors
+ * `forge::buffer_pool_fsm::STATE_COUNT` — the seven states from
+ * spec §5.E lines 1129-1135. */
+#define {{ upper_name }}_STATE_COUNT ((size_t)7)
+
+/* Number of declared lifecycle transitions. Mirrors
+ * `forge::buffer_pool_fsm::TRANSITION_COUNT` — the eleven legal
+ * edges from spec §5.E lines 1141-1156. */
+#define {{ upper_name }}_TRANSITION_COUNT ((size_t)11)
+
+{%- if variant_reassembly %}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * C9-γ reassembly variant per-slot state (RFC §5.M lines 2680-2698
+ * + 2864-2876). The reassembly variant of §5.E extends the slot
+ * table with three additional per-slot fields the author-level
+ * Fragment FSM (RFC §5.M lines 2864-2876, lives in downstream SCXML
+ * statechart) consumes:
+ *   - `bitmap[FRAGMENT_BITMAP_WORDS]` — fragment-index bitmap marking
+ *     each received fragment; bitmap width derived from
+ *     `<sce:max-fragments-per-message>` (RFC §5.M line 2688 +
+ *     2694-2698).
+ *   - `deadline` — per-slot reassembly deadline in raw ms ticks;
+ *     `<sce:reassembly-timeout-ms>` (RFC §5.M line 2689) drives the
+ *     timer the FSM's `Receiving → TimedOut` edge consumes
+ *     (`docs/reassembly-fsm.md` §2.4.5).
+ *   - `peer_id[16]` — handshake-derived ZID (RFC §5.M lines
+ *     2700-2738). Reassembly is forbidden on non-`established_session`
+ *     links by the cross-doc validator
+ *     `reassembly/untrusted-link-binding`, so the peer-id is always
+ *     the 16-byte ZID — never the spoofable wire source address.
+ *     The `reassembly/peer-id-not-zid-on-established-session`
+ *     codegen self-check enforces this template invariant per RFC
+ *     §5.M lines 2976-2981.
+ *
+ * Quota enforcement (RFC §5.M lines 2848-2856) lives in the author
+ * SCXML algorithm (`<scxml sce:kind="algorithm">`) that walks the
+ * slot table at `Fragment.First` arrival — intentionally NOT emitted
+ * from the pool template. Same for fragment-index marking and
+ * completion detection: those live in the author FSM body.
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Bitmap word count per reassembly slot — `ceil(max-fragments-per-message / 32)`.
+ * Width pinned to `uint32_t` (4 bytes) at the _Static_assert below;
+ * using platform-natural `size_t` would break the wire-shape
+ * invariant the runtime metadata layer relies on. */
+#define {{ upper_name }}_FRAGMENT_BITMAP_WORDS \
+    ((size_t)(({{ max_fragments_per_message }} + 31) / 32))
+
+/* `<sce:max-fragments-per-message>` (RFC §5.M line 2688) — the closed
+ * cap a reassembled message's fragment count cannot exceed. */
+#define {{ upper_name }}_MAX_FRAGMENTS_PER_MESSAGE ((uint32_t){{ max_fragments_per_message }})
+
+/* `<sce:reassembly-timeout-ms>` (RFC §5.M line 2689) — per-slot
+ * deadline value in milliseconds. */
+#define {{ upper_name }}_REASSEMBLY_TIMEOUT_MS ((uint32_t){{ reassembly_timeout_ms }})
+
+/* `<sce:per-peer-quota>` (RFC §5.M lines 2690, 2841-2861) — caps
+ * the in-flight reassembly slots a single peer (keyed by ZID) may
+ * hold. Consumed by the SCXML-side per-peer quota algorithm. */
+#define {{ upper_name }}_PER_PEER_QUOTA ((uint32_t){{ per_peer_quota }})
+
+/* Handshake-derived peer identifier — 16-byte Zenoh ZID (RFC §5.M
+ * lines 2708-2714). The `reassembly/peer-id-not-zid-on-established-
+ * session` codegen self-check (RFC §5.M lines 2976-2981) enforces
+ * that this typedef emits the `uint8_t[16]` byte-array shape on
+ * every reassembly-variant pool — wire-source typedefs would
+ * silently inherit UDP source-IP spoofing exposure. */
+typedef uint8_t {{ snake_name }}_peer_id_t[16];
+
+/* Per-slot reassembly state — RFC §5.M lines 2680-2698. Author SCXML
+ * FSM bodies (`docs/reassembly-fsm.md`) reach into `bitmap` and
+ * `deadline` directly; `peer_id` is matched on `Fragment.Continue`
+ * / `Final` to bind continuation fragments to the originating ZID. */
+typedef struct {
+    uint32_t bitmap[{{ upper_name }}_FRAGMENT_BITMAP_WORDS];
+    uint64_t deadline;
+    {{ snake_name }}_peer_id_t peer_id;
+} {{ snake_name }}_reassembly_slot_t;
+
+/* Drift guards — pin the bitmap-word, deadline, and peer-id widths
+ * so a future port to a 16-bit / 64-bit-`size_t` core or a "smarter"
+ * bitmap type does not silently re-define the per-slot wire layout
+ * the author FSM and cross-language tracing observe. */
+_Static_assert(sizeof(uint32_t) == 4,
+               "fragment-index bitmap word is fixed to uint32_t (4 bytes) per RFC §5.M line 2696");
+_Static_assert(sizeof(uint64_t) == 8,
+               "reassembly slot deadline is fixed to uint64_t (8 bytes) per RFC §5.M line 2697");
+_Static_assert(sizeof({{ snake_name }}_peer_id_t) == 16,
+               "reassembly slot peer-id is fixed to 16-byte ZID per RFC §5.M lines 2708-2714");
+{%- endif %}
+
+/* `sce_slot_state_t` (the seven-state FSM enum + `SCE_SLOT_INVALID`
+ * sentinel, spec §5.E lines 1129-1135) and `sce_slot_handle_t` (the
+ * tag-checked handle, spec §5.E lines 1239-1242) are provided by
+ * `<sce/sample.h>` above. Anonymous-tag typedefs are not redeclarable
+ * across translation units — declaring them per pool would shadow the
+ * runtime header's symbols, so the per-pool emit reuses the runtime
+ * types directly. The runtime header pins the discriminants via
+ * `_Static_assert` against this template's spec anchors. */
+
+/* Sentinel returned by acquire / arm functions when no free slot
+ * is available. The caller checks `handle.state == SCE_SLOT_INVALID`
+ * (or equivalently `handle.idx == SIZE_MAX`). */
+#define {{ upper_name }}_INVALID_HANDLE \
+    ((sce_slot_handle_t){ .state = SCE_SLOT_INVALID, .idx = SIZE_MAX })
+
+/* Pool storage. Placed in the section declared by `<sce:section>` via
+ * `__attribute__((section, aligned))`; the sidecar linker fragment
+ * provides the matching SECTIONS{} entry. The §5.E defense-in-depth
+ * contract (lines 1066-1073): `aligned(N)` here + `ALIGN(N)` in the
+ * fragment + inter-pool ALIGN sentinel + future `_Static_assert` on
+ * field layout enforce the same invariant at four layers, so a
+ * single failure mode (toolchain bug, custom linker script override,
+ * manual edit, master-script INCLUDE re-ordering) cannot silently
+ * corrupt DMA or cause cross-pool cache-maintenance contamination. */
+__attribute__((section(".{{ section }}_{{ snake_name }}"), aligned({{ alignment }})))
+static uint8_t {{ snake_name }}_storage[{{ slot_count }}][{{ slot_size }}];
+
+/* Per-slot lifecycle state. Replaces the β-era `in_use[]` bitmap
+ * with the full seven-state FSM tracking. */
+static sce_slot_state_t {{ snake_name }}_slot_states[{{ slot_count }}] = { SCE_SLOT_FREE };
+
+/* Acquire a free slot for CPU-side encoding. Spec §5.E line 1141:
+ * `free → cpu-mut`. Returns `INVALID_HANDLE` when every slot is
+ * in use. The returned handle's `state` is `SCE_SLOT_CPU_MUT`. */
+static inline sce_slot_handle_t {{ snake_name }}_pool_acquire_for_encode(void) {
+    for (size_t i = 0; i < {{ upper_name }}_SLOT_COUNT; ++i) {
+        if ({{ snake_name }}_slot_states[i] == SCE_SLOT_FREE) {
+            {{ snake_name }}_slot_states[i] = SCE_SLOT_CPU_MUT;
+            sce_slot_handle_t h;
+            h.state = SCE_SLOT_CPU_MUT;
+            h.idx = i;
+            return h;
+        }
+    }
+    return {{ upper_name }}_INVALID_HANDLE;
+}
+
+/* Arm a free slot for peripheral RX. Spec §5.E line 1146:
+ * `free → dma-armed-rx`. Returns `INVALID_HANDLE` when every slot
+ * is in use. C5: pre-arm `sce_dcache_invalidate_by_addr` is emitted
+ * here when `cache-policy: maintain && platform.has_speculative_prefetch`
+ * per spec lines 1189-1198 — evicts any cache lines the CPU's
+ * prefetcher / speculative load may have populated for this slot
+ * region while it sat on the freelist. Without the pre-arm
+ * invalidate, those stale lines would shadow DMA writes even after
+ * the post-RX invalidate (RFC §5.E lines 1199-1212). */
+static inline sce_slot_handle_t {{ snake_name }}_link_arm_rx(void) {
+    for (size_t i = 0; i < {{ upper_name }}_SLOT_COUNT; ++i) {
+        if ({{ snake_name }}_slot_states[i] == SCE_SLOT_FREE) {
+{% if cache_maintain and has_speculative_prefetch %}
+            /* C5 pre-arm cache-invalidate (spec lines 1189-1198). */
+            sce_dcache_invalidate_by_addr({{ snake_name }}_storage[i],
+                                          {{ upper_name }}_SLOT_SIZE);
+{% endif %}
+            {{ snake_name }}_slot_states[i] = SCE_SLOT_DMA_ARMED_RX;
+            sce_slot_handle_t h;
+            h.state = SCE_SLOT_DMA_ARMED_RX;
+            h.idx = i;
+            return h;
+        }
+    }
+    return {{ upper_name }}_INVALID_HANDLE;
+}
+
+/* Hand the slot off to the link's TX path. Spec §5.E line 1142:
+ * `cpu-mut → dma-armed-tx`. Tag check: handle must be in
+ * `SCE_SLOT_CPU_MUT`. On success the pool's internal state for the
+ * slot transitions to `SCE_SLOT_DMA_ARMED_TX` and the handle is
+ * marked `SCE_SLOT_INVALID` — re-use is rejected by subsequent
+ * operations. Returns `false` on tag mismatch (no state change).
+ * C5: when `cache-policy: maintain`, emits `sce_dcache_clean_by_addr`
+ * before the state transition (spec lines 1186-1188) so the DMA
+ * controller reads the latest CPU writes from main memory. */
+static inline bool {{ snake_name }}_link_arm_tx(sce_slot_handle_t *handle) {
+    if (handle == NULL) return false;
+    if (handle->state != SCE_SLOT_CPU_MUT) return false;
+    if (handle->idx >= {{ upper_name }}_SLOT_COUNT) return false;
+    if ({{ snake_name }}_slot_states[handle->idx] != SCE_SLOT_CPU_MUT) return false;
+{% if cache_maintain %}
+    /* C5 cache-clean before TX descriptor publish (spec lines 1186-1188). */
+    sce_dcache_clean_by_addr({{ snake_name }}_storage[handle->idx],
+                             {{ upper_name }}_SLOT_SIZE);
+{% endif %}
+    {{ snake_name }}_slot_states[handle->idx] = SCE_SLOT_DMA_ARMED_TX;
+    handle->state = SCE_SLOT_INVALID;
+    handle->idx = SIZE_MAX;
+    return true;
+}
+
+/* Return the slot to the freelist. Spec §5.E lines 1152, 1155:
+ * `cpu-ref → free` ("handler complete; pool_return") and
+ * `cpu-mut → free` ("abort encode (error path)"). Tag check: handle
+ * must be in `SCE_SLOT_CPU_MUT` or `SCE_SLOT_CPU_REF`. On success
+ * the pool's internal state transitions to `SCE_SLOT_FREE` and the
+ * handle is marked `SCE_SLOT_INVALID`. Returns `false` on tag
+ * mismatch (no state change). */
+static inline bool {{ snake_name }}_pool_return(sce_slot_handle_t *handle) {
+    if (handle == NULL) return false;
+    if (handle->state != SCE_SLOT_CPU_MUT && handle->state != SCE_SLOT_CPU_REF) {
+        return false;
+    }
+    if (handle->idx >= {{ upper_name }}_SLOT_COUNT) return false;
+    if ({{ snake_name }}_slot_states[handle->idx] != handle->state) return false;
+    {{ snake_name }}_slot_states[handle->idx] = SCE_SLOT_FREE;
+    handle->state = SCE_SLOT_INVALID;
+    handle->idx = SIZE_MAX;
+    return true;
+}
+
+/* Read-only view of the slot's bytes. Tag check: handle must be in
+ * `SCE_SLOT_CPU_MUT` or `SCE_SLOT_CPU_REF`. Returns NULL on tag
+ * mismatch — DMA-armed and DMA-busy states must not expose their
+ * contents to author code while the descriptor or peripheral owns
+ * them. */
+static inline const uint8_t *{{ snake_name }}_slot_read(const sce_slot_handle_t *handle) {
+    if (handle == NULL) return NULL;
+    if (handle->state != SCE_SLOT_CPU_MUT && handle->state != SCE_SLOT_CPU_REF) {
+        return NULL;
+    }
+    if (handle->idx >= {{ upper_name }}_SLOT_COUNT) return NULL;
+    return {{ snake_name }}_storage[handle->idx];
+}
+
+/* Mutable view of the slot's bytes. Tag check: handle must be in
+ * `SCE_SLOT_CPU_MUT`. Returns NULL on tag mismatch — `cpu-ref` is a
+ * shared-read state per spec line 1135 and must not be mutated. */
+static inline uint8_t *{{ snake_name }}_slot_write(sce_slot_handle_t *handle) {
+    if (handle == NULL) return NULL;
+    if (handle->state != SCE_SLOT_CPU_MUT) return NULL;
+    if (handle->idx >= {{ upper_name }}_SLOT_COUNT) return NULL;
+    return {{ snake_name }}_storage[handle->idx];
+}
+
+/* Inspect a slot's current lifecycle state. Out-of-range index
+ * returns `SCE_SLOT_INVALID` so debug introspection cannot fault. */
+static inline sce_slot_state_t {{ snake_name }}_slot_state(size_t idx) {
+    if (idx >= {{ upper_name }}_SLOT_COUNT) return SCE_SLOT_INVALID;
+    return {{ snake_name }}_slot_states[idx];
+}
+
+/* Number of slots currently free. */
+static inline size_t {{ snake_name }}_free_count(void) {
+    size_t n = 0;
+    for (size_t i = 0; i < {{ upper_name }}_SLOT_COUNT; ++i) {
+        if ({{ snake_name }}_slot_states[i] == SCE_SLOT_FREE) {
+            ++n;
+        }
+    }
+    return n;
+}
+
+#ifdef __cplusplus
+}  /* extern "C" */
+#endif
+
+#endif /* {{ guard }} */

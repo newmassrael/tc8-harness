@@ -1,0 +1,173 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="link")
+// Runtime: sce_link_runtime
+// Do not edit — regenerate from the source SCXML file.
+//
+// watching-zenoh RFC §5.C byte-stream link endpoint. The struct
+// owns an `impl Link` driver (downstream `sce_link_runtime_<os>`
+// implementation) and routes RX bytes through the §5.B framer
+// codec's decode + injects the configured SCXML event, while TX
+// pulls bytes from the framer's encode and submits them through
+// the driver's `tx`. B6-α emits the rust-target slice; B6-β closes
+// the c11 mirror.
+//
+// Generated from `name="{{ name }}"` with link-class `{{ class }}`,
+// framer ref `{{ framer }}`, backpressure policy `{{ backpressure }}`.
+
+#![allow(clippy::all)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
+use sce_link_runtime::{Link, LinkError, RxFrame, TxFrame};
+
+/// Generated wrapper around an `impl Link` driver. The `framer_ref`
+/// is the `<sce:framer ref="{{ framer }}"/>` codec name — consumers
+/// thread it through to the framer's decode/encode entry points.
+/// B6-α treats the framer as opaque (no codegen-time codec import
+/// resolution) so the wrapper compiles standalone against
+/// `sce-link-runtime`'s `StubLink`. B6-γ adds the cross-file
+/// framer-codec resolution alongside the negative-coverage fixtures.
+pub struct {{ pascal_name }}<L: Link> {
+    driver: L,
+}
+
+impl<L: Link> {{ pascal_name }}<L> {
+    /// Build the link wrapper from a driver impl. The driver owns
+    /// the OS-native I/O primitive (`tokio_udp` / `lwip_udp` / …);
+    /// SCE-side code only sees the trait surface.
+    pub fn new(driver: L) -> Self {
+        Self { driver }
+    }
+
+    /// Pull the next RX frame from the driver. Returns `None` when
+    /// no bytes are pending; the SCXML interpreter polls in the
+    /// idle slot and dispatches the configured event when bytes
+    /// arrive (event dispatch lands with B6-γ's events-side codegen).
+    pub fn rx(&mut self) -> Option<RxFrame<'_>> {
+        self.driver.rx()
+    }
+
+    /// Submit `bytes` for TX. Honors the link's `<sce:backpressure>`
+    /// policy via the driver's `tx` return value.
+    pub fn tx(&mut self, bytes: &[u8]) -> Result<(), LinkError> {
+        self.driver.tx(TxFrame::new(bytes))
+    }
+
+    /// Budget-aware tick hook (RFC §5.N line 3050) — invoked once
+    /// per cooperative-scheduler tick with `deadline_us` capped to
+    /// the per-machine `PER_LINK_BUDGET_US`. Passthrough to the
+    /// underlying `impl Link::poll`; see [`sce_link_runtime::Link::poll`]
+    /// for the budget-vs-rx split-responsibility contract.
+    pub fn poll(&mut self, deadline_us: u32) {
+        self.driver.poll(deadline_us);
+    }
+
+    /// Link-class declared in the source SCXML — `{{ class }}`.
+    /// Round-tripped here so the SCXML's `<sce:link-class>` body
+    /// can be inspected at runtime (e.g. for diagnostic logs).
+    pub const LINK_CLASS: &'static str = "{{ class }}";
+
+    /// Framer codec reference — `{{ framer }}`. Consumers resolve
+    /// this against the imported codec map.
+    pub const FRAMER_REF: &'static str = "{{ framer }}";
+
+    /// Backpressure policy — `{{ backpressure }}`. Used by the
+    /// driver impl to decide between drop / block / signal-event
+    /// when the outbound queue saturates.
+    pub const BACKPRESSURE: &'static str = "{{ backpressure }}";
+{% if has_rx_pool %}
+    /// `<sce:rx-pool ref="{{ rx_pool }}"/>` — RX buffer-pool name
+    /// (RFC §5.E B7-α schema-only). Consumers resolve this against
+    /// the imported buffer-pool map. Cross-resolution validator
+    /// (`link/pool-slot-smaller-than-framer-max`) defers to a later
+    /// atomic that wires pool ↔ framer.
+    pub const RX_POOL: &'static str = "{{ rx_pool }}";
+{% endif %}
+{% if has_tx_pool %}
+    /// `<sce:tx-pool ref="{{ tx_pool }}"/>` — TX buffer-pool name
+    /// (RFC §5.E B7-α schema-only). Same shape as `RX_POOL`.
+    pub const TX_POOL: &'static str = "{{ tx_pool }}";
+{% endif %}
+{% if has_stage_pool %}
+    /// `<sce:stage-pool ref="{{ stage_pool }}"/>` — stage-copy
+    /// destination pool (RFC §5.E B7-η' Atomic A1). Names the
+    /// `<scxml sce:kind="buffer-pool">` artifact whose slots back
+    /// `Sample::take()`'s owned-copy destination. SCXML on-sample
+    /// validators look this constant up at SCXML compile time via
+    /// `ForgeLinkRegistry::lookup_stage_pool({{ name }})`; absence
+    /// (`has_stage_pool=false`) leaves the link's `take()` wired to
+    /// the `PanicOnTakeHook` default per `sce-link-runtime`'s
+    /// `LinkConfig`. Borrow-only callbacks are unaffected.
+    pub const STAGE_POOL: &'static str = "{{ stage_pool }}";
+{% endif %}
+}
+{% if is_listener_with_sibling %}
+
+// ── C10-α listener-link Sibling half (RFC §5.C lines 802-833) ──
+//
+// The listener-link sibling-pair contract per RFC §5.C lines 802-803:
+// codegen models this `session_arming` listener (machine source SCXML
+// carries `Accepting.*` substate per RFC §5.C line 806) as TWO logical
+// link-instances sharing one physical socket. The `{{ pascal_name }}`
+// struct above is the Listener half (pre-handshake / `session_arming`
+// trust); the `{{ pascal_name }}EstablishedSession` struct below is
+// the synthesized Sibling half (post-handshake / `established_session`
+// trust). The Sibling inherits the same 6 fields (`bind`, `driver`,
+// `mtu_bytes`, `expected_p99_bytes`, `burst_pps`, `rx_dispatch`) by
+// codegen-time projection per RFC §5.C lines 814-816; it deliberately
+// does NOT inherit the §5.K accept-side hardening fields per RFC
+// §5.C lines 816-820 (those are meaningful only on the
+// `session_arming` half).
+//
+// The `EstablishedSession` type-name suffix is the durable post-render
+// self-check anchor — the C10-α codegen self-check
+// `link/listener-link-not-paired-with-established-sibling`
+// (Q-C10-3 a) greps for this suffix; absence fires the diagnostic.
+pub struct {{ pascal_name }}EstablishedSession<L: Link> {
+    driver: L,
+}
+
+impl<L: Link> {{ pascal_name }}EstablishedSession<L> {
+    /// Build the Sibling wrapper from a driver impl sharing the same
+    /// physical socket as the Listener half. Per-peer dispatch routes
+    /// bytes to this half after the unicast session FSM transitions
+    /// out of `Accepting.*` (RFC §5.C lines 810-813); that dispatch
+    /// is a runtime concern, NOT part of C10-α's codegen surface.
+    pub fn new(driver: L) -> Self {
+        Self { driver }
+    }
+
+    /// Pull the next RX frame from the driver. Same contract as the
+    /// Listener half; per-peer dispatch routes post-handshake bytes
+    /// here.
+    pub fn rx(&mut self) -> Option<RxFrame<'_>> {
+        self.driver.rx()
+    }
+
+    /// Submit `bytes` for TX. Honors the link's `<sce:backpressure>`
+    /// policy via the driver's `tx` return value.
+    pub fn tx(&mut self, bytes: &[u8]) -> Result<(), LinkError> {
+        self.driver.tx(TxFrame::new(bytes))
+    }
+
+    /// Budget-aware tick hook (RFC §5.N line 3050) — invoked once
+    /// per cooperative-scheduler tick with `deadline_us` capped to
+    /// the per-machine `PER_LINK_BUDGET_US`. Passthrough to the
+    /// underlying `impl Link::poll`.
+    pub fn poll(&mut self, deadline_us: u32) {
+        self.driver.poll(deadline_us);
+    }
+
+    /// Link-class declared in the source SCXML — `{{ class }}`.
+    pub const LINK_CLASS: &'static str = "{{ class }}";
+
+    /// Framer codec reference — `{{ framer }}`.
+    pub const FRAMER_REF: &'static str = "{{ framer }}";
+
+    /// Backpressure policy — `{{ backpressure }}`.
+    pub const BACKPRESSURE: &'static str = "{{ backpressure }}";
+}
+{% endif %}

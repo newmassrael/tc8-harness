@@ -2,6 +2,14 @@
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {% include 'license_header.jinja2' %}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{# Watching-zenoh RFC §5.O Atomic 0b: per-backend SCE-MAP marker
+   anchoring the generated header to the `<scxml>` root element's
+   post-preprocessor source position. Module-level form is a comment
+   (not `#line`) because `#line` remapping in a header would
+   propagate into every consumer translation unit. #}
+
+{{ sce_map.source_marker(model.source_location, "cpp", module_level=true) }}
 
 #pragma once
 #include <cstdint>
@@ -832,6 +840,8 @@ public:
 #if __cpp_concepts >= 202002L
 static_assert(::SCE::Core::EventNamingPolicy<{{ model.name }}Policy>,
     "Generated {{ model.name }}Policy must satisfy EventNamingPolicy concept");
+static_assert(::SCE::Core::StateNamingPolicy<{{ model.name }}Policy>,
+    "Generated {{ model.name }}Policy must satisfy StateNamingPolicy concept");
 {% if model.has_parallel_states %}
 static_assert(::SCE::Core::ParallelStatePolicy<{{ model.name }}Policy>,
     "Generated {{ model.name }}Policy must satisfy ParallelStatePolicy concept (HAS_PARALLEL_STATES=true)");

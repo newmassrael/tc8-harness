@@ -2,7 +2,18 @@
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {% include 'license_header.rs.jinja2' %}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 
+{% if no_std %}
+// Watching-zenoh RFC §5.J.2: no_std variant of the statechart
+// emitter. `sce-rust-runtime` ships a `no_std` feature gate, and
+// the generated crate omits `std::*` paths — Duration comes from
+// `core::time`, the microstep dedup set is `heapless::FnvIndexSet`,
+// and the parent-event queue field is elided (SCXML `<invoke>` is
+// rejected at codegen time under `--no-std` per the
+// `codegen/no-std-invoke-not-supported` diagnostic).
+#![no_std]
+{% endif %}
 
 //! Generated Rust state machine for `{{ model.name }}`.
 //!
@@ -22,7 +33,7 @@
 // camelCase verbatim into Rust field names like `child_invokedChild`
 // keeps the generated code traceable back to the SCXML source.
 #![allow(non_snake_case)]
-// Codegen always emits `use std::time::Duration` and the umbrella
+// Codegen always emits `use core::time::Duration` and the umbrella
 // `use sce_rust_runtime::{Engine, StatePolicy};`; fixtures with no
 // `<send delay=...>` and no engine-borrowing actions never reference
 // `Duration`/`Engine`, leaving the imports unused.
@@ -62,9 +73,30 @@
 #![allow(clippy::style)]
 #![allow(clippy::complexity)]
 
+{# Watching-zenoh RFC §5.O Atomic 0b: per-backend SCE-MAP marker
+   anchoring the generated module to the `<scxml>` root element's
+   post-preprocessor source position. Both forms emitted per spec
+   lines 3135-3136 — the `#![doc]` form survives in rustdoc, the
+   `//` form survives as a stable comment grep target. #}
+{{ sce_map.source_marker(model.source_location, "rust", module_level=true) }}
 
-use std::time::Duration;
+use core::time::Duration;
 use sce_rust_runtime::{Engine, StatePolicy};
+{% if model.event_queue_capacity %}
+
+// Watching-zenoh RFC §5.J.2 + §5.L (Q-RustNoStd-7 (a), C3 Atomic
+// B-γ1): per-document event-queue capacity declared via
+// `<scxml sce:capacity="N">` or sourced from deploy.yaml
+// `machines.<m>.scheduler.default_event_queue_capacity`. Consumed
+// by Atomic B-γ2's `heapless::spsc::Queue<E, EVENT_QUEUE_CAPACITY>`
+// when the runtime port + `#![no_std]` template emission land
+// together; today the const is informational (B-γ1 wires the
+// capacity into generated code so the value is visible at compile
+// time to downstream consumers that scan for it, and so the
+// codegen consumer is present in the same atomic that adds the
+// parser/deploy producers).
+pub const EVENT_QUEUE_CAPACITY: usize = {{ model.event_queue_capacity }};
+{% endif %}
 
 {% if model.has_parallel_states %}
 // W3C SCXML Appendix D: Transition descriptor for parallel state microstep execution
@@ -126,7 +158,12 @@ pub struct {{ machine_name }}Policy {
 {% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 3.4: Active state configuration for parallel states / In() predicate
-    active_states: Vec<{{ machine_name }}State>,
+    //
+    // Watching-zenoh RFC §5.J.2: type is the runtime crate's
+    // [`StateChain`] alias — `Vec<S>` under std, `heapless::Vec<S, MAX_HIERARCHY_DEPTH>`
+    // under no_std. The std alias preserves the existing ABI; the no_std alias keeps
+    // the generated code allocator-free.
+    active_states: ::sce_rust_runtime::helpers::hierarchy::StateChain<{{ machine_name }}State>,
 {% endif %}
 {% if model.needs_external_flag %}
     // W3C SCXML 5.10.1: External event flag for _event.type classification
@@ -201,9 +238,14 @@ pub struct {{ machine_name }}Policy {
     child_{{ invoke_info.field_suffix }}: Option<Box<sce_rust_runtime::Engine<super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy>>>,
     pending_done_invoke_{{ invoke_info.field_suffix }}: bool,
 {% endfor %}
+{% if not no_std %}
     // W3C SCXML 6.4: Parent engine external queue for #_parent send routing
-    // Always generated — any SM can be invoked as a child
+    // Always generated under std — any SM can be invoked as a child. Under
+    // `--no-std` (Watching-zenoh RFC §5.J.2) the SCXML `<invoke>` element
+    // is codegen-rejected, so no parent_external_queue handle is ever
+    // wired in, and the Arc<Mutex<...>> (alloc-coupled) is omitted.
     pub parent_external_queue: Option<std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>>,
+{% endif %}
     // W3C SCXML 6.4.1: This child's invoke ID (for _event.invokeid in parent)
     pub invoke_id: String,
     // W3C SCXML 6.5: Child session ID for finalize origin matching
@@ -221,7 +263,7 @@ impl {{ machine_name }}Policy {
             has_transition_actions: false,
 {% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
-            active_states: Vec::new(),
+            active_states: ::sce_rust_runtime::helpers::hierarchy::new_chain(),
 {% endif %}
 {% if model.needs_external_flag %}
             next_event_is_external: false,
@@ -284,7 +326,9 @@ impl {{ machine_name }}Policy {
             child_{{ invoke_info.field_suffix }}: None,
             pending_done_invoke_{{ invoke_info.field_suffix }}: false,
 {% endfor %}
+{% if not no_std %}
             parent_external_queue: None,
+{% endif %}
             invoke_id: String::new(),
             child_session_id: String::new(),
         }
@@ -313,6 +357,7 @@ impl Default for {{ machine_name }}Policy {
 impl StatePolicy for {{ machine_name }}Policy {
     type State = {{ machine_name }}State;
     type Event = {{ machine_name }}Event;
+    type Hal = sce_rust_runtime::StdHal;
 
     // W3C SCXML feature flags
     const HAS_PARALLEL_STATES: bool = {{ 'true' if model.has_parallel_states else 'false' }};
@@ -455,7 +500,6 @@ impl StatePolicy for {{ machine_name }}Policy {
         }
     }
 
-{% if model.has_parallel_states or model.uses_in_predicate %}
     fn get_state_name(state: Self::State) -> &'static str {
         match state {
 {% for state_id in model.states | sort %}
@@ -463,25 +507,29 @@ impl StatePolicy for {{ machine_name }}Policy {
 {% endfor %}
         }
     }
-{% endif %}
 
     fn null_event() -> Self::Event {
         {{ machine_name }}Event::Null
     }
 
     // W3C SCXML 3.6: Get initial children of a compound state
-    fn get_initial_children(state: Self::State) -> Vec<Self::State> {
+    //
+    // Watching-zenoh RFC §5.J.2: return type is the runtime crate's
+    // [`StateChain`] alias and the body uses `state_chain_from_slice` instead of
+    // `vec![...]` so the emitted code compiles under `--no-std` (`vec!` is a
+    // std-only macro; heapless has no equivalent).
+    fn get_initial_children(state: Self::State) -> ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> {
         match state {
 {% for state_id, state in model.states | dictsort %}
 {% if state.initial_children %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => vec![
+            {{ machine_name }}State::{{ state_id | to_state_variant }} => ::sce_rust_runtime::helpers::hierarchy::state_chain_from_slice([
 {% for child in state.initial_children %}
                 {{ machine_name }}State::{{ child | to_state_variant }},
 {% endfor %}
-            ],
+            ]),
 {% endif %}
 {% endfor %}
-            _ => Vec::new(),
+            _ => ::sce_rust_runtime::helpers::hierarchy::new_chain(),
         }
     }
 
@@ -548,7 +596,11 @@ impl StatePolicy for {{ machine_name }}Policy {
     }
 
 {% if model.has_parallel_states or model.uses_in_predicate %}
-    fn get_active_states(&self) -> Vec<Self::State> {
+    // Watching-zenoh RFC §5.J.2: trait default in `sce-rust-runtime::policy`
+    // returns `StateChain<Self::State>`; this override matches that signature
+    // so the std alias-to-`Vec<S>` and no_std alias-to-`heapless::Vec<S, …>`
+    // both resolve correctly.
+    fn get_active_states(&self) -> ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> {
         self.active_states.clone()
     }
 {% endif %}
@@ -942,3 +994,94 @@ impl {{ machine_name }}Policy {
 
 {% include 'conflict_resolution.rs.jinja2' %}
 }
+{% if model.on_sample_links %}
+
+// ======================================================================
+// watching-zenoh RFC §5.E B7-η' codegen wire-up
+// ======================================================================
+//
+// Per-link Sample delivery surface. The host's link RX task (e.g. a
+// Tokio task draining a Zenoh subscriber, an `arm_rx`-style poll
+// loop, or the QNX `dispatch_create()` reactor) calls
+// `engine.deliver_link_<X>_sample(sample)` for every Sample arriving
+// on the named link. The generated method:
+//
+//   1. Iterates active states whose `<sce:on-sample link="X">` block
+//      matches the link.
+//   2. For each match: invokes the user-supplied `callback="rust:..."`
+//      synchronously with `&sample` (when present), then raises the
+//      `event="..."` external event so SCXML transitions react.
+//   3. Drops the Sample at method exit, returning the slot to the pool
+//      via the embedded `SlotGuard`.
+//
+// Generic over `M: SampleMeta` so the codegen does not need to learn
+// the link's concrete metadata type (Q-Wire-9 lock 2026-05-07). The
+// user's call site instantiates `M` from their link driver's
+// `Sample<'pool, MyMeta>` value; rustc enforces the user-callback
+// signature against the borrow contract per Q-Callback-3 / A2.
+//
+// W1.2 emits the trait + impl skeleton with empty bodies; W1.3
+// (config-filter), W1.4 (callback dispatch), W1.5 (event raise) fill
+// the bodies in successive atomics.
+pub trait {{ machine_name }}LinkRx {
+{% for link in model.on_sample_links %}
+    /// Deliver a Sample arriving on link `{{ link }}`.
+    fn deliver_link_{{ link | to_snake_case }}_sample<M>(
+        &mut self,
+        sample: ::sce_link_runtime::Sample<'_, M>,
+    )
+    where
+        M: ::sce_link_runtime::SampleMeta;
+{% endfor %}
+}
+
+impl {{ machine_name }}LinkRx for ::sce_rust_runtime::Engine<{{ machine_name }}Policy> {
+{% for link in model.on_sample_links %}
+    fn deliver_link_{{ link | to_snake_case }}_sample<M>(
+        &mut self,
+        sample: ::sce_link_runtime::Sample<'_, M>,
+    )
+    where
+        M: ::sce_link_runtime::SampleMeta,
+    {
+        // W1.3 active-state filter: iterate the engine's current
+        // configuration; for every active state that declares
+        // `<sce:on-sample link="{{ link }}">`, dispatch into its
+        // per-state arm. Arms are empty in W1.3; W1.4 (callback)
+        // and W1.5 (event raise) fill the bodies. Sample drops
+        // at method exit, returning the slot to its pool via the
+        // embedded `SlotGuard`.
+        let _ = &sample;
+        for active in self.get_active_states() {
+            match active {
+{% for state_id, state in model.states | dictsort %}
+{% for block in state.on_sample_blocks %}
+{% if block.link == link %}
+                {{ machine_name }}State::{{ state_id | to_state_variant }} => {
+{% if block.callback %}
+                    // W1.4 callback dispatch — synchronous extern
+                    // call. rustc enforces the user's callback
+                    // signature against the borrow contract per
+                    // Q-Callback-3 (A2 spec lines 1513-1519).
+                    {{ block.callback | extern_callback_path }}(&sample);
+{% endif %}
+                    // W1.5 event raise — Q-Wire-3 lock: when a
+                    // callback was present it fired synchronously
+                    // above; this raise still happens so SCXML
+                    // transitions react to the sample arrival.
+                    // Q-Wire-4 lock: event_data is the empty string
+                    // (typed payload flows through the callback
+                    // path; the event path is purely for state-
+                    // machine reaction).
+                    self.raise_external_by_name("{{ block.event | escape_rust }}", "");
+                }
+{% endif %}
+{% endfor %}
+{% endfor %}
+                _ => {}
+            }
+        }
+    }
+{% endfor %}
+}
+{% endif %}

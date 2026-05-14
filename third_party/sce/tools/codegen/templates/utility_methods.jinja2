@@ -66,9 +66,12 @@
     }
 
     // Helper: Convert State enum back to its SCXML state id string.
-    // Always emitted (independent of In() predicate / parallel-state usage)
-    // so consumers can introspect transitions for trace recording, logging,
-    // and post-mortem analysis without hand-rolling a per-policy mapping.
+    // Unconditional (symmetric with getEventName above): the State→id
+    // mapping is purely structural — no runtime feature gates it — and
+    // external consumers (trace recorders, post-mortem analyzers,
+    // hierarchical visualisers) need it whether or not the SM uses
+    // parallel states or the In() predicate. Required by StateNamingPolicy
+    // concept (StatePolicyConcepts.h). W3C SCXML 5.9.2 / 3.3.
     [[nodiscard]] static constexpr const char* getStateName(State state) noexcept {
         switch (state) {
 {% for state_id in model.states | list | sort %}

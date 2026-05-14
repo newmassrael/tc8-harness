@@ -79,6 +79,28 @@ struct {{ struct_name }} {
         (void)cursor;
         return {{ struct_name }}{};
 {% elif has_variant %}
+{% if variant.has_streaming_prefix %}
+        // RFC §5.B Y3 atomic 2b-ii peek-byte / 2b-iv streaming-prefix:
+        // streaming prefix decode (variable-length fields supported via
+        // per-field present_if/tlv-chain/embed/repeat helpers). Peek-byte
+        // mode additionally peeks the cursor's next byte for variant tag
+        // without advancing — arm body decoder reads it as its own
+        // header byte.
+{% for field in fields %}
+{% if field.is_repeat %}
+        {{ field.repeat_decode_stmt }}
+{% elif field.is_tlv_chain %}
+        {{ field.tlv_chain_decode_stmt }}
+{% elif field.is_embed %}
+        {{ field.embed_decode_stmt }}
+{% else %}
+        {{ field.present_if_decode_stmt }}
+{% endif %}
+{% endfor %}
+{% if variant.has_peek_byte %}
+        {{ variant.peek_byte_decode_stmt }}
+{% endif %}
+{% else %}
         // Decode fixed prefix (RFC §5.B variant B1-β: fields before tag suffix).
         const std::uint8_t* raw = cursor.peek_slice({{ min_bytes }});
         if (raw == nullptr) return std::nullopt;
@@ -86,6 +108,7 @@ struct {{ struct_name }} {
         {{ field.cpp_type }} {{ field.id }} = {{ field.decode_expr }};
 {% endfor %}
         if (!cursor.advance({{ min_bytes }})) return std::nullopt;
+{% endif %}
         // Dispatch on tag value into the matching arm body.
         {{ struct_name }}Variant body;
         switch ({{ variant.tag_match_expr }}) {
@@ -271,12 +294,34 @@ struct {{ struct_name }} {
         // RFC §5.B B5-α empty body — zero-byte payload.
         return {};
 {% elif has_variant %}
+{% if variant.has_streaming_prefix %}
+        // RFC §5.B Y3 atomic 2b-ii peek-byte / 2b-iv streaming-prefix:
+        // streaming prefix encode. Peek-byte mode: arm body's encode
+        // prepends its own header byte (which the decoder peeked); no
+        // separate tag byte here. Streaming-prefix mode (own-field):
+        // carrier is part of the prefix fields and emits via the same
+        // per-field path.
+        std::vector<uint8_t> r;
+        r.reserve({{ max_bytes }});
+{% for field in fields %}
+{% if field.is_repeat %}
+{{ field.repeat_encode_block }}
+{% elif field.is_tlv_chain %}
+{{ field.tlv_chain_encode_block }}
+{% elif field.is_embed %}
+{{ field.embed_encode_block }}
+{% else %}
+{{ field.present_if_encode_block }}
+{% endif %}
+{% endfor %}
+{% else %}
         // Encode fixed prefix (tag field bytes are part of the prefix).
         std::vector<uint8_t> r;
         r.reserve({{ max_bytes }});
 {% for expr in encode_exprs %}
         r.push_back({{ expr }});
 {% endfor %}
+{% endif %}
         // Append the active arm body's encoded bytes.
 {% for arm in variant.arms %}
         if (auto _p = std::get_if<{{ arm.body_type }}>(&body)) {
