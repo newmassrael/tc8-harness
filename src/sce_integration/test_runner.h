@@ -264,7 +264,17 @@ public:
                              /*event_name=*/eventNameForFrame(ev),
                              /*pcap_frame_idx=*/next_pcap_frame_idx_);
         }
-        next_pcap_frame_idx_ = -1;  // consumed
+        // Do NOT clear ``next_pcap_frame_idx_`` here. One physical pcap
+        // frame can fan out into multiple ``CapturedEvent`` sub-events in
+        // ``PacketPipeline::processFrame`` (e.g. a TCP packet emits both
+        // an ``Ipv4Frame`` and a ``TcpFrame``); a case's dispatch may
+        // ignore the first sub-event (no transition) and consume the
+        // second (transition fires). Clearing on the first dispatch
+        // would mis-attribute the real transition to ``-1`` — the
+        // pre-fix bug that left ~99.9% of trace steps null in
+        // ICMPv4 / TCP / UDP / SOMEIP* cases. The CLI owns the slot:
+        // every physical frame calls ``setNextPcapFrameIdx`` before
+        // ``processFrame``, which is the SSOT.
     }
 
     void tick() override {
@@ -499,9 +509,12 @@ private:
     // verdict-deciding evidence).
     std::vector<::tc8::sce::TransitionStep> trace_;
     // Buffer for the CLI dispatch loop's "the NEXT incoming captured
-    // event corresponds to frame index N in the saved pcap" hint. Reset
-    // to -1 on consumption inside onCaptured so a subsequent tick-driven
-    // transition doesn't mis-attribute itself to the last frame.
+    // event corresponds to frame index N in the saved pcap" hint. The
+    // CLI owns the slot — it calls ``setNextPcapFrameIdx`` before every
+    // ``pipeline.processFrame`` (sets the idx for the upcoming physical
+    // frame's fan-out of sub-events), and tick() recordTransition calls
+    // always hardcode ``-1`` (synthetic / timer-driven). ``onCaptured``
+    // only reads it; never resets it.
     int                                next_pcap_frame_idx_ = -1;
 };
 

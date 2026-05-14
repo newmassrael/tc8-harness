@@ -2821,6 +2821,14 @@ def _label_via_trace(
     # pinned at the top of the timeline so the reader sees verdict-decider
     # evidence before the per-frame stream. Ordered by ``step`` so a case
     # with multiple non-retained events preserves harness wall-time order.
+    #
+    # Two flavours after the 2026-05-15 onCaptured idx-attribution fix
+    # (test_runner.h removes the spurious "clear-on-first-sub-event" path):
+    # tick-driven timer fires (event=deadline_exceeded) — no physical
+    # frame ever caused them, so the saved pcap legitimately doesn't
+    # contain one — and any residual "Captured but not dumped" cases
+    # (BPF reject, dropped pre-dump). The label split keeps the reader
+    # from hunting a phantom wire packet for the timer flavour.
     for step in sorted(synthetic_steps, key=lambda s: s.get("step", 0)):
         from_s = step.get("from_state", "?")
         to_s = step.get("to_state", "?")
@@ -2831,15 +2839,24 @@ def _label_via_trace(
         delta = step.get("captured_delta") or {}
         delta_text = ", ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
         verdict_tag = verdict or "progress"
-        msgs.append(AutoMessage(
-            idx=-1, role="case-note",
-            label=(
+        event = step.get("event", "")
+        if event == "deadline_exceeded":
+            label = (
+                f"Timer-driven phase advance "
+                f"(step {step.get('step', '?')}, {from_s} → {to_s}, "
+                f"{verdict_tag}). SCXML <send delay/> fired between "
+                f"physical frames — no wire packet caused this step. "
+                f"Harness Captured at trace time: {delta_text}. "
+                f"Cond: {cond_text}"
+            )
+        else:
+            label = (
                 f"Verdict-decider not retained in saved pcap "
                 f"(step {step.get('step', '?')}, {from_s} → {to_s}, "
                 f"{verdict_tag}). Harness Captured at trace time: "
                 f"{delta_text}. Cond: {cond_text}"
-            ),
-        ))
+            )
+        msgs.append(AutoMessage(idx=-1, role="case-note", label=label))
 
     reached_final = False
     for p in packets:
