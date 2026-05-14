@@ -3,11 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49713, dst_port=23669, seq_num=334998329, ack_num=2645785338, flags=24, window=502, data_offset=8, payload_len=4. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp…"
-    },
-    {
       "idx": 0,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
@@ -49,18 +44,18 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 9,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
-      "idx": 10,
+      "idx": 9,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 10,
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 11,
@@ -69,43 +64,48 @@
     },
     {
       "idx": 12,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 15,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp…"
     },
     {
       "idx": 16,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 17,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 18,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 19,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 20,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

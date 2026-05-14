@@ -3,19 +3,14 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: opcode=2, sender_hw=5e:12:1c:9a:7e:0f, target_hw=02:00:00:00:00:a2, sender_proto_ip=172.16.0.2, target_proto_ip=172.16.0.1, observed_udp_dst_ip=172.16.0.1, observed_udp_eth_dst=02:00:00:00:00:a2. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac2"
-    },
-    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Observed frame (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
@@ -24,23 +19,23 @@
     },
     {
       "idx": 3,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
@@ -49,13 +44,23 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac2"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 10,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 11,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

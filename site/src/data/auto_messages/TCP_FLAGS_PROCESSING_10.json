@@ -5,17 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_first_data → absence_no_second_before_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49644, dst_port=23600, seq_num=679147973, ack_num=3200603396, flags=24, window=502, data_offset=8, payload_len=4. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessi…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, absence_no_second_before_ack → listening_piggyback, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49644, dst_port=23600, seq_num=679147973, ack_num=3200603396, flags=24, window=502, data_offset=8, payload_len=4. Cond: "
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_piggyback → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49644, dst_port=23600, seq_num=679147977, ack_num=3200603400, flags=24, window=502, data_offset=8, payload_len=4. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessi…"
+      "label": "Timer-driven phase advance (step 1, absence_no_second_before_ack → listening_piggyback, progress). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49644, dst_port=23600, seq_num=3144650003, ack_num=1371138678, flags=24, window=502, data_offset=8, payload_len=4. Cond: "
     },
     {
       "idx": 0,
@@ -49,8 +39,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_first_data) progress trigger — advances to absence_no_second_before_ack. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessi…"
     },
     {
       "idx": 7,
@@ -94,8 +84,8 @@
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 2 (listening_piggyback) pass trigger — transitions to pass. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessi…"
     }
   ]
 }

@@ -5,17 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_otw_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49715, dst_port=23671, seq_num=2692606257, ack_num=2788869116, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_otw_ack → listening_unacc_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49715, dst_port=23671, seq_num=2692606257, ack_num=2788869116, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_unacc_ack → fail_no_dut_ack_to_unacc_ack, fail). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23671, dst_port=49715, seq_num=2788869116, ack_num=2961041713, flags=24, window=65535, data_offset=5, payload_len=4. Cond: "
+      "label": "Timer-driven phase advance (step 2, listening_unacc_ack → fail_no_dut_ack_to_unacc_ack, fail). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23671, dst_port=49715, seq_num=941528825, ack_num=1113700984, flags=24, window=65535, data_offset=5, payload_len=4. Cond: "
     },
     {
       "idx": 0,
@@ -39,8 +29,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_handshake_ack) progress trigger — advances to listening_otw_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
     },
     {
       "idx": 5,
@@ -49,8 +39,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_otw_ack) progress trigger — advances to listening_unacc_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04Loc…"
     },
     {
       "idx": 7,

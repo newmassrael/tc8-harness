@@ -3,16 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_seg1 → listening_probe, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49650, dst_port=23606, seq_num=3791706502, ack_num=2121889552, flags=24, window=502, data_offset=8, payload_len=8. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_probe → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49650, dst_port=23606, seq_num=3791706509, ack_num=2121889552, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05L…"
-    },
-    {
       "idx": 0,
       "role": "note",
       "label": "DUT frame (no transition fired)"
@@ -44,8 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_seg1) progress trigger — advances to listening_probe. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindow…"
     },
     {
       "idx": 7,
@@ -69,8 +59,8 @@
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_probe) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05L…"
     }
   ]
 }

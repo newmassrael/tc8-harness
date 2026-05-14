@@ -5,7 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, silence_watch → pass, pass). Harness Captured at trace time: opcode=1, sender_hw=02:00:00:00:00:a1, target_hw=00:00:00:00:00:00, sender_proto_ip=169.254.27.165, target_proto_ip=255.255.255.255. Cond: "
+      "label": "Timer-driven phase advance (step 2, silence_watch → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: opcode=1, sender_hw=02:00:00:00:00:a1, target_hw=00:00:00:00:00:00, sender_proto_ip=169.254.217.181, target_proto_ip=255.255.255.255. Cond: "
     },
     {
       "idx": 0,

@@ -3,16 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, wait_udp1 → wait_udp2, progress). Harness Captured at trace time: opcode=2, sender_hw=16:9f:96:e4:fb:48, target_hw=02:00:00:00:00:a1, sender_proto_ip=172.16.0.2, target_proto_ip=172.16.0.1, observed_udp_dst_ip=172.16.0.1, observed_udp_eth_dst=02:00:00:00:00:a1. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, wait_udp2 → wait_arp_request, progress). Harness Captured at trace time: opcode=2, sender_hw=16:9f:96:e4:fb:48, target_hw=02:00:00:00:00:a1, sender_proto_ip=172.16.0.2, target_proto_ip=172.16.0.1, observed_udp_dst_ip=172.16.0.1, observed_udp_eth_dst=02:00:00:00:00:a1. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac"
-    },
-    {
       "idx": 0,
       "role": "note",
       "label": "Observed frame (no transition fired)"
@@ -44,8 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (wait_udp1) progress trigger — advances to wait_udp2. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac"
     },
     {
       "idx": 7,
@@ -59,8 +49,8 @@
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (wait_udp2) progress trigger — advances to wait_arp_request. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac"
     },
     {
       "idx": 10,

@@ -3,26 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_close_fin, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49709, dst_port=23665, seq_num=2586793093, ack_num=2343541612, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffs…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_close_fin → listening_tester_fin_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49709, dst_port=23665, seq_num=2586793093, ack_num=2343541612, flags=17, window=502, data_offset=8, payload_len=0. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffse…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_tester_fin_ack → listening_replay_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49709, dst_port=23665, seq_num=2586793094, ack_num=2343541613, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffs…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 3, listening_replay_ack → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49709, dst_port=23665, seq_num=2586793094, ack_num=2343541613, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffs…"
-    },
-    {
       "idx": 0,
       "role": "note",
       "label": "DUT frame (no transition fired)"
@@ -44,8 +24,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_handshake_ack) progress trigger — advances to listening_close_fin. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffs…"
     },
     {
       "idx": 5,
@@ -54,8 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_close_fin) progress trigger — advances to listening_tester_fin_ack. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffse…"
     },
     {
       "idx": 7,
@@ -74,8 +54,8 @@
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 2 (listening_tester_fin_ack) progress trigger — advances to listening_replay_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffs…"
     },
     {
       "idx": 11,
@@ -84,13 +64,13 @@
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 3 (listening_replay_ack) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics13LocalOffs…"
     },
     {
       "idx": 13,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

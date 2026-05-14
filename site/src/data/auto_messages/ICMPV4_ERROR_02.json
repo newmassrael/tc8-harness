@@ -3,19 +3,14 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening → fail_wrong_pointer, fail). Harness Captured at trace time: type=12, code=0, src_ip=172.16.0.2, dst_ip=172.16.0.1, echo_id=5120, echo_seq=0, icmp_pointer=20, payload_len=36. Cond: type == 12 and icmp_pointer != 22 and src_ip == expected.dut_iface_ip"
-    },
-    {
       "idx": 0,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "fail-trigger",
+      "label": "Step 0 (listening) fail trigger — transitions to fail_wrong_pointer. Cond: type == 12 and icmp_pointer != 22 and src_ip == expected.dut_iface_ip"
     }
   ]
 }

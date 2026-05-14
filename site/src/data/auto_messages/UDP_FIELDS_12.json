@@ -3,11 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30600, dst_port=20100, length=276, checksum=42044, ut_opcode=129, ut_req_id=1, ut_status=0. Cond: has_ut_response and ut_opcode == 0x81 and ut_status == 0 and ut_received == 1 and (ut_recv_payload_len == 65507)"
-    },
-    {
       "idx": 0,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
@@ -89,8 +84,8 @@
     },
     {
       "idx": 16,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 17,
@@ -109,8 +104,8 @@
     },
     {
       "idx": 20,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 21,
@@ -259,8 +254,8 @@
     },
     {
       "idx": 50,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: has_ut_response and ut_opcode == 0x81 and ut_status == 0 and ut_received == 1 and (ut_recv_payload_len == 65507)"
     }
   ]
 }

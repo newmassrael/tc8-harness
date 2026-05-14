@@ -3,16 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listen_dut_ack → listen_dut_fin, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13179, dst_port=52496, seq_num=1399766035, ack_num=2310285656, flags=16, window=510, data_offset=8, payload_len=0. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (flags & 0x…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listen_dut_fin → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13179, dst_port=52496, seq_num=1399766035, ack_num=2310285656, flags=17, window=510, data_offset=8, payload_len=0. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (flags & 0x…"
-    },
-    {
       "idx": 0,
       "role": "note",
       "label": "DUT frame (no transition fired)"
@@ -44,8 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listen_dut_ack) progress trigger — advances to listen_dut_fin. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (flags & 0x…"
     },
     {
       "idx": 7,
@@ -54,18 +44,18 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listen_dut_fin) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab07ListenPort and (flags & 0x…"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

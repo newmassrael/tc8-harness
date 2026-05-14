@@ -5,57 +5,17 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_p1_handshake_ack → listening_p1_close_wait_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49557, dst_port=23513, seq_num=1685020861, ack_num=1143199054, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "label": "Timer-driven phase advance (step 2, listening_p1_absence → listening_p2_handshake_ack, progress). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49557, dst_port=23513, seq_num=4143823866, ack_num=3602002500, flags=16, window=502, data_offset=11, payload_len=0. Cond: "
     },
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_p1_close_wait_ack → listening_p1_absence, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49557, dst_port=23513, seq_num=1685020861, ack_num=1143199055, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "label": "Timer-driven phase advance (step 6, listening_p2_absence → listening_p3_handshake_ack, progress). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23514, dst_port=49558, seq_num=742220397, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: "
     },
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_p1_absence → listening_p2_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49557, dst_port=23513, seq_num=1685020861, ack_num=1143199055, flags=16, window=502, data_offset=11, payload_len=0. Cond: "
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 3, listening_p2_handshake_ack → listening_p2_dut_fin, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49558, dst_port=23514, seq_num=4124946805, ack_num=2578536205, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRem…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 4, listening_p2_dut_fin → listening_p2_closing_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49558, dst_port=23514, seq_num=4124946805, ack_num=2578536205, flags=17, window=502, data_offset=8, payload_len=0. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRemo…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 5, listening_p2_closing_ack → listening_p2_absence, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49558, dst_port=23514, seq_num=4124946806, ack_num=2578536206, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRem…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 6, listening_p2_absence → listening_p3_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23514, dst_port=49558, seq_num=2578536206, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: "
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 7, listening_p3_handshake_ack → listening_p3_close_wait_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49559, dst_port=23515, seq_num=3991513085, ack_num=3593904399, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRem…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 8, listening_p3_close_wait_ack → listening_p3_dut_fin, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49559, dst_port=23515, seq_num=3991513085, ack_num=3593904400, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRem…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 9, listening_p3_dut_fin → listening_p3_absence, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49559, dst_port=23515, seq_num=3991513085, ack_num=3593904400, flags=17, window=502, data_offset=8, payload_len=0. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRemo…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 10, listening_p3_absence → pass, pass). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23515, dst_port=49559, seq_num=3593904400, ack_num=3991513086, flags=16, window=510, data_offset=8, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 10, listening_p3_absence → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23515, dst_port=49559, seq_num=1758008398, ack_num=2155616487, flags=16, window=510, data_offset=8, payload_len=0. Cond: "
     },
     {
       "idx": 0,
@@ -79,8 +39,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_p1_handshake_ack) progress trigger — advances to listening_p1_close_wait_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 5,
@@ -89,8 +49,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_p1_close_wait_ack) progress trigger — advances to listening_p1_absence. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 57U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 7,
@@ -124,8 +84,8 @@
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 3 (listening_p2_handshake_ack) progress trigger — advances to listening_p2_dut_fin. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 14,
@@ -134,8 +94,8 @@
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 4 (listening_p2_dut_fin) progress trigger — advances to listening_p2_closing_ack. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRemo…"
     },
     {
       "idx": 16,
@@ -154,8 +114,8 @@
     },
     {
       "idx": 19,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 5 (listening_p2_closing_ack) progress trigger — advances to listening_p2_absence. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 58U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 20,
@@ -199,8 +159,8 @@
     },
     {
       "idx": 28,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 7 (listening_p3_handshake_ack) progress trigger — advances to listening_p3_close_wait_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 29,
@@ -209,8 +169,8 @@
     },
     {
       "idx": 30,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 8 (listening_p3_close_wait_ack) progress trigger — advances to listening_p3_dut_fin. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 31,
@@ -219,8 +179,8 @@
     },
     {
       "idx": 32,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 9 (listening_p3_dut_fin) progress trigger — advances to listening_p3_absence. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 59U, ::tc8::sce::tcp::kBasicsActiveRemo…"
     },
     {
       "idx": 33,

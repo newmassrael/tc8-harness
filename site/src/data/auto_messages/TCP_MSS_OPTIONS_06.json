@@ -3,16 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_phase1 → listening_phase2, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13021, dst_port=49223, seq_num=792715622, ack_num=270544961, flags=16, window=64240, data_offset=5, payload_len=200. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_phase2 → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13022, dst_port=49224, seq_num=3295870008, ack_num=270544961, flags=16, window=64240, data_offset=5, payload_len=1460. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06b, ::tc8::sce::tcp::kTcpMssOption…"
-    },
-    {
       "idx": 0,
       "role": "note",
       "label": "DUT frame (no transition fired)"
@@ -44,8 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_phase1) progress trigger — advances to listening_phase2. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06a, ::tc8::sce::tcp::kTcpMssOption…"
     },
     {
       "idx": 7,
@@ -129,8 +119,8 @@
     },
     {
       "idx": 23,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 24,
@@ -139,38 +129,43 @@
     },
     {
       "idx": 25,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 26,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 27,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 28,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 29,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
+      "idx": 26,
+      "role": "expected",
+      "label": "Step 1 (listening_phase2) pass trigger — transitions to pass. Cond: is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06b, ::tc8::sce::tcp::kTcpMssOption…"
+    },
+    {
+      "idx": 27,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 28,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 29,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
       "idx": 30,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 31,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 32,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

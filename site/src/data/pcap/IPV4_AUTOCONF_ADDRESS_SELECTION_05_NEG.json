@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_05_NEG",
   "outcome": "pass",
-  "captured_at": "2026-05-14T01:12:11Z",
-  "tester_mac": "5e:45:c1:4c:94:86",
+  "captured_at": "2026-05-14T12:42:15Z",
+  "tester_mac": "2e:89:15:26:a6:76",
   "tester_ip": null,
   "dut_mac": null,
   "dut_ip": null,
@@ -12,12 +12,12 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "2e:89:15:26:a6:76",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.177.107? Tell 0.0.0.0 (sender_mac=ca:fe:ba:be:00:00)",
+      "summary": "Who has 169.254.252.207? Tell 0.0.0.0 (sender_mac=ca:fe:ba:be:00:00)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
@@ -27,9 +27,9 @@
         "sender_mac": "ca:fe:ba:be:00:00",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.177.107",
+        "target_ip": "169.254.252.207",
         "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852041067
+        "target_proto_ip_be": 2852060367
       }
     }
   ],
@@ -48,7 +48,7 @@
           "sender_hw": "ca:fe:ba:be:00:00",
           "target_hw": "00:00:00:00:00:00",
           "sender_proto_ip": "0.0.0.0",
-          "target_proto_ip": "169.254.177.107"
+          "target_proto_ip": "169.254.252.207"
         }
       }
     ]

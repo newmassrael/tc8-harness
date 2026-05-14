@@ -3,21 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listen_seg1_ack → listen_seg2_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13165, dst_port=49317, seq_num=3315089033, ack_num=270544965, flags=16, window=64236, data_offset=5, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listen_seg2_ack → listen_seg3_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13165, dst_port=49317, seq_num=3315089033, ack_num=270544969, flags=16, window=64232, data_offset=5, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listen_seg3_ack → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13165, dst_port=49317, seq_num=3315089033, ack_num=270544973, flags=16, window=64228, data_offset=5, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
-    },
-    {
       "idx": 0,
       "role": "note",
       "label": "DUT frame (no transition fired)"
@@ -49,8 +34,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listen_seg1_ack) progress trigger — advances to listen_seg2_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
     },
     {
       "idx": 7,
@@ -59,8 +44,8 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listen_seg2_ack) progress trigger — advances to listen_seg3_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
     },
     {
       "idx": 9,
@@ -69,23 +54,23 @@
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 2 (listen_seg3_ack) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05Tester…"
     },
     {
       "idx": 11,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 12,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

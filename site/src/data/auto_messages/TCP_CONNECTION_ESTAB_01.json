@@ -3,21 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listen_leg1 → listen_leg2, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13170, dst_port=49322, seq_num=2771478263, ack_num=270544961, flags=18, window=64240, data_offset=6, payload_len=0, mss=1460. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and dst_port ==…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listen_leg2 → listen_leg3, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13170, dst_port=49323, seq_num=2380043750, ack_num=270544961, flags=18, window=64240, data_offset=6, payload_len=0, mss=1460. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and dst_port ==…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listen_leg3 → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=13170, dst_port=49324, seq_num=1357370983, ack_num=270544961, flags=18, window=64240, data_offset=6, payload_len=0, mss=1460. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and dst_port ==…"
-    },
-    {
       "idx": 0,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
@@ -84,8 +69,8 @@
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listen_leg1) progress trigger — advances to listen_leg2. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and dst_port ==…"
     },
     {
       "idx": 14,
@@ -94,8 +79,8 @@
     },
     {
       "idx": 15,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listen_leg2) progress trigger — advances to listen_leg3. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and dst_port ==…"
     },
     {
       "idx": 16,
@@ -104,13 +89,18 @@
     },
     {
       "idx": 17,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "expected",
+      "label": "Step 2 (listen_leg3) pass trigger — transitions to pass. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and dst_port ==…"
     },
     {
       "idx": 18,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 19,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

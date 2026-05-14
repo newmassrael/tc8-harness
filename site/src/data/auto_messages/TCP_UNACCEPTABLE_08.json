@@ -5,12 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_p1_dut_rst → listening_p2_dut_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49500, dst_port=23456, seq_num=3918761734, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and dst_port == ::…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_p2_dut_rst → fail_p2_no_dut_rst, fail). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23484, dst_port=49528, seq_num=0, ack_num=3700782068, flags=20, window=0, data_offset=5, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 1, listening_p2_dut_rst → fail_p2_no_dut_rst, fail). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23484, dst_port=49528, seq_num=0, ack_num=1874724853, flags=20, window=0, data_offset=5, payload_len=0. Cond: "
     },
     {
       "idx": 0,
@@ -34,8 +29,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_p1_dut_rst) progress trigger — advances to listening_p2_dut_rst. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and dst_port == ::…"
     },
     {
       "idx": 5,
@@ -64,13 +59,13 @@
     },
     {
       "idx": 10,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 12,
@@ -84,11 +79,16 @@
     },
     {
       "idx": 14,
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 15,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
-      "idx": 15,
+      "idx": 16,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
     }

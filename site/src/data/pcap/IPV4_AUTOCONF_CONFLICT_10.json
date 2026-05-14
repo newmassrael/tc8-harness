@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_AUTOCONF_CONFLICT_10",
   "outcome": "pass",
-  "captured_at": "2026-05-14T01:12:11Z",
-  "tester_mac": "16:9f:96:e4:fb:48",
+  "captured_at": "2026-05-14T12:42:15Z",
+  "tester_mac": "7e:b1:ae:f4:32:5d",
   "tester_ip": null,
   "dut_mac": "02:00:00:00:00:a1",
   "dut_ip": null,
@@ -12,112 +12,112 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "16:9f:96:e4:fb:48",
+      "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.20.13? Tell 0.0.0.0 (sender_mac=16:9f:96:e4:fb:48)",
+      "summary": "Who has 169.254.139.152? Tell 0.0.0.0 (sender_mac=7e:b1:ae:f4:32:5d)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 1,
-        "sender_mac": "16:9f:96:e4:fb:48",
+        "sender_mac": "7e:b1:ae:f4:32:5d",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.20.13",
+        "target_ip": "169.254.139.152",
         "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852000781
+        "target_proto_ip_be": 2852031384
       }
     },
     {
       "idx": 1,
-      "ts_us": 294067,
-      "ts_delta_us": 294067,
+      "ts_us": 335777,
+      "ts_delta_us": 335777,
       "direction": "tester_to_dut",
-      "src_mac": "16:9f:96:e4:fb:48",
+      "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.20.13? Tell 0.0.0.0 (sender_mac=16:9f:96:e4:fb:48)",
+      "summary": "Who has 169.254.139.152? Tell 0.0.0.0 (sender_mac=7e:b1:ae:f4:32:5d)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 1,
-        "sender_mac": "16:9f:96:e4:fb:48",
+        "sender_mac": "7e:b1:ae:f4:32:5d",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.20.13",
+        "target_ip": "169.254.139.152",
         "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852000781
+        "target_proto_ip_be": 2852031384
       }
     },
     {
       "idx": 2,
-      "ts_us": 582982,
-      "ts_delta_us": 288915,
+      "ts_us": 671578,
+      "ts_delta_us": 335801,
       "direction": "tester_to_dut",
-      "src_mac": "16:9f:96:e4:fb:48",
+      "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.20.13? Tell 0.0.0.0 (sender_mac=16:9f:96:e4:fb:48)",
+      "summary": "Who has 169.254.139.152? Tell 0.0.0.0 (sender_mac=7e:b1:ae:f4:32:5d)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 1,
-        "sender_mac": "16:9f:96:e4:fb:48",
+        "sender_mac": "7e:b1:ae:f4:32:5d",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.20.13",
+        "target_ip": "169.254.139.152",
         "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852000781
+        "target_proto_ip_be": 2852031384
       }
     },
     {
       "idx": 3,
-      "ts_us": 879999,
-      "ts_delta_us": 297017,
+      "ts_us": 999938,
+      "ts_delta_us": 328360,
       "direction": "tester_to_dut",
-      "src_mac": "16:9f:96:e4:fb:48",
+      "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.20.13? Tell 169.254.20.13 (sender_mac=16:9f:96:e4:fb:48)",
+      "summary": "Who has 169.254.139.152? Tell 169.254.139.152 (sender_mac=7e:b1:ae:f4:32:5d)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 1,
-        "sender_mac": "16:9f:96:e4:fb:48",
-        "sender_ip": "169.254.20.13",
+        "sender_mac": "7e:b1:ae:f4:32:5d",
+        "sender_ip": "169.254.139.152",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.20.13",
-        "sender_proto_ip_be": 2852000781,
-        "target_proto_ip_be": 2852000781
+        "target_ip": "169.254.139.152",
+        "sender_proto_ip_be": 2852031384,
+        "target_proto_ip_be": 2852031384
       }
     },
     {
       "idx": 4,
-      "ts_us": 986119,
-      "ts_delta_us": 106120,
+      "ts_us": 1041406,
+      "ts_delta_us": 41468,
       "direction": "dut_to_tester",
       "src_mac": "02:00:00:00:00:a1",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "169.254.20.13 is at 02:00:00:00:00:a1",
+      "summary": "169.254.139.152 is at 02:00:00:00:00:a1",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
@@ -125,36 +125,36 @@
         "proto_addr_len": 4,
         "opcode": 2,
         "sender_mac": "02:00:00:00:00:a1",
-        "sender_ip": "169.254.20.13",
+        "sender_ip": "169.254.139.152",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.20.13",
-        "sender_proto_ip_be": 2852000781,
-        "target_proto_ip_be": 2852000781
+        "target_ip": "169.254.139.152",
+        "sender_proto_ip_be": 2852031384,
+        "target_proto_ip_be": 2852031384
       }
     },
     {
       "idx": 5,
-      "ts_us": 1300233,
-      "ts_delta_us": 314114,
+      "ts_us": 1475880,
+      "ts_delta_us": 434474,
       "direction": "tester_to_dut",
-      "src_mac": "16:9f:96:e4:fb:48",
+      "src_mac": "7e:b1:ae:f4:32:5d",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.27.209? Tell 0.0.0.0 (sender_mac=16:9f:96:e4:fb:48)",
+      "summary": "Who has 169.254.161.181? Tell 0.0.0.0 (sender_mac=7e:b1:ae:f4:32:5d)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 1,
-        "sender_mac": "16:9f:96:e4:fb:48",
+        "sender_mac": "7e:b1:ae:f4:32:5d",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.27.209",
+        "target_ip": "169.254.161.181",
         "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852002769
+        "target_proto_ip_be": 2852037045
       }
     }
   ],
@@ -170,10 +170,10 @@
         "pcap_frame_idx": 3,
         "captured_delta": {
           "opcode": 1,
-          "sender_hw": "16:9f:96:e4:fb:48",
+          "sender_hw": "7e:b1:ae:f4:32:5d",
           "target_hw": "00:00:00:00:00:00",
-          "sender_proto_ip": "169.254.20.13",
-          "target_proto_ip": "169.254.20.13"
+          "sender_proto_ip": "169.254.139.152",
+          "target_proto_ip": "169.254.139.152"
         }
       },
       {
@@ -184,10 +184,10 @@
         "pcap_frame_idx": 5,
         "captured_delta": {
           "opcode": 1,
-          "sender_hw": "16:9f:96:e4:fb:48",
+          "sender_hw": "7e:b1:ae:f4:32:5d",
           "target_hw": "00:00:00:00:00:00",
           "sender_proto_ip": "0.0.0.0",
-          "target_proto_ip": "169.254.27.209"
+          "target_proto_ip": "169.254.161.181"
         }
       }
     ]

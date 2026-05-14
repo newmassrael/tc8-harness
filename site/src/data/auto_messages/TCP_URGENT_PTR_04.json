@@ -5,12 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_oob_check, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49642, dst_port=23598, seq_num=572882484, ack_num=2502784787, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalO…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_oob_check → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49642, dst_port=23598, seq_num=572882484, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 1, listening_oob_check → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49642, dst_port=23598, seq_num=3121759565, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: "
     },
     {
       "idx": 0,
@@ -34,8 +29,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_handshake_ack) progress trigger — advances to listening_oob_check. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalO…"
     },
     {
       "idx": 5,

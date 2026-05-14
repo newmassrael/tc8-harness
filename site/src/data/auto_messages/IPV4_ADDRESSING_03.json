@@ -5,7 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: version=4, ihl=5, ttl=64, protocol=1, total_length=28, identification=16962, flags=0, fragment_offset=0, src_addr=172.16.0.1, dst_addr=127.0.0.1. Cond: "
+      "label": "Timer-driven phase advance (step 0, listening → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: version=4, ihl=5, ttl=64, protocol=1, total_length=28, identification=16962, flags=0, fragment_offset=0, src_addr=172.16.0.1, dst_addr=127.0.0.1. Cond: "
     },
     {
       "idx": 0,

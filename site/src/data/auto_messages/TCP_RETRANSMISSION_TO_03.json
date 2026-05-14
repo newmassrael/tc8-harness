@@ -5,7 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, evaluate_kernel_observations → pass, pass). Harness Captured at trace time: src_ip=0.0.0.0, dst_ip=0.0.0.0, src_port=0, dst_port=0, seq_num=0, ack_num=0, flags=0, window=0, data_offset=0, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 0, evaluate_kernel_observations → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=0.0.0.0, dst_ip=0.0.0.0, src_port=0, dst_port=0, seq_num=0, ack_num=0, flags=0, window=0, data_offset=0, payload_len=0. Cond: "
     },
     {
       "idx": 0,
@@ -199,23 +199,23 @@
     },
     {
       "idx": 38,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 39,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 40,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
-      "idx": 41,
+      "idx": 40,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 41,
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 42,
@@ -229,96 +229,6 @@
     },
     {
       "idx": 44,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 45,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 46,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 47,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 48,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 49,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 50,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 51,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 52,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 53,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 54,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 55,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 56,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 57,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 58,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 59,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 60,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 61,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 62,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
     }

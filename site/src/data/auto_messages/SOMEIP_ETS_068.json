@@ -3,29 +3,9 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_phase1 → listening_phase2_a, progress). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=1, message_type=2, return_code=0, payload_len=52, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_phase2_a → listening_phase2_b, progress). Harness Captured at trace time: service_id=62695, method_id=10, client_id=0, session_id=1, message_type=128, return_code=0, payload_len=1, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30501, dst_port=42151, sd_entry_count=1, sd_option_count=2. Cond: service_id == expected.service_id and src_port == expected.tcp_port and message_type == 0x80 and method_id == 0x000A and return_code == 0x0…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_phase2_b → listening_phase2_c, progress). Harness Captured at trace time: service_id=62695, method_id=10, client_id=0, session_id=2, message_type=128, return_code=0, payload_len=1, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30501, dst_port=42151, sd_entry_count=1, sd_option_count=2. Cond: service_id == expected.service_id and src_port == expected.tcp_port and message_type == 0x80 and method_id == 0x000A and return_code == 0x0…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 3, listening_phase2_c → pass, pass). Harness Captured at trace time: service_id=62695, method_id=10, client_id=0, session_id=3, message_type=128, return_code=0, payload_len=1, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30501, dst_port=42151, sd_entry_count=1, sd_option_count=2. Cond: service_id == expected.service_id and src_port == expected.tcp_port and message_type == 0x80 and method_id == 0x000A and return_code == 0x0…"
-    },
-    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_phase1) progress trigger — advances to listening_phase2_a. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id"
     },
     {
       "idx": 1,
@@ -89,8 +69,8 @@
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_phase2_a) progress trigger — advances to listening_phase2_b. Cond: service_id == expected.service_id and src_port == expected.tcp_port and message_type == 0x80 and method_id == 0x000A and return_code == 0x0…"
     },
     {
       "idx": 14,
@@ -99,8 +79,8 @@
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 2 (listening_phase2_b) progress trigger — advances to listening_phase2_c. Cond: service_id == expected.service_id and src_port == expected.tcp_port and message_type == 0x80 and method_id == 0x000A and return_code == 0x0…"
     },
     {
       "idx": 16,
@@ -109,18 +89,18 @@
     },
     {
       "idx": 17,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 3 (listening_phase2_c) pass trigger — transitions to pass. Cond: service_id == expected.service_id and src_port == expected.tcp_port and message_type == 0x80 and method_id == 0x000A and return_code == 0x0…"
     },
     {
       "idx": 18,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 19,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

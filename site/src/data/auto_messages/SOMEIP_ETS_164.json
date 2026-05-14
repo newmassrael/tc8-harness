@@ -3,29 +3,9 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_phase1 → listening_phase2, progress). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=1, message_type=2, return_code=0, payload_len=52, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_phase2 → listening_phase3, progress). Harness Captured at trace time: service_id=62695, method_id=66, client_id=0, session_id=1, message_type=128, return_code=0, payload_len=1, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30502, dst_port=43210, sd_entry_count=1, sd_option_count=2. Cond: service_id == expected.service_id and method_id == 0x0042 and message_type == 0x80 and payload_byte0 == 0x77"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_phase3 → listening_phase4, progress). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=8, message_type=2, return_code=0, payload_len=40, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=1. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 3, listening_phase4 → pass, pass). Harness Captured at trace time: service_id=62695, method_id=64, client_id=0, session_id=1, message_type=128, return_code=0, payload_len=1, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30502, dst_port=56618, sd_entry_count=1, sd_option_count=2. Cond: service_id == expected.service_id and method_id == 0x0040 and message_type == 0x80"
-    },
-    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_phase1) progress trigger — advances to listening_phase2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
     },
     {
       "idx": 1,
@@ -74,8 +54,8 @@
     },
     {
       "idx": 10,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_phase2) progress trigger — advances to listening_phase3. Cond: service_id == expected.service_id and method_id == 0x0042 and message_type == 0x80 and payload_byte0 == 0x77"
     },
     {
       "idx": 11,
@@ -89,8 +69,8 @@
     },
     {
       "idx": 13,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 2 (listening_phase3) progress trigger — advances to listening_phase4. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
     },
     {
       "idx": 14,
@@ -119,8 +99,8 @@
     },
     {
       "idx": 19,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 3 (listening_phase4) pass trigger — transitions to pass. Cond: service_id == expected.service_id and method_id == 0x0040 and message_type == 0x80"
     }
   ]
 }

@@ -5,12 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_dut_syn → listening_absence, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49520, dst_port=23476, seq_num=2163383915, ack_num=0, flags=2, window=64240, data_offset=10, payload_len=0, mss=1460. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 20U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_absence → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49596, dst_port=23552, seq_num=2717981803, ack_num=29662926, flags=16, window=502, data_offset=8, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 1, listening_absence → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49573, dst_port=23529, seq_num=526271170, ack_num=248438018, flags=16, window=502, data_offset=8, payload_len=0. Cond: "
     },
     {
       "idx": 0,
@@ -34,13 +29,13 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 5,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 6,
@@ -59,18 +54,18 @@
     },
     {
       "idx": 9,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_dut_syn) progress trigger — advances to listening_absence. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 20U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
     },
     {
       "idx": 10,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 12,
@@ -79,26 +74,21 @@
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 14,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 15,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
-      "idx": 16,
+      "idx": 15,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
     },
     {
-      "idx": 17,
+      "idx": 16,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     }

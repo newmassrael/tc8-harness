@@ -31,6 +31,11 @@
       "idx": 5,
       "role": "expected",
       "label": "Step 1 (listening_post_claim) pass trigger — transitions to pass. Cond: is_arp_reply() and sender_proto_ip == expected_responder_sender_ip_be and target_proto_ip == expected.tester_linklocal_ip and expected_resp…"
+    },
+    {
+      "idx": 6,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

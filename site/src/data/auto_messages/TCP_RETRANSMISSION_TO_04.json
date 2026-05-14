@@ -5,7 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, evaluate_kernel_observations → pass, pass). Harness Captured at trace time: src_ip=0.0.0.0, dst_ip=0.0.0.0, src_port=0, dst_port=0, seq_num=0, ack_num=0, flags=0, window=0, data_offset=0, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 0, evaluate_kernel_observations → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=0.0.0.0, dst_ip=0.0.0.0, src_port=0, dst_port=0, seq_num=0, ack_num=0, flags=0, window=0, data_offset=0, payload_len=0. Cond: "
     },
     {
       "idx": 0,
@@ -164,13 +164,13 @@
     },
     {
       "idx": 31,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 32,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 33,
@@ -329,11 +329,16 @@
     },
     {
       "idx": 64,
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 65,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
-      "idx": 65,
+      "idx": 66,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
     }

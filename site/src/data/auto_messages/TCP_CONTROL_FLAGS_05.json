@@ -3,16 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_urg_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49640, dst_port=23596, seq_num=1291956744, ack_num=3414178366, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05Loc…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_urg_ack → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49640, dst_port=23596, seq_num=1291956744, ack_num=3414178370, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05Loc…"
-    },
-    {
       "idx": 0,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
@@ -34,18 +24,18 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 5,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
-      "idx": 6,
+      "idx": 5,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 6,
+      "role": "expected",
+      "label": "Step 0 (listening_handshake_ack) progress trigger — advances to listening_urg_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05Loc…"
     },
     {
       "idx": 7,
@@ -54,23 +44,8 @@
     },
     {
       "idx": 8,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 9,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 10,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 11,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_urg_ack) pass trigger — transitions to pass. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05Loc…"
     }
   ]
 }

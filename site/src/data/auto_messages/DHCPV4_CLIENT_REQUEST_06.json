@@ -3,24 +3,9 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_for_discover → listening_for_first_request, progress). Harness Captured at trace time: op=1, message_type=1, htype=1, hlen=6, xid=1128070836, flags=0, src_ip=0.0.0.0, dst_ip=255.255.255.255, src_port=68, dst_port=67, ciaddr=0.0.0.0, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_for_first_request → listening_for_renewing_request, progress). Harness Captured at trace time: op=1, message_type=3, htype=1, hlen=6, xid=1128070836, flags=0, src_ip=0.0.0.0, dst_ip=255.255.255.255, src_port=68, dst_port=67, ciaddr=0.0.0.0, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_for_renewing_request → pass, pass). Harness Captured at trace time: op=1, message_type=3, htype=1, hlen=6, xid=1128070836, flags=0, src_ip=172.16.0.50, dst_ip=172.16.0.10, src_port=68, dst_port=67, ciaddr=172.16.0.50, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac) and (option_absent(54))"
-    },
-    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_for_discover) progress trigger — advances to listening_for_first_request. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 1,
@@ -29,8 +14,8 @@
     },
     {
       "idx": 2,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_for_first_request) progress trigger — advances to listening_for_renewing_request. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
     },
     {
       "idx": 3,
@@ -39,8 +24,8 @@
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 2 (listening_for_renewing_request) pass trigger — transitions to pass. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac) and (option_absent(54))"
     }
   ]
 }

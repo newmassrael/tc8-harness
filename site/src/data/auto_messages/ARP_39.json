@@ -3,11 +3,6 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, wait_udp → pass, pass). Harness Captured at trace time: opcode=1, sender_hw=02:00:00:00:00:a2, target_hw=00:00:00:00:00:00, sender_proto_ip=172.16.0.1, target_proto_ip=172.16.0.2, observed_udp_dst_ip=172.16.0.1, observed_udp_eth_dst=02:00:00:00:00:a2. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac2"
-    },
-    {
       "idx": 0,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
@@ -39,13 +34,13 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (wait_udp) pass trigger — transitions to pass. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac2"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

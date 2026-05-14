@@ -3,24 +3,9 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_phase1 → listening_phase2_first_subscribe_seen, progress). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=1, message_type=2, return_code=0, payload_len=52, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_phase2_first_subscribe_seen → listening_phase3_second_subscribe, progress). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=2, message_type=2, return_code=0, payload_len=40, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=1. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl >…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_phase3_second_subscribe → pass, pass). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=4, message_type=2, return_code=0, payload_len=40, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=1. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl >…"
-    },
-    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_phase1) progress trigger — advances to listening_phase2_first_subscribe_seen. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id"
     },
     {
       "idx": 1,
@@ -89,28 +74,33 @@
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 15,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 16,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
+      "idx": 16,
+      "role": "expected",
+      "label": "Step 1 (listening_phase2_first_subscribe_seen) progress trigger — advances to listening_phase3_second_subscribe. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl >…"
+    },
+    {
       "idx": 17,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 18,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 19,
+      "role": "expected",
+      "label": "Step 2 (listening_phase3_second_subscribe) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x06 and sd_entries[0].service_id == 0xF4E9 and sd_entries[0].ttl >…"
     }
   ]
 }

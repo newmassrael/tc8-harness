@@ -5,42 +5,32 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_dut_data_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49594, dst_port=23550, seq_num=684094947, ack_num=4083687105, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRem…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 1, listening_dut_data_ack → listening_remain_in_cw, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49594, dst_port=23550, seq_num=684094947, ack_num=4083687122, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRem…"
-    },
-    {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 2, listening_remain_in_cw → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49594, dst_port=23550, seq_num=684094947, ack_num=4083687122, flags=16, window=502, data_offset=8, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 2, listening_remain_in_cw → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49594, dst_port=23550, seq_num=3055784355, ack_num=2160409686, flags=16, window=502, data_offset=8, payload_len=0. Cond: "
     },
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 3,
       "role": "note",
       "label": "DUT frame (no transition fired)"
     },
     {
-      "idx": 3,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 0 (listening_handshake_ack) progress trigger — advances to listening_dut_data_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 5,
@@ -49,8 +39,8 @@
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "expected",
+      "label": "Step 1 (listening_dut_data_ack) progress trigger — advances to listening_remain_in_cw. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRem…"
     },
     {
       "idx": 7,
@@ -59,16 +49,6 @@
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
-    },
-    {
-      "idx": 9,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 10,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
     }

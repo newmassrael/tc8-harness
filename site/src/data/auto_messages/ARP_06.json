@@ -3,44 +3,49 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: opcode=2, sender_hw=02:00:00:00:00:a1, target_hw=02:00:00:00:00:a1, sender_proto_ip=172.16.0.1, target_proto_ip=172.16.0.1, observed_udp_dst_ip=172.16.0.1, observed_udp_eth_dst=02:00:00:00:00:a1. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac"
-    },
-    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Tester stimulus (no transition fired)"
+      "role": "note",
+      "label": "Observed frame (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 2,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 3,
-      "role": "note",
-      "label": "DUT frame (no transition fired)"
-    },
-    {
-      "idx": 4,
       "role": "stimulus",
       "label": "Tester stimulus (no transition fired)"
     },
     {
-      "idx": 5,
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 3,
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 4,
       "role": "note",
       "label": "DUT frame (no transition fired)"
+    },
+    {
+      "idx": 5,
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac"
     },
     {
       "idx": 6,
       "role": "note",
-      "label": "DUT frame (no transition fired)"
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 7,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
+    },
+    {
+      "idx": 8,
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

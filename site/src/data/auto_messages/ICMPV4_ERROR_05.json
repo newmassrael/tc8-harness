@@ -5,7 +5,7 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: type=202, code=0, src_ip=172.16.0.1, dst_ip=172.16.0.2, echo_id=4660, echo_seq=22136, icmp_pointer=18, payload_len=0. Cond: "
+      "label": "Timer-driven phase advance (step 0, listening → pass, pass). SCXML <send delay/> fired between physical frames — no wire packet caused this step. Harness Captured at trace time: type=202, code=0, src_ip=172.16.0.1, dst_ip=172.16.0.2, echo_id=4660, echo_seq=22136, icmp_pointer=18, payload_len=0. Cond: "
     },
     {
       "idx": 0,

@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_17",
   "outcome": "pass",
-  "captured_at": "2026-05-14T01:12:11Z",
+  "captured_at": "2026-05-14T12:42:15Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
-  "dut_mac": "5e:45:c1:4c:94:86",
+  "dut_mac": "2e:89:15:26:a6:76",
   "dut_ip": null,
   "packets": [
     {
@@ -34,22 +34,22 @@
     },
     {
       "idx": 1,
-      "ts_us": 37,
-      "ts_delta_us": 37,
+      "ts_us": 43,
+      "ts_delta_us": 43,
       "direction": "dut_to_tester",
-      "src_mac": "5e:45:c1:4c:94:86",
+      "src_mac": "2e:89:15:26:a6:76",
       "dst_mac": "02:00:00:00:00:a1",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.2 is at 5e:45:c1:4c:94:86",
+      "summary": "172.16.0.2 is at 2e:89:15:26:a6:76",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 2,
-        "sender_mac": "5e:45:c1:4c:94:86",
+        "sender_mac": "2e:89:15:26:a6:76",
         "sender_ip": "172.16.0.2",
         "target_mac": "02:00:00:00:00:a1",
         "target_ip": "172.16.0.1",
@@ -70,7 +70,7 @@
         "pcap_frame_idx": 1,
         "captured_delta": {
           "opcode": 2,
-          "sender_hw": "5e:45:c1:4c:94:86",
+          "sender_hw": "2e:89:15:26:a6:76",
           "target_hw": "02:00:00:00:00:a1",
           "sender_proto_ip": "172.16.0.2",
           "target_proto_ip": "172.16.0.1"
