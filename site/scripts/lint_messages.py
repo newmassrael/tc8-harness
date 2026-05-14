@@ -84,6 +84,62 @@ def lint_locale(locale: str) -> tuple[int, int]:
     return errors, warnings
 
 
+def lint_captured_trace_invariant() -> tuple[int, int]:
+    """Verify ``captured_trace.final_state``'s verdict bucket matches the
+    pcap JSON's ``outcome``. The harness's transition trace is the single
+    source of truth (Evidence Export — Option 3); a mismatch points at
+    either a C++ trace-recording bug or a wire-verdict bug, both of
+    which must block CI before the site walker labels timelines from
+    drifting evidence.
+
+    Skips cases without a ``captured_trace`` (backward compat for the
+    pre-Phase-B pcaps still living in the pcap-data branch); those cases
+    fall through to the walker's cond-loop fallback path. Once every
+    case in pcap-data carries a trace, this lint can be flipped to
+    require ``captured_trace`` presence directly.
+    """
+    errors = 0
+    warnings = 0
+    if not PCAP_DIR.exists():
+        return 0, 0
+    # Match harness state ids to verdict buckets — the SCXML convention
+    # is ``pass`` for success terminals and ``fail*`` (often
+    # ``fail_<reason>``) for failure terminals. ``running`` is the only
+    # non-final harness state that could appear here on a deadline-
+    # exceeded run that didn't reach any final — counts as "fail" for
+    # invariant purposes (we never emit ``outcome: running``).
+    def _bucket(state_name: str) -> str:
+        s = (state_name or "").lower()
+        if s == "pass":
+            return "pass"
+        if s.startswith("fail"):
+            return "fail"
+        return "fail"
+
+    for pcap_path in sorted(PCAP_DIR.glob("*.json")):
+        try:
+            doc = json.loads(pcap_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"  ERROR: cannot read {pcap_path}: {exc}", file=sys.stderr)
+            errors += 1
+            continue
+        trace = doc.get("captured_trace")
+        if not isinstance(trace, dict):
+            continue  # pre-trace pcap, walker falls back to cond loop
+        final_state = trace.get("final_state") or ""
+        outcome = doc.get("outcome") or ""
+        bucket = _bucket(final_state)
+        if outcome and bucket != outcome:
+            case_id = pcap_path.stem
+            print(
+                f"  ERROR: {case_id}: trace.final_state={final_state!r} "
+                f"(bucket={bucket!r}) disagrees with outcome={outcome!r}",
+                file=sys.stderr,
+            )
+            errors += 1
+    return errors, warnings
+
+
 def main() -> int:
     total_err = 0
     total_warn = 0
@@ -91,6 +147,9 @@ def main() -> int:
         e, w = lint_locale(locale)
         total_err += e
         total_warn += w
+    trace_err, trace_warn = lint_captured_trace_invariant()
+    total_err += trace_err
+    total_warn += trace_warn
     if total_warn:
         print(f"messages[] lint: {total_warn} warning(s)", file=sys.stderr)
     if total_err:
