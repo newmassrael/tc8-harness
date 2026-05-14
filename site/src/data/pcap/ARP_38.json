@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_38",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "8a:b4:de:88:be:ad",
+  "dut_mac": "4a:ec:92:cf:b4:59",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -34,8 +34,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 296426,
-      "ts_delta_us": 296426,
+      "ts_us": 358989,
+      "ts_delta_us": 358989,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -94,7 +94,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6423,
-        "ip_id": 14558,
+        "ip_id": 53176,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -107,8 +107,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 496571,
-      "ts_delta_us": 200145,
+      "ts_us": 559186,
+      "ts_delta_us": 200197,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -167,7 +167,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6422,
-        "ip_id": 14580,
+        "ip_id": 53216,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -180,8 +180,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 896823,
-      "ts_delta_us": 400252,
+      "ts_us": 959415,
+      "ts_delta_us": 400229,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -223,8 +223,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           },
           {
             "type": 4,
@@ -233,14 +233,14 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           }
         ],
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6421,
-        "ip_id": 14609,
+        "ip_id": 53297,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -253,10 +253,10 @@
     },
     {
       "idx": 4,
-      "ts_us": 1519659,
-      "ts_delta_us": 622836,
+      "ts_us": 1535774,
+      "ts_delta_us": 576359,
       "direction": "dut_to_tester",
-      "src_mac": "8a:b4:de:88:be:ad",
+      "src_mac": "4a:ec:92:cf:b4:59",
       "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -304,7 +304,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 22645,
-        "ip_id": 4645,
+        "ip_id": 45120,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -317,8 +317,8 @@
     },
     {
       "idx": 5,
-      "ts_us": 1519906,
-      "ts_delta_us": 247,
+      "ts_us": 1535992,
+      "ts_delta_us": 218,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
@@ -342,22 +342,22 @@
     },
     {
       "idx": 6,
-      "ts_us": 1519909,
-      "ts_delta_us": 3,
+      "ts_us": 1535994,
+      "ts_delta_us": 2,
       "direction": "dut_to_tester",
-      "src_mac": "8a:b4:de:88:be:ad",
+      "src_mac": "4a:ec:92:cf:b4:59",
       "dst_mac": "ce:e9:86:bf:01:8c",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at 8a:b4:de:88:be:ad",
+      "summary": "172.16.0.1 is at 4a:ec:92:cf:b4:59",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 2,
-        "sender_mac": "8a:b4:de:88:be:ad",
+        "sender_mac": "4a:ec:92:cf:b4:59",
         "sender_ip": "172.16.0.1",
         "target_mac": "ce:e9:86:bf:01:8c",
         "target_ip": "172.16.0.2",
@@ -367,11 +367,11 @@
     },
     {
       "idx": 7,
-      "ts_us": 1519912,
-      "ts_delta_us": 3,
+      "ts_us": 1536000,
+      "ts_delta_us": 6,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "8a:b4:de:88:be:ad",
+      "dst_mac": "4a:ec:92:cf:b4:59",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP-SD",
@@ -407,7 +407,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 30732,
-        "ip_id": 43589,
+        "ip_id": 11160,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -420,8 +420,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 1697239,
-      "ts_delta_us": 177327,
+      "ts_us": 1759657,
+      "ts_delta_us": 223657,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -463,8 +463,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
@@ -473,14 +473,14 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           }
         ],
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6420,
-        "ip_id": 14653,
+        "ip_id": 53488,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -491,5 +491,27 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "arp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": 5,
+        "captured_delta": {
+          "opcode": 1,
+          "sender_hw": "ce:e9:86:bf:01:8c",
+          "target_hw": "00:00:00:00:00:00",
+          "sender_proto_ip": "172.16.0.2",
+          "target_proto_ip": "172.16.0.1",
+          "observed_udp_dst_ip": "172.16.0.2",
+          "observed_udp_eth_dst": "ce:e9:86:bf:01:8c"
+        }
+      }
+    ]
+  }
 }

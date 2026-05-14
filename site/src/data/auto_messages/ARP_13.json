@@ -4,13 +4,13 @@
   "messages": [
     {
       "idx": 0,
-      "role": "fail-trigger",
-      "label": "Phase 1 (listening) fail trigger — transitions to fail_sender_hw. Cond: opcode == 1 and sender_hw != expected.dut_iface_mac"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: opcode == 1 and sender_hw == expected.dut_iface_mac"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

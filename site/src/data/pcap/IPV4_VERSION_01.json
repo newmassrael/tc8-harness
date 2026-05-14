@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_VERSION_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -36,11 +36,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 31,
-      "ts_delta_us": 31,
+      "ts_us": 38,
+      "ts_delta_us": 38,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "8a:b4:de:88:be:ad",
+      "dst_mac": "4a:ec:92:cf:b4:59",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -50,7 +50,7 @@
         "code": 0,
         "echo_id": 4660,
         "echo_seq": 22136,
-        "ip_id": 6913,
+        "ip_id": 19659,
         "ip_flags": 0,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -61,5 +61,30 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "ipv4_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": 1,
+        "captured_delta": {
+          "version": 4,
+          "ihl": 5,
+          "ttl": 64,
+          "protocol": 1,
+          "total_length": 28,
+          "identification": 19659,
+          "flags": 0,
+          "fragment_offset": 0,
+          "src_addr": "172.16.0.2",
+          "dst_addr": "172.16.0.1"
+        }
+      }
+    ]
+  }
 }

@@ -3,54 +3,54 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=1, message_type=2, return_code=0, payload_len=28, src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=1. Cond: sd_entries[0].type == 0x07 and sd_entries_len >= 16 and (sd_entries_len % 16) == 0"
+    },
+    {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 6,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 8,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 9,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

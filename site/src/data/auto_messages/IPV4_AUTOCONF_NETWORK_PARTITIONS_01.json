@@ -5,52 +5,42 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Absence-of-behavior pass — DUT did not emit the prohibited frame within the SCXML deadline window. Per the spec this silent absence IS the pass condition; no per-packet ``expected`` label appears because the verdict comes from the timer firing, not from an observed frame."
+      "label": "Verdict-decider not retained in saved pcap (step 3, listening_no_periodic → pass, pass). Harness Captured at trace time: opcode=2, sender_hw=16:9f:96:e4:fb:48, target_hw=02:00:00:00:00:a1, sender_proto_ip=169.254.185.30, target_proto_ip=169.254.1.2. Cond: "
     },
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening_pre_announce_1) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening_pre_announce_1) progress trigger — advances to listening_pre_announce_2. Cond: is_arp_announce() and eth_src == expected.dut_iface_mac"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 1 (listening_pre_announce_2) progress trigger — advances to listening_post_claim. Cond: is_arp_announce() and eth_src == expected.dut_iface_mac"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 7,
-      "role": "note",
-      "label": "Phase 1 (listening_pre_announce_1) — observed frame"
-    },
-    {
-      "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 2 (listening_post_claim) progress trigger — advances to listening_no_periodic. Cond: is_arp_reply() and sender_proto_ip == expected_responder_sender_ip_be and target_proto_ip == expected.tester_linklocal_ip and expected_resp…"
     }
   ]
 }

@@ -3,79 +3,109 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_for_discover → listening_for_first_request, progress). Harness Captured at trace time: op=1, message_type=1, htype=1, hlen=6, xid=1097748541, flags=0, src_ip=0.0.0.0, dst_ip=255.255.255.255, src_port=68, dst_port=67, ciaddr=0.0.0.0, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_for_first_request → listening_for_renewing_request, progress). Harness Captured at trace time: op=1, message_type=3, htype=1, hlen=6, xid=1097748541, flags=0, src_ip=0.0.0.0, dst_ip=255.255.255.255, src_port=68, dst_port=67, ciaddr=0.0.0.0, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 2, listening_for_renewing_request → listening_for_lease_release, progress). Harness Captured at trace time: op=1, message_type=3, htype=1, hlen=6, xid=1097748541, flags=0, src_ip=172.16.0.50, dst_ip=172.16.0.10, src_port=68, dst_port=67, ciaddr=172.16.0.50, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 3, listening_for_lease_release → listening_for_no_unbound_request, progress). Harness Captured at trace time: op=1, message_type=1, htype=1, hlen=6, xid=1135541126, flags=0, src_ip=0.0.0.0, dst_ip=255.255.255.255, src_port=68, dst_port=67, ciaddr=0.0.0.0, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 4, listening_for_no_unbound_request → pass, pass). Harness Captured at trace time: op=1, message_type=1, htype=1, hlen=6, xid=1135541126, flags=0, src_ip=0.0.0.0, dst_ip=255.255.255.255, src_port=68, dst_port=67, ciaddr=0.0.0.0, yiaddr=0.0.0.0, siaddr=0.0.0.0, eth_src=ce:e9:86:bf:01:8c, eth_dst=ff:ff:ff:ff:ff:ff. Cond: "
+    },
+    {
       "idx": 0,
-      "role": "expected",
-      "label": "Phase 1 (listening_for_discover) progress trigger — advances to listening_for_first_request. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 2 (listening_for_first_request) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 2 (listening_for_first_request) progress trigger — advances to listening_for_renewing_request. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 3 (listening_for_renewing_request) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 3 (listening_for_renewing_request) progress trigger — advances to listening_for_lease_release. Cond: is_dhcp_request() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 6,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 8,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 10,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 12,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 13,
       "role": "stimulus",
-      "label": "Phase 4 (listening_for_lease_release) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 14,
-      "role": "expected",
-      "label": "Phase 4 (listening_for_lease_release) progress trigger — advances to listening_for_no_unbound_request. Cond: is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 15,
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

@@ -3,69 +3,84 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_initial_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49643, dst_port=23599, seq_num=3074464914, ack_num=4035620473, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_initial_ack → listening_final_cumulative_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49643, dst_port=23599, seq_num=3074464914, ack_num=4035620477, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 2, listening_final_cumulative_ack → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49643, dst_port=23599, seq_num=3074464914, ack_num=4035620489, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_initial_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 2 (listening_initial_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "expected",
-      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 2 (listening_initial_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 8,
-      "role": "expected",
-      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Phase 2 (listening_initial_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 10,
-      "role": "expected",
-      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
       "role": "note",
-      "label": "Phase 2 (listening_initial_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 12,
-      "role": "expected",
-      "label": "Phase 2 (listening_initial_ack) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03Local…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

@@ -3,34 +3,44 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_absence, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49537, dst_port=23493, seq_num=1581732378, ack_num=337326158, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 37U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_absence → pass, pass). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23493, dst_port=49537, seq_num=337326158, ack_num=1581732378, flags=24, window=65535, data_offset=5, payload_len=4. Cond: "
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_absence. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 37U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 2 (listening_absence) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

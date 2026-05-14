@@ -1,10 +1,10 @@
 {
   "case_id": "DHCPV4_CLIENT_USAGE_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
-  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "captured_at": "2026-05-14T01:12:11Z",
+  "tester_mac": "16:9f:96:e4:fb:48",
   "tester_ip": "0.0.0.0",
-  "dut_mac": "b2:5b:fd:2a:79:3a",
+  "dut_mac": "2a:cd:a0:77:75:25",
   "dut_ip": "0.0.0.0",
   "packets": [
     {
@@ -12,12 +12,12 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
+      "src_mac": "16:9f:96:e4:fb:48",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0xa6cba113 chaddr=7e:b1:ae:f4:32:5d",
+      "summary": "DHCPv4 Discover xid=0xed41ca84 chaddr=16:9f:96:e4:fb:48",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
@@ -25,21 +25,21 @@
         "htype": 1,
         "hlen": 6,
         "hops": 0,
-        "xid": 2798362899,
+        "xid": 3980511876,
         "secs": 0,
         "bootp_flags": 0,
         "ciaddr": "0.0.0.0",
         "yiaddr": "0.0.0.0",
         "siaddr": "0.0.0.0",
         "giaddr": "0.0.0.0",
-        "chaddr": "7e:b1:ae:f4:32:5d",
+        "chaddr": "16:9f:96:e4:fb:48",
         "dhcp_msg_type": 1,
         "dhcp_end_option_seen": true,
         "dhcp_options_seen": [
           53,
           55
         ],
-        "checksum": 19036,
+        "checksum": 37291,
         "ip_id": 0,
         "ip_flags": 0,
         "ip_fragment_offset": 0,
@@ -53,15 +53,15 @@
     },
     {
       "idx": 1,
-      "ts_us": 75801,
-      "ts_delta_us": 75801,
+      "ts_us": 71700,
+      "ts_delta_us": 71700,
       "direction": "dut_to_tester",
-      "src_mac": "b2:5b:fd:2a:79:3a",
+      "src_mac": "2a:cd:a0:77:75:25",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": "0.0.0.0",
       "dst_ip": "255.255.255.255",
       "protocol": "DHCPv4",
-      "summary": "DHCPv4 Discover xid=0xc5619548 chaddr=b2:5b:fd:2a:79:3a",
+      "summary": "DHCPv4 Discover xid=0x34b24309 chaddr=2a:cd:a0:77:75:25",
       "fields": {
         "src_port": 68,
         "dst_port": 67,
@@ -69,21 +69,21 @@
         "htype": 1,
         "hlen": 6,
         "hops": 0,
-        "xid": 3311506760,
+        "xid": 884097801,
         "secs": 0,
         "bootp_flags": 0,
         "ciaddr": "0.0.0.0",
         "yiaddr": "0.0.0.0",
         "siaddr": "0.0.0.0",
         "giaddr": "0.0.0.0",
-        "chaddr": "b2:5b:fd:2a:79:3a",
+        "chaddr": "2a:cd:a0:77:75:25",
         "dhcp_msg_type": 1,
         "dhcp_end_option_seen": true,
         "dhcp_options_seen": [
           53,
           55
         ],
-        "checksum": 28371,
+        "checksum": 14873,
         "ip_id": 0,
         "ip_flags": 0,
         "ip_fragment_offset": 0,
@@ -95,5 +95,59 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "dhcp_observed",
+        "from_state": "listening_for_d0_discover",
+        "to_state": "listening_for_d1_discover",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "op": 1,
+          "message_type": 1,
+          "htype": 1,
+          "hlen": 6,
+          "xid": 3980511876,
+          "flags": 0,
+          "src_ip": "0.0.0.0",
+          "dst_ip": "255.255.255.255",
+          "src_port": 68,
+          "dst_port": 67,
+          "ciaddr": "0.0.0.0",
+          "yiaddr": "0.0.0.0",
+          "siaddr": "0.0.0.0",
+          "eth_src": "16:9f:96:e4:fb:48",
+          "eth_dst": "ff:ff:ff:ff:ff:ff"
+        }
+      },
+      {
+        "step": 1,
+        "event": "dhcp_observed",
+        "from_state": "listening_for_d1_discover",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "op": 1,
+          "message_type": 1,
+          "htype": 1,
+          "hlen": 6,
+          "xid": 884097801,
+          "flags": 0,
+          "src_ip": "0.0.0.0",
+          "dst_ip": "255.255.255.255",
+          "src_port": 68,
+          "dst_port": 67,
+          "ciaddr": "0.0.0.0",
+          "yiaddr": "0.0.0.0",
+          "siaddr": "0.0.0.0",
+          "eth_src": "2a:cd:a0:77:75:25",
+          "eth_dst": "ff:ff:ff:ff:ff:ff"
+        }
+      }
+    ]
+  }
 }

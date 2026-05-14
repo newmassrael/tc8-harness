@@ -5,12 +5,12 @@
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: opcode == 2 and sender_hw == expected.dut_iface_mac and sender_proto_ip == expected.dut_iface_ip"
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: opcode == 2 and sender_hw == expected.dut_iface_mac and sender_proto_ip == expected.dut_iface_ip"
     }
   ]
 }

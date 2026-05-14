@@ -3,29 +3,44 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_for_discover → listening_for_request, progress). Harness Captured at trace time: udp={'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'length': 258, 'checksum': 16695}, dhcpv4={'op': 1, 'message_type': 1, 'htype': 1, 'hlen': 6, 'xid': 2220193945, 'flags': 0, 'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'ciaddr': '0.0.0.0', 'yiaddr': '0.0.0.0', 'siaddr': '0.0.0.0', 'eth_src': '5e:45:c1:4c:94:86', 'eth_dst': 'ff:ff:ff:ff:ff:ff'}. Cond: dhcpv4.is_dhcp_discover() and dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_for_request → listening_for_dut_udp, progress). Harness Captured at trace time: udp={'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'length': 270, 'checksum': 55646}, dhcpv4={'op': 1, 'message_type': 3, 'htype': 1, 'hlen': 6, 'xid': 2220193945, 'flags': 0, 'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'ciaddr': '0.0.0.0', 'yiaddr': '0.0.0.0', 'siaddr': '0.0.0.0', 'eth_src': '5e:45:c1:4c:94:86', 'eth_dst': 'ff:ff:ff:ff:ff:ff'}. Cond: dhcpv4.is_dhcp_request() and dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 2, listening_for_dut_udp → pass, pass). Harness Captured at trace time: udp={'src_ip': '172.16.0.2', 'dst_ip': '192.168.99.42', 'src_port': 20001, 'dst_port': 20000, 'length': 9, 'checksum': 61108}, dhcpv4={'op': 2, 'message_type': 5, 'htype': 1, 'hlen': 6, 'xid': 2220193945, 'flags': 0, 'src_ip': '172.16.0.10', 'dst_ip': '255.255.255.255', 'src_port': 67, 'dst_port': 68, 'ciaddr': '0.0.0.0', 'yiaddr': '172.16.0.50', 'siaddr': '0.0.0.0', 'eth_src': '02:00:00:00:00:a1', 'eth_dst': 'ff:ff:ff:ff:ff:ff'}. Cond: udp.dst_ip == expected.unused_routed_ip_be and udp.eth_src_equals(expected.dhcpv4.dut_iface_mac) and udp.eth_dst_equals(expected.router_mac)"
+    },
+    {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

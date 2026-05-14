@@ -1,8 +1,8 @@
 {
   "case_id": "SOMEIPSRV_SD_MESSAGE_08",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
-  "tester_mac": "6e:16:3b:ea:29:ea",
+  "captured_at": "2026-05-14T01:12:11Z",
+  "tester_mac": "5e:12:1c:9a:7e:0f",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -12,7 +12,7 @@
       "ts_us": 0,
       "ts_delta_us": 0,
       "direction": "tester_to_dut",
-      "src_mac": "6e:16:3b:ea:29:ea",
+      "src_mac": "5e:12:1c:9a:7e:0f",
       "dst_mac": "01:00:5e:74:e0:f5",
       "src_ip": "172.16.0.2",
       "dst_ip": "224.244.224.245",
@@ -69,7 +69,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6423,
-        "ip_id": 62865,
+        "ip_id": 4146,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -80,5 +80,33 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "someip_notification",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "service_id": 65535,
+          "method_id": 33024,
+          "client_id": 0,
+          "session_id": 1,
+          "message_type": 2,
+          "return_code": 0,
+          "payload_len": 52,
+          "src_ip": "172.16.0.2",
+          "dst_ip": "224.244.224.245",
+          "src_port": 30490,
+          "dst_port": 30490,
+          "sd_entry_count": 1,
+          "sd_option_count": 2
+        }
+      }
+    ]
+  }
 }

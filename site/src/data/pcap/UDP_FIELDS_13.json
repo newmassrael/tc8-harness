@@ -1,7 +1,7 @@
 {
   "case_id": "UDP_FIELDS_13",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -69,7 +69,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6423,
-        "ip_id": 35278,
+        "ip_id": 411,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -82,8 +82,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 200209,
-      "ts_delta_us": 200209,
+      "ts_us": 200167,
+      "ts_delta_us": 200167,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -125,8 +125,8 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 6,
-            "port": 30501
+            "l4_proto": 17,
+            "port": 30502
           },
           {
             "type": 4,
@@ -135,14 +135,14 @@
             "reserved1": 0,
             "ipv4": "172.16.0.2",
             "reserved2": 0,
-            "l4_proto": 17,
-            "port": 30502
+            "l4_proto": 6,
+            "port": 30501
           }
         ],
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6422,
-        "ip_id": 35303,
+        "ip_id": 419,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -155,8 +155,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 600375,
-      "ts_delta_us": 400166,
+      "ts_us": 600282,
+      "ts_delta_us": 400115,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -215,7 +215,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6421,
-        "ip_id": 35394,
+        "ip_id": 481,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -228,8 +228,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 992378,
-      "ts_delta_us": 392003,
+      "ts_us": 1006394,
+      "ts_delta_us": 406112,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -258,11 +258,11 @@
     },
     {
       "idx": 4,
-      "ts_us": 992552,
-      "ts_delta_us": 174,
+      "ts_us": 1006542,
+      "ts_delta_us": 148,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "22:f3:eb:0f:27:11",
+      "dst_mac": "9a:20:aa:b8:82:c9",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UDP",
@@ -272,7 +272,7 @@
         "dst_port": 20000,
         "length": 15,
         "checksum": 31088,
-        "ip_id": 26800,
+        "ip_id": 31853,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -285,11 +285,11 @@
     },
     {
       "idx": 5,
-      "ts_us": 992577,
-      "ts_delta_us": 25,
+      "ts_us": 1006564,
+      "ts_delta_us": 22,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "22:f3:eb:0f:27:11",
+      "dst_mac": "9a:20:aa:b8:82:c9",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UT/UDP",
@@ -304,7 +304,7 @@
         "has_ut_response": true,
         "ut_status": 0,
         "checksum": 24486,
-        "ip_id": 26801,
+        "ip_id": 31854,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -315,5 +315,26 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "udp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "src_ip": "172.16.0.2",
+          "dst_ip": "172.16.0.1",
+          "src_port": 20013,
+          "dst_port": 20000,
+          "length": 15,
+          "checksum": 31088
+        }
+      }
+    ]
+  }
 }

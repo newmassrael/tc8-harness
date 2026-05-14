@@ -1,7 +1,7 @@
 {
   "case_id": "ARP_21",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
   "dut_mac": null,
@@ -32,5 +32,25 @@
         "target_proto_ip_be": 2886729730
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "deadline_exceeded",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "opcode": 1,
+          "sender_hw": "02:00:00:00:00:a1",
+          "target_hw": "00:00:00:00:00:00",
+          "sender_proto_ip": "172.16.0.1",
+          "target_proto_ip": "172.16.0.2"
+        }
+      }
+    ]
+  }
 }

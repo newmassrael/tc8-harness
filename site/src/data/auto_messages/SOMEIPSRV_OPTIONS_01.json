@@ -3,9 +3,14 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=1, message_type=2, return_code=0, payload_len=52, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x01 and (sd_option_count >= 1) and (sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endp…"
+    },
+    {
       "idx": 0,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: sd_entry_count >= 1 and sd_entries[0].type == 0x01 and (sd_option_count >= 1) and (sd_first_option_with_l4(::tc8::sd_option_type::kIpv4Endp…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

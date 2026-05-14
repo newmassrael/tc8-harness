@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_HEADER_02",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -32,5 +32,30 @@
         "ip_header_checksum_ok": false
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "deadline_exceeded",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "version": 0,
+          "ihl": 0,
+          "ttl": 0,
+          "protocol": 0,
+          "total_length": 0,
+          "identification": 0,
+          "flags": 0,
+          "fragment_offset": 0,
+          "src_addr": "0.0.0.0",
+          "dst_addr": "0.0.0.0"
+        }
+      }
+    ]
+  }
 }

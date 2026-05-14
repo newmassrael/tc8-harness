@@ -1,7 +1,7 @@
 {
   "case_id": "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_01",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "0.0.0.0",
   "dut_mac": null,
@@ -50,5 +50,35 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "dhcp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "op": 1,
+          "message_type": 1,
+          "htype": 1,
+          "hlen": 6,
+          "xid": 1581629772,
+          "flags": 0,
+          "src_ip": "0.0.0.0",
+          "dst_ip": "255.255.255.255",
+          "src_port": 68,
+          "dst_port": 67,
+          "ciaddr": "0.0.0.0",
+          "yiaddr": "0.0.0.0",
+          "siaddr": "0.0.0.0",
+          "eth_src": "5e:45:c1:4c:94:86",
+          "eth_dst": "ff:ff:ff:ff:ff:ff"
+        }
+      }
+    ]
+  }
 }

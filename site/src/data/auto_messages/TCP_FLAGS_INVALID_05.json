@@ -3,44 +3,64 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_p1_dut_syn → listening_p1_absence, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49522, dst_port=23478, seq_num=23281314, ack_num=0, flags=2, window=64240, data_offset=10, payload_len=0, mss=1460. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 22U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_p1_absence → listening_p2_dut_syn, progress). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23478, dst_port=49522, seq_num=270544960, ack_num=23281315, flags=22, window=65535, data_offset=5, payload_len=0. Cond: "
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 2, listening_p2_dut_syn → listening_p2_absence, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49523, dst_port=23479, seq_num=2295482199, ack_num=0, flags=2, window=64240, data_offset=10, payload_len=0, mss=1460. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 23U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 3, listening_p2_absence → pass, pass). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23479, dst_port=49523, seq_num=270544960, ack_num=2295482200, flags=20, window=65535, data_offset=5, payload_len=0. Cond: "
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening_p1_dut_syn) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening_p1_dut_syn) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening_p1_dut_syn) progress trigger — advances to listening_p1_absence. Cond: is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 22U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
       "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 5,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 6,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_absence) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 2 (listening_p1_absence) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

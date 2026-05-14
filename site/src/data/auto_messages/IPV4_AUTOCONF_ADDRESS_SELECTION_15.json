@@ -3,124 +3,124 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 2, silence_watch_1 → wait_repick, progress). Harness Captured at trace time: opcode=1, sender_hw=02:00:00:00:00:a1, target_hw=00:00:00:00:00:00, sender_proto_ip=169.254.98.34, target_proto_ip=255.255.255.255. Cond: "
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 4, silence_watch_2 → pass, pass). Harness Captured at trace time: opcode=1, sender_hw=02:00:00:00:00:a1, target_hw=00:00:00:00:00:00, sender_proto_ip=169.254.216.189, target_proto_ip=255.255.255.255. Cond: "
+    },
+    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) progress trigger — advances to cycle. Cond: is_arp_probe()"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening) progress trigger — advances to cycle. Cond: is_arp_probe()"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 8,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 10,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 12,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 13,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 14,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 15,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 16,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 17,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 18,
       "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "label": "Step 1 (cycle) progress trigger — advances to silence_watch_1. Cond: "
     },
     {
       "idx": 19,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 20,
       "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
+      "label": "Step 3 (wait_repick) progress trigger — advances to silence_watch_2. Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
     },
     {
       "idx": 21,
       "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
-    },
-    {
-      "idx": 22,
-      "role": "expected",
-      "label": "Phase 2 (cycle) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != previous_observed_probe_target_ip"
-    },
-    {
-      "idx": 23,
-      "role": "note",
-      "label": "Phase 2 (cycle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

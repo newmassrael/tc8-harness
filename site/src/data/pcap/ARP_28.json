@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_28",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
-  "dut_mac": "22:f3:eb:0f:27:11",
+  "dut_mac": "9a:20:aa:b8:82:c9",
   "dut_ip": "172.16.0.1",
   "packets": [
     {
@@ -34,8 +34,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 353235,
-      "ts_delta_us": 353235,
+      "ts_us": 312494,
+      "ts_delta_us": 312494,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -94,7 +94,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6423,
-        "ip_id": 33340,
+        "ip_id": 62810,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -107,8 +107,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 553423,
-      "ts_delta_us": 200188,
+      "ts_us": 512699,
+      "ts_delta_us": 200205,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -167,7 +167,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6422,
-        "ip_id": 33375,
+        "ip_id": 62811,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -180,8 +180,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 953483,
-      "ts_delta_us": 400060,
+      "ts_us": 912921,
+      "ts_delta_us": 400222,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -240,7 +240,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6421,
-        "ip_id": 33403,
+        "ip_id": 62839,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -253,10 +253,10 @@
     },
     {
       "idx": 4,
-      "ts_us": 1528035,
-      "ts_delta_us": 574552,
+      "ts_us": 1555481,
+      "ts_delta_us": 642560,
       "direction": "dut_to_tester",
-      "src_mac": "22:f3:eb:0f:27:11",
+      "src_mac": "9a:20:aa:b8:82:c9",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
@@ -304,7 +304,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 22645,
-        "ip_id": 15394,
+        "ip_id": 20069,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -317,7 +317,7 @@
     },
     {
       "idx": 5,
-      "ts_us": 1528289,
+      "ts_us": 1555735,
       "ts_delta_us": 254,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
@@ -342,22 +342,22 @@
     },
     {
       "idx": 6,
-      "ts_us": 1528295,
-      "ts_delta_us": 6,
+      "ts_us": 1555736,
+      "ts_delta_us": 1,
       "direction": "dut_to_tester",
-      "src_mac": "22:f3:eb:0f:27:11",
+      "src_mac": "9a:20:aa:b8:82:c9",
       "dst_mac": "5e:45:c1:4c:94:86",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at 22:f3:eb:0f:27:11",
+      "summary": "172.16.0.1 is at 9a:20:aa:b8:82:c9",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 2,
-        "sender_mac": "22:f3:eb:0f:27:11",
+        "sender_mac": "9a:20:aa:b8:82:c9",
         "sender_ip": "172.16.0.1",
         "target_mac": "5e:45:c1:4c:94:86",
         "target_ip": "172.16.0.2",
@@ -367,11 +367,11 @@
     },
     {
       "idx": 7,
-      "ts_us": 1528304,
-      "ts_delta_us": 9,
+      "ts_us": 1555741,
+      "ts_delta_us": 5,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "22:f3:eb:0f:27:11",
+      "dst_mac": "9a:20:aa:b8:82:c9",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "SOME/IP-SD",
@@ -407,7 +407,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 30732,
-        "ip_id": 28705,
+        "ip_id": 25778,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -420,8 +420,8 @@
     },
     {
       "idx": 8,
-      "ts_us": 1753744,
-      "ts_delta_us": 225440,
+      "ts_us": 1713111,
+      "ts_delta_us": 157370,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "01:00:5e:74:e0:f5",
@@ -480,7 +480,7 @@
         "src_port": 30490,
         "dst_port": 30490,
         "checksum": 6420,
-        "ip_id": 33412,
+        "ip_id": 62956,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 1,
@@ -491,5 +491,27 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "arp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": 5,
+        "captured_delta": {
+          "opcode": 1,
+          "sender_hw": "5e:45:c1:4c:94:86",
+          "target_hw": "00:00:00:00:00:00",
+          "sender_proto_ip": "172.16.0.2",
+          "target_proto_ip": "172.16.0.1",
+          "observed_udp_dst_ip": "172.16.0.2",
+          "observed_udp_eth_dst": "5e:45:c1:4c:94:86"
+        }
+      }
+    ]
+  }
 }

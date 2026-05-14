@@ -3,244 +3,289 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_p1_handshake_ack → listening_p1_settle, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49591, dst_port=23547, seq_num=1834755949, ack_num=1003240442, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 91U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_p1_settle → listening_p1_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.1, dst_ip=172.16.0.2, src_port=23547, dst_port=49591, seq_num=1003240443, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: "
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 2, listening_p1_verify_rst → listening_p2_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49591, dst_port=23547, seq_num=0, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 91U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 3, listening_p2_handshake_ack → listening_p2_settle, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49592, dst_port=23548, seq_num=3029096911, ack_num=2602290443, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 92U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 4, listening_p2_settle → listening_p2_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49592, dst_port=23548, seq_num=3029096911, ack_num=2602290444, flags=17, window=502, data_offset=8, payload_len=0. Cond: "
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 5, listening_p2_verify_rst → listening_p3_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49592, dst_port=23548, seq_num=0, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 92U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 6, listening_p3_handshake_ack → listening_p3_settle, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49593, dst_port=23549, seq_num=510255255, ack_num=2623223154, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 93U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 7, listening_p3_settle → listening_p3_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49593, dst_port=23549, seq_num=510255256, ack_num=2623223155, flags=16, window=502, data_offset=8, payload_len=0. Cond: "
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 8, listening_p3_verify_rst → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49593, dst_port=23549, seq_num=0, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 93U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening_p1_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening_p1_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_p1_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_p1_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 1 (listening_p1_handshake_ack) progress trigger — advances to listening_p1_settle. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 91U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 8,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 10,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 12,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 13,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 14,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 15,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 16,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 17,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 18,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 19,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 20,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 21,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 22,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 23,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 24,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 25,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 26,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 27,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 28,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 29,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 30,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 31,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 32,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 33,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 34,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 35,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 36,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 37,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 38,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 39,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 40,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 41,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 42,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 43,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 44,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 45,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 46,
       "role": "note",
-      "label": "Phase 2 (listening_p1_settle) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 47,
       "role": "stimulus",
-      "label": "Phase 2 (listening_p1_settle) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

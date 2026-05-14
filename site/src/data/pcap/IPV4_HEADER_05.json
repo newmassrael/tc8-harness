@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_HEADER_05",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
-  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "captured_at": "2026-05-14T01:12:11Z",
+  "tester_mac": "16:9f:96:e4:fb:48",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -38,11 +38,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 21,
-      "ts_delta_us": 21,
+      "ts_us": 24,
+      "ts_delta_us": 24,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "86:e1:db:ae:77:f3",
+      "src_mac": "16:9f:96:e4:fb:48",
+      "dst_mac": "4e:74:7b:cd:a9:18",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -54,7 +54,7 @@
         "echo_seq": 22136,
         "echo_payload_first16": "000102030405060708090a0b0c0d0e0f",
         "echo_payload_len": 548,
-        "ip_id": 57981,
+        "ip_id": 38646,
         "ip_flags": 0,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -65,5 +65,28 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "icmp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "type": 0,
+          "code": 0,
+          "src_ip": "172.16.0.2",
+          "dst_ip": "172.16.0.1",
+          "echo_id": 4660,
+          "echo_seq": 22136,
+          "icmp_pointer": 18,
+          "payload_len": 548
+        }
+      }
+    ]
+  }
 }

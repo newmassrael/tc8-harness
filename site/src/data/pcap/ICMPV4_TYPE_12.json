@@ -1,8 +1,8 @@
 {
   "case_id": "ICMPV4_TYPE_12",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
-  "tester_mac": "6e:16:3b:ea:29:ea",
+  "captured_at": "2026-05-14T01:12:11Z",
+  "tester_mac": "5e:12:1c:9a:7e:0f",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -39,11 +39,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 20,
-      "ts_delta_us": 20,
+      "ts_us": 26,
+      "ts_delta_us": 26,
       "direction": "tester_to_dut",
-      "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "82:a1:e0:1c:4d:2c",
+      "src_mac": "5e:12:1c:9a:7e:0f",
+      "dst_mac": "26:a4:83:18:ea:9b",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -54,9 +54,9 @@
         "echo_id": 4660,
         "echo_seq": 22136,
         "originate_timestamp": 305419896,
-        "receive_timestamp": 50945600,
-        "transmit_timestamp": 50945600,
-        "ip_id": 45572,
+        "receive_timestamp": 3712528,
+        "transmit_timestamp": 3712528,
+        "ip_id": 8921,
         "ip_flags": 0,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -67,5 +67,28 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "icmp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "type": 14,
+          "code": 0,
+          "src_ip": "172.16.0.2",
+          "dst_ip": "172.16.0.1",
+          "echo_id": 4660,
+          "echo_seq": 22136,
+          "icmp_pointer": 18,
+          "payload_len": 0
+        }
+      }
+    ]
+  }
 }

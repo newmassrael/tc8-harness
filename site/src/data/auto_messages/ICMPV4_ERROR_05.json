@@ -5,12 +5,12 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Absence-of-behavior pass — DUT did not emit the prohibited frame within the SCXML deadline window. Per the spec this silent absence IS the pass condition; no per-packet ``expected`` label appears because the verdict comes from the timer firing, not from an observed frame."
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: type=202, code=0, src_ip=172.16.0.1, dst_ip=172.16.0.2, echo_id=4660, echo_seq=22136, icmp_pointer=18, payload_len=0. Cond: "
     },
     {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening) — observed frame"
+      "label": "Observed frame (no transition fired)"
     }
   ]
 }

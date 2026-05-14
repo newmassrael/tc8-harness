@@ -1,10 +1,10 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_09",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": null,
-  "dut_mac": "8a:b4:de:88:be:ad",
+  "dut_mac": null,
   "dut_ip": null,
   "packets": [
     {
@@ -17,7 +17,7 @@
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 172.16.0.1? Tell 172.16.0.2 (sender_mac=ce:e9:86:bf:01:8c)",
+      "summary": "Who has 169.254.51.94? Tell 0.0.0.0 (sender_mac=ce:e9:86:bf:01:8c)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
@@ -25,49 +25,49 @@
         "proto_addr_len": 4,
         "opcode": 1,
         "sender_mac": "ce:e9:86:bf:01:8c",
-        "sender_ip": "172.16.0.2",
+        "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "172.16.0.1",
-        "sender_proto_ip_be": 2886729730,
-        "target_proto_ip_be": 2886729729
+        "target_ip": "169.254.51.94",
+        "sender_proto_ip_be": 0,
+        "target_proto_ip_be": 2852008798
       }
     },
     {
       "idx": 1,
-      "ts_us": 4,
-      "ts_delta_us": 4,
-      "direction": "dut_to_tester",
-      "src_mac": "8a:b4:de:88:be:ad",
-      "dst_mac": "ce:e9:86:bf:01:8c",
+      "ts_us": 1892770,
+      "ts_delta_us": 1892770,
+      "direction": "tester_to_dut",
+      "src_mac": "ce:e9:86:bf:01:8c",
+      "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.1 is at 8a:b4:de:88:be:ad",
+      "summary": "Who has 169.254.51.94? Tell 0.0.0.0 (sender_mac=ce:e9:86:bf:01:8c)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
-        "opcode": 2,
-        "sender_mac": "8a:b4:de:88:be:ad",
-        "sender_ip": "172.16.0.1",
-        "target_mac": "ce:e9:86:bf:01:8c",
-        "target_ip": "172.16.0.2",
-        "sender_proto_ip_be": 2886729729,
-        "target_proto_ip_be": 2886729730
+        "opcode": 1,
+        "sender_mac": "ce:e9:86:bf:01:8c",
+        "sender_ip": "0.0.0.0",
+        "target_mac": "00:00:00:00:00:00",
+        "target_ip": "169.254.51.94",
+        "sender_proto_ip_be": 0,
+        "target_proto_ip_be": 2852008798
       }
     },
     {
       "idx": 2,
-      "ts_us": 1222918,
-      "ts_delta_us": 1222914,
+      "ts_us": 3836953,
+      "ts_delta_us": 1944183,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
       "dst_mac": "ff:ff:ff:ff:ff:ff",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 169.254.85.194? Tell 0.0.0.0 (sender_mac=ce:e9:86:bf:01:8c)",
+      "summary": "Who has 169.254.51.94? Tell 0.0.0.0 (sender_mac=ce:e9:86:bf:01:8c)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
@@ -77,60 +77,58 @@
         "sender_mac": "ce:e9:86:bf:01:8c",
         "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.85.194",
+        "target_ip": "169.254.51.94",
         "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852017602
-      }
-    },
-    {
-      "idx": 3,
-      "ts_us": 2262859,
-      "ts_delta_us": 1039941,
-      "direction": "tester_to_dut",
-      "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "ff:ff:ff:ff:ff:ff",
-      "src_ip": null,
-      "dst_ip": null,
-      "protocol": "ARP",
-      "summary": "Who has 169.254.85.194? Tell 0.0.0.0 (sender_mac=ce:e9:86:bf:01:8c)",
-      "fields": {
-        "hw_type": 1,
-        "proto_type": 2048,
-        "hw_addr_len": 6,
-        "proto_addr_len": 4,
-        "opcode": 1,
-        "sender_mac": "ce:e9:86:bf:01:8c",
-        "sender_ip": "0.0.0.0",
-        "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.85.194",
-        "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852017602
-      }
-    },
-    {
-      "idx": 4,
-      "ts_us": 3940184,
-      "ts_delta_us": 1677325,
-      "direction": "tester_to_dut",
-      "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "ff:ff:ff:ff:ff:ff",
-      "src_ip": null,
-      "dst_ip": null,
-      "protocol": "ARP",
-      "summary": "Who has 169.254.85.194? Tell 0.0.0.0 (sender_mac=ce:e9:86:bf:01:8c)",
-      "fields": {
-        "hw_type": 1,
-        "proto_type": 2048,
-        "hw_addr_len": 6,
-        "proto_addr_len": 4,
-        "opcode": 1,
-        "sender_mac": "ce:e9:86:bf:01:8c",
-        "sender_ip": "0.0.0.0",
-        "target_mac": "00:00:00:00:00:00",
-        "target_ip": "169.254.85.194",
-        "sender_proto_ip_be": 0,
-        "target_proto_ip_be": 2852017602
+        "target_proto_ip_be": 2852008798
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "arp_observed",
+        "from_state": "listening",
+        "to_state": "seen_1",
+        "pcap_frame_idx": 0,
+        "captured_delta": {
+          "opcode": 1,
+          "sender_hw": "ce:e9:86:bf:01:8c",
+          "target_hw": "00:00:00:00:00:00",
+          "sender_proto_ip": "0.0.0.0",
+          "target_proto_ip": "169.254.51.94"
+        }
+      },
+      {
+        "step": 1,
+        "event": "arp_observed",
+        "from_state": "seen_1",
+        "to_state": "seen_2",
+        "pcap_frame_idx": 1,
+        "captured_delta": {
+          "opcode": 1,
+          "sender_hw": "ce:e9:86:bf:01:8c",
+          "target_hw": "00:00:00:00:00:00",
+          "sender_proto_ip": "0.0.0.0",
+          "target_proto_ip": "169.254.51.94"
+        }
+      },
+      {
+        "step": 2,
+        "event": "arp_observed",
+        "from_state": "seen_2",
+        "to_state": "pass",
+        "pcap_frame_idx": 2,
+        "captured_delta": {
+          "opcode": 1,
+          "sender_hw": "ce:e9:86:bf:01:8c",
+          "target_hw": "00:00:00:00:00:00",
+          "sender_proto_ip": "0.0.0.0",
+          "target_proto_ip": "169.254.51.94"
+        }
+      }
+    ]
+  }
 }

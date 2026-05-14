@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_BASICS_05",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -42,11 +42,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 35,
-      "ts_delta_us": 35,
+      "ts_us": 30,
+      "ts_delta_us": 30,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "8a:b4:de:88:be:ad",
+      "dst_mac": "4a:ec:92:cf:b4:59",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
@@ -75,8 +75,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 223496,
-      "ts_delta_us": 223461,
+      "ts_us": 223219,
+      "ts_delta_us": 223189,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -108,11 +108,11 @@
     },
     {
       "idx": 3,
-      "ts_us": 223510,
-      "ts_delta_us": 14,
+      "ts_us": 223232,
+      "ts_delta_us": 13,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "8a:b4:de:88:be:ad",
+      "dst_mac": "4a:ec:92:cf:b4:59",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
@@ -139,5 +139,49 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "tcp_observed",
+        "from_state": "listening_synack",
+        "to_state": "listening_ack",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "src_ip": "172.16.0.2",
+          "dst_ip": "172.16.0.1",
+          "src_port": 54321,
+          "dst_port": 49152,
+          "seq_num": 3237998080,
+          "ack_num": 0,
+          "flags": 4,
+          "window": 0,
+          "data_offset": 5,
+          "payload_len": 0
+        }
+      },
+      {
+        "step": 1,
+        "event": "tcp_observed",
+        "from_state": "listening_ack",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "src_ip": "172.16.0.2",
+          "dst_ip": "172.16.0.1",
+          "src_port": 54321,
+          "dst_port": 49152,
+          "seq_num": 3735928559,
+          "ack_num": 0,
+          "flags": 4,
+          "window": 0,
+          "data_offset": 5,
+          "payload_len": 0
+        }
+      }
+    ]
+  }
 }

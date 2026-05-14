@@ -3,79 +3,89 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_handshake_ack → listening_oob_check, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49642, dst_port=23598, seq_num=572882484, ack_num=2502784787, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalO…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_oob_check → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49642, dst_port=23598, seq_num=572882484, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: "
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "expected",
-      "label": "Phase 1 (listening_handshake_ack) progress trigger — advances to listening_oob_check. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalO…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
-      "role": "expected",
-      "label": "Phase 2 (listening_oob_check) pass trigger — transitions to pass. Cond: ut_received_payload_len == 1U"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 8,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 10,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 12,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

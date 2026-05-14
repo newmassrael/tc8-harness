@@ -4,28 +4,18 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) progress trigger — advances to await_repick. Cond: is_arp_probe()"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 2,
       "role": "expected",
-      "label": "Phase 1 (listening) progress trigger — advances to await_repick. Cond: is_arp_probe()"
-    },
-    {
-      "idx": 3,
-      "role": "expected",
-      "label": "Phase 2 (await_repick) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != first_probe_target_proto_ip"
-    },
-    {
-      "idx": 4,
-      "role": "expected",
-      "label": "Phase 2 (await_repick) pass trigger (candidate — opaque cond clause UNKNOWN). Cond: is_arp_probe() and target_proto_ip != first_probe_target_proto_ip"
+      "label": "Step 1 (await_repick) pass trigger — transitions to pass. Cond: is_arp_probe() and target_proto_ip != first_probe_target_proto_ip"
     }
   ]
 }

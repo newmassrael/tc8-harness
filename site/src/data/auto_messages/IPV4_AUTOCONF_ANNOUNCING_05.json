@@ -5,32 +5,27 @@
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) progress trigger — advances to seen_announce_1. Cond: opcode == 1 and eth_src == expected.dut_iface_mac and sender_proto_ip != 0"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 1 (seen_announce_1) pass trigger — transitions to pass. Cond: opcode == 1 and eth_src == expected.dut_iface_mac and sender_proto_ip != 0"
     }
   ]
 }

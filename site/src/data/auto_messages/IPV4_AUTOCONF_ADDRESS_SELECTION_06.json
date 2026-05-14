@@ -3,19 +3,9 @@
   "generator_version": "2",
   "messages": [
     {
-      "idx": -1,
-      "role": "case-note",
-      "label": "Outcome=fail, but the auto-labeller could not pin a specific SCXML fail transition to a packet on the wire — the relevant cond clauses are opaque to the evaluator (decoder field unavailable or helper not modelled). See the SCXML pane below for the fail criteria this case evaluates."
-    },
-    {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: opcode == 1 and eth_src == expected.dut_iface_mac and (sender_proto_ip == 0)"
     }
   ]
 }

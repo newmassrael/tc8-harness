@@ -4,13 +4,8 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: opcode == 1 and eth_src == expected.dut_iface_mac and (sender_hw == expected.dut_iface_mac)"
     }
   ]
 }

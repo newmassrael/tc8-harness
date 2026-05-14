@@ -4,13 +4,13 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: opcode == 1 and sender_hw == expected.dut_iface_mac and proto_addr_len == 4"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

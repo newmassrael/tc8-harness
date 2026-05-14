@@ -5,22 +5,22 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Outcome=fail, but the auto-labeller could not pin a specific SCXML fail transition to a packet on the wire — the relevant cond clauses are opaque to the evaluator (decoder field unavailable or helper not modelled). See the SCXML pane below for the fail criteria this case evaluates."
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening → fail_timeout, fail). Harness Captured at trace time: type=0, code=0, src_ip=0.0.0.0, dst_ip=0.0.0.0, payload_len=0. Cond: "
     },
     {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

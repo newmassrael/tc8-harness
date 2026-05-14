@@ -3,214 +3,224 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_phase1 → listening_phase2, progress). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=1, message_type=2, return_code=0, payload_len=52, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_phase2 → pass, pass). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=2, message_type=2, return_code=0, payload_len=52, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
+    },
+    {
       "idx": 0,
-      "role": "expected",
-      "label": "Phase 1 (listening_phase1) progress trigger — advances to listening_phase2. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "expected",
-      "label": "Phase 2 (listening_phase2) pass trigger — transitions to pass. Cond: service_id == 0xFFFF and sd_entry_count >= 1 and sd_entries[0].type == 0x01 and sd_entries[0].service_id == expected.service_id and sd_entr…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 8,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 10,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 12,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 14,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 15,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 16,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 17,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 18,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 19,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 20,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 21,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 22,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 23,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 24,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 25,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 26,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 27,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 28,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 29,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 30,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 31,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 32,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 33,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 34,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 35,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 36,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 37,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 38,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 39,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 40,
       "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 41,
-      "role": "note",
-      "label": "Post-pass teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

@@ -3,149 +3,154 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, evaluate_kernel_observations → fail_rto_below_2msl_cap, fail). Harness Captured at trace time: src_ip=0.0.0.0, dst_ip=0.0.0.0, src_port=0, dst_port=0, seq_num=0, ack_num=0, flags=0, window=0, data_offset=0, payload_len=0. Cond: "
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (evaluate_kernel_observations) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (evaluate_kernel_observations) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
-      "role": "fail-trigger",
-      "label": "Phase 1 (evaluate_kernel_observations) fail trigger — transitions to fail_rto_below_2msl_cap. Cond: ut_tcpi_p1_rto_us < 57000000"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 4,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 8,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 10,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 11,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 12,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 13,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 14,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 15,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 16,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 17,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 18,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 19,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 20,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 21,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 22,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 23,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 24,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 25,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 26,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 27,
-      "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 28,
       "role": "note",
-      "label": "Post-fail teardown (state machine already at final)"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

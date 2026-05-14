@@ -3,244 +3,309 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_p1_prelude_synack → listening_p1_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=12357, dst_port=49228, seq_num=2091012102, ack_num=270544961, flags=18, window=64240, data_offset=6, payload_len=0, mss=1460. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort + 12U and dst_port == :…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_p1_verify_rst → listening_p2_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=12357, dst_port=49228, seq_num=2091012103, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 12U, ::tc8::sce::tcp::kBasicsTesterPort + 76U)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 2, listening_p2_handshake_ack → listening_p2_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49560, dst_port=23516, seq_num=4029833094, ack_num=2579732054, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 60U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 3, listening_p2_verify_rst → listening_p3_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49560, dst_port=23516, seq_num=4029833094, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 60U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 4, listening_p3_handshake_ack → listening_p3_dut_fin, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49561, dst_port=23517, seq_num=3033072388, ack_num=3970027639, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 61U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 5, listening_p3_dut_fin → listening_p3_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49561, dst_port=23517, seq_num=3033072388, ack_num=3970027639, flags=17, window=502, data_offset=8, payload_len=0. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 61U, ::tc8::sce::tcp::kBasicsActiveRemo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 6, listening_p3_verify_rst → listening_p4_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49561, dst_port=23517, seq_num=3033072389, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 61U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 7, listening_p4_handshake_ack → listening_p4_dut_fin, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49562, dst_port=23518, seq_num=1370580826, ack_num=584698507, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 62U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 8, listening_p4_dut_fin → listening_p4_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49562, dst_port=23518, seq_num=1370580826, ack_num=584698507, flags=17, window=502, data_offset=8, payload_len=0. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 62U, ::tc8::sce::tcp::kBasicsActiveRemo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 9, listening_p4_verify_rst → listening_p5_handshake_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49562, dst_port=23518, seq_num=1370580827, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 62U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 10, listening_p5_handshake_ack → listening_p5_close_wait_ack, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49563, dst_port=23519, seq_num=131338398, ack_num=805746311, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 63U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 11, listening_p5_close_wait_ack → listening_p5_verify_rst, progress). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49563, dst_port=23519, seq_num=131338398, ack_num=805746312, flags=16, window=502, data_offset=8, payload_len=0. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 63U, ::tc8::sce::tcp::kBasicsActiveRem…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 12, listening_p5_verify_rst → pass, pass). Harness Captured at trace time: src_ip=172.16.0.2, dst_ip=172.16.0.1, src_port=49563, dst_port=23519, seq_num=131338398, ack_num=0, flags=4, window=0, data_offset=5, payload_len=0. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 63U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening_p1_prelude_synack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "note",
-      "label": "Phase 1 (listening_p1_prelude_synack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 3,
-      "role": "expected",
-      "label": "Phase 1 (listening_p1_prelude_synack) progress trigger — advances to listening_p1_verify_rst. Cond: src_ip == expected.dut_iface_ip and dst_ip == expected.tester_ip and src_port == ::tc8::sce::tcp::kBasicsListenPort + 12U and dst_port == :…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 4,
       "role": "note",
-      "label": "Phase 2 (listening_p1_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 2 (listening_p1_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "expected",
-      "label": "Phase 2 (listening_p1_verify_rst) progress trigger — advances to listening_p2_handshake_ack. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 12U, ::tc8::sce::tcp::kBasicsTesterPort + 76U)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 3 (listening_p2_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 8,
       "role": "stimulus",
-      "label": "Phase 3 (listening_p2_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "stimulus",
-      "label": "Phase 3 (listening_p2_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 10,
       "role": "note",
-      "label": "Phase 3 (listening_p2_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 11,
-      "role": "expected",
-      "label": "Phase 3 (listening_p2_handshake_ack) progress trigger — advances to listening_p2_verify_rst. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 60U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 12,
       "role": "note",
-      "label": "Phase 4 (listening_p2_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 13,
       "role": "note",
-      "label": "Phase 4 (listening_p2_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 14,
-      "role": "expected",
-      "label": "Phase 4 (listening_p2_verify_rst) progress trigger — advances to listening_p3_handshake_ack. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 60U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 15,
       "role": "note",
-      "label": "Phase 5 (listening_p3_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 16,
       "role": "stimulus",
-      "label": "Phase 5 (listening_p3_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 17,
       "role": "stimulus",
-      "label": "Phase 5 (listening_p3_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 18,
       "role": "note",
-      "label": "Phase 5 (listening_p3_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 19,
-      "role": "expected",
-      "label": "Phase 5 (listening_p3_handshake_ack) progress trigger — advances to listening_p3_dut_fin. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 61U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 20,
       "role": "note",
-      "label": "Phase 6 (listening_p3_dut_fin) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 21,
-      "role": "expected",
-      "label": "Phase 6 (listening_p3_dut_fin) progress trigger — advances to listening_p3_verify_rst. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 61U, ::tc8::sce::tcp::kBasicsActiveRemo…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 22,
       "role": "stimulus",
-      "label": "Phase 7 (listening_p3_verify_rst) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 23,
       "role": "note",
-      "label": "Phase 7 (listening_p3_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 24,
       "role": "note",
-      "label": "Phase 7 (listening_p3_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 25,
-      "role": "expected",
-      "label": "Phase 7 (listening_p3_verify_rst) progress trigger — advances to listening_p4_handshake_ack. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 61U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 26,
       "role": "note",
-      "label": "Phase 8 (listening_p4_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 27,
       "role": "stimulus",
-      "label": "Phase 8 (listening_p4_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 28,
       "role": "stimulus",
-      "label": "Phase 8 (listening_p4_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 29,
       "role": "note",
-      "label": "Phase 8 (listening_p4_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 30,
-      "role": "expected",
-      "label": "Phase 8 (listening_p4_handshake_ack) progress trigger — advances to listening_p4_dut_fin. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 62U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 31,
       "role": "note",
-      "label": "Phase 9 (listening_p4_dut_fin) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 32,
-      "role": "expected",
-      "label": "Phase 9 (listening_p4_dut_fin) progress trigger — advances to listening_p4_verify_rst. Cond: is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 62U, ::tc8::sce::tcp::kBasicsActiveRemo…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 33,
       "role": "stimulus",
-      "label": "Phase 10 (listening_p4_verify_rst) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 34,
       "role": "note",
-      "label": "Phase 10 (listening_p4_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 35,
       "role": "note",
-      "label": "Phase 10 (listening_p4_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 36,
       "role": "note",
-      "label": "Phase 10 (listening_p4_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 37,
-      "role": "expected",
-      "label": "Phase 10 (listening_p4_verify_rst) progress trigger — advances to listening_p5_handshake_ack. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 62U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 38,
       "role": "note",
-      "label": "Phase 11 (listening_p5_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 39,
       "role": "stimulus",
-      "label": "Phase 11 (listening_p5_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 40,
       "role": "stimulus",
-      "label": "Phase 11 (listening_p5_handshake_ack) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 41,
       "role": "note",
-      "label": "Phase 11 (listening_p5_handshake_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 42,
-      "role": "expected",
-      "label": "Phase 11 (listening_p5_handshake_ack) progress trigger — advances to listening_p5_close_wait_ack. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 63U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 43,
       "role": "note",
-      "label": "Phase 12 (listening_p5_close_wait_ack) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 44,
-      "role": "expected",
-      "label": "Phase 12 (listening_p5_close_wait_ack) progress trigger — advances to listening_p5_verify_rst. Cond: is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 63U, ::tc8::sce::tcp::kBasicsActiveRem…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 45,
       "role": "note",
-      "label": "Phase 13 (listening_p5_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 46,
       "role": "note",
-      "label": "Phase 13 (listening_p5_verify_rst) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 47,
-      "role": "expected",
-      "label": "Phase 13 (listening_p5_verify_rst) pass trigger — transitions to pass. Cond: is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 63U, ::tc8::sce::tcp::kBasicsActiveRemotePo…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

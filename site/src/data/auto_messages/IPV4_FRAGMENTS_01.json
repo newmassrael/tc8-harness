@@ -3,19 +3,24 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening → pass, pass). Harness Captured at trace time: type=0, code=0, src_ip=172.16.0.2, dst_ip=172.16.0.1, echo_id=4660, echo_seq=22136, icmp_pointer=18, payload_len=8. Cond: type == 0 and src_ip == expected.dut_iface_ip and echo_id == expected.echo_id and echo_seq == expected.echo_seq and echo_payload_equals(std…"
+    },
+    {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 2,
-      "role": "expected",
-      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: type == 0 and src_ip == expected.dut_iface_ip and echo_id == expected.echo_id and echo_seq == expected.echo_seq and echo_payload_equals(std…"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

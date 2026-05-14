@@ -5,12 +5,12 @@
     {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening) — observed frame"
+      "label": "Observed frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "expected",
-      "label": "Phase 1 (listening) pass trigger — transitions to pass. Cond: src_addr == expected.dut_iface_ip and (version == 4)"
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: src_addr == expected.dut_iface_ip and (version == 4)"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "case_id": "ARP_17",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
   "dut_mac": "5e:45:c1:4c:94:86",
@@ -34,8 +34,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 15,
-      "ts_delta_us": 15,
+      "ts_us": 37,
+      "ts_delta_us": 37,
       "direction": "dut_to_tester",
       "src_mac": "5e:45:c1:4c:94:86",
       "dst_mac": "02:00:00:00:00:a1",
@@ -57,5 +57,25 @@
         "target_proto_ip_be": 2886729729
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "arp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": 1,
+        "captured_delta": {
+          "opcode": 2,
+          "sender_hw": "5e:45:c1:4c:94:86",
+          "target_hw": "02:00:00:00:00:a1",
+          "sender_proto_ip": "172.16.0.2",
+          "target_proto_ip": "172.16.0.1"
+        }
+      }
+    ]
+  }
 }

@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_UNACCEPTABLE_07",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -39,11 +39,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 201,
-      "ts_delta_us": 201,
+      "ts_us": 197,
+      "ts_delta_us": 197,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "8a:b4:de:88:be:ad",
+      "dst_mac": "4a:ec:92:cf:b4:59",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UT/UDP",
@@ -59,7 +59,7 @@
         "ut_status": 0,
         "ut_socket_id": 1,
         "checksum": 24227,
-        "ip_id": 49614,
+        "ip_id": 13783,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -72,8 +72,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 315665,
-      "ts_delta_us": 315464,
+      "ts_us": 320015,
+      "ts_delta_us": 319818,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "ce:e9:86:bf:01:8c",
@@ -105,11 +105,11 @@
     },
     {
       "idx": 3,
-      "ts_us": 315681,
-      "ts_delta_us": 16,
+      "ts_us": 320053,
+      "ts_delta_us": 38,
       "direction": "tester_to_dut",
       "src_mac": "ce:e9:86:bf:01:8c",
-      "dst_mac": "8a:b4:de:88:be:ad",
+      "dst_mac": "4a:ec:92:cf:b4:59",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
@@ -136,5 +136,30 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "tcp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "src_ip": "172.16.0.2",
+          "dst_ip": "172.16.0.1",
+          "src_port": 12345,
+          "dst_port": 49152,
+          "seq_num": 270544961,
+          "ack_num": 0,
+          "flags": 4,
+          "window": 0,
+          "data_offset": 5,
+          "payload_len": 0
+        }
+      }
+    ]
+  }
 }

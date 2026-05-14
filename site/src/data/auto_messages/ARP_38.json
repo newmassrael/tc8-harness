@@ -5,47 +5,47 @@
     {
       "idx": 0,
       "role": "note",
-      "label": "Phase 1 (listening) — observed frame"
+      "label": "Observed frame (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 4,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: opcode == 1 and sender_hw == expected.dut_iface_mac"
     },
     {
       "idx": 6,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 7,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     },
     {
       "idx": 8,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "Post-pass teardown (state machine already at pass)"
     }
   ]
 }

@@ -1,10 +1,10 @@
 {
   "case_id": "IPV4_AUTOCONF_ADDRESS_SELECTION_07",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "ce:e9:86:bf:01:8c",
   "tester_ip": null,
-  "dut_mac": "8a:b4:de:88:be:ad",
+  "dut_mac": null,
   "dut_ip": null,
   "packets": [
     {
@@ -17,7 +17,7 @@
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "Who has 172.16.0.1? Tell 172.16.0.2 (sender_mac=ce:e9:86:bf:01:8c)",
+      "summary": "Who has 169.254.184.196? Tell 0.0.0.0 (sender_mac=ce:e9:86:bf:01:8c)",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
@@ -25,37 +25,32 @@
         "proto_addr_len": 4,
         "opcode": 1,
         "sender_mac": "ce:e9:86:bf:01:8c",
-        "sender_ip": "172.16.0.2",
+        "sender_ip": "0.0.0.0",
         "target_mac": "00:00:00:00:00:00",
-        "target_ip": "172.16.0.1",
-        "sender_proto_ip_be": 2886729730,
-        "target_proto_ip_be": 2886729729
-      }
-    },
-    {
-      "idx": 1,
-      "ts_us": 3,
-      "ts_delta_us": 3,
-      "direction": "dut_to_tester",
-      "src_mac": "8a:b4:de:88:be:ad",
-      "dst_mac": "ce:e9:86:bf:01:8c",
-      "src_ip": null,
-      "dst_ip": null,
-      "protocol": "ARP",
-      "summary": "172.16.0.1 is at 8a:b4:de:88:be:ad",
-      "fields": {
-        "hw_type": 1,
-        "proto_type": 2048,
-        "hw_addr_len": 6,
-        "proto_addr_len": 4,
-        "opcode": 2,
-        "sender_mac": "8a:b4:de:88:be:ad",
-        "sender_ip": "172.16.0.1",
-        "target_mac": "ce:e9:86:bf:01:8c",
-        "target_ip": "172.16.0.2",
-        "sender_proto_ip_be": 2886729729,
-        "target_proto_ip_be": 2886729730
+        "target_ip": "169.254.184.196",
+        "sender_proto_ip_be": 0,
+        "target_proto_ip_be": 2852042948
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "arp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": 0,
+        "captured_delta": {
+          "opcode": 1,
+          "sender_hw": "ce:e9:86:bf:01:8c",
+          "target_hw": "00:00:00:00:00:00",
+          "sender_proto_ip": "0.0.0.0",
+          "target_proto_ip": "169.254.184.196"
+        }
+      }
+    ]
+  }
 }

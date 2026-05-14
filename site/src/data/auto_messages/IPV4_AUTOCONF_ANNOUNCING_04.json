@@ -5,12 +5,22 @@
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 2,
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
+    },
+    {
+      "idx": 3,
+      "role": "expected",
+      "label": "Step 0 (listening) pass trigger — transitions to pass. Cond: opcode == 1 and eth_src == expected.dut_iface_mac and sender_proto_ip != 0 and (target_hw_is_zero())"
     }
   ]
 }

@@ -3,54 +3,74 @@
   "generator_version": "2",
   "messages": [
     {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_for_discover → listening_for_first_request, progress). Harness Captured at trace time: arp={'opcode': 2, 'sender_hw': '26:a4:83:18:ea:9b', 'target_hw': '5e:12:1c:9a:7e:0f', 'sender_proto_ip': '172.16.0.1', 'target_proto_ip': '172.16.0.2'}, dhcpv4={'op': 1, 'message_type': 1, 'htype': 1, 'hlen': 6, 'xid': 3529018467, 'flags': 0, 'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'ciaddr': '0.0.0.0', 'yiaddr': '0.0.0.0', 'siaddr': '0.0.0.0', 'eth_src': '5e:12:1c:9a:7e:0f', 'eth_dst': 'ff:ff:ff:ff:ff:ff'}. Cond: dhcpv4.is_dhcp_discover() and dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_for_first_request → listening_for_arp_probe, progress). Harness Captured at trace time: arp={'opcode': 2, 'sender_hw': '26:a4:83:18:ea:9b', 'target_hw': '5e:12:1c:9a:7e:0f', 'sender_proto_ip': '172.16.0.1', 'target_proto_ip': '172.16.0.2'}, dhcpv4={'op': 1, 'message_type': 3, 'htype': 1, 'hlen': 6, 'xid': 3529018467, 'flags': 0, 'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'ciaddr': '0.0.0.0', 'yiaddr': '0.0.0.0', 'siaddr': '0.0.0.0', 'eth_src': '5e:12:1c:9a:7e:0f', 'eth_dst': 'ff:ff:ff:ff:ff:ff'}. Cond: dhcpv4.is_dhcp_request() and dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 3, listening_for_decline → listening_for_second_discover, progress). Harness Captured at trace time: arp={'opcode': 2, 'sender_hw': '02:00:de:ad:00:01', 'target_hw': '5e:12:1c:9a:7e:0f', 'sender_proto_ip': '172.16.0.50', 'target_proto_ip': '0.0.0.0'}, dhcpv4={'op': 1, 'message_type': 4, 'htype': 1, 'hlen': 6, 'xid': 3529018467, 'flags': 0, 'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'ciaddr': '0.0.0.0', 'yiaddr': '0.0.0.0', 'siaddr': '0.0.0.0', 'eth_src': '5e:12:1c:9a:7e:0f', 'eth_dst': 'ff:ff:ff:ff:ff:ff'}. Cond: dhcpv4.is_dhcp_decline() and dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac) and dhcpv4.option_be32_equals(50, expected.dhcpv4…"
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 4, listening_for_second_discover → pass, pass). Harness Captured at trace time: arp={'opcode': 2, 'sender_hw': '02:00:de:ad:00:01', 'target_hw': '5e:12:1c:9a:7e:0f', 'sender_proto_ip': '172.16.0.50', 'target_proto_ip': '0.0.0.0'}, dhcpv4={'op': 1, 'message_type': 1, 'htype': 1, 'hlen': 6, 'xid': 222028969, 'flags': 0, 'src_ip': '0.0.0.0', 'dst_ip': '255.255.255.255', 'src_port': 68, 'dst_port': 67, 'ciaddr': '0.0.0.0', 'yiaddr': '0.0.0.0', 'siaddr': '0.0.0.0', 'eth_src': '5e:12:1c:9a:7e:0f', 'eth_dst': 'ff:ff:ff:ff:ff:ff'}. Cond: dhcpv4.is_dhcp_discover() and dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac) and (dhcpv4.decline_to_discover_within_us(900000…"
+    },
+    {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 2 (listening_for_arp_probe) progress trigger — advances to listening_for_decline. Cond: arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
     },
     {
       "idx": 7,
       "role": "note",
-      "label": "Phase 1 (listening_for_discover) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 8,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 9,
       "role": "stimulus",
-      "label": "Phase 1 (listening_for_discover) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     }
   ]
 }

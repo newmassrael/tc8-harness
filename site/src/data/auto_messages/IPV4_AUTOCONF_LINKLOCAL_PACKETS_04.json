@@ -5,47 +5,37 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Absence-of-behavior pass — DUT did not emit the prohibited frame within the SCXML deadline window. Per the spec this silent absence IS the pass condition; no per-packet ``expected`` label appears because the verdict comes from the timer firing, not from an observed frame."
+      "label": "Verdict-decider not retained in saved pcap (step 2, listening_post_claim → pass, pass). Harness Captured at trace time: opcode=1, sender_hw=02:00:00:00:00:a1, target_hw=00:00:00:00:00:00, sender_proto_ip=169.254.1.2, target_proto_ip=169.254.0.1. Cond: "
     },
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening_pre_announce_1) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening_pre_announce_1) progress trigger — advances to listening_pre_announce_2. Cond: is_arp_announce() and eth_src == expected.dut_iface_mac"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 1 (listening_pre_announce_2) progress trigger — advances to listening_post_claim. Cond: is_arp_announce() and eth_src == expected.dut_iface_mac"
     },
     {
       "idx": 5,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_announce_1) — Tester stimulus (no transition matched)"
-    },
-    {
-      "idx": 7,
       "role": "note",
-      "label": "Phase 1 (listening_pre_announce_1) — observed frame"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

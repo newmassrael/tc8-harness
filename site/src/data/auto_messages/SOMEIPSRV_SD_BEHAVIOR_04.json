@@ -5,37 +5,42 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Outcome=fail, but the auto-labeller could not pin a specific SCXML fail transition to a packet on the wire — the relevant cond clauses are opaque to the evaluator (decoder field unavailable or helper not modelled). See the SCXML pane below for the fail criteria this case evaluates."
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening_pre_find → listening_offer_reply, progress). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=5, message_type=2, return_code=0, payload_len=52, src_ip=172.16.0.2, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: "
+    },
+    {
+      "idx": -1,
+      "role": "case-note",
+      "label": "Verdict-decider not retained in saved pcap (step 1, listening_offer_reply → fail_no_offer_after_multicast_find, fail). Harness Captured at trace time: service_id=65535, method_id=33024, client_id=0, session_id=1, message_type=2, return_code=0, payload_len=28, src_ip=172.16.0.1, dst_ip=224.244.224.245, src_port=30490, dst_port=30490, sd_entry_count=1, sd_option_count=2. Cond: "
     },
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_find) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_find) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_find) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_find) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 4,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_find) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 1 (listening_pre_find) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

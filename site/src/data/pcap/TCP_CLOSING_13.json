@@ -1,7 +1,7 @@
 {
   "case_id": "TCP_CLOSING_13",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -40,5 +40,30 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "deadline_exceeded",
+        "from_state": "listening_absence",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "src_ip": "172.16.0.1",
+          "dst_ip": "172.16.0.2",
+          "src_port": 49232,
+          "dst_port": 54321,
+          "seq_num": 270544960,
+          "ack_num": 0,
+          "flags": 4,
+          "window": 65535,
+          "data_offset": 5,
+          "payload_len": 0
+        }
+      }
+    ]
+  }
 }

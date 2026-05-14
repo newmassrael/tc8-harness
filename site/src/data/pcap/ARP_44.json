@@ -1,10 +1,10 @@
 {
   "case_id": "ARP_44",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "02:00:00:00:00:a1",
   "tester_ip": null,
-  "dut_mac": "6e:16:3b:ea:29:ea",
+  "dut_mac": "5e:12:1c:9a:7e:0f",
   "dut_ip": null,
   "packets": [
     {
@@ -34,22 +34,22 @@
     },
     {
       "idx": 1,
-      "ts_us": 20,
-      "ts_delta_us": 20,
+      "ts_us": 15,
+      "ts_delta_us": 15,
       "direction": "dut_to_tester",
-      "src_mac": "6e:16:3b:ea:29:ea",
+      "src_mac": "5e:12:1c:9a:7e:0f",
       "dst_mac": "02:00:00:00:00:a1",
       "src_ip": null,
       "dst_ip": null,
       "protocol": "ARP",
-      "summary": "172.16.0.2 is at 6e:16:3b:ea:29:ea",
+      "summary": "172.16.0.2 is at 5e:12:1c:9a:7e:0f",
       "fields": {
         "hw_type": 1,
         "proto_type": 2048,
         "hw_addr_len": 6,
         "proto_addr_len": 4,
         "opcode": 2,
-        "sender_mac": "6e:16:3b:ea:29:ea",
+        "sender_mac": "5e:12:1c:9a:7e:0f",
         "sender_ip": "172.16.0.2",
         "target_mac": "02:00:00:00:00:a1",
         "target_ip": "172.16.0.1",
@@ -57,5 +57,25 @@
         "target_proto_ip_be": 2886729729
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "arp_observed",
+        "from_state": "listening",
+        "to_state": "pass",
+        "pcap_frame_idx": 1,
+        "captured_delta": {
+          "opcode": 2,
+          "sender_hw": "5e:12:1c:9a:7e:0f",
+          "target_hw": "02:00:00:00:00:a1",
+          "sender_proto_ip": "172.16.0.2",
+          "target_proto_ip": "172.16.0.1"
+        }
+      }
+    ]
+  }
 }

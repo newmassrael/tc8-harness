@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_REASSEMBLY_13",
   "outcome": "fail",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": null,
   "tester_ip": null,
   "dut_mac": null,
@@ -38,8 +38,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 235672,
-      "ts_delta_us": 235672,
+      "ts_us": 231448,
+      "ts_delta_us": 231448,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -63,8 +63,8 @@
     },
     {
       "idx": 2,
-      "ts_us": 467578,
-      "ts_delta_us": 231906,
+      "ts_us": 467430,
+      "ts_delta_us": 235982,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -88,8 +88,8 @@
     },
     {
       "idx": 3,
-      "ts_us": 703730,
-      "ts_delta_us": 236152,
+      "ts_us": 711441,
+      "ts_delta_us": 244011,
       "direction": "other",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -111,5 +111,25 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "fail_timeout",
+    "steps": [
+      {
+        "step": 0,
+        "event": "deadline_exceeded",
+        "from_state": "listening",
+        "to_state": "fail_timeout",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "type": 0,
+          "code": 0,
+          "src_ip": "0.0.0.0",
+          "dst_ip": "0.0.0.0",
+          "payload_len": 0
+        }
+      }
+    ]
+  }
 }

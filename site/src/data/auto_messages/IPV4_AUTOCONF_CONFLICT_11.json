@@ -5,42 +5,32 @@
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_claim) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening_pre_claim) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 2,
       "role": "stimulus",
-      "label": "Phase 1 (listening_pre_claim) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 3,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_claim) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening_pre_claim) progress trigger — advances to listening_post_claim. Cond: is_arp_announce()"
     },
     {
       "idx": 4,
-      "role": "stimulus",
-      "label": "Phase 1 (listening_pre_claim) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 5,
       "role": "expected",
-      "label": "Phase 1 (listening_pre_claim) progress trigger — advances to listening_post_claim. Cond: is_arp_announce()"
-    },
-    {
-      "idx": 6,
-      "role": "note",
-      "label": "Phase 2 (listening_post_claim) — observed frame"
-    },
-    {
-      "idx": 7,
-      "role": "fail-trigger",
-      "label": "Phase 2 (listening_post_claim) fail trigger — transitions to fail_reply_wrong_fields. Cond: is_arp_reply()"
+      "label": "Step 1 (listening_post_claim) pass trigger — transitions to pass. Cond: is_arp_reply() and sender_proto_ip == expected_responder_sender_ip_be and target_proto_ip == expected.tester_linklocal_ip and expected_resp…"
     }
   ]
 }

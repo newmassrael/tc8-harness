@@ -5,52 +5,52 @@
     {
       "idx": -1,
       "role": "case-note",
-      "label": "Outcome=fail, but the auto-labeller could not pin a specific SCXML fail transition to a packet on the wire — the relevant cond clauses are opaque to the evaluator (decoder field unavailable or helper not modelled). See the SCXML pane below for the fail criteria this case evaluates."
+      "label": "Verdict-decider not retained in saved pcap (step 0, listening → fail_used_mac1, fail). Harness Captured at trace time: opcode=2, sender_hw=02:00:00:00:00:a2, target_hw=ff:ff:ff:ff:ff:ff, sender_proto_ip=172.16.0.1, target_proto_ip=172.16.0.1, observed_udp_dst_ip=172.16.0.1, observed_udp_eth_dst=02:00:00:00:00:a1. Cond: observed_udp_dst_ip == expected.tester_ip and observed_udp_eth_dst == expected.tester_mac"
     },
     {
       "idx": 0,
       "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 1,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 2,
       "role": "note",
-      "label": "Phase 1 (listening) — observed frame"
+      "label": "Observed frame (no transition fired)"
     },
     {
       "idx": 3,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 4,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 5,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 6,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "note",
+      "label": "DUT frame (no transition fired)"
     },
     {
       "idx": 7,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "stimulus",
+      "label": "Tester stimulus (no transition fired)"
     },
     {
       "idx": 8,
       "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "label": "DUT frame (no transition fired)"
     }
   ]
 }

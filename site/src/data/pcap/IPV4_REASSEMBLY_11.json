@@ -1,8 +1,8 @@
 {
   "case_id": "IPV4_REASSEMBLY_11",
   "outcome": "fail",
-  "captured_at": "2026-05-13T14:19:21Z",
-  "tester_mac": "7e:b1:ae:f4:32:5d",
+  "captured_at": "2026-05-14T01:12:11Z",
+  "tester_mac": "16:9f:96:e4:fb:48",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "16:9f:96:e4:fb:48",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -36,11 +36,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 2027329,
-      "ts_delta_us": 2027329,
+      "ts_us": 2007415,
+      "ts_delta_us": 2007415,
       "direction": "tester_to_dut",
-      "src_mac": "7e:b1:ae:f4:32:5d",
-      "dst_mac": "86:e1:db:ae:77:f3",
+      "src_mac": "16:9f:96:e4:fb:48",
+      "dst_mac": "4e:74:7b:cd:a9:18",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -48,7 +48,7 @@
       "fields": {
         "type": 11,
         "code": 1,
-        "ip_id": 58859,
+        "ip_id": 39238,
         "ip_flags": 0,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -61,11 +61,11 @@
     },
     {
       "idx": 2,
-      "ts_us": 3015379,
-      "ts_delta_us": 988050,
+      "ts_us": 3019714,
+      "ts_delta_us": 1012299,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "7e:b1:ae:f4:32:5d",
+      "dst_mac": "16:9f:96:e4:fb:48",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "ICMPv4",
@@ -84,5 +84,25 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "fail_timeout",
+    "steps": [
+      {
+        "step": 0,
+        "event": "deadline_exceeded",
+        "from_state": "listening",
+        "to_state": "fail_timeout",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "type": 0,
+          "code": 0,
+          "src_ip": "0.0.0.0",
+          "dst_ip": "0.0.0.0",
+          "payload_len": 0
+        }
+      }
+    ]
+  }
 }

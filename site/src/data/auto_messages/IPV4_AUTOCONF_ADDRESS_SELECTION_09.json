@@ -4,28 +4,18 @@
   "messages": [
     {
       "idx": 0,
-      "role": "stimulus",
-      "label": "Phase 1 (listening) — Tester stimulus (no transition matched)"
+      "role": "expected",
+      "label": "Step 0 (listening) progress trigger — advances to seen_1. Cond: is_arp_probe()"
     },
     {
       "idx": 1,
-      "role": "note",
-      "label": "Phase 1 (listening) — DUT frame (no transition matched)"
+      "role": "expected",
+      "label": "Step 1 (seen_1) progress trigger — advances to seen_2. Cond: is_arp_probe()"
     },
     {
       "idx": 2,
       "role": "expected",
-      "label": "Phase 1 (listening) progress trigger — advances to seen_1. Cond: is_arp_probe()"
-    },
-    {
-      "idx": 3,
-      "role": "expected",
-      "label": "Phase 2 (seen_1) progress trigger — advances to seen_2. Cond: is_arp_probe()"
-    },
-    {
-      "idx": 4,
-      "role": "expected",
-      "label": "Phase 3 (seen_2) pass trigger — transitions to pass. Cond: is_arp_probe()"
+      "label": "Step 2 (seen_2) pass trigger — transitions to pass. Cond: is_arp_probe()"
     }
   ]
 }

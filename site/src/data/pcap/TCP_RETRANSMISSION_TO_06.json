@@ -1,8 +1,8 @@
 {
   "case_id": "TCP_RETRANSMISSION_TO_06",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
-  "tester_mac": "6e:16:3b:ea:29:ea",
+  "captured_at": "2026-05-14T01:12:11Z",
+  "tester_mac": "5e:12:1c:9a:7e:0f",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
   "dut_ip": null,
@@ -13,7 +13,7 @@
       "ts_delta_us": 0,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
-      "dst_mac": "6e:16:3b:ea:29:ea",
+      "dst_mac": "5e:12:1c:9a:7e:0f",
       "src_ip": "172.16.0.1",
       "dst_ip": "172.16.0.2",
       "protocol": "UT/UDP",
@@ -39,11 +39,11 @@
     },
     {
       "idx": 1,
-      "ts_us": 195,
-      "ts_delta_us": 195,
+      "ts_us": 128,
+      "ts_delta_us": 128,
       "direction": "tester_to_dut",
-      "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "82:a1:e0:1c:4d:2c",
+      "src_mac": "5e:12:1c:9a:7e:0f",
+      "dst_mac": "26:a4:83:18:ea:9b",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "UT/UDP",
@@ -59,7 +59,7 @@
         "ut_status": 0,
         "ut_socket_id": 1,
         "checksum": 24227,
-        "ip_id": 35050,
+        "ip_id": 8587,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -72,28 +72,28 @@
     },
     {
       "idx": 2,
-      "ts_us": 307,
-      "ts_delta_us": 112,
+      "ts_us": 231,
+      "ts_delta_us": 103,
       "direction": "tester_to_dut",
-      "src_mac": "6e:16:3b:ea:29:ea",
-      "dst_mac": "82:a1:e0:1c:4d:2c",
+      "src_mac": "5e:12:1c:9a:7e:0f",
+      "dst_mac": "26:a4:83:18:ea:9b",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "TCP",
-      "summary": "49653 → 23609 [SYN] seq=1983312172 ack=0 win=64240",
+      "summary": "49653 → 23609 [SYN] seq=4172640580 ack=0 win=64240",
       "fields": {
         "src_port": 49653,
         "dst_port": 23609,
-        "seq": 1983312172,
+        "seq": 4172640580,
         "ack": 0,
         "flags": "SYN",
         "window": 64240,
-        "checksum": 13193,
+        "checksum": 29680,
         "urgent_pointer": 0,
         "data_offset": 10,
         "payload_len": 0,
         "mss": 1460,
-        "ip_id": 42211,
+        "ip_id": 2361,
         "ip_flags": 2,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -104,5 +104,30 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "deadline_exceeded",
+        "from_state": "evaluate_kernel_observations",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "src_ip": "0.0.0.0",
+          "dst_ip": "0.0.0.0",
+          "src_port": 0,
+          "dst_port": 0,
+          "seq_num": 0,
+          "ack_num": 0,
+          "flags": 0,
+          "window": 0,
+          "data_offset": 0,
+          "payload_len": 0
+        }
+      }
+    ]
+  }
 }

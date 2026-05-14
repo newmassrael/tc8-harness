@@ -1,7 +1,7 @@
 {
   "case_id": "IPV4_FRAGMENTS_04",
   "outcome": "pass",
-  "captured_at": "2026-05-13T14:19:21Z",
+  "captured_at": "2026-05-14T01:12:11Z",
   "tester_mac": "5e:45:c1:4c:94:86",
   "tester_ip": "172.16.0.2",
   "dut_mac": null,
@@ -36,8 +36,8 @@
     },
     {
       "idx": 1,
-      "ts_us": 2276709,
-      "ts_delta_us": 2276709,
+      "ts_us": 2295385,
+      "ts_delta_us": 2295385,
       "direction": "dut_to_tester",
       "src_mac": "00:00:00:00:00:00",
       "dst_mac": "5e:45:c1:4c:94:86",
@@ -61,11 +61,11 @@
     },
     {
       "idx": 2,
-      "ts_us": 2276767,
-      "ts_delta_us": 58,
+      "ts_us": 2295436,
+      "ts_delta_us": 51,
       "direction": "tester_to_dut",
       "src_mac": "5e:45:c1:4c:94:86",
-      "dst_mac": "22:f3:eb:0f:27:11",
+      "dst_mac": "9a:20:aa:b8:82:c9",
       "src_ip": "172.16.0.2",
       "dst_ip": "172.16.0.1",
       "protocol": "ICMPv4",
@@ -77,7 +77,7 @@
         "echo_seq": 22136,
         "echo_payload_first16": "1122334455667788",
         "echo_payload_len": 8,
-        "ip_id": 30645,
+        "ip_id": 59259,
         "ip_flags": 0,
         "ip_fragment_offset": 0,
         "ttl": 64,
@@ -88,5 +88,42 @@
         "ip_header_checksum_ok": true
       }
     }
-  ]
+  ],
+  "captured_trace": {
+    "schema_version": 1,
+    "final_state": "pass",
+    "steps": [
+      {
+        "step": 0,
+        "event": "deadline_exceeded",
+        "from_state": "listening_phase1",
+        "to_state": "listening_phase2",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "type": 0,
+          "code": 0,
+          "src_ip": "0.0.0.0",
+          "dst_ip": "0.0.0.0",
+          "payload_len": 0
+        }
+      },
+      {
+        "step": 1,
+        "event": "icmp_observed",
+        "from_state": "listening_phase2",
+        "to_state": "pass",
+        "pcap_frame_idx": null,
+        "captured_delta": {
+          "type": 0,
+          "code": 0,
+          "src_ip": "172.16.0.2",
+          "dst_ip": "172.16.0.1",
+          "echo_id": 4660,
+          "echo_seq": 22136,
+          "icmp_pointer": 18,
+          "payload_len": 8
+        }
+      }
+    ]
+  }
 }
