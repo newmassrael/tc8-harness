@@ -92,11 +92,9 @@ def lint_captured_trace_invariant() -> tuple[int, int]:
     which must block CI before the site walker labels timelines from
     drifting evidence.
 
-    Skips cases without a ``captured_trace`` (backward compat for the
-    pre-Phase-B pcaps still living in the pcap-data branch); those cases
-    fall through to the walker's cond-loop fallback path. Once every
-    case in pcap-data carries a trace, this lint can be flipped to
-    require ``captured_trace`` presence directly.
+    Every pcap json in pcap-data must carry ``captured_trace``; absence
+    is an error (the pre-Phase-B backward-compat grace expired once
+    pcap-refresh re-captured every case with a trace).
     """
     errors = 0
     warnings = 0
@@ -125,7 +123,14 @@ def lint_captured_trace_invariant() -> tuple[int, int]:
             continue
         trace = doc.get("captured_trace")
         if not isinstance(trace, dict):
-            continue  # pre-trace pcap, walker falls back to cond loop
+            case_id = pcap_path.stem
+            print(
+                f"  ERROR: {case_id}: captured_trace missing or non-dict — "
+                f"every pcap json must carry the harness transition trace",
+                file=sys.stderr,
+            )
+            errors += 1
+            continue
         final_state = trace.get("final_state") or ""
         outcome = doc.get("outcome") or ""
         bucket = _bucket(final_state)
