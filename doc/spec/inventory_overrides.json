@@ -24,7 +24,7 @@
     },
     "SOMEIPSRV_SD_BEHAVIOR_04": {
       "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/project_someipsrv_basic_coverage.md"
+      "linux_known_fail_ref": "memory/project_false_positive_remediation_round3.md"
     },
     "SOMEIP_ETS_117": {
       "linux_known_fail": true,
@@ -48,7 +48,7 @@
     },
     "TCP_UNACCEPTABLE_08": {
       "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_active_open_port_quad_collision.md"
+      "linux_known_fail_ref": "memory/reference_tcp_unacceptable_08_phase2_race.md"
     },
     "TCP_UNACCEPTABLE_10": {
       "linux_known_fail": true,
