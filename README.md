@@ -3,6 +3,8 @@ W3C SCXML-based conformance test harness for automotive Ethernet ECUs (OA TC8 La
 
 [![build-test](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/build-test.yml) [![smoke-test](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/smoke-test.yml) [![site](https://github.com/newmassrael/tc8-harness/actions/workflows/site.yml/badge.svg)](https://github.com/newmassrael/tc8-harness/actions/workflows/site.yml)
 
+**Languages**: [English](README.md) · [한국어](README.ko.md)
+
 **Case browser**: <https://newmassrael.github.io/tc8-harness/> — per-case page for all 543 active cases (description + test approach + verdicts + packet timeline + raw SCXML + source links), in English and Korean.
 
 ## Scope
@@ -23,26 +25,22 @@ active cases** at 100 % spec coverage.
 
 ## Architecture
 
-```
-                tester host (Linux)                        DUT
-  ┌──────────────────────────────────────────┐         ┌──────────┐
-  │  capture: libpcap (BPF in kernel)        │         │ vsomeip  │
-  │     │                                    │         │ ECU fw   │
-  │     ▼                                    │◀── eth ▶│          │
-  │  dissect: libtins + direct SOME/IP        │         └──────────┘
-  │     │                                    │
-  │     ▼                                    │
-  │  per-case TestCaseTraits<SM>             │
-  │     │  stimulus(Captured&, cfg, iface)   │
-  │     │  verdictFor(State) → pass/fail/…   │
-  │     ▼                                    │
-  │  W3C SCXML interpreter (embedded SCE)    │
-  │     • cpp:-prefix conds + donedata       │
-  │     • <sce:use template> reuse           │
-  │     ▼                                    │
-  │  upper-tester JSON-line over TCP ─────────┼────────▶│ tc8-dut
-  └──────────────────────────────────────────┘         │ firmware
-                                                       └──────────┘
+```mermaid
+flowchart LR
+  subgraph Tester["tester host (Linux)"]
+    direction TB
+    cap["capture<br/>libpcap (in-kernel BPF)"]
+    dis["dissect<br/>libtins + direct SOME/IP parser"]
+    traits["per-case TestCaseTraits&lt;SM&gt;<br/>stimulus(Captured&, cfg, iface)<br/>verdictFor(State) → pass/fail/…"]
+    sce["W3C SCXML interpreter (embedded SCE)<br/>cpp:-prefix conds + donedata<br/>&lt;sce:use template&gt; reuse"]
+    ut["upper-tester<br/>binary opcodes over UDP:30600"]
+    cap --> dis --> traits --> sce --> ut
+  end
+  subgraph DUT["DUT (tc8-dut firmware)"]
+    fw["vsomeip ECU fw"]
+  end
+  cap <-->|ethernet| fw
+  ut -->|UT RPC| fw
 ```
 
 Each TC8 case lives at `tests/<case_id>/<case_id>.scxml` plus a
@@ -149,6 +147,443 @@ reference for patch shape, ABI-preservation rules, and upstream-bug
 narration. Keep patches surgical: gate by `MT_REQUEST` rather than
 broaden whitelists, leave `MT_RESPONSE` validation intact, attach a
 `Refs:` line to a tracking issue.
+
+## Testing on a single computer (Linux netns)
+
+The harness's primary development environment is a Linux network-namespace
+sandbox on a single host. Two netns (`tc8-tester`, `tc8-dut`) are connected
+by a veth pair, and the in-tree `tc8-dut` reference firmware runs in the
+DUT namespace. No second machine, no physical ECU. This is the exact
+topology CI uses on the self-hosted `[netns]` runner.
+
+### Why netns?
+
+A netns gives every TC8 case a private L2 broadcast domain with full
+`CAP_NET_ADMIN`/`CAP_NET_RAW` — i.e. the harness can craft raw ARP /
+IPv4 / TCP frames, observe wire-level retransmits, and toggle per-iface
+sysctls without affecting the host. Veth pairs preserve real Ethernet
+framing end-to-end (so libpcap captures and BPF filters behave the same
+as on a real NIC), with the single caveat that veth defaults to
+`CHECKSUM_PARTIAL` on transmit (`setup-netns.sh` disables that — see the
+TX-offload section in that script for why).
+
+### Topology
+
+Both namespaces live inside the same Linux host (kernel + libpcap + libtins):
+
+```mermaid
+flowchart LR
+  subgraph TesterNS["netns: tc8-tester"]
+    harness["tc8-harness test<br/>--case &lt;ID&gt; -i veth-tester"]
+    vt["veth-tester<br/>172.16.0.1/24<br/>(alias 172.16.0.4/24)"]
+    harness --> vt
+  end
+  subgraph DutNS["netns: tc8-dut"]
+    vd["veth-dut<br/>172.16.0.2/24<br/>(alias 172.16.0.5/24)"]
+    dut["tc8-dut (vsomeip + UT)<br/>UT UDP:30600<br/>SOME/IP 30490..30510"]
+    vd --> dut
+  end
+  vt <-->|veth pair| vd
+```
+
+Optional 2nd veth pair for `USAGE_01` (Topology 2, `SECOND_VETH=1`):
+`172.17.0.1/24 (veth-tester2)` ⇄ `172.17.0.2/24 (veth-dut2)`.
+
+### Quick smoke test (recommended first run)
+
+After `cmake --build build -j4` finishes and `setup-vsomeip.sh` has
+installed the patched vsomeip:
+
+```sh
+sudo ./dut/env/smoke-test.sh                       # 1 worker, default case (SOMEIPSRV_FORMAT_01)
+sudo ./dut/env/smoke-test.sh ARP_03 ARP_05         # one or more specific cases
+sudo ./dut/env/smoke-test.sh --workers 4           # parallel positive suite
+sudo ./dut/env/smoke-test.sh --workers 4 --negative
+                                                   # negative-assertion suite
+```
+
+`smoke-test.sh` does everything end-to-end:
+
+1. provisions `--workers N` parallel netns pairs (`tc8-tester-$W` /
+   `tc8-dut-$W`) with their own veth pair, vsomeip scratch dir, and
+   symlinked binary paths under `/tmp/tc8-vsomeip.$$/$W/`;
+2. launches one `tc8-dut` per worker in its DUT namespace with the
+   correct `VSOMEIP_CONFIGURATION` / `VSOMEIP_BASE_PATH` / `COMMONAPI_CONFIG`
+   environment;
+3. launches `tc8-harness test --case <id> -i veth-tester-$W` in the
+   matching tester namespace, with `--expect KEY=VALUE` tokens that
+   describe the DUT's vsomeip identity (service/instance IDs, ports,
+   MACs);
+4. distributes the case list round-robin across workers;
+5. enforces a per-case timeout, collects logs into the worker scratch
+   dir (or `--log-dir DIR` if provided), prints a green/red summary,
+   and exits non-zero on any failure.
+
+Cap workers at the host's core count and remember the [project rule
+against `-j8`+ build parallelism](#ci) also applies here: `--workers 4`
+is the CI-validated upper bound.
+
+### Manual workflow (step-by-step)
+
+If you want to inspect what `smoke-test.sh` automates, drive the same
+flow by hand:
+
+```sh
+# 1. Build (one-time per code change).
+cmake --build build -j4
+
+# 2. Provision the two netns + veth pair. Idempotent — tears down prior state.
+sudo ./dut/env/setup-netns.sh                  # single pair
+sudo SECOND_VETH=1 ./dut/env/setup-netns.sh    # add 2nd veth pair (USAGE_01)
+
+# 3. Run tc8-dut inside the DUT namespace (foreground).
+sudo ip netns exec tc8-dut env \
+    COMMONAPI_CONFIG=$(pwd)/dut/dut_service/commonapi.ini \
+    VSOMEIP_CONFIGURATION=$(pwd)/dut/dut_service/vsomeip.json \
+    VSOMEIP_APPLICATION_NAME=tc8-dut \
+    ./build/dut/dut_service/tc8-dut
+
+# 4. From another shell, run a case inside the tester namespace.
+sudo ip netns exec tc8-tester ./build/tc8-harness test \
+    --case SOMEIPSRV_FORMAT_01 -i veth-tester -t 30 \
+    --expect service_id=0xF4E7 --expect instance_id=0x0001 \
+    --expect major_version=1   --expect ttl=3 \
+    --expect minor_version=0   --expect eventgroup_id=0x0001 \
+    --expect dut_iface_ip=172.16.0.2 \
+    --expect udp_port=30502 --expect tcp_port=30501 \
+    --expect sd_multicast_ip=224.244.224.245
+
+# 5. Tear down when done.
+sudo ./dut/env/cleanup.sh
+```
+
+The `--expect` set above mirrors `TC8_DUT_EXPECT` in `smoke-test.sh` and
+matches `dut/dut_service/vsomeip.json` + `ets.fidl`. If you swap the
+DUT for a different vsomeip configuration, update both sides together.
+
+### Listing cases and case-name conventions
+
+```sh
+./build/tc8-harness test --list-cases                       # all registered cases, grouped
+./build/tc8-harness test --list-cases --include-deprecated  # also show deprecated IDs
+./build/tc8-harness test --list-cases --vs-spec             # coverage gap vs doc/spec/case_inventory.json
+./build/tc8-harness test --list-cases --vs-spec --strict    # exit non-zero on any gap
+./build/tc8-harness test --list-cases --exclude-deferred --exclude-linux-known-fail
+                                                            # exclude IDs marked
+                                                            # expected:false or
+                                                            # linux_known_fail:true
+                                                            # in doc/spec/inventory_overrides.json
+```
+
+Case IDs follow `<CATEGORY>_<NAME>_<NN>` (e.g. `ARP_03`, `SOMEIPSRV_FORMAT_14`,
+`TCP_BASICS_11`). The full corpus is 543 active cases at 100% spec coverage.
+
+### Negative-test mode (`--negative`)
+
+`smoke-test.sh --negative` runs a curated set of cases with a
+deliberately-wrong `--expect` token (e.g. `arp.dut_iface_ip` flipped to a
+non-DUT address) and confirms the SCXML lands on the matching
+`fail:<reason>` final state. This guards against the regression class
+"`expected.*` cond became trivially-true so any DUT behaviour passes."
+A case must already be green in positive mode before its negative row is
+added (`run_negative_case` rows in `smoke-test.sh`).
+
+### Parallel workers and isolation
+
+`--workers N` is the only knob you should ever need. Internally:
+
+| Resource                | Scope                                | Why per-worker?                                                  |
+|-------------------------|--------------------------------------|------------------------------------------------------------------|
+| netns pair              | `tc8-tester-$W` / `tc8-dut-$W`       | independent L2 broadcast domains, ARP caches, sysctl state       |
+| veth pair               | `veth-tester-$W` / `veth-dut-$W`     | one wire per worker, no cross-worker pcap leakage                |
+| vsomeip scratch         | `/tmp/tc8-vsomeip.$$/$W/`            | UDS sockets + routing socket cannot share between workers        |
+| symlinked binary        | `…/$W/{tc8-dut,tc8-harness}`         | `/proc/PID/cmdline`-scoped `pkill` for atomic per-worker cleanup |
+| `$WORK_ROOT`            | `/tmp/tc8-workers.$$/$W/`            | per-case log files, captured DUT MAC, junit-record fragments     |
+
+PID-scoping (`.$$` suffix) lets a CI runner and a local dev run share
+the same host without colliding state. Stale-scope GC at startup
+removes leftover dirs whose owner shell is gone.
+
+### Capturing pcap for a case
+
+Two ways:
+
+- One case at a time: `tc8-harness test --case <ID> --pcap-dump /tmp/case.pcap`
+  writes every captured frame (post-BPF, so just the per-case scope) to
+  the path. Useful for diffing positive vs negative runs.
+- Whole smoke run: `sudo ./dut/env/smoke-test.sh --log-dir /tmp/logs ...`
+  preserves the per-worker `tc8-{harness,dut}.log` files; the harness's
+  own `--pcap-dump` flag isn't on by default for smoke, but you can pass
+  extra args to a single case via positional arg syntax:
+  `./dut/env/smoke-test.sh ARP_03 -- --pcap-dump /tmp/arp_03.pcap` (the
+  `--` separator forwards args to the harness invocation).
+
+### JUnit XML for CI consumers
+
+```sh
+sudo ./dut/env/smoke-test.sh --workers 4 --junit-xml /tmp/tc8-smoke.xml
+```
+
+Emits a Surefire-shape `<testsuites><testsuite><testcase>` document that
+`dorny/test-reporter` (and GitLab / Jenkins surefire collectors) consume
+directly. Per-worker fragments are aggregated post-`wait`; a failure in
+worker N does not prevent worker M's records from landing in the XML.
+
+### Common gotchas
+
+| Symptom                                                                   | Cause                                                                                                    | Fix                                                                                                      |
+|---------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `tester→dut ping failed` during `setup-netns.sh`                          | Stale veth from a prior crash                                                                            | Re-run `cleanup.sh`; if that fails `sudo ip link del veth-tester` then retry                             |
+| First case after a fresh netns hangs ~5 s                                 | Linux STALE→DELAY→PROBE on the DUT neigh entry                                                           | `setup-netns.sh` already widens `delay_first_probe_time=30`; no action needed                            |
+| `--workers 4` smoke flakes on TCP retransmit timing cases                  | pcap-delivery jitter under load                                                                          | Those cases (RETRANSMISSION_TO_03..06) migrated to kernel-side `OpQueryTcpInfo` — not jitter-sensitive   |
+| vsomeip clients can't find each other after a kernel update               | UDS / shm leftover in `/tmp/tc8-vsomeip.$$`                                                              | The scratch is PID-scoped; rerun smoke-test.sh, the next invocation gets a fresh PID dir                 |
+| `quilt push -a` returns 2                                                  | `.pc/` left over from prior submodule sync                                                               | `setup-vsomeip.sh` nukes `.pc/` first; if you ran quilt by hand, `rm -rf third_party/vsomeip/.pc` and retry |
+| `--negative` row passes (i.e. doesn't fail) when expected to fail         | `expected.*` cond became trivially-true                                                                  | This is exactly the regression class `--negative` exists to catch — fix the SCXML cond                   |
+
+## Testing against a real target ECU
+
+The harness was designed so the SCXML cases describe *wire behaviour*,
+not host-or-firmware behaviour. Pointing it at a real ECU is therefore a
+configuration change, not a code change: replace `tc8-dut` with your
+target firmware, replace the veth pair with a physical NIC, and supply
+DUT-specific `--expect` tokens.
+
+### Topology
+
+```mermaid
+flowchart LR
+  subgraph Tester["tester host (Linux PC)"]
+    direction TB
+    harness["build/tc8-harness test<br/>--case &lt;ID&gt; -i eth1 --expect …"]
+    nic["eth1: 172.16.0.1/24<br/>(or your topology IPs)"]
+    harness --> nic
+  end
+  subgraph DUT["DUT (target ECU)"]
+    direction TB
+    fw["vendor firmware<br/>OA TC8 v3.0 stack<br/>SOME/IP service"]
+    ut_opt["Upper Tester (optional)<br/>UDP:30600"]
+    fw --- ut_opt
+  end
+  nic <-->|ethernet cable| fw
+```
+
+The tester runs the *exact same* `tc8-harness` binary as in the netns
+case. The only conceptual swap is the DUT: instead of `tc8-dut`
+firmware running inside `tc8-dut` netns, the DUT is a separate device on
+the wire.
+
+### Tester host setup
+
+Run as root (or under a user with `CAP_NET_ADMIN` + `CAP_NET_RAW`) on
+the tester host.
+
+```sh
+# 1. Pick a dedicated tester NIC. The harness opens it in libpcap
+#    promiscuous mode + BPF filters, so co-existing traffic is fine,
+#    but isolated wiring keeps the verdict deterministic.
+TESTER_IF=eth1
+
+# 2. Configure tester IP. Match the subnet you assigned to the DUT.
+sudo ip link set "$TESTER_IF" up
+sudo ip addr add 172.16.0.1/24 dev "$TESTER_IF"
+
+# 3. Add the SOME/IP-SD multicast route (vsomeip default group).
+sudo ip route add 224.0.0.0/4 dev "$TESTER_IF"
+
+# 4. Disable TX checksum offload — the wire must carry the final L4
+#    checksum so TCP_CHECKSUM_03 and friends can assert it.
+sudo ethtool -K "$TESTER_IF" tx off
+
+# 5. Suppress kernel-side unicast NUD_PROBE (so the tester kernel
+#    doesn't ARP-probe the DUT during absence-windows of ARP §4.2.4.2
+#    cases — they would race the SCXML guard).
+sudo sysctl -w "net.ipv4.neigh.${TESTER_IF}.ucast_solicit=0"
+
+# 6. Pin the DUT MAC permanently on the tester. Replace <DUT_MAC>.
+#    This prevents the tester kernel from racing the harness's
+#    "DUT emits own Request" pass-guards (ARP_07..15, Group C).
+sudo ip neigh replace 172.16.0.2 lladdr <DUT_MAC> nud permanent dev "$TESTER_IF"
+```
+
+Steps 4-6 mirror the netns-side knobs `setup-netns.sh` already applies
+inside the `tc8-tester` namespace. They are necessary for green ARP /
+TCP runs and are *not* spec violations: the spec assertions concern DUT
+behaviour, and the tester-side knobs only keep the tester kernel from
+generating its own conflicting traffic.
+
+### DUT-side prerequisites
+
+For each TC8 category, the DUT must:
+
+| Category                                  | Required DUT capabilities                                                                            |
+|-------------------------------------------|------------------------------------------------------------------------------------------------------|
+| §4.2 ARP                                  | RFC 826 ARP responder; configurable static IP                                                        |
+| §4.3 ICMPv4                               | RFC 792 echo / unreachable / parameter-problem / timestamp; correct PACKET_HOST gating               |
+| §4.4 IPv4                                 | RFC 791 forwarding/options/reassembly per spec; UT for ADDRESSING_01/02 + FRAGMENTS_05               |
+| §4.5 IPv4 Link-Local                      | RFC 3927 PROBE / ANNOUNCE / CONFLICT; UT for §4.5 cases (`OpStartLLAutoconf`, `OpAbortLLAutoconf`)   |
+| §4.6 UDP                                  | RFC 768; UT for caller-specified Source/Destination IP (UI_07/_08) + receive-port count (UI_01)      |
+| §4.7 DHCPv4 client                        | RFC 2131 INIT → SELECTING → REQUESTING → BOUND → RENEWING → REBINDING; UT for `OpStartDhcpClient`    |
+| §4.8 TCP                                  | RFC 793 + 6298 + 1122; UT for open / close / send / recv / abort / TCP_INFO (`OpOpenTcpSocket`…)     |
+| §5.1.5 SOMEIPSRV (SD + format)            | vsomeip-compatible SOME/IP-SD; OfferService, FindService, SubscribeEventgroup, IPv4 Endpoint Options |
+| §5.1.6 SOMEIP_ETS                         | a SOME/IP service exposing the methods enumerated in `dut/ets/`                                       |
+
+Wire-only categories (ARP / ICMPv4 / IPv4 / TCP basics / SOMEIPSRV /
+SOMEIP_ETS) do not require any Upper Tester support. Plug in a
+conforming DUT and run the case — verdict is derived from observed
+frames alone.
+
+### Which cases require the Upper Tester?
+
+The Upper Tester (UT) is a tester-issued RPC channel over UDP:30600.
+TC8 §4.8.5 mandates "a separate UDP port" and leaves the wire format
+unspecified; this harness defines a 20-opcode binary protocol in
+`include/tc8/upper_tester_protocol.h`. If your target ECU does not
+implement the UT, you can still run most of the corpus.
+
+| TC8 sub-area                       | UT needed? | Opcodes used                                          | What to do if your DUT doesn't implement UT                                                          |
+|------------------------------------|------------|-------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| §4.2 ARP                            | No         | —                                                     | nothing — runs against any RFC 826 responder                                                         |
+| §4.3 ICMPv4                         | No         | —                                                     | nothing                                                                                              |
+| §4.4 IPv4 (HEADER / FRAGMENTS most) | Partial    | `OpTriggerSendUdp`, `OpGetReceivedUdp` (for ADDRESSING_01/02 + FRAGMENTS_05) | implement those two opcodes; ~25 / 30 cases run UT-free                                              |
+| §4.5 IPv4 Link-Local                | Yes        | `OpStartLLAutoconf`, `OpStartLLAutoconfBuggy`, `OpQueryLLAddress`, `OpAbortLLAutoconf` | implement opcodes 0x0C…0x0F, or `--exclude-linux-known-fail`-style skip the cluster                  |
+| §4.6 UDP                            | Mostly No  | `OpCreateUdpReceivePorts` (UI_01), `OpTriggerSendUdp` (UI_07/_08) | implement 0x02 / 0x14 for those three rows; rest is wire-only                                        |
+| §4.7 DHCPv4 client                  | Yes        | `OpStartDhcpClient`, `OpQueryDhcpLease`, `OpAbortDhcpClient` | implement opcodes 0x10…0x12 driving your DHCP client                                                 |
+| §4.8 TCP basics / closing / RTO     | Yes        | `OpOpenTcpSocket`, `OpCloseTcpSocket`, `OpQueryTcpEstablished`, `OpSendTcpData`, `OpReceiveTcpData`, `OpShutdownTcpSocketWr`, `OpAbortTcpSocket`, `OpSendTcpDataPattern`, `OpReceiveTcpDataOob`, `OpQueryTcpInfo` | implement opcodes 0x03…0x0B + 0x13                                                                   |
+| §5.1.5 SOMEIPSRV                    | No         | —                                                     | runs against any vsomeip-compatible service                                                          |
+| §5.1.6 SOMEIP_ETS                   | No         | —                                                     | runs against a service exposing the ETS method set; no UT round-trips                                |
+
+Read `include/tc8/upper_tester_protocol.h` for the exact wire-format of
+each opcode (every opcode comment cites the TC8 § that drives it).
+`dut/dut_service/upper_tester_server.cpp` is the reference Linux
+implementation — port the dispatch loop and per-opcode bodies onto your
+ECU's RTOS / lwIP / etc. The transport is UDP unicast to the DUT IP on
+port 30600; no SOME/IP framing.
+
+### Skipping case clusters you can't run
+
+`doc/spec/inventory_overrides.json` carries two axes:
+
+- `expected: false` — case is deferred (out of scope this release, future
+  session, or unimplementable on Linux DUT).
+- `linux_known_fail: true` — case fails specifically because of a Linux
+  kernel deviation from RFC behaviour. A strict-RFC DUT will pass.
+
+`--list-cases --exclude-linux-known-fail` drops the Linux-known-fail set
+from the listing — useful when you point the harness at a non-Linux
+target and want to see only the cases your DUT should be able to pass.
+Pair with `--exclude-deferred` for the full CI-smoke skip list.
+
+### Running a single case against a real DUT
+
+```sh
+sudo ./build/tc8-harness test \
+    --case SOMEIPSRV_FORMAT_01 -i eth1 -t 30 \
+    --expect service_id=0xABCD \
+    --expect instance_id=0x0010 \
+    --expect major_version=2 \
+    --expect ttl=5 \
+    --expect minor_version=0 \
+    --expect eventgroup_id=0x0001 \
+    --expect dut_iface_ip=172.16.0.2 \
+    --expect udp_port=30502 \
+    --expect tcp_port=30501 \
+    --expect sd_multicast_ip=224.244.224.245 \
+    --pcap-dump /tmp/dut_format_01.pcap
+```
+
+Mandatory flags:
+
+- `-i / --interface` — tester NIC name.
+- `--case / -c` — exactly one case ID.
+
+Mandatory `--expect` keys depend on the case. Default `--expect`
+values come from `dut/dut_service/vsomeip.json` and `dut/ets/ets.fidl`
+(see `TC8_DUT_EXPECT` in `smoke-test.sh`). For a third-party DUT, pull
+the values from your own SD configuration:
+
+| `--expect KEY=VALUE`             | Pulled from                                                                                  |
+|----------------------------------|----------------------------------------------------------------------------------------------|
+| `service_id`                     | OfferService Service-ID field                                                                |
+| `instance_id`                    | OfferService Instance-ID field                                                               |
+| `major_version` / `minor_version`| OfferService Major/Minor                                                                     |
+| `ttl`                            | OfferService Entry TTL                                                                       |
+| `eventgroup_id`                  | SubscribeEventgroup Eventgroup-ID                                                            |
+| `dut_iface_ip`                   | DUT IPv4 Endpoint Option address                                                             |
+| `udp_port` / `tcp_port`          | DUT IPv4 Endpoint Option UDP / TCP port                                                      |
+| `sd_multicast_ip`                | SD multicast group the DUT replies to FindService on (vsomeip `service-discovery.multicast`) |
+| `mcast_ipv4` / `mcast_port`      | Multicast eventgroup option address / port (only used by OPTIONS_11/14)                      |
+| `arp.dut_iface_ip` / `…_mac` / `arp.tester_ip` / `arp.tester_mac` | ARP §4.2 verdict literals (see `smoke-test.sh` ARP_* groups)              |
+
+Other flags worth knowing:
+
+- `--stimulus-wait 1500 --stimulus-retry 1000 --stimulus-emits 2` — boot
+  sequence pacing. tc8-dut's vsomeip bootstrap is ~1 s; widen these if
+  your DUT's SD `initial_delay` is longer (e.g. AUTOSAR PDU stacks
+  sometimes hold off >2 s).
+- `-t / --timeout` — wall-clock cap per case (defaults to 30 s; raise
+  for cases with deliberate ~60 s wall behaviour like TIME-WAIT exits).
+- `--interface-secondary veth-tester2` — Topology 2 second interface
+  (only `USAGE_01` needs this).
+
+### Live monitor mode
+
+```sh
+sudo ./build/tc8-harness live -i eth1
+```
+
+Opens the NIC in pcap-promiscuous + applies the default SOME/IP BPF
+filter (`bpf::someip()`). Useful for sanity-checking the wire before a
+case run — you should see OfferService notifications cycling at the
+DUT's SD `cyclic_offer_delay`. `-f` overrides the BPF if you want to
+narrow further. This is observation only — no SCXML, no verdict.
+
+### Replaying an offline pcap
+
+```sh
+./build/tc8-harness replay /tmp/captured.pcap
+```
+
+Feeds an existing pcap through the same dissection / dispatch pipeline.
+Useful for triaging a failing case offline: capture once with
+`--pcap-dump`, then replay against modified SCXML guards without
+re-stimulating the DUT. No `--case` flag — replay runs the live-capture
+shape (dissect + console log), not a test case verdict.
+
+### Building a one-off DUT image
+
+The in-tree `tc8-dut` is the reference Linux firmware. CMake builds it
+unconditionally when you build the harness:
+
+```sh
+ls build/dut/dut_service/tc8-dut    # the firmware binary
+```
+
+For cross-compiling to an embedded target, point CMake at your toolchain
+file as usual. `tc8-dut` itself depends on vsomeip, CommonAPI, and
+Boost — these need to be built for the target first.
+
+### Quick smoke against a real DUT
+
+If your DUT only needs the wire-only category (most ARP, ICMPv4, IPv4,
+SOMEIPSRV cases), the fastest verification path is:
+
+```sh
+# 1. List cases that DON'T require UT or Linux-DUT compromises.
+./build/tc8-harness test --list-cases \
+    --exclude-deferred --exclude-linux-known-fail \
+    > /tmp/runnable.txt
+
+# 2. Run each case sequentially. (Adapt to your iface / --expect set.)
+while read CASE_ID; do
+    sudo ./build/tc8-harness test --case "$CASE_ID" -i eth1 -t 30 \
+        --expect service_id=0xABCD --expect …
+done < /tmp/runnable.txt
+```
+
+For DUTs that implement the UT, the same `smoke-test.sh` can be adapted
+— skip its `setup-netns.sh` invocation, swap the per-worker veth name
+for your physical NIC, and remove the `ip netns exec` wrappers. The
+shape is otherwise identical.
 
 ## CI
 
