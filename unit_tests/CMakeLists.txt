@@ -18,21 +18,21 @@ FetchContent_MakeAvailable(googletest)
 # reused across every test executable so each one links the same
 # implementation the main binary does.
 add_library(tc8_harness_testable STATIC
-    ${CMAKE_SOURCE_DIR}/src/capture/bpf_filter.cpp
-    ${CMAKE_SOURCE_DIR}/src/cli/expect_parser.cpp
-    ${CMAKE_SOURCE_DIR}/src/sce_integration/case_registry.cpp
-    ${CMAKE_SOURCE_DIR}/src/stimulus/arp_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/stimulus/someip_sd_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
-    ${CMAKE_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
-    ${CMAKE_SOURCE_DIR}/src/wire/ip_checksum.cpp
+    ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
+    ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
+    ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/someip_sd_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
+    ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.cpp
 )
 target_include_directories(tc8_harness_testable PUBLIC
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
 )
 tc8_enable_strict_warnings(tc8_harness_testable)
 
@@ -44,8 +44,8 @@ function(tc8_add_unit_test name)
         GTest::gtest_main
     )
     target_include_directories(${name} PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/include
     )
     add_test(NAME ${name} COMMAND ${name})
 endfunction()

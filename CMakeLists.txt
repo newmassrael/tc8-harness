@@ -185,10 +185,20 @@ add_executable(tc8-harness
 # Replacement happens before codegen, so exactly one state machine per case
 # id reaches the link — the CaseRegistry duplicate-id abort stays a
 # backstop, never the mechanism.
-set(TC8_EXTRA_CASE_DIRS "" CACHE STRING
-    "Directories containing additional out-of-tree case subdirectories")
-set(TC8_CASE_OVERRIDE_DIRS "" CACHE STRING
-    "Directories whose case subdirectories replace in-tree tests/<id>/")
+# Guarded cache declarations: under CMP0126 OLD (cmake_minimum_required
+# 3.16) an unguarded `set(... CACHE ...)` erases a same-name normal
+# variable inherited from a consumer superproject's scope — silently
+# dropping the consumer's plain `set(TC8_EXTRA_CASE_DIRS ...)`. The
+# guard keeps both spellings working: -D cache entries and plain set()
+# before add_subdirectory/FetchContent_MakeAvailable.
+if(NOT DEFINED TC8_EXTRA_CASE_DIRS)
+    set(TC8_EXTRA_CASE_DIRS "" CACHE STRING
+        "Directories containing additional out-of-tree case subdirectories")
+endif()
+if(NOT DEFINED TC8_CASE_OVERRIDE_DIRS)
+    set(TC8_CASE_OVERRIDE_DIRS "" CACHE STRING
+        "Directories whose case subdirectories replace in-tree tests/<id>/")
+endif()
 
 set(TC8_CASE_STUBS_DIR ${CMAKE_CURRENT_BINARY_DIR}/gen/cases_stubs)
 file(MAKE_DIRECTORY ${TC8_CASE_STUBS_DIR})
@@ -196,8 +206,10 @@ set(TC8_CASE_STUBS)
 
 # Registers one case directory: SCXML codegen + traits-header resolution +
 # registration-stub TU. Appends the stub to TC8_CASE_STUBS in the caller's
-# scope.
-function(tc8_add_case case_dir)
+# scope. `origin` is "in-tree", "override", or "extra" — out-of-tree
+# origins are logged per case (the in-tree bulk is already covered by the
+# per-machine SCE codegen lines).
+function(tc8_add_case case_dir origin)
     get_filename_component(case_id ${case_dir} NAME)
 
     sce_add_state_machines_from_dir(
@@ -205,15 +217,23 @@ function(tc8_add_case case_dir)
         SCXML_DIR ${case_dir})
 
     set(case_header ${case_dir}/${case_id}.h)
+    set(traits_kind "case-local")
     if(NOT EXISTS ${case_header})
         set(case_header
             ${CMAKE_CURRENT_SOURCE_DIR}/src/sce_integration/cases/${case_id}.h)
+        set(traits_kind "in-tree")
     endif()
     if(NOT EXISTS ${case_header})
         message(FATAL_ERROR
-            "case '${case_id}' (${case_dir}): no traits header at "
+            "TC8: case '${case_id}' (${case_dir}): no traits header at "
             "${case_dir}/${case_id}.h or "
             "src/sce_integration/cases/${case_id}.h")
+    endif()
+
+    if(NOT origin STREQUAL "in-tree")
+        message(STATUS
+            "TC8: ${origin} case '${case_id}' collected from ${case_dir} "
+            "(traits: ${traits_kind})")
     endif()
 
     set(stub_path    ${TC8_CASE_STUBS_DIR}/${case_id}_register.cpp)
@@ -234,9 +254,28 @@ function(tc8_add_case case_dir)
     set(TC8_CASE_STUBS ${TC8_CASE_STUBS} PARENT_SCOPE)
 endfunction()
 
+# Shared sanity checks for an out-of-tree injection root: a mistyped path
+# or a flat .scxml layout would otherwise inject nothing, silently.
+function(tc8_check_injection_root root_dir var_name)
+    if(NOT IS_DIRECTORY ${root_dir})
+        message(FATAL_ERROR
+            "${var_name}: '${root_dir}' is not a directory — check the "
+            "configured path")
+    endif()
+    file(GLOB _stray_scxml ${root_dir}/*.scxml)
+    if(_stray_scxml)
+        message(FATAL_ERROR
+            "${var_name}: found .scxml file(s) directly under "
+            "'${root_dir}' — cases must live in <root>/<case_id>/ "
+            "subdirectories: ${_stray_scxml}")
+    endif()
+endfunction()
+
 # Pass 1 — collect the override map: case id → replacement dir.
 set(_tc8_override_ids "")
 foreach(override_root ${TC8_CASE_OVERRIDE_DIRS})
+    tc8_check_injection_root(${override_root} TC8_CASE_OVERRIDE_DIRS)
+    set(_tc8_root_hits 0)
     file(GLOB _tc8_override_case_dirs LIST_DIRECTORIES true CONFIGURE_DEPENDS
          ${override_root}/*)
     foreach(case_dir ${_tc8_override_case_dirs})
@@ -245,6 +284,9 @@ foreach(override_root ${TC8_CASE_OVERRIDE_DIRS})
         endif()
         get_filename_component(case_id ${case_dir} NAME)
         if(case_id MATCHES "^_")
+            message(STATUS
+                "TC8: skipping auxiliary directory '${case_dir}' "
+                "(leading underscore)")
             continue()
         endif()
         if(NOT IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/${case_id})
@@ -260,7 +302,13 @@ foreach(override_root ${TC8_CASE_OVERRIDE_DIRS})
         endif()
         list(APPEND _tc8_override_ids ${case_id})
         set(_tc8_override_dir_${case_id} ${case_dir})
+        math(EXPR _tc8_root_hits "${_tc8_root_hits} + 1")
     endforeach()
+    if(_tc8_root_hits EQUAL 0)
+        message(WARNING
+            "TC8_CASE_OVERRIDE_DIRS: '${override_root}' contains no case "
+            "subdirectories — nothing overridden from this root")
+    endif()
 endforeach()
 
 # Pass 2 — in-tree cases; an overridden id is collected from its
@@ -268,6 +316,8 @@ endforeach()
 # tests/_templates/) are auxiliary — sce:template fragments, shared
 # fixtures — not TC8 cases. Skip them so they don't try to resolve a
 # non-existent traits header.
+set(_tc8_intree_count 0)
+set(_tc8_overrides_applied 0)
 file(GLOB TC8_CASE_DIRS LIST_DIRECTORIES true CONFIGURE_DEPENDS
      ${CMAKE_CURRENT_SOURCE_DIR}/tests/*)
 foreach(case_dir ${TC8_CASE_DIRS})
@@ -276,18 +326,37 @@ foreach(case_dir ${TC8_CASE_DIRS})
     endif()
     get_filename_component(case_id ${case_dir} NAME)
     if(case_id MATCHES "^_")
+        message(STATUS
+            "TC8: skipping auxiliary directory '${case_dir}' "
+            "(leading underscore)")
         continue()
     endif()
     if(case_id IN_LIST _tc8_override_ids)
-        tc8_add_case(${_tc8_override_dir_${case_id}})
+        tc8_add_case(${_tc8_override_dir_${case_id}} override)
+        math(EXPR _tc8_overrides_applied "${_tc8_overrides_applied} + 1")
     else()
-        tc8_add_case(${case_dir})
+        tc8_add_case(${case_dir} in-tree)
+        math(EXPR _tc8_intree_count "${_tc8_intree_count} + 1")
     endif()
 endforeach()
+
+# Every collected override id matched an in-tree case (pass 1 enforces
+# it), so the applied count can only diverge from the map size if the
+# in-tree glob and the existence check raced a concurrent tree edit —
+# fail loudly rather than ship a partially-applied override set.
+list(LENGTH _tc8_override_ids _tc8_overrides_requested)
+if(NOT _tc8_overrides_applied EQUAL _tc8_overrides_requested)
+    message(FATAL_ERROR
+        "TC8: ${_tc8_overrides_requested} override(s) requested but "
+        "${_tc8_overrides_applied} applied — tests/ changed during "
+        "configure; re-run cmake")
+endif()
 
 # Pass 3 — out-of-tree additional cases.
 set(_tc8_extra_ids "")
 foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
+    tc8_check_injection_root(${extra_root} TC8_EXTRA_CASE_DIRS)
+    set(_tc8_root_hits 0)
     file(GLOB _tc8_extra_case_dirs LIST_DIRECTORIES true CONFIGURE_DEPENDS
          ${extra_root}/*)
     foreach(case_dir ${_tc8_extra_case_dirs})
@@ -296,6 +365,9 @@ foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
         endif()
         get_filename_component(case_id ${case_dir} NAME)
         if(case_id MATCHES "^_")
+            message(STATUS
+                "TC8: skipping auxiliary directory '${case_dir}' "
+                "(leading underscore)")
             continue()
         endif()
         if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/${case_id})
@@ -310,9 +382,21 @@ foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
                 "than one directory")
         endif()
         list(APPEND _tc8_extra_ids ${case_id})
-        tc8_add_case(${case_dir})
+        tc8_add_case(${case_dir} extra)
+        math(EXPR _tc8_root_hits "${_tc8_root_hits} + 1")
     endforeach()
+    if(_tc8_root_hits EQUAL 0)
+        message(WARNING
+            "TC8_EXTRA_CASE_DIRS: '${extra_root}' contains no case "
+            "subdirectories — nothing added from this root")
+    endif()
 endforeach()
+
+list(LENGTH _tc8_extra_ids _tc8_extra_count)
+message(STATUS
+    "TC8: case collection complete — ${_tc8_intree_count} in-tree, "
+    "${_tc8_overrides_applied} overridden, ${_tc8_extra_count} "
+    "out-of-tree extra")
 target_sources(tc8-harness PRIVATE ${TC8_CASE_STUBS})
 target_include_directories(tc8-harness PRIVATE
     src

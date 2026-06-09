@@ -7,11 +7,11 @@ add_executable(tc8-dut
     ets_impl_2.cpp
     linklocal_autoconf.cpp
     upper_tester_server.cpp
-    ${CMAKE_SOURCE_DIR}/src/wire/ip_checksum.cpp
+    ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.cpp
 )
 target_include_directories(tc8-dut PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
 )
 target_link_options(tc8-dut PRIVATE -Wl,--no-as-needed)
 target_link_libraries(tc8-dut PRIVATE ets ets2 ets3)
