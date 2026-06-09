@@ -585,6 +585,66 @@ For DUTs that implement the UT, the same `smoke-test.sh` can be adapted
 for your physical NIC, and remove the `ip netns exec` wrappers. The
 shape is otherwise identical.
 
+## Embedding tc8-harness (out-of-tree OEM cases)
+
+tc8-harness can be consumed as a pinned dependency — FetchContent,
+git submodule, or vendored snapshot — without forking it. Two CMake
+cache variables inject cases from outside the source tree:
+
+| Variable | Semantics |
+|----------|-----------|
+| `TC8_EXTRA_CASE_DIRS` | `;`-separated directories, each containing **new** case subdirectories shaped like `tests/<case_id>/`. A name collision with an in-tree case is a configure error. |
+| `TC8_CASE_OVERRIDE_DIRS` | `;`-separated directories whose case subdirectories **replace** the in-tree `tests/<case_id>/` of the same name. A name that matches no in-tree case is a configure error. |
+
+Traits header resolution for every collected case tries
+`<case_dir>/<case_id>.h` first, then falls back to
+`src/sce_integration/cases/<case_id>.h`. So:
+
+- **SCXML-only override** — ship only `<id>.scxml`; the in-tree traits
+  (stimulus, BPF group, verdict strings) are reused. Use this to adjust
+  verdict conditions for a DUT whose behaviour deviates from the
+  in-tree assumptions.
+- **Full replacement / new case** — ship `<id>.scxml` + `<id>.h`. The
+  out-of-tree traits header sees the same include paths as in-tree
+  cases (`src/`, `include/`), so it can reuse the trait bases, stimulus
+  builders, and `TC8_REGISTER_CASE()` registrar.
+
+Replacement happens at collection time, before codegen — exactly one
+state machine per case id reaches the link, and the registry's
+duplicate-id abort remains a backstop rather than the mechanism.
+
+Consumer superproject sketch:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(tc8-harness
+    GIT_REPOSITORY <upstream-url>
+    GIT_TAG        <pinned-tag>)
+set(TC8_EXTRA_CASE_DIRS    ${CMAKE_CURRENT_SOURCE_DIR}/oem_cases)
+set(TC8_CASE_OVERRIDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/oem_overrides)
+FetchContent_MakeAvailable(tc8-harness)
+```
+
+```
+oem-conformance/            # OEM repository
+├── CMakeLists.txt          # the sketch above
+├── oem_cases/
+│   └── oemx_link_01/
+│       ├── oemx_link_01.scxml
+│       └── oemx_link_01.h  # traits — required for new cases
+└── oem_overrides/
+    └── arp_03/
+        └── arp_03.scxml    # SCXML-only — in-tree traits reused
+```
+
+Case ids must keep the `<CATEGORY>_<digits>` shape (compile-time
+asserted), with directory names lowercased — OEM categories such as
+`OEMX_LINK_01` group naturally in `--list-cases` output. Spec coverage
+accounting is unaffected: `--vs-spec` compares against
+`doc/spec/case_inventory.json`, so OEM extension cases simply do not
+participate, and OEM-specific skip/known-fail policy can ride the
+`--inventory-overrides` flag with an OEM-maintained JSON.
+
 ## CI
 
 Two workflows under `.github/workflows/` cover orthogonal slices of the test

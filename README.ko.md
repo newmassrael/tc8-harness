@@ -578,6 +578,65 @@ UT를 구현한 DUT라면 `smoke-test.sh`도 적응시킬 수 있습니다 —
 `setup-netns.sh` 호출을 제거하고, 워커별 veth 이름을 물리 NIC로 바꾸고,
 `ip netns exec` 래퍼를 제거하세요. 형태는 동일합니다.
 
+## tc8-harness 임베딩 (out-of-tree OEM 케이스)
+
+tc8-harness는 포크 없이 고정 버전 의존성으로 소비할 수 있습니다 —
+FetchContent, git 서브모듈, 벤더링 스냅샷 모두 가능합니다. 두 CMake
+캐시 변수가 소스 트리 밖에서 케이스를 주입합니다:
+
+| 변수 | 의미 |
+|------|------|
+| `TC8_EXTRA_CASE_DIRS` | `;` 구분 디렉토리 목록. 각 디렉토리는 `tests/<case_id>/` 형태의 **신규** 케이스 서브디렉토리를 담습니다. in-tree 케이스와 이름이 충돌하면 configure 에러입니다. |
+| `TC8_CASE_OVERRIDE_DIRS` | `;` 구분 디렉토리 목록. 케이스 서브디렉토리가 같은 이름의 in-tree `tests/<case_id>/`를 **대체**합니다. 일치하는 in-tree 케이스가 없으면 configure 에러입니다. |
+
+수집된 모든 케이스의 traits 헤더는 `<case_dir>/<case_id>.h`를 먼저
+찾고, 없으면 `src/sce_integration/cases/<case_id>.h`로 폴백합니다.
+따라서:
+
+- **SCXML-only 오버라이드** — `<id>.scxml`만 배치하면 in-tree traits
+  (stimulus, BPF 그룹, verdict 문자열)가 재사용됩니다. DUT 동작이
+  in-tree 가정과 다를 때 판정 조건만 조정하는 용도입니다.
+- **전체 교체 / 신규 케이스** — `<id>.scxml` + `<id>.h`를 함께
+  배치합니다. out-of-tree traits 헤더도 in-tree 케이스와 같은 include
+  경로(`src/`, `include/`)를 보므로 trait 베이스, stimulus 빌더,
+  `TC8_REGISTER_CASE()` 레지스트라를 그대로 재사용할 수 있습니다.
+
+대체는 codegen 이전의 수집 단계에서 일어나므로 케이스 id당 정확히
+하나의 상태머신만 링크에 도달합니다 — 레지스트리의 중복-id abort는
+메커니즘이 아니라 안전망으로 남습니다.
+
+소비자 슈퍼프로젝트 스케치:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(tc8-harness
+    GIT_REPOSITORY <upstream-url>
+    GIT_TAG        <pinned-tag>)
+set(TC8_EXTRA_CASE_DIRS    ${CMAKE_CURRENT_SOURCE_DIR}/oem_cases)
+set(TC8_CASE_OVERRIDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/oem_overrides)
+FetchContent_MakeAvailable(tc8-harness)
+```
+
+```
+oem-conformance/            # OEM 레포지토리
+├── CMakeLists.txt          # 위 스케치
+├── oem_cases/
+│   └── oemx_link_01/
+│       ├── oemx_link_01.scxml
+│       └── oemx_link_01.h  # traits — 신규 케이스는 필수
+└── oem_overrides/
+    └── arp_03/
+        └── arp_03.scxml    # SCXML-only — in-tree traits 재사용
+```
+
+케이스 id는 `<CATEGORY>_<digits>` 형식을 유지해야 하고(컴파일 타임
+assert) 디렉토리 이름은 소문자입니다 — `OEMX_LINK_01` 같은 OEM
+카테고리는 `--list-cases` 출력에서 자연스럽게 그룹핑됩니다. 스펙
+커버리지 집계는 영향받지 않습니다: `--vs-spec`은
+`doc/spec/case_inventory.json` 기준으로 비교하므로 OEM 확장 케이스는
+집계에 끼어들지 않고, OEM별 스킵/known-fail 정책은 OEM이 관리하는
+JSON을 `--inventory-overrides` 플래그로 태우면 됩니다.
+
 ## CI
 
 `.github/workflows/` 아래 두 워크플로가 테스트 매트릭스의 직교 슬라이스를
