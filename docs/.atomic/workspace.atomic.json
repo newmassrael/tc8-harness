@@ -6617,6 +6617,48 @@
         "Silent-FP cross-read (asymmetric-sister-cluster) deferred to Round 2"
       ]
     },
+    "Round 10": {
+      "decision_summary": "Ported the Upper Tester (OpPing + TCP 0x03..0x0B) to the lwIP fixture, opening the 116-case TCP corpus at 100 PASS / 12 platform_known_fail / 4 UT-gap, and hardened the external-topology execution model (per-case DUT respawn, tester socket reset, tc8-stimulus iptables chain).",
+      "changes_bullets": [
+        "dut/lwip_dut/{lwip_ut_server.{h,cpp},tc8_lwip_dut.cpp,lwipopts.h,tc8_lwip_hooks.h,CMakeLists.txt}: UT server on lwIP socket API; ABORT via tcp_abort under core lock (SO_LINGER{0} only aborts with unsent data); monotonic socket ids matching tc8-dut process semantics",
+        "lwipopts conformance alignment: RFC 6528 ISN addon + getrandom seed, RFC 7323 timestamps, RFC 6298 1 s initial RTO, TCP_MSL 30 s, ARP_QUEUEING, SO_REUSE, MEMP_NUM_NETCONN 16",
+        "lwip-tap-fixture.conf: per-case DUT respawn via topology_stop_dut override + per-case `ss -K dst DUT_IP` tester TIME-WAIT reset (host-kernel analog of single-pc per-case netns)",
+        "tcp_pilot_common.h + smoke-test.sh: suppression RAIIs install into dedicated tc8-stimulus chain, flushed at bring-up (leaked pure-ACK drop from a SIGKILLed run had silently broken all later TCP handshakes)",
+        "dut/lwip_dut/inventory_overrides.json: 79 entries (18 platform_known_fail + 61 expected:false)"
+      ],
+      "verification_bullets": [
+        "TCP sweep final fixture: 100/116 PASS; every FAIL ledgered with pcap/source evidence (simultaneous-open absent, SYN-SENT RST-vs-discard, no challenge ACK, delayed-ACK coalescing, persist-probe shape, exponential SYN backoff vs linear-conditioned window, urgent path absent)",
+        "Step-1 116-case re-verification on final fixture matches the Round 9 classification exactly (61 FAIL all ledgered; only documented vacuous ARP_03/_05 pass among overrides entries)",
+        "single-pc regression spot check 6/6 PASS (chain refactor consumers included); ctest 14/14; validate-code-refs exit 0",
+        "ut-ping preflight reports max_opcode 0x0B against the fixture"
+      ],
+      "carry_forward_bullets": [
+        "UT opcodes 0x01/0x02/0x14 (UDP) open 33 more cases; 0x13 OpQueryTcpInfo feasible via pcb fields (rto/nrtx/state) for 4 more",
+        "Harness matcher widening candidates: zero-window probe shape (PROBING_03..06), per-segment ACK windows (SEQUENCE_05/ACKNOWLEDGEMENT_03), linear-SYN-RTO observation windows (RETRANSMISSION_TO_05/06)",
+        "lwIP upstream candidates: sockets_priv.h extern-C declaration bug, socket-level abort API",
+        "Step 3 remaining: smoke-test.yml lwIP regression step with pinned lwIP SHA + actions/cache"
+      ],
+      "publishable_decision_summary": "Ported the Upper Tester (OpPing + TCP 0x03..0x0B) to the lwIP fixture, opening the 116-case TCP corpus at 100 PASS / 12 platform_known_fail / 4 UT-gap, and hardened the external-topology execution model (per-case DUT respawn, tester socket reset, tc8-stimulus iptables chain).",
+      "publishable_changes_bullets": [
+        "dut/lwip_dut/{lwip_ut_server.{h,cpp},tc8_lwip_dut.cpp,lwipopts.h,tc8_lwip_hooks.h,CMakeLists.txt}: UT server on lwIP socket API; ABORT via tcp_abort under core lock (SO_LINGER{0} only aborts with unsent data); monotonic socket ids matching tc8-dut process semantics",
+        "lwipopts conformance alignment: RFC 6528 ISN addon + getrandom seed, RFC 7323 timestamps, RFC 6298 1 s initial RTO, TCP_MSL 30 s, ARP_QUEUEING, SO_REUSE, MEMP_NUM_NETCONN 16",
+        "lwip-tap-fixture.conf: per-case DUT respawn via topology_stop_dut override + per-case `ss -K dst DUT_IP` tester TIME-WAIT reset (host-kernel analog of single-pc per-case netns)",
+        "tcp_pilot_common.h + smoke-test.sh: suppression RAIIs install into dedicated tc8-stimulus chain, flushed at bring-up (leaked pure-ACK drop from a SIGKILLed run had silently broken all later TCP handshakes)",
+        "dut/lwip_dut/inventory_overrides.json: 79 entries (18 platform_known_fail + 61 expected:false)"
+      ],
+      "publishable_verification_bullets": [
+        "TCP sweep final fixture: 100/116 PASS; every FAIL ledgered with pcap/source evidence (simultaneous-open absent, SYN-SENT RST-vs-discard, no challenge ACK, delayed-ACK coalescing, persist-probe shape, exponential SYN backoff vs linear-conditioned window, urgent path absent)",
+        "Step-1 116-case re-verification on final fixture matches the Round 9 classification exactly (61 FAIL all ledgered; only documented vacuous ARP_03/_05 pass among overrides entries)",
+        "single-pc regression spot check 6/6 PASS (chain refactor consumers included); ctest 14/14; validate-code-refs exit 0",
+        "ut-ping preflight reports max_opcode 0x0B against the fixture"
+      ],
+      "publishable_carry_forward_bullets": [
+        "UT opcodes 0x01/0x02/0x14 (UDP) open 33 more cases; 0x13 OpQueryTcpInfo feasible via pcb fields (rto/nrtx/state) for 4 more",
+        "Harness matcher widening candidates: zero-window probe shape (PROBING_03..06), per-segment ACK windows (SEQUENCE_05/ACKNOWLEDGEMENT_03), linear-SYN-RTO observation windows (RETRANSMISSION_TO_05/06)",
+        "lwIP upstream candidates: sockets_priv.h extern-C declaration bug, socket-level abort API",
+        "Step 3 remaining: smoke-test.yml lwIP regression step with pinned lwIP SHA + actions/cache"
+      ]
+    },
     "Round 2": {
       "decision_summary": "SOMEIPSRV §5.1.5 deeper alignment + silent-FP cross-read; 6 cases tightened via Type-1 entry gate + Nack-TTL accept removal.",
       "changes_bullets": [

@@ -1,0 +1,75 @@
+# tc8-lwip-dut — lwIP unix-port DUT fixture for --topology external.
+#
+# Standalone build against an lwIP checkout (master or any release with
+# the unix contrib port):
+#
+#   cmake -S dut/lwip_dut -B build-lwip-dut -DLWIP_DIR=/path/to/lwip
+#   cmake --build build-lwip-dut -j4
+#
+# The lwIP core is compiled HERE, against dut/lwip_dut/lwipopts.h, so
+# the stack configuration is owned by this directory and cannot drift
+# from what the binary links (compiling the app against one lwipopts.h
+# while linking a core built under another silently breaks struct
+# layouts).
+cmake_minimum_required(VERSION 3.16)
+project(tc8-lwip-dut C CXX)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(NOT LWIP_DIR)
+    set(LWIP_DIR "$ENV{LWIP_DIR}")
+endif()
+if(NOT LWIP_DIR OR NOT EXISTS "${LWIP_DIR}/src/Filelists.cmake")
+    message(FATAL_ERROR
+        "LWIP_DIR must point at an lwIP checkout (src/ + contrib/). "
+        "Example: git clone https://github.com/lwip-tcpip/lwip.git && "
+        "cmake -DLWIP_DIR=/path/to/lwip ...")
+endif()
+set(LWIP_CONTRIB_DIR "${LWIP_DIR}/contrib")
+
+include(${LWIP_CONTRIB_DIR}/ports/CMakeCommon.cmake)
+# Upstream HEAD periodically trips its own -Werror (e.g. unused-parameter
+# in sockets.c); this fixture builds a pristine checkout, so warnings
+# must stay warnings.
+list(REMOVE_ITEM LWIP_COMPILER_FLAGS "-Werror")
+
+# This directory comes first so the fixture's lwipopts.h wins the
+# bare-name include for every lwIP translation unit.
+set(LWIP_INCLUDE_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${LWIP_DIR}/src/include"
+    "${LWIP_CONTRIB_DIR}/"
+    "${LWIP_CONTRIB_DIR}/ports/unix/port/include"
+    # tc8_lwip_hooks.h pulls tcp_isn.h into every core TU via
+    # LWIP_HOOK_FILENAME, so the core build needs this path too.
+    "${LWIP_CONTRIB_DIR}/addons/tcp_isn"
+)
+
+include(${LWIP_DIR}/src/Filelists.cmake)
+include(${LWIP_CONTRIB_DIR}/ports/unix/Filelists.cmake)
+
+add_executable(tc8-lwip-dut
+    tc8_lwip_dut.cpp
+    lwip_ut_server.cpp
+    ${LWIP_CONTRIB_DIR}/ports/unix/example_app/default_netif.c
+    # RFC 6528 ISN generator wired through LWIP_HOOK_TCP_ISN (lwipopts.h).
+    ${LWIP_CONTRIB_DIR}/addons/tcp_isn/tcp_isn.c
+    ${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
+)
+# tcp_isn.c hashes with the PPP-bundled polarssl MD5, whose
+# implementation is guarded by PPP_SUPPORT. Force the guards on for
+# that single TU instead of dragging the whole PPP stack into the
+# build (the lwipopts.h consumed by every other TU keeps PPP off).
+set_source_files_properties(${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
+    PROPERTIES COMPILE_DEFINITIONS "PPP_SUPPORT=1;LWIP_INCLUDED_POLARSSL_MD5=1")
+target_include_directories(tc8-lwip-dut PRIVATE
+    ${LWIP_INCLUDE_DIRS}
+    # tc8/upper_tester_protocol.h — single source of truth for the UT
+    # wire protocol, shared with the harness and the Linux tc8-dut.
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../include"
+)
+target_compile_options(tc8-lwip-dut PRIVATE ${LWIP_COMPILER_FLAGS})
+target_compile_definitions(tc8-lwip-dut PRIVATE ${LWIP_DEFINITIONS})
+target_link_libraries(tc8-lwip-dut ${LWIP_SANITIZER_LIBS} lwipcontribportunix lwipcore)

@@ -259,6 +259,82 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "overlap reassembly structurally unsupported: chain validation requires exact fragment contiguity, so an overlapped bucket never completes regardless of IP_REASS_CHECK_OVERLAP"
+    },
+    "TCP_BASICS_17": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "simultaneous open not implemented: a SYN arriving in SYN-SENT gets no SYN+ACK (RFC 793 p32 simultaneous-open figure); the stack later RSTs the tester's follow-up ACK"
+    },
+    "TCP_FLAGS_INVALID_06": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "SYN-SENT answers an acceptable bare ACK with RST where RFC 793 p66 says discard-and-stay (Linux silently drops)"
+    },
+    "TCP_FLAGS_INVALID_07": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "OTW-SEQ SYN in SYN-RCVD is dropped without the RFC 793 section 3.9 challenge ACK"
+    },
+    "TCP_ACKNOWLEDGEMENT_03": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "RFC 1122 section 4.2.3.2 delayed ACK (~250 ms) outlives the case's 112 ms post-data window; the follow-up OpCloseTcpSocket converts the still-pending ACK into RST-on-close"
+    },
+    "TCP_SEQUENCE_05": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "RFC 1122 section 4.2.3.2 delayed ACK coalesces the seg2 acknowledgement into the every-second-segment ACK; the case expects a per-segment ACK in a Linux-quickack-sized window"
+    },
+    "TCP_URGENT_PTR_04": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "TCP urgent/out-of-band data path not implemented (RFC 793 section 3.7 URG); the UT answers OpReceiveTcpDataOob with zero bytes by design"
+    },
+    "TCP_PROBING_WINDOWS_03": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "persist/cwnd cadence differs from the Linux-tuned observation shape (initial cwnd serialises the first two data segments; RFC 7323 timestamps shave the payload to 1448 B); wire shows conformant transmission"
+    },
+    "TCP_PROBING_WINDOWS_04": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "zero-window probe is a 1-byte new-data segment on lwIP's persist schedule; the case's probe matcher and window are tuned to the Linux probe shape and timing"
+    },
+    "TCP_PROBING_WINDOWS_05": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "first zero-window probe lands at ~1.4 s (persist timer), outside the case's within-RTO observation window tuned to Linux"
+    },
+    "TCP_PROBING_WINDOWS_06": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "zero-window probe is a 1-byte new-data segment on lwIP's persist schedule; the case's probe matcher and window are tuned to the Linux probe shape and timing"
+    },
+    "TCP_RETRANSMISSION_TO_05": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "case observation window is shaped for the conditioned Linux fixture's linear SYN RTO (tcp_syn_linear_timeouts); lwIP's RFC 6298 exponential backoff exits the window — test-design concern, mirrors the TCP_UNACCEPTABLE_08 precedent"
+    },
+    "TCP_RETRANSMISSION_TO_06": {
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "case observation window is shaped for the conditioned Linux fixture's linear SYN RTO (tcp_syn_linear_timeouts); lwIP's RFC 6298 exponential backoff exits the window — test-design concern, mirrors the TCP_UNACCEPTABLE_08 precedent"
+    },
+    "TCP_RETRANSMISSION_TO_03": {
+      "expected": false,
+      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
+    },
+    "TCP_RETRANSMISSION_TO_04": {
+      "expected": false,
+      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
+    },
+    "TCP_RETRANSMISSION_TO_08": {
+      "expected": false,
+      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
+    },
+    "TCP_RETRANSMISSION_TO_09": {
+      "expected": false,
+      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
     }
   }
 }
