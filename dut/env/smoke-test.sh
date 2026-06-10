@@ -4,12 +4,19 @@
 #   → SOME/IP-SD OfferService (svc=0xffff mth=0x8100 type=NOTIFICATION) captured.
 #
 # Usage:
-#   sudo smoke-test.sh [--workers N] [--dut-first] [--log-dir DIR] \
-#                      [--junit-xml PATH] [CASE_ID ...]
+#   sudo smoke-test.sh [--topology NAME] [--workers N] [--dut-first] \
+#                      [--log-dir DIR] [--junit-xml PATH] [CASE_ID ...]
 #   sudo smoke-test.sh [--workers N] --negative [--junit-xml PATH]
 #
 # Runs each listed case against a fresh tc8-dut and reports a summary;
 # exits non-zero if any case fails. Defaults to SOMEIPSRV_FORMAT_01.
+#
+# --topology NAME selects a deployment profile from topology.d/NAME.conf
+# (default: single-pc, the historical netns-pair behaviour; TC8_TOPOLOGY
+# env is honoured when the flag is absent). Profiles own how the tester
+# interface is named, how (and whether) the DUT is started per case, and
+# whether the DUT's kernel can be conditioned per case. See the
+# "Topology profile contract" comment below.
 #
 # --workers N (default 1) runs N parallel (tc8-dut, harness) pairs, each
 # pinned to its own netns pair (tc8-tester-$W / tc8-dut-$W), veth pair
@@ -86,6 +93,22 @@ VSOMEIP_BASE=/tmp/tc8-vsomeip.$$
 #                                 OPTIONS_07 IPv4 Endpoint UDP port)
 #   tcp_port      = 30501       (vsomeip.json services[0].reliable.port —
 #                                 OPTIONS_15 IPv4 Endpoint TCP port)
+# Topology endpoint IPs — single source of truth for smoke-test.sh.
+# single-pc passes them to setup-netns.sh in topology_bring_up_worker so
+# the two files can never drift; external/ssh-remote topologies override
+# them via TC8_TOPOLOGY_TESTER_IP / TC8_TOPOLOGY_DUT_IP (env or
+# --topology-conf file).
+#
+# Wrapped in a function so evaluation happens AFTER the topology profile
+# and the optional --topology-conf file are sourced — sudo's env_reset
+# strips TC8_TOPOLOGY_* from the environment under the NOPASSWD rules,
+# so the conf file is the reliable configuration channel and must be
+# able to influence these values. Called from the topology loader below;
+# all assignments are global.
+init_expectation_defaults() {
+TESTER_IP4=${TC8_TOPOLOGY_TESTER_IP:-172.16.0.1}
+DUT_IP4=${TC8_TOPOLOGY_DUT_IP:-172.16.0.2}
+
 TC8_DUT_EXPECT=(
     --expect service_id=0xF4E7
     --expect instance_id=0x0001
@@ -93,7 +116,7 @@ TC8_DUT_EXPECT=(
     --expect ttl=3
     --expect minor_version=0
     --expect eventgroup_id=0x0001
-    --expect dut_iface_ip=172.16.0.2
+    --expect "dut_iface_ip=$DUT_IP4"
     --expect udp_port=30502
     --expect tcp_port=30501
     # §5.1.5.4 SD_BEHAVIOR_03/_04 verify the DUT answers FindService
@@ -126,12 +149,8 @@ ARP_TESTER_INJECTED_MAC2=02:00:00:00:00:A2
 # Third tester MAC for §4.2.4.2 Phase 3c Group D case ARP_40 (Response-
 # learning). Must match `kTesterInjectedMac3` in arp_builder.h.
 ARP_TESTER_INJECTED_MAC3=02:00:00:00:00:A3
-# Topology endpoint IPs — single source of truth for smoke-test.sh.
-# Passed explicitly as TESTER_IP / DUT_IP env to setup-netns.sh in
-# `bring_up_worker` (see below), so setup-netns.sh's own defaults are
-# overridden and the two files can never drift.
-TESTER_IP4=172.16.0.1
-DUT_IP4=172.16.0.2
+# (TESTER_IP4 / DUT_IP4 are defined above TC8_DUT_EXPECT — the SD
+# endpoint expectation reuses $DUT_IP4.)
 # §4.7 DHCPv4 server emul identity — matches `kDefaultServerIdBe` in
 # `src/sce_integration/dhcpv4_default_endpoints.h`. CM_05/_06 pre-pin
 # `<this_ip, ARP_TESTER_INJECTED_MAC>` permanent on the DUT side so
@@ -186,17 +205,25 @@ IPV4_DUT_EXPECT_STATIC=(
     # `udp_pilot_common.h`. Pinning here lets `--negative
     # ipv4.dut_alias_ip=10.99.99.99` flip only the SCXML expectation,
     # exposing the strict-axis NEG row.
-    --expect "ipv4.dut_alias_ip=172.16.0.5"
-    --expect "ipv4.tester_alias_ip=172.16.0.4"
+    # Alias IPs are netns defaults (setup-netns.sh configures them);
+    # external topologies whose DUT carries different aliases override
+    # via env.
+    --expect "ipv4.dut_alias_ip=${TC8_TOPOLOGY_DUT_ALIAS_IP:-172.16.0.5}"
+    --expect "ipv4.tester_alias_ip=${TC8_TOPOLOGY_TESTER_ALIAS_IP:-172.16.0.4}"
 )
+}
 
 DUT_FIRST=0
 NEGATIVE=0
 LOG_DIR=""
 JUNIT_OUT=""
 WORKERS=1
+TOPOLOGY=${TC8_TOPOLOGY:-single-pc}
+TOPOLOGY_CONF=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --topology)  TOPOLOGY="$2"; shift 2 ;;
+        --topology-conf) TOPOLOGY_CONF="$2"; shift 2 ;;
         --workers)   WORKERS="$2"; shift 2 ;;
         --dut-first) DUT_FIRST=1; shift ;;
         --negative)  NEGATIVE=1;  shift ;;
@@ -233,10 +260,117 @@ done
 TESTER_IP4_2=172.17.0.1
 DUT_IP4_2=172.17.0.2
 
+# ── Topology profile contract ────────────────────────────────────────
+# A profile at topology.d/<name>.conf is a sourced bash fragment that
+# must define:
+#
+#   Variables:
+#     TOPOLOGY_DESCRIPTION        one-line human description
+#     TOPOLOGY_DUT_CONDITIONING   1 = per-case DUT kernel conditioning
+#                                 (sysctl/neigh) is possible; 0 = the
+#                                 DUT stack is not ours to manage —
+#                                 conditioning steps are logged + skipped
+#     TOPOLOGY_SUPPORTS_NEGATIVE  1 = --negative self-validation works
+#     TOPOLOGY_SUPPORTS_DUT_SPAWN 1 = smoke-test starts one fresh DUT
+#                                 per case; 0 = a persistent external
+#                                 DUT is assumed already running
+#     TOPOLOGY_MAX_WORKERS        worker cap ("" = no cap)
+#
+#   Functions (every one must log its own failures — no silent fail):
+#     topology_preflight                 startup environment validation
+#     topology_bring_up_worker W         per-worker bring-up (after the
+#                                        common scaffolding); must write
+#                                        $WORK_ROOT/$W/dut_mac
+#     topology_tear_down_worker W        per-worker teardown
+#     topology_tester_iface W            echoes the tester capture iface
+#     topology_tester_iface_secondary W  echoes the Topology 2 second
+#                                        iface, or nothing if unsupported
+#     topology_exec_tester W CMD...      runs a foreground command in the
+#                                        tester network context
+#     topology_run_harness W LOG ARGS... starts the harness backgrounded
+#                                        in the tester context; echoes PID
+#     topology_start_dut W LOG CFG ENV.. starts one DUT instance
+#                                        (no-op for persistent DUTs)
+#     topology_stop_dut W                stops the per-case DUT instance
+TOPOLOGY_DIR="$HERE/topology.d"
+TOPOLOGY_FILE="$TOPOLOGY_DIR/$TOPOLOGY.conf"
+if [[ ! -f "$TOPOLOGY_FILE" ]]; then
+    echo "smoke-test: unknown topology '$TOPOLOGY' — no profile at $TOPOLOGY_FILE" >&2
+    echo "smoke-test: available topologies:" >&2
+    for _p in "$TOPOLOGY_DIR"/*.conf; do
+        [[ -f "$_p" ]] || continue
+        _pn=$(basename "${_p%.conf}")
+        echo "  --topology $_pn" >&2
+    done
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$TOPOLOGY_FILE"
+
+# Contract validation — a partially-implemented profile must fail loudly
+# at startup, enumerating every gap, not at first use mid-run.
+_contract_errors=0
+for _v in TOPOLOGY_DESCRIPTION TOPOLOGY_DUT_CONDITIONING \
+          TOPOLOGY_SUPPORTS_NEGATIVE TOPOLOGY_SUPPORTS_DUT_SPAWN \
+          TOPOLOGY_MAX_WORKERS; do
+    [[ -n "${!_v+x}" ]] || {
+        echo "smoke-test: topology '$TOPOLOGY' does not define required variable $_v" >&2
+        _contract_errors=1
+    }
+done
+for _f in topology_preflight topology_bring_up_worker \
+          topology_tear_down_worker topology_tester_iface \
+          topology_tester_iface_secondary topology_exec_tester \
+          topology_run_harness topology_start_dut topology_stop_dut; do
+    declare -F "$_f" >/dev/null || {
+        echo "smoke-test: topology '$TOPOLOGY' does not define required function $_f()" >&2
+        _contract_errors=1
+    }
+done
+[[ $_contract_errors -eq 0 ]] \
+    || { echo "smoke-test: topology '$TOPOLOGY' violates the profile contract — aborting" >&2; exit 1; }
+unset _contract_errors _v _f _p _pn
+echo "smoke-test: topology '$TOPOLOGY' — $TOPOLOGY_DESCRIPTION"
+
+# Optional per-site topology options (TC8_TOPOLOGY_* assignments).
+# sudo's env_reset strips TC8_TOPOLOGY_* under the NOPASSWD rules, so a
+# CLI-passed file is the reliable configuration channel for external /
+# remote topologies.
+# Mode gates: reject flag combinations the selected topology cannot
+# honour. Deliberately BEFORE the --topology-conf source — a rejected
+# invocation must not execute a site conf that may carry side effects
+# (fixture provisioning, device setup).
+if [[ "$NEGATIVE" == "1" && "$TOPOLOGY_SUPPORTS_NEGATIVE" != "1" ]]; then
+    echo "smoke-test: --negative requires a topology with a spawned reference DUT (deliberate mis-expectations + start-order control); topology '$TOPOLOGY' does not support it" >&2
+    exit 1
+fi
+if [[ "$DUT_FIRST" == "1" && "$TOPOLOGY_SUPPORTS_DUT_SPAWN" != "1" ]]; then
+    echo "smoke-test: --dut-first controls DUT-vs-harness start order, but topology '$TOPOLOGY' does not spawn the DUT — the flag cannot take effect" >&2
+    exit 1
+fi
+if [[ -n "$TOPOLOGY_MAX_WORKERS" ]] && (( WORKERS > TOPOLOGY_MAX_WORKERS )); then
+    echo "smoke-test: --workers $WORKERS exceeds topology '$TOPOLOGY' limit of $TOPOLOGY_MAX_WORKERS (one shared physical DUT cannot serve parallel workers)" >&2
+    exit 1
+fi
+
+if [[ -n "$TOPOLOGY_CONF" ]]; then
+    [[ -f "$TOPOLOGY_CONF" ]] || {
+        echo "smoke-test: --topology-conf '$TOPOLOGY_CONF' does not exist" >&2
+        exit 1
+    }
+    # shellcheck source=/dev/null
+    source "$TOPOLOGY_CONF"
+    echo "smoke-test: topology options loaded from $TOPOLOGY_CONF"
+fi
+
+# Expectation defaults are evaluated here — after profile + options —
+# so TC8_TOPOLOGY_* overrides reach the --expect arrays.
+init_expectation_defaults
+
 [[ $EUID -eq 0 ]] || { echo "smoke-test: must run as root (try: sudo $0)" >&2; exit 1; }
 [[ -x "$HARNESS"  ]] || { echo "smoke-test: harness missing: $HARNESS"  >&2; exit 1; }
-[[ -x "$TC8_DUT_BIN" ]] || { echo "smoke-test: tc8-dut missing: $TC8_DUT_BIN" >&2; exit 1; }
-[[ -f "$VSOMEIP_CFG" ]] || { echo "smoke-test: vsomeip.json missing: $VSOMEIP_CFG" >&2; exit 1; }
+topology_preflight \
+    || { echo "smoke-test: topology '$TOPOLOGY' preflight failed — aborting before any case runs" >&2; exit 1; }
 
 if [[ -n "$LOG_DIR" ]]; then
     mkdir -p "$LOG_DIR"
@@ -293,6 +427,20 @@ junit_record_case() {
     fi
     printf '%s|%s|%s|%s|%s\n' \
         "$case_name" "$mode" "$status" "$duration" "$verdict_line" \
+        >>"$WORK_ROOT/$W/junit_records"
+}
+
+# Record a topology-skipped case in the JUnit stream. Reuses the
+# pipe-delimited record shape with status=skip and the human reason in
+# the verdict-line slot; junit_emit_xml renders it as <skipped/>.
+junit_record_skip() {
+    local W=$1
+    local case_name=$2
+    local mode=$3
+    local reason=$4
+    [[ -n "$JUNIT_OUT" ]] || return 0
+    printf '%s|%s|skip|0.000|%s\n' \
+        "$case_name" "$mode" "$reason" \
         >>"$WORK_ROOT/$W/junit_records"
 }
 
@@ -362,17 +510,19 @@ EOF
             cdur[sk, cnt] = dur
             cvline[sk, cnt] = vline
             if (status == "fail") fails_per[sk]++
+            if (status == "skip") skips_per[sk]++
             tot_tests++
             if (status == "fail") tot_fails++
+            if (status == "skip") tot_skips++
         }
         END {
             printf "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" > outfile
-            printf "<testsuites name=\"tc8-harness smoke\" tests=\"%d\" failures=\"%d\" time=\"%s\" timestamp=\"%s\">\n",
-                tot_tests, tot_fails+0, total_wall, run_ts > outfile
+            printf "<testsuites name=\"tc8-harness smoke\" tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%s\" timestamp=\"%s\">\n",
+                tot_tests, tot_fails+0, tot_skips+0, total_wall, run_ts > outfile
             for (i = 1; i <= ns; i++) {
                 sk = suites[i]
-                printf "  <testsuite name=\"%s\" tests=\"%d\" failures=\"%d\" time=\"%.3f\">\n",
-                    xml_escape(sk), tests_per[sk], fails_per[sk]+0, time_per[sk]+0 > outfile
+                printf "  <testsuite name=\"%s\" tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%.3f\">\n",
+                    xml_escape(sk), tests_per[sk], fails_per[sk]+0, skips_per[sk]+0, time_per[sk]+0 > outfile
                 for (j = 1; j <= idx[sk]; j++) {
                     printf "    <testcase classname=\"%s\" name=\"%s\" time=\"%s\"",
                         xml_escape(sk), xml_escape(cname[sk, j]), cdur[sk, j] > outfile
@@ -381,6 +531,9 @@ EOF
                         if (msg == "") msg = "no verdict line"
                         printf "><failure type=\"%s\" message=\"%s\"/></testcase>\n",
                             xml_escape(cmode[sk, j]), xml_escape(msg) > outfile
+                    } else if (cstatus[sk, j] == "skip") {
+                        printf "><skipped message=\"%s\"/></testcase>\n",
+                            xml_escape(cvline[sk, j]) > outfile
                     } else {
                         printf "/>\n" > outfile
                     }
@@ -425,98 +578,42 @@ kill_worker_procs() {
     done
 }
 
-# Bring up a single worker's netns pair and record its sentinel +
-# DUT-side MAC. Sentinel file $WORK_ROOT/$W/up is touched BEFORE
-# setup-netns.sh starts and left in place until tear_down_worker
-# succeeds, so a crash mid-setup is still reachable by the cleanup trap.
-bring_up_worker() {
+# Common per-worker scaffolding around the topology hooks. Sentinel
+# file $WORK_ROOT/$W/up is touched BEFORE the topology bring-up starts
+# and left in place until teardown succeeds, so a crash mid-setup is
+# still reachable by the cleanup trap.
+#
+# The tc8-harness symlink gives each worker's harness a worker-unique
+# argv[0] in /proc/PID/cmdline. kill_worker_procs pkills by that unique
+# string, scoping the kill to this worker only. Without it, concurrent
+# workers would share the real binary path and pkill would fan out
+# across workers. Path is additionally PID-scoped via $VSOMEIP_BASE so
+# concurrent smoke-test.sh runs don't collide on the marker. The
+# harness always runs on this host, so the symlink is common; the
+# tc8-dut symlink is profile business (only spawning topologies need
+# it).
+common_bring_up_worker() {
     local W=$1
     mkdir -p "$WORK_ROOT/$W" "$VSOMEIP_BASE/$W"
     : >"$WORK_ROOT/$W/up"
     : >"$WORK_ROOT/$W/junit_records"
-    env TESTER_NS="tc8-tester-$W" DUT_NS="tc8-dut-$W" \
-        VETH_T="veth-tester-$W" VETH_D="veth-dut-$W" \
-        TESTER_IP="${TESTER_IP4}/24" DUT_IP="${DUT_IP4}/24" \
-        SECOND_VETH="$NEED_SECOND_VETH" \
-        VETH_T2="veth-tester2-$W" VETH_D2="veth-dut2-$W" \
-        TESTER_IP2="${TESTER_IP4_2}/24" DUT_IP2="${DUT_IP4_2}/24" \
-        "$HERE/setup-netns.sh" >/dev/null
-
-    # Per-worker symlinks so each worker's tc8-dut/tc8-harness has a
-    # worker-unique argv[0] in /proc/PID/cmdline. kill_worker_procs
-    # pkills by that unique string, scoping the kill to this worker
-    # only. Without these symlinks, concurrent workers share the real
-    # binary path and pkill would fan out across workers. Path is
-    # additionally PID-scoped via $VSOMEIP_BASE so concurrent
-    # smoke-test.sh runs don't collide on the marker.
-    ln -sf "$TC8_DUT_BIN" "$VSOMEIP_BASE/$W/tc8-dut"
+    : >"$WORK_ROOT/$W/skips"
+    : >"$WORK_ROOT/$W/processed"
     ln -sf "$HARNESS" "$VSOMEIP_BASE/$W/tc8-harness"
-
-    # veth MAC is kernel-assigned per `ip link add` invocation. Capture
-    # AFTER setup-netns.sh completes; feed it to ARP_13 expectations for
-    # every case this worker runs.
-    local mac
-    mac=$(ip -n "tc8-dut-$W" link show "veth-dut-$W" \
-        | awk '/link\/ether/ { print $2 }')
-    [[ -n "$mac" ]] \
-        || { echo "smoke-test: failed to read veth-dut-$W MAC" >&2; exit 1; }
-    echo "$mac" >"$WORK_ROOT/$W/dut_mac"
-
-    # Symmetric capture for the tester-side veth — needed by §4.5
-    # IPv4_AUTOCONF_ADDRESS_SELECTION cases that pin
-    # <tester_ip, tester_mac> NUD_PERMANENT on the DUT side to
-    # suppress the kernel's UT-Confirmation-driven ARP resolve
-    # (see tester_neigh_pin block in run_case).
-    local tester_mac
-    tester_mac=$(ip -n "tc8-tester-$W" link show "veth-tester-$W" \
-        | awk '/link\/ether/ { print $2 }')
-    [[ -n "$tester_mac" ]] \
-        || { echo "smoke-test: failed to read veth-tester-$W MAC" >&2; exit 1; }
-    echo "$tester_mac" >"$WORK_ROOT/$W/tester_mac"
-
-    # Pin the DUT neighbor entry on the tester side as NUD_PERMANENT. The
-    # setup-netns.sh reachability ping populates it in NUD_STALE/REACHABLE,
-    # but under a long full-suite run (>gc_stale_time) the entry can age
-    # out or go through a transitional state that triggers tester-kernel
-    # ARP resolution. When the tester kernel broadcasts its own Request,
-    # the DUT receives it and learns <tester_ip, real_tester_MAC> via
-    # RFC 826 §2.3 reception — which is exactly what Group C ARP_22/28/38
-    # pass-criterion ("DUT emits its own ARP Request on cold cache") does
-    # NOT want. Pinning the entry as PERMANENT guarantees tester never
-    # ARPs for DUT, DUT's cache stays cold until its own egress need, and
-    # the pass-guard fires deterministically.
-    #
-    # Phase 2 (ARP_03..06) is unaffected: those cases verify the DUT-side
-    # cache entry learned from a raw tester-injected frame, which sits
-    # independently of the tester-side neigh table pinned here.
-    ip -n "tc8-tester-$W" neigh replace "$DUT_IP4" \
-        lladdr "$mac" nud permanent dev "veth-tester-$W"
-
-    # §4.6.5.4 UDP_FIELDS_04/_05 Topology 2 second-host pin: pin
-    # `<172.16.0.3, tester_mac>` on the DUT side as NUD_PERMANENT so the
-    # DUT's egress ARP for Host-2-IP resolves to the tester's MAC
-    # without a real responder. 172.16.0.3 is intentionally NOT
-    # configured as a tester-side alias — Linux's IP layer with
-    # ip_forward=0 silently drops the unmatched inbound, while pcap on
-    # AF_PACKET ETH_P_ALL still observes the wire frame for the SCXML
-    # `udp_observed` event. The pin is unconditional (sticky for the
-    # whole worker lifetime); other cases that don't address 172.16.0.3
-    # are unaffected. Mirrors `kUdpHost2IpBe` in
-    # `src/sce_integration/udp_pilot_common.h` — single source of truth
-    # for the literal.
-    ip -n "tc8-dut-$W" neigh replace "172.16.0.3" \
-        lladdr "$tester_mac" nud permanent dev "veth-dut-$W"
+    topology_bring_up_worker "$W"
+    [[ -s "$WORK_ROOT/$W/dut_mac" ]] || {
+        echo "smoke-test: topology '$TOPOLOGY' bring-up for worker $W did not record the DUT MAC at $WORK_ROOT/$W/dut_mac — profile contract violation" >&2
+        exit 1
+    }
 }
 
-tear_down_worker() {
+common_tear_down_worker() {
     local W=$1
-    # Reap any tc8-dut/harness still running under this worker's
-    # symlink path (belt-and-suspenders — run_case/run_negative_case
-    # already call kill_worker_procs per case).
-    kill_worker_procs "$VSOMEIP_BASE/$W/tc8-dut"
+    # Reap any harness still running under this worker's symlink path
+    # (belt-and-suspenders — run_case/run_negative_case already kill
+    # per case). DUT-side reaping is the profile's job.
     kill_worker_procs "$VSOMEIP_BASE/$W/tc8-harness"
-    env TESTER_NS="tc8-tester-$W" DUT_NS="tc8-dut-$W" \
-        "$HERE/cleanup.sh" >/dev/null 2>&1 || true
+    topology_tear_down_worker "$W"
     rm -rf "$VSOMEIP_BASE/$W" "$WORK_ROOT/$W"
 }
 
@@ -530,7 +627,7 @@ cleanup() {
             [[ -d "$dir" ]] || continue
             W=$(basename "$dir")
             [[ "$W" == "stdout.lock" ]] && continue
-            tear_down_worker "$W"
+            common_tear_down_worker "$W"
         done
         rm -rf "$WORK_ROOT"
     fi
@@ -590,12 +687,43 @@ mkdir -p "$WORK_ROOT" "$VSOMEIP_BASE"
 # Parallel bring-up: setup-netns.sh is idempotent and operates on
 # distinct names per worker, so concurrent netlink ops don't collide.
 # Wall time for N=4: ~0.3 s vs ~1.2 s serial.
+# Explicit-PID waits everywhere a worker fan-out joins: a bare `wait`
+# would also wait on unrelated background children — e.g. a persistent
+# DUT a --topology-conf fixture spawned — and deadlock the run.
+_tc8_join_pids=()
 for (( W=0; W<WORKERS; W++ )); do
-    bring_up_worker "$W" &
+    common_bring_up_worker "$W" &
+    _tc8_join_pids+=($!)
 done
-wait
+wait "${_tc8_join_pids[@]}"
 
-# Run one case against a specific worker's netns/veth/vsomeip base.
+# Log a skipped DUT-stack conditioning step. Conditioning exists to
+# shape the spawned reference DUT's Linux kernel for a specific case
+# (sysctl/neigh manipulation); on topologies that do not manage the DUT
+# kernel the step cannot apply. The case still runs — a conformant DUT
+# must satisfy the spec assertion natively — but the omission is logged
+# so a verdict difference against the single-pc baseline is explainable
+# from the run output alone.
+log_conditioning_skip() {
+    local W=$1 case_id=$2 what=$3
+    echo "[w$W] INFO ${case_id}: DUT-stack conditioning not applied ($what) — topology '$TOPOLOGY' does not manage the DUT network stack"
+}
+
+# Record a case the selected topology cannot execute, with the reason,
+# in stdout + summary + JUnit. Never silent: shows up as SKIP in all
+# three places.
+skip_case() {
+    local W=$1 case_id=$2 reason=$3
+    {
+        echo "=========================================="
+        echo "[w$W] SKIP ${case_id} — ${reason}"
+        echo "=========================================="
+    } | emit_block
+    junit_record_skip "$W" "$case_id" positive "$reason"
+    echo "${case_id}|${reason}" >>"$WORK_ROOT/$W/skips"
+}
+
+# Run one case against a specific worker's tester context.
 # Writes logs to per-case files under $LOG_DIR (if set) or worker-scoped
 # mktemps. Emits a single multi-line block to stdout under flock so
 # concurrent workers don't interleave.
@@ -605,12 +733,16 @@ run_case() {
     local W=$1
     local case_id=$2
     local start_ts=$EPOCHREALTIME
+    local tester_iface
+    tester_iface=$(topology_tester_iface "$W")
+    # netns names for the DUT-stack conditioning blocks below. Only
+    # dereferenced when TOPOLOGY_DUT_CONDITIONING=1, which implies the
+    # single-pc netns naming convention — other topologies never reach
+    # the guarded blocks.
     local tester_ns="tc8-tester-$W"
     local dut_ns="tc8-dut-$W"
-    local veth_t="veth-tester-$W"
     local veth_d="veth-dut-$W"
     local vsp="$VSOMEIP_BASE/$W/"
-    local mock_dut_link="$vsp/tc8-dut"
     local harness_link="$vsp/tc8-harness"
     local dut_mac
     dut_mac=$(cat "$WORK_ROOT/$W/dut_mac")
@@ -651,7 +783,18 @@ run_case() {
     # ARP_04/06's UDP-egress eth_dst check fails. The NUD_PROBE flakiness
     # on the tester side is addressed via `ucast_solicit=0` in
     # setup-netns.sh instead (keeps cache intact, just disables re-probing).
-    ip -n "$dut_ns" neigh flush dev "$veth_d"
+    if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+        ip -n "$dut_ns" neigh flush dev "$veth_d"
+    else
+        # Only cache-sensitive families care about the missing flush;
+        # logging it for every case would be noise without information.
+        case "$case_id" in
+            ARP_*|IPv4_AUTOCONF_*)
+                log_conditioning_skip "$W" "$case_id" \
+                    "per-case DUT neigh cache flush — repeat runs against a persistent DUT may hit a warm ARP cache"
+                ;;
+        esac
+    fi
 
     # ARP_38 exercises the RFC 826 §2.3 step 4 check ("Am I the target
     # protocol address?"): a non-gratuitous ARP Response with target_ip
@@ -671,9 +814,14 @@ run_case() {
     # needed.
     local toggle_arp_accept=0
     if [[ "$case_id" == "ARP_38" ]]; then
-        toggle_arp_accept=1
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.$veth_d.arp_accept=0" >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.all.arp_accept=0"     >/dev/null
+        if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+            toggle_arp_accept=1
+            ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.$veth_d.arp_accept=0" >/dev/null
+            ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.all.arp_accept=0"     >/dev/null
+        else
+            log_conditioning_skip "$W" "$case_id" \
+                "arp_accept=0 — Linux-reference workaround for the RFC 826 step-4 target-ip check"
+        fi
     fi
 
     # ARP_39/40 exercise the spec's "DUT learns from a tester-injected
@@ -694,10 +842,14 @@ run_case() {
     # tester (see reference_tester_neigh_pin.md) — that's the tester's
     # outgoing direction (resolving DUT), arp_ignore is the incoming
     # direction (replying to others).
+    # Tester-side conditioning — the tester is always a Linux host we
+    # own (this one), so this applies on every topology; only the
+    # execution context (netns vs plain) differs, which
+    # topology_exec_tester absorbs.
     local toggle_arp_ignore=0
     if [[ "$case_id" == "ARP_39" || "$case_id" == "ARP_40" ]]; then
         toggle_arp_ignore=1
-        ip netns exec "$tester_ns" sysctl -qw "net.ipv4.conf.$veth_t.arp_ignore=8" >/dev/null
+        topology_exec_tester "$W" sysctl -qw "net.ipv4.conf.$tester_iface.arp_ignore=8" >/dev/null
     fi
 
     # §4.5 IPv4_AUTOCONF cluster: the tc8-dut's UT-Confirmation reply
@@ -723,12 +875,17 @@ run_case() {
     local toggle_dut_tester_neigh_pin=0
     case "$case_id" in
         IPv4_AUTOCONF_ADDRESS_SELECTION_*|IPv4_AUTOCONF_CONFLICT_*|IPv4_AUTOCONF_ANNOUNCING_*|IPv4_AUTOCONF_LINKLOCAL_PACKETS_*|IPv4_AUTOCONF_NETWORK_PARTITIONS_*)
-            toggle_dut_tester_neigh_pin=1
-            local tester_mac_pin
-            tester_mac_pin=$(cat "$WORK_ROOT/$W/tester_mac")
-            ip -n "$dut_ns" neigh replace "$TESTER_IP4" \
-                lladdr "$tester_mac_pin" \
-                dev "$veth_d" nud permanent
+            if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+                toggle_dut_tester_neigh_pin=1
+                local tester_mac_pin
+                tester_mac_pin=$(cat "$WORK_ROOT/$W/tester_mac")
+                ip -n "$dut_ns" neigh replace "$TESTER_IP4" \
+                    lladdr "$tester_mac_pin" \
+                    dev "$veth_d" nud permanent
+            else
+                log_conditioning_skip "$W" "$case_id" \
+                    "DUT-side <tester_ip> NUD_PERMANENT pin — suppresses the Linux reference DUT's kernel ARP resolve during UT confirmations"
+            fi
             ;;
     esac
 
@@ -744,9 +901,14 @@ run_case() {
     # (which the SCXML cond on udp.eth_dst then verifies).
     case "$case_id" in
         DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05|DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_06)
-            ip -n "$dut_ns" neigh replace "$DHCPV4_SERVER1_IP4" \
-                lladdr "$ARP_TESTER_INJECTED_MAC" \
-                dev "$veth_d" nud permanent
+            if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+                ip -n "$dut_ns" neigh replace "$DHCPV4_SERVER1_IP4" \
+                    lladdr "$ARP_TESTER_INJECTED_MAC" \
+                    dev "$veth_d" nud permanent
+            else
+                log_conditioning_skip "$W" "$case_id" \
+                    "DUT-side synthetic-gateway NUD_PERMANENT pin — the external DUT must resolve the Option 3 router address itself"
+            fi
             ;;
     esac
 
@@ -762,7 +924,8 @@ run_case() {
     #     60 s) — incidental backstop, the PROBE path is the primary
     #     ARP-request trigger.
     local toggle_neigh_gc=0
-    if [[ "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ]]; then
+    if [[ ( "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ) \
+          && "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
         toggle_neigh_gc=1
         # base_reachable_time_ms = 500 puts the kernel's randomised
         # REACHABLE expiry in [250, 749] ms — always before the first
@@ -801,6 +964,9 @@ run_case() {
         # would no-op and log an error. The DELAY → PROBE path is the
         # primary ARP-request trigger for Group E; GC is incidental.
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=1"             >/dev/null
+    elif [[ "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ]]; then
+        log_conditioning_skip "$W" "$case_id" \
+            "compressed neigh-cache expiry timers — the case's STALE/DELAY/PROBE window assumes a conditioned Linux reference DUT"
     fi
 
     # §4.3.3.2 ICMPv4_TYPE_04 compresses Linux's IP fragment reassembly
@@ -827,8 +993,13 @@ run_case() {
     local toggle_ipfrag_time=0
     case "$case_id" in
         ICMPv4_TYPE_04)
-            toggle_ipfrag_time=1
-            ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=3" >/dev/null
+            if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+                toggle_ipfrag_time=1
+                ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=3" >/dev/null
+            else
+                log_conditioning_skip "$W" "$case_id" \
+                    "ipfrag_time=3 — the case's post-send wait assumes a compressed DUT reassembly timer"
+            fi
             ;;
         # §4.4.4.7 IPv4_REASSEMBLY_10/_11/_12 — collapse Linux's
         # static reassembly timer from 30 s default to 2 s so the
@@ -850,8 +1021,13 @@ run_case() {
         # so each case completes in seconds rather than tens of
         # seconds.
         IPv4_REASSEMBLY_10|IPv4_REASSEMBLY_11|IPv4_REASSEMBLY_12)
-            toggle_ipfrag_time=1
-            ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=2" >/dev/null
+            if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+                toggle_ipfrag_time=1
+                ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=2" >/dev/null
+            else
+                log_conditioning_skip "$W" "$case_id" \
+                    "ipfrag_time=2 — the case's wait-vs-timer boundaries assume a compressed DUT reassembly timer"
+            fi
             ;;
     esac
 
@@ -872,8 +1048,13 @@ run_case() {
     local toggle_syn_linear_timeouts=0
     case "$case_id" in
         TCP_RETRANSMISSION_TO_05)
-            toggle_syn_linear_timeouts=1
-            ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_syn_linear_timeouts=0" >/dev/null
+            if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+                toggle_syn_linear_timeouts=1
+                ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_syn_linear_timeouts=0" >/dev/null
+            else
+                log_conditioning_skip "$W" "$case_id" \
+                    "tcp_syn_linear_timeouts=0 — disables Linux's SYN linear-RTO optimisation; a strict-RFC 6298 DUT passes natively"
+            fi
             ;;
     esac
 
@@ -893,9 +1074,14 @@ run_case() {
     local toggle_data_rto_recovery=0
     case "$case_id" in
         TCP_RETRANSMISSION_TO_04|TCP_RETRANSMISSION_TO_03)
-            toggle_data_rto_recovery=1
-            ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_early_retrans=0" >/dev/null
-            ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=0" >/dev/null
+            if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+                toggle_data_rto_recovery=1
+                ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_early_retrans=0" >/dev/null
+                ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=0" >/dev/null
+            else
+                log_conditioning_skip "$W" "$case_id" \
+                    "tcp_early_retrans=0 + tcp_recovery=0 — disables Linux RACK/TLP thin-stream RTO; a strict-RFC 6298 DUT passes natively"
+            fi
             ;;
     esac
 
@@ -2342,12 +2528,22 @@ run_case() {
     esac
 
     # §4.7.6.5 USAGE_01 / Topology 2 multi-iface: harness opens a
-    # second `PcapSource` on TIface-1 (veth-tester2-W) so DUT-emitted
-    # DISCOVERs from DIface-1 reach the same pipeline as DIface-0's.
-    # Stimulus injection still uses the primary iface (UT server
-    # listens INADDR_ANY → dispatches by iface_index byte).
+    # second `PcapSource` on TIface-1 so DUT-emitted DISCOVERs from
+    # DIface-1 reach the same pipeline as DIface-0's. Stimulus
+    # injection still uses the primary iface (UT server listens
+    # INADDR_ANY → dispatches by iface_index byte). A topology without
+    # a second tester interface cannot execute the case at all —
+    # explicit SKIP, never a misleading timeout FAIL.
     if [[ "$case_id" == "DHCPv4_CLIENT_USAGE_01" ]]; then
-        extra_args+=(--interface-secondary "veth-tester2-$W")
+        local sec_iface
+        sec_iface=$(topology_tester_iface_secondary "$W")
+        if [[ -z "$sec_iface" ]]; then
+            skip_case "$W" "$case_id" \
+                "requires a secondary tester interface (TC8 Topology 2); topology '$TOPOLOGY' provides none"
+            (( keep_logs == 0 )) && rm -f "$hlog" "$dlog"
+            return 0
+        fi
+        extra_args+=(--interface-secondary "$sec_iface")
     fi
 
     # Order matters: harness first, then tc8-dut. SD Session ID starts
@@ -2356,43 +2552,34 @@ run_case() {
     # OfferService has already been sent, and FORMAT_02
     # (session_id==0x0001) fails because the first captured frame is a
     # later repetition (0x0002+). --dut-first inverts this for negative
-    # tests.
-    #
-    # Exec via the per-worker symlink paths so kill_worker_procs can
-    # scope its pkill to this worker's processes only.
-    local hp dp
-    if [[ "$DUT_FIRST" == "1" ]]; then
-        ip netns exec "$dut_ns" env \
-            COMMONAPI_CONFIG="$CAPI_CFG" \
-            VSOMEIP_CONFIGURATION="$dut_vsomeip_cfg" \
-            VSOMEIP_APPLICATION_NAME=tc8-dut \
-            VSOMEIP_BASE_PATH="$vsp" \
-            "${dut_extra_env[@]}" \
-            "$mock_dut_link" >"$dlog" 2>&1 &
-        dp=$!
-
-        sleep 1.5
-
-        ip netns exec "$tester_ns" "$harness_link" test \
-            --case "$case_id" -i "$veth_t" -t "$case_timeout" \
-            "${expect_args[@]}" "${extra_args[@]}" >"$hlog" 2>&1 &
-        hp=$!
+    # tests. Non-spawning topologies assume a persistent external DUT —
+    # start order does not apply there (and --dut-first is rejected at
+    # startup).
+    local hp
+    if [[ "$TOPOLOGY_SUPPORTS_DUT_SPAWN" == "1" ]]; then
+        if [[ "$DUT_FIRST" == "1" ]]; then
+            topology_start_dut "$W" "$dlog" "$dut_vsomeip_cfg" \
+                "${dut_extra_env[@]}" >/dev/null
+            sleep 1.5
+            hp=$(topology_run_harness "$W" "$hlog" test \
+                --case "$case_id" -i "$tester_iface" -t "$case_timeout" \
+                "${expect_args[@]}" "${extra_args[@]}")
+        else
+            hp=$(topology_run_harness "$W" "$hlog" test \
+                --case "$case_id" -i "$tester_iface" -t "$case_timeout" \
+                "${expect_args[@]}" "${extra_args[@]}")
+            sleep 0.5
+            topology_start_dut "$W" "$dlog" "$dut_vsomeip_cfg" \
+                "${dut_extra_env[@]}" >/dev/null
+        fi
     else
-        ip netns exec "$tester_ns" "$harness_link" test \
-            --case "$case_id" -i "$veth_t" -t "$case_timeout" \
-            "${expect_args[@]}" "${extra_args[@]}" >"$hlog" 2>&1 &
-        hp=$!
-
-        sleep 0.5
-
-        ip netns exec "$dut_ns" env \
-            COMMONAPI_CONFIG="$CAPI_CFG" \
-            VSOMEIP_CONFIGURATION="$dut_vsomeip_cfg" \
-            VSOMEIP_APPLICATION_NAME=tc8-dut \
-            VSOMEIP_BASE_PATH="$vsp" \
-            "${dut_extra_env[@]}" \
-            "$mock_dut_link" >"$dlog" 2>&1 &
-        dp=$!
+        if [[ "$dut_vsomeip_cfg" != "$VSOMEIP_CFG" || ${#dut_extra_env[@]} -gt 0 ]]; then
+            echo "[w$W] INFO ${case_id}: case requests DUT flavor '$(basename "$dut_vsomeip_cfg")${dut_extra_env[*]:+ ${dut_extra_env[*]}}' — topology '$TOPOLOGY' does not spawn the DUT; the external DUT must provide the equivalent service"
+        fi
+        echo "[w$W] INFO ${case_id}: using persistent external DUT at $DUT_IP4 (topology '$TOPOLOGY')" >"$dlog"
+        hp=$(topology_run_harness "$W" "$hlog" test \
+            --case "$case_id" -i "$tester_iface" -t "$case_timeout" \
+            "${expect_args[@]}" "${extra_args[@]}")
     fi
 
     # Wait for the harness to reach a verdict (or hit its own -t
@@ -2417,7 +2604,7 @@ run_case() {
     done
 
     kill_worker_procs "$harness_link"
-    kill_worker_procs "$mock_dut_link"
+    topology_stop_dut "$W"
 
     # Restore arp_accept to the Phase 2 default. Idempotent — the toggle
     # above only flipped it for ARP_38, but re-setting to 1 is harmless
@@ -2430,10 +2617,11 @@ run_case() {
     fi
 
     # Restore arp_ignore to the default (0 = reply to all). Symmetric to
-    # the ARP_39/40 toggle above; same trap-cleanup safety net via
-    # netns destroy.
+    # the ARP_39/40 toggle above — tester-side, so it applies on every
+    # topology; on single-pc the netns destroy is the additional safety
+    # net.
     if [[ $toggle_arp_ignore -eq 1 ]]; then
-        ip netns exec "$tester_ns" sysctl -qw "net.ipv4.conf.$veth_t.arp_ignore=0" >/dev/null
+        topology_exec_tester "$W" sysctl -qw "net.ipv4.conf.$tester_iface.arp_ignore=0" >/dev/null
     fi
 
     # Drop the §4.5 NUD_PERMANENT pin on <tester_ip>. `ip neigh
@@ -3218,6 +3406,11 @@ worker_main() {
                 echo "$case_id" >>"$fails"
             fi
         fi
+        # Execution ledger — the summary cross-checks processed-row count
+        # against the scheduled total. A worker that dies mid-bucket (or
+        # has its stdin slurped by a misbehaving child) must surface as a
+        # hard error, never as "all cases passed".
+        echo "$case_id" >>"$WORK_ROOT/$W/processed"
     done <"$bucket"
 }
 
@@ -4076,27 +4269,50 @@ if [[ "$NEGATIVE" == "1" ]]; then
     fi
     distribute "${NEG_ROWS[@]}"
     total=${#NEG_ROWS[@]}
+    _tc8_join_pids=()
     for (( W=0; W<WORKERS; W++ )); do
         worker_main "$W" negative &
+        _tc8_join_pids+=($!)
     done
-    wait
+    wait "${_tc8_join_pids[@]}"
 else
     distribute "${CASES[@]}"
     total=${#CASES[@]}
+    _tc8_join_pids=()
     for (( W=0; W<WORKERS; W++ )); do
         worker_main "$W" positive &
+        _tc8_join_pids+=($!)
     done
-    wait
+    wait "${_tc8_join_pids[@]}"
 fi
 
 fails=()
+skips=()
+processed=0
 for (( W=0; W<WORKERS; W++ )); do
     if [[ -s "$WORK_ROOT/$W/fails" ]]; then
         while IFS= read -r line; do
             fails+=("$line")
         done <"$WORK_ROOT/$W/fails"
     fi
+    if [[ -s "$WORK_ROOT/$W/skips" ]]; then
+        while IFS= read -r line; do
+            skips+=("$line")
+        done <"$WORK_ROOT/$W/skips"
+    fi
+    if [[ -s "$WORK_ROOT/$W/processed" ]]; then
+        processed=$(( processed + $(wc -l <"$WORK_ROOT/$W/processed") ))
+    fi
 done
+
+# Execution-ledger cross-check: every scheduled row must have been
+# processed (pass, fail, or skip). A shortfall means a worker died
+# mid-bucket — fail the run loudly instead of reporting a clean summary
+# over partially-executed work.
+if (( processed != total )); then
+    echo "smoke-test: FATAL — scheduled ${total} case(s) but only ${processed} were processed; a worker terminated early (crash or stdin-slurping child). Treat every result above as suspect." >&2
+    exit 1
+fi
 
 junit_emit_xml
 if [[ -n "$JUNIT_OUT" ]]; then
@@ -4104,7 +4320,14 @@ if [[ -n "$JUNIT_OUT" ]]; then
 fi
 
 echo "=========================================="
-echo "smoke-test summary: ${total} case(s), ${#fails[@]} failure(s) across ${WORKERS} worker(s)"
+echo "smoke-test summary [topology=$TOPOLOGY]: ${total} case(s), ${#fails[@]} failure(s), ${#skips[@]} skipped across ${WORKERS} worker(s)"
+if [[ ${#skips[@]} -gt 0 ]]; then
+    # Skips are not failures, but they must never scroll out of sight:
+    # repeat each skipped case + reason in the summary block.
+    for _s in "${skips[@]}"; do
+        echo "  SKIP ${_s%%|*} — ${_s#*|}"
+    done
+fi
 if [[ ${#fails[@]} -gt 0 ]]; then
     printf '  FAIL %s\n' "${fails[@]}" >&2
     exit 1

@@ -148,6 +148,68 @@ narration. Keep patches surgical: gate by `MT_REQUEST` rather than
 broaden whitelists, leave `MT_RESPONSE` validation intact, attach a
 `Refs:` line to a tracking issue.
 
+## Topology profiles
+
+`smoke-test.sh` separates *what to test* (case list) from *where the DUT
+lives* through topology profiles (`dut/env/topology.d/<name>.conf`,
+selected with `--topology NAME`; default `single-pc`):
+
+| Profile | Tester | DUT | Workers | DUT spawn | DUT kernel conditioning | `--negative` |
+|---------|--------|-----|---------|-----------|------------------------|--------------|
+| `single-pc` | netns on this host | reference `tc8-dut`, netns on this host | unlimited | per case | yes | yes |
+| `external` | this host's NIC | persistent external device (target ECU, second PC) | 1 | no — assumed running | no (logged) | no (rejected) |
+| `ssh-remote` | this host's NIC | reference `tc8-dut` spawned per case on a second Linux PC over SSH | 1 | per case via SSH | no (logged) | no (rejected) |
+
+This covers the deployment matrix: one PC (`single-pc`), PC↔PC
+(`ssh-remote`, or `external` when the second PC runs its own DUT
+image), PC↔target ECU (`external`), and target↔target (run
+`smoke-test.sh --topology external|ssh-remote` *on* an embedded-Linux
+tester — only cross-building the binaries is left to the integrator;
+the orchestration is identical).
+
+Site parameters travel in a `--topology-conf FILE` (a sourced shell
+fragment setting `TC8_TOPOLOGY_*` variables) because `sudo`'s
+`env_reset` strips environment variables under NOPASSWD rules:
+
+```sh
+# external-dut.conf
+TC8_TOPOLOGY_IFACE=eth1
+TC8_TOPOLOGY_DUT_IP=192.168.10.2
+TC8_TOPOLOGY_TESTER_IP=192.168.10.1
+
+sudo ./dut/env/smoke-test.sh --topology external \
+     --topology-conf external-dut.conf ICMPv4_TYPE_08 ARP_07 ...
+```
+
+No-silent-failure guarantees, regardless of profile:
+
+- **Preflight before any case**: profile contract validation (missing
+  hook/variable enumerates every gap), interface existence + link
+  state, DUT ICMP reachability, SSH/remote-binary checks
+  (`ssh-remote`). The Upper Tester is *not* probed (no side-effect-free
+  UT opcode exists) — the preflight log states this and UT-dependent
+  cases fail visibly instead.
+- **Explicit SKIP**: a case the topology cannot execute (e.g.
+  `DHCPv4_CLIENT_USAGE_01` without a secondary interface) is reported
+  as SKIP with the reason in stdout, the summary, and JUnit
+  (`<skipped/>`), never as a misleading timeout FAIL.
+- **Conditioning transparency**: per-case Linux-reference DUT kernel
+  conditioning (sysctl/neigh shaping) that a profile cannot apply is
+  logged per case (`INFO ... DUT-stack conditioning not applied`), so a
+  verdict difference against the single-pc baseline is explainable from
+  the run output alone.
+- **Execution ledger**: the summary cross-checks processed-case count
+  against the scheduled total; a worker that dies mid-run (crash,
+  stdin-slurping child process) turns the run into a hard FATAL instead
+  of a clean "all cases passed".
+- **Flag gates**: `--negative`, `--dut-first`, and `--workers` beyond
+  the profile's capability are rejected at startup with the reason.
+
+Self-contained verification fixtures for the non-default profiles live
+in `dut/env/topology.d/examples/` — each emulates its deployment shape
+with an isolated netns (the `ssh-remote` fixture includes a dedicated
+`sshd`) and can be run on any single machine.
+
 ## Testing on a single computer (Linux netns)
 
 The harness's primary development environment is a Linux network-namespace

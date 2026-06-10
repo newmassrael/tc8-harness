@@ -146,6 +146,65 @@ sudo ./scripts/setup-vsomeip.sh             # 재팝 → 재푸시 → 재빌드
 유지하세요: whitelist 확대 대신 `MT_REQUEST`로 게이팅, `MT_RESPONSE`
 검증은 그대로 유지, 추적 이슈에 대한 `Refs:` 라인을 첨부.
 
+## 토폴로지 프로필
+
+`smoke-test.sh`는 *무엇을 테스트할지*(케이스 목록)와 *DUT가 어디에
+있는지*를 토폴로지 프로필(`dut/env/topology.d/<name>.conf`, `--topology
+NAME`으로 선택, 기본 `single-pc`)로 분리합니다:
+
+| 프로필 | 테스터 | DUT | 워커 | DUT 스폰 | DUT 커널 컨디셔닝 | `--negative` |
+|--------|--------|-----|------|----------|------------------|--------------|
+| `single-pc` | 이 호스트의 netns | 참조 `tc8-dut`, 이 호스트의 netns | 무제한 | 케이스마다 | 가능 | 가능 |
+| `external` | 이 호스트의 NIC | 이미 동작 중인 외부 장치 (target ECU, 두 번째 PC) | 1 | 안 함 — 동작 중 가정 | 불가 (로그됨) | 불가 (거부) |
+| `ssh-remote` | 이 호스트의 NIC | 두 번째 Linux PC에서 SSH로 케이스마다 스폰되는 참조 `tc8-dut` | 1 | SSH로 케이스마다 | 불가 (로그됨) | 불가 (거부) |
+
+배포 매트릭스 전체를 커버합니다: PC 1대(`single-pc`), PC↔PC
+(`ssh-remote`, 또는 두 번째 PC가 자체 DUT 이미지를 돌리면
+`external`), PC↔target ECU(`external`), target↔target(임베디드
+Linux 테스터 *위에서* `smoke-test.sh --topology external|ssh-remote`
+실행 — 통합자에게 남는 것은 바이너리 크로스빌드뿐이고 오케스트레이션은
+동일).
+
+사이트 파라미터는 `--topology-conf FILE`(`TC8_TOPOLOGY_*` 변수를
+설정하는 source되는 셸 단편)로 전달합니다 — `sudo`의 `env_reset`이
+NOPASSWD 규칙에서 환경 변수를 제거하기 때문입니다:
+
+```sh
+# external-dut.conf
+TC8_TOPOLOGY_IFACE=eth1
+TC8_TOPOLOGY_DUT_IP=192.168.10.2
+TC8_TOPOLOGY_TESTER_IP=192.168.10.1
+
+sudo ./dut/env/smoke-test.sh --topology external \
+     --topology-conf external-dut.conf ICMPv4_TYPE_08 ARP_07 ...
+```
+
+프로필과 무관하게 보장되는 no-silent-failure 장치:
+
+- **케이스 실행 전 프리플라이트**: 프로필 계약 검증(누락 훅/변수를
+  전부 열거), 인터페이스 존재 + 링크 상태, DUT ICMP 도달성,
+  SSH/원격 바이너리 검사(`ssh-remote`). Upper Tester는 프로브하지
+  않으며(부작용 없는 UT opcode가 없음) — 프리플라이트 로그가 이를
+  명시하고 UT 의존 케이스는 가시적으로 실패합니다.
+- **명시적 SKIP**: 토폴로지가 실행할 수 없는 케이스(예: 보조
+  인터페이스 없는 `DHCPv4_CLIENT_USAGE_01`)는 stdout, 요약, JUnit
+  (`<skipped/>`) 세 곳 모두에 사유와 함께 SKIP으로 보고됩니다 —
+  오해를 부르는 timeout FAIL이 아니라.
+- **컨디셔닝 투명성**: 프로필이 적용할 수 없는 케이스별
+  Linux-참조-DUT 커널 컨디셔닝(sysctl/neigh)은 케이스마다 로그되어
+  (`INFO ... DUT-stack conditioning not applied`), single-pc 기준선과의
+  판정 차이를 실행 출력만으로 설명할 수 있습니다.
+- **실행 원장(ledger)**: 요약이 처리된 케이스 수를 스케줄된 총수와
+  교차 검증합니다. 도중에 죽은 워커(크래시, stdin을 삼키는 자식
+  프로세스)는 깨끗한 "all cases passed" 대신 하드 FATAL이 됩니다.
+- **플래그 게이트**: 프로필 능력을 벗어나는 `--negative`,
+  `--dut-first`, `--workers`는 시작 시점에 사유와 함께 거부됩니다.
+
+비기본 프로필의 자가-완결 검증 픽스처가
+`dut/env/topology.d/examples/`에 있습니다 — 각각 격리된 netns로 해당
+배포 형태를 재현하며(`ssh-remote` 픽스처는 전용 `sshd` 포함) 어떤 단일
+머신에서도 실행 가능합니다.
+
 ## 단일 컴퓨터에서 테스트하기 (Linux netns)
 
 하네스의 주된 개발 환경은 단일 호스트의 Linux network-namespace
