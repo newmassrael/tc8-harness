@@ -127,6 +127,16 @@ TCP:
   `kStatusUnknownSocket`. Deterministic `fail:tcp_info_query_failed`
   (x2 2026-06-11). A 2*MSL SYN-RTO plateau is structurally
   unobservable on this stack.
+- **Latent (passes today): `TCP_RETRANSMISSION_TO_03` Karn check.**
+  lwIP resets `pcb->rto` to the smoothed `(sa>>3)+sv` on EVERY new
+  ACK (`tcp_in.c` "Reset the retransmission time-out"), discarding
+  the backed-off value Linux preserves across Karn-excluded ACKs
+  (RFC 6298 §5.3's "until ... a valid RTT sample" reading). The
+  phase-2 assertion (`rto_us >= 350 ms`) still passes because the
+  RFC 6298 `LWIP_TCP_RTO_TIME` seed keeps the smoothed value near
+  1 s for the case's 1-2 RTT samples. A faster-converging variance
+  decay or a lower RTO seed would flip this case into the deviation
+  set — re-measure on any lwipopts or pin change.
 
 ## lwipopts.h alignment (why each non-default option exists)
 
