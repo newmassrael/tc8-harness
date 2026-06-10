@@ -7204,6 +7204,44 @@
         "4.8.6.3",
         "4.8.6.15"
       ]
+    },
+    "Round 9": {
+      "decision_summary": "Generalized the inventory-overrides known-fail axis from linux_known_fail to platform_known_fail (schema v3) and landed the first second-platform consumer: the lwIP tap-fixture overrides ledger with 6 verified stack deviations and 57 fixture-capability gaps.",
+      "changes_bullets": [
+        "spec_inventory.{h,cpp} + test_command.{h,cpp}: platform_known_fail / platform_known_fail_ref fields, --exclude-platform-known-fail flag, _PLATFORM_KNOWN_FAIL canonicalise suffix",
+        "doc/spec/inventory_overrides.json migrated to schema v3 (keys renamed, description states the file describes the Linux reference DUT)",
+        "dut/lwip_dut/{README.md,inventory_overrides.json}: 116-case sweep classification — 53 meaningful PASS / 2 vacuous PASS / 6 platform_known_fail (ICMP Timestamp + Parameter Problem absent, frag-match protocol omission, static reass timer, overlap reassembly unsupported) / 55 expected:false fixture gaps",
+        ".github/workflows/smoke-test.yml + dut/env/smoke-test.sh + README{,.ko}.md flag/key references updated"
+      ],
+      "verification_bullets": [
+        "cmake --build build -j7 clean; ctest 14/14 passed",
+        "--list-cases --exclude-deferred --exclude-platform-known-fail: 540 (Linux file) / 490 (lwIP file, 553-63); --vs-spec --strict exit 0",
+        "lwIP deviations verified against lwip source (icmp.c ICMP_TS stats-only, ip4_frag.c IP_ADDRESSES_AND_ID_MATCH, contiguity validation) plus sweep pcaps under --log-dir",
+        "IP_REASS_MAXAGE=2 alignment re-run: REASSEMBLY_04/06/07/09/10/12 + FRAGMENTS_02/03 + TYPE_04 PASS, REASSEMBLY_11 flips to known-fail (static-timer trade-off documented)"
+      ],
+      "carry_forward_bullets": [
+        "lwIP UT port (OpPing 0x15, TCP 0x03..0x0B, UDP 0x01/0x02/0x14) opens the 33 UT-blocked cases",
+        "lwIP fixture promotion: topology.d/examples conf + in-repo DUT source + smoke-test.yml regression step",
+        "SOME/IP-responder gap keeps 24 ARP egress-provocation cases blocked (2 vacuous-pass shapes among them)"
+      ],
+      "publishable_decision_summary": "Generalized the inventory-overrides known-fail axis from linux_known_fail to platform_known_fail (schema v3) and landed the first second-platform consumer: the lwIP tap-fixture overrides ledger with 6 verified stack deviations and 57 fixture-capability gaps.",
+      "publishable_changes_bullets": [
+        "spec_inventory.{h,cpp} + test_command.{h,cpp}: platform_known_fail / platform_known_fail_ref fields, --exclude-platform-known-fail flag, _PLATFORM_KNOWN_FAIL canonicalise suffix",
+        "doc/spec/inventory_overrides.json migrated to schema v3 (keys renamed, description states the file describes the Linux reference DUT)",
+        "dut/lwip_dut/{README.md,inventory_overrides.json}: 116-case sweep classification — 53 meaningful PASS / 2 vacuous PASS / 6 platform_known_fail (ICMP Timestamp + Parameter Problem absent, frag-match protocol omission, static reass timer, overlap reassembly unsupported) / 55 expected:false fixture gaps",
+        ".github/workflows/smoke-test.yml + dut/env/smoke-test.sh + README{,.ko}.md flag/key references updated"
+      ],
+      "publishable_verification_bullets": [
+        "cmake --build build -j7 clean; ctest 14/14 passed",
+        "--list-cases --exclude-deferred --exclude-platform-known-fail: 540 (Linux file) / 490 (lwIP file, 553-63); --vs-spec --strict exit 0",
+        "lwIP deviations verified against lwip source (icmp.c ICMP_TS stats-only, ip4_frag.c IP_ADDRESSES_AND_ID_MATCH, contiguity validation) plus sweep pcaps under --log-dir",
+        "IP_REASS_MAXAGE=2 alignment re-run: REASSEMBLY_04/06/07/09/10/12 + FRAGMENTS_02/03 + TYPE_04 PASS, REASSEMBLY_11 flips to known-fail (static-timer trade-off documented)"
+      ],
+      "publishable_carry_forward_bullets": [
+        "lwIP UT port (OpPing 0x15, TCP 0x03..0x0B, UDP 0x01/0x02/0x14) opens the 33 UT-blocked cases",
+        "lwIP fixture promotion: topology.d/examples conf + in-repo DUT source + smoke-test.yml regression step",
+        "SOME/IP-responder gap keeps 24 ARP egress-provocation cases blocked (2 vacuous-pass shapes among them)"
+      ]
     }
   },
   "inventory_entries": {
