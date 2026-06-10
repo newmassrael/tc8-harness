@@ -24,12 +24,6 @@ permissions:
   # check run (see smoke-test.yml for the failure mode without it).
   checks: write
 
-# Shared with smoke-test.yml — see the rationale there. The ~50 min
-# sweep must never run beside the push smoke on the same host.
-concurrency:
-  group: self-hosted-netns
-  cancel-in-progress: false
-
 jobs:
   sweep:
     name: lwIP full sweep (single invocation) on self-hosted [netns]

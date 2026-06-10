@@ -26,17 +26,6 @@ permissions:
   # even when every smoke case passed.
   checks: write
 
-# Serialize against lwip-sweep: the self-hosted host runs both, and a
-# concurrent 186-case sweep saturates the CPU enough to flake the
-# timing-sensitive cases here (observed 2026-06-10:
-# DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13, 3/3 green in isolation) —
-# besides racing the host-global lwIP tap fixture, where the conf-level
-# flock would fail this run fast instead. Same group in both workflows;
-# queued runs wait, nothing in progress is cancelled.
-concurrency:
-  group: self-hosted-netns
-  cancel-in-progress: false
-
 jobs:
   smoke:
     name: dut/env/smoke-test.sh (--workers 4) on self-hosted [netns]
