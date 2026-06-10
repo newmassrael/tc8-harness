@@ -112,6 +112,45 @@ if(TARGET sce_core)
     endif()
 endif()
 
+# Portability check: cross-compile the dependency-light core — the SCE
+# engine plus every wire builder / SOME/IP dissector where the
+# endianness- and bit-layout-sensitive code lives — without needing a
+# target sysroot for libpcap / libtins / vsomeip / CommonAPI. Used with
+# cmake/toolchains/aarch64-linux-gnu.cmake to keep the embedded-tester
+# (target-to-target topology) build path verifiable on a host with only
+# a cross compiler installed. `return()` ends top-level processing: the
+# heavy find_package set, the case glob, tc8-dut, and unit tests are
+# all host-build concerns.
+option(TC8_PORTABILITY_CHECK
+    "Build only the dependency-light core (for cross-compile verification)"
+    OFF)
+
+if(TC8_PORTABILITY_CHECK)
+    add_library(tc8-core-portability STATIC
+        src/dissect/someip_header.cpp
+        src/dissect/someip_dispatcher.cpp
+        src/stimulus/arp_builder.cpp
+        src/stimulus/dhcpv4_frame_builder.cpp
+        src/stimulus/ipv4_frame_builder.cpp
+        src/stimulus/icmpv4_builder.cpp
+        src/stimulus/someip_rpc_builder.cpp
+        src/stimulus/someip_sd_builder.cpp
+        src/stimulus/tcp_segment_builder.cpp
+        src/stimulus/udp_datagram_builder.cpp
+        src/stimulus/upper_tester_client.cpp
+        src/wire/ip_checksum.cpp
+    )
+    target_include_directories(tc8-core-portability PRIVATE src include)
+    target_link_libraries(tc8-core-portability PRIVATE sce_base)
+    tc8_enable_strict_warnings(tc8-core-portability)
+    message(STATUS
+        "TC8: portability-check configuration — building "
+        "tc8-core-portability for ${CMAKE_SYSTEM_PROCESSOR} only; "
+        "harness/tc8-dut/cases/unit tests are skipped (no target "
+        "sysroot required)")
+    return()
+endif()
+
 find_package(vsomeip3 REQUIRED)
 find_package(CommonAPI REQUIRED)
 find_package(CommonAPI-SomeIP REQUIRED)

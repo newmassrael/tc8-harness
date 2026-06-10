@@ -208,6 +208,28 @@ sudo ./dut/env/smoke-test.sh --topology external \
 배포 형태를 재현하며(`ssh-remote` 픽스처는 전용 `sshd` 포함) 어떤 단일
 머신에서도 실행 가능합니다.
 
+### 임베디드 테스터용 크로스빌드 (target↔target)
+
+임베디드 Linux 보드에서 테스터를 돌리는 것은 토폴로지 계층을 그대로
+재사용합니다(보드 위에서 `--topology external|ssh-remote`); 남는 것은
+바이너리 크로스빌드입니다. 레포지토리는 툴체인 파일과, 크로스 컴파일러만
+설치된 호스트에서 의존성-경량 코어(SCE 엔진 + 엔디언 민감 코드가 몰린
+모든 wire 빌더 / SOME/IP 디섹터)를 크로스 컴파일하는 portability-check
+모드를 제공합니다:
+
+```sh
+sudo apt-get install g++-aarch64-linux-gnu
+cmake -S . -B build-aarch64 \
+      -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake \
+      -DTC8_PORTABILITY_CHECK=ON
+cmake --build build-aarch64
+```
+
+전체 `tc8-harness` / `tc8-dut` 크로스빌드는 추가로 libpcap, libtins,
+boost, vsomeip, CommonAPI를 담은 arm64 sysroot가 필요합니다
+(`CMAKE_SYSROOT`를 지정하고 portability 플래그를 제거) — sysroot 구성은
+통합자별 환경에 종속되므로 의도적으로 이 레포 범위 밖입니다.
+
 ## 단일 컴퓨터에서 테스트하기 (Linux netns)
 
 하네스의 주된 개발 환경은 단일 호스트의 Linux network-namespace

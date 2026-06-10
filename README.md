@@ -214,6 +214,29 @@ in `dut/env/topology.d/examples/` — each emulates its deployment shape
 with an isolated netns (the `ssh-remote` fixture includes a dedicated
 `sshd`) and can be run on any single machine.
 
+### Cross-building for embedded testers (target↔target)
+
+Running the tester on an embedded-Linux board reuses the topology
+layer unchanged (`--topology external|ssh-remote` on the board); what
+remains is cross-building the binaries. The repository ships a
+toolchain file plus a portability-check mode that cross-compiles the
+dependency-light core — the SCE engine and every wire builder /
+SOME/IP dissector, where the endianness-sensitive code lives — with
+nothing but a cross compiler installed:
+
+```sh
+sudo apt-get install g++-aarch64-linux-gnu
+cmake -S . -B build-aarch64 \
+      -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake \
+      -DTC8_PORTABILITY_CHECK=ON
+cmake --build build-aarch64
+```
+
+The full `tc8-harness` / `tc8-dut` cross build additionally requires an
+arm64 sysroot carrying libpcap, libtins, boost, vsomeip, and CommonAPI
+(point `CMAKE_SYSROOT` at it and drop the portability flag) — sysroot
+assembly is integrator-specific and intentionally out of scope here.
+
 ## Testing on a single computer (Linux netns)
 
 The harness's primary development environment is a Linux network-namespace
