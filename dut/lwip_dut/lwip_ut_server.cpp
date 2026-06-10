@@ -998,7 +998,13 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
                  "0x14 + OpPing; max_opcode reported 0x%02X)\n",
                  ut::kPort, kMaxImplementedOpcode);
 
-    std::uint8_t buf[ut::kMaxPayload + 16];
+    // Mirror of the Linux server's 64 KiB request buffer. The largest
+    // request defined today is OpTriggerSendUdp at 12 + kMaxPayload + 4
+    // = 272 B, but recvfrom() silently TRUNCATES an oversize datagram —
+    // an exact-fit buffer would turn any future trailer extension into
+    // a kStatusMalformed that looks like a caller bug. Headroom must
+    // dominate every future request shape.
+    static std::uint8_t buf[65536];
     for (;;) {
         sockaddr_in peer{};
         socklen_t plen = sizeof(peer);
