@@ -199,3 +199,9 @@ sudo -n dut/env/smoke-test.sh \
       --exclude-deferred --exclude-platform-known-fail \
     | awk '/^  (ARP|ICMPv4|IPv4|UDP|TCP)_/{print $1}')
 ```
+
+CI runs this command (single invocation, JUnit-reported) weekly via
+`.github/workflows/lwip-sweep.yml` against the lwIP commit pinned in
+`dut/lwip_dut/LWIP_PIN`; the per-push smoke-test workflow only covers a
+10-case regression slice. When bumping the pin, re-run this sweep and
+refresh `inventory_overrides.json` in the same commit.

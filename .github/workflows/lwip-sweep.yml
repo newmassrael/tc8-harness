@@ -1,0 +1,106 @@
+name: lwip-sweep
+
+on:
+  # Weekly full sweep of every case the lwIP DUT fixture can
+  # meaningfully pass (153 cases today, ~50 min sequential — the
+  # external topology is capped at one worker because the fixture is a
+  # single shared DUT). The push-triggered smoke-test workflow only
+  # re-runs a 10-case lwIP regression slice; without this job a harness
+  # change could silently regress any of the other ~143 PASS cases and
+  # only surface in a manual sweep.
+  #
+  # Self-hosted runner: same fork-PR code-execution constraint as
+  # smoke-test.yml — schedule + manual dispatch only, never
+  # pull_request.
+  schedule:
+    # Sunday 17:00 UTC = Monday 02:00 KST, the runner's idle overnight
+    # slot.
+    - cron: '0 17 * * 0'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  # dorny/test-reporter@v1 needs `checks: write` to publish the JUnit
+  # check run (see smoke-test.yml for the failure mode without it).
+  checks: write
+
+jobs:
+  sweep:
+    name: lwIP full sweep (single invocation) on self-hosted [netns]
+    runs-on: [self-hosted, netns]
+    # Warm runs are ~50 min sweep + a few min incremental build; the
+    # cold path (vsomeip rebuild + 543 SCXML codegen + harness + lwIP
+    # clone/build) adds up to ~90 min on a mid-tier machine.
+    timeout-minutes: 150
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply vsomeip patch series + reinstall (idempotent)
+        # Same rationale as smoke-test.yml: keep the runner's vsomeip
+        # install in lockstep with the submodule SHA + patch series so
+        # the harness build never links a stale library.
+        run: sudo -n ./scripts/setup-vsomeip.sh
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTC8_SCE_FIND_PACKAGE=OFF
+      - name: Build harness
+        run: cmake --build build -j4
+
+      - name: Build lwIP DUT (pinned)
+        # The lwIP commit is dut/lwip_dut/LWIP_PIN — one file shared
+        # with the smoke-test.yml regression step so the two workflows
+        # can never drift apart. Pin-forward policy: bump deliberately,
+        # re-run the full sweep (dut/lwip_dut/README.md) and refresh the
+        # overrides ledger in the same commit.
+        run: |
+          LWIP_PIN=$(cat dut/lwip_dut/LWIP_PIN)
+          if [ ! -d "$HOME/lwip-cache/$LWIP_PIN" ]; then
+            rm -rf "$HOME/lwip-cache"
+            git clone https://github.com/lwip-tcpip/lwip.git "$HOME/lwip-cache/$LWIP_PIN"
+            git -C "$HOME/lwip-cache/$LWIP_PIN" checkout --detach "$LWIP_PIN"
+          fi
+          cmake -S dut/lwip_dut -B build-lwip-dut \
+            -DLWIP_DIR="$HOME/lwip-cache/$LWIP_PIN" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-lwip-dut -j4
+
+      - name: Run full sweep (single invocation + JUnit)
+        # Case list is the dut/lwip_dut/README.md "Running the sweep"
+        # SSOT command verbatim: every case the fixture can meaningfully
+        # pass, with expected:false and platform_known_fail dropped via
+        # dut/lwip_dut/inventory_overrides.json. Deliberately ONE
+        # smoke-test.sh invocation rather than per-category chunks, so
+        # cross-case state (port-quad reuse, per-case fixture respawn)
+        # is exercised the way a certification run would see it.
+        run: |
+          mkdir -p reports
+          sudo -n dut/env/smoke-test.sh \
+            --topology external \
+            --topology-conf dut/env/topology.d/examples/lwip-tap-fixture.conf \
+            --junit-xml reports/junit-lwip-sweep.xml \
+            $(./build/tc8-harness test --list-cases \
+                --inventory-overrides dut/lwip_dut/inventory_overrides.json \
+                --exclude-deferred --exclude-platform-known-fail \
+              | awk '/^  (ARP|ICMPv4|IPv4|UDP|TCP)_/{print $1}')
+
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-lwip-sweep
+          path: reports/
+
+      - name: Publish JUnit summary
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: lwip full sweep
+          path: reports/junit-*.xml
+          reporter: java-junit

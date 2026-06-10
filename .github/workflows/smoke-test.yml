@@ -152,12 +152,13 @@ jobs:
       # exercising per-case respawn + ss -K + AckDrop + RFC 7323
       # timestamps (FLAGS_INVALID_09). ~3 min.
       - name: lwIP DUT regression (tap fixture)
-        env:
-          # Pin-forward policy: bump deliberately, re-run the full
-          # sweep (dut/lwip_dut/README.md) and refresh the overrides
-          # ledger in the same commit.
-          LWIP_PIN: 8e75a40acfea6b05ee643099e41f3b2e11ee464d
+        # The lwIP commit is dut/lwip_dut/LWIP_PIN — one file shared
+        # with the weekly lwip-sweep workflow so the two can never
+        # drift apart. Pin-forward policy: bump deliberately, re-run
+        # the full sweep (dut/lwip_dut/README.md) and refresh the
+        # overrides ledger in the same commit.
         run: |
+          LWIP_PIN=$(cat dut/lwip_dut/LWIP_PIN)
           if [ ! -d "$HOME/lwip-cache/$LWIP_PIN" ]; then
             rm -rf "$HOME/lwip-cache"
             git clone https://github.com/lwip-tcpip/lwip.git "$HOME/lwip-cache/$LWIP_PIN"
