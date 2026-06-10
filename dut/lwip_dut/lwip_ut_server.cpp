@@ -1,9 +1,10 @@
 // Upper Tester server for the lwIP DUT fixture.
 //
 // Functional mirror of dut/dut_service/upper_tester_server.cpp scoped
-// to the TCP opcode family (0x03..0x0B) + OpPing (0x15), rebuilt on the
-// lwIP socket API. Structural differences from the Linux server, each
-// forced by a stack property:
+// to the UDP opcode family (0x01/0x02/0x14) + the TCP opcode family
+// (0x03..0x0B) + OpPing (0x15), rebuilt on the lwIP socket API.
+// Structural differences from the Linux server, each forced by a stack
+// property:
 //
 //   * OpQueryTcpEstablished answers from the application-visible
 //     handshake completion (accept() returned / connect() completed)
@@ -20,9 +21,21 @@
 //     nothing a MSG_OOB read could return. The empty answer keeps the
 //     wire contract; the affected case fails visibly and is ledgered as
 //     platform_known_fail.
+//   * The UDP data listener (the receipt log OpGetReceivedUdp consults)
+//     is a core-API udp pcb with a recv callback, not a socket thread:
+//     the callback observes the original IP destination via
+//     ip_current_dest_addr() — the information IP_PKTINFO provides on
+//     Linux — without compiling in LWIP_NETBUF_RECVINFO, and receipts
+//     cost no extra application thread.
+//   * OpTriggerSendUdp's src-IP override (§4.6.5.5 UDP_USER_INTERFACE_07
+//     <DIface-0-IP> alias) maps to udp_sendto_if_src(): lwIP has no
+//     IPv4 netif-alias concept to bind to, and the core API emits from
+//     a caller-specified source address directly, which is exactly the
+//     spec's "caller-specified Source IP" axis.
 
 #include "lwip_ut_server.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <cstring>
@@ -30,12 +43,17 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "lwip/sockets.h"
 #include "lwip/api.h"
+#include "lwip/ip_addr.h"
+#include "lwip/netif.h"
+#include "lwip/pbuf.h"
 #include "lwip/tcp.h"
 #include "lwip/tcpip.h"
+#include "lwip/udp.h"
 // fd -> pcb bridge for the ABORT primitive (see destroySlot): the lwIP
 // socket layer exposes no unconditional-RST path, so the server walks
 // down to the raw pcb under the core lock. Private header, pinned lwIP.
@@ -66,6 +84,19 @@ std::uint32_t readBe32(const std::uint8_t *p) {
             static_cast<std::uint32_t>(p[3]);
 }
 
+void appendBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
+    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFU));
+    b.push_back(static_cast<std::uint8_t>(v & 0xFFU));
+}
+
+// IP addresses travel MSB-first on the UT wire (172,16,0,1 for
+// 172.16.0.1) — a network-byte-order u32's memory layout verbatim,
+// on any host endianness.
+void appendNboIp(std::vector<std::uint8_t> &b, std::uint32_t ip_be) {
+    const auto *p = reinterpret_cast<const std::uint8_t *>(&ip_be);
+    b.insert(b.end(), p, p + 4);
+}
+
 struct TcpSlot {
     int listen_fd = -1;
     std::atomic<int> conn_fd{-1};
@@ -76,12 +107,31 @@ struct TcpSlot {
     std::uint16_t local_port = 0;
 };
 
+// Last UDP receipt per (dst_port, dst_ip) — same binning as the Linux
+// data listener's log. `payload` holds the first ut::kMaxPayload bytes
+// so the Confirmation datagram stays under MTU; `original_len` reports
+// what the application layer actually saw (§4.6.5.4 UDP_FIELDS_12
+// verdicts on the 65 507-byte original, not the truncated copy).
+struct UdpReceipt {
+    std::uint32_t src_ip_be    = 0;
+    std::uint16_t src_port     = 0;
+    std::size_t   original_len = 0;
+    std::vector<std::uint8_t> payload;
+};
+
 class UpperTesterServer {
 public:
     explicit UpperTesterServer(std::uint32_t dut_ip_be)
         : dut_ip_be_(dut_ip_be) {}
 
     [[noreturn]] void run();
+
+    // SIGTERM teardown — see AbortUpperTesterSlots() in the header.
+    void abortAllSlots() {
+        destroyAllSlots("SIGTERM teardown — RST so tester-side halves "
+                        "reach CLOSED instead of orphaning in FIN-WAIT-2",
+                        /*linger0=*/true);
+    }
 
 private:
     void dispatch(int fd, const sockaddr_in &peer,
@@ -116,7 +166,18 @@ private:
     // existing slot belongs to an earlier case that skipped its
     // OpCloseTcpSocket — drop them all, loudly, and retry once.
     int createTcpSocket(const char *what);
-    void destroyAllSlots(const char *why);
+    void destroyAllSlots(const char *why, bool linger0);
+
+    // UDP opcode family (0x01/0x02/0x14) backend, all on the core
+    // (raw) udp API under the tcpip core lock.
+    void startUdpDataListener();
+    static void udpDataRecv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
+                            const ip_addr_t *addr, u16_t port);
+    bool triggerSendUdp(std::uint16_t src_port, std::uint32_t dst_ip_be,
+                        std::uint16_t dst_port, const std::uint8_t *payload,
+                        std::uint16_t payload_len,
+                        std::uint32_t src_ip_override_be);
+    std::uint8_t createUdpReceivePorts(std::uint8_t count);
 
     static void applyTimeout(int fd, int optname, int ms);
 
@@ -124,13 +185,27 @@ private:
     std::mutex mu_;
     std::map<std::uint8_t, std::unique_ptr<TcpSlot>> slots_;
     std::uint8_t next_sid_ = 1;
+
+    // Receipt log: written by udpDataRecv in the tcpip thread, read by
+    // the UT dispatch thread. udp_mu_ is never held across a core-lock
+    // acquisition (the tcpip thread holds the core lock while calling
+    // the recv callback — nesting the other way would deadlock).
+    std::mutex udp_mu_;
+    std::map<std::pair<std::uint16_t, std::uint32_t>, UdpReceipt>
+        udp_receipts_;
+    // OpCreateUdpReceivePorts pcbs, held for the process lifetime like
+    // the Linux server's fd list (the fixture respawns this process per
+    // case, so "lifetime" is one case). Touched only by the single UT
+    // dispatch thread — no lock needed.
+    std::vector<struct udp_pcb *> udp_receive_ports_;
 };
 
 // Highest opcode this implementation answers. The implemented set is
-// sparse (0x01/0x02 UDP and 0x0C..0x14 autoconf/DHCP/info opcodes are
-// not ported yet); OpPing's single-byte capability field cannot express
-// a sparse set, so the honest value is the top of the contiguous TCP
-// block — a tester probing feature level sees "TCP session control
+// sparse (0x0C..0x13 autoconf/DHCP/info opcodes are not ported;
+// OpCreateUdpReceivePorts 0x14 IS, beyond the gap); OpPing's
+// single-byte capability field cannot express a sparse set, so the
+// honest value is the top of the contiguous 0x01..0x0B block — a
+// tester probing feature level sees "UDP + TCP session control
 // available" and nothing more.
 constexpr std::uint8_t kMaxImplementedOpcode = ut::OpReceiveTcpDataOob;
 
@@ -183,26 +258,33 @@ std::uint8_t UpperTesterServer::nextSidLocked() {
     return sid;
 }
 
-void UpperTesterServer::destroyAllSlots(const char *why) {
+void UpperTesterServer::destroyAllSlots(const char *why, bool linger0) {
     std::vector<std::uint8_t> sids;
     {
         std::lock_guard<std::mutex> lk(mu_);
         sids.reserve(slots_.size());
         for (const auto &kv : slots_) sids.push_back(kv.first);
     }
+    if (sids.empty()) {
+        return;
+    }
     std::fprintf(stderr,
                  "tc8-lwip-ut: dropping %zu stale socket slot(s) — %s\n",
                  sids.size(), why);
     for (const std::uint8_t sid : sids) {
-        destroySlot(sid, /*linger0=*/false);
+        destroySlot(sid, linger0);
     }
 }
 
 int UpperTesterServer::createTcpSocket(const char *what) {
     int fd = lwip_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd < 0 && errno == ENOBUFS) {
+        // linger0: a stale slot's tester half is already half-closed or
+        // abandoned; RST frees its quad immediately instead of minting
+        // a FIN-WAIT-2 orphan.
         destroyAllSlots("netconn pool exhausted by cases that skipped "
-                        "OpCloseTcpSocket");
+                        "OpCloseTcpSocket",
+                        /*linger0=*/true);
         fd = lwip_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     }
     if (fd < 0) {
@@ -429,6 +511,161 @@ bool UpperTesterServer::destroySlot(std::uint8_t sid, bool linger0) {
     return true;
 }
 
+void UpperTesterServer::startUdpDataListener() {
+    LOCK_TCPIP_CORE();
+    struct udp_pcb *pcb = udp_new();
+    err_t err = ERR_MEM;
+    if (pcb != nullptr) {
+        err = udp_bind(pcb, IP_ANY_TYPE, ut::kDataPort);
+        if (err == ERR_OK) {
+            udp_recv(pcb, &UpperTesterServer::udpDataRecv, this);
+        } else {
+            udp_remove(pcb);
+        }
+    }
+    UNLOCK_TCPIP_CORE();
+    if (err != ERR_OK) {
+        std::fprintf(stderr,
+                     "tc8-lwip-ut: data listener bind to UDP port %u failed "
+                     "(err %d) — OpGetReceivedUdp will answer received=0\n",
+                     ut::kDataPort, static_cast<int>(err));
+        return;
+    }
+    std::fprintf(stderr,
+                 "tc8-lwip-ut: data listener on UDP port %u (core-API pcb)\n",
+                 ut::kDataPort);
+}
+
+void UpperTesterServer::udpDataRecv(void *arg, struct udp_pcb *pcb,
+                                    struct pbuf *p, const ip_addr_t *addr,
+                                    u16_t port) {
+    auto *self = static_cast<UpperTesterServer *>(arg);
+    if (p == nullptr) {
+        return;
+    }
+    const std::uint32_t src_ip_be = ip_addr_get_ip4_u32(addr);
+    const std::uint32_t dst_ip_be =
+        ip_addr_get_ip4_u32(ip_current_dest_addr());
+
+    // §4.4.4.5 IPv4_ADDRESSING_02 conformance, the same application-
+    // layer rule as the Linux tc8-dut data listener: datagrams addressed
+    // to the iface directed-broadcast are silently discarded (RFC 1122
+    // §3.2.1.3 SHOULD) and never enter the receipt log. Bitwise NBO
+    // arithmetic — AND/OR/NOT are bytewise, no byte-order conversion
+    // needed.
+    const struct netif *nif = netif_default;
+    if (nif != nullptr) {
+        const std::uint32_t if_ip = ip4_addr_get_u32(netif_ip4_addr(nif));
+        const std::uint32_t mask  = ip4_addr_get_u32(netif_ip4_netmask(nif));
+        if (dst_ip_be == ((if_ip & mask) | ~mask)) {
+            pbuf_free(p);
+            return;
+        }
+    }
+    // §4.6.5.6 UDP_INTRODUCTION_02 conformance: RFC 1122 §4.1.1 has
+    // multicast datagrams discarded unless the application requested
+    // the group (and TC8 inverts the SHOULD-allow to a deny outright);
+    // no UT consumer ever joins a group. The drop must live here
+    // because lwIP's ip4_input accepts EVERY multicast destination
+    // unconditionally when LWIP_IGMP=0 (src/core/ipv4/ip4.c, the
+    // `#else LWIP_IGMP` branch) — and compiling IGMP in would not
+    // help, since igmp_start auto-joins 224.0.0.1 on netif-up. The
+    // Linux tc8-dut gets the same observable from its kernel's
+    // not-joined filter.
+    if (ip4_addr_ismulticast(ip_2_ip4(ip_current_dest_addr()))) {
+        pbuf_free(p);
+        return;
+    }
+
+    UdpReceipt rec;
+    rec.src_ip_be    = src_ip_be;
+    rec.src_port     = port;
+    rec.original_len = p->tot_len;
+    const std::uint16_t copy_len = static_cast<std::uint16_t>(
+        std::min<std::uint32_t>(p->tot_len, ut::kMaxPayload));
+    rec.payload.resize(copy_len);
+    pbuf_copy_partial(p, rec.payload.data(), copy_len, 0);
+    {
+        std::lock_guard<std::mutex> lk(self->udp_mu_);
+        self->udp_receipts_[{pcb->local_port, dst_ip_be}] = std::move(rec);
+    }
+    pbuf_free(p);
+}
+
+bool UpperTesterServer::triggerSendUdp(std::uint16_t src_port,
+                                       std::uint32_t dst_ip_be,
+                                       std::uint16_t dst_port,
+                                       const std::uint8_t *payload,
+                                       std::uint16_t payload_len,
+                                       std::uint32_t src_ip_override_be) {
+    bool ok = false;
+    err_t err = ERR_MEM;
+    LOCK_TCPIP_CORE();
+    struct udp_pcb *pcb = udp_new();
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, payload_len, PBUF_RAM);
+    if (pcb != nullptr && p != nullptr &&
+        udp_bind(pcb, IP_ANY_TYPE, src_port) == ERR_OK) {
+        if (payload_len > 0) {
+            pbuf_take(p, payload, payload_len);
+        }
+        ip_addr_t dst;
+        ip_addr_set_ip4_u32_val(dst, dst_ip_be);
+        ip_addr_t src;
+        if (src_ip_override_be != 0) {
+            // §4.6.5.5 UI_07 caller-specified source. No local-address
+            // validation on purpose: udp_sendto_if_src emits whatever
+            // source the caller names, which is the entire point of the
+            // spec axis (the Linux server gets the same effect from
+            // binding to a netns alias).
+            ip_addr_set_ip4_u32_val(src, src_ip_override_be);
+        } else {
+            ip_addr_set_ip4_u32_val(
+                src, ip4_addr_get_u32(netif_ip4_addr(netif_default)));
+        }
+        err = udp_sendto_if_src(pcb, p, &dst, dst_port, netif_default, &src);
+        ok = (err == ERR_OK);
+    }
+    if (p != nullptr) pbuf_free(p);
+    if (pcb != nullptr) udp_remove(pcb);
+    UNLOCK_TCPIP_CORE();
+    if (!ok) {
+        std::fprintf(stderr,
+                     "tc8-lwip-ut: TriggerSendUdp from port %u failed "
+                     "(err %d)\n",
+                     src_port, static_cast<int>(err));
+    }
+    return ok;
+}
+
+std::uint8_t UpperTesterServer::createUdpReceivePorts(std::uint8_t count) {
+    std::uint8_t created = 0;
+    LOCK_TCPIP_CORE();
+    for (std::uint8_t i = 0; i < count; ++i) {
+        struct udp_pcb *pcb = udp_new();
+        if (pcb == nullptr) {
+            break;
+        }
+        // Port 0 => udp_bind picks a fresh ephemeral port, mirroring
+        // the Linux bind(INADDR_ANY, 0). No recv callback on purpose:
+        // udp_input frees datagrams for a callback-less pcb, same as
+        // the Linux server never reading the fds.
+        if (udp_bind(pcb, IP_ANY_TYPE, 0) != ERR_OK) {
+            udp_remove(pcb);
+            break;
+        }
+        udp_receive_ports_.push_back(pcb);
+        ++created;
+    }
+    UNLOCK_TCPIP_CORE();
+    if (created < count) {
+        std::fprintf(stderr,
+                     "tc8-lwip-ut: CreateUdpReceivePorts created %u of %u "
+                     "(udp pcb pool exhausted? see MEMP_NUM_UDP_PCB)\n",
+                     created, count);
+    }
+    return created;
+}
+
 void UpperTesterServer::respond(int fd, const sockaddr_in &peer,
                                 std::uint8_t opcode, std::uint8_t req_id,
                                 std::uint8_t status,
@@ -458,6 +695,85 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
         body.push_back(kMaxImplementedOpcode);
         respond(fd, peer, opcode, req_id, ut::kStatusOk, body);
         return;
+
+    case ut::OpGetReceivedUdp: {
+        // Params: <listen_port:u16> <expected_dst_ip:u32>
+        if (n < 2 + 2 + 4) {
+            respond(fd, peer, opcode, req_id, ut::kStatusMalformed, body);
+            return;
+        }
+        const std::uint16_t listen_port     = readBe16(buf + 2);
+        const std::uint32_t expected_dst_be = lwip_htonl(readBe32(buf + 4));
+        bool found = false;
+        UdpReceipt rec;
+        {
+            std::lock_guard<std::mutex> lk(udp_mu_);
+            auto it = udp_receipts_.find({listen_port, expected_dst_be});
+            if (it != udp_receipts_.end()) {
+                rec   = it->second;
+                found = true;
+            }
+        }
+        if (found) {
+            body.push_back(0x01);  // received
+            appendNboIp(body, rec.src_ip_be);
+            appendBe16(body, rec.src_port);
+            appendBe16(body, static_cast<std::uint16_t>(
+                                 std::min<std::size_t>(rec.original_len,
+                                                       0xFFFFu)));
+            body.insert(body.end(), rec.payload.begin(), rec.payload.end());
+        } else {
+            body.push_back(0x00);  // not received
+        }
+        respond(fd, peer, opcode, req_id, ut::kStatusOk, body);
+        return;
+    }
+
+    case ut::OpTriggerSendUdp: {
+        // Params: <src_port:u16> <dst_ip:u32> <dst_port:u16>
+        //         <payload_len:u16> <payload[]>
+        //         [<src_ip_override_be:u32>]   // optional trailer
+        // Strict size bracketing, same as the Linux parser: exactly
+        // 12+payload_len (legacy) or 12+payload_len+4 (override).
+        if (n < 2 + 2 + 4 + 2 + 2) {
+            respond(fd, peer, opcode, req_id, ut::kStatusMalformed, body);
+            return;
+        }
+        const std::uint16_t src_port    = readBe16(buf + 2);
+        const std::uint32_t dst_ip_be   = lwip_htonl(readBe32(buf + 4));
+        const std::uint16_t dst_port    = readBe16(buf + 8);
+        const std::uint16_t payload_len = readBe16(buf + 10);
+        const std::size_t legacy_size   = 12u + payload_len;
+        const std::size_t override_size = legacy_size + 4u;
+        std::uint32_t src_ip_override_be = 0;
+        if (static_cast<std::size_t>(n) == legacy_size) {
+            // Legacy caller — default to the primary iface address.
+        } else if (static_cast<std::size_t>(n) == override_size) {
+            src_ip_override_be =
+                lwip_htonl(readBe32(buf + 12u + payload_len));
+        } else {
+            respond(fd, peer, opcode, req_id, ut::kStatusMalformed, body);
+            return;
+        }
+        const bool ok = triggerSendUdp(src_port, dst_ip_be, dst_port,
+                                       buf + 12, payload_len,
+                                       src_ip_override_be);
+        respond(fd, peer, opcode, req_id,
+                ok ? ut::kStatusOk : ut::kStatusSendFailed, body);
+        return;
+    }
+
+    case ut::OpCreateUdpReceivePorts: {
+        // Params: <count:u8>. kStatusOk even when created < count — the
+        // SCXML pass guard verdicts on the count match, not the status.
+        if (n < 2 + 1) {
+            respond(fd, peer, opcode, req_id, ut::kStatusMalformed, body);
+            return;
+        }
+        body.push_back(createUdpReceivePorts(buf[2]));
+        respond(fd, peer, opcode, req_id, ut::kStatusOk, body);
+        return;
+    }
 
     case ut::OpOpenTcpSocket: {
         if (n < 2 + 1 + 2) {
@@ -676,9 +992,10 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
                      ut::kPort, std::strerror(errno));
         abort();
     }
+    startUdpDataListener();
     std::fprintf(stderr,
-                 "tc8-lwip-ut: serving on UDP port %u (opcodes 0x03..0x0B + "
-                 "OpPing; max_opcode reported 0x%02X)\n",
+                 "tc8-lwip-ut: serving on UDP port %u (opcodes 0x01..0x0B + "
+                 "0x14 + OpPing; max_opcode reported 0x%02X)\n",
                  ut::kPort, kMaxImplementedOpcode);
 
     std::uint8_t buf[ut::kMaxPayload + 16];
@@ -704,11 +1021,23 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
 
 }  // namespace
 
+namespace {
+UpperTesterServer *g_server = nullptr;
+}  // namespace
+
 void StartUpperTesterServer(std::uint32_t dut_ip_be) {
     // Leaked deliberately: the server lives for the process lifetime
-    // and the fixture is torn down with SIGKILL by the topology conf.
+    // and the fixture tears the process down (SIGTERM, SIGKILL
+    // backstop) via the topology conf.
     auto *server = new UpperTesterServer(dut_ip_be);
+    g_server = server;
     std::thread([server] { server->run(); }).detach();
+}
+
+void AbortUpperTesterSlots() {
+    if (g_server != nullptr) {
+        g_server->abortAllSlots();
+    }
 }
 
 }  // namespace tc8::lwip_dut

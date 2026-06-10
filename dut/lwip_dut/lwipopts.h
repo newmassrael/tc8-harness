@@ -123,6 +123,11 @@
  * (IPv4_REASSEMBLY / IPv4_FRAGMENTS clusters). */
 #define IP_REASS_MAX_PBUFS         64
 #define MEMP_NUM_REASSDATA         8
+/* UDP pcb pool. The lwIP default of 4 cannot host the UT UDP surface:
+ * the UT RPC socket + the core-API data listener + a transient
+ * OpTriggerSendUdp pcb + the 10 OpCreateUdpReceivePorts pcbs of
+ * UDP_USER_INTERFACE_01 total 13 concurrent pcbs. */
+#define MEMP_NUM_UDP_PCB           16
 
 /* ---------- diagnostics ---------- */
 /* Loud assert instead of silent stack corruption; the handler lives in

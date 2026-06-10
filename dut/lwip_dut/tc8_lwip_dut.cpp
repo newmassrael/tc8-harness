@@ -16,6 +16,7 @@
 #include <sys/random.h>
 #include <unistd.h>
 
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 
@@ -42,6 +43,15 @@ extern "C" void tc8_lwip_platform_assert(const char *msg, int line,
 }
 
 namespace {
+
+// SIGTERM lands here only to wake the main thread out of pause();
+// the actual teardown (AbortUpperTesterSlots takes the tcpip core
+// lock) runs on the main thread, never in signal context.
+volatile sig_atomic_t g_terminate = 0;
+
+extern "C" void handle_term(int) {
+    g_terminate = 1;
+}
 
 void tcpip_init_done(void *sem) {
     sys_sem_signal(static_cast<sys_sem_t *>(sem));
@@ -102,8 +112,21 @@ int main() {
     ip4addr_ntoa_r(&addr, ip_text, sizeof(ip_text));
     std::fprintf(stderr, "tc8-lwip-dut: stack up at %s\n", ip_text);
 
-    for (;;) {
+    // SIGTERM = orderly teardown (sigaction, no SA_RESTART, so pause()
+    // returns with EINTR). A userspace stack emits nothing when
+    // SIGKILLed, so case-leaked UT connections would orphan their
+    // tester-side halves in FIN-WAIT-2 and swallow the next case's SYN
+    // on the same deterministic port quad; the abort below RSTs every
+    // open slot first — the fixture's equivalent of the Linux DUT's
+    // kernel closing sockets on process death.
+    struct sigaction sa = {};
+    sa.sa_handler = handle_term;
+    sigaction(SIGTERM, &sa, nullptr);
+
+    while (g_terminate == 0) {
         pause();
     }
+    tc8::lwip_dut::AbortUpperTesterSlots();
+    std::fprintf(stderr, "tc8-lwip-dut: SIGTERM — UT slots aborted, exiting\n");
     return 0;
 }
