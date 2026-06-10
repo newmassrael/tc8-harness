@@ -39,37 +39,14 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Apply vsomeip patch series + reinstall (idempotent)
-        # Same rationale as smoke-test.yml: keep the runner's vsomeip
-        # install in lockstep with the submodule SHA + patch series so
-        # the harness build never links a stale library.
-        run: sudo -n ./scripts/setup-vsomeip.sh
-
-      - name: Configure
-        run: |
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DTC8_SCE_FIND_PACKAGE=OFF
-      - name: Build harness
-        run: cmake --build build -j4
+      - name: Build harness (vsomeip + cmake)
+        # Shared recipe — see .github/actions/build-harness/action.yml.
+        uses: ./.github/actions/build-harness
 
       - name: Build lwIP DUT (pinned)
-        # The lwIP commit is dut/lwip_dut/LWIP_PIN — one file shared
-        # with the smoke-test.yml regression step so the two workflows
-        # can never drift apart. Pin-forward policy: bump deliberately,
-        # re-run the full sweep (dut/lwip_dut/README.md) and refresh the
-        # overrides ledger in the same commit.
-        run: |
-          LWIP_PIN=$(cat dut/lwip_dut/LWIP_PIN)
-          if [ ! -d "$HOME/lwip-cache/$LWIP_PIN" ]; then
-            rm -rf "$HOME/lwip-cache"
-            git clone https://github.com/lwip-tcpip/lwip.git "$HOME/lwip-cache/$LWIP_PIN"
-            git -C "$HOME/lwip-cache/$LWIP_PIN" checkout --detach "$LWIP_PIN"
-          fi
-          cmake -S dut/lwip_dut -B build-lwip-dut \
-            -DLWIP_DIR="$HOME/lwip-cache/$LWIP_PIN" \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-lwip-dut -j4
+        # Shared with smoke-test.yml — pin + cache + pin-forward policy
+        # live in .github/actions/build-lwip-dut/action.yml.
+        uses: ./.github/actions/build-lwip-dut
 
       - name: Run full sweep (single invocation + JUnit)
         # Case selection comes from dut/lwip_dut/sweep-cases.sh — the

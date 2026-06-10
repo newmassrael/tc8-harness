@@ -57,28 +57,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Apply vsomeip patch series + reinstall (idempotent)
-        # Re-runs `scripts/setup-vsomeip.sh` so the runner's vsomeip
-        # install always matches `third_party/vsomeip` HEAD + the
-        # checked-in `patches/vsomeip/series`. Without this, RPC_07/_08
-        # (which depend on patches/vsomeip/0001-relax-return-code-on-requests)
-        # would silently regress whenever the submodule SHA or patch
-        # series changes between PRs.
-        #
-        # NOPASSWD requirement: extend /etc/sudoers.d/tc8-runner so the
-        # runner can invoke
-        # /opt/actions-runner/_work/tc8-harness/tc8-harness/scripts/setup-vsomeip.sh
-        # (and the inner `sudo cmake --install`) without interactive
-        # auth. See README §CI for the full sudoers fragment.
-        run: sudo -n ./scripts/setup-vsomeip.sh
-
-      - name: Configure
-        run: |
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DTC8_SCE_FIND_PACKAGE=OFF
-      - name: Build harness + tc8-dut
-        run: cmake --build build -j4
+      - name: Build harness (vsomeip + cmake)
+        # Shared recipe — see .github/actions/build-harness/action.yml
+        # for the vsomeip patch-series and sudoers rationale.
+        uses: ./.github/actions/build-harness
 
       - name: Run positive smoke (--workers 4 + JUnit)
         # Two harness-side filters apply, both reading
@@ -155,23 +137,13 @@ jobs:
       # 0x01), caller-specified src-IP emit via udp_sendto_if_src +
       # tap alias (UDP_USER_INTERFACE_07, 0x02), and ephemeral
       # receive-port creation (UDP_USER_INTERFACE_01, 0x14). ~4 min.
+      - name: Build lwIP DUT (pinned)
+        # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
+        # live in .github/actions/build-lwip-dut/action.yml.
+        uses: ./.github/actions/build-lwip-dut
+
       - name: lwIP DUT regression (tap fixture)
-        # The lwIP commit is dut/lwip_dut/LWIP_PIN — one file shared
-        # with the weekly lwip-sweep workflow so the two can never
-        # drift apart. Pin-forward policy: bump deliberately, re-run
-        # the full sweep (dut/lwip_dut/README.md) and refresh the
-        # overrides ledger in the same commit.
         run: |
-          LWIP_PIN=$(cat dut/lwip_dut/LWIP_PIN)
-          if [ ! -d "$HOME/lwip-cache/$LWIP_PIN" ]; then
-            rm -rf "$HOME/lwip-cache"
-            git clone https://github.com/lwip-tcpip/lwip.git "$HOME/lwip-cache/$LWIP_PIN"
-            git -C "$HOME/lwip-cache/$LWIP_PIN" checkout --detach "$LWIP_PIN"
-          fi
-          cmake -S dut/lwip_dut -B build-lwip-dut \
-            -DLWIP_DIR="$HOME/lwip-cache/$LWIP_PIN" \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-lwip-dut -j4
           sudo -n dut/env/smoke-test.sh \
             --topology external \
             --topology-conf dut/env/topology.d/examples/lwip-tap-fixture.conf \

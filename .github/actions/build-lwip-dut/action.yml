@@ -1,0 +1,25 @@
+name: Build lwIP DUT
+description: >
+  Builds dut/lwip_dut/ against the lwIP commit pinned in
+  dut/lwip_dut/LWIP_PIN, with a per-pin source cache. Shared by
+  smoke-test.yml (regression slice) and lwip-sweep.yml (weekly full
+  sweep) so the two can never build different stack revisions.
+  Pin-forward policy: bump LWIP_PIN deliberately, re-run the full
+  sweep (dut/lwip_dut/README.md) and refresh the overrides ledger in
+  the same commit.
+runs:
+  using: composite
+  steps:
+    - name: Build lwIP DUT (pinned)
+      shell: bash
+      run: |
+        LWIP_PIN=$(cat dut/lwip_dut/LWIP_PIN)
+        if [ ! -d "$HOME/lwip-cache/$LWIP_PIN" ]; then
+          rm -rf "$HOME/lwip-cache"
+          git clone https://github.com/lwip-tcpip/lwip.git "$HOME/lwip-cache/$LWIP_PIN"
+          git -C "$HOME/lwip-cache/$LWIP_PIN" checkout --detach "$LWIP_PIN"
+        fi
+        cmake -S dut/lwip_dut -B build-lwip-dut \
+          -DLWIP_DIR="$HOME/lwip-cache/$LWIP_PIN" \
+          -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-lwip-dut -j4

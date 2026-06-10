@@ -1,0 +1,33 @@
+name: Build harness
+description: >
+  vsomeip patch-series reinstall + cmake configure + harness/tc8-dut
+  build. Shared by smoke-test.yml and lwip-sweep.yml so the build
+  recipe cannot drift between the push gate and the weekly sweep.
+runs:
+  using: composite
+  steps:
+    - name: Apply vsomeip patch series + reinstall (idempotent)
+      # Re-runs `scripts/setup-vsomeip.sh` so the runner's vsomeip
+      # install always matches `third_party/vsomeip` HEAD + the
+      # checked-in `patches/vsomeip/series`. Without this, RPC_07/_08
+      # (which depend on patches/vsomeip/0001-relax-return-code-on-requests)
+      # would silently regress whenever the submodule SHA or patch
+      # series changes between PRs.
+      #
+      # NOPASSWD requirement: extend /etc/sudoers.d/tc8-runner so the
+      # runner can invoke the checked-out setup-vsomeip.sh (and the
+      # inner `sudo cmake --install`) without interactive auth. See
+      # README §CI for the full sudoers fragment.
+      shell: bash
+      run: sudo -n ./scripts/setup-vsomeip.sh
+
+    - name: Configure
+      shell: bash
+      run: |
+        cmake -S . -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DTC8_SCE_FIND_PACKAGE=OFF
+
+    - name: Build harness + tc8-dut
+      shell: bash
+      run: cmake --build build -j4
