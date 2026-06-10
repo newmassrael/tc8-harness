@@ -29,19 +29,24 @@ The lwIP core is compiled by this directory's CMakeLists against
 `dut/lwip_dut/lwipopts.h`, so the stack configuration cannot drift from
 what the binary links.
 
-## Sweep result (2026-06-10, lwIP master 8e75a40a, 232 cases)
+## Sweep result (2026-06-10, lwIP master 8e75a40a)
 
-Two sweeps against the final fixture: 116 UT-independent cases
+Initial coverage came from two sweeps: 116 UT-independent cases
 (ARP / ICMPv4 / IPv4 core / UDP) and the 116-case TCP corpus opened by
-the UT port (opcodes 0x03..0x0B + OpPing).
+the UT port (opcodes 0x03..0x0B + OpPing). A same-day follow-up ported
+the UDP opcode family (0x01 OpGetReceivedUdp / 0x02 OpTriggerSendUdp /
+0x14 OpCreateUdpReceivePorts) and opened 33 more cases — all 33 PASS
+after two fixture-environment additions (tester alias + Host-2 ARP
+answerability, see the conf) and one conformance rule in the data
+listener (multicast deny, below).
 
 | Bucket | Count | Notes |
 |---|---|---|
-| Meaningful PASS | 153 | 53 non-TCP + 100 TCP |
+| Meaningful PASS | 186 | 86 non-TCP + 100 TCP |
 | Vacuous PASS | 2 | `ARP_03/_05` — absence assertions whose SOME/IP egress provocation is inert here; excluded from the regression list |
 | lwIP stack deviation (`platform_known_fail`) | 18 | 6 non-TCP + 12 TCP, each verified against lwIP source and/or pcap (below) |
 | Blocked: no SOME/IP responder | 24 | ARP egress-provocation cases (includes the two vacuous passes) |
-| Blocked: UT opcode not yet ported | 37 | 33 non-TCP (0x01/0x02/0x14) + 4 TCP (`TCP_RETRANSMISSION_TO_03/_04/_08/_09`, 0x13 OpQueryTcpInfo) |
+| Blocked: UT opcode not yet ported | 4 | `TCP_RETRANSMISSION_TO_03/_04/_08/_09` (0x13 OpQueryTcpInfo — couples to the sockets_priv.h upstream question) |
 
 `dut/lwip_dut/inventory_overrides.json` is the machine-readable single
 source of truth for the last two buckets plus the deviation set; this
@@ -138,10 +143,27 @@ behaviour-shaping ones:
 
 ## Upper Tester implementation notes (`lwip_ut_server.cpp`)
 
-- Opcode surface: `OpOpenTcpSocket`..`OpReceiveTcpDataOob`
-  (0x03..0x0B) + `OpPing` (0x15). `OpPing` reports `max_opcode` 0x0B —
-  the top of the contiguous TCP block; the one-byte capability field
-  cannot express a sparse set.
+- Opcode surface: `OpGetReceivedUdp`/`OpTriggerSendUdp` (0x01/0x02) +
+  `OpOpenTcpSocket`..`OpReceiveTcpDataOob` (0x03..0x0B) +
+  `OpCreateUdpReceivePorts` (0x14) + `OpPing` (0x15). `OpPing` reports
+  `max_opcode` 0x0B — the top of the contiguous 0x01..0x0B block; the
+  one-byte capability field cannot express the sparse 0x14.
+- The UDP data listener is a core-API `udp` pcb with a recv callback,
+  not a socket thread: `ip_current_dest_addr()` inside the callback
+  provides the original IP destination (the role IP_PKTINFO plays on
+  Linux) without compiling in `LWIP_NETBUF_RECVINFO`.
+- The data listener applies two application-layer conformance rules,
+  both mirroring observables the Linux DUT gets elsewhere: directed-
+  broadcast receipts are discarded (RFC 1122 §3.2.1.3, same app-layer
+  rule as the Linux tc8-dut), and multicast receipts are denied
+  (RFC 1122 §4.1.1 as inverted by TC8 §4.6.5.6 UDP_INTRODUCTION_02) —
+  lwIP's `ip4_input` accepts every multicast destination when
+  `LWIP_IGMP=0`, and compiling IGMP in would not help because
+  `igmp_start` auto-joins 224.0.0.1 on netif-up.
+- `OpTriggerSendUdp`'s src-IP override (§4.6.5.5 UI_07 caller-specified
+  Source IP) maps to `udp_sendto_if_src()`: lwIP has no IPv4
+  netif-alias to bind to; the core API emits from the caller-named
+  source directly.
 - `OpQueryTcpEstablished` answers from accept()/connect() completion
   (lwIP's socket layer exposes no TCP_INFO equivalent); the acceptor
   polls at 200 ms so the answer trails the wire by at most one tick.
@@ -162,14 +184,15 @@ behaviour-shaping ones:
   cases legitimately leave auxiliary sockets open. Respawning restores
   the per-case fresh-DUT semantics the Linux fixture gets from
   `TOPOLOGY_SUPPORTS_DUT_SPAWN=1`.
-- **Drain-before-kill ordering** (0.4 s settle before the DUT pkill):
-  the reaped harness's tester sockets complete their FIN exchanges
-  against the still-live lwIP and reach CLOSED / reopenable TIME-WAIT.
-  Killing the DUT first mints orphaned FIN-WAIT-1 sockets that freeze
-  once the tap disappears and answer a later run's SYN on the same
-  port quad with a stale challenge-ACK (observed as TCP_CLOSING_07
-  alternating pass/fail). `ss -K` is not a substitute — SOCK_DESTROY
-  silently no-ops on the verification host.
+- **Drain-before-kill ordering** (`ss`-polled condition wait before
+  the DUT pkill, baselined against the bring-up socket snapshot): the
+  reaped harness's tester sockets complete their FIN exchanges against
+  the still-live lwIP and reach CLOSED / reopenable TIME-WAIT. Killing
+  the DUT first mints orphaned FIN-WAIT-1 sockets that freeze once the
+  tap disappears and answer a later run's SYN on the same port quad
+  with a stale challenge-ACK (observed as TCP_CLOSING_07 alternating
+  pass/fail). `ss -K` is not a substitute — SOCK_DESTROY silently
+  no-ops on the verification host.
 - Stimulus-suppression iptables leaks from killed prior runs are
   handled by smoke-test.sh flushing the harness-owned `tc8-stimulus`
   chain at bring-up — no fixture-side rule knowledge.

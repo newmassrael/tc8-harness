@@ -148,9 +148,13 @@ jobs:
       # QueryTcpEstablished poll (TCP_BASICS_01..03), tcp_abort RST
       # path (CALL_ABORT_02), shutdown(WR)+recv (CLOSING_07), raw
       # passive handshake under TesterAutoRstDrop (MSS_OPTIONS_02),
-      # IP_REASS_MAXAGE alignment (REASSEMBLY_10), and a 5-phase case
+      # IP_REASS_MAXAGE alignment (REASSEMBLY_10), a 5-phase case
       # exercising per-case respawn + ss -K + AckDrop + RFC 7323
-      # timestamps (FLAGS_INVALID_09). ~3 min.
+      # timestamps (FLAGS_INVALID_09), and the UDP UT opcode family —
+      # receipt log + directed-broadcast deny (IPv4_ADDRESSING_02,
+      # 0x01), caller-specified src-IP emit via udp_sendto_if_src +
+      # tap alias (UDP_USER_INTERFACE_07, 0x02), and ephemeral
+      # receive-port creation (UDP_USER_INTERFACE_01, 0x14). ~4 min.
       - name: lwIP DUT regression (tap fixture)
         # The lwIP commit is dut/lwip_dut/LWIP_PIN — one file shared
         # with the weekly lwip-sweep workflow so the two can never
@@ -175,7 +179,8 @@ jobs:
             ICMPv4_TYPE_08 UDP_INTRODUCTION_03 \
             TCP_BASICS_01 TCP_BASICS_02 TCP_BASICS_03 \
             TCP_CALL_ABORT_02 TCP_CLOSING_07 TCP_MSS_OPTIONS_02 \
-            IPv4_REASSEMBLY_10 TCP_FLAGS_INVALID_09
+            IPv4_REASSEMBLY_10 TCP_FLAGS_INVALID_09 \
+            IPv4_ADDRESSING_02 UDP_USER_INTERFACE_01 UDP_USER_INTERFACE_07
 
       - name: Upload JUnit reports
         if: always()
