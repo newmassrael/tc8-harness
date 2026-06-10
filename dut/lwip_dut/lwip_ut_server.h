@@ -14,8 +14,9 @@ namespace tc8::lwip_dut {
 // Implemented opcode surface (see include/tc8/upper_tester_protocol.h):
 // OpGetReceivedUdp/OpTriggerSendUdp (0x01/0x02),
 // OpOpenTcpSocket..OpReceiveTcpDataOob (0x03..0x0B),
-// OpCreateUdpReceivePorts (0x14) and OpPing (0x15). Everything else
-// answers kStatusUnknownOpcode — visible, never silent.
+// OpQueryTcpInfo (0x13), OpCreateUdpReceivePorts (0x14) and OpPing
+// (0x15). Everything else answers kStatusUnknownOpcode — visible,
+// never silent.
 //
 // Call once after the stack is up; aborts the process on socket/bind
 // failure because a half-up DUT (stack answering, UT dead) is exactly

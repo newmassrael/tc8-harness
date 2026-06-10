@@ -344,21 +344,15 @@
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "case observation window is shaped for the conditioned Linux fixture's linear SYN RTO (tcp_syn_linear_timeouts); lwIP's RFC 6298 exponential backoff exits the window — test-design concern, mirrors the TCP_UNACCEPTABLE_08 precedent"
     },
-    "TCP_RETRANSMISSION_TO_03": {
-      "expected": false,
-      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
-    },
-    "TCP_RETRANSMISSION_TO_04": {
-      "expected": false,
-      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
-    },
     "TCP_RETRANSMISSION_TO_08": {
-      "expected": false,
-      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "spec expects the data-retransmission RTO to plateau at 2*MSL (60 s); lwIP doubles RTO per retransmit with no 2*MSL clamp (tcp.c tcp_backoff shift, cap at <<7) and aborts at TCP_MAXRTX=12 — within the 35 s observation budget the RTO never repeats, deterministic fail:rto_below_2_msl_did_not_plateau_within_observation_budget (verified x2 2026-06-11)"
     },
     "TCP_RETRANSMISSION_TO_09": {
-      "expected": false,
-      "reason": "requires Upper Tester opcode 0x13 OpQueryTcpInfo (kernel-side TCP state snapshot), not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "spec expects the SYN-retransmission RTO to plateau at 2*MSL (60 s); lwIP never backs off the SYN RTO (tcp.c excludes SYN_SENT from RTO doubling, fixed 1 s cadence) and aborts the pcb at TCP_SYNMAXRTX=6 (~7 s) — the freed pcb makes OpQueryTcpInfo answer kStatusUnknownSocket, deterministic fail:tcp_info_query_failed (verified x2 2026-06-11)"
     }
   }
 }

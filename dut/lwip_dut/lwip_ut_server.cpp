@@ -2,7 +2,7 @@
 //
 // Functional mirror of dut/dut_service/upper_tester_server.cpp scoped
 // to the UDP opcode family (0x01/0x02/0x14) + the TCP opcode family
-// (0x03..0x0B) + OpPing (0x15), rebuilt on the lwIP socket API.
+// (0x03..0x0B, 0x13) + OpPing (0x15), rebuilt on the lwIP socket API.
 // Structural differences from the Linux server, each forced by a stack
 // property:
 //
@@ -32,6 +32,12 @@
 //     IPv4 netif-alias concept to bind to, and the core API emits from
 //     a caller-specified source address directly, which is exactly the
 //     spec's "caller-specified Source IP" axis.
+//   * OpQueryTcpInfo answers from the connection pcb's own fields
+//     (state/rto/nrtx/unacked queue) read under the core lock through
+//     the same fd -> pcb bridge the ABORT primitive uses — lwIP's
+//     socket layer has no getsockopt(TCP_INFO). The wire speaks Linux
+//     TCP_INFO conventions, so the pcb values are translated at the
+//     edge (state numbering, rto ticks -> microseconds).
 
 #include "lwip_ut_server.h"
 
@@ -64,6 +70,11 @@
 extern "C" {
 #include "lwip/priv/sockets_priv.h"
 }
+// pcb-field observation for OpQueryTcpInfo: TCP_SLOW_INTERVAL (the
+// unit of tcp_pcb.rto) and the full tcp_seg definition (walking the
+// unacked queue) live in this private header. Unlike sockets_priv.h
+// its extern "C" block covers every declaration, so no wrapper.
+#include "lwip/priv/tcp_priv.h"
 
 #include "tc8/upper_tester_protocol.h"
 
@@ -87,6 +98,35 @@ std::uint32_t readBe32(const std::uint8_t *p) {
 void appendBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
     b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFU));
     b.push_back(static_cast<std::uint8_t>(v & 0xFFU));
+}
+
+void appendBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
+    b.push_back(static_cast<std::uint8_t>((v >> 24) & 0xFFU));
+    b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFFU));
+    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFU));
+    b.push_back(static_cast<std::uint8_t>(v & 0xFFU));
+}
+
+// The OpQueryTcpInfo state byte speaks the wire protocol's Linux
+// TCP_INFO numbering (upper_tester_protocol.h: "1=ESTABLISHED, ...");
+// lwIP's enum tcp_state numbers the same FSM differently (tcpbase.h:
+// CLOSED=0 .. TIME_WAIT=10). No default branch so an upstream state
+// addition surfaces as a -Wswitch warning instead of a silent zero.
+std::uint8_t wireTcpState(enum tcp_state s) {
+    switch (s) {
+    case CLOSED:      return 7;   // TCP_CLOSE
+    case LISTEN:      return 10;  // TCP_LISTEN
+    case SYN_SENT:    return 2;   // TCP_SYN_SENT
+    case SYN_RCVD:    return 3;   // TCP_SYN_RECV
+    case ESTABLISHED: return 1;   // TCP_ESTABLISHED
+    case FIN_WAIT_1:  return 4;   // TCP_FIN_WAIT1
+    case FIN_WAIT_2:  return 5;   // TCP_FIN_WAIT2
+    case CLOSE_WAIT:  return 8;   // TCP_CLOSE_WAIT
+    case CLOSING:     return 11;  // TCP_CLOSING
+    case LAST_ACK:    return 9;   // TCP_LAST_ACK
+    case TIME_WAIT:   return 6;   // TCP_TIME_WAIT
+    }
+    return 0;
 }
 
 // IP addresses travel MSB-first on the UT wire (172,16,0,1 for
@@ -201,12 +241,12 @@ private:
 };
 
 // Highest opcode this implementation answers. The implemented set is
-// sparse (0x0C..0x13 autoconf/DHCP/info opcodes are not ported;
-// OpCreateUdpReceivePorts 0x14 IS, beyond the gap); OpPing's
-// single-byte capability field cannot express a sparse set, so the
-// honest value is the top of the contiguous 0x01..0x0B block — a
-// tester probing feature level sees "UDP + TCP session control
-// available" and nothing more.
+// sparse (0x0C..0x12 autoconf/DHCP opcodes are not ported;
+// OpQueryTcpInfo 0x13 and OpCreateUdpReceivePorts 0x14 ARE, beyond
+// the gap); OpPing's single-byte capability field cannot express a
+// sparse set, so the honest value is the top of the contiguous
+// 0x01..0x0B block — a tester probing feature level sees "UDP + TCP
+// session control available" and nothing more.
 constexpr std::uint8_t kMaxImplementedOpcode = ut::OpReceiveTcpDataOob;
 
 void UpperTesterServer::applyTimeout(int fd, int optname, int ms) {
@@ -834,6 +874,77 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
         return;
     }
 
+    case ut::OpQueryTcpInfo: {
+        // Params: <socket_id:u8>. Response is the Linux tc8-dut's
+        // 13-byte TCP_INFO shape, sourced from the connection pcb:
+        //   state       — wireTcpState(pcb->state)
+        //   rto_us      — pcb->rto is in TCP_SLOW_INTERVAL (500 ms)
+        //                 ticks; the wire wants microseconds
+        //   retransmits — pcb->nrtx, reset on forward progress like
+        //                 the icsk_retransmits the Linux server reads
+        //   unacked     — segments on the unacked queue, the lwIP
+        //                 analog of tcpi_unacked (packets_out)
+        if (n < 2 + 1) {
+            respond(fd, peer, opcode, req_id, ut::kStatusMalformed, body);
+            return;
+        }
+        int cfd = -1;
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            TcpSlot *slot = findSlot(buf[2]);
+            if (slot == nullptr) {
+                respond(fd, peer, opcode, req_id, ut::kStatusUnknownSocket,
+                        body);
+                return;
+            }
+            cfd = slot->conn_fd.load();
+        }
+        if (cfd < 0) {
+            // Passive slot with no accepted connection yet — no pcb to
+            // report; the same kStatusUnknownSocket collapse as the
+            // Linux server's accepted_fd < 0 branch.
+            respond(fd, peer, opcode, req_id, ut::kStatusUnknownSocket,
+                    body);
+            return;
+        }
+        bool have_pcb = false;
+        std::uint8_t  state       = 0;
+        std::uint32_t rto_us      = 0;
+        std::uint8_t  retransmits = 0;
+        std::uint32_t unacked     = 0;
+        LOCK_TCPIP_CORE();
+        struct lwip_sock *s = lwip_socket_dbg_get_socket(cfd);
+        if (s != nullptr && s->conn != nullptr &&
+            NETCONNTYPE_GROUP(s->conn->type) == NETCONN_TCP &&
+            s->conn->pcb.tcp != nullptr) {
+            const struct tcp_pcb *pcb = s->conn->pcb.tcp;
+            state       = wireTcpState(pcb->state);
+            rto_us      = static_cast<std::uint32_t>(pcb->rto) *
+                          (TCP_SLOW_INTERVAL * 1000U);
+            retransmits = pcb->nrtx;
+            for (const struct tcp_seg *seg = pcb->unacked; seg != nullptr;
+                 seg = seg->next) {
+                ++unacked;
+            }
+            have_pcb = true;
+        }
+        UNLOCK_TCPIP_CORE();
+        if (!have_pcb) {
+            // Connection aborted or reaped between the slot lookup and
+            // the pcb walk — same outcome as a Linux getsockopt(TCP_INFO)
+            // failure, which also collapses to kStatusUnknownSocket.
+            respond(fd, peer, opcode, req_id, ut::kStatusUnknownSocket,
+                    body);
+            return;
+        }
+        body.push_back(state);
+        appendBe32(body, rto_us);
+        body.push_back(retransmits);
+        appendBe32(body, unacked);
+        respond(fd, peer, opcode, req_id, ut::kStatusOk, body);
+        return;
+    }
+
     case ut::OpSendTcpData:
     case ut::OpSendTcpDataPattern: {
         const bool pattern = (opcode == ut::OpSendTcpDataPattern);
@@ -995,7 +1106,7 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
     startUdpDataListener();
     std::fprintf(stderr,
                  "tc8-lwip-ut: serving on UDP port %u (opcodes 0x01..0x0B + "
-                 "0x14 + OpPing; max_opcode reported 0x%02X)\n",
+                 "0x13 + 0x14 + OpPing; max_opcode reported 0x%02X)\n",
                  ut::kPort, kMaxImplementedOpcode);
 
     // Mirror of the Linux server's 64 KiB request buffer. The largest

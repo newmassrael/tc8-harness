@@ -29,7 +29,7 @@ The lwIP core is compiled by this directory's CMakeLists against
 `dut/lwip_dut/lwipopts.h`, so the stack configuration cannot drift from
 what the binary links.
 
-## Sweep result (2026-06-10, lwIP master 8e75a40a)
+## Sweep result (2026-06-11, lwIP master 8e75a40a)
 
 Initial coverage came from two sweeps: 116 UT-independent cases
 (ARP / ICMPv4 / IPv4 core / UDP) and the 116-case TCP corpus opened by
@@ -38,25 +38,28 @@ the UDP opcode family (0x01 OpGetReceivedUdp / 0x02 OpTriggerSendUdp /
 0x14 OpCreateUdpReceivePorts) and opened 33 more cases — all 33 PASS
 after two fixture-environment additions (tester alias + Host-2 ARP
 answerability, see the conf) and one conformance rule in the data
-listener (multicast deny, below).
+listener (multicast deny, below). 2026-06-11 ported OpQueryTcpInfo
+(0x13) onto the connection pcb's own fields, retiring the last
+UT-opcode-blocked bucket: `TCP_RETRANSMISSION_TO_03/_04` join the
+PASS set (x2 consecutive), `_08/_09` join the deviation set (below).
 
 | Bucket | Count | Notes |
 |---|---|---|
-| Meaningful PASS | 186 | 86 non-TCP + 100 TCP |
+| Meaningful PASS | 188 | 86 non-TCP + 102 TCP |
 | Vacuous PASS | 2 | `ARP_03/_05` — absence assertions whose SOME/IP egress provocation is inert here; excluded from the regression list |
-| lwIP stack deviation (`platform_known_fail`) | 18 | 6 non-TCP + 12 TCP, each verified against lwIP source and/or pcap (below) |
+| lwIP stack deviation (`platform_known_fail`) | 20 | 6 non-TCP + 14 TCP, each verified against lwIP source and/or pcap (below) |
 | Blocked: no SOME/IP responder | 24 | ARP egress-provocation cases (includes the two vacuous passes) |
-| Blocked: UT opcode not yet ported | 4 | `TCP_RETRANSMISSION_TO_03/_04/_08/_09` (0x13 OpQueryTcpInfo — couples to the sockets_priv.h upstream question) |
 
 `dut/lwip_dut/inventory_overrides.json` is the machine-readable single
-source of truth for the last two buckets plus the deviation set; this
+source of truth for the last bucket plus the deviation set; this
 table is a dated report.
 
 The 39 `IPv4_AUTOCONF_*` cases (29 positive + 10 `_NEG`) sit outside
 the sweep scope entirely: the fixture builds with `LWIP_AUTOIP`
 disabled (`lwipopts.h`) and no UT opcode drives autoconf. They are
 ledgered `expected:false` in the overrides file so the sweep command
-below emits exactly the 153-case regression list and `--vs-spec`
+below emits exactly the 188-case regression list (the meaningful-PASS
+set) and `--vs-spec`
 reports them as honest gaps.
 
 ## Verified lwIP deviations
@@ -109,6 +112,21 @@ TCP:
   observation windows are shaped for the conditioned Linux fixture's
   linear SYN RTO; lwIP's RFC 6298 exponential backoff exits them.
   Test-design concern, mirrors the `TCP_UNACCEPTABLE_08` precedent.
+- **`TCP_RETRANSMISSION_TO_08` — no 2*MSL RTO ceiling.** The spec
+  expects the data-retransmission RTO to plateau at 2*MSL (60 s).
+  lwIP keeps doubling per retransmit (`tcp.c` `tcp_backoff` shift,
+  capped at `<<7`) with no 2*MSL clamp and aborts the connection at
+  `TCP_MAXRTX` 12; within the 35 s observation budget the RTO never
+  repeats. Deterministic
+  `fail:rto_below_2_msl_did_not_plateau_within_observation_budget`
+  (x2 2026-06-11).
+- **`TCP_RETRANSMISSION_TO_09` — SYN RTO never backs off, pcb aborts.**
+  lwIP excludes SYN_SENT from RTO doubling (`tcp.c`: "unless we are
+  trying to connect") — fixed 1 s SYN cadence — and frees the pcb at
+  `TCP_SYNMAXRTX` 6 (~7 s in), at which point `OpQueryTcpInfo` answers
+  `kStatusUnknownSocket`. Deterministic `fail:tcp_info_query_failed`
+  (x2 2026-06-11). A 2*MSL SYN-RTO plateau is structurally
+  unobservable on this stack.
 
 ## lwipopts.h alignment (why each non-default option exists)
 
@@ -145,9 +163,16 @@ behaviour-shaping ones:
 
 - Opcode surface: `OpGetReceivedUdp`/`OpTriggerSendUdp` (0x01/0x02) +
   `OpOpenTcpSocket`..`OpReceiveTcpDataOob` (0x03..0x0B) +
-  `OpCreateUdpReceivePorts` (0x14) + `OpPing` (0x15). `OpPing` reports
-  `max_opcode` 0x0B — the top of the contiguous 0x01..0x0B block; the
-  one-byte capability field cannot express the sparse 0x14.
+  `OpQueryTcpInfo` (0x13) + `OpCreateUdpReceivePorts` (0x14) +
+  `OpPing` (0x15). `OpPing` reports `max_opcode` 0x0B — the top of the
+  contiguous 0x01..0x0B block; the one-byte capability field cannot
+  express the sparse 0x13/0x14.
+- `OpQueryTcpInfo` reads `state`/`rto`/`nrtx`/`unacked` off the
+  connection pcb under the core lock (the same fd→pcb bridge the
+  ABORT primitive uses) and translates to the wire's Linux TCP_INFO
+  conventions: state renumbered (`tcpbase.h` order differs), `rto`
+  ticks × `TCP_SLOW_INTERVAL` (500 ms) → microseconds, `unacked` =
+  segment count on the unacked queue.
 - The UDP data listener is a core-API `udp` pcb with a recv callback,
   not a socket thread: `ip_current_dest_addr()` inside the callback
   provides the original IP destination (the role IP_PKTINFO plays on
