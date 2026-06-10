@@ -88,13 +88,13 @@ jobs:
         #     (spec gap — harness intentionally cannot cover; today
         #     empty by project policy that platform deviations belong
         #     on the second axis instead).
-        #   * `--exclude-linux-known-fail` drops cases marked
-        #     `linux_known_fail:true` — kernel/userland deviations
+        #   * `--exclude-platform-known-fail` drops cases marked
+        #     `platform_known_fail:true` — kernel/userland deviations
         #     from RFC MUST/SHOULD that fail on the Linux DUT but pass
         #     on a strict-RFC DUT. CI green here therefore means "no
         #     regression in cases the Linux DUT is capable of passing".
         #     Per-case rationale + memory cross-references live in
-        #     each entry's `linux_known_fail_ref`.
+        #     each entry's `platform_known_fail_ref`.
         # When the harness later runs against a strict-RFC DUT, drop
         # the second flag — the marked cases land green there.
         run: |
@@ -103,7 +103,7 @@ jobs:
             --workers 4 \
             --junit-xml reports/junit-smoke-positive.xml \
             $(./build/tc8-harness test --list-cases \
-                --exclude-deferred --exclude-linux-known-fail \
+                --exclude-deferred --exclude-platform-known-fail \
               | awk '/^  [A-Z]/{print $1}')
 
       - name: Run negative curated set (--workers 4)

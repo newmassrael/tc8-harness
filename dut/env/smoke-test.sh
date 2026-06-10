@@ -493,7 +493,7 @@ EOF
             s = name
             sub(/_neg$/, "", s)
             sub(/_NEG$/, "", s)
-            sub(/_LINUX_KNOWN_FAIL$/, "", s)
+            sub(/_PLATFORM_KNOWN_FAIL$/, "", s)
             sub(/_[0-9]+$/, "", s)
             return s
         }

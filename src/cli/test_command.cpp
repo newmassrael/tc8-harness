@@ -49,13 +49,15 @@ TestCommand::TestCommand(CLI::App &app) {
                    "canonical ID is marked expected:false in "
                    "doc/spec/inventory_overrides.json. Lets smoke/CI consume the "
                    "JSON as the single source of truth for spec-deferred cases.");
-    sub_->add_flag("--exclude-linux-known-fail", exclude_linux_known_fail_,
+    sub_->add_flag("--exclude-platform-known-fail", exclude_platform_known_fail_,
                    "With --list-cases (no --vs-spec), drop harness cases whose "
-                   "canonical ID is marked linux_known_fail:true in "
-                   "doc/spec/inventory_overrides.json — platform-specific "
-                   "failures on a Linux DUT that pass on a strict-RFC DUT. "
-                   "Independent from --exclude-deferred; combine for the full "
-                   "CI smoke skip list.");
+                   "canonical ID is marked platform_known_fail:true in the "
+                   "active inventory overrides JSON (default describes the "
+                   "Linux reference DUT; --inventory-overrides selects another "
+                   "platform's file) — platform-specific DUT-stack deviations "
+                   "that pass on a strict-RFC DUT. Independent from "
+                   "--exclude-deferred; combine for the full CI smoke skip "
+                   "list.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: doc/spec/case_inventory.json)");
@@ -99,7 +101,7 @@ int TestCommand::runListCases() const {
     // set. Failure to load surfaces with stderr + non-zero exit so
     // smoke/CI invocations don't silently fall back to the full list.
     std::optional<sce::SpecInventory> inv_for_filter;
-    if (exclude_deferred_ || exclude_linux_known_fail_) {
+    if (exclude_deferred_ || exclude_platform_known_fail_) {
         const std::string inv_path = inventory_path_.empty()
             ? std::string("doc/spec/case_inventory.json")
             : inventory_path_;
@@ -124,7 +126,7 @@ int TestCommand::runListCases() const {
                 if (exclude_deferred_ && !sc->expected) {
                     continue;
                 }
-                if (exclude_linux_known_fail_ && sc->linux_known_fail) {
+                if (exclude_platform_known_fail_ && sc->platform_known_fail) {
                     continue;
                 }
             }
@@ -142,14 +144,14 @@ int TestCommand::runListCases() const {
                     static_cast<int>(e->description.size()), e->description.data(), tag);
         ++emitted;
     }
-    if (exclude_deferred_ || exclude_linux_known_fail_) {
+    if (exclude_deferred_ || exclude_platform_known_fail_) {
         std::string note;
         if (exclude_deferred_) {
             note = "deferred";
         }
-        if (exclude_linux_known_fail_) {
+        if (exclude_platform_known_fail_) {
             note += note.empty() ? "" : "+";
-            note += "linux_known_fail";
+            note += "platform_known_fail";
         }
         std::printf("\n%zu case(s) listed (%s excluded).\n", emitted, note.c_str());
     } else {
@@ -175,7 +177,7 @@ int TestCommand::runVsSpecReport() const {
     const auto &inv = *inv_opt;
 
     // Build canonical-ID set of registered cases (strip _NEG /
-    // _LINUX_KNOWN_FAIL so harness variant tags don't masquerade as
+    // _PLATFORM_KNOWN_FAIL so harness variant tags don't masquerade as
     // distinct spec entries).
     std::set<std::string> registered_canon;
     for (const auto *e : sce::CaseRegistry::instance().listSorted(/*include_deprecated=*/true)) {

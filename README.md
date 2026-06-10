@@ -357,10 +357,10 @@ DUT for a different vsomeip configuration, update both sides together.
 ./build/tc8-harness test --list-cases --include-deprecated  # also show deprecated IDs
 ./build/tc8-harness test --list-cases --vs-spec             # coverage gap vs doc/spec/case_inventory.json
 ./build/tc8-harness test --list-cases --vs-spec --strict    # exit non-zero on any gap
-./build/tc8-harness test --list-cases --exclude-deferred --exclude-linux-known-fail
+./build/tc8-harness test --list-cases --exclude-deferred --exclude-platform-known-fail
                                                             # exclude IDs marked
                                                             # expected:false or
-                                                            # linux_known_fail:true
+                                                            # platform_known_fail:true
                                                             # in doc/spec/inventory_overrides.json
 ```
 
@@ -553,14 +553,22 @@ port 30600; no SOME/IP framing.
 `doc/spec/inventory_overrides.json` carries two axes:
 
 - `expected: false` — case is deferred (out of scope this release, future
-  session, or unimplementable on Linux DUT).
-- `linux_known_fail: true` — case fails specifically because of a Linux
-  kernel deviation from RFC behaviour. A strict-RFC DUT will pass.
+  session, or unimplementable on the overrides file's target DUT).
+- `platform_known_fail: true` — case fails specifically because of a
+  platform deviation from RFC behaviour on the overrides file's target
+  DUT (the default file describes the Linux reference DUT). A strict-RFC
+  DUT will pass.
 
-`--list-cases --exclude-linux-known-fail` drops the Linux-known-fail set
-from the listing — useful when you point the harness at a non-Linux
-target and want to see only the cases your DUT should be able to pass.
-Pair with `--exclude-deferred` for the full CI-smoke skip list.
+Each DUT platform owns one overrides file: the default
+`doc/spec/inventory_overrides.json` describes the Linux reference DUT,
+and `--inventory-overrides PATH` swaps in another platform's file (e.g.
+an OEM target ECU or the in-repo lwIP fixture).
+
+`--list-cases --exclude-platform-known-fail` drops the known-fail set of
+the active overrides file from the listing — useful when you point the
+harness at a different target and want to see only the cases your DUT
+should be able to pass. Pair with `--exclude-deferred` for the full
+CI-smoke skip list.
 
 ### Running a single case against a real DUT
 

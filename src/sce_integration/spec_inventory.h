@@ -9,17 +9,21 @@ namespace tc8::sce {
 
 // One TC8-spec test case as mined from doc/spec/case_inventory.json.
 // Override fields come from doc/spec/inventory_overrides.json on two
-// independent axes (defaults: expected=true, linux_known_fail=false,
+// independent axes (defaults: expected=true, platform_known_fail=false,
 // empty reason strings):
 //   - `expected:false` (+ `defer_reason`) — spec gap. The harness
 //     intentionally cannot cover this case (impossible against any
 //     reasonable DUT, e.g. wall-time-permanent-deferred shapes).
 //     Counted as a gap by the `--vs-spec` coverage report.
-//   - `linux_known_fail:true` (+ `linux_known_fail_ref`) — the case
-//     fails on the Linux DUT due to platform-specific RFC deviations,
-//     but a strict-RFC DUT under the same harness lands on pass.
-//     Kept ACTIVE in coverage reports so spec coverage stays honest;
-//     CI/smoke skip lists filter it via `--exclude-linux-known-fail`.
+//   - `platform_known_fail:true` (+ `platform_known_fail_ref`) — the
+//     case fails on the overrides file's target DUT platform due to
+//     platform-specific RFC deviations, but a strict-RFC DUT under the
+//     same harness lands on pass. Each per-DUT overrides JSON (the
+//     default doc/spec/inventory_overrides.json describes the Linux
+//     reference DUT; --inventory-overrides swaps in another platform's
+//     file) owns its platform's entries. Kept ACTIVE in coverage
+//     reports so spec coverage stays honest; CI/smoke skip lists
+//     filter it via `--exclude-platform-known-fail`.
 // Both `id` and `category` are stored verbatim from the spec body —
 // case-folding to upper case for comparison against harness-registered
 // IDs is the consumer's job (see SpecInventory::canonicalise).
@@ -31,8 +35,8 @@ struct SpecCase {
     int line = 0;
     bool expected = true;
     std::string defer_reason;
-    bool linux_known_fail = false;
-    std::string linux_known_fail_ref;
+    bool platform_known_fail = false;
+    std::string platform_known_fail_ref;
 };
 
 // Loads doc/spec/case_inventory.json + doc/spec/inventory_overrides.json
@@ -46,7 +50,7 @@ public:
                                              std::string *err);
 
     // Canonicalise a case_id for comparison: upper-case + strip the
-    // harness-only `_NEG` and `_LINUX_KNOWN_FAIL` suffixes. Spec IDs
+    // harness-only `_NEG` and `_PLATFORM_KNOWN_FAIL` suffixes. Spec IDs
     // (which carry mixed case like IPv4_*) round-trip through upper.
     static std::string canonicalise(std::string id);
 

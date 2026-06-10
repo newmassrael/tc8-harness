@@ -349,9 +349,9 @@ vsomeip 설정으로 교체한다면 양쪽을 함께 갱신하세요.
 ./build/tc8-harness test --list-cases --include-deprecated  # deprecated ID도 포함
 ./build/tc8-harness test --list-cases --vs-spec             # doc/spec/case_inventory.json 대비 커버리지 갭
 ./build/tc8-harness test --list-cases --vs-spec --strict    # 갭이 있으면 비-0 종료
-./build/tc8-harness test --list-cases --exclude-deferred --exclude-linux-known-fail
+./build/tc8-harness test --list-cases --exclude-deferred --exclude-platform-known-fail
                                                             # doc/spec/inventory_overrides.json에서
-                                                            # expected:false / linux_known_fail:true 로
+                                                            # expected:false / platform_known_fail:true 로
                                                             # 표시된 ID 제외
 ```
 
@@ -542,14 +542,20 @@ Upper Tester(UT)는 UDP:30600 위의 tester가 발급하는 RPC 채널입니다.
 `doc/spec/inventory_overrides.json`은 두 축을 가집니다:
 
 - `expected: false` — 케이스가 이연된(deferred) 상태 (이번 릴리스 범위
-  밖, 추후 세션, 또는 Linux DUT에서 구현 불가).
-- `linux_known_fail: true` — Linux 커널의 RFC 일탈 때문에 해당 케이스가
-  실패하는 경우. strict-RFC DUT라면 통과합니다.
+  밖, 추후 세션, 또는 해당 overrides 파일의 대상 DUT에서 구현 불가).
+- `platform_known_fail: true` — 해당 overrides 파일의 대상 DUT 플랫폼이
+  가진 RFC 일탈 때문에 케이스가 실패하는 경우 (기본 파일은 Linux 레퍼런스
+  DUT를 기술). strict-RFC DUT라면 통과합니다.
 
-`--list-cases --exclude-linux-known-fail`은 Linux-known-fail 집합을
-리스팅에서 제외합니다 — 하네스를 비-Linux 타겟에 가리키고 DUT가 통과해야
-할 케이스만 보고 싶을 때 유용합니다. 전체 CI-스모크 스킵 목록을 얻으려면
-`--exclude-deferred`와 함께 쓰세요.
+DUT 플랫폼마다 overrides 파일 하나를 소유합니다: 기본
+`doc/spec/inventory_overrides.json`은 Linux 레퍼런스 DUT를 기술하고,
+`--inventory-overrides PATH`로 다른 플랫폼의 파일(예: OEM 타겟 ECU,
+레포 내 lwIP 픽스처)을 선택합니다.
+
+`--list-cases --exclude-platform-known-fail`은 활성 overrides 파일의
+known-fail 집합을 리스팅에서 제외합니다 — 하네스를 다른 타겟에 가리키고
+DUT가 통과해야 할 케이스만 보고 싶을 때 유용합니다. 전체 CI-스모크 스킵
+목록을 얻으려면 `--exclude-deferred`와 함께 쓰세요.
 
 ### 실제 DUT에 단일 케이스 실행
 

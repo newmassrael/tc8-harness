@@ -1,58 +1,58 @@
 {
-  "schema_version": 2,
-  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json. Two independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `linux_known_fail:true` (+ `linux_known_fail_ref`) marks a case that fails on the Linux DUT due to platform-specific kernel/userland deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-linux-known-fail`. The two axes are disjoint in practice but can coexist on a single entry.",
+  "schema_version": 3,
+  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Two independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`. The two axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer.",
   "overrides": {
     "ARP_33": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_arp_garp.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
     },
     "ARP_34": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_arp_garp.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
     },
     "ICMPV4_ERROR_02": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_icmp_parameter_problem_pointer.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_icmp_parameter_problem_pointer.md"
     },
     "IPV4_REASSEMBLY_11": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
     },
     "IPV4_REASSEMBLY_13": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
     },
     "SOMEIPSRV_SD_BEHAVIOR_04": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/project_false_positive_remediation_round3.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/project_false_positive_remediation_round3.md"
     },
     "SOMEIP_ETS_117": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/project_someip_ets_seed_coverage.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/project_someip_ets_seed_coverage.md"
     },
     "TCP_FLAGS_INVALID_15": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
     },
     "TCP_RETRANSMISSION_TO_08": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_syn_data_rto_deviations.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_syn_data_rto_deviations.md"
     },
     "TCP_RETRANSMISSION_TO_09": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_syn_data_rto_deviations.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_syn_data_rto_deviations.md"
     },
     "TCP_UNACCEPTABLE_04": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_unacc_ack_dispatch.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_unacc_ack_dispatch.md"
     },
     "TCP_UNACCEPTABLE_08": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_tcp_unacceptable_08_phase2_race.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_tcp_unacceptable_08_phase2_race.md"
     },
     "TCP_UNACCEPTABLE_10": {
-      "linux_known_fail": true,
-      "linux_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
     }
   }
 }

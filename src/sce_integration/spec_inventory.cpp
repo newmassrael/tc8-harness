@@ -13,7 +13,7 @@ namespace tc8::sce {
 namespace {
 
 constexpr std::string_view kNegSuffix = "_NEG";
-constexpr std::string_view kLinuxKnownFailSuffix = "_LINUX_KNOWN_FAIL";
+constexpr std::string_view kPlatformKnownFailSuffix = "_PLATFORM_KNOWN_FAIL";
 
 bool endsWith(std::string_view s, std::string_view suffix) {
     return s.size() >= suffix.size() &&
@@ -324,8 +324,8 @@ splitJsonObjectMap(const std::string &doc, const std::string &key) {
 std::string SpecInventory::canonicalise(std::string id) {
     std::transform(id.begin(), id.end(), id.begin(),
                    [](unsigned char c) { return std::toupper(c); });
-    if (endsWith(id, kLinuxKnownFailSuffix)) {
-        id.resize(id.size() - kLinuxKnownFailSuffix.size());
+    if (endsWith(id, kPlatformKnownFailSuffix)) {
+        id.resize(id.size() - kPlatformKnownFailSuffix.size());
     } else if (endsWith(id, kNegSuffix)) {
         id.resize(id.size() - kNegSuffix.size());
     }
@@ -381,16 +381,16 @@ std::optional<SpecInventory> SpecInventory::load(const std::string &inventory_pa
             const std::string canon = canonicalise(id);
             const bool expected = findBoolField(body, "expected", true);
             std::string reason = findStringField(body, "reason");
-            const bool linux_known_fail =
-                findBoolField(body, "linux_known_fail", false);
-            std::string linux_known_fail_ref =
-                findStringField(body, "linux_known_fail_ref");
+            const bool platform_known_fail =
+                findBoolField(body, "platform_known_fail", false);
+            std::string platform_known_fail_ref =
+                findStringField(body, "platform_known_fail_ref");
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
                     sc.defer_reason = std::move(reason);
-                    sc.linux_known_fail = linux_known_fail;
-                    sc.linux_known_fail_ref = std::move(linux_known_fail_ref);
+                    sc.platform_known_fail = platform_known_fail;
+                    sc.platform_known_fail_ref = std::move(platform_known_fail_ref);
                     break;
                 }
             }
