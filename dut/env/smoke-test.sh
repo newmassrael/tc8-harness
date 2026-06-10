@@ -673,6 +673,27 @@ for stale in /tmp/tc8-vsomeip.*; do
     pkill -KILL -f "$stale/" 2>/dev/null || true
     rm -rf "$stale"
 done
+# A process can outlive its scratch dir: a run's exit trap rm -rf's
+# its own scope even when a worker pkill missed, and the dir-keyed
+# loop above can then never see the survivor again (observed
+# 2026-06-11: four per-case tc8-dut workers from a mis-topologied run
+# outlived their dir and held the lwIP fixture lock fd they had
+# inherited, deadlocking the weekly sweep). Reap by cmdline instead:
+# anything EXECUTED from a PID-scoped scratch dir whose owner shell
+# is gone is an orphan, dir or no dir. Anchored pattern so only
+# scratch-dir binaries/symlinks match, never an operator's shell that
+# merely mentions the path.
+while read -r opid oargs; do
+    owner=${oargs#/tmp/tc8-vsomeip.}
+    owner=${owner%%/*}
+    [[ "$owner" =~ ^[0-9]+$ ]] || continue
+    if kill -0 "$owner" 2>/dev/null; then
+        continue
+    fi
+    echo "smoke-test: reaping orphan pid $opid of dead run $owner: $oargs" >&2
+    kill -KILL "$opid" 2>/dev/null || true
+done < <(pgrep -af '^/tmp/tc8-vsomeip\.[0-9]+/' || true)
+unset opid oargs
 for stale in /tmp/tc8-workers.*; do
     [[ -d "$stale" ]] || continue
     [[ "$stale" == "$WORK_ROOT" ]] && continue
