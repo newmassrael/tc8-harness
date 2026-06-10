@@ -46,20 +46,22 @@ jobs:
           path: ~/.cargo/bin/mnemosyne-cli
           # Pin to upstream commit so the gate is reproducible. Bump when
           # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
-          key: mnemosyne-cli-${{ runner.os }}-a32f2843
+          key: mnemosyne-cli-${{ runner.os }}-a40281b5
 
       - name: Install mnemosyne-cli (cache miss only)
         if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        # a32f2843 = Round 427. Pin-forward from R291 (2026-06-10) so CI
-        # and the local CLI enforce identical validate-code-refs
-        # semantics — R291 missed multiline RFC-citation context that
-        # R427 classifies correctly, and the two disagreed about which
-        # store states are valid. `verify-generated` retired with the
-        # bump: R400 removed the GENERATED.md sync gate upstream (the
-        # atomic store is the SSOT; validate-workspace covers it).
+        # a40281b5 = Round 447. Pin-forward from R427 (2026-06-10 PM):
+        # the local MCP server reserialized the atomic store at schema
+        # v14 while binding the lwIP UDP-port citations, and R427 only
+        # reads schema <= 11 ("schema version mismatch: store=14").
+        # Policy: the pin tracks the local CLI, never the reverse —
+        # a40281b5 reads schema <= 19 and validates this store green.
+        # (R427 context kept for the trail: it pinned-forward from R291
+        # for multiline RFC-citation classification; verify-generated
+        # has been retired since R400, the atomic store is the SSOT.)
         run: |
           cargo install --git https://github.com/newmassrael/mnemosyne \
-            --rev a32f2843 mnemosyne-cli
+            --rev a40281b5 mnemosyne-cli
 
       - name: validate-workspace
         run: mnemosyne-cli validate-workspace
