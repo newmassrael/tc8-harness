@@ -106,6 +106,162 @@
       "expected": false,
       "reason": "requires Upper Tester opcode 0x01 OpGetReceivedUdp, not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"
     },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_01": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_01_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_03": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_05": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_05_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_06": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_06_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_07": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_07_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_08": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_08_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_09": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_10": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_10_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_11": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_12": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_13": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_14": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_15": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_16": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_01": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_01_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_02": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_02_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_03": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_03_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_04": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_04_NEG": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_05": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_06": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_CONFLICT_06": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_CONFLICT_07": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_CONFLICT_08": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_CONFLICT_09": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_CONFLICT_10": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_CONFLICT_11": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_INTRO_01": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_LINKLOCAL_PACKETS_04": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
+    "IPv4_AUTOCONF_NETWORK_PARTITIONS_01": {
+      "expected": false,
+      "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
+    },
     "IPv4_FRAGMENTS_05": {
       "expected": false,
       "reason": "requires Upper Tester opcode 0x02 OpTriggerSendUdp, not yet implemented in the lwIP fixture UT (dut/lwip_dut/README.md)"

@@ -47,6 +47,13 @@ the UT port (opcodes 0x03..0x0B + OpPing).
 source of truth for the last two buckets plus the deviation set; this
 table is a dated report.
 
+The 39 `IPv4_AUTOCONF_*` cases (29 positive + 10 `_NEG`) sit outside
+the sweep scope entirely: the fixture builds with `LWIP_AUTOIP`
+disabled (`lwipopts.h`) and no UT opcode drives autoconf. They are
+ledgered `expected:false` in the overrides file so the sweep command
+below emits exactly the 153-case regression list and `--vs-spec`
+reports them as honest gaps.
+
 ## Verified lwIP deviations
 
 Each entry was confirmed against lwIP source or the wire, never
