@@ -5,7 +5,7 @@
 # Run once per local clone:
 #   ./scripts/install-hooks.sh
 #
-# Both hooks run `mnemosyne-cli validate-workspace` + `verify-generated` +
+# Both hooks run `mnemosyne-cli validate-workspace` +
 # `validate-code-refs`. The pre-commit hook gives fast per-commit feedback;
 # the pre-push hook catches drift introduced by --no-verify commits or
 # commits made on machines without the hook installed, before it reaches
@@ -44,9 +44,6 @@ fi
 echo "pre-commit: mnemosyne-cli validate-workspace ..."
 mnemosyne-cli validate-workspace
 
-echo "pre-commit: mnemosyne-cli verify-generated ..."
-mnemosyne-cli verify-generated
-
 echo "pre-commit: mnemosyne-cli validate-code-refs ..."
 mnemosyne-cli validate-code-refs
 
@@ -74,9 +71,6 @@ fi
 
 echo "pre-push: mnemosyne-cli validate-workspace ..."
 mnemosyne-cli validate-workspace
-
-echo "pre-push: mnemosyne-cli verify-generated ..."
-mnemosyne-cli verify-generated
 
 echo "pre-push: mnemosyne-cli validate-code-refs ..."
 mnemosyne-cli validate-code-refs

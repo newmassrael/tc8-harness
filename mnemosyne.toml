@@ -38,7 +38,11 @@ max_section_body_length = 8000
 "DHCPv4" = ["dhcpv4", "DHCPV4", "Dhcpv4"]
 "DUT" = ["dut", "Dut"]
 
-[code_refs]
+# 2026-06-10 pin-forward (R291 → R427/a32f2843): `[code_refs]` was the
+# pre-R306 name of this table; R306 renamed it in place to
+# `[plugins.set_equality_validator]` (no semantic change). CI pin and
+# local CLI now both run a32f2843, so only this table exists.
+[plugins.set_equality_validator]
 paths = [
  "include/",
  "src/",
@@ -73,6 +77,14 @@ external_section_prefixes_bare = ["TR_SOMEIP", "SOMEIPSD", "SWS_SD"]
 severity_missing = "reject"
 severity_binding = "reject"
 severity_inventory = "reject"
+# Coverage (ImplementationMissing) stays a warning: this workspace is a
+# TC8 spec mirror — auto-seeded prose sections without code bindings are
+# legitimate (the R427 schema split severity_coverage out of
+# severity_binding for exactly this adoption shape). Current warn
+# surface: 7 phantom sections left over from the 2026-06-10
+# mis-seeded-binding cleanup (RFC-multiline citations seeded as TC8
+# sections at adoption).
+severity_coverage = "warn"
 comment_only = true
 
 # Round 285 — inventory-axis orphan_ledger 등록. 의도된 historical 인용 (deprecated TC ID)

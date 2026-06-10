@@ -17,10 +17,6 @@
       "intent": "TC8 §4.1.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/dut_service/upper_tester_server.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/udp_introduction_01/udp_introduction_01.scxml",
           "kind": "implements"
         }
@@ -161,58 +157,22 @@
       ]
     },
     "4.2.2": {
-      "intent": "TC8 §4.2.2 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "src/sce_integration/someip_captured.h",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.2.2 — auto-seeded TC8-internal sub-section (2 code citations at baseline)."
     },
     "4.2.2.16": {
-      "intent": "TC8 §4.2.2.16 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.2.2.16 — auto-seeded TC8-internal sub-section (2 code citations at baseline)."
     },
     "4.2.2.17": {
-      "intent": "TC8 §4.2.2.17 — auto-seeded TC8-internal sub-section (6 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "tests/tcp_probing_windows_06/tcp_probing_windows_06.scxml",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.2.2.17 — auto-seeded TC8-internal sub-section (6 code citations at baseline)."
     },
     "4.2.2.6": {
-      "intent": "TC8 §4.2.2.6 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "src/sce_integration/cases/tcp_mss_options_10.h",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.2.2.6 — auto-seeded TC8-internal sub-section (1 code citations at baseline)."
     },
     "4.2.3": {
-      "intent": "TC8 §4.2.3 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "src/sce_integration/cases/tcp_header_06.h",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.2.3 — auto-seeded TC8-internal sub-section (1 code citations at baseline)."
     },
     "4.2.3.1": {
-      "intent": "TC8 §4.2.3.1 — auto-seeded TC8-internal sub-section (9 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.2.3.1 — auto-seeded TC8-internal sub-section (9 code citations at baseline)."
     },
     "4.2.4": {
       "intent": "TC8 §4.2.4 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
@@ -604,10 +564,6 @@
         {
           "file": "src/sce_integration/icmpv4_pilot_common.h",
           "kind": "implements"
-        },
-        {
-          "file": "tests/dhcpv4_client_summary_02/dhcpv4_client_summary_02.scxml",
-          "kind": "implements"
         }
       ]
     },
@@ -616,10 +572,6 @@
       "bindings": [
         {
           "file": "tests/dhcpv4_client_allocating_03/dhcpv4_client_allocating_03.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/dhcpv4_client_request_02/dhcpv4_client_request_02.scxml",
           "kind": "implements"
         }
       ]
@@ -849,21 +801,7 @@
       ]
     },
     "4.4.1": {
-      "intent": "TC8 §4.4.1 — auto-seeded TC8-internal sub-section (12 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "dut/dut_service/dhcpv4_client.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/dut_service/dhcpv4_client.h",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/dhcpv4_client_initialization_allocation_05/dhcpv4_client_initialization_allocation_05.scxml",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.4.1 — auto-seeded TC8-internal sub-section (12 code citations at baseline)."
     },
     "4.4.4": {
       "intent": "TC8 §4.4.4 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
@@ -1245,10 +1183,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/dhcpv4_pilot_common.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/dhcpv4_post_bound_discover.sce-template.xml",
           "kind": "implements"
         },
@@ -1266,10 +1200,6 @@
         },
         {
           "file": "tests/dhcpv4_client_reacquisition_04/dhcpv4_client_reacquisition_04.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/dhcpv4_client_reacquisition_07/dhcpv4_client_reacquisition_07.scxml",
           "kind": "implements"
         }
       ]
@@ -6625,14 +6555,6 @@
     "5.3": {
       "intent": "TC8 §5.3 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
-        {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/cases/tcp_retransmission_to_03.h",
-          "kind": "implements"
-        },
         {
           "file": "tests/tcp_retransmission_to_03/tcp_retransmission_to_03.scxml",
           "kind": "implements"
