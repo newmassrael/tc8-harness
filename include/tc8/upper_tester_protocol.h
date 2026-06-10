@@ -619,6 +619,28 @@ enum Opcode : std::uint8_t {
 // adjacency to the enum keeps the two from drifting.
 inline constexpr std::uint8_t kMaxImplementedOpcode = OpPing;
 
+// Wire encoding of the OpQueryTcpInfo `state` byte — the single source
+// of truth for every producer and consumer. Values equal the Linux
+// kernel's TCP FSM numbering (<netinet/tcp.h>) because the Linux
+// tc8-dut passes `tcpi_state` through verbatim; it static_asserts the
+// equivalence at the pass-through site, and non-Linux DUTs translate
+// their stack's own state enum to these constants (e.g. lwIP's
+// tcpbase.h numbers the same FSM differently —
+// dut/lwip_dut/lwip_ut_server.cpp wireTcpState). Frozen wire ABI:
+// SCXML conds pin these values numerically and cannot include this
+// header, so the numbers must never change.
+inline constexpr std::uint8_t kTcpStateEstablished = 1;
+inline constexpr std::uint8_t kTcpStateSynSent     = 2;
+inline constexpr std::uint8_t kTcpStateSynRecv     = 3;
+inline constexpr std::uint8_t kTcpStateFinWait1    = 4;
+inline constexpr std::uint8_t kTcpStateFinWait2    = 5;
+inline constexpr std::uint8_t kTcpStateTimeWait    = 6;
+inline constexpr std::uint8_t kTcpStateClose       = 7;
+inline constexpr std::uint8_t kTcpStateCloseWait   = 8;
+inline constexpr std::uint8_t kTcpStateLastAck     = 9;
+inline constexpr std::uint8_t kTcpStateListen      = 10;
+inline constexpr std::uint8_t kTcpStateClosing     = 11;
+
 // Response status byte.
 inline constexpr std::uint8_t kStatusOk              = 0x00;
 inline constexpr std::uint8_t kStatusMalformed       = 0x01;  // short frame / bad len

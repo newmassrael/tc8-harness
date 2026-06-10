@@ -1318,6 +1318,23 @@ UpperTesterServer::queryTcpInfo(std::uint8_t socket_id) {
                      std::strerror(errno));
         return std::nullopt;
     }
+    // tcpi_state passes through verbatim because the wire encoding
+    // (upper_tester_protocol.h kTcpState*) is defined as the kernel's
+    // numbering; pin the equivalence so a divergence breaks the build
+    // here instead of silently re-encoding the wire.
+    static_assert(ut::kTcpStateEstablished == TCP_ESTABLISHED &&
+                  ut::kTcpStateSynSent     == TCP_SYN_SENT &&
+                  ut::kTcpStateSynRecv     == TCP_SYN_RECV &&
+                  ut::kTcpStateFinWait1    == TCP_FIN_WAIT1 &&
+                  ut::kTcpStateFinWait2    == TCP_FIN_WAIT2 &&
+                  ut::kTcpStateTimeWait    == TCP_TIME_WAIT &&
+                  ut::kTcpStateClose       == TCP_CLOSE &&
+                  ut::kTcpStateCloseWait   == TCP_CLOSE_WAIT &&
+                  ut::kTcpStateLastAck     == TCP_LAST_ACK &&
+                  ut::kTcpStateListen      == TCP_LISTEN &&
+                  ut::kTcpStateClosing     == TCP_CLOSING,
+                  "wire TCP state encoding must equal the kernel's "
+                  "TCP FSM numbering (tcpi_state pass-through)");
     TcpInfoSnapshot snap{};
     snap.state       = info.tcpi_state;
     snap.rto_us      = info.tcpi_rto;

@@ -107,24 +107,24 @@ void appendBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
     b.push_back(static_cast<std::uint8_t>(v & 0xFFU));
 }
 
-// The OpQueryTcpInfo state byte speaks the wire protocol's Linux
-// TCP_INFO numbering (upper_tester_protocol.h: "1=ESTABLISHED, ...");
-// lwIP's enum tcp_state numbers the same FSM differently (tcpbase.h:
-// CLOSED=0 .. TIME_WAIT=10). No default branch so an upstream state
-// addition surfaces as a -Wswitch warning instead of a silent zero.
+// The OpQueryTcpInfo state byte speaks the wire protocol's encoding
+// (upper_tester_protocol.h kTcpState* — the SSOT); lwIP's enum
+// tcp_state numbers the same FSM differently (tcpbase.h: CLOSED=0 ..
+// TIME_WAIT=10). No default branch so an upstream state addition
+// surfaces as a -Wswitch warning instead of a silent zero.
 std::uint8_t wireTcpState(enum tcp_state s) {
     switch (s) {
-    case CLOSED:      return 7;   // TCP_CLOSE
-    case LISTEN:      return 10;  // TCP_LISTEN
-    case SYN_SENT:    return 2;   // TCP_SYN_SENT
-    case SYN_RCVD:    return 3;   // TCP_SYN_RECV
-    case ESTABLISHED: return 1;   // TCP_ESTABLISHED
-    case FIN_WAIT_1:  return 4;   // TCP_FIN_WAIT1
-    case FIN_WAIT_2:  return 5;   // TCP_FIN_WAIT2
-    case CLOSE_WAIT:  return 8;   // TCP_CLOSE_WAIT
-    case CLOSING:     return 11;  // TCP_CLOSING
-    case LAST_ACK:    return 9;   // TCP_LAST_ACK
-    case TIME_WAIT:   return 6;   // TCP_TIME_WAIT
+    case CLOSED:      return ut::kTcpStateClose;
+    case LISTEN:      return ut::kTcpStateListen;
+    case SYN_SENT:    return ut::kTcpStateSynSent;
+    case SYN_RCVD:    return ut::kTcpStateSynRecv;
+    case ESTABLISHED: return ut::kTcpStateEstablished;
+    case FIN_WAIT_1:  return ut::kTcpStateFinWait1;
+    case FIN_WAIT_2:  return ut::kTcpStateFinWait2;
+    case CLOSE_WAIT:  return ut::kTcpStateCloseWait;
+    case CLOSING:     return ut::kTcpStateClosing;
+    case LAST_ACK:    return ut::kTcpStateLastAck;
+    case TIME_WAIT:   return ut::kTcpStateTimeWait;
     }
     return 0;
 }

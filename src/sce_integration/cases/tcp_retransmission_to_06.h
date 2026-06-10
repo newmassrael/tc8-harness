@@ -8,6 +8,7 @@
 
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
+#include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/ipv4_expected.h"
@@ -62,9 +63,9 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
     // jitter.
     static constexpr std::chrono::milliseconds kRstDropHold{5000};
 
-    // tcpi_state == TCP_SYN_SENT (uapi/linux/tcp.h). Magic number
-    // pinned in the SCXML cond too; named here for the C++ side.
-    static constexpr std::uint8_t kTcpStateSynSent = 2U;
+    // Wire state encoding comes from the protocol SSOT
+    // (upper_tester_protocol.h kTcpStateSynSent); the SCXML cond pins
+    // the value numerically — frozen wire ABI, documented there.
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
@@ -122,7 +123,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
             const auto probe = queryTcpInfoSync(cfg, /*req_id=*/2, /*socket_id=*/1);
             if (probe.valid) {
                 p1 = probe;
-                if (p1.state == kTcpStateSynSent && p1.retransmits == 0U) {
+                if (p1.state == ::tc8::ut::kTcpStateSynSent &&
+                    p1.retransmits == 0U) {
                     c.ut_handshake_completed = true;
                     break;
                 }
