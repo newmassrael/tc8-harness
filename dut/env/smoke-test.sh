@@ -601,6 +601,15 @@ common_bring_up_worker() {
     : >"$WORK_ROOT/$W/processed"
     ln -sf "$HARNESS" "$VSOMEIP_BASE/$W/tc8-harness"
     topology_bring_up_worker "$W"
+    # Flush stimulus-suppression iptables rules leaked by a SIGKILLed
+    # prior run. The harness RAIIs (TesterAutoRstDrop/TesterAutoAckDrop,
+    # tcp_pilot_common.h) install every rule inside the dedicated
+    # `tc8-stimulus` chain precisely so this single shape-agnostic flush
+    # can clean leaks: on persistent-tester topologies (external /
+    # ssh-remote) one leaked pure-ACK drop silently breaks every later
+    # TCP handshake against the DUT. No-op when the chain does not
+    # exist (fresh netns / clean host).
+    topology_exec_tester "$W" iptables -w 5 -F tc8-stimulus 2>/dev/null || true
     [[ -s "$WORK_ROOT/$W/dut_mac" ]] || {
         echo "smoke-test: topology '$TOPOLOGY' bring-up for worker $W did not record the DUT MAC at $WORK_ROOT/$W/dut_mac — profile contract violation" >&2
         exit 1

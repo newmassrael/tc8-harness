@@ -1240,14 +1240,39 @@ inline int connectToDutTcp(const ::tc8::TestConfig &cfg,
     return 0;
 }
 
+// Dedicated iptables chain housing every tester-side suppression rule
+// the stimulus RAIIs below install. Rules NEVER go directly into
+// OUTPUT: a SIGKILLed harness skips the RAII destructors, and a rule
+// leaked into OUTPUT silently poisons every later TCP exchange against
+// the DUT on topologies whose tester kernel persists across runs
+// (external / ssh-remote; single-pc discards the per-case netns). With
+// one well-known chain, smoke-test.sh flushes the leaks at bring-up
+// without knowing any rule shape. The OUTPUT->chain jump itself is
+// idempotent permanent residue, inert while the chain is empty.
+inline constexpr const char *kTesterStimulusChain = "tc8-stimulus";
+
+inline bool ensureTesterStimulusChain() {
+    char cmd[160];
+    std::snprintf(cmd, sizeof(cmd),
+                  "iptables -w 5 -nL %s >/dev/null 2>&1 || "
+                  "iptables -w 5 -N %s 2>/dev/null",
+                  kTesterStimulusChain, kTesterStimulusChain);
+    if (std::system(cmd) != 0) return false;
+    std::snprintf(cmd, sizeof(cmd),
+                  "iptables -w 5 -C OUTPUT -j %s 2>/dev/null || "
+                  "iptables -w 5 -A OUTPUT -j %s 2>/dev/null",
+                  kTesterStimulusChain, kTesterStimulusChain);
+    return std::system(cmd) == 0;
+}
+
 // Suppress tester-kernel auto-RST against the DUT for the lifetime
 // of the scope. The Linux tester kernel responds with RST to any
 // inbound TCP segment that does not match a known socket — for
 // raw-injected handshakes (UNACCEPTABLE_03 syn-recv probe,
 // UNACCEPTABLE_08 syn-sent probe) this would race-kill the DUT's
 // embryonic state before the test stimulus emits its bad-ACK
-// follow-up. The iptables rule drops OUTPUT RST traffic toward the
-// DUT IP for the scope's lifetime.
+// follow-up. The iptables rule drops RST traffic toward the DUT IP
+// for the scope's lifetime, inside the kTesterStimulusChain chain.
 //
 // The scope owns the rule via RAII: constructor runs `iptables -A`,
 // destructor runs `iptables -D`. Smoke-test runs as root inside its
@@ -1267,9 +1292,16 @@ public:
         // global xtables lock. Defensive across both iptables-legacy
         // (/run/xtables.lock) and iptables-nft (netlink-layer
         // serialisation) backends.
+        if (!ensureTesterStimulusChain()) {
+            std::fprintf(stderr,
+                         "tcp-pilot: TesterAutoRstDrop chain setup failed "
+                         "(continuing without RST suppression)\n");
+            return;
+        }
         const int rc = std::snprintf(cmd, sizeof(cmd),
-                      "iptables -w 5 -A OUTPUT -p tcp --tcp-flags RST RST "
-                      "-d %s -j DROP 2>/dev/null", dut_ip);
+                      "iptables -w 5 -A %s -p tcp --tcp-flags RST RST "
+                      "-d %s -j DROP 2>/dev/null",
+                      kTesterStimulusChain, dut_ip);
         if (rc < 0 || rc >= static_cast<int>(sizeof(cmd))) return;
         if (std::system(cmd) == 0) {
             installed_ = true;
@@ -1285,8 +1317,9 @@ public:
         if (!installed_) return;
         char cmd[256];
         std::snprintf(cmd, sizeof(cmd),
-                      "iptables -w 5 -D OUTPUT -p tcp --tcp-flags RST RST "
-                      "-d %s -j DROP 2>/dev/null", dut_ip_.c_str());
+                      "iptables -w 5 -D %s -p tcp --tcp-flags RST RST "
+                      "-d %s -j DROP 2>/dev/null",
+                      kTesterStimulusChain, dut_ip_.c_str());
         int rc = std::system(cmd);
         (void)rc;
     }
@@ -1306,10 +1339,11 @@ private:
 // in FIN-WAIT-1 / LAST-ACK while the corrupt-segment stimulus arrives;
 // without this rule, the tester's automatic ACK to the DUT-emitted FIN
 // advances the DUT into FIN-WAIT-2 / CLOSED before the spec-asserted
-// edge can fire. iptables OUTPUT-chain match is "ACK only" (FIN, SYN,
-// RST clear; ACK set) so SYN+ACK during handshake and tester FIN/RST
-// segments pass through unaffected. The injected corrupt segments
-// carry PSH+ACK with payload, so they also do not match the rule.
+// edge can fire. The match is "ACK only" (FIN, SYN, RST clear; ACK
+// set) so SYN+ACK during handshake and tester FIN/RST segments pass
+// through unaffected. The injected corrupt segments carry PSH+ACK
+// with payload, so they also do not match the rule. Installed inside
+// kTesterStimulusChain like every stimulus suppression rule.
 //
 // The scope owns the rule via RAII: constructor runs `iptables -A`,
 // destructor runs `iptables -D`. Smoke-test runs as root inside its
@@ -1330,10 +1364,17 @@ public:
         // an optional timeout in seconds. iptables-legacy uses
         // /run/xtables.lock; iptables-nft serialises at the netlink
         // layer instead. Defensive across both backends.
+        if (!ensureTesterStimulusChain()) {
+            std::fprintf(stderr,
+                         "tcp-pilot: TesterAutoAckDrop chain setup failed "
+                         "(continuing without ACK suppression)\n");
+            return;
+        }
         const int rc = std::snprintf(cmd, sizeof(cmd),
-                      "iptables -w 5 -A OUTPUT -p tcp "
+                      "iptables -w 5 -A %s -p tcp "
                       "--tcp-flags FIN,SYN,RST,ACK ACK "
-                      "-d %s -j DROP 2>/dev/null", dut_ip);
+                      "-d %s -j DROP 2>/dev/null",
+                      kTesterStimulusChain, dut_ip);
         if (rc < 0 || rc >= static_cast<int>(sizeof(cmd))) return;
         if (std::system(cmd) == 0) {
             installed_ = true;
@@ -1349,9 +1390,10 @@ public:
         if (!installed_) return;
         char cmd[256];
         std::snprintf(cmd, sizeof(cmd),
-                      "iptables -w 5 -D OUTPUT -p tcp "
+                      "iptables -w 5 -D %s -p tcp "
                       "--tcp-flags FIN,SYN,RST,ACK ACK "
-                      "-d %s -j DROP 2>/dev/null", dut_ip_.c_str());
+                      "-d %s -j DROP 2>/dev/null",
+                      kTesterStimulusChain, dut_ip_.c_str());
         int rc = std::system(cmd);
         (void)rc;
     }
