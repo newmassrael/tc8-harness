@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -398,6 +399,34 @@ std::vector<std::uint8_t> buildAbortDhcpClientRequest(std::uint8_t req_id);
 std::vector<std::uint8_t> buildCreateUdpReceivePortsRequest(
     std::uint8_t req_id,
     std::uint8_t count);
+
+// Build a 0x15 Ping request. Side-effect-free liveness + capability
+// probe — the DUT answers with the highest opcode it implements.
+//
+//   <opcode:u8=0x15> <req_id:u8>
+//
+// Fixed wire size: 1 + 1 = 2 bytes (request) /
+//                  1 + 1 + 1 + 1 = 4 bytes (response carries
+//                  <max_opcode:u8> after the status byte).
+std::vector<std::uint8_t> buildPingRequest(std::uint8_t req_id);
+
+// Result of a successful OpPing round trip.
+struct UtPingResult {
+    // Highest UT opcode the DUT firmware implements (kMaxImplementedOpcode
+    // for the reference tc8-dut). Lets a tester detect subset
+    // implementations on OEM DUTs.
+    std::uint8_t max_opcode;
+};
+
+// Blocking OpPing round trip over a plain SOCK_DGRAM socket (kernel
+// routing decides the egress interface). Returns nullopt on socket
+// error, timeout, or a malformed / non-OK response. Used by
+// smoke-test.sh topology preflights via the `ut-ping` CLI subcommand —
+// unlike the SOCK_RAW injection path below this needs no interface
+// name, MAC, or CAP_NET_RAW.
+std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
+                                            std::uint16_t dut_port = ut::kPort,
+                                            int timeout_ms = 1000);
 
 // One-shot sender: wrap `ut_payload` in a UDP datagram (RFC 768
 // checksum) + IPv4 frame, and inject on `iface` via AF_PACKET SOCK_RAW.

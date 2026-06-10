@@ -1031,6 +1031,18 @@ void UpperTesterServer::utServerLoop(int fd) {
             continue;
         }
 
+        if (opcode == ut::OpPing) {
+            // Side-effect-free liveness + capability probe: no state
+            // read, no state mutated. Body carries the highest opcode
+            // this implementation handles so the tester can detect the
+            // firmware's UT feature level.
+            std::vector<std::uint8_t> body;
+            body.push_back(ut::kMaxImplementedOpcode);
+            sendResponse(fd, peer, peer_len, response_opcode, req_id,
+                         ut::kStatusOk, body);
+            continue;
+        }
+
         sendResponse(fd, peer, peer_len, response_opcode, req_id,
                      ut::kStatusUnknownOpcode, {});
     }

@@ -186,9 +186,13 @@ No-silent-failure guarantees, regardless of profile:
 - **Preflight before any case**: profile contract validation (missing
   hook/variable enumerates every gap), interface existence + link
   state, DUT ICMP reachability, SSH/remote-binary checks
-  (`ssh-remote`). The Upper Tester is *not* probed (no side-effect-free
-  UT opcode exists) — the preflight log states this and UT-dependent
-  cases fail visibly instead.
+  (`ssh-remote`), and an Upper Tester probe (`tc8-harness ut-ping`,
+  the side-effect-free UT `OpPing` 0x15 — the reply also reports the
+  DUT firmware's highest implemented opcode). On `external` a missing
+  UT is a WARNING by default (`TC8_TOPOLOGY_REQUIRE_UT=1` makes it
+  fatal); on `ssh-remote` the probe spawns one transient remote
+  `tc8-dut` and a non-answer is a hard failure with the remote log
+  dumped.
 - **Explicit SKIP**: a case the topology cannot execute (e.g.
   `DHCPv4_CLIENT_USAGE_01` without a secondary interface) is reported
   as SKIP with the reason in stdout, the summary, and JUnit

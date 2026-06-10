@@ -141,6 +141,7 @@ add_executable(tc8-harness
     src/cli/live_command.cpp
     src/cli/replay_command.cpp
     src/cli/test_command.cpp
+    src/cli/ut_ping_command.cpp
     src/sce_integration/case_registry.cpp
     src/sce_integration/spec_inventory.cpp
     src/stimulus/arp_builder.cpp

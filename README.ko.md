@@ -183,9 +183,12 @@ sudo ./dut/env/smoke-test.sh --topology external \
 
 - **케이스 실행 전 프리플라이트**: 프로필 계약 검증(누락 훅/변수를
   전부 열거), 인터페이스 존재 + 링크 상태, DUT ICMP 도달성,
-  SSH/원격 바이너리 검사(`ssh-remote`). Upper Tester는 프로브하지
-  않으며(부작용 없는 UT opcode가 없음) — 프리플라이트 로그가 이를
-  명시하고 UT 의존 케이스는 가시적으로 실패합니다.
+  SSH/원격 바이너리 검사(`ssh-remote`), 그리고 Upper Tester 프로브
+  (`tc8-harness ut-ping` — 부작용 없는 UT `OpPing` 0x15; 응답은 DUT
+  펌웨어가 구현한 최고 opcode도 보고합니다). `external`에서 UT 부재는
+  기본 WARNING(`TC8_TOPOLOGY_REQUIRE_UT=1`로 치명화), `ssh-remote`는
+  일시적 원격 `tc8-dut`를 스폰해 프로브하며 무응답은 원격 로그 덤프와
+  함께 하드 실패입니다.
 - **명시적 SKIP**: 토폴로지가 실행할 수 없는 케이스(예: 보조
   인터페이스 없는 `DHCPv4_CLIENT_USAGE_01`)는 stdout, 요약, JUnit
   (`<skipped/>`) 세 곳 모두에 사유와 함께 SKIP으로 보고됩니다 —

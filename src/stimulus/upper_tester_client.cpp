@@ -2,6 +2,12 @@
 
 #include <algorithm>
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
+
 #include "stimulus/arp_builder.h"  // sendRawEthernet
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/udp_datagram_builder.h"
@@ -326,6 +332,14 @@ std::vector<std::uint8_t> buildCreateUdpReceivePortsRequest(
     return req;
 }
 
+std::vector<std::uint8_t> buildPingRequest(std::uint8_t req_id) {
+    std::vector<std::uint8_t> req;
+    req.reserve(2);
+    req.push_back(static_cast<std::uint8_t>(ut::OpPing));
+    req.push_back(req_id);
+    return req;
+}
+
 std::vector<std::uint8_t> buildStartLLAutoconfBuggyRequest(
     std::uint8_t  req_id,
     std::uint16_t dhcp_timeout_ms,
@@ -349,6 +363,44 @@ std::vector<std::uint8_t> buildStartLLAutoconfBuggyRequest(
     appendBe16(req, rate_limit_interval_ms);
     req.push_back(flavor);
     return req;
+}
+
+std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
+                                            std::uint16_t dut_port,
+                                            int timeout_ms) {
+    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        return std::nullopt;
+    }
+
+    timeval tv{};
+    tv.tv_sec  = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    sockaddr_in dst{};
+    dst.sin_family      = AF_INET;
+    dst.sin_port        = htons(dut_port);
+    dst.sin_addr.s_addr = dut_ip_be;
+
+    constexpr std::uint8_t kReqId = 0x01;
+    const auto req = buildPingRequest(kReqId);
+    if (::sendto(fd, req.data(), req.size(), 0,
+                 reinterpret_cast<const sockaddr *>(&dst),
+                 sizeof(dst)) < 0) {
+        ::close(fd);
+        return std::nullopt;
+    }
+
+    // Response: <OpPing|0x80> <req_id> <status> <max_opcode>.
+    std::uint8_t buf[8] = {};
+    const ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+    ::close(fd);
+    if (n < 4 || buf[0] != (ut::OpPing | ut::kResponseBit) ||
+        buf[1] != kReqId || buf[2] != ut::kStatusOk) {
+        return std::nullopt;
+    }
+    return UtPingResult{buf[3]};
 }
 
 int sendUpperTesterRequest(std::string_view iface,

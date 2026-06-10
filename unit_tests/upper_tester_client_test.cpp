@@ -369,5 +369,25 @@ TEST(UpperTesterClient, SendTcpDataPatternRequestLayout) {
     EXPECT_EQ(ut::OpSendTcpDataPattern & ut::kResponseBit, 0u);
 }
 
+
+TEST(UpperTesterClient, PingRequestLayout) {
+    // Wire format: <opcode:u8=0x15> <req_id:u8> — parameterless probe.
+    // smoke-test.sh topology preflights depend on this exact 2 B shape
+    // via the `ut-ping` CLI subcommand; the response carries
+    // <max_opcode:u8> after the status byte so subset DUT firmwares
+    // are detectable.
+    const auto req = buildPingRequest(0x42);
+    ASSERT_EQ(req.size(), 2u);
+    EXPECT_EQ(req[0], static_cast<std::uint8_t>(ut::OpPing));
+    EXPECT_EQ(req[0], 0x15U);  // opcode 0x15 lock-in (response = 0x95)
+    EXPECT_EQ(req[1], 0x42U);
+    EXPECT_EQ(ut::OpPing & ut::kResponseBit, 0u);
+    // kMaxImplementedOpcode must track the highest enum value — a new
+    // opcode without the bump would under-report the reference DUT's
+    // feature level to every prober.
+    EXPECT_EQ(ut::kMaxImplementedOpcode, static_cast<std::uint8_t>(ut::OpPing));
+}
+
+
 }  // namespace
 }  // namespace tc8::stimulus

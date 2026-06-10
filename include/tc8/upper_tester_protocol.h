@@ -592,7 +592,32 @@ enum Opcode : std::uint8_t {
     // verdicts on the count match, not on the status byte alone);
     // kStatusMalformed for a short request.
     OpCreateUdpReceivePorts = 0x14,
+
+    // Side-effect-free liveness + capability probe. The DUT answers
+    // with the highest opcode value its UT implementation handles, so
+    // a tester can (a) verify UT reachability before running any case
+    // — smoke-test.sh topology preflights use this against external /
+    // remote DUTs — and (b) detect the feature level of a DUT firmware
+    // that implements only an opcode subset. The handler reads no
+    // state and mutates none: safe to fire against a DUT mid-test,
+    // repeatedly, from any topology.
+    //
+    //   Request params:  (none)
+    //   Response params: <max_opcode:u8>
+    //
+    // Wire size: 1 + 1 = 2 bytes (request) /
+    //            1 + 1 + 1 + 1 = 4 bytes (response).
+    //
+    // Status codes: kStatusOk always — a malformed (short) frame
+    // cannot exist for a parameterless request beyond the 2-byte
+    // header the dispatcher already requires.
+    OpPing = 0x15,
 };
+
+// Highest opcode the reference tc8-dut implements; the OpPing response
+// carries this value. Bump alongside every opcode addition — the
+// adjacency to the enum keeps the two from drifting.
+inline constexpr std::uint8_t kMaxImplementedOpcode = OpPing;
 
 // Response status byte.
 inline constexpr std::uint8_t kStatusOk              = 0x00;
