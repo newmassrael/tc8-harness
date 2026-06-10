@@ -140,6 +140,42 @@ jobs:
             --junit-xml reports/junit-smoke-topology-ssh-remote.xml \
             SOMEIPSRV_FORMAT_01 ICMPv4_TYPE_08
 
+      # lwIP DUT regression: the in-repo embedded-stack fixture
+      # (dut/lwip_dut/ + lwip-tap-fixture.conf) drives a real non-Linux
+      # TCP/IP stack as the external DUT. The case list deliberately
+      # touches every fixture mechanism once: ICMP echo + closed-port
+      # ICMP error (stack basics), passive/active UT opens + the
+      # QueryTcpEstablished poll (TCP_BASICS_01..03), tcp_abort RST
+      # path (CALL_ABORT_02), shutdown(WR)+recv (CLOSING_07), raw
+      # passive handshake under TesterAutoRstDrop (MSS_OPTIONS_02),
+      # IP_REASS_MAXAGE alignment (REASSEMBLY_10), and a 5-phase case
+      # exercising per-case respawn + ss -K + AckDrop + RFC 7323
+      # timestamps (FLAGS_INVALID_09). ~3 min.
+      - name: lwIP DUT regression (tap fixture)
+        env:
+          # Pin-forward policy: bump deliberately, re-run the full
+          # sweep (dut/lwip_dut/README.md) and refresh the overrides
+          # ledger in the same commit.
+          LWIP_PIN: 8e75a40acfea6b05ee643099e41f3b2e11ee464d
+        run: |
+          if [ ! -d "$HOME/lwip-cache/$LWIP_PIN" ]; then
+            rm -rf "$HOME/lwip-cache"
+            git clone https://github.com/lwip-tcpip/lwip.git "$HOME/lwip-cache/$LWIP_PIN"
+            git -C "$HOME/lwip-cache/$LWIP_PIN" checkout --detach "$LWIP_PIN"
+          fi
+          cmake -S dut/lwip_dut -B build-lwip-dut \
+            -DLWIP_DIR="$HOME/lwip-cache/$LWIP_PIN" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-lwip-dut -j4
+          sudo -n dut/env/smoke-test.sh \
+            --topology external \
+            --topology-conf dut/env/topology.d/examples/lwip-tap-fixture.conf \
+            --junit-xml reports/junit-smoke-lwip-dut.xml \
+            ICMPv4_TYPE_08 UDP_INTRODUCTION_03 \
+            TCP_BASICS_01 TCP_BASICS_02 TCP_BASICS_03 \
+            TCP_CALL_ABORT_02 TCP_CLOSING_07 TCP_MSS_OPTIONS_02 \
+            IPv4_REASSEMBLY_10 TCP_FLAGS_INVALID_09
+
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@v4

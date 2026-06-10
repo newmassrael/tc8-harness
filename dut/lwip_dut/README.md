@@ -155,10 +155,14 @@ behaviour-shaping ones:
   cases legitimately leave auxiliary sockets open. Respawning restores
   the per-case fresh-DUT semantics the Linux fixture gets from
   `TOPOLOGY_SUPPORTS_DUT_SPAWN=1`.
-- **Tester socket-state reset** (`ss -K dst <DUT_IP>` per case): the
-  host-kernel analog of single-pc's per-case netns; clears tester-side
-  TIME-WAIT sockets that would otherwise swallow the next case's SYN on
-  a reused port quad.
+- **Drain-before-kill ordering** (0.4 s settle before the DUT pkill):
+  the reaped harness's tester sockets complete their FIN exchanges
+  against the still-live lwIP and reach CLOSED / reopenable TIME-WAIT.
+  Killing the DUT first mints orphaned FIN-WAIT-1 sockets that freeze
+  once the tap disappears and answer a later run's SYN on the same
+  port quad with a stale challenge-ACK (observed as TCP_CLOSING_07
+  alternating pass/fail). `ss -K` is not a substitute — SOCK_DESTROY
+  silently no-ops on the verification host.
 - Stimulus-suppression iptables leaks from killed prior runs are
   handled by smoke-test.sh flushing the harness-owned `tc8-stimulus`
   chain at bring-up — no fixture-side rule knowledge.

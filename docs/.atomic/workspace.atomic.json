@@ -6659,6 +6659,38 @@
         "Step 3 remaining: smoke-test.yml lwIP regression step with pinned lwIP SHA + actions/cache"
       ]
     },
+    "Round 11": {
+      "decision_summary": "Promoted the lwIP fixture into CI (smoke-test.yml regression step, pinned lwIP SHA) after fixing the cross-run flake class at its root: drain-before-kill ordering in topology_stop_dut prevents orphaned tester FIN-WAIT-1 sockets, replacing the ss -K reset that SOCK_DESTROY silently no-ops on.",
+      "changes_bullets": [
+        "smoke-test.yml: lwIP DUT regression step — pinned clone (8e75a40a) cached under ~/lwip-cache, dut/lwip_dut build, 10-case list touching every fixture mechanism once (~3 min)",
+        "lwip-tap-fixture.conf: 0.4 s drain before the DUT pkill so reaped-harness sockets finish FIN exchanges against the live lwIP instead of freezing as orphans that challenge-ACK a later run's SYN on the same port quad",
+        "README{,.ko}.md: lwIP fixture pointer in the topology-fixtures section"
+      ],
+      "verification_bullets": [
+        "TCP_CLOSING_07 alternating pass/fail reproduced 4/8, root-caused via pcap TS-ecr match to the previous run's orphaned FIN-WAIT-1; after drain-order fix 0/8 failures in steady state",
+        "ss -K dead end documented with evidence: rc 0 + socket survives even with tcp_diag loaded; the fixture prevents orphan creation instead",
+        "CI 10-case list 10/10 PASS locally via the exact workflow invocation"
+      ],
+      "carry_forward_bullets": [
+        "11 pre-existing frozen FIN-WAIT-1 sockets on the dev host die one-by-one via the challenge-ACK/RST dance when their quad recurs (one sacrificial exchange each); no new ones form",
+        "UT opcodes 0x01/0x02/0x14 + 0x13 and the SOME/IP-responder gap remain the next coverage openers (Round 10 carry)"
+      ],
+      "publishable_decision_summary": "Promoted the lwIP fixture into CI (smoke-test.yml regression step, pinned lwIP SHA) after fixing the cross-run flake class at its root: drain-before-kill ordering in topology_stop_dut prevents orphaned tester FIN-WAIT-1 sockets, replacing the ss -K reset that SOCK_DESTROY silently no-ops on.",
+      "publishable_changes_bullets": [
+        "smoke-test.yml: lwIP DUT regression step — pinned clone (8e75a40a) cached under ~/lwip-cache, dut/lwip_dut build, 10-case list touching every fixture mechanism once (~3 min)",
+        "lwip-tap-fixture.conf: 0.4 s drain before the DUT pkill so reaped-harness sockets finish FIN exchanges against the live lwIP instead of freezing as orphans that challenge-ACK a later run's SYN on the same port quad",
+        "README{,.ko}.md: lwIP fixture pointer in the topology-fixtures section"
+      ],
+      "publishable_verification_bullets": [
+        "TCP_CLOSING_07 alternating pass/fail reproduced 4/8, root-caused via pcap TS-ecr match to the previous run's orphaned FIN-WAIT-1; after drain-order fix 0/8 failures in steady state",
+        "ss -K dead end documented with evidence: rc 0 + socket survives even with tcp_diag loaded; the fixture prevents orphan creation instead",
+        "CI 10-case list 10/10 PASS locally via the exact workflow invocation"
+      ],
+      "publishable_carry_forward_bullets": [
+        "11 pre-existing frozen FIN-WAIT-1 sockets on the dev host die one-by-one via the challenge-ACK/RST dance when their quad recurs (one sacrificial exchange each); no new ones form",
+        "UT opcodes 0x01/0x02/0x14 + 0x13 and the SOME/IP-responder gap remain the next coverage openers (Round 10 carry)"
+      ]
+    },
     "Round 2": {
       "decision_summary": "SOMEIPSRV §5.1.5 deeper alignment + silent-FP cross-read; 6 cases tightened via Type-1 entry gate + Nack-TTL accept removal.",
       "changes_bullets": [
