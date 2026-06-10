@@ -217,14 +217,13 @@ follow-ups, and until then the cases are `expected:false` here so
 sudo -n dut/env/smoke-test.sh \
   --topology external \
   --topology-conf dut/env/topology.d/examples/lwip-tap-fixture.conf \
-  $(./build/tc8-harness test --list-cases \
-      --inventory-overrides dut/lwip_dut/inventory_overrides.json \
-      --exclude-deferred --exclude-platform-known-fail \
-    | awk '/^  (ARP|ICMPv4|IPv4|UDP|TCP)_/{print $1}')
+  $(dut/lwip_dut/sweep-cases.sh)
 ```
 
-CI runs this command (single invocation, JUnit-reported) weekly via
+`sweep-cases.sh` is the single source of the case selection (overrides
+ledger + category filter — its header documents both); CI runs the same
+command weekly (single invocation, JUnit-reported) via
 `.github/workflows/lwip-sweep.yml` against the lwIP commit pinned in
 `dut/lwip_dut/LWIP_PIN`; the per-push smoke-test workflow only covers a
-10-case regression slice. When bumping the pin, re-run this sweep and
+13-case regression slice. When bumping the pin, re-run this sweep and
 refresh `inventory_overrides.json` in the same commit.

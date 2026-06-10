@@ -2,12 +2,12 @@ name: lwip-sweep
 
 on:
   # Weekly full sweep of every case the lwIP DUT fixture can
-  # meaningfully pass (153 cases today, ~50 min sequential — the
+  # meaningfully pass (dut/lwip_dut/sweep-cases.sh emits the list; the
   # external topology is capped at one worker because the fixture is a
   # single shared DUT). The push-triggered smoke-test workflow only
-  # re-runs a 10-case lwIP regression slice; without this job a harness
-  # change could silently regress any of the other ~143 PASS cases and
-  # only surface in a manual sweep.
+  # re-runs a small lwIP regression slice; without this job a harness
+  # change could silently regress any other swept case and only
+  # surface in a manual sweep.
   #
   # Self-hosted runner: same fork-PR code-execution constraint as
   # smoke-test.yml — schedule + manual dispatch only, never
@@ -72,23 +72,20 @@ jobs:
           cmake --build build-lwip-dut -j4
 
       - name: Run full sweep (single invocation + JUnit)
-        # Case list is the dut/lwip_dut/README.md "Running the sweep"
-        # SSOT command verbatim: every case the fixture can meaningfully
-        # pass, with expected:false and platform_known_fail dropped via
-        # dut/lwip_dut/inventory_overrides.json. Deliberately ONE
-        # smoke-test.sh invocation rather than per-category chunks, so
-        # cross-case state (port-quad reuse, per-case fixture respawn)
-        # is exercised the way a certification run would see it.
+        # Case selection comes from dut/lwip_dut/sweep-cases.sh — the
+        # single source shared with the README's "Running the sweep"
+        # command (overrides ledger + category-filter rationale live in
+        # the script header). Deliberately ONE smoke-test.sh invocation
+        # rather than per-category chunks, so cross-case state
+        # (port-quad reuse, per-case fixture respawn) is exercised the
+        # way a certification run would see it.
         run: |
           mkdir -p reports
           sudo -n dut/env/smoke-test.sh \
             --topology external \
             --topology-conf dut/env/topology.d/examples/lwip-tap-fixture.conf \
             --junit-xml reports/junit-lwip-sweep.xml \
-            $(./build/tc8-harness test --list-cases \
-                --inventory-overrides dut/lwip_dut/inventory_overrides.json \
-                --exclude-deferred --exclude-platform-known-fail \
-              | awk '/^  (ARP|ICMPv4|IPv4|UDP|TCP)_/{print $1}')
+            $(dut/lwip_dut/sweep-cases.sh)
 
       - name: Upload JUnit reports
         if: always()
