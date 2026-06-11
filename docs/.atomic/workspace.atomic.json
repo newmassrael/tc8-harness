@@ -1,6 +1,7 @@
 {
   "sections": {
     "4.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.1 — auto-seeded TC8-internal sub-section (11 code citations at baseline).",
       "bindings": [
         {
@@ -14,6 +15,7 @@
       ]
     },
     "4.1.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.1.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -23,6 +25,7 @@
       ]
     },
     "4.1.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.1.3 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -32,6 +35,7 @@
       ]
     },
     "4.1.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.1.5 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -164,6 +168,7 @@
       ]
     },
     "4.2.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.1 — auto-seeded TC8-internal sub-section (6 code citations at baseline).",
       "bindings": [
         {
@@ -181,24 +186,31 @@
       ]
     },
     "4.2.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.2 — auto-seeded TC8-internal sub-section (2 code citations at baseline)."
     },
     "4.2.2.16": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.2.16 — auto-seeded TC8-internal sub-section (2 code citations at baseline)."
     },
     "4.2.2.17": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.2.17 — auto-seeded TC8-internal sub-section (6 code citations at baseline)."
     },
     "4.2.2.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.2.6 — auto-seeded TC8-internal sub-section (1 code citations at baseline)."
     },
     "4.2.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.3 — auto-seeded TC8-internal sub-section (1 code citations at baseline)."
     },
     "4.2.3.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.3.1 — auto-seeded TC8-internal sub-section (9 code citations at baseline)."
     },
     "4.2.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.4 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -224,6 +236,7 @@
       ]
     },
     "4.2.4.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.4.1 — ARP — Request/Response cases. 13 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -325,6 +338,7 @@
       ]
     },
     "4.2.4.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2.4.2 — ARP — Cache, Probe, Announce, Conflict. 28 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -518,6 +532,7 @@
       ]
     },
     "4.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.3 — auto-seeded TC8-internal sub-section (30 code citations at baseline).",
       "bindings": [
         {
@@ -619,6 +634,7 @@
       ]
     },
     "4.3.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.3.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -628,6 +644,7 @@
       ]
     },
     "4.3.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.3.2 — auto-seeded TC8-internal sub-section (6 code citations at baseline).",
       "bindings": [
         {
@@ -637,6 +654,7 @@
       ]
     },
     "4.3.3.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.3.3.1 — ICMPv4 — Error message handling. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -674,6 +692,7 @@
       ]
     },
     "4.3.3.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.3.3.2 — ICMPv4 — Type-specific message handling. 10 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -755,6 +774,7 @@
       ]
     },
     "4.3.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.3.6 — auto-seeded TC8-internal sub-section (6 code citations at baseline).",
       "bindings": [
         {
@@ -764,6 +784,7 @@
       ]
     },
     "4.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4 — auto-seeded TC8-internal sub-section (29 code citations at baseline).",
       "bindings": [
         {
@@ -861,9 +882,11 @@
       ]
     },
     "4.4.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.1 — auto-seeded TC8-internal sub-section (12 code citations at baseline)."
     },
     "4.4.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -873,6 +896,7 @@
       ]
     },
     "4.4.4.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.1 — IPv4 — Header field handling. 7 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -934,6 +958,7 @@
       ]
     },
     "4.4.4.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.2 — IPv4 — Checksum. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -975,6 +1000,7 @@
       ]
     },
     "4.4.4.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.3 — IPv4 — TTL. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -996,6 +1022,7 @@
       ]
     },
     "4.4.4.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.4 — IPv4 — Version. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1029,6 +1056,7 @@
       ]
     },
     "4.4.4.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.5 — IPv4 — Addressing. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1090,6 +1118,7 @@
       ]
     },
     "4.4.4.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.6 — IPv4 — Fragments. 5 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1175,6 +1204,7 @@
       ]
     },
     "4.4.4.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.7 — IPv4 — Reassembly. 8 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1232,6 +1262,7 @@
       ]
     },
     "4.4.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.5 — auto-seeded TC8-internal sub-section (26 code citations at baseline).",
       "bindings": [
         {
@@ -1269,6 +1300,7 @@
       ]
     },
     "4.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5 — auto-seeded TC8-internal sub-section (43 code citations at baseline).",
       "bindings": [
         {
@@ -1362,6 +1394,7 @@
       ]
     },
     "4.5.6.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5.6.1 — IPv4 Link-Local Autoconf — Introduction. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1403,6 +1436,7 @@
       ]
     },
     "4.5.6.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5.6.2 — IPv4 Link-Local Autoconf — Address Selection / Probing / Configuration. 14 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1552,6 +1586,7 @@
       ]
     },
     "4.5.6.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5.6.3 — IPv4 Link-Local Autoconf — Announcing. 6 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1617,6 +1652,7 @@
       ]
     },
     "4.5.6.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5.6.4 — IPv4 Link-Local Autoconf — Conflict Detection / Defense. 6 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1678,6 +1714,7 @@
       ]
     },
     "4.5.6.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5.6.5 — IPv4 Link-Local Autoconf — Link-local Packets. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1695,6 +1732,7 @@
       ]
     },
     "4.5.6.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5.6.6 — IPv4 Link-Local Autoconf — Network Partitions. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1708,6 +1746,7 @@
       ]
     },
     "4.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6 — auto-seeded TC8-internal sub-section (20 code citations at baseline).",
       "bindings": [
         {
@@ -1765,6 +1804,7 @@
       ]
     },
     "4.6.5.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.1 — UDP — Message Format. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1774,6 +1814,7 @@
       ]
     },
     "4.6.5.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.2 — UDP — Datagram Length. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1783,6 +1824,7 @@
       ]
     },
     "4.6.5.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.3 — UDP — Padding. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1792,6 +1834,7 @@
       ]
     },
     "4.6.5.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.4 — UDP — Fields. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -1901,6 +1944,7 @@
       ]
     },
     "4.6.5.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.5 — UDP — User Interface. 8 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2002,6 +2046,7 @@
       ]
     },
     "4.6.5.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.6 — UDP — Introduction. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2047,6 +2092,7 @@
       ]
     },
     "4.6.5.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.7 — UDP — Invalid Addresses. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2064,6 +2110,7 @@
       ]
     },
     "4.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7 — auto-seeded TC8-internal sub-section (43 code citations at baseline).",
       "bindings": [
         {
@@ -2169,6 +2216,7 @@
       ]
     },
     "4.7.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.1 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -2178,6 +2226,7 @@
       ]
     },
     "4.7.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.2 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -2187,6 +2236,7 @@
       ]
     },
     "4.7.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.3 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -2196,6 +2246,7 @@
       ]
     },
     "4.7.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.4 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -2209,6 +2260,7 @@
       ]
     },
     "4.7.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.5 — auto-seeded TC8-internal sub-section (5 code citations at baseline).",
       "bindings": [
         {
@@ -2234,6 +2286,7 @@
       ]
     },
     "4.7.6.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.1 — DHCPv4 Client — Summary. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2287,6 +2340,7 @@
       ]
     },
     "4.7.6.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.2 — DHCPv4 Client — Protocol. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2312,6 +2366,7 @@
       ]
     },
     "4.7.6.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.3 — DHCPv4 Client — Allocating. 9 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2397,6 +2452,7 @@
       ]
     },
     "4.7.6.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.4 — DHCPv4 Client — Parameters. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2406,6 +2462,7 @@
       ]
     },
     "4.7.6.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.5 — DHCPv4 Client — Usage. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2463,6 +2520,7 @@
       ]
     },
     "4.7.6.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.6 — DHCPv4 Client — Constructing Messages / Request. 17 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2500,6 +2558,7 @@
       ]
     },
     "4.7.6.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.7 — DHCPv4 Client — Initialization Allocation. 9 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2589,6 +2648,7 @@
       ]
     },
     "4.7.6.8": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.8 — DHCPv4 Client — Reacquisition. 8 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -2710,6 +2770,7 @@
       ]
     },
     "4.7.6.9": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.7.6.9 — auto-seeded TC8-internal sub-section (34 code citations at baseline).",
       "bindings": [
         {
@@ -2787,6 +2848,7 @@
       ]
     },
     "4.8": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8 — auto-seeded TC8-internal sub-section (36 code citations at baseline).",
       "bindings": [
         {
@@ -2892,6 +2954,7 @@
       ]
     },
     "4.8.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.5 — auto-seeded TC8-internal sub-section (24 code citations at baseline).",
       "bindings": [
         {
@@ -2973,6 +3036,7 @@
       ]
     },
     "4.8.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6 — auto-seeded TC8-internal sub-section (27 code citations at baseline).",
       "bindings": [
         {
@@ -3014,6 +3078,7 @@
       ]
     },
     "4.8.6.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.1 — TCP — Basics. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3115,6 +3180,7 @@
       ]
     },
     "4.8.6.10": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.10 — TCP — Out of Order. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3148,6 +3214,7 @@
       ]
     },
     "4.8.6.11": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.11 — TCP — Retransmission Timeout. 6 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3221,6 +3288,7 @@
       ]
     },
     "4.8.6.12": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.12 — TCP — Probing Windows. 5 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3258,6 +3326,7 @@
       ]
     },
     "4.8.6.13": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.13 — TCP — Nagle. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3279,6 +3348,7 @@
       ]
     },
     "4.8.6.14": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.14 — TCP — Urgent Pointer. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3308,6 +3378,7 @@
       ]
     },
     "4.8.6.15": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.15 — TCP — Connection Establishment. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3337,6 +3408,7 @@
       ]
     },
     "4.8.6.16": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.16 — TCP — Header. 9 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3378,6 +3450,7 @@
       ]
     },
     "4.8.6.17": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.17 — TCP — Sequence. 5 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3411,6 +3484,7 @@
       ]
     },
     "4.8.6.18": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.18 — TCP — Acknowledgement. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3436,6 +3510,7 @@
       ]
     },
     "4.8.6.19": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.19 — TCP — Control Flags. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3457,6 +3532,7 @@
       ]
     },
     "4.8.6.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.2 — TCP — Checksum. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3530,6 +3606,7 @@
       ]
     },
     "4.8.6.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.3 — TCP — Unacceptable Segments. 14 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3603,6 +3680,7 @@
       ]
     },
     "4.8.6.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.4 — TCP — Call Receive. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3624,6 +3702,7 @@
       ]
     },
     "4.8.6.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.5 — TCP — Call Abort. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3661,6 +3740,7 @@
       ]
     },
     "4.8.6.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.6 — TCP — Invalid Flag Combinations. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3746,6 +3826,7 @@
       ]
     },
     "4.8.6.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.7 — TCP — Flag Processing. 8 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3795,6 +3876,7 @@
       ]
     },
     "4.8.6.8": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.8 — TCP — Closing. 6 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3872,6 +3954,7 @@
       ]
     },
     "4.8.6.9": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.9 — TCP — MSS Options. 9 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -3937,6 +4020,7 @@
       ]
     },
     "5.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1 — auto-seeded TC8-internal sub-section (28 code citations at baseline).",
       "bindings": [
         {
@@ -4010,6 +4094,7 @@
       ]
     },
     "5.1.2.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.2.1 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -4019,6 +4104,7 @@
       ]
     },
     "5.1.2.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.2.3 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4036,6 +4122,7 @@
       ]
     },
     "5.1.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.4 — auto-seeded TC8-internal sub-section (22 code citations at baseline).",
       "bindings": [
         {
@@ -4077,6 +4164,7 @@
       ]
     },
     "5.1.4.2.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.4.2.1 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4094,6 +4182,7 @@
       ]
     },
     "5.1.4.3.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.4.3.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4107,6 +4196,7 @@
       ]
     },
     "5.1.4.3.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.4.3.2 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4124,6 +4214,7 @@
       ]
     },
     "5.1.4.3.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.4.3.3 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4137,6 +4228,7 @@
       ]
     },
     "5.1.4.4.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.4.4.1 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
@@ -4146,6 +4238,7 @@
       ]
     },
     "5.1.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5 — auto-seeded TC8-internal sub-section (13 code citations at baseline).",
       "bindings": [
         {
@@ -4187,6 +4280,7 @@
       ]
     },
     "5.1.5.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1 — SOME/IP Server — Message Format. 27 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -4196,6 +4290,7 @@
       ]
     },
     "5.1.5.1.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4209,6 +4304,7 @@
       ]
     },
     "5.1.5.1.10": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.10 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4222,6 +4318,7 @@
       ]
     },
     "5.1.5.1.11": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.11 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4235,6 +4332,7 @@
       ]
     },
     "5.1.5.1.12": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.12 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4248,6 +4346,7 @@
       ]
     },
     "5.1.5.1.13": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.13 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4261,6 +4360,7 @@
       ]
     },
     "5.1.5.1.14": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.14 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4274,6 +4374,7 @@
       ]
     },
     "5.1.5.1.15": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.15 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4287,6 +4388,7 @@
       ]
     },
     "5.1.5.1.16": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.16 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4300,6 +4402,7 @@
       ]
     },
     "5.1.5.1.17": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.17 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4313,6 +4416,7 @@
       ]
     },
     "5.1.5.1.18": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.18 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4326,6 +4430,7 @@
       ]
     },
     "5.1.5.1.19": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.19 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4339,6 +4444,7 @@
       ]
     },
     "5.1.5.1.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.2 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4352,6 +4458,7 @@
       ]
     },
     "5.1.5.1.20": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.20 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4365,6 +4472,7 @@
       ]
     },
     "5.1.5.1.21": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.21 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4378,6 +4486,7 @@
       ]
     },
     "5.1.5.1.23": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.23 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4391,6 +4500,7 @@
       ]
     },
     "5.1.5.1.24": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.24 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4404,6 +4514,7 @@
       ]
     },
     "5.1.5.1.25": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.25 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4417,6 +4528,7 @@
       ]
     },
     "5.1.5.1.26": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.26 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4430,6 +4542,7 @@
       ]
     },
     "5.1.5.1.27": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.27 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4443,6 +4556,7 @@
       ]
     },
     "5.1.5.1.28": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.28 — auto-seeded TC8-internal sub-section (4 code citations at baseline).",
       "bindings": [
         {
@@ -4460,6 +4574,7 @@
       ]
     },
     "5.1.5.1.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.3 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4473,6 +4588,7 @@
       ]
     },
     "5.1.5.1.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.4 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4486,6 +4602,7 @@
       ]
     },
     "5.1.5.1.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.5 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4499,6 +4616,7 @@
       ]
     },
     "5.1.5.1.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.6 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4512,6 +4630,7 @@
       ]
     },
     "5.1.5.1.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.7 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4525,6 +4644,7 @@
       ]
     },
     "5.1.5.1.8": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.8 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4538,6 +4658,7 @@
       ]
     },
     "5.1.5.1.9": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.1.9 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4551,6 +4672,7 @@
       ]
     },
     "5.1.5.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.2 — SOME/IP Server — Options. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -4616,6 +4738,7 @@
       ]
     },
     "5.1.5.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3 — SOME/IP-SD — Message. 17 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -4641,6 +4764,7 @@
       ]
     },
     "5.1.5.3.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4654,6 +4778,7 @@
       ]
     },
     "5.1.5.3.11": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.11 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4667,6 +4792,7 @@
       ]
     },
     "5.1.5.3.13": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.13 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4680,6 +4806,7 @@
       ]
     },
     "5.1.5.3.14": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.14 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4693,6 +4820,7 @@
       ]
     },
     "5.1.5.3.15": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.15 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4706,6 +4834,7 @@
       ]
     },
     "5.1.5.3.16": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.16 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4719,6 +4848,7 @@
       ]
     },
     "5.1.5.3.17": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.17 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4732,6 +4862,7 @@
       ]
     },
     "5.1.5.3.18": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.18 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4745,6 +4876,7 @@
       ]
     },
     "5.1.5.3.19": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.19 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4758,6 +4890,7 @@
       ]
     },
     "5.1.5.3.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.2 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -4775,6 +4908,7 @@
       ]
     },
     "5.1.5.3.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.3 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4788,6 +4922,7 @@
       ]
     },
     "5.1.5.3.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.4 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4801,6 +4936,7 @@
       ]
     },
     "5.1.5.3.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.5 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4814,6 +4950,7 @@
       ]
     },
     "5.1.5.3.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.6 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4827,6 +4964,7 @@
       ]
     },
     "5.1.5.3.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.7 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4840,6 +4978,7 @@
       ]
     },
     "5.1.5.3.8": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.8 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4853,6 +4992,7 @@
       ]
     },
     "5.1.5.3.9": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.3.9 — auto-seeded TC8-internal sub-section (4 code citations at baseline).",
       "bindings": [
         {
@@ -4870,6 +5010,7 @@
       ]
     },
     "5.1.5.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.4 — SOME/IP-SD — Behavior. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -4911,6 +5052,7 @@
       ]
     },
     "5.1.5.4.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.4.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4924,6 +5066,7 @@
       ]
     },
     "5.1.5.4.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.4.2 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4937,6 +5080,7 @@
       ]
     },
     "5.1.5.4.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.4.3 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4950,6 +5094,7 @@
       ]
     },
     "5.1.5.4.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.4.4 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -4963,6 +5108,7 @@
       ]
     },
     "5.1.5.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.5 — SOME/IP Server — Basic. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -5024,6 +5170,7 @@
       ]
     },
     "5.1.5.5.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.5.1 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -5037,6 +5184,7 @@
       ]
     },
     "5.1.5.5.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.5.2 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -5050,6 +5198,7 @@
       ]
     },
     "5.1.5.5.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.5.3 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
@@ -5063,6 +5212,7 @@
       ]
     },
     "5.1.5.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6 — SOME/IP Server — On-Wire. 10 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -5076,6 +5226,7 @@
       ]
     },
     "5.1.5.6.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5089,6 +5240,7 @@
       ]
     },
     "5.1.5.6.10": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.10 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5102,6 +5254,7 @@
       ]
     },
     "5.1.5.6.11": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.11 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5115,6 +5268,7 @@
       ]
     },
     "5.1.5.6.12": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.12 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5128,6 +5282,7 @@
       ]
     },
     "5.1.5.6.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.2 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5141,6 +5296,7 @@
       ]
     },
     "5.1.5.6.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.3 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5154,6 +5310,7 @@
       ]
     },
     "5.1.5.6.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.4 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5167,6 +5324,7 @@
       ]
     },
     "5.1.5.6.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.5 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5180,6 +5338,7 @@
       ]
     },
     "5.1.5.6.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.6 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5193,6 +5352,7 @@
       ]
     },
     "5.1.5.6.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.6.7 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5206,6 +5366,7 @@
       ]
     },
     "5.1.5.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7 — SOME/IP Server — RPC / ETS. 154 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
@@ -5243,6 +5404,7 @@
       ]
     },
     "5.1.5.7.1": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.1 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5256,6 +5418,7 @@
       ]
     },
     "5.1.5.7.10": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.10 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5269,6 +5432,7 @@
       ]
     },
     "5.1.5.7.11": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.11 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5282,6 +5446,7 @@
       ]
     },
     "5.1.5.7.13": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.13 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5295,6 +5460,7 @@
       ]
     },
     "5.1.5.7.14": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.14 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5308,6 +5474,7 @@
       ]
     },
     "5.1.5.7.17": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.17 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5321,6 +5488,7 @@
       ]
     },
     "5.1.5.7.18": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.18 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5334,6 +5502,7 @@
       ]
     },
     "5.1.5.7.19": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.19 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5347,6 +5516,7 @@
       ]
     },
     "5.1.5.7.2": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.2 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5360,6 +5530,7 @@
       ]
     },
     "5.1.5.7.20": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.20 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5373,6 +5544,7 @@
       ]
     },
     "5.1.5.7.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.3 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5386,6 +5558,7 @@
       ]
     },
     "5.1.5.7.4": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.4 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5399,6 +5572,7 @@
       ]
     },
     "5.1.5.7.5": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.5 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5412,6 +5586,7 @@
       ]
     },
     "5.1.5.7.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.6 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5425,6 +5600,7 @@
       ]
     },
     "5.1.5.7.7": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.7 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5438,6 +5614,7 @@
       ]
     },
     "5.1.5.7.8": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.8 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5451,6 +5628,7 @@
       ]
     },
     "5.1.5.7.9": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.5.7.9 — auto-seeded TC8-internal sub-section (2 code citations at baseline).",
       "bindings": [
         {
@@ -5464,6 +5642,7 @@
       ]
     },
     "5.1.6": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.1.6 — auto-seeded TC8-internal sub-section (584 code citations at baseline).",
       "bindings": [
         {
@@ -6629,6 +6808,7 @@
       ]
     },
     "5.3": {
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §5.3 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
       "bindings": [
         {
