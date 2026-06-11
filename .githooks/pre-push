@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# pre-push — final Mnemosyne gate before the commit reaches the shared
+# remote, catching drift from --no-verify commits or commits made on a
+# clone without the hook active (validate-workspace + validate-code-refs
+# via mnemosyne-gate.sh). Versioned in .githooks/; activate once per clone:
+#     git config core.hooksPath .githooks   (or ./scripts/install-hooks.sh)
+exec "$(dirname "$0")/mnemosyne-gate.sh" pre-push

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# pre-commit — Mnemosyne gate (validate-workspace + validate-code-refs via
+# mnemosyne-gate.sh). Versioned in .githooks/; activate once per clone:
+#     git config core.hooksPath .githooks   (or ./scripts/install-hooks.sh)
+exec "$(dirname "$0")/mnemosyne-gate.sh" pre-commit
