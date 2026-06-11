@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest01SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_request),
             iface, c, /*message_type=*/2);

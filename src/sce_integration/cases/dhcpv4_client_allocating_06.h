@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating06SM>
         // 2 s with no OFFER, sleeps 1 s, emits DISCOVER#2. No tester
         // OFFER injection is registered.
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*retry_count=*/2,
             /*retry_interval_ms=*/1000);
     }

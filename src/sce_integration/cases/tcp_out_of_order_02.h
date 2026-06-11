@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::TcpOutOfOrder02SM>
             kBasicsActiveRemotePort + kTcpOutOfOrder02LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -85,10 +85,10 @@ struct TestCaseTraits<cases::TcpOutOfOrder02SM>
         // No inter-segment pacing — spec's "consecutively without any
         // delay" intent. Both segments hit the kernel back-to-back so
         // the delayed-ACK timer sees both before firing.
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpFrame(cfg, iface, cfg.dut.mac,
                      build_seg(injected_seq, std::uint8_t{'A'}),
                      /*initial_wait=*/std::chrono::milliseconds(0));
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpFrame(cfg, iface, cfg.dut.mac,
                      build_seg(injected_seq + kSegPayloadLen,
                                std::uint8_t{'B'}),
                      /*initial_wait=*/std::chrono::milliseconds(0));

@@ -100,7 +100,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
             kBasicsActiveRemotePort + kTcpProbingWindows03LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -140,7 +140,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
 
         // Spec step 2/3: SEND 1 → DUT seg1 at seq=S.
         sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kSeg1Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
@@ -157,20 +157,20 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
             ack_seg.ack_num  = seg2_seq;
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0xFFFFU;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, ack_seg,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5/6: SEND 2 + SEND 3 → DUT seg2 + seg3.
         sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1,
             kSeg2Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
 
         sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/4, /*socket_id=*/1,
             kSeg3Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
@@ -187,7 +187,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
             ack_seg.ack_num  = seg3_seq;  // ACKs seg2 (= S+MSS .. S+2*MSS-1)
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0U;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, ack_seg,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
         std::this_thread::sleep_for(kPostInjectSettle);
@@ -199,7 +199,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         // SCXML `is_dut_data_segment` predicate (payload_len > 0
         // conjunct).
         sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/5, /*socket_id=*/1,
             kSeg4Pattern, seg_len);
 

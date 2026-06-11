@@ -153,33 +153,51 @@ TEST(ApplyExpectToken_Arp, AcceptsAllArpKeys) {
     EXPECT_TRUE(applyExpectToken("arp.tester_ip=172.16.0.1", e));
     EXPECT_TRUE(applyExpectToken("arp.dut_iface_mac=aa:bb:cc:dd:ee:ff", e));
     EXPECT_TRUE(applyExpectToken("arp.tester_mac=02:00:00:00:00:A1", e));
-    EXPECT_TRUE(applyExpectToken("arp.dut_real_ip=172.16.0.2", e));
-    EXPECT_TRUE(applyExpectToken("arp.dut_real_mac=11:22:33:44:55:66", e));
     EXPECT_TRUE(applyExpectToken("arp.tester_mac2=02:00:00:00:00:A2", e));
     EXPECT_TRUE(applyExpectToken("arp.tester_mac3=02:00:00:00:00:A3", e));
-    EXPECT_TRUE(applyExpectToken("arp.ut_cache_conditioning_s=300", e));
+    EXPECT_TRUE(applyExpectToken("arp.tester_linklocal_ip=169.254.1.2", e));
     EXPECT_EQ(e.dut_iface_ip, 0x0200'10ACu);
     EXPECT_EQ(e.tester_ip, 0x0100'10ACu);
     const std::array<std::uint8_t, 6> expected_mac{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
     EXPECT_EQ(e.dut_iface_mac, expected_mac);
     const std::array<std::uint8_t, 6> expected_tester_mac{0x02, 0x00, 0x00, 0x00, 0x00, 0xA1};
     EXPECT_EQ(e.tester_mac, expected_tester_mac);
-    EXPECT_EQ(e.dut_real_ip, 0x0200'10ACu);
-    const std::array<std::uint8_t, 6> expected_real_mac{0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
-    EXPECT_EQ(e.dut_real_mac, expected_real_mac);
     const std::array<std::uint8_t, 6> expected_tester_mac2{0x02, 0x00, 0x00, 0x00, 0x00, 0xA2};
     EXPECT_EQ(e.tester_mac2, expected_tester_mac2);
     const std::array<std::uint8_t, 6> expected_tester_mac3{0x02, 0x00, 0x00, 0x00, 0x00, 0xA3};
     EXPECT_EQ(e.tester_mac3, expected_tester_mac3);
-    EXPECT_EQ(e.ut_cache_conditioning_s, 300u);
 }
 
-TEST(ApplyExpectToken_Arp, RejectsOverflowUtCacheConditioning) {
+// Identity moved out of ArpExpectations: the arp overload no longer
+// recognises the relocated keys (they belong to dut.* / arp_stimulus.*).
+TEST(ApplyExpectToken_Arp, RejectsRelocatedKeys) {
     ::tc8::ArpExpectations e{};
+    EXPECT_FALSE(applyExpectToken("arp.dut_real_ip=172.16.0.2", e));
+    EXPECT_FALSE(applyExpectToken("arp.dut_real_mac=11:22:33:44:55:66", e));
+    EXPECT_FALSE(applyExpectToken("arp.ut_cache_conditioning_s=300", e));
+}
+
+TEST(ApplyExpectToken_Dut, AcceptsIdentityKeys) {
+    ::tc8::DutIdentity e{};
+    EXPECT_TRUE(applyExpectToken("dut.ip=172.16.0.2", e));
+    EXPECT_TRUE(applyExpectToken("dut.mac=11:22:33:44:55:66", e));
+    EXPECT_EQ(e.ip, 0x0200'10ACu);
+    const std::array<std::uint8_t, 6> expected_mac{0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    EXPECT_EQ(e.mac, expected_mac);
+    // Bare / wrong-namespace keys are not this overload's responsibility.
+    EXPECT_FALSE(applyExpectToken("ip=172.16.0.2", e));
+    EXPECT_FALSE(applyExpectToken("dut.bogus=1", e));
+}
+
+TEST(ApplyExpectToken_ArpStimulus, AcceptsAndRangeChecksConditioning) {
+    ::tc8::ArpStimulusConfig e{};
+    EXPECT_TRUE(applyExpectToken("arp_stimulus.ut_cache_conditioning_s=300", e));
+    EXPECT_EQ(e.ut_cache_conditioning_s, 300u);
     // u16 knob — the 0x17 wire param is <param:u16>.
-    EXPECT_FALSE(applyExpectToken("arp.ut_cache_conditioning_s=65536", e));
-    EXPECT_TRUE(applyExpectToken("arp.ut_cache_conditioning_s=65535", e));
+    EXPECT_FALSE(applyExpectToken("arp_stimulus.ut_cache_conditioning_s=65536", e));
+    EXPECT_TRUE(applyExpectToken("arp_stimulus.ut_cache_conditioning_s=65535", e));
     EXPECT_EQ(e.ut_cache_conditioning_s, 65535u);
+    EXPECT_FALSE(applyExpectToken("arp.ut_cache_conditioning_s=300", e));
 }
 
 TEST(ApplyExpectToken_Arp, RejectsMissingPrefix) {

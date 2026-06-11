@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::TcpBasics04SM>
                          std::string_view iface) {
         using namespace ::tc8::sce::tcp;
         // iter 1 — SYN
-        emitTcpStimulus(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpStimulus(cfg, iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/::tc8::stimulus::kTcpFlagSyn,
                         /*seq_num=*/kTesterInitialSeq,
@@ -73,7 +73,7 @@ struct TestCaseTraits<cases::TcpBasics04SM>
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // iter 2 — FIN (no ACK, no RST)
-        emitTcpStimulus(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpStimulus(cfg, iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/::tc8::stimulus::kTcpFlagFin,
                         /*seq_num=*/kTesterInitialSeq + 0x100U,
@@ -84,7 +84,7 @@ struct TestCaseTraits<cases::TcpBasics04SM>
 
         // iter 3 — Data segment (flags=0; no ACK, no RST; non-empty payload)
         emitTcpStimulus(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*dst_port=*/kBasicsClosedPort,
             /*flags=*/0U,
             /*seq_num=*/kTesterInitialSeq + 0x200U,

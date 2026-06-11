@@ -27,7 +27,7 @@ struct TestCaseTraits<cases::Arp20SM>
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
-        spec.target_ip_be = cfg.arp.dut_real_ip;
+        spec.target_ip_be = cfg.dut.ip;
         spec.hw_type = 0x0001;  // ARP_HARDWARE_ETHERNET
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }

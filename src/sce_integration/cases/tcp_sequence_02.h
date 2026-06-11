@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::TcpSequence02SM>
             TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port,
             cfg.ipv4.tester_ip, remote_port);
         std::this_thread::sleep_for(kTcpUtRpcWait);
@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         const auto dut_syn = syn_snippet.tryCapture(
             std::chrono::milliseconds(2000));
         if (!dut_syn) {
-            sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+            sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                        /*req_id=*/2, /*socket_id=*/1);
             return;
         }
@@ -77,12 +77,12 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         syn_ack.ack_num  = dut_isn + 1U;
         syn_ack.flags    = ::tc8::stimulus::kTcpFlagSyn
                          | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn_ack,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_ack,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                    /*req_id=*/2, /*socket_id=*/1);
     }
 

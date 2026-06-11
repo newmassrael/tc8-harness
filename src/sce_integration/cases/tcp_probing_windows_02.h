@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
             kBasicsActiveRemotePort + kTcpProbingWindows02LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -94,13 +94,13 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
         spec.payload.assign(kWindowSettlerByte.begin(),
                             kWindowSettlerByte.end());
 
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, spec,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, spec,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(kPostInjectSettle);
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kSendPayload.data(),
             static_cast<std::uint16_t>(kSendPayload.size()));

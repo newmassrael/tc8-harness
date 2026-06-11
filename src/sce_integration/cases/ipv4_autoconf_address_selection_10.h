@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection10SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::linklocal::emitStartLLAutoconfRfcDefaults(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

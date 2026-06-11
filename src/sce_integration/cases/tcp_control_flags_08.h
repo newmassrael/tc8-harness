@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, kTcpControlFlags08ListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         syn1.dst_port = kTcpControlFlags08ListenPort;
         syn1.seq_num  = kTcpControlFlags08Seq1;
         syn1.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn1,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn1,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         // Settle so the DUT egress SYN,ACK is in pcap and the
@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         rst.seq_num  = kTcpControlFlags08Seq1 + 1U;
         rst.flags    = ::tc8::stimulus::kTcpFlagSyn
                      | ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, rst,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -93,13 +93,13 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         syn2.dst_port = kTcpControlFlags08ListenPort;
         syn2.seq_num  = kTcpControlFlags08Seq2;
         syn2.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn2,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn2,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
         (void)rst_drop;
     }

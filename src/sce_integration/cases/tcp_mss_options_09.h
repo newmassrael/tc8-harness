@@ -109,7 +109,7 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
 
         // Phase 1: Mv=200 < DUT MSS=1460. Expected first DUT segment
         // size = 200.
-        runPhase(cfg, iface, cfg.arp.dut_real_mac,
+        runPhase(cfg, iface, cfg.dut.mac,
                  /*open_req_id=*/1, /*send_req_id=*/2, /*close_req_id=*/3,
                  /*socket_id=*/1,
                  kTcpMssOptions09Phase1LocalOffset,
@@ -117,7 +117,7 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
 
         // Phase 2: Mv=2000 > DUT MSS. Expected first segment clamped
         // to DUT MSS = 1460.
-        runPhase(cfg, iface, cfg.arp.dut_real_mac,
+        runPhase(cfg, iface, cfg.dut.mac,
                  /*open_req_id=*/4, /*send_req_id=*/5, /*close_req_id=*/6,
                  /*socket_id=*/2,
                  kTcpMssOptions09Phase2LocalOffset,

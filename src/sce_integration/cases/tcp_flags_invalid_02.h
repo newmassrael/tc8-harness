@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, /*local_port=*/kBasicsListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -79,7 +79,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
         syn_ack.ack_num  = kFlagsInvalid02ProbeAck;
         syn_ack.flags    = ::tc8::stimulus::kTcpFlagSyn
                          | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn_ack);
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_ack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // Phase 2 — LISTEN-survival post-probe. Fresh tester source
@@ -95,12 +95,12 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

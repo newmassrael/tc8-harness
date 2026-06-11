@@ -5,7 +5,9 @@
 #include <string_view>
 
 #include "sce_integration/arp_expectations.h"
+#include "sce_integration/arp_stimulus_config.h"
 #include "sce_integration/dhcpv4_expectations.h"
+#include "sce_integration/dut_identity.h"
 #include "sce_integration/icmpv4_expectations.h"
 #include "sce_integration/ipv4_expectations.h"
 #include "sce_integration/someip_expectations.h"
@@ -58,15 +60,6 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e);
 //                   `tc8::stimulus::kTesterInjectedMac` (hardcoded), so
 //                   this knob is purely a comparison target for SCXML
 //                   guards and `--negative` mismatch rows.
-//   dut_real_ip   — IPv4 dotted, network byte order. *Stimulus input*:
-//                   the target_ip of the tester-injected ARP Request.
-//                   Kept separate from `dut_iface_ip` so `--negative` can
-//                   override the SCXML expectation (ARP_44) without
-//                   silencing the DUT.
-//   dut_real_mac  — six colon-separated hex octets. *Stimulus input*:
-//                   the target_hw the tester uses when addressing a frame
-//                   directly to the DUT (ARP_19/42). Separate from
-//                   `dut_iface_mac` for the same reason as `dut_real_ip`.
 //   tester_mac2   — six colon-separated hex octets. *Expectation* of the
 //                   second tester MAC used by §4.2.4.2 Phase 3b Group C
 //                   cache-merge cases (ARP_32/33/34/35). Same hardcoded-
@@ -78,6 +71,28 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e);
 // chains the protocol-scoped overloads and surfaces a single
 // "unrecognised token" error if every overload returns false.
 bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e);
+
+// Applies a single `--expect dut.<key>=<value>` token to `e` — the
+// DUT's wire identity, the address frames are sent *to* (never guard-
+// compared; see `DutIdentity`). Recognised keys (prefix stripped):
+//   ip   — IPv4 dotted, network byte order. The L3 destination every
+//          protocol's stimulus targets (was `arp.dut_real_ip`).
+//   mac  — six colon-separated hex octets, over-the-wire order. The
+//          Ethernet destination every emitter uses (was
+//          `arp.dut_real_mac`).
+// Returns false when the token lacks the `dut.` prefix, the value fails
+// its per-key parser, or the post-prefix key is unknown.
+bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e);
+
+// Applies a single `--expect arp_stimulus.<key>=<value>` token to `e` —
+// ARP stimulus knobs that steer a case rather than gate its verdict
+// (never guard-compared; see `ArpStimulusConfig`). Recognised keys:
+//   ut_cache_conditioning_s — uint16 seconds. §4.2.4.2 ARP_48/49
+//          <DYNAMIC-ARP-CACHE-TIMEOUT> for UT-channel cache conditioning
+//          (was `arp.ut_cache_conditioning_s`).
+// Returns false when the token lacks the `arp_stimulus.` prefix, the
+// value fails its parser, or the post-prefix key is unknown.
+bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e);
 
 // Applies a single `--expect icmpv4.<key>=<value>` token to `e`.
 // Recognised keys (with the `icmpv4.` prefix stripped):

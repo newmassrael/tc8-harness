@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::Arp40SM>
         spec.eth_src = ::tc8::stimulus::kTesterInjectedMac3;
         spec.target_hw = ::tc8::stimulus::kEthBroadcast;  // per spec ARP_40 step 5
         spec.sender_ip_be = cfg.arp.tester_ip;
-        spec.target_ip_be = cfg.arp.dut_real_ip;
+        spec.target_ip_be = cfg.dut.ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
 

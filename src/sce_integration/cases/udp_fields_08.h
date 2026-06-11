@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::UdpFields08SM>
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.truncate_to = std::size_t{4};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*payload=*/nullptr, /*payload_len=*/0,
             ::tc8::sce::udp::kDataPeerPort, ov);
     }

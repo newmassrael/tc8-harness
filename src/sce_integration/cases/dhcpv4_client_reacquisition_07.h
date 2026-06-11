@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition07SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
         // OFFER + ACK only — no T1/T2 reply, so RFC 2131 §4.4.5 lease
         // expiry trips the DUT runBoundPhaseMachine's lease_end branch
         // and INIT-restarts the lifecycle. The absence window in

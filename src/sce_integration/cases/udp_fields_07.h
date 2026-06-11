@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::UdpFields07SM>
             /*payload=*/nullptr,
             /*payload_len=*/0,
             ::tc8::ut::kTesterSrcPort,
-            cfg.arp.dut_real_mac);
+            cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

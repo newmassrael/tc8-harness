@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::UdpIntroduction01SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, cases::kIntro01DirectedBroadcastBe, cfg.arp.dut_real_mac);
+            cfg, iface, cases::kIntro01DirectedBroadcastBe, cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

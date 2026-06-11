@@ -6,9 +6,13 @@
 namespace tc8 {
 
 // Flat DTO for the expected values a TC8 §4.2 ARP case compares observed
-// ARP-request fields against. Carries the topology-pinned MAC/IP identity
-// the operator supplies via `--expect arp.<key>=<value>` (see
-// `cli/expect_parser.cpp`).
+// ARP / cross-protocol frame fields against, supplied via
+// `--expect arp.<key>=<value>` (see `cli/expect_parser.cpp`). Every field
+// here is guard-compared by some SCXML cond — that is the type's single
+// responsibility. The DUT's wire identity (the address frames are sent
+// *to*, never compared) lives in `DutIdentity` (`TestConfig::dut`); ARP
+// stimulus knobs that steer the case rather than gate its verdict live in
+// `ArpStimulusConfig` (`TestConfig::arp_stimulus`).
 //
 // Lives in its own header (rather than inside `arp_expected.h`) so
 // `test_config.h` can aggregate it without pulling in the full
@@ -42,16 +46,6 @@ struct ArpExpectations {
     // this expectation. Stimulus reads `kTesterInjectedMac3`; SCXML
     // compares.
     std::array<std::uint8_t, 6> tester_mac3{};
-    // DUT identity as the stimulus builder sees it (target_ip of the
-    // injected ARP Request, target_hw of the addressed-to-DUT variant).
-    // Kept separate from `dut_iface_ip` / `dut_iface_mac` above — the
-    // latter are the *expectations* the SCXML guards compare captured DUT
-    // frames against. `--negative` overrides dut_iface_* to prove SCXML
-    // mismatch paths for §4.2.4.2 field-check cases (ARP_43/44/46/47);
-    // without this split the override would also shift the stimulus target
-    // and the DUT would fall silent instead of replying wrongly.
-    std::uint32_t dut_real_ip = 0;
-    std::array<std::uint8_t, 6> dut_real_mac{};
     // §4.5.6.2 ADDRESS_SELECTION_16 (RFC 3927 §2.5 claim-condition):
     // tester-side LL address used as `sender_proto_ip` of the
     // who-has Request injected after the DUT's claim. NBO; default
@@ -61,19 +55,6 @@ struct ArpExpectations {
     // `--expect arp.tester_linklocal_ip=...` for OEM lab topologies
     // whose tester is on a different LL.
     std::uint32_t tester_linklocal_ip = 0x0201FEA9U;
-    // §4.2.4.2 ARP_48/49 <DYNAMIC-ARP-CACHE-TIMEOUT> in seconds, for
-    // DUTs whose cache conditioning rides the UT channel (0x17
-    // OpConditionArpCache). 0 = the topology conditions the DUT
-    // externally (Linux netns sysctl compression) and the stimulus
-    // waits for the kernel-spontaneous revalidation instead — the
-    // pre-existing reference-DUT flow, unchanged by default. Non-zero
-    // = the stimulus ages the DUT's table by this many virtual
-    // seconds through UT 0x17 and provokes the post-timeout egress
-    // explicitly (spec steps 8-11 / 12-15 rendered literally). The
-    // value must equal the DUT stack's own timeout (lwIP fixture:
-    // compile-time ARP_MAXAGE = 300 s) — the topology profile owns
-    // it via `--expect arp.ut_cache_conditioning_s=...`.
-    std::uint16_t ut_cache_conditioning_s = 0;
 };
 
 }  // namespace tc8

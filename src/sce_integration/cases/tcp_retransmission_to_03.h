@@ -92,7 +92,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
             kBasicsActiveRemotePort + kTcpRetransmissionTo03LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -123,7 +123,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         // Phase 1: UT SEND seg1, poll TCP_INFO until kernel confirms
         // retx fired.
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kPhase1Payload.data(),
             static_cast<std::uint16_t>(kPhase1Payload.size()));
@@ -159,11 +159,11 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
         ack_seg.window   = 65535U;
         ::tc8::sce::tcp::emitTcpFrame(
-            cfg, iface, cfg.arp.dut_real_mac, ack_seg,
+            cfg, iface, cfg.dut.mac, ack_seg,
             /*initial_wait=*/std::chrono::milliseconds(0));
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/4, /*socket_id=*/1,
             kPhase2Payload.data(),
             static_cast<std::uint16_t>(kPhase2Payload.size()));

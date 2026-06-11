@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection05NegSM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggy(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             ::tc8::ut::kFlavorSenderHwWrong);
     }
 

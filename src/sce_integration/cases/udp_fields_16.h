@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::UdpFields16SM>
         // (default sysctl) does.
         ov.udp.checksum_field = std::uint16_t{0x0000};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, local_port,
             cfg.ipv4.tester_ip, remote_port);
 
@@ -66,7 +66,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
             syn.dst_port = local_port;
             syn.seq_num  = kTesterInitialSeq;
             syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
                          /*initial_wait=*/std::chrono::milliseconds(0));
 
             // 200 ms covers the kernel's SYN-RCVD entry and SYN+ACK
@@ -82,7 +82,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
             ack.seq_num  = kTesterInitialSeq + 1U;
             ack.ack_num  = dut_syn->seq_num + 1U;
             ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, ack,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, ack,
                          /*initial_wait=*/std::chrono::milliseconds(0));
 
             // 200 ms covers SYN-RCVD → ESTABLISHED transition + the
@@ -97,7 +97,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
             cfg, /*req_id=*/3, /*socket_id=*/1);
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

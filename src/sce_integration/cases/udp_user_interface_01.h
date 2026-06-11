@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::UdpUserInterface01SM>
             /*req_id=*/1,
             /*count=*/10,
             ::tc8::ut::kTesterSrcPort,
-            cfg.arp.dut_real_mac);
+            cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

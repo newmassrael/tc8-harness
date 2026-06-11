@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpChecksum01LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum01LocalOffset);
@@ -84,7 +84,7 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
         }
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

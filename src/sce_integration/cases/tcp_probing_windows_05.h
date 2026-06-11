@@ -86,7 +86,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
             kBasicsActiveRemotePort + kTcpProbingWindows05LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -110,7 +110,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
 
         // Spec step 2/3: SEND 1 → DUT seg1.
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kSeg1Payload.data(),
             static_cast<std::uint16_t>(kSeg1Payload.size()));
@@ -127,7 +127,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
             ack_seg.ack_num  = snd_una_post_ack;
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0U;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, ack_seg,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
         std::this_thread::sleep_for(kPostInjectSettle);
@@ -135,7 +135,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0; the
         // socket is now in persist state, awaiting the probe timer.
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1,
             kSeg2Payload.data(),
             static_cast<std::uint16_t>(kSeg2Payload.size()));

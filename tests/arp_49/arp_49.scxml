@@ -17,7 +17,7 @@
   in-between USE-while-cached behavior is the "busy" aspect — the
   DUT must still expire the entry on schedule despite the traffic.
   The guards are neutral to the conditioning strategy the trait
-  stimulus selects on arp.ut_cache_conditioning_s:
+  stimulus selects on arp_stimulus.ut_cache_conditioning_s:
 
   Linux reference DUT (knob 0): smoke-test.sh sets
   delay_first_probe_time=1 + ucast_solicit=0 so the DELAY entered at

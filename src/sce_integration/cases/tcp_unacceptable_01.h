@@ -82,7 +82,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         (void)rst_drop;
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, /*local_port=*/kBasicsListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -93,7 +93,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         syn1.seq_num  = kTesterInitialSeq;
         syn1.ack_num  = 0U;
         syn1.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn1);
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn1);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // Acceptable RST — tears down the embryonic SYN-RCVD socket
@@ -106,7 +106,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         rst.seq_num  = kAcceptableRstSeq;
         rst.ack_num  = 0U;
         rst.flags    = ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, rst,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
@@ -119,12 +119,12 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         syn2.seq_num  = kTesterInitialSeq;
         syn2.ack_num  = 0U;
         syn2.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn2,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn2,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

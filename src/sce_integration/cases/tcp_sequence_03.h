@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::TcpSequence03SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         driveRawPassiveHandshake(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             kTcpSequence03ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence03TesterSrcPort,
@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::TcpSequence03SM>
             /*capture_timeout=*/std::chrono::milliseconds(2000),
             /*tester_isn=*/0U);
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                    /*req_id=*/2, /*socket_id=*/1);
     }
 

@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::UdpFields05SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort,
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::UdpFields05SM>
 
         std::string iface_copy(iface);
         ::tc8::TestConfig cfg_copy = cfg;
-        const auto dut_mac = cfg.arp.dut_real_mac;
+        const auto dut_mac = cfg.dut.mac;
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2),
             [iface_copy, cfg_copy, dut_mac]() {

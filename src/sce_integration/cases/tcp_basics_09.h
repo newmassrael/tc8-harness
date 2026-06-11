@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpBasics09LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics09LocalOffset);
@@ -79,7 +79,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
 
         // Stage c: UT close → DUT FIN, LAST-ACK.
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
 
         // Stage d: grace for tester kernel's auto-ACK of the DUT's
@@ -98,7 +98,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
         // pin the kernel would pick an ephemeral source and the
         // reverse-direction RST's dst_port would be unknowable to the
         // SCXML at compile time.
-        emitTcpStimulus(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpStimulus(cfg, iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsActiveLocalPort + kTcpBasics09LocalOffset,
                         /*flags=*/::tc8::stimulus::kTcpFlagSyn,
                         /*seq_num=*/kTesterInitialSeq,

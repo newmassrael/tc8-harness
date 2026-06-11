@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, cases::kLimitedBroadcastBe, cfg.arp.dut_real_mac);
+            cfg, iface, cases::kLimitedBroadcastBe, cfg.dut.mac);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

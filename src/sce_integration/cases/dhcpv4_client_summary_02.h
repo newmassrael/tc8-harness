@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary02SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
 
         ::tc8::sce::dhcpv4::ServerEmulParams server1{};
         server1.xid_offset = 1;

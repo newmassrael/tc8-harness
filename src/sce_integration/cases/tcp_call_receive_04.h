@@ -121,7 +121,7 @@ private:
                          | ::tc8::stimulus::kTcpFlagPsh;
             seg.payload  = chunk;
             ::tc8::sce::tcp::emitTcpFrame(
-                cfg, iface, cfg.arp.dut_real_mac, seg,
+                cfg, iface, cfg.dut.mac, seg,
                 /*initial_wait=*/std::chrono::milliseconds(0));
             total.insert(total.end(), chunk.begin(), chunk.end());
             // Tiny gap between segments — keeps Linux from coalescing
@@ -143,7 +143,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -193,7 +193,7 @@ private:
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/3, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -210,7 +210,7 @@ private:
         // OpShutdownTcpSocketWr (0x08) keeps the read direction open
         // so OpReceiveTcpData drains bytes the data segments queue.
         sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/4, /*socket_id=*/2);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
@@ -252,7 +252,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/6, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -261,7 +261,7 @@ private:
         // DUT FW1→FW2. The auto-ACK consumes the FIN sequence number
         // so tester rcv_nxt advances past ISN_d + 1.
         sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/7, /*socket_id=*/3);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 

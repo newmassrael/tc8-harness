@@ -32,7 +32,7 @@
       Fail guard filters by opcode==2 only; dropping the `sender_hw ==
       expected.dut_iface_mac` conjunction so smoke-test negative rows
       that override `arp.dut_iface_ip` (which flips the expected without
-      affecting the stimulus target_ip, via the arp.dut_real_ip split)
+      affecting the stimulus target_ip, via the dut.ip split)
       actually reach this branch. Same rationale as ARP_43.
     -->
     <transition event="arp_observed"

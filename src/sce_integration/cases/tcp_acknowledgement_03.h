@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             kTcpAck03ListenPort,
             std::vector<std::uint8_t>{},
             kTcpAck03TesterSrcPort,
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
             /*query_req_id=*/0,
             /*socket_id=*/1);
         if (!info.ok) {
-            sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+            sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                        /*req_id=*/2, /*socket_id=*/1);
             return;
         }
@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
         data.flags    = ::tc8::stimulus::kTcpFlagPsh
                       | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         // The spec procedure has no close step; the follow-up
@@ -80,7 +80,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
         // pure data ACK is on the wire before teardown; a quickack DUT
         // (Linux) has already ACKed and is unaffected by the extra wait.
         std::this_thread::sleep_for(kDelayedAckSettle);
-        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                    /*req_id=*/2, /*socket_id=*/1);
     }
 

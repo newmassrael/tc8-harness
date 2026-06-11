@@ -48,12 +48,12 @@ struct TestCaseTraits<cases::TcpMssOptions11SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 40U;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         (void)listener;
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

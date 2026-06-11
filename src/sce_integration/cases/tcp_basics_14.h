@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::TcpBasics14SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpBasics14LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics14LocalOffset);
@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::TcpBasics14SM>
         if (tester_fd < 0) return;
 
         const auto info = driveCloseToTimeWaitClosing(
-            cfg, iface, cfg.arp.dut_real_mac, tester_fd,
+            cfg, iface, cfg.dut.mac, tester_fd,
             /*close_req_id=*/2, /*socket_id=*/1,
             kBasicsActiveLocalPort  + kTcpBasics14LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics14LocalOffset);
@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::TcpBasics14SM>
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
-        std::array<std::uint8_t, 6> dut_mac    = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
         const std::uint32_t         tester_seq = info.tester_seq_post_fin;
         const std::uint32_t         tester_ack = info.tester_ack_post_fin;
         scheduler.scheduleAfterStateEntry(

@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::TcpBasics02SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, kBasicsListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::TcpBasics02SM>
 
         if (client_fd >= 0) ::close(client_fd);
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

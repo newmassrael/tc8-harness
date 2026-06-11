@@ -62,7 +62,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid11SM>
                 static_cast<std::uint8_t>(1U + phase * 2U);
 
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 open_req_id, local_port, remote_port);
             const int tester_fd = listener.acceptOne();
             if (tester_fd < 0) {
@@ -120,7 +120,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid11SM>
                                          kCorruptPayload.end());
                     break;
             }
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, probe,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             (void)tester_fd;
             std::this_thread::sleep_for(kTcpPilotPhaseGap);

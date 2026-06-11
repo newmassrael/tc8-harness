@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::TcpBasics01SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, kBasicsListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
         connectToDutTcp(cfg, kBasicsListenPort, TcpPostClose::kClose);
@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::TcpBasics01SM>
         // before we exit the stimulus, but the UT server thread joins
         // the acceptor on stop() (dtor path), so no listener leaks.
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

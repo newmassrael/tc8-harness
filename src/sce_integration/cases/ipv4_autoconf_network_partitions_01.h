@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
         ::tc8::sce::linklocal::scheduleClaimConditionTesterRequest(
             scheduler, static_cast<int>(State::Listening_post_claim),
             cfg, iface, c);

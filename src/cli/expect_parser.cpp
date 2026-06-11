@@ -218,18 +218,6 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
             return false;
         }
         e.tester_mac = mac;
-    } else if (key == "dut_real_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.dut_real_ip = ip;
-    } else if (key == "dut_real_mac") {
-        std::array<std::uint8_t, 6> mac{};
-        if (!parseMac(val, mac)) {
-            return false;
-        }
-        e.dut_real_mac = mac;
     } else if (key == "tester_mac2") {
         std::array<std::uint8_t, 6> mac{};
         if (!parseMac(val, mac)) {
@@ -248,7 +236,57 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
             return false;
         }
         e.tester_linklocal_ip = ip;
-    } else if (key == "ut_cache_conditioning_s") {
+    } else {
+        return false;
+    }
+    return true;
+}
+
+bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e) {
+    constexpr std::string_view kPrefix = "dut.";
+    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
+        return false;
+    }
+    const std::string_view body = token.substr(kPrefix.size());
+    const auto eq = body.find('=');
+    if (eq == std::string_view::npos) {
+        return false;
+    }
+    const std::string_view key = body.substr(0, eq);
+    const std::string_view val = body.substr(eq + 1);
+
+    if (key == "ip") {
+        std::uint32_t ip = 0;
+        if (!parseIpv4Dotted(val, ip)) {
+            return false;
+        }
+        e.ip = ip;
+    } else if (key == "mac") {
+        std::array<std::uint8_t, 6> mac{};
+        if (!parseMac(val, mac)) {
+            return false;
+        }
+        e.mac = mac;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
+    constexpr std::string_view kPrefix = "arp_stimulus.";
+    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
+        return false;
+    }
+    const std::string_view body = token.substr(kPrefix.size());
+    const auto eq = body.find('=');
+    if (eq == std::string_view::npos) {
+        return false;
+    }
+    const std::string_view key = body.substr(0, eq);
+    const std::string_view val = body.substr(eq + 1);
+
+    if (key == "ut_cache_conditioning_s") {
         std::uint64_t n = 0;
         if (!parseNumeric(val, n) || n > 0xFFFF) {
             return false;

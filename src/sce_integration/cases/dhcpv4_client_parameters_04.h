@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientParameters04SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
         // Snapshot DISCOVER fields when entering listening_for_request, so
         // the REQUEST guard can compare Option 55 against the originating
         // DISCOVER's value.

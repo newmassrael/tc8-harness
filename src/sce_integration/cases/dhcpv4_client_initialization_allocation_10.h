@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation10SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*retry_count=*/1,
             /*retry_interval_ms=*/1000,
             /*nak_to_discover_min_ms=*/0,

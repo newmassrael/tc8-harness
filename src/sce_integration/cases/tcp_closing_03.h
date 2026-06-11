@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpClosing03SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -81,13 +81,13 @@ struct TestCaseTraits<cases::TcpClosing03SM>
         rst.flags    = ::tc8::stimulus::kTcpFlagRst
                      | ::tc8::stimulus::kTcpFlagAck;
         rst.payload  = payload;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, rst,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         silentlyCloseTesterFd(tester_fd);
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
-        std::array<std::uint8_t, 6> dut_mac    = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
         const std::uint32_t         probe_seq  = seq_range->snd_nxt + 5U;
         const std::uint32_t         probe_ack  = seq_range->rcv_nxt;
 

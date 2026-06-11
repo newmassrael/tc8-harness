@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::Arp34SM>
         spec1.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
         spec1.eth_src = ::tc8::stimulus::kTesterInjectedMac;
         spec1.sender_ip_be = cfg.arp.tester_ip;
-        spec1.target_ip_be = cfg.arp.dut_real_ip;
+        spec1.target_ip_be = cfg.dut.ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec1);
 
         ::tc8::stimulus::ArpFrameSpec spec2;

@@ -88,7 +88,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, /*local_port=*/kBasicsListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -100,7 +100,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn);
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // Phase 2 — spec-asserted invalid segment. Distinct tester
@@ -113,7 +113,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         syn_rst.ack_num  = 0U;
         syn_rst.flags    = ::tc8::stimulus::kTcpFlagSyn
                          | ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn_rst,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
@@ -130,7 +130,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         // SIGKILL race, no partial-emit risk.
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
-        std::array<std::uint8_t, 6> dut_mac_copy = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac_copy = cfg.dut.mac;
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_synack),
             [iface_copy, cfg_copy, dut_mac_copy]() {

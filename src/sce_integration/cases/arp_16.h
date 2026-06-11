@@ -28,7 +28,7 @@ struct TestCaseTraits<cases::Arp16SM>
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
-        spec.target_ip_be = cfg.arp.dut_real_ip;
+        spec.target_ip_be = cfg.dut.ip;
         // target_hw stays at default kEthZero — the §4.2.4.2 ARP_16 variant.
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }

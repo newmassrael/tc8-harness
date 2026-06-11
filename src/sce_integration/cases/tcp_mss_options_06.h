@@ -85,7 +85,7 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
 
         // Phase 1: Mv = 200 (< DUT MSS=1460). First DUT data segment
         // size = 200.
-        runPhase(cfg, iface, cfg.arp.dut_real_mac,
+        runPhase(cfg, iface, cfg.dut.mac,
                  /*open_req_id=*/1, /*send_req_id=*/2, /*close_req_id=*/3,
                  /*socket_id=*/1,
                  kTcpMssOptionsListenPort06a,
@@ -94,7 +94,7 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
 
         // Phase 2: Mv = 2000 (> DUT MSS). First DUT segment clamped
         // to DUT MSS = 1460.
-        runPhase(cfg, iface, cfg.arp.dut_real_mac,
+        runPhase(cfg, iface, cfg.dut.mac,
                  /*open_req_id=*/4, /*send_req_id=*/5, /*close_req_id=*/6,
                  /*socket_id=*/2,
                  kTcpMssOptionsListenPort06b,

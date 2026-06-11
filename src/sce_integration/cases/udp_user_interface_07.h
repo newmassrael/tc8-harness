@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
             ::tc8::ut::kTesterSrcPort,
-            cfg.arp.dut_real_mac,
+            cfg.dut.mac,
             ::tc8::sce::udp::kUdpPilotInitialWait,
             /*dut_src_ip_override_be=*/::tc8::sce::udp::kDutAliasIp4Be);
     }

@@ -51,19 +51,19 @@ struct TestCaseTraits<cases::TcpHeader01SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 30U;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         (void)listener;
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kHeaderPayload.data(),
             static_cast<std::uint16_t>(kHeaderPayload.size()));
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1);
     }
 

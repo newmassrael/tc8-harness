@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::Arp48SM>
     // SCXML walks wait_udp1 → wait_arp_request → pass on the
     // {UDP1, ARP} wire pair under both strategies.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
-        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
+        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
 
         ::tc8::stimulus::BootTiming ut_timing;
@@ -67,14 +67,14 @@ struct TestCaseTraits<cases::Arp48SM>
         ut_timing.total_emits = 1;
         emitArpEgressProvocation(cfg, iface, ut_timing);
 
-        if (cfg.arp.ut_cache_conditioning_s > 0) {
+        if (cfg.arp_stimulus.ut_cache_conditioning_s > 0) {
             // UDP1 wire-drain margin, then expire (aging by exactly
             // the timeout reaches the stack's `age >= timeout` free
             // condition) and provoke the post-timeout egress.
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             emitArpCacheConditioning(cfg, iface,
                                      ::tc8::ut::kArpConditionAgeBySeconds,
-                                     cfg.arp.ut_cache_conditioning_s);
+                                     cfg.arp_stimulus.ut_cache_conditioning_s);
 
             ::tc8::stimulus::BootTiming ut2;
             ut2.initial_wait = std::chrono::milliseconds(500);

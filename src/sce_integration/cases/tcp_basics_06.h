@@ -56,14 +56,14 @@ struct TestCaseTraits<cases::TcpBasics06SM>
         // its listen window with the spec-asserted edge already in
         // pcap's kernel buffer.
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpBasics06LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics06LocalOffset);
         (void)listener;
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

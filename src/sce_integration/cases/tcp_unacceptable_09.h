@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
         // -------- Phase 1: OTW SEQ in FIN-WAIT-1 --------
         {
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/1,
                 kBasicsActiveLocalPort  + kTcpUnacceptable09Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable09Phase1LocalOffset);
@@ -90,7 +90,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
             // UT close drives DUT into FIN-WAIT-1 (no tester ACK
             // because of ack_drop).
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/2, /*socket_id=*/1);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
@@ -111,7 +111,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                                   | ::tc8::stimulus::kTcpFlagAck;
                     data.payload.assign(kCorruptPayload.begin(),
                                         kCorruptPayload.end());
-                    emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+                    emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                                  /*initial_wait=*/std::chrono::milliseconds(0));
                 }
                 (void)tester_fd;
@@ -125,14 +125,14 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable09Phase2LocalOffset;
 
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/3,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
             const int tester_fd = listener.acceptOne();
             TesterAutoAckDrop ack_drop(cfg);
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/4, /*socket_id=*/2);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
@@ -156,7 +156,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                                   | ::tc8::stimulus::kTcpFlagAck;
                     data.payload.assign(kCorruptPayload.begin(),
                                         kCorruptPayload.end());
-                    emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+                    emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                                  /*initial_wait=*/std::chrono::milliseconds(0));
                 }
                 (void)tester_fd;

@@ -101,7 +101,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // Wire bytes [0x02 0x00] padded with NOP×2 → 4 B. Linux's
         // `tcp_parse_options` aborts further option parsing at
         // `opsize < 2` and proceeds with the rest of the SYN+ACK.
-        runPhase(cfg, iface, cfg.arp.dut_real_mac,
+        runPhase(cfg, iface, cfg.dut.mac,
                  /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
                  kTcpMssOptions05Phase1LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x00U, 0x01U, 0x01U});
@@ -111,7 +111,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // bytes, one more than the RFC encoding's 2). Builder pads
         // with NOP×3 → 8 B options region; Data Offset = 7. Linux
         // skips the option per `opsize > TCPOLEN_MSS` and continues.
-        runPhase(cfg, iface, cfg.arp.dut_real_mac,
+        runPhase(cfg, iface, cfg.dut.mac,
                  /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
                  kTcpMssOptions05Phase2LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});

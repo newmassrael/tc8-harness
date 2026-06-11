@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, /*local_port=*/kBasicsListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -59,11 +59,11 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
         synack.ack_num  = kTesterInitialSeq + 1U;
         synack.flags    = ::tc8::stimulus::kTcpFlagSyn
                         | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, synack);
+        emitTcpFrame(cfg, iface, cfg.dut.mac, synack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

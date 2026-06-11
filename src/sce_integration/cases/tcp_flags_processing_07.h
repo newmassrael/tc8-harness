@@ -84,7 +84,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07SM>
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy = cfg;
-        std::array<std::uint8_t, 6> dut_mac  = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac  = cfg.dut.mac;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
@@ -140,7 +140,7 @@ private:
         urg.ack_num  = 0U;
         urg.flags    = ::tc8::stimulus::kTcpFlagUrg;
         ::tc8::sce::tcp::emitTcpFrame(
-            cfg, iface, cfg.arp.dut_real_mac, urg,
+            cfg, iface, cfg.dut.mac, urg,
             /*initial_wait=*/std::chrono::milliseconds(0));
     }
 
@@ -151,7 +151,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 53U;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -175,12 +175,12 @@ private:
         (void)ack_drop;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/3, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
         const auto info = driveCloseToClosing(
-            cfg, iface, cfg.arp.dut_real_mac, tester_fd,
+            cfg, iface, cfg.dut.mac, tester_fd,
             /*close_req_id=*/4, /*socket_id=*/2,
             local_port, remote_port);
         if (info.ok) {
@@ -200,14 +200,14 @@ private:
         (void)ack_drop;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/5, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
         ::shutdown(tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*close_req_id=*/6, /*socket_id=*/3);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -225,7 +225,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 56U;
 
         const auto info = driveTcpToTimeWaitFw2(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/7, /*close_req_id=*/8, /*socket_id=*/4,
             local_port, remote_port);
         if (info.ok) {

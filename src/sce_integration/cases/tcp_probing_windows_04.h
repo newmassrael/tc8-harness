@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
             kBasicsActiveRemotePort + kTcpProbingWindows04LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -85,7 +85,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kSeg1Payload.data(),
             static_cast<std::uint16_t>(kSeg1Payload.size()));
@@ -100,14 +100,14 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
             ack_seg.ack_num  = snd_una_post_ack;
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0U;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, ack_seg,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0.
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1,
             kSeg2Payload.data(),
             static_cast<std::uint16_t>(kSeg2Payload.size()));
@@ -124,7 +124,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
         // probe with current `icsk_backoff` (no reset because
         // snd_una does not advance), and probe 2 fires after the
         // doubled interval. Same shape for Listening_probe3.
-        const auto dut_mac = cfg.arp.dut_real_mac;
+        const auto dut_mac = cfg.dut.mac;
         const std::string iface_str(iface);
         const auto inject_zero_window_ack =
             [cfg, iface_str, dut_mac, local_port, remote_port,

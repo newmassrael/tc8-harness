@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::UdpFields10SM>
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.length_field = static_cast<std::uint16_t>(8U + kPayload + 1U);
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

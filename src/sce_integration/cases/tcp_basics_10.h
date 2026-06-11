@@ -60,7 +60,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
         // -------- Phase 1: FINWAIT-1 entry --------
         {
             auto listener1 = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/1,
                 kBasicsActiveLocalPort  + kTcpBasics10Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics10Phase1LocalOffset);
@@ -71,7 +71,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
             // immediate tester FIN. No pre-FIN delay — phase 2 is
             // where we wait for the tester ACK to settle.
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/2, /*socket_id=*/1);
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);
@@ -86,7 +86,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpBasics10Phase2LocalOffset;
 
             auto listener2 = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/3,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
@@ -96,7 +96,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
             // Order: UT close → wait 100 ms (DUT receives tester ACK,
             // moves FINWAIT-1 → FINWAIT-2) → tester FIN.
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/4, /*socket_id=*/2);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {

@@ -87,7 +87,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         const auto info = driveTcpToTimeWaitFw2(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
             local_port, remote_port);
         if (!info.ok) return;
@@ -96,7 +96,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
-        std::array<std::uint8_t, 6> dut_mac    = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
         const std::uint32_t         tester_seq = info.tester_seq_post_fin;
         const std::uint32_t         tester_ack = info.tester_ack_post_fin;
 

@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
             kBasicsActiveRemotePort + kTcpUrgentPtr04LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -77,7 +77,7 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
                                | ::tc8::stimulus::kTcpFlagAck;
         urg_seg.urgent_pointer = kUrgentPointer;
         urg_seg.payload.assign(kUrgPayload.begin(), kUrgPayload.end());
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, urg_seg,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, urg_seg,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         // Buffer-of-size-6 satisfies spec step 4 "data buffer having
@@ -95,7 +95,7 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         }
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1);
         (void)tester_fd;
     }

@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::TcpHeader08SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 36U;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -75,7 +75,7 @@ struct TestCaseTraits<cases::TcpHeader08SM>
         // segment; pskb_may_pull fails and the segment never
         // reaches the EST socket.
         data.data_offset_override = 0x0FU;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

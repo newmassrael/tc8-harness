@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpChecksum02LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum02LocalOffset);
@@ -89,7 +89,7 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
                     cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, spec);
 
                 ::tc8::stimulus::Ipv4FrameSpec ip_spec{};
-                ip_spec.dst_mac     = cfg.arp.dut_real_mac;
+                ip_spec.dst_mac     = cfg.dut.mac;
                 ip_spec.src_ip      = cfg.ipv4.tester_ip;
                 ip_spec.dst_ip      = cfg.ipv4.dut_iface_ip;
                 ip_spec.ip_protocol = ::tc8::stimulus::kIpProtoTcp;

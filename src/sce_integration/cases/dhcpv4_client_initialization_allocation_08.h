@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation08SM>
         // listen window — fast envelope shrink of the 10 s spec
         // ParamListenTime (Q4 decision).
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*retry_count=*/1,
             /*retry_interval_ms=*/1000,
             /*nak_to_discover_min_ms=*/0,

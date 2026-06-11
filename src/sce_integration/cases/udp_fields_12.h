@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::UdpFields12SM>
             /*dst_port=*/::tc8::sce::udp::kDataPort,
             payload.data(),
             payload.size(),
-            cfg.arp.dut_real_mac);
+            cfg.dut.mac);
 
         // Allow DUT-side IP reassembly + data listener delivery to
         // settle before issuing the UT query. 500 ms covers Linux's
@@ -72,7 +72,7 @@ struct TestCaseTraits<cases::UdpFields12SM>
             /*listen_port=*/::tc8::sce::udp::kDataPort,
             /*expected_dst_ip_be=*/cfg.ipv4.dut_iface_ip,
             /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
-            /*dut_mac=*/cfg.arp.dut_real_mac);
+            /*dut_mac=*/cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

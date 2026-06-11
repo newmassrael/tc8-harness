@@ -68,7 +68,7 @@ inline void wireRouterOverloadStimulus(
     using State = typename SM::PolicyType::State;
 
     ::tc8::sce::dhcpv4::emitStartDhcpClient(
-        cfg, iface, cfg.arp.dut_real_mac);
+        cfg, iface, cfg.dut.mac);
 
     ::tc8::sce::dhcpv4::ServerEmulParams params{};
     params.option_52_overload      = option_52_overload;
@@ -113,7 +113,7 @@ inline void wireRouterOverloadStimulus(
                         /*payload=*/&kProbePayload,
                         /*payload_len=*/1U,
                         /*tester_src_port=*/20101U,
-                        cfg.arp.dut_real_mac,
+                        cfg.dut.mac,
                         /*initial_wait=*/std::chrono::milliseconds(0));
                 });
         });

@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -62,7 +62,7 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         // socket_id is erased from tcp_listeners_ inside the server
         // path; no further UT calls on socket_id=1 are issued.
         sendAbortTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         // observation state, not wall clock.
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
-        std::array<std::uint8_t, 6> dut_mac    = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_verify_rst),

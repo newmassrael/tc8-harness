@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::Arp35SM>
         spec2.sender_hw = ::tc8::stimulus::kTesterInjectedMac2;
         spec2.eth_src = ::tc8::stimulus::kTesterInjectedMac2;
         spec2.sender_ip_be = cfg.arp.tester_ip;
-        spec2.target_ip_be = cfg.arp.dut_real_ip;
+        spec2.target_ip_be = cfg.dut.ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec2);
 
         emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);

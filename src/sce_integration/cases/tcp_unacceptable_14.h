@@ -62,7 +62,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
         // -------- Phase 1: OTW SEQ in CLOSE-WAIT --------
         {
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/1,
                 kBasicsActiveLocalPort  + kTcpUnacceptable14Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable14Phase1LocalOffset);
@@ -89,7 +89,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                                   | ::tc8::stimulus::kTcpFlagAck;
                     data.payload.assign(kCorruptPayload.begin(),
                                         kCorruptPayload.end());
-                    emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+                    emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                                  /*initial_wait=*/std::chrono::milliseconds(0));
                 }
                 (void)tester_fd;
@@ -103,7 +103,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable14Phase2LocalOffset;
 
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/3,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
@@ -123,7 +123,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                                   | ::tc8::stimulus::kTcpFlagAck;
                     data.payload.assign(kCorruptPayload.begin(),
                                         kCorruptPayload.end());
-                    emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+                    emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                                  /*initial_wait=*/std::chrono::milliseconds(0));
                 }
                 (void)tester_fd;

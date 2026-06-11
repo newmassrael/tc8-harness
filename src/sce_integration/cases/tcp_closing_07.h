@@ -78,7 +78,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -96,7 +96,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
         // Spec §4.8.6.8 _07 lists "Support of ETM Service Primitive
         // SHUTDOWN" as an explicit prerequisite (p351).
         sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
@@ -110,7 +110,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
         data.flags    = ::tc8::stimulus::kTcpFlagAck
                       | ::tc8::stimulus::kTcpFlagPsh;
         data.payload  = payload;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(150));

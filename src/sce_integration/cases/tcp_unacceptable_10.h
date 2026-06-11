@@ -81,13 +81,13 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpUnacceptable10LocalOffset,
             kBasicsActiveRemotePort + kTcpUnacceptable10LocalOffset);
         const int tester_fd = listener.acceptOne();
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         if (tester_fd < 0) return;
@@ -104,7 +104,7 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
                         | ::tc8::stimulus::kTcpFlagAck;
         phase1.payload.assign(kCorruptPayload.begin(),
                               kCorruptPayload.end());
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, phase1,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, phase1,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         ::tc8::TestConfig cfg_copy = cfg;
@@ -124,7 +124,7 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
                                 | ::tc8::stimulus::kTcpFlagAck;
                 phase2.payload.assign(kCorruptPayload.begin(),
                                       kCorruptPayload.end());
-                emitTcpFrame(cfg_copy, iface_str, cfg_copy.arp.dut_real_mac, phase2,
+                emitTcpFrame(cfg_copy, iface_str, cfg_copy.dut.mac, phase2,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             });
 

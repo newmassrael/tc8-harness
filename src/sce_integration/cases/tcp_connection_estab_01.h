@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab01SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, kTcpConnEstab01ListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -56,14 +56,14 @@ struct TestCaseTraits<cases::TcpConnectionEstab01SM>
             syn.dst_port = kTcpConnEstab01ListenPort;
             syn.seq_num  = kTesterInitialSeq;
             syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                    /*req_id=*/2, /*socket_id=*/1);
     }
 

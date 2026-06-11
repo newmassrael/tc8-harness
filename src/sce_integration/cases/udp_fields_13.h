@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::UdpFields13SM>
             cases::kFields13Payload.data(),
             static_cast<std::uint16_t>(cases::kFields13Payload.size()),
             ::tc8::ut::kTesterSrcPort,
-            cfg.arp.dut_real_mac);
+            cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

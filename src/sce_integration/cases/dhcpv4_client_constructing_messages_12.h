@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*retry_count=*/8U,
             /*retry_interval_ms=*/0U,
             /*nak_to_discover_min_ms=*/0U,

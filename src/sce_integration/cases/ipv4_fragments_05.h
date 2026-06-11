@@ -69,7 +69,7 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
             /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
-            /*dut_mac=*/cfg.arp.dut_real_mac);
+            /*dut_mac=*/cfg.dut.mac);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

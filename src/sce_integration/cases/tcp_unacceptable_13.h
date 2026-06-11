@@ -69,7 +69,7 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
         // -------- Phase 1: OTW SEQ in TIME-WAIT --------
         {
             const auto info = driveTcpToTimeWaitFw2(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
                 kBasicsActiveLocalPort  + kTcpUnacceptable13Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable13Phase1LocalOffset);
@@ -89,7 +89,7 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
                               | ::tc8::stimulus::kTcpFlagAck;
                 data.payload.assign(kCorruptPayload.begin(),
                                     kCorruptPayload.end());
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+                emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
@@ -101,7 +101,7 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable13Phase2LocalOffset;
 
             const auto info = driveTcpToTimeWaitFw2(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
                 phase2_local_port, phase2_remote_port);
             if (info.ok) {
@@ -119,7 +119,7 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
                               | ::tc8::stimulus::kTcpFlagAck;
                 data.payload.assign(kCorruptPayload.begin(),
                                     kCorruptPayload.end());
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+                emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);

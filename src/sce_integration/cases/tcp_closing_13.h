@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::TcpClosing13SM>
         rst.seq_num  = kTesterInitialSeq;
         rst.ack_num  = 0U;
         rst.flags    = ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, rst,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
     }
 

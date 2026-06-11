@@ -84,7 +84,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
                 static_cast<std::uint8_t>(phase + 1U);
 
             auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 open_req_id, local_port, remote_port);
             const int tester_fd = listener.acceptOne();
             if (tester_fd < 0) {
@@ -93,7 +93,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
             }
 
             const auto info = driveCloseToClosing(
-                cfg, iface, cfg.arp.dut_real_mac, tester_fd,
+                cfg, iface, cfg.dut.mac, tester_fd,
                 close_req_id, socket_id, local_port, remote_port);
             if (!info.ok) {
                 silentlyCloseTesterFd(tester_fd);
@@ -145,7 +145,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
                                          kCorruptPayload.end());
                     break;
             }
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, probe,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 

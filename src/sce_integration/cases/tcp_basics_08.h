@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
         // -------- Phase 1: ESTABLISHED → CLOSE → FIN --------
         {
             auto listener1 = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/1,
                 kBasicsActiveLocalPort  + kTcpBasics08Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics08Phase1LocalOffset);
@@ -70,7 +70,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             // matching SCXML pass guard's `(flags & FIN)` conjunct
             // fires on this segment.
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/2, /*socket_id=*/1);
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }  // listener1 destructed: its queued accepted connection
@@ -85,7 +85,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpBasics08Phase2LocalOffset;
 
             auto listener2 = driveActiveOpenEstablished(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/3,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
@@ -110,7 +110,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             }
 
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/4, /*socket_id=*/2);
 
             if (tester_fd >= 0) ::close(tester_fd);

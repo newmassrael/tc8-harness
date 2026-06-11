@@ -27,7 +27,7 @@ struct TestCaseTraits<cases::Arp21SM>
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
-        spec.target_ip_be = cfg.arp.dut_real_ip;
+        spec.target_ip_be = cfg.dut.ip;
         spec.hw_type = 0xFFFF;  // ARP_HARDWARE_TYPE_UNKNOWN
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }

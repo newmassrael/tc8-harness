@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::Arp03SM>
     //      learned cache entry. A conformant DUT sends the UDP without
     //      an intervening ARP Request.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
-        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
+        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
         emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
     }

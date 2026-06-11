@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::Arp49SM>
     // SCXML walks wait_udp1 → wait_udp2 → wait_arp_request → pass on
     // the {UDP1, UDP2, ARP} wire order under both strategies.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
-        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
+        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
 
         ::tc8::stimulus::BootTiming ut1;
@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::Arp49SM>
         ut1.total_emits = 1;
         emitArpEgressProvocation(cfg, iface, ut1);
 
-        const std::uint16_t timeout_s = cfg.arp.ut_cache_conditioning_s;
+        const std::uint16_t timeout_s = cfg.arp_stimulus.ut_cache_conditioning_s;
         const auto half = static_cast<std::uint16_t>(timeout_s / 2);
         const auto rest = static_cast<std::uint16_t>(timeout_s - half);
         if (timeout_s > 0) {

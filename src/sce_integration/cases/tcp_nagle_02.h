@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::TcpNagle02SM>
             kBasicsActiveRemotePort + kTcpNagle02LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -69,19 +69,19 @@ struct TestCaseTraits<cases::TcpNagle02SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kFirstPayload.data(),
             static_cast<std::uint16_t>(kFirstPayload.size()));
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1,
             kSecondPayload.data(),
             static_cast<std::uint16_t>(kSecondPayload.size()));
 
-        const auto dut_mac = cfg.arp.dut_real_mac;
+        const auto dut_mac = cfg.dut.mac;
         const std::string iface_str(iface);
         const std::uint32_t ack_num =
             first_seg_seq +

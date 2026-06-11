@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
         // 536 when no kind=2 MSS arrived at handshake (RFC 1122
         // §4.2.2.6). Subsequent ::send() segments cap at 536 B.
         const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             kTcpMssOptionsListenPort10,
             std::vector<std::uint8_t>{},  // no MSS option
             kTcpMssOptionsTesterSrcPort10,
@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
         // least 2 chunks. First chunk size = mss_clamp = 536 if the
         // DUT applied the RFC 1122 default correctly.
         sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             /*pattern=*/0xAAU, /*total_len=*/1024U);
         // 200 ms grace for the kernel to flush the first segment to
@@ -70,7 +70,7 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1);
     }
 

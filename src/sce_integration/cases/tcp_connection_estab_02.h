@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
         syn.dst_port = leg.listen_port;
         syn.seq_num  = ::tc8::sce::tcp::kTesterInitialSeq;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        ::tc8::sce::tcp::emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac,
+        ::tc8::sce::tcp::emitTcpFrame(cfg, iface, cfg.dut.mac,
                                        syn,
                                        /*initial_wait=*/std::chrono::milliseconds(0));
     }
@@ -67,7 +67,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
         // RPC matching deterministic per leg).
         for (std::uint8_t i = 0; i < legs.size(); ++i) {
             sendOpenTcpSocketPassiveRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/static_cast<std::uint8_t>(i + 1U),
                 legs[i].listen_port);
             std::this_thread::sleep_for(kTcpUtRpcWait);
@@ -86,7 +86,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
 
         for (std::uint8_t i = 0; i < legs.size(); ++i) {
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/static_cast<std::uint8_t>(i + 4U),
                 legs[i].socket_id);
         }

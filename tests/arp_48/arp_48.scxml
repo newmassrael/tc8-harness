@@ -13,7 +13,7 @@
 
   SCXML observes the two-phase outcome sequentially; the guards are
   neutral to the conditioning strategy the trait stimulus selects on
-  arp.ut_cache_conditioning_s:
+  arp_stimulus.ut_cache_conditioning_s:
     * Linux reference DUT (knob 0): cache timers compressed via
       smoke-test.sh's per-case sysctl toggle (base_reachable_time_ms
       =500, gc_stale_time=1); the kernel-spontaneous DELAY → PROBE

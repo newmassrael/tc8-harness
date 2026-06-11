@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection15SM> {
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::linklocal::emitStartLLAutoconfFastConflict(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
     }
 
     // Dispatch reuses _14's helper with the post-silence branch

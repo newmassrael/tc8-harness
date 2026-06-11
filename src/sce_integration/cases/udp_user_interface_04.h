@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::UdpUserInterface04SM>
         // Confirmation surfaces the same value back. No overrides
         // beyond the default cfg-driven src_ip.
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

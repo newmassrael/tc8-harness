@@ -545,9 +545,9 @@ inline constexpr std::uint16_t kEgressBootDutSrcPort = 20010;
 //
 // `tester_ip_be` / `dut_ip_be` / `dut_mac` are TOPOLOGY identities, not
 // SCXML expectations: §4.2 callers pass `cfg.ipv4.tester_ip` +
-// `cfg.arp.dut_real_*` (the same split as the §4.6 UDP traits and the
-// `dut_real_ip` vs `dut_iface_ip` precedent in `ArpExpectations`).
-// Passing the `arp.tester_ip` expectation knob instead would let a
+// `cfg.dut.ip` / `cfg.dut.mac` (the DUT wire-identity SSOT in
+// `DutIdentity`, read by every protocol's stimulus path). Passing an
+// expectation knob like `arp.tester_ip` instead would let a
 // `--negative` override silence the DUT (request sourced from / reply
 // routed to an unroutable IP) rather than shift only the SCXML
 // comparison — exactly the failure mode the ARP_03/05/15 negative rows

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "arp_expectations.h"
+#include "arp_stimulus_config.h"
 #include "dhcpv4_expectations.h"
+#include "dut_identity.h"
 #include "icmpv4_expectations.h"
 #include "ipv4_expectations.h"
 #include "someip_expectations.h"
@@ -27,8 +29,13 @@ namespace tc8 {
 // `BootTiming{}` and suit the tc8-dut bootstrap; real DUTs with
 // slower/faster SD init are expected to override.
 struct TestConfig {
+    // DUT wire identity (MAC/IP frames are sent to) — domain-neutral
+    // SSOT read by every protocol's stimulus path; see `DutIdentity`.
+    DutIdentity dut{};
     SomeIpExpectations someip{};
     ArpExpectations arp{};
+    // ARP stimulus knobs (not guard-compared); see `ArpStimulusConfig`.
+    ArpStimulusConfig arp_stimulus{};
     Icmpv4Expectations icmpv4{};
     Ipv4Expectations ipv4{};
     Dhcpv4Expectations dhcpv4{};

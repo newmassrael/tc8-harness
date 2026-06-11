@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::TcpNagle03SM>
             kBasicsActiveRemotePort + kTcpNagle03LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -70,21 +70,21 @@ struct TestCaseTraits<cases::TcpNagle03SM>
         (void)ack_drop;
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kFirstPayload.data(),
             static_cast<std::uint16_t>(kFirstPayload.size()));
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1,
             kSecondPayload.data(),
             static_cast<std::uint16_t>(kSecondPayload.size()));
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/4, /*socket_id=*/1,
             kThirdPattern, kThirdPayloadLen);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));

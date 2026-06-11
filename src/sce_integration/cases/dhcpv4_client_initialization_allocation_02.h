@@ -31,7 +31,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation02SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

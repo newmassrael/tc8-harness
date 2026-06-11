@@ -105,7 +105,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         TesterAutoRstDrop rst_drop(cfg);
 
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, local_port,
             cfg.ipv4.tester_ip, remote_port);
         std::this_thread::sleep_for(kTcpUtRpcWait);
@@ -140,7 +140,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         c.ut_tcpi_p1_unacked     = last.unacked;
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1);
     }
 

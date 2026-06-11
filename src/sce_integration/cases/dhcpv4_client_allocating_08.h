@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating08SM>
         // upper bound stays bounded so case_timeout=22 s still leaves
         // margin against worker jitter.
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*retry_count=*/1,
             /*retry_interval_ms=*/1000,
             /*nak_to_discover_min_ms=*/0,
@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating08SM>
             iface, c.dhcpv4, /*message_type=*/5);
         ::tc8::sce::dhcpv4::scheduleArpConflictReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_decline),
-            iface, cfg.arp.dut_real_mac,
+            iface, cfg.dut.mac,
             ::tc8::sce::dhcpv4::kDefaultOfferedIpBe);
     }
 

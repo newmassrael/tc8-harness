@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy = cfg;
-        std::array<std::uint8_t, 6> dut_mac  = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac  = cfg.dut.mac;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_prelude_synack),
@@ -101,7 +101,7 @@ private:
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
         ::tc8::sce::tcp::emitTcpFrame(
-            cfg, iface, cfg.arp.dut_real_mac, syn,
+            cfg, iface, cfg.dut.mac, syn,
             /*initial_wait=*/std::chrono::milliseconds(0));
     }
 
@@ -119,7 +119,7 @@ private:
         sa.flags    = ::tc8::stimulus::kTcpFlagSyn
                     | ::tc8::stimulus::kTcpFlagAck;
         ::tc8::sce::tcp::emitTcpFrame(
-            cfg, iface, cfg.arp.dut_real_mac, sa,
+            cfg, iface, cfg.dut.mac, sa,
             /*initial_wait=*/std::chrono::milliseconds(0));
     }
 
@@ -131,7 +131,7 @@ private:
         constexpr std::uint16_t kVerifyTester  = kBasicsTesterPort + 73U;
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, kListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -171,7 +171,7 @@ private:
         constexpr std::uint16_t kVerifyTester  = kBasicsTesterPort + 75U;
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, kListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 

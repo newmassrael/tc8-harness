@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         (void)rst_drop;
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, /*local_port=*/kBasicsListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn);
+        emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
 
         // Capture SYN+ACK to learn ISN_d. 500 ms covers the worst-
         // case kernel scheduling jitter; a same-host netns
@@ -100,13 +100,13 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
             bad_ack.seq_num  = kTesterInitialSeq + 1U;
             bad_ack.ack_num  = synack->seq_num + kUnacceptableAckOffset;
             bad_ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, bad_ack,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, bad_ack,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

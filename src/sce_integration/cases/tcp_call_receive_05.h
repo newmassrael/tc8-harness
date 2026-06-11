@@ -63,7 +63,7 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -89,7 +89,7 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
                           | ::tc8::stimulus::kTcpFlagPsh
                           | ::tc8::stimulus::kTcpFlagFin;
         fin_data.payload  = payload;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, fin_data,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, fin_data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(150));

@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::TcpSequence05SM>
         TesterAutoRstDrop rst_drop(cfg);
 
         const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             kTcpSequence05ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence05TesterSrcPort,
@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             /*capture_timeout=*/std::chrono::milliseconds(2000),
             /*tester_isn=*/kTesterInitialSeq);
         if (!info.ok) {
-            sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+            sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                        /*req_id=*/2, /*socket_id=*/1);
             return;
         }
@@ -93,13 +93,13 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             data.flags    = ::tc8::stimulus::kTcpFlagPsh
                           | ::tc8::stimulus::kTcpFlagAck;
             data.payload.assign(kSegPayload.begin(), kSegPayload.end());
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             seg_seq += kSegLen;
             std::this_thread::sleep_for(kDelayedAckSettle);
         }
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                    /*req_id=*/2, /*socket_id=*/1);
     }
 

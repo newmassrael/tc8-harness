@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::UdpInvalidAddresses02SM>
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.src_ip_override = cases::kIntro01DirectedBroadcastBe;
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

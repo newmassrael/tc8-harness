@@ -110,7 +110,7 @@ private:
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             open_req_id, local_port, cfg.ipv4.tester_ip, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
@@ -121,13 +121,13 @@ private:
             bad.seq_num  = kTesterInitialSeq;
             bad.ack_num  = syn->seq_num + kUnacceptableAckOffset;
             bad.flags    = bad_inject_flags;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, bad,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, bad,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             close_req_id, socket_id);
     }
 };

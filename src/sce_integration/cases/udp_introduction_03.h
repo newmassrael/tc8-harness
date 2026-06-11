@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::UdpIntroduction03SM> {
         // `reference_icmp_packet_host_gate.md`. Default Eth-broadcast
         // sets PACKET_BROADCAST and the kernel suppresses the error.
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
-        ov.eth_dst_override = cfg.arp.dut_real_mac;
+        ov.eth_dst_override = cfg.dut.mac;
         ::tc8::sce::udp::emitUdpStimulus(
             cfg, iface,
             cfg.ipv4.dut_iface_ip,

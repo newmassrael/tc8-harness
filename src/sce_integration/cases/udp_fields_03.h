@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::UdpFields03SM>
         // Inject UDP src_port=0; conformant otherwise. UT confirms
         // received=1.
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             /*src_port=*/0);

@@ -92,7 +92,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
                 static_cast<std::uint8_t>(phase + 1U);
 
             sendOpenTcpSocketPassiveRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 open_req_id, listen_port);
             std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -105,7 +105,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
             syn.seq_num  = kTesterInitialSeq;
             syn.ack_num  = 0U;
             syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn);
+            emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
 
             const auto synack = snippet.tryCapture(
                 std::chrono::milliseconds(500));
@@ -144,13 +144,13 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
                                              kCorruptPayload.end());
                         break;
                 }
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, probe,
+                emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
                              /*initial_wait=*/std::chrono::milliseconds(0));
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
             }
 
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 close_req_id, socket_id);
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }

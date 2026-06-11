@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -71,7 +71,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         dup_ack.seq_num  = seq_range->snd_nxt;
         dup_ack.ack_num  = seq_range->rcv_nxt;
         dup_ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, dup_ack,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, dup_ack,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

@@ -74,7 +74,7 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
         // closed-port RST it elicits cleanly maps to the spec's
         // "DUT moved to CLOSED" assertion. Same scheduleAfterStateEntry
         // shape as TCP_CLOSING_03 / FLAGS_PROCESSING_02.
-        std::array<std::uint8_t, 6> dut_mac = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac = cfg.dut.mac;
         scheduleVerifyProbe(scheduler, State::Listening_p1_verify_rst,
                             iface_copy, cfg_copy, dut_mac,
                             kPortOffsetClosing);
@@ -141,13 +141,13 @@ private:
         (void)ack_drop;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
 
         const auto info = driveCloseToClosing(
-            cfg, iface, cfg.arp.dut_real_mac, tester_fd,
+            cfg, iface, cfg.dut.mac, tester_fd,
             /*close_req_id=*/2, /*socket_id=*/1,
             local_port, remote_port);
         if (!info.ok) return;
@@ -155,7 +155,7 @@ private:
         // caller per helper contract.
 
         sendAbortTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
@@ -178,7 +178,7 @@ private:
         (void)ack_drop;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/4, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -192,7 +192,7 @@ private:
         // UT shutdownTcpSocketWr → DUT CW→LAST-ACK. Tester auto-ACK
         // to DUT FIN is dropped by ack_drop; DUT stays in LAST-ACK.
         sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/5, /*socket_id=*/2);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
@@ -200,7 +200,7 @@ private:
         // tcp_send_active_reset → DUT RST. Verify-probe still fires
         // for the closed-port RST as redundant proof.
         sendAbortTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/6, /*socket_id=*/2);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
@@ -220,7 +220,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffsetTimeWait;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/7, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -228,7 +228,7 @@ private:
         // shutdown(WR) — DUT FIN. Tester kernel auto-ACK drives
         // DUT FW1→FW2. NO AckDrop here — we want the auto-ACK.
         sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/8, /*socket_id=*/3);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
@@ -245,7 +245,7 @@ private:
         // the fd reference without emitting RST. The verify-probe
         // ACK is the load-bearing CLOSED-proof for this iter.
         sendAbortTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/9, /*socket_id=*/3);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 

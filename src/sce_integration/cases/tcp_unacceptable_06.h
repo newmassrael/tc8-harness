@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpUnacceptable06LocalOffset,
             kBasicsActiveRemotePort + kTcpUnacceptable06LocalOffset);
@@ -77,7 +77,7 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
                 syn.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
                 syn.ack_num  = seq_range->rcv_nxt;
                 syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, syn,
+                emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             // Connection cleanup deferred to process exit (same

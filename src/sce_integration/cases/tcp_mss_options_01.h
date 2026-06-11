@@ -87,7 +87,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
         // can resume on the next byte without prematurely terminating
         // the option list.
         injectMalformedSyn(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
             kTcpMssOptionsListenPort01a,
             kTcpMssOptionsTesterSrcPort01a,
@@ -98,7 +98,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
         // 793 RFC 793 §3.1 MSS encoding's 2). Options vector is 5 B; builder
         // pads with NOP×3 → 8 B. Data Offset becomes 7.
         injectMalformedSyn(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
             kTcpMssOptionsListenPort01b,
             kTcpMssOptionsTesterSrcPort01b,
@@ -111,7 +111,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
             0x02U, 0x04U, 0x05U, 0xB4U};  // MSS = 0x05B4 = 1460
 
         const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             kTcpMssOptionsListenPort01v,
             verify_options,
             kTcpMssOptionsTesterSrcPort01v,
@@ -121,7 +121,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
         c.ut_established = info.ut_established;
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/6, /*socket_id=*/3);
     }
 

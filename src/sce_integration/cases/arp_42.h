@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::Arp42SM>
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.opcode = 0x0002;  // Response
         spec.sender_ip_be = cfg.arp.tester_ip;
-        spec.target_ip_be = cfg.arp.dut_real_ip;
-        spec.target_hw = cfg.arp.dut_real_mac;  // addressed to DUT
+        spec.target_ip_be = cfg.dut.ip;
+        spec.target_hw = cfg.dut.mac;  // addressed to DUT
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
 

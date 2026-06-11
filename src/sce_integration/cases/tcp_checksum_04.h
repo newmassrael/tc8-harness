@@ -106,7 +106,7 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         // ring is armed by the time the DUT emits SYN1.
         auto snippet1 = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, local_port,
             cfg.ipv4.tester_ip, remote_port);
         std::this_thread::sleep_for(kTcpUtRpcWait);
@@ -121,14 +121,14 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         // this IS spec step 3, the explicit RST,ACK to close cycle 1).
         std::this_thread::sleep_for(kCycleSettle);
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
         std::this_thread::sleep_for(kCycleSettle);
 
         // ------- Cycle 2 -------
         auto snippet2 = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, local_port,
             cfg.ipv4.tester_ip, remote_port);
         std::this_thread::sleep_for(kTcpUtRpcWait);
@@ -140,7 +140,7 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
 
         std::this_thread::sleep_for(kCycleSettle);
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/4, /*socket_id=*/2);
     }
 

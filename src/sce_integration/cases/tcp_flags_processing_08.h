@@ -74,7 +74,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Phase 1 — CLOSED state: bare FIN to closed DUT port.
-        emitTcpStimulus(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpStimulus(cfg, iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/::tc8::stimulus::kTcpFlagFin,
                         /*seq_num=*/kTesterInitialSeq,
@@ -91,7 +91,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
             kBasicsTesterPort + 71U;
 
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, kPhase2ListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -101,7 +101,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         p2_fin.seq_num  = kTesterInitialSeq;
         p2_fin.ack_num  = 0U;
         p2_fin.flags    = ::tc8::stimulus::kTcpFlagFin;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, p2_fin,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, p2_fin,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         // Phase 3 — deferred via scheduleAfterStateEntry(p3_dut_syn).
@@ -112,7 +112,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy = cfg;
-        std::array<std::uint8_t, 6> dut_mac  = cfg.arp.dut_real_mac;
+        std::array<std::uint8_t, 6> dut_mac  = cfg.dut.mac;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_dut_syn),

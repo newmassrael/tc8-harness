@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab07SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
         sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, kTcpConnEstab07ListenPort);
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab07SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         // Phase 2: UT close → tc8-dut close() → DUT FIN observed.
-        sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
+        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
                                    /*req_id=*/2, /*socket_id=*/1);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 

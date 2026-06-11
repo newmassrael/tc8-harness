@@ -29,7 +29,7 @@ struct TestCaseTraits<cases::Arp06SM>
     // Gratuitous Response variant of ARP_04's stimulus. Requires
     // `arp_accept=1` on DUT iface (see ARP_05).
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
-        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
+        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::GratuitousResponse);
         emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
     }

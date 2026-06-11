@@ -72,7 +72,7 @@ struct TestCaseTraits<cases::TcpOutOfOrder03SM>
             kBasicsActiveRemotePort + kTcpOutOfOrder03LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -105,16 +105,16 @@ struct TestCaseTraits<cases::TcpOutOfOrder03SM>
             return spec;
         };
 
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpFrame(cfg, iface, cfg.dut.mac,
                      build_seg(injected_seq, kSeg0Payload),
                      /*initial_wait=*/std::chrono::milliseconds(0));
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpFrame(cfg, iface, cfg.dut.mac,
                      build_seg(injected_seq + 2U * seg_len, kSegGap1Payload),
                      kInterSegmentWait);
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpFrame(cfg, iface, cfg.dut.mac,
                      build_seg(injected_seq + 3U * seg_len, kSegGap2Payload),
                      kInterSegmentWait);
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac,
+        emitTcpFrame(cfg, iface, cfg.dut.mac,
                      build_seg(injected_seq + seg_len, kSegFillPayload),
                      kInterSegmentWait);
         (void)tester_fd;

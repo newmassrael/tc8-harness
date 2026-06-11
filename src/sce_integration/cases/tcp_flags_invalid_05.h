@@ -88,7 +88,7 @@ private:
         probe.seq_num  = ::tc8::sce::tcp::kTesterInitialSeq;
         probe.ack_num  = isn_d + 1U;
         probe.flags    = flags;
-        ::tc8::sce::tcp::emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, probe,
+        ::tc8::sce::tcp::emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
                                       /*initial_wait=*/std::chrono::milliseconds(0));
     }
 
@@ -104,7 +104,7 @@ private:
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, local_port, cfg.ipv4.tester_ip, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
@@ -129,7 +129,7 @@ private:
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, local_port, cfg.ipv4.tester_ip, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));

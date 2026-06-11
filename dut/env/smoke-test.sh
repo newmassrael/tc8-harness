@@ -157,7 +157,7 @@ ARP_TESTER_INJECTED_MAC3=02:00:00:00:00:A3
 # the synthetic gateway resolves without a real responder; if the C++
 # constexpr changes, this literal must follow.
 DHCPV4_SERVER1_IP4=172.16.0.10
-# `arp.dut_real_ip` feeds the stimulus (target_ip of the injected ARP
+# `dut.ip` feeds the stimulus (target_ip of the injected ARP
 # Request); `arp.dut_iface_ip` is the SCXML expectation the captured
 # DUT Reply's sender_proto_ip is compared against. In positive rows both
 # carry the real DUT IP; `--negative` overrides only `arp.dut_iface_ip`
@@ -165,7 +165,7 @@ DHCPV4_SERVER1_IP4=172.16.0.10
 ARP_DUT_EXPECT_STATIC=(
     --expect "arp.tester_ip=$TESTER_IP4"
     --expect "arp.dut_iface_ip=$DUT_IP4"
-    --expect "arp.dut_real_ip=$DUT_IP4"
+    --expect "dut.ip=$DUT_IP4"
     --expect "arp.tester_mac=$ARP_TESTER_INJECTED_MAC"
     --expect "arp.tester_mac2=$ARP_TESTER_INJECTED_MAC2"
     --expect "arp.tester_mac3=$ARP_TESTER_INJECTED_MAC3"
@@ -180,7 +180,7 @@ ARP_DUT_EXPECT_STATIC=(
 # fixture confs (lwip-tap-fixture.conf) reach this branch.
 if [[ -n "${TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S:-}" ]]; then
     ARP_DUT_EXPECT_STATIC+=(
-        --expect "arp.ut_cache_conditioning_s=$TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S"
+        --expect "arp_stimulus.ut_cache_conditioning_s=$TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S"
     )
 fi
 
@@ -297,7 +297,7 @@ DUT_IP4_2=172.17.0.2
 #                                 seconds (lwIP fixture: compile-time
 #                                 ARP_MAXAGE = 300). Rides into the
 #                                 harness as --expect
-#                                 arp.ut_cache_conditioning_s so the
+#                                 arp_stimulus.ut_cache_conditioning_s so the
 #                                 ARP_48/49 stimulus conditions the
 #                                 cache through the UT channel; also
 #                                 suppresses the Group E
@@ -2396,7 +2396,7 @@ run_case() {
         "${TC8_DUT_EXPECT[@]}"
         "${ARP_DUT_EXPECT_STATIC[@]}"
         --expect "arp.dut_iface_mac=$dut_mac"
-        --expect "arp.dut_real_mac=$dut_mac"
+        --expect "dut.mac=$dut_mac"
         --expect "dhcpv4.dut_iface_mac=$dut_mac"
         "${ICMPV4_DUT_EXPECT_STATIC[@]}"
         "${IPV4_DUT_EXPECT_STATIC[@]}"
@@ -2902,7 +2902,7 @@ run_negative_case() {
         "${TC8_DUT_EXPECT[@]}"
         "${ARP_DUT_EXPECT_STATIC[@]}"
         --expect "arp.dut_iface_mac=$dut_mac"
-        --expect "arp.dut_real_mac=$dut_mac"
+        --expect "dut.mac=$dut_mac"
         --expect "dhcpv4.dut_iface_mac=$dut_mac"
         "${ICMPV4_DUT_EXPECT_STATIC[@]}"
         "${IPV4_DUT_EXPECT_STATIC[@]}"
@@ -3882,7 +3882,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "ARP_05|arp.tester_ip=10.99.99.99|fail:dut_arp_request_after_gratuitous_learning"
         "ARP_06|arp.tester_mac=de:ad:be:ef:00:00|fail:udp_eth_dst_not_tester_mac"
         # §4.2.4.2 Phase 3a field-check cases ARP_43/44: opened via the
-        # Phase 3b CLI split (`arp.dut_real_ip` / `arp.dut_real_mac` feed
+        # Phase 3b CLI split (`dut.ip` / `dut.mac` feed
         # the stimulus, `arp.dut_iface_ip` / `arp.dut_iface_mac` feed the
         # SCXML expectation). Overriding only the iface key shifts the
         # SCXML comparison target without silencing the DUT; the SCXML

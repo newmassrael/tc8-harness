@@ -53,11 +53,11 @@ struct TestCaseTraits<cases::UdpFields04SM>
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
             ::tc8::ut::kTesterSrcPort,
-            cfg.arp.dut_real_mac);
+            cfg.dut.mac);
 
         std::string iface_copy(iface);
         ::tc8::TestConfig cfg_copy = cfg;
-        const auto dut_mac = cfg.arp.dut_real_mac;
+        const auto dut_mac = cfg.dut.mac;
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2),
             [iface_copy, cfg_copy, dut_mac]() {

@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, local_port,
             cfg.ipv4.tester_ip, remote_port);
 
@@ -70,7 +70,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
             bad.seq_num  = syn->seq_num + 1U;
             bad.ack_num  = 0U;
             bad.flags    = ::tc8::stimulus::kTcpFlagRst;
-            emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, bad,
+            emitTcpFrame(cfg, iface, cfg.dut.mac, bad,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
     }

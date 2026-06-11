@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::TcpControlFlags05SM>
             kBasicsActiveRemotePort + kTcpControlFlags05LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::TcpControlFlags05SM>
         urg_seg.urgent_pointer =
             static_cast<std::uint16_t>(kUrgPayload.size());
         urg_seg.payload.assign(kUrgPayload.begin(), kUrgPayload.end());
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, urg_seg,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, urg_seg,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

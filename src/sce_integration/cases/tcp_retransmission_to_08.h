@@ -108,7 +108,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
             kBasicsActiveRemotePort + kTcpRetransmissionTo08LocalOffset);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -117,7 +117,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
         TesterAutoAckDrop ack_drop(cfg);
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kPayload.data(),
             static_cast<std::uint16_t>(kPayload.size()));

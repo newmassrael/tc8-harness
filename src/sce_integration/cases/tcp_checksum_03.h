@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1,
             kBasicsActiveLocalPort  + kTcpChecksum03LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum03LocalOffset);
@@ -70,14 +70,14 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
         // the DATA segment to land on the wire before the SCXML's
         // listen window expires.
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kChecksumPayload.data(),
             static_cast<std::uint16_t>(kChecksumPayload.size()));
         std::this_thread::sleep_for(kTcpUtRpcWait);
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/3, /*socket_id=*/1);
     }
 

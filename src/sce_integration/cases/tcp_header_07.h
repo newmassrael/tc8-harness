@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::TcpHeader07SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 35U;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
@@ -72,7 +72,7 @@ struct TestCaseTraits<cases::TcpHeader07SM>
         // mandates >= 5; Linux gates this in tcp_v4_rcv before any
         // socket lookup, so the EST socket never sees the segment.
         data.data_offset_override = 0x04U;
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

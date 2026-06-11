@@ -53,7 +53,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*retry_count=*/1,
             /*retry_interval_ms=*/1000,
             /*nak_to_discover_min_ms=*/0,
@@ -75,7 +75,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
             static_cast<int>(State::Listening_for_d1_discover),
             [&cfg, iface_copy = std::string(iface)]() {
                 ::tc8::sce::dhcpv4::emitStartDhcpClient(
-                    cfg, iface_copy, cfg.arp.dut_real_mac,
+                    cfg, iface_copy, cfg.dut.mac,
                     /*retry_count=*/1,
                     /*retry_interval_ms=*/1000,
                     /*nak_to_discover_min_ms=*/0,

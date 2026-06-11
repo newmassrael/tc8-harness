@@ -94,7 +94,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
         // OpQueryTcpInfo while the worker's connect() is still
         // blocking in SYN-SENT. See upper_tester_server.cpp:1199.
         sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/1, local_port,
             cfg.ipv4.tester_ip, remote_port);
 

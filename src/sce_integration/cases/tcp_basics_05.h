@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::TcpBasics05SM>
         using namespace ::tc8::sce::tcp;
         // iter 1 — SYN+ACK
         emitTcpStimulus(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*dst_port=*/kBasicsClosedPort,
             /*flags=*/static_cast<std::uint8_t>(
                 ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck),
@@ -78,7 +78,7 @@ struct TestCaseTraits<cases::TcpBasics05SM>
 
         // iter 2 — bare ACK
         emitTcpStimulus(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*dst_port=*/kBasicsClosedPort,
             /*flags=*/::tc8::stimulus::kTcpFlagAck,
             /*seq_num=*/kTesterInitialSeq + 0x100U,

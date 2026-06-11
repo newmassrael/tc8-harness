@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
         const std::vector<std::uint8_t> syn_options{0x01U, 0x01U, 0x01U, 0x00U};
 
         const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             kTcpMssOptionsListenPort02,
             syn_options,
             kTcpMssOptionsTesterSrcPort02,
@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
         c.ut_established = info.ut_established;
 
         sendCloseTcpSocketRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1);
     }
 

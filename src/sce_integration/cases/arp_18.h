@@ -27,7 +27,7 @@ struct TestCaseTraits<cases::Arp18SM>
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
-        spec.target_ip_be = cfg.arp.dut_real_ip;
+        spec.target_ip_be = cfg.dut.ip;
         // ARBIT_MAC_ADDR — locally-administered unicast distinct from
         // kTesterInjectedMac and the DUT MAC; any non-zero, non-broadcast
         // value works here, the spec only requires "arbitrary".

@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
         // -------- Phase 1: OTW SEQ FIN in TIME-WAIT --------
         {
             const auto info = driveTcpToTimeWaitFw2(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
                 kBasicsActiveLocalPort  + kTcpFlagsInvalid14Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase1LocalOffset);
@@ -79,7 +79,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
                 probe.ack_num  = info.tester_ack_post_fin;
                 probe.flags    = ::tc8::stimulus::kTcpFlagFin
                                | ::tc8::stimulus::kTcpFlagAck;
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, probe,
+                emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
@@ -91,7 +91,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase2LocalOffset;
 
             const auto info = driveTcpToTimeWaitFw2(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
                 phase2_local_port, phase2_remote_port);
             if (info.ok) {
@@ -105,7 +105,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
                                | ::tc8::stimulus::kTcpFlagAck;
                 probe.payload.assign(kCorruptPayload.begin(),
                                      kCorruptPayload.end());
-                emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, probe,
+                emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);

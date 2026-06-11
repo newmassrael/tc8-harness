@@ -50,13 +50,13 @@ struct TestCaseTraits<cases::TcpAcknowledgement02SM>
             kBasicsActiveRemotePort + kTcpAck02LocalOffset;
 
         auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*open_req_id=*/1, local_port, remote_port);
         const int tester_fd = listener.acceptOne();
         if (tester_fd < 0) return;
 
         sendSendTcpDataRequest(
-            cfg, iface, cfg.arp.dut_real_mac,
+            cfg, iface, cfg.dut.mac,
             /*req_id=*/2, /*socket_id=*/1,
             kDutPayload.data(),
             static_cast<std::uint16_t>(kDutPayload.size()));
@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement02SM>
         data.flags    = ::tc8::stimulus::kTcpFlagPsh
                       | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kTesterPayload.begin(), kTesterPayload.end());
-        emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
+        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

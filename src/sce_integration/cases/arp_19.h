@@ -28,8 +28,8 @@ struct TestCaseTraits<cases::Arp19SM>
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
-        spec.target_ip_be = cfg.arp.dut_real_ip;
-        spec.target_hw = cfg.arp.dut_real_mac;
+        spec.target_ip_be = cfg.dut.ip;
+        spec.target_hw = cfg.dut.mac;
         // eth_dst defaults to broadcast — explicit per ARP_19 spec text.
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }

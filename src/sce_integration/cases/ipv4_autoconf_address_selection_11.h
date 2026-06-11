@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection11SM>
                          std::string_view iface,
                          linklocal::IStimulusScheduler& scheduler) {
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.arp.dut_real_mac);
+            cfg, iface, cfg.dut.mac);
         ::tc8::sce::linklocal::scheduleConflictArpOnStateEntry(
             scheduler, static_cast<int>(State::Await_repick),
             iface, ::tc8::sce::linklocal::ConflictArpVariant::Request, c);

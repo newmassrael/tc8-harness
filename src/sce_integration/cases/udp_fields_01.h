@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::UdpFields01SM>
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
             ::tc8::ut::kTesterSrcPort,
-            cfg.arp.dut_real_mac);
+            cfg.dut.mac);
     }
 
     static std::string_view verdictFor(State s) {

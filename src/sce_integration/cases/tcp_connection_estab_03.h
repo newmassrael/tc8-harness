@@ -62,7 +62,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab03SM>
 
         for (std::uint8_t i = 0; i < legs.size(); ++i) {
             sendOpenTcpSocketActiveRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/static_cast<std::uint8_t>(i + 1U),
                 legs[i].local_port,
                 cfg.ipv4.tester_ip, legs[i].remote_port);
@@ -75,7 +75,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab03SM>
 
         for (std::uint8_t i = 0; i < legs.size(); ++i) {
             sendCloseTcpSocketRequest(
-                cfg, iface, cfg.arp.dut_real_mac,
+                cfg, iface, cfg.dut.mac,
                 /*req_id=*/static_cast<std::uint8_t>(i + 4U),
                 legs[i].socket_id);
         }
