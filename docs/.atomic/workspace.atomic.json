@@ -8427,6 +8427,11 @@
       "section_ref": "4.4.4.2",
       "source": "doc/spec/case_inventory.json"
     },
+    "IPv4_CHECKSUM_04": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
     "IPv4_CHECKSUM_05": {
       "status": "active",
       "section_ref": "4.4.4.2",
@@ -10727,10 +10732,50 @@
       "section_ref": "4.8.6.14",
       "source": "doc/spec/case_inventory.json"
     },
+    "UDP_APP_INTERFACE_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_APP_INTERFACE_02": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
     "UDP_DatagramLength_01": {
       "status": "active",
       "section_ref": "4.6.5.2",
       "source": "doc/spec/case_inventory.json"
+    },
+    "UDP_DatagramLength_02": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_DatagramLength_03": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_DatagramLength_04": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_DatagramLength_05": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_DatagramLength_06": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_DatagramLength_07": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
     },
     "UDP_FIELDS_01": {
       "status": "active",
@@ -10807,6 +10852,21 @@
       "section_ref": "4.6.5.4",
       "source": "doc/spec/case_inventory.json"
     },
+    "UDP_FIELDS_17": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_FIELDS_18": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_ICMP_MESSAGES_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
     "UDP_INTRODUCTION_01": {
       "status": "active",
       "section_ref": "4.6.5.6",
@@ -10832,6 +10892,31 @@
       "section_ref": "4.6.5.7",
       "source": "doc/spec/case_inventory.json"
     },
+    "UDP_IP_INTERFACE_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_IP_OPTION_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_IP_OPTION_02": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_MULTI_HOMING_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_MULTI_HOMING_02": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
     "UDP_MessageFormat_01": {
       "status": "deprecated",
       "source": "doc/spec/deprecated_cases.json",
@@ -10842,12 +10927,32 @@
       "section_ref": "4.6.5.1",
       "source": "doc/spec/case_inventory.json"
     },
+    "UDP_Padding_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
     "UDP_Padding_02": {
       "status": "active",
       "section_ref": "4.6.5.3",
       "source": "doc/spec/case_inventory.json"
     },
     "UDP_PortHandling_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_PortHandling_02": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_PortHandling_03": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
+    },
+    "UDP_PortHandling_04": {
       "status": "deprecated",
       "source": "doc/spec/deprecated_cases.json",
       "reason": "Deprecated in TC8 v3.0 spec change history"

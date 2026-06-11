@@ -9,7 +9,7 @@
     "ICMPv4_TYPE_01", "ICMPv4_TYPE_02", "ICMPv4_TYPE_03",
     "ICMPv4_TYPE_06", "ICMPv4_TYPE_07", "ICMPv4_TYPE_17", "ICMPv4_TYPE_21",
 
-    "IPv4_CHECKSUM_01",
+    "IPv4_CHECKSUM_01", "IPv4_CHECKSUM_04",
     "IPv4_OPTIONS_01", "IPv4_OPTIONS_02", "IPv4_OPTIONS_03", "IPv4_OPTIONS_04",
     "IPv4_OPTIONS_05", "IPv4_OPTIONS_06", "IPv4_OPTIONS_07", "IPv4_OPTIONS_08",
     "IPv4_OPTIONS_09", "IPv4_OPTIONS_10", "IPv4_OPTIONS_11", "IPv4_OPTIONS_12",
@@ -19,7 +19,16 @@
     "IPv4_TTL_03", "IPv4_TTL_04",
 
     "UDP_MessageFormat_01",
-    "UDP_PortHandling_01",
+    "UDP_PortHandling_01", "UDP_PortHandling_02", "UDP_PortHandling_03", "UDP_PortHandling_04",
+    "UDP_DatagramLength_02", "UDP_DatagramLength_03", "UDP_DatagramLength_04",
+    "UDP_DatagramLength_05", "UDP_DatagramLength_06", "UDP_DatagramLength_07",
+    "UDP_Padding_01",
+    "UDP_FIELDS_17", "UDP_FIELDS_18",
+    "UDP_IP_INTERFACE_01",
+    "UDP_IP_OPTION_01", "UDP_IP_OPTION_02",
+    "UDP_MULTI_HOMING_01", "UDP_MULTI_HOMING_02",
+    "UDP_APP_INTERFACE_01", "UDP_APP_INTERFACE_02",
+    "UDP_ICMP_MESSAGES_01",
 
     "DHCPv4_CLIENT_PARAMETERS_03",
     "DHCPv4_CLIENT_REQUEST_03",
