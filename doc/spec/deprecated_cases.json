@@ -18,8 +18,8 @@
     "IPv4_REASSEMBLY_05", "IPv4_REASSEMBLY_08",
     "IPv4_TTL_03", "IPv4_TTL_04",
 
-    "UDP_MESSAGEFORMAT_01",
-    "UDP_PORTHANDLING_01",
+    "UDP_MessageFormat_01",
+    "UDP_PortHandling_01",
 
     "DHCPv4_CLIENT_PARAMETERS_03",
     "DHCPv4_CLIENT_REQUEST_03",

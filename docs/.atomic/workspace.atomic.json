@@ -10652,7 +10652,7 @@
       "section_ref": "4.6.5.7",
       "source": "doc/spec/case_inventory.json"
     },
-    "UDP_MESSAGEFORMAT_01": {
+    "UDP_MessageFormat_01": {
       "status": "deprecated",
       "source": "doc/spec/deprecated_cases.json",
       "reason": "Deprecated in TC8 v3.0 spec change history"
@@ -10662,15 +10662,15 @@
       "section_ref": "4.6.5.1",
       "source": "doc/spec/case_inventory.json"
     },
-    "UDP_PORTHANDLING_01": {
-      "status": "deprecated",
-      "source": "doc/spec/deprecated_cases.json",
-      "reason": "Deprecated in TC8 v3.0 spec change history"
-    },
     "UDP_Padding_02": {
       "status": "active",
       "section_ref": "4.6.5.3",
       "source": "doc/spec/case_inventory.json"
+    },
+    "UDP_PortHandling_01": {
+      "status": "deprecated",
+      "source": "doc/spec/deprecated_cases.json",
+      "reason": "Deprecated in TC8 v3.0 spec change history"
     },
     "UDP_USER_INTERFACE_01": {
       "status": "active",
