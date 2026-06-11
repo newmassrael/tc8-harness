@@ -4,7 +4,7 @@
 
 namespace tc8 {
 
-// ARP stimulus configuration: inputs that steer how a §4.2 ARP case
+// ARP stimulus configuration: inputs that steer how a §4.2.4.2 ARP case
 // *drives* the DUT, as opposed to the values its SCXML guards compare
 // observed frames against (those live in `ArpExpectations`). Carried in
 // `TestConfig::arp_stimulus`, separate from the expectations DTO so the

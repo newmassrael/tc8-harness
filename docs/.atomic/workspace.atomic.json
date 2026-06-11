@@ -528,6 +528,10 @@
         {
           "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/arp_stimulus_config.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3321,6 +3325,10 @@
         },
         {
           "file": "tests/tcp_probing_windows_06/tcp_probing_windows_06.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/tcp_captured.h",
           "kind": "implements"
         }
       ]
