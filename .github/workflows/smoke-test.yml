@@ -135,8 +135,12 @@ jobs:
       # timestamps (FLAGS_INVALID_09), and the UDP UT opcode family —
       # receipt log + directed-broadcast deny (IPv4_ADDRESSING_02,
       # 0x01), caller-specified src-IP emit via udp_sendto_if_src +
-      # tap alias (UDP_USER_INTERFACE_07, 0x02), and ephemeral
-      # receive-port creation (UDP_USER_INTERFACE_01, 0x14). ~4 min.
+      # tap alias (UDP_USER_INTERFACE_07, 0x02), ephemeral
+      # receive-port creation (UDP_USER_INTERFACE_01, 0x14), and the
+      # §4.2 cold-cache premise — the ut-ping preflight's --source-ip
+      # alias pin keeps the primary tester IP unresolved so the DUT's
+      # UT-provoked egress must emit its own ARP Request (ARP_07).
+      # ~4 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -152,7 +156,8 @@ jobs:
             TCP_BASICS_01 TCP_BASICS_02 TCP_BASICS_03 \
             TCP_CALL_ABORT_02 TCP_CLOSING_07 TCP_MSS_OPTIONS_02 \
             IPv4_REASSEMBLY_10 TCP_FLAGS_INVALID_09 \
-            IPv4_ADDRESSING_02 UDP_USER_INTERFACE_01 UDP_USER_INTERFACE_07
+            IPv4_ADDRESSING_02 UDP_USER_INTERFACE_01 UDP_USER_INTERFACE_07 \
+            ARP_07
 
       - name: Upload JUnit reports
         if: always()

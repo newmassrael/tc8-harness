@@ -19,6 +19,14 @@ UtPingCommand::UtPingCommand(CLI::App &app) {
     sub_->add_option("-t,--timeout", timeout_ms_,
                      "Reply timeout in milliseconds")
         ->capture_default_str();
+    sub_->add_option(
+        "--source-ip", source_ip_,
+        "Bind the probe's source to this local IPv4 address (default: "
+        "kernel-chosen). Topology fixtures whose DUT cannot be "
+        "ARP-flushed per case pass a tester alias here so the probe's "
+        "reply path does not warm the DUT's ARP entry for the primary "
+        "tester IP — §4.2 cold-cache cases assert on that entry's "
+        "absence.");
 }
 
 int UtPingCommand::run() {
@@ -28,11 +36,19 @@ int UtPingCommand::run() {
                      dut_ip_.c_str());
         return 1;
     }
+    in_addr src_addr{};
+    if (!source_ip_.empty() &&
+        ::inet_pton(AF_INET, source_ip_.c_str(), &src_addr) != 1) {
+        std::fprintf(stderr, "ut-ping: invalid source IPv4 address '%s'\n",
+                     source_ip_.c_str());
+        return 1;
+    }
     const auto port = port_ > 0 ? static_cast<std::uint16_t>(port_)
                                 : ut::kPort;
 
-    const auto result =
-        stimulus::pingUpperTester(addr.s_addr, port, timeout_ms_);
+    const auto result = stimulus::pingUpperTester(addr.s_addr, port,
+                                                  timeout_ms_,
+                                                  src_addr.s_addr);
     if (!result.has_value()) {
         std::fprintf(stderr,
                      "ut-ping: no Upper Tester reply from %s:%u within %d ms "

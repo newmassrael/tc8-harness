@@ -368,10 +368,23 @@ std::vector<std::uint8_t> buildStartLLAutoconfBuggyRequest(
 
 std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
                                             std::uint16_t dut_port,
-                                            int timeout_ms) {
+                                            int timeout_ms,
+                                            std::uint32_t src_ip_be) {
     const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         return std::nullopt;
+    }
+
+    if (src_ip_be != 0U) {
+        sockaddr_in src{};
+        src.sin_family      = AF_INET;
+        src.sin_port        = 0;  // ephemeral
+        src.sin_addr.s_addr = src_ip_be;
+        if (::bind(fd, reinterpret_cast<const sockaddr *>(&src),
+                   sizeof(src)) < 0) {
+            ::close(fd);
+            return std::nullopt;
+        }
     }
 
     timeval tv{};

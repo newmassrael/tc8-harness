@@ -422,13 +422,24 @@ struct UtPingResult {
 
 // Blocking OpPing round trip over a plain SOCK_DGRAM socket (kernel
 // routing decides the egress interface). Returns nullopt on socket
-// error, timeout, or a malformed / non-OK response. Used by
-// smoke-test.sh topology preflights via the `ut-ping` CLI subcommand —
-// unlike the SOCK_RAW injection path below this needs no interface
-// name, MAC, or CAP_NET_RAW.
+// error, bind failure, timeout, or a malformed / non-OK response. Used
+// by smoke-test.sh topology preflights via the `ut-ping` CLI
+// subcommand — unlike the SOCK_RAW injection path below this needs no
+// interface name, MAC, or CAP_NET_RAW.
+//
+// `src_ip_be` (default 0 = kernel-chosen primary address) binds the
+// probe's source. The lwIP tap fixture passes its tester ALIAS
+// (<AIface-0-IP>, 172.16.0.4) so the DUT's reply path warms an ARP
+// entry for the alias instead of the primary tester IP — §4.2
+// cold-cache cases (DUT must emit its own ARP Request toward
+// <HOST-1-IP>) depend on the primary IP staying unresolved in the
+// DUT's table when the case starts, and a fixture preflight that
+// pings from the primary IP would silently break that premise on
+// every per-case respawn.
 std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
                                             std::uint16_t dut_port = ut::kPort,
-                                            int timeout_ms = 1000);
+                                            int timeout_ms = 1000,
+                                            std::uint32_t src_ip_be = 0);
 
 // One-shot sender: wrap `ut_payload` in a UDP datagram (RFC 768
 // checksum) + IPv4 frame, and inject on `iface` via AF_PACKET SOCK_RAW.

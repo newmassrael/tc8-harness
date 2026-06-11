@@ -25,6 +25,7 @@ public:
 private:
     CLI::App *sub_ = nullptr;
     std::string dut_ip_;
+    std::string source_ip_;  // empty → kernel-chosen source address
     int port_ = 0;       // 0 → ut::kPort default, resolved in run()
     int timeout_ms_ = 1000;
 };
