@@ -1172,10 +1172,26 @@ private:
 struct TcpSeqRange {
     std::uint32_t snd_nxt = 0;
     std::uint32_t rcv_nxt = 0;
+    // Negotiated effective send MSS (Linux mss_cache) — the DUT's
+    // on-wire data-segment size in this symmetric veth setup. A
+    // timestamp-enabled peer (lwIP) shaves it to 1448 B; the
+    // timestamp-disabled Linux reference DUT leaves it at 1460 B.
+    // Cases that stride their seq expectations by the segment size
+    // (PROBING_WINDOWS_03) read this instead of assuming a fixed MSS.
+    // 0 if the query failed (caller falls back to a fixed default).
+    std::uint16_t mss = 0;
 };
 
 inline std::optional<TcpSeqRange> queryTcpSeqRange(int fd) {
     if (fd < 0) return std::nullopt;
+
+    // Read TCP_MAXSEG before entering TCP_REPAIR so it reflects the
+    // live connection's effective send MSS.
+    int maxseg_val = 0;
+    {
+        socklen_t mlen = sizeof(maxseg_val);
+        (void)::getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &maxseg_val, &mlen);
+    }
 
     int repair_on = 1;
     if (::setsockopt(fd, IPPROTO_TCP, TCP_REPAIR, &repair_on, sizeof(repair_on)) < 0) {
@@ -1184,6 +1200,7 @@ inline std::optional<TcpSeqRange> queryTcpSeqRange(int fd) {
 
     TcpSeqRange r{};
     bool ok = true;
+    if (maxseg_val > 0) r.mss = static_cast<std::uint16_t>(maxseg_val);
 
     // TCP_SEND_QUEUE → snd_nxt: the SEQ the kernel will use on the
     // next byte it transmits. Equal to (ISN_tester + 1 + bytes_sent_so_far).

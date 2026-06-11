@@ -292,6 +292,40 @@ struct TcpCaptured {
             && payload_len == 0U;
     }
 
+    // §4.8.6.12 PROBING_WINDOWS_04/05/06 zero-window probe matcher,
+    // accepting either RFC 1122 §4.2.2.17-conformant probe shape. The
+    // stimulus preloads `expected_ack_num` with snd_una - 1.
+    //   * Linux garbage-octet probe: a 0-byte segment at snd_una - 1
+    //     (`tcp_xmit_probe_skb(sk, urgent=0)` sets seq = snd_una - 1;
+    //     re-sending an already-acked byte coaxes a window update).
+    //   * BSD / lwIP one-new-byte probe: a 1-byte segment at snd_una —
+    //     RFC 1122's literal "the probe segment ... should contain one
+    //     octet of data". The byte stays unacked (the tester ACKs
+    //     snd_una, not snd_una + 1), so snd_una never advances and the
+    //     probe repeats on the persist schedule.
+    // Both carry ACK with SYN/FIN/RST clear. The seq discrimination
+    // keeps the handshake third-leg ACK (seq = seg1_seq) out, and the
+    // payload-length gate keeps a genuine data segment (>1 byte) out.
+    bool is_zero_window_probe(std::uint32_t expected_dut_iface_ip,
+                              std::uint32_t expected_tester_ip,
+                              std::uint16_t expected_src_port,
+                              std::uint16_t expected_dst_port) const noexcept {
+        const bool base =
+               src_ip == expected_dut_iface_ip
+            && dst_ip == expected_tester_ip
+            && src_port == expected_src_port
+            && dst_port == expected_dst_port
+            && (flags & 0x10U) != 0U      // ACK
+            && (flags & 0x02U) == 0U      // !SYN
+            && (flags & 0x01U) == 0U      // !FIN
+            && (flags & 0x04U) == 0U;     // !RST
+        const bool linux_octet =
+            payload_len == 0U && seq_num == expected_ack_num;
+        const bool bsd_octet =
+            payload_len == 1U && seq_num == expected_ack_num + 1U;
+        return base && (linux_octet || bsd_octet);
+    }
+
     // §4.8.6.3 UNACCEPTABLE_09/10/12 prelude observation: a DUT-emitted
     // FIN+ACK segment marking active-close (FIN-WAIT-1 / LAST-ACK
     // entry). Distinct from `is_pure_dut_ack` in that the FIN flag is

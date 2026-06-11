@@ -37,28 +37,27 @@
        starts the persist timer.
     7. UT OpSendTcpData(socket_id=1, payload=M B) — Linux enqueues
        M bytes; snd_wnd=0 prevents transmission. Probe-fire await.
-    8. After Linux's first persist RTO (~200 ms..1 s on a fresh
-       connection — TCP_RTO_MIN=200 ms baseline scaled by srtt),
-       `tcp_send_probe0` → `tcp_xmit_probe_skb(sk, 0)` emits a
-       0-byte ACK at seq = snd_una - 1. `payload_len == 0`, so the
-       probe matches `is_pure_dut_ack` (not `is_dut_data_segment`).
+    8. After the first persist RTO the DUT emits a zero-window probe.
+       Linux's `tcp_send_probe0` → `tcp_xmit_probe_skb(sk, 0)` sends a
+       0-byte ACK at seq = snd_una - 1 (~200 ms..1 s); lwIP's persist
+       path sends a 1-byte new-data segment at seq = snd_una (~1.2 s
+       measured). `is_zero_window_probe` accepts either RFC 1122
+       §4.2.2.17 shape.
 
-    Captured.expected_ack_num is preloaded with the spec-conformant
-    probe seq (= seg1_seq + N - 1 = snd_una_post_ack - 1). The
-    handshake third-leg ACK (also a pure DUT ACK) carries seq =
-    seg1_seq, which is structurally distinct from the probe seq, so
-    a stray handshake-ACK observation cannot satisfy the probe-pass
+    Captured.expected_ack_num is preloaded with snd_una_post_ack - 1.
+    The probe matcher keys on that seq (Linux 0-byte form) or
+    snd_una_post_ack (BSD/lwIP 1-byte form); the handshake third-leg
+    ACK carries seq = seg1_seq, structurally distinct from both, so a
+    stray handshake-ACK observation cannot satisfy the probe-pass
     guard.
 
   Two-state SCXML chain:
     * listening_seg1   — observe seg1 (DUT data segment with
       payload>0).
-    * listening_probe  — observe DUT pure ACK with `seq_num ==
-      captured.expected_ack_num` (= snd_una - 1). 6 s deadline
-      covers Linux's first-probe RTO with comfortable margin
-      (TCP_RTO_MIN 200 ms .. RTO_MAX 120 s; on a fresh local-veth
-      connection without RTT samples the initial RTO is typically
-      ~200 ms..1 s).
+    * listening_probe  — observe the DUT zero-window probe via
+      `is_zero_window_probe(...)`. 6 s deadline covers both Linux's
+      first-probe RTO (~200 ms..1 s) and lwIP's slower persist timer
+      (~1.2 s) with comfortable margin.
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
@@ -95,7 +94,7 @@
       <send event="deadline_probe" delay="6s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset) and captured.seq_num == captured.expected_ack_num"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset)"
                 target="pass"/>
     <transition event="deadline_probe" target="fail_no_zero_window_probe"/>
   </state>

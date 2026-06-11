@@ -70,8 +70,8 @@ feature-level byte honestly reports only 0x0B.
 
 | Bucket | Count | Notes |
 |---|---|---|
-| Meaningful PASS | 211 | 107 non-TCP + 104 TCP |
-| lwIP stack deviation (`platform_known_fail`) | 21 | 9 non-TCP + 12 TCP, each verified against lwIP source and/or pcap (below) |
+| Meaningful PASS | 215 | 107 non-TCP + 108 TCP |
+| lwIP stack deviation (`platform_known_fail`) | 17 | 9 non-TCP + 8 TCP, each verified against lwIP source and/or pcap (below) |
 
 `dut/lwip_dut/inventory_overrides.json` is the machine-readable single
 source of truth for the deviation set; this table is a dated report.
@@ -80,7 +80,7 @@ The 39 `IPv4_AUTOCONF_*` cases (29 positive + 10 `_NEG`) sit outside
 the sweep scope entirely: the fixture builds with `LWIP_AUTOIP`
 disabled (`lwipopts.h`) and no UT opcode drives autoconf. They are
 ledgered `expected:false` in the overrides file so the sweep command
-below emits exactly the 211-case regression list (the meaningful-PASS
+below emits exactly the 215-case regression list (the meaningful-PASS
 set) and `--vs-spec`
 reports them as honest gaps.
 
@@ -140,11 +140,6 @@ TCP:
 - **`TCP_URGENT_PTR_04` — urgent/OOB path not implemented** (RFC 793
   §3.7). The UT answers `OpReceiveTcpDataOob` with zero bytes by
   design, loudly logged.
-- **`TCP_PROBING_WINDOWS_03/_04/_05/_06` — persist-timer probe shape
-  and cadence.** lwIP's zero-window probe is a 1-byte new-data segment
-  on its own persist schedule (first probe ~1.4 s); the matchers and
-  windows are tuned to the Linux probe shape. The wire shows
-  RFC 1122-conformant probing — harness-matcher widening candidates.
 - **`TCP_RETRANSMISSION_TO_05/_06` — SYN RTO backoff shape.** The
   observation windows are shaped for the conditioned Linux fixture's
   linear SYN RTO; lwIP's RFC 6298 exponential backoff exits them.

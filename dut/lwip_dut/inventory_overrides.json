@@ -220,26 +220,6 @@
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "TCP urgent/out-of-band data path not implemented (RFC 793 section 3.7 URG); the UT answers OpReceiveTcpDataOob with zero bytes by design"
     },
-    "TCP_PROBING_WINDOWS_03": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "persist/cwnd cadence differs from the Linux-tuned observation shape (initial cwnd serialises the first two data segments; RFC 7323 timestamps shave the payload to 1448 B); wire shows conformant transmission"
-    },
-    "TCP_PROBING_WINDOWS_04": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "zero-window probe is a 1-byte new-data segment on lwIP's persist schedule; the case's probe matcher and window are tuned to the Linux probe shape and timing"
-    },
-    "TCP_PROBING_WINDOWS_05": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "first zero-window probe lands at ~1.4 s (persist timer), outside the case's within-RTO observation window tuned to Linux"
-    },
-    "TCP_PROBING_WINDOWS_06": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "zero-window probe is a 1-byte new-data segment on lwIP's persist schedule; the case's probe matcher and window are tuned to the Linux probe shape and timing"
-    },
     "TCP_RETRANSMISSION_TO_05": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "dut/lwip_dut/README.md",

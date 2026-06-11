@@ -34,10 +34,12 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         "any data segment beyond the previously emitted range "
         "(RFC 1122 §4.2.2.16 — RFC 793 §3.7).";
 
-    // Full-MSS payload (1460 B on a 1500 B veth) — Nagle's small-
-    // segment hold does not apply to MSS-fill segments, so the three
-    // sequential SENDs each ship out as their own data segment without
-    // requiring TCP_NODELAY on the DUT-side socket.
+    // Fallback full-MSS payload (1460 B on a 1500 B veth) used only
+    // when the negotiated send MSS cannot be queried; the stimulus
+    // prefers seq_range->mss (see seg_len below). Nagle's small-segment
+    // hold does not apply to MSS-fill segments, so the three sequential
+    // SENDs each ship out as their own data segment without requiring
+    // TCP_NODELAY on the DUT-side socket.
     //
     // OpSendTcpData caps at upper_tester_protocol.h kMaxPayload (256 B)
     // because the bytes traverse the UT UDP request. For >256 B sends
@@ -109,11 +111,21 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
             return;
         }
 
-        // rcv_nxt at this point equals DUT_ISN + 1 — the seq_num
-        // Linux will assign to the first DUT data segment (= S).
+        // Stride the seq expectations by the DUT's negotiated send MSS
+        // (1448 B for a timestamp-enabled stack like lwIP, 1460 B for
+        // the timestamp-disabled Linux reference DUT) rather than a
+        // fixed assumption — the prelude must land seg2/seg3 at the
+        // DUT's real segment boundaries on any conformant stack. Each
+        // SEND ships exactly one MSS so it leaves as a single full
+        // segment (Nagle's small-segment hold never applies).
+        const std::uint16_t seg_len =
+            (seq_range->mss > 0U) ? seq_range->mss : kSegmentPayloadLen;
+
+        // rcv_nxt at this point equals DUT_ISN + 1 — the seq_num the
+        // DUT will assign to the first data segment (= S).
         const std::uint32_t seg1_seq = seq_range->rcv_nxt;
-        const std::uint32_t seg2_seq = seg1_seq + kSegmentPayloadLen;
-        const std::uint32_t seg3_seq = seg2_seq + kSegmentPayloadLen;
+        const std::uint32_t seg2_seq = seg1_seq + seg_len;
+        const std::uint32_t seg3_seq = seg2_seq + seg_len;
         const std::uint32_t tester_snd = seq_range->snd_nxt;
 
         c.expected_ack_num        = seg2_seq;
@@ -130,7 +142,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         sendSendTcpDataPatternRequest(
             cfg, iface, cfg.arp.dut_real_mac,
             /*req_id=*/2, /*socket_id=*/1,
-            kSeg1Pattern, kSegmentPayloadLen);
+            kSeg1Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: tester ACKs seg1 with full window. Linux's
@@ -154,13 +166,13 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         sendSendTcpDataPatternRequest(
             cfg, iface, cfg.arp.dut_real_mac,
             /*req_id=*/3, /*socket_id=*/1,
-            kSeg2Pattern, kSegmentPayloadLen);
+            kSeg2Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
 
         sendSendTcpDataPatternRequest(
             cfg, iface, cfg.arp.dut_real_mac,
             /*req_id=*/4, /*socket_id=*/1,
-            kSeg3Pattern, kSegmentPayloadLen);
+            kSeg3Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 7: tester ACKs seg2 only with `window=0` —
@@ -189,7 +201,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         sendSendTcpDataPatternRequest(
             cfg, iface, cfg.arp.dut_real_mac,
             /*req_id=*/5, /*socket_id=*/1,
-            kSeg4Pattern, kSegmentPayloadLen);
+            kSeg4Pattern, seg_len);
 
         // Defer ack_drop release to the runner's scheduler — the
         // captured shared_ptr keeps the iptables OUTPUT rule

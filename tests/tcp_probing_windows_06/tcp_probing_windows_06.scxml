@@ -47,14 +47,20 @@
     starting at probe2.
 
     Captured.expected_ack_num is preloaded with `snd_una_post_ack -
-    1` (the spec-conformant probe seq); all 3 probe-listening states
-    gate on `is_pure_dut_ack(...) and seq_num == expected_ack_num`.
+    1`; all 3 probe-listening states gate on
+    `is_zero_window_probe(...)`, which accepts either RFC 1122
+    §4.2.2.17 probe shape (Linux 0-byte at snd_una-1, BSD/lwIP 1-byte
+    at snd_una) at the spec-conformant seq. lwIP's persist cadence
+    (~1.2 s, +3.0 s, +6.0 s measured) doubles continually, clearing
+    the > 300 ms / > 600 ms increasing-interval gates the same way
+    Linux's RTO backoff does; a constant-interval DUT still fails
+    starting at probe2.
 
   Four-state SCXML chain:
     * listening_seg1     — observe seg1 (DUT data segment).
-    * listening_probe1   — 4 s deadline (Linux first-probe RTO ~200 ms).
-    * listening_probe2   — 4 s deadline (~400 ms doubled interval).
-    * listening_probe3   — 6 s deadline (~800 ms doubled interval).
+    * listening_probe1   — 4 s deadline (Linux ~200 ms / lwIP ~1.2 s).
+    * listening_probe2   — 4 s deadline (Linux ~400 ms / lwIP ~3.0 s).
+    * listening_probe3   — 9 s deadline (Linux ~800 ms / lwIP ~6.0 s).
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
@@ -91,7 +97,7 @@
       <send event="deadline_probe1" delay="4s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset)"
                 target="listening_probe2"/>
     <transition event="deadline_probe1" target="fail_no_probe1"/>
   </state>
@@ -101,23 +107,28 @@
       <send event="deadline_probe2" delay="4s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &gt; 300000"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.frame_delta_us() &gt; 300000"
                 target="listening_probe3"/>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &lt;= 300000"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.frame_delta_us() &lt;= 300000"
                 target="fail_probe2_not_doubled"/>
     <transition event="deadline_probe2" target="fail_no_probe2"/>
   </state>
 
   <state id="listening_probe3">
     <onentry>
-      <send event="deadline_probe3" delay="6s"/>
+      <!-- 9 s, not 6 s: lwIP's persist backoff places probe 3 at
+           ~6.0 s after probe 2 (1.2 s, +3.0 s, +6.0 s measured), which
+           races a 6 s deadline. Linux's RTO-derived probe 3 lands far
+           earlier (~1.4 s after probe 2), so the wider deadline only
+           buys margin for the slower-but-conformant stack. -->
+      <send event="deadline_probe3" delay="9s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &gt; 600000"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.frame_delta_us() &gt; 600000"
                 target="pass"/>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.seq_num == captured.expected_ack_num and captured.frame_delta_us() &lt;= 600000"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.frame_delta_us() &lt;= 600000"
                 target="fail_probe3_not_doubled"/>
     <transition event="deadline_probe3" target="fail_no_probe3"/>
   </state>
