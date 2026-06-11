@@ -50,7 +50,7 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_byte0 == 0x77"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0x77"
                 target="listening_phase3"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_set_response"/>
   </state>

@@ -26,7 +26,7 @@ namespace tc8::sce {
 // Per PRS_SOMEIPSD_00356 / PRS_SOMEIP_00170 the post-reset value must
 // differ from the value last set. tc8-dut's `EtsImpl::resetInterface`
 // override clears `fieldA_` to 0 so the second getFieldA Response carries
-// payload_byte0 == 0 (≠ 0xAA).
+// payload_snapshot[0] == 0 (≠ 0xAA).
 template <>
 struct TestCaseTraits<cases::SomeipEts146SM> : SomeIpAnyBase<cases::SomeipEts146SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_146";

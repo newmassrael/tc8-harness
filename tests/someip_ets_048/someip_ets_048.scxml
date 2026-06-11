@@ -56,10 +56,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0015 and captured.return_code == 0x00 and captured.payload_len == 10 and captured.payload_bytes[3] == 0x06 and captured.payload_bytes[4] == 0xEF and captured.payload_bytes[5] == 0xBB and captured.payload_bytes[6] == 0xBF and captured.payload_bytes[7] == 0x68 and captured.payload_bytes[8] == 0x69 and captured.payload_bytes[9] == 0x00"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0015 and captured.return_code == 0x00 and captured.payload_len == 10 and captured.payload_snapshot[3] == 0x06 and captured.payload_snapshot[4] == 0xEF and captured.payload_snapshot[5] == 0xBB and captured.payload_snapshot[6] == 0xBF and captured.payload_snapshot[7] == 0x68 and captured.payload_snapshot[8] == 0x69 and captured.payload_snapshot[9] == 0x00"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0015 and captured.message_type == 0x80 and (captured.payload_len != 10 or captured.payload_bytes[4] != 0xEF or captured.payload_bytes[5] != 0xBB or captured.payload_bytes[6] != 0xBF or captured.payload_bytes[7] != 0x68 or captured.payload_bytes[8] != 0x69)"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0015 and captured.message_type == 0x80 and (captured.payload_len != 10 or captured.payload_snapshot[4] != 0xEF or captured.payload_snapshot[5] != 0xBB or captured.payload_snapshot[6] != 0xBF or captured.payload_snapshot[7] != 0x68 or captured.payload_snapshot[8] != 0x69)"
                 target="fail_phase2_utf8_dynamic_echo_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>

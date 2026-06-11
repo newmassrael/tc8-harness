@@ -56,7 +56,7 @@
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0009 and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.payload_len == 0"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0009 and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.payload_len == 4 and captured.payload_bytes[0] == 0x00 and captured.payload_bytes[1] == 0x00 and captured.payload_bytes[2] == 0x00 and captured.payload_bytes[3] == 0x00"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0009 and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.payload_len == 4 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x00 and captured.payload_snapshot[3] == 0x00"
                 target="pass"/>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0009 and captured.message_type == 0x80 and captured.return_code == 0x00"

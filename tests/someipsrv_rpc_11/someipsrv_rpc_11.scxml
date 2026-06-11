@@ -46,10 +46,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0042 and captured.return_code == 0x00 and captured.payload_len > 0 and captured.payload_byte0 == 0x42"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0042 and captured.return_code == 0x00 and captured.payload_len > 0 and captured.payload_snapshot[0] == 0x42"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0042 and (captured.payload_len == 0 or captured.payload_byte0 != 0x42)"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0042 and (captured.payload_len == 0 or captured.payload_snapshot[0] != 0x42)"
                 target="fail_phase2_payload_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>

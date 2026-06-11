@@ -25,7 +25,7 @@ namespace tc8::sce::ipv4::reassembly {
 // distinct constant so smoke-test grep can disambiguate REASSEMBLY_04
 // passes from FRAGMENTS_01-style 8 B passes. Arbitrary non-zero bytes;
 // non-repeating so a wrongly-ordered reassembly produces a different
-// payload that the SCXML's `echo_payload_equals` guard rejects.
+// payload that the SCXML's `payload_equals` guard rejects.
 inline constexpr std::array<std::uint8_t, 24> kReassembly04EchoPayload{
     0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
     0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7,
@@ -35,7 +35,7 @@ inline constexpr std::array<std::uint8_t, 24> kReassembly04EchoPayload{
 // the DUT's reassembled Echo Reply must mirror after most-recent-wins
 // overlap resolution per RFC 791 §3.2. Used by both the wire-level
 // body builder (frags 0/2/3 carry slices of this) and the SCXML pass
-// guard (echo_payload_equals).
+// guard (payload_equals).
 inline constexpr std::array<std::uint8_t, 27> kReassembly13EchoPayload{
     'E','C','U',' ','N','E','T','W','O','R','K',' ',
     'V','A','L','I','D','A','T','I','O','N',' ',

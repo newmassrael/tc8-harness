@@ -53,7 +53,7 @@ struct Ipv4Captured {
     // wire position) and verify the RFC 1071 one's-complement sum is
     // zero. Exposed as a member method so SCE's `captured.` → `this->
     // captured_->` codegen rewrite covers the call — the ICMPv4_TYPE_08
-    // precedent is `echo_payload_equals` on `Icmpv4Captured`.
+    // precedent is `payload_equals` on `Icmpv4Captured`.
     //
     // Limited to the IHL=5 (no-options) case: every DUT Echo Reply the
     // pilot observes has the kernel's default no-options header, so

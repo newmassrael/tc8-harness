@@ -6,6 +6,7 @@
 
 #include "tc8/protocol_frames/tcp_frame.h"
 
+#include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
@@ -33,7 +34,7 @@ namespace tc8 {
 //
 // `src_port` / `dst_port` let SCXML guards filter out SOME/IP-over-TCP
 // traffic on the same interface (vsomeip port range 30490..30510).
-struct TcpCaptured {
+struct TcpCaptured : CapturedPayloadSnapshot {
     std::uint32_t src_ip         = 0;  // network byte order
     std::uint32_t dst_ip         = 0;  // network byte order
     std::uint16_t src_port       = 0;
@@ -53,6 +54,16 @@ struct TcpCaptured {
     // additionally asserts the value differs from the RFC 1122 §4.2.2.6
     // default (mss != 536). Mirrored from `TcpFrame::mss` at decode time.
     std::uint16_t mss = 0;
+
+    // The segment payload snapshot (`payload_snapshot` / `payload_
+    // snapshot_len`) and the `payload_bytes_eq` / `payload_equals`
+    // comparison helpers are inherited from `CapturedPayloadSnapshot`.
+    // They give an SCXML cond the symmetric surface to verify an
+    // application-layer protocol carried over TCP (arbitrary
+    // L7-over-TCP, e.g. DoIP) byte-for-byte, instead of being limited to
+    // the scalar `payload_len` indicator. `TcpFrame::payload_data` is
+    // non-owning and valid only during dispatch, so the bytes are
+    // copied into the fixed array at fill time via `fillPayloadSnapshot`.
 
     // Stimulus-populated field: the UT OpQueryTcpEstablished reply the
     // tester fetched synchronously before the SCXML listen window
@@ -456,6 +467,10 @@ inline void fillTcpCapturedFromFrame(TcpCaptured &c, const TcpFrame &f) {
     c.checksum_valid = f.checksum_valid;
     c.mss            = f.mss;
     c.observed_ts_us = f.observed_ts_us;
+
+    // Snapshot the leading segment payload bytes for application-layer-
+    // over-TCP wire verification — shared bounded copy from the base.
+    c.fillPayloadSnapshot(f.payload_data, f.payload_len);
 }
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the

@@ -7,11 +7,11 @@
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
     Phase 2 (listening_phase2): Method Response with msg_type 0x80,
             method_id 0x0008, return_code 0x00, payload_len 1, and
-            payload_byte0 == the value the tester sent (0x42).
+            payload_snapshot[0] == the value the tester sent (0x42).
 
   Stricter than §5.1.5.5 BASIC_01 (which only checks the SOME/IP
   header) — this case is the §5.1.6 "echo correctness" axis, so
-  payload_byte0 must equal the stimulus value.
+  payload_snapshot[0] must equal the stimulus value.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -44,10 +44,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0008 and captured.return_code == 0x00 and captured.payload_len == 1 and captured.payload_byte0 == 0x42"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0008 and captured.return_code == 0x00 and captured.payload_len == 1 and captured.payload_snapshot[0] == 0x42"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0008 and (captured.payload_len != 1 or captured.payload_byte0 != 0x42)"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0008 and (captured.payload_len != 1 or captured.payload_snapshot[0] != 0x42)"
                 target="fail_phase2_payload_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>

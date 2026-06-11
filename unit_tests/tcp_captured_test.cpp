@@ -1,8 +1,11 @@
+#include <array>
 #include <cstdint>
+#include <vector>
 
 #include <gtest/gtest.h>
 
 #include "sce_integration/tcp_captured.h"
+#include "tc8/protocol_frames/tcp_frame.h"
 
 // Coverage for TcpCaptured::is_zero_window_probe — the §4.8.6.12
 // PROBING_WINDOWS_04/05/06 matcher that accepts either RFC 1122
@@ -113,6 +116,103 @@ TEST(TcpZeroWindowProbe, RejectsAckBitClear) {
     c.seq_num = kExpected + 1U;
     c.flags = 0U;  // ACK clear
     EXPECT_FALSE(match(c));
+}
+
+// Coverage for the §D3 TcpCaptured payload snapshot — the symmetric
+// surface to UdpCaptured::payload_snapshot that lets an SCXML cond
+// verify an application-layer protocol carried over TCP byte-for-byte.
+
+TcpFrame frameWithPayload(const std::uint8_t *payload,
+                          std::uint32_t        payload_len) {
+    TcpFrame f{};
+    f.src_ip       = kDutIp;
+    f.dst_ip       = kTesterIp;
+    f.src_port     = kDutPort;
+    f.dst_port     = kTestPort;
+    f.flags        = kAck;
+    f.payload_data = payload;
+    f.payload_len  = payload_len;
+    return f;
+}
+
+TEST(TcpPayloadSnapshot, CopiesLeadingBytesAndLength) {
+    const std::array<std::uint8_t, 6> body{0x02, 0xFD, 0x80, 0x01, 0x00, 0x00};
+    const auto f = frameWithPayload(body.data(),
+                                    static_cast<std::uint32_t>(body.size()));
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, f);
+    EXPECT_EQ(c.payload_len, 6U);
+    EXPECT_EQ(c.payload_snapshot_len, 6U);
+    for (std::size_t i = 0; i < body.size(); ++i) {
+        EXPECT_EQ(c.payload_snapshot[i], body[i]) << "i=" << i;
+    }
+}
+
+TEST(TcpPayloadSnapshot, EmptyPayloadLeavesSnapshotZeroed) {
+    const auto f = frameWithPayload(nullptr, 0);
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, f);
+    EXPECT_EQ(c.payload_snapshot_len, 0U);
+    for (const auto b : c.payload_snapshot) EXPECT_EQ(b, 0U);
+}
+
+TEST(TcpPayloadSnapshot, OversizedPayloadCappedAtSnapshotSize) {
+    // A segment payload larger than the snapshot is captured up to the
+    // cap; payload_snapshot_len records the truncated count while
+    // payload_len keeps the full wire length.
+    std::vector<std::uint8_t> big(TcpCaptured::kMaxPayloadSnapshot + 32, 0xAB);
+    for (std::size_t i = 0; i < big.size(); ++i) {
+        big[i] = static_cast<std::uint8_t>(i & 0xFFU);
+    }
+    const auto f = frameWithPayload(big.data(),
+                                    static_cast<std::uint32_t>(big.size()));
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, f);
+    EXPECT_EQ(c.payload_len, big.size());
+    EXPECT_EQ(c.payload_snapshot_len, TcpCaptured::kMaxPayloadSnapshot);
+    for (std::size_t i = 0; i < TcpCaptured::kMaxPayloadSnapshot; ++i) {
+        EXPECT_EQ(c.payload_snapshot[i], static_cast<std::uint8_t>(i & 0xFFU))
+            << "i=" << i;
+    }
+}
+
+TEST(TcpPayloadBytesEq, MatchingPrefixAccepted) {
+    const std::array<std::uint8_t, 5> body{0x02, 0xFD, 0x80, 0x01, 0xCC};
+    const auto f = frameWithPayload(body.data(),
+                                    static_cast<std::uint32_t>(body.size()));
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, f);
+    EXPECT_TRUE(c.payload_bytes_eq({0x02, 0xFD, 0x80, 0x01}));
+    EXPECT_TRUE(c.payload_bytes_eq({0x02, 0xFD, 0x80, 0x01, 0xCC}));
+}
+
+TEST(TcpPayloadBytesEq, MismatchedByteRejected) {
+    const std::array<std::uint8_t, 4> body{0x02, 0xFD, 0x80, 0x01};
+    const auto f = frameWithPayload(body.data(),
+                                    static_cast<std::uint32_t>(body.size()));
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, f);
+    EXPECT_FALSE(c.payload_bytes_eq({0x02, 0xFD, 0x80, 0x02}));
+}
+
+TEST(TcpPayloadBytesEq, AssertionLongerThanCapturedRejected) {
+    // Truncation guard: asserting more bytes than were captured must
+    // fail rather than read past payload_snapshot_len.
+    const std::array<std::uint8_t, 3> body{0x02, 0xFD, 0x80};
+    const auto f = frameWithPayload(body.data(),
+                                    static_cast<std::uint32_t>(body.size()));
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, f);
+    EXPECT_FALSE(c.payload_bytes_eq({0x02, 0xFD, 0x80, 0x01}));
+}
+
+TEST(TcpPayloadBytesEq, EmptyExpectationMatchesAnyCapture) {
+    const std::array<std::uint8_t, 2> body{0x02, 0xFD};
+    const auto f = frameWithPayload(body.data(),
+                                    static_cast<std::uint32_t>(body.size()));
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, f);
+    EXPECT_TRUE(c.payload_bytes_eq({}));
 }
 
 }  // namespace

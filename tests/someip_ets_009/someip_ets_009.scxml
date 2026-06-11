@@ -11,7 +11,7 @@
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
     Phase 2 (listening_phase2): Method Response (msg_type 0x80,
             return_code 0x00) on method_id 0x0017 with payload_len == 1
-            and payload_bytes[0] == 0x02 -> pass.
+            and payload_snapshot[0] == 0x02 -> pass.
             Any other Response shape on the same method_id -> fail.
             No Response within the deadline -> fail.
 -->
@@ -46,10 +46,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0017 and captured.return_code == 0x00 and captured.payload_len == 1 and captured.payload_bytes[0] == 0x02"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0017 and captured.return_code == 0x00 and captured.payload_len == 1 and captured.payload_snapshot[0] == 0x02"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0017 and captured.message_type == 0x80 and (captured.payload_len != 1 or captured.payload_bytes[0] != 0x02)"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0017 and captured.message_type == 0x80 and (captured.payload_len != 1 or captured.payload_snapshot[0] != 0x02)"
                 target="fail_phase2_enum_echo_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>

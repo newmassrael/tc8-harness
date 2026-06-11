@@ -172,10 +172,10 @@ TEST(FillIcmpv4CapturedFromFrame, PayloadSnapshotCopiesBytes) {
     EXPECT_EQ(c.echo_seq, 0x5678);
     EXPECT_EQ(c.payload_snapshot_len, kPayload.size());
     EXPECT_EQ(std::memcmp(c.payload_snapshot.data(), kPayload.data(), kPayload.size()), 0);
-    EXPECT_TRUE(::tc8::icmpv4EchoPayloadMatches(c, ::tc8::kIcmpv4EchoPayloadType08));
+    EXPECT_TRUE(c.payload_equals(::tc8::kIcmpv4EchoPayloadType08));
 }
 
-TEST(EchoPayloadEquals, ExactMatchReturnsTrue) {
+TEST(PayloadEquals, ExactMatchReturnsTrue) {
     // The SCXML guard for §4.3.3.2 TYPE_08 routes through this method.
     // A silent break here would false-pass the case, so the shape (len
     // match + byte memcmp) is pinned independently of the fill helper.
@@ -184,10 +184,10 @@ TEST(EchoPayloadEquals, ExactMatchReturnsTrue) {
     std::memcpy(c.payload_snapshot.data(),
                 ::tc8::kIcmpv4EchoPayloadType08.data(),
                 ::tc8::kIcmpv4EchoPayloadType08.size());
-    EXPECT_TRUE(c.echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08));
+    EXPECT_TRUE(c.payload_equals(::tc8::kIcmpv4EchoPayloadType08));
 }
 
-TEST(EchoPayloadEquals, LengthMismatchReturnsFalse) {
+TEST(PayloadEquals, LengthMismatchReturnsFalse) {
     ::tc8::Icmpv4Captured c{};
     constexpr std::string_view kRef{"ECU NETWORK VALIDATION TEST"};
     // Populate 26 bytes — one short — and the method must say NO even
@@ -196,10 +196,10 @@ TEST(EchoPayloadEquals, LengthMismatchReturnsFalse) {
     // shorter buffer.
     c.payload_snapshot_len = 26;
     std::memcpy(c.payload_snapshot.data(), kRef.data(), 26);
-    EXPECT_FALSE(c.echo_payload_equals(kRef));
+    EXPECT_FALSE(c.payload_equals(kRef));
 }
 
-TEST(EchoPayloadEquals, ByteFlipReturnsFalse) {
+TEST(PayloadEquals, ByteFlipReturnsFalse) {
     // One-byte flip at a middle offset must fail — exactly the
     // discrimination property the spec requires ("received in the echo
     // message must be returned in the echo reply"). If this test ever
@@ -210,7 +210,7 @@ TEST(EchoPayloadEquals, ByteFlipReturnsFalse) {
                 ::tc8::kIcmpv4EchoPayloadType08.data(),
                 ::tc8::kIcmpv4EchoPayloadType08.size());
     c.payload_snapshot[10] = static_cast<std::uint8_t>(c.payload_snapshot[10] ^ 0x01U);
-    EXPECT_FALSE(c.echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08));
+    EXPECT_FALSE(c.payload_equals(::tc8::kIcmpv4EchoPayloadType08));
 }
 
 TEST(BuildIcmpMessage, VersionOverrideReplacesHighNibbleButKeepsIhl) {

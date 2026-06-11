@@ -42,10 +42,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and captured.return_code == 0x00 and captured.payload_len == 4 and captured.payload_bytes[0] == 0x00 and captured.payload_bytes[1] == 0x00 and captured.payload_bytes[2] == 0x34 and captured.payload_bytes[3] == 0x68"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and captured.return_code == 0x00 and captured.payload_len == 4 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x34 and captured.payload_snapshot[3] == 0x68"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and (captured.payload_len != 4 or captured.payload_bytes[0] != 0x00 or captured.payload_bytes[1] != 0x00 or captured.payload_bytes[2] != 0x34 or captured.payload_bytes[3] != 0x68)"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and (captured.payload_len != 4 or captured.payload_snapshot[0] != 0x00 or captured.payload_snapshot[1] != 0x00 or captured.payload_snapshot[2] != 0x34 or captured.payload_snapshot[3] != 0x68)"
                 target="fail_phase2_payload_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>

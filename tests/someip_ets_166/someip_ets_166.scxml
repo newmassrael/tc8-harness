@@ -14,9 +14,9 @@
     Phase 2 (listening_phase2): first getFieldA Response (Method 0x40,
             message_type 0x80).
     Phase 3 (listening_phase3): setFieldA Response (Method 0x42,
-            message_type 0x80, payload_byte0 == 0x55).
+            message_type 0x80, payload_snapshot[0] == 0x55).
     Phase 4 (listening_phase4): post-set getFieldA Response (Method 0x40,
-            message_type 0x80, payload_byte0 == 0x55).
+            message_type 0x80, payload_snapshot[0] == 0x55).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -59,7 +59,7 @@
       <send event="phase3_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_byte0 == 0x55"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0x55"
                 target="listening_phase4"/>
     <transition event="phase3_deadline_exceeded" target="fail_phase3_no_set_response"/>
   </state>
@@ -69,7 +69,7 @@
       <send event="phase4_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_byte0 == 0x55"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0x55"
                 target="pass"/>
     <transition event="phase4_deadline_exceeded" target="fail_phase4_no_post_set_get"/>
   </state>

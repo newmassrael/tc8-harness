@@ -54,10 +54,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0035 and captured.return_code == 0x00 and captured.payload_len == 14 and captured.payload_bytes[0] == 0x00 and captured.payload_bytes[1] == 0x00 and captured.payload_bytes[2] == 0x00 and captured.payload_bytes[3] == 0x0A and captured.payload_bytes[4] == 0x00 and captured.payload_bytes[5] == 0x00 and captured.payload_bytes[6] == 0x00 and captured.payload_bytes[7] == 0x01 and captured.payload_bytes[8] == 0x42 and captured.payload_bytes[9] == 0x00 and captured.payload_bytes[10] == 0x00 and captured.payload_bytes[11] == 0x00 and captured.payload_bytes[12] == 0x01 and captured.payload_bytes[13] == 0x43"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0035 and captured.return_code == 0x00 and captured.payload_len == 14 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x00 and captured.payload_snapshot[3] == 0x0A and captured.payload_snapshot[4] == 0x00 and captured.payload_snapshot[5] == 0x00 and captured.payload_snapshot[6] == 0x00 and captured.payload_snapshot[7] == 0x01 and captured.payload_snapshot[8] == 0x42 and captured.payload_snapshot[9] == 0x00 and captured.payload_snapshot[10] == 0x00 and captured.payload_snapshot[11] == 0x00 and captured.payload_snapshot[12] == 0x01 and captured.payload_snapshot[13] == 0x43"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0035 and captured.message_type == 0x80 and (captured.payload_len != 14 or captured.payload_bytes[3] != 0x0A or captured.payload_bytes[8] != 0x42 or captured.payload_bytes[13] != 0x43)"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0035 and captured.message_type == 0x80 and (captured.payload_len != 14 or captured.payload_snapshot[3] != 0x0A or captured.payload_snapshot[8] != 0x42 or captured.payload_snapshot[13] != 0x43)"
                 target="fail_phase2_array2dim_echo_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>

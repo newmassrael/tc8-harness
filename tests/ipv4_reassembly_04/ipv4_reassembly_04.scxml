@@ -34,7 +34,7 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq and captured.echo_payload_equals(std::string_view(reinterpret_cast&lt;const char*&gt;(::tc8::sce::ipv4::reassembly::kReassembly04EchoPayload.data()), ::tc8::sce::ipv4::reassembly::kReassembly04EchoPayload.size()))"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq and captured.payload_equals(std::string_view(reinterpret_cast&lt;const char*&gt;(::tc8::sce::ipv4::reassembly::kReassembly04EchoPayload.data()), ::tc8::sce::ipv4::reassembly::kReassembly04EchoPayload.size()))"
                 target="pass"/>
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id != expected.echo_id"

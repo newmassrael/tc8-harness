@@ -8,7 +8,7 @@
   The spec literal lives in icmpv4_captured.h as kIcmpv4EchoPayloadType08;
   both the stimulus builder (case trait icmpv4_type_08.h) and the SCXML
   guard below compare against it, so the reference blob is single-
-  sourced. icmpv4EchoPayloadMatches() does a byte-exact compare after
+  sourced. payload_equals() does a byte-exact compare after
   the captured payload snapshot is populated by dispatch.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -32,7 +32,7 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="icmp_observed"
-                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_payload_equals(::tc8::kIcmpv4EchoPayloadType08)"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.payload_equals(::tc8::kIcmpv4EchoPayloadType08)"
                 target="pass"/>
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"

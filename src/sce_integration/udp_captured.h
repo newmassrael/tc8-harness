@@ -10,6 +10,7 @@
 #include "tc8/protocol_frames/udp_frame.h"
 #include "tc8/upper_tester_protocol.h"
 
+#include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
 #include "wire/ip_checksum.h"
@@ -40,7 +41,7 @@ namespace tc8 {
 // drifts without the port gate. `src_port == ut::kPort` restores
 // the invariant "has_ut_response iff this frame is a response
 // from OUR UT server."
-struct UdpCaptured {
+struct UdpCaptured : CapturedPayloadSnapshot {
     std::uint32_t src_ip             = 0;   // network byte order
     std::uint32_t dst_ip             = 0;   // network byte order
     std::uint16_t src_port           = 0;
@@ -89,15 +90,11 @@ struct UdpCaptured {
     // `ut_recv_payload_equals` does fixed-len byte equality.
     std::array<std::uint8_t, 16> ut_recv_payload_first16{};
 
-    // §4.6.5.4 UDP_FIELDS_13/_14 RFC 1071 + RFC 768 pseudo-header
-    // checksum verification surface. Snapshot up to
-    // `kMaxPayloadSnapshot` bytes of the UDP body so
-    // `pseudo_header_checksum_valid()` can reconstruct the wire region
-    // and run the 1's-complement sum. 256 B covers FIELDS_14's 100 B
-    // even-payload + headroom for future even-larger §4.6 stimuli.
-    static constexpr std::size_t kMaxPayloadSnapshot = 256;
-    std::array<std::uint8_t, kMaxPayloadSnapshot> payload_snapshot{};
-    std::uint32_t payload_snapshot_len = 0;
+    // The UDP-body snapshot (`payload_snapshot` / `payload_snapshot_len`,
+    // capacity `kMaxPayloadSnapshot`) is inherited from
+    // `CapturedPayloadSnapshot`. §4.6.5.4 UDP_FIELDS_13/_14 read it
+    // through `pseudo_header_checksum_valid()` below to reconstruct the
+    // wire region and run the RFC 1071 + RFC 768 1's-complement sum.
 
     // Wall-clock arrival timestamp surface — same contract as
     // `TcpCaptured::observed_ts_us` / `prev_observed_ts_us` /
@@ -232,20 +229,11 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
     c.ut_create_actual_count = 0;
 
     // Snapshot the leading payload bytes for §4.6.5.4 UDP_FIELDS_13/_14
-    // pseudo-header checksum reconstruction. Bounded copy — larger
-    // payloads disable the validator (returns false rather than
-    // asserting). Same contract as Icmpv4Captured::payload_snapshot.
-    c.payload_snapshot_len = 0;
-    c.payload_snapshot.fill(0);
-    if (f.payload_data != nullptr && f.payload_len > 0) {
-        const std::size_t copy_len = std::min<std::size_t>(
-            static_cast<std::size_t>(f.payload_len),
-            c.payload_snapshot.size());
-        for (std::size_t i = 0; i < copy_len; ++i) {
-            c.payload_snapshot[i] = f.payload_data[i];
-        }
-        c.payload_snapshot_len = static_cast<std::uint32_t>(copy_len);
-    }
+    // pseudo-header checksum reconstruction — shared bounded copy from
+    // the base. Larger payloads disable the validator (it returns false
+    // rather than asserting) because the captured length then trails the
+    // wire `length` field.
+    c.fillPayloadSnapshot(f.payload_data, f.payload_len);
 
     if (f.src_port == ut::kPort &&
         f.payload_data != nullptr && f.payload_len >= 3U &&

@@ -22,7 +22,7 @@
   0x3FF8000000000000), so the Request payload's distinctive prefix
   is at offset 19. The DUT echoes in reversed order — res1 = arg9 =
   1.5 lands at Response payload offset 0..7. Pass criterion verifies
-  payload_bytes[0..7] match the Double 1.5 BE encoding and all
+  payload_snapshot[0..7] match the Double 1.5 BE encoding and all
   remaining 19 bytes (res2..res9 from arg2..arg8 = all-zero
   primitives) stay 0x00 — proving the DUT serialised res1 with the
   expected order AND that arg2..arg8 echoed faithfully (all zero in,

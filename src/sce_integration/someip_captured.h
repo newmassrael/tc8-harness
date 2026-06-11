@@ -1,15 +1,14 @@
 #pragma once
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <initializer_list>
 #include <string>
 
 #include "tc8/protocol_frames/someip_frame.h"
 
+#include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
@@ -119,7 +118,7 @@ inline constexpr std::uint8_t kTcp = 0x06;
 inline constexpr std::uint8_t kUdp = 0x11;
 }  // namespace sd_l4_proto
 
-struct SomeIpCaptured {
+struct SomeIpCaptured : CapturedPayloadSnapshot {
     std::uint16_t service_id = 0;
     std::uint16_t method_id = 0;
     std::uint32_t length = 0;
@@ -168,56 +167,20 @@ struct SomeIpCaptured {
     std::uint16_t src_port = 0;
     std::uint16_t dst_port = 0;
 
-    // First byte of the SOME/IP payload, or 0 when the frame carries no
-    // payload. RPC §5.1.5.7 setter cases (RPC_11) need to verify the DUT
-    // echoed back the value the tester wrote (UInt8 field → 1-byte
-    // payload). A single-byte slot keeps the Captured surface flat
-    // without committing to a variable-length copy.
-    std::uint8_t payload_byte0 = 0;
-
-    // First `kMaxPayloadBytes` bytes of the SOME/IP payload — wider
-    // surface than `payload_byte0` for §5.1.6 SOMEIP_ETS Method
-    // Response echo verification. ETS_005 (checkByteOrder UInt32 BE
-    // sum, 4 bytes), ETS_008 (echoCommonDatatypes reversed-args
-    // 27-byte struct), ETS_046/_047/_053 (UTF FIXED 64-byte echo),
-    // and ETS_041/_050 (UTF DYNAMIC echo with 4-byte length prefix
-    // + 128-byte payload = 132 B max) all index distinct positions
-    // to pin DUT-side serialisation. Bytes beyond `payload_len` stay
-    // 0. The 144-byte cap is exact-fit for ETS_041/_050 (the spec's
-    // largest seed-cluster echo) plus a 12-byte margin; it preserves
-    // SCXML cond expressions of the form `captured.payload_bytes[N]`
-    // (compile-time index for SCE codegen) without committing to a
-    // heap copy of variable-length payloads. Raise further only if
-    // a future case body exceeds 144 B.
-    static constexpr std::size_t kMaxPayloadBytes = 144;
-    std::uint8_t payload_bytes[kMaxPayloadBytes]{};
-
-    // Pin the leading `expected.size()` bytes of `payload_bytes` against a
-    // wire-literal pattern. Returns true iff every byte in the initializer
-    // list matches and `payload_len >= expected.size()` so partial-frame
-    // truncation never sneaks past as a match. Lets §5.1.6 SOMEIP_ETS Method
-    // Response echo conds collapse N byte-equality conjuncts into a single
-    // call site, e.g.
-    //   cond="cpp:captured.payload_bytes_eq({0xFE, 0xFF, 0x00, 0x68, ...})"
-    // Surplus payload bytes beyond the list length are ignored — the helper
-    // verifies a prefix, not the entire payload, by design (cases that need
-    // full-payload-length verification add `captured.payload_len == N`
-    // alongside).
-    bool payload_bytes_eq(std::initializer_list<std::uint8_t> expected) const {
-        if (expected.size() > kMaxPayloadBytes) {
-            return false;
-        }
-        if (payload_len < expected.size()) {
-            return false;
-        }
-        std::size_t i = 0;
-        for (auto b : expected) {
-            if (payload_bytes[i++] != b) {
-                return false;
-            }
-        }
-        return true;
-    }
+    // The SOME/IP payload snapshot (`payload_snapshot` /
+    // `payload_snapshot_len`, capacity `kMaxPayloadSnapshot` = Ethernet
+    // MTU) and the `payload_bytes_eq` prefix matcher are inherited from
+    // `CapturedPayloadSnapshot`. §5.1.6 SOMEIP_ETS Method-Response echo
+    // conds index the snapshot directly (`captured.payload_snapshot[N]`)
+    // or collapse N byte-equality conjuncts into a single
+    // `cpp:captured.payload_bytes_eq({0xFE, 0xFF, ...})` call — e.g.
+    // ETS_005 (checkByteOrder UInt32 BE sum), ETS_008 (echoCommon
+    // Datatypes 27-byte struct), ETS_046/_047/_053 (UTF FIXED 64-byte
+    // echo), ETS_041/_050 (UTF DYNAMIC echo, 132 B max). RPC §5.1.5.7
+    // setter cases (RPC_11) read `payload_snapshot[0]` to verify the DUT
+    // echoed the written UInt8 value. The first payload byte is always
+    // `payload_snapshot[0]` (0 when the frame carried no payload), so no
+    // dedicated `payload_byte0` slot is needed.
 
     // Tester-side TCP socket state populated by §5.1.6 SOMEIP_ETS_037
     // stimulus before SCXML start(). Set from
@@ -403,14 +366,9 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
     c.message_type = f.message_type;
     c.return_code = f.return_code;
     c.payload_len = f.payload_len;
-    c.payload_byte0 = (f.payload_data != nullptr && f.payload_len > 0) ? f.payload_data[0] : 0;
-    {
-        const std::size_t to_copy =
-            (f.payload_data != nullptr) ? std::min<std::size_t>(SomeIpCaptured::kMaxPayloadBytes, f.payload_len) : 0;
-        for (std::size_t i = 0; i < SomeIpCaptured::kMaxPayloadBytes; ++i) {
-            c.payload_bytes[i] = (i < to_copy) ? f.payload_data[i] : 0;
-        }
-    }
+    // Shared bounded copy of the leading payload bytes from the base;
+    // `payload_snapshot[0]` subsumes the former `payload_byte0` slot.
+    c.fillPayloadSnapshot(f.payload_data, f.payload_len);
     c.src_ip = f.src_ip;
     c.dst_ip = f.dst_ip;
     c.src_port = f.src_port;

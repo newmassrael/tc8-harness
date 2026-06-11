@@ -17,9 +17,9 @@
     Phase 2 (listening_phase2): first getFieldA Response (method_id 0x40,
             message_type 0x80).
     Phase 3 (listening_phase3): setFieldA Response (method_id 0x42,
-            message_type 0x80, payload_byte0 == 0xAA).
+            message_type 0x80, payload_snapshot[0] == 0xAA).
     Phase 4 (listening_phase4): post-reset getFieldA Response (method_id
-            0x40, message_type 0x80, payload_byte0 != 0xAA).
+            0x40, message_type 0x80, payload_snapshot[0] != 0xAA).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -62,7 +62,7 @@
       <send event="phase3_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_byte0 == 0xAA"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0xAA"
                 target="listening_phase4"/>
     <transition event="phase3_deadline_exceeded" target="fail_phase3_no_set_response"/>
   </state>
@@ -72,10 +72,10 @@
       <send event="phase4_deadline_exceeded" delay="8s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_byte0 != 0xAA"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_snapshot[0] != 0xAA"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_byte0 == 0xAA"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0xAA"
                 target="fail_phase4_field_unchanged"/>
     <transition event="phase4_deadline_exceeded" target="fail_phase4_no_post_reset_get"/>
   </state>

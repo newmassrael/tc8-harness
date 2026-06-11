@@ -38,10 +38,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0037 and captured.return_code == 0x00 and captured.payload_len == 8 and captured.payload_bytes[0] == 0x00 and captured.payload_bytes[1] == 0x00 and captured.payload_bytes[2] == 0x00 and captured.payload_bytes[3] == 0x04 and captured.payload_bytes[4] == 0x10 and captured.payload_bytes[5] == 0x11 and captured.payload_bytes[6] == 0x12 and captured.payload_bytes[7] == 0x13"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0037 and captured.return_code == 0x00 and captured.payload_len == 8 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x00 and captured.payload_snapshot[3] == 0x04 and captured.payload_snapshot[4] == 0x10 and captured.payload_snapshot[5] == 0x11 and captured.payload_snapshot[6] == 0x12 and captured.payload_snapshot[7] == 0x13"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0037 and captured.message_type == 0x80 and (captured.payload_len != 8 or captured.payload_bytes[3] != 0x04 or captured.payload_bytes[4] != 0x10 or captured.payload_bytes[5] != 0x11 or captured.payload_bytes[6] != 0x12 or captured.payload_bytes[7] != 0x13)"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0037 and captured.message_type == 0x80 and (captured.payload_len != 8 or captured.payload_snapshot[3] != 0x04 or captured.payload_snapshot[4] != 0x10 or captured.payload_snapshot[5] != 0x11 or captured.payload_snapshot[6] != 0x12 or captured.payload_snapshot[7] != 0x13)"
                 target="fail_phase2_array_echo_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>
