@@ -341,6 +341,27 @@ std::vector<std::uint8_t> buildPingRequest(std::uint8_t req_id) {
     return req;
 }
 
+std::vector<std::uint8_t> buildQueryCapabilitiesRequest(std::uint8_t req_id) {
+    std::vector<std::uint8_t> req;
+    req.reserve(2);
+    req.push_back(static_cast<std::uint8_t>(ut::OpQueryCapabilities));
+    req.push_back(req_id);
+    return req;
+}
+
+std::vector<std::uint8_t> buildConditionArpCacheRequest(
+    std::uint8_t  req_id,
+    std::uint8_t  action,
+    std::uint16_t param) {
+    std::vector<std::uint8_t> req;
+    req.reserve(5);
+    req.push_back(static_cast<std::uint8_t>(ut::OpConditionArpCache));
+    req.push_back(req_id);
+    req.push_back(action);
+    appendBe16(req, param);
+    return req;
+}
+
 std::vector<std::uint8_t> buildStartLLAutoconfBuggyRequest(
     std::uint8_t  req_id,
     std::uint16_t dhcp_timeout_ms,
@@ -366,13 +387,25 @@ std::vector<std::uint8_t> buildStartLLAutoconfBuggyRequest(
     return req;
 }
 
-std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
-                                            std::uint16_t dut_port,
-                                            int timeout_ms,
-                                            std::uint32_t src_ip_be) {
+namespace {
+
+// Shared SOCK_DGRAM UT round trip for the probe family (OpPing /
+// OpQueryCapabilities): optional source bind, receive timeout, one
+// request out, one response in. Returns the response byte count
+// (>= 3, header validated against `req`'s opcode/req_id) or -1 on
+// any transport failure. The caller interprets the status byte —
+// kStatusUnknownOpcode is a meaningful answer for the capability
+// probe, not a transport failure.
+ssize_t dgramUtRoundTrip(std::uint32_t dut_ip_be,
+                         std::uint16_t dut_port,
+                         int timeout_ms,
+                         std::uint32_t src_ip_be,
+                         const std::vector<std::uint8_t> &req,
+                         std::uint8_t *resp,
+                         std::size_t resp_len) {
     const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-        return std::nullopt;
+        return -1;
     }
 
     if (src_ip_be != 0U) {
@@ -383,7 +416,7 @@ std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
         if (::bind(fd, reinterpret_cast<const sockaddr *>(&src),
                    sizeof(src)) < 0) {
             ::close(fd);
-            return std::nullopt;
+            return -1;
         }
     }
 
@@ -397,24 +430,71 @@ std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
     dst.sin_port        = htons(dut_port);
     dst.sin_addr.s_addr = dut_ip_be;
 
-    constexpr std::uint8_t kReqId = 0x01;
-    const auto req = buildPingRequest(kReqId);
     if (::sendto(fd, req.data(), req.size(), 0,
                  reinterpret_cast<const sockaddr *>(&dst),
                  sizeof(dst)) < 0) {
         ::close(fd);
-        return std::nullopt;
+        return -1;
     }
 
+    const ssize_t n = ::recv(fd, resp, resp_len, 0);
+    ::close(fd);
+    if (n < 3 || resp[0] != (req[0] | ut::kResponseBit) ||
+        resp[1] != req[1]) {
+        return -1;
+    }
+    return n;
+}
+
+}  // namespace
+
+std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
+                                            std::uint16_t dut_port,
+                                            int timeout_ms,
+                                            std::uint32_t src_ip_be) {
+    constexpr std::uint8_t kReqId = 0x01;
     // Response: <OpPing|0x80> <req_id> <status> <max_opcode>.
     std::uint8_t buf[8] = {};
-    const ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
-    ::close(fd);
-    if (n < 4 || buf[0] != (ut::OpPing | ut::kResponseBit) ||
-        buf[1] != kReqId || buf[2] != ut::kStatusOk) {
+    const ssize_t n = dgramUtRoundTrip(dut_ip_be, dut_port, timeout_ms,
+                                       src_ip_be, buildPingRequest(kReqId),
+                                       buf, sizeof(buf));
+    if (n < 4 || buf[2] != ut::kStatusOk) {
         return std::nullopt;
     }
     return UtPingResult{buf[3]};
+}
+
+std::optional<UtCapabilities> queryUpperTesterCapabilities(
+    std::uint32_t dut_ip_be,
+    std::uint16_t dut_port,
+    int timeout_ms,
+    std::uint32_t src_ip_be) {
+    constexpr std::uint8_t kReqId = 0x02;
+    // Response: <0x16|0x80> <req_id> <status> <bitmap_len> <bitmap[]>.
+    // 16 bytes covers a 12-byte bitmap (opcodes through 0x5F) — well
+    // past kMaxProtocolOpcode growth before this buffer needs a bump.
+    std::uint8_t buf[16] = {};
+    const ssize_t n = dgramUtRoundTrip(
+        dut_ip_be, dut_port, timeout_ms, src_ip_be,
+        buildQueryCapabilitiesRequest(kReqId), buf, sizeof(buf));
+    if (n < 3) {
+        return std::nullopt;
+    }
+    if (buf[2] == ut::kStatusUnknownOpcode) {
+        // Pre-0x16 firmware — a meaningful answer, not a failure.
+        return UtCapabilities{};
+    }
+    if (buf[2] != ut::kStatusOk || n < 4) {
+        return std::nullopt;
+    }
+    const std::size_t bitmap_len = buf[3];
+    if (static_cast<std::size_t>(n) < 4 + bitmap_len) {
+        return std::nullopt;
+    }
+    UtCapabilities caps;
+    caps.supported = true;
+    caps.bitmap.assign(buf + 4, buf + 4 + bitmap_len);
+    return caps;
 }
 
 int sendUpperTesterRequest(std::string_view iface,
@@ -454,6 +534,17 @@ int emitTriggerSendUdpBoot(std::string_view iface,
         return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                       ut::kTesterSrcPort, req);
     });
+}
+
+int emitConditionArpCache(std::string_view iface,
+                          std::uint32_t tester_ip_be,
+                          std::uint32_t dut_ip_be,
+                          const std::array<std::uint8_t, 6> &dut_mac,
+                          std::uint8_t action,
+                          std::uint16_t param) {
+    const auto req = buildConditionArpCacheRequest(0x01, action, param);
+    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                  ut::kTesterSrcPort, req);
 }
 
 }  // namespace tc8::stimulus

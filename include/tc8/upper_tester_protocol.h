@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 // TC8 §4.8.5 Upper Tester wire protocol.
@@ -611,6 +613,13 @@ enum Opcode : std::uint8_t {
     // state and mutates none: safe to fire against a DUT mid-test,
     // repeatedly, from any topology.
     //
+    // `max_opcode` is the top of the implementation's CONTIGUOUS
+    // 0x01..N block — a sparse implementation answers the highest N
+    // with no gap below it (the lwIP DUT reports 0x0B although it
+    // also handles the 0x13+ block). The exact implemented set is
+    // OpQueryCapabilities (0x16)'s bitmap; this byte stays the
+    // coarse liveness-probe feature level for one-frame consumers.
+    //
     //   Request params:  (none)
     //   Response params: <max_opcode:u8>
     //
@@ -621,12 +630,76 @@ enum Opcode : std::uint8_t {
     // cannot exist for a parameterless request beyond the 2-byte
     // header the dispatcher already requires.
     OpPing = 0x15,
+
+    // Precise implemented-opcode surface query. OpPing's single
+    // `max_opcode` byte presumes a contiguous implementation
+    // 0x01..max — an assumption the lwIP DUT already breaks (it
+    // implements 0x01..0x0B plus the 0x13+ block, and its honest
+    // OpPing answer 0x0B hides the upper block entirely). The
+    // response is a length-prefixed bitmap over the opcode value
+    // space: bit (opcode % 8) of byte (opcode / 8), set = the DUT's
+    // dispatcher handles that opcode. Bit 0 (opcode 0x00 does not
+    // exist) is never set. Length-prefixed so future opcode
+    // additions extend the bitmap additively — older callers read
+    // the bytes they know, newer callers see zero-padding semantics
+    // for bytes a shorter response omits.
+    //
+    // Side-effect-free like OpPing: reads a process-lifetime constant,
+    // mutates nothing, safe from any topology at any time. A pre-0x16
+    // DUT answers kStatusUnknownOpcode — callers degrade to the
+    // OpPing feature-level byte.
+    //
+    //   Request params:  (none)
+    //   Response params: <bitmap_len:u8> <bitmap[bitmap_len]>
+    //
+    // Wire size: 1 + 1 = 2 bytes (request) /
+    //            3 + 1 + bitmap_len bytes (response).
+    //
+    // Status codes: kStatusOk always (parameterless, like OpPing).
+    OpQueryCapabilities = 0x16,
+
+    // TC8 §4.2.4.2 ARP_48/49 "DUT CONFIGURE" cache-conditioning steps,
+    // rendered as a UT RPC for DUT stacks whose ARP-cache lifecycle
+    // the tester cannot reach from outside the wire. The spec's own
+    // procedure conditions the DUT cache explicitly — ARP_48 step 1
+    // "clear the dynamic entries in the ARP Cache", step 2 "set a
+    // timeout of <DYNAMIC-ARP-CACHE-TIMEOUT> seconds", step 8 "wait
+    // <DYNAMIC-ARP-CACHE-TIMEOUT> + <ARP-TOLERANCE-TIME> for the ARP
+    // cache to get refreshed". The Linux reference DUT renders those
+    // steps externally (smoke-test.sh per-case netns sysctls compress
+    // base_reachable_time_ms / delay_first_probe_time) and therefore
+    // does NOT implement this opcode; the lwIP DUT ages its table at
+    // a compile-time ARP_MAXAGE no external knob can move, so the
+    // conditioning has to ride the UT channel into the stack itself.
+    //
+    //   Request params:  <action:u8> <param:u16>
+    //   Response params: (none beyond the status byte)
+    //
+    // Wire size: 1 + 1 + 1 + 2 = 5 bytes (request) /
+    //            1 + 1 + 1 = 3 bytes (response).
+    //
+    // Actions (kArpCondition*): see below. The u16 `param` is
+    // action-specific (seconds for AgeBySeconds, ignored for
+    // FlushAll). An unknown action byte answers kStatusMalformed —
+    // unlike the 0x0F flavor byte there is no compliant fallback
+    // semantics for a conditioning the DUT does not recognise, and a
+    // silent no-op would let the case run against an unconditioned
+    // cache and time out with a misleading verdict.
+    //
+    // Status codes: kStatusOk on success; kStatusMalformed for a
+    // short request or an unknown action byte.
+    OpConditionArpCache = 0x17,
 };
 
-// Highest opcode the reference tc8-dut implements; the OpPing response
-// carries this value. Bump alongside every opcode addition — the
-// adjacency to the enum keeps the two from drifting.
-inline constexpr std::uint8_t kMaxImplementedOpcode = OpPing;
+// Top of the protocol's opcode value space — the highest opcode this
+// header defines. Bump alongside every opcode addition; the adjacency
+// to the enum keeps the two from drifting. Per-implementation maxima
+// live with each DUT server (the reference tc8-dut and the lwIP DUT
+// each answer OpPing with their own honest contiguous top, and
+// OpQueryCapabilities with their exact implemented set — the
+// reference DUT itself skips OpConditionArpCache, whose §4.2 cache
+// conditioning rides netns sysctls instead).
+inline constexpr std::uint8_t kMaxProtocolOpcode = OpConditionArpCache;
 
 // Wire encoding of the OpQueryTcpInfo `state` byte — the single source
 // of truth for every producer and consumer. Values equal the Linux
@@ -685,5 +758,55 @@ inline constexpr std::uint8_t kFlavorAnnounceEthDstUnicast         = 0x06;  // R
 inline constexpr std::uint8_t kFlavorAnnounceSenderTargetMismatch  = 0x07;  // RFC 3927 §2.4   Announce sender_ip==target_ip MUST
 inline constexpr std::uint8_t kFlavorAnnounceSenderHwWrong         = 0x08;  // RFC 3927 §2.4   Announce sender_hw=DUT MAC MUST
 inline constexpr std::uint8_t kFlavorAnnounceTargetHwNonzero       = 0x09;  // RFC 3927 §2.4   Announce target_hw=00:..:00 SHOULD
+
+// `OpConditionArpCache` action byte. Each value renders one TC8
+// §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
+// against the DUT's own ARP-table lifecycle:
+//
+//   * FlushAll — step 1 "clear the dynamic entries in the ARP Cache
+//     of <DIface-0>". `param` is ignored. Per-case DUT respawn
+//     fixtures get this for free; a persistent external DUT renders
+//     the step through this action.
+//   * AgeBySeconds — compresses step 8/12's "TESTER waits up to
+//     <DYNAMIC-ARP-CACHE-TIMEOUT> (+ tolerance) for the ARP cache to
+//     get refreshed": the DUT advances its table aging by `param`
+//     seconds of virtual time (the lwIP backend drives its 1 Hz
+//     etharp timer `param` times under the core lock). Entries whose
+//     accumulated age crosses the stack's timeout are expired exactly
+//     as wall-clock aging would expire them — same code path, no
+//     wall-clock cost.
+inline constexpr std::uint8_t kArpConditionFlushAll     = 0x01;
+inline constexpr std::uint8_t kArpConditionAgeBySeconds = 0x02;
+
+// `OpQueryCapabilities` bitmap packing — bit (opcode % 8) of byte
+// (opcode / 8). These helpers are the single source of the packing
+// for every producer (each DUT server bakes its bitmap from its own
+// implemented-opcode list at compile time) and consumer (the harness
+// decoder tests bits off the wire bytes) — hand-rolled shifts at call
+// sites is how the two ends would drift.
+inline constexpr std::size_t kCapabilityBitmapBytes =
+    static_cast<std::size_t>(kMaxProtocolOpcode) / 8u + 1u;
+
+template <std::size_t N>
+constexpr std::array<std::uint8_t, kCapabilityBitmapBytes>
+makeCapabilityBitmap(const std::uint8_t (&opcodes)[N]) {
+    std::array<std::uint8_t, kCapabilityBitmapBytes> bitmap{};
+    for (std::size_t i = 0; i < N; ++i) {
+        bitmap[opcodes[i] / 8u] |=
+            static_cast<std::uint8_t>(1u << (opcodes[i] % 8u));
+    }
+    return bitmap;
+}
+
+// `len` is the wire-reported bitmap length — bytes beyond it read as
+// zero (a shorter response from an older DUT means "those opcodes did
+// not exist when it was built", which is exactly "not implemented").
+inline constexpr bool capabilityBitSet(const std::uint8_t *bitmap,
+                                       std::size_t len,
+                                       std::uint8_t opcode) {
+    const std::size_t byte = opcode / 8u;
+    return byte < len &&
+           (bitmap[byte] & (1u << (opcode % 8u))) != 0u;
+}
 
 }  // namespace tc8::ut

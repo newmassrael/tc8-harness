@@ -412,6 +412,33 @@ std::vector<std::uint8_t> buildCreateUdpReceivePortsRequest(
 //                  <max_opcode:u8> after the status byte).
 std::vector<std::uint8_t> buildPingRequest(std::uint8_t req_id);
 
+// Build a 0x16 QueryCapabilities request. Side-effect-free precise
+// implemented-opcode surface query — the DUT answers a
+// length-prefixed bitmap (bit (op % 8) of byte (op / 8); the packing
+// SSOT is `ut::makeCapabilityBitmap` / `ut::capabilityBitSet`).
+//
+//   <opcode:u8=0x16> <req_id:u8>
+//
+// Fixed wire size: 1 + 1 = 2 bytes (request) /
+//                  3 + 1 + bitmap_len bytes (response).
+std::vector<std::uint8_t> buildQueryCapabilitiesRequest(std::uint8_t req_id);
+
+// Build a 0x17 ConditionArpCache request. TC8 §4.2.4.2 ARP_48/49
+// "DUT CONFIGURE" cache-conditioning steps for DUT stacks whose
+// ARP-table lifecycle the tester cannot reach externally (the Linux
+// reference DUT does not implement this — its conditioning rides the
+// smoke-test.sh netns sysctls).
+//
+//   <opcode:u8=0x17> <req_id:u8> <action:u8> <param:u16>
+//
+// `action` is one of `ut::kArpCondition*`; `param` is action-specific
+// (seconds for AgeBySeconds, ignored for FlushAll). Fixed wire size:
+// 1 + 1 + 1 + 2 = 5 bytes.
+std::vector<std::uint8_t> buildConditionArpCacheRequest(
+    std::uint8_t  req_id,
+    std::uint8_t  action,
+    std::uint16_t param);
+
 // Result of a successful OpPing round trip.
 struct UtPingResult {
     // Highest UT opcode the DUT firmware implements (kMaxImplementedOpcode
@@ -440,6 +467,33 @@ std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
                                             std::uint16_t dut_port = ut::kPort,
                                             int timeout_ms = 1000,
                                             std::uint32_t src_ip_be = 0);
+
+// Result of an OpQueryCapabilities round trip that got an answer.
+struct UtCapabilities {
+    // False when the DUT answered kStatusUnknownOpcode — a pre-0x16
+    // firmware whose feature level is only the OpPing byte. The
+    // bitmap is empty in that case (capabilityBitSet reads it as
+    // all-unimplemented).
+    bool supported = false;
+    // Wire bitmap, `bitmap_len` bytes verbatim.
+    std::vector<std::uint8_t> bitmap;
+
+    bool supports(std::uint8_t opcode) const {
+        return ut::capabilityBitSet(bitmap.data(), bitmap.size(), opcode);
+    }
+};
+
+// Blocking OpQueryCapabilities round trip over a plain SOCK_DGRAM
+// socket — same transport + source-binding contract as
+// `pingUpperTester` above. Returns nullopt on socket error, timeout,
+// or a malformed response; returns `supported=false` when the DUT
+// answered kStatusUnknownOpcode (graceful pre-0x16 degradation —
+// callers fall back to the OpPing feature-level byte).
+std::optional<UtCapabilities> queryUpperTesterCapabilities(
+    std::uint32_t dut_ip_be,
+    std::uint16_t dut_port = ut::kPort,
+    int timeout_ms = 1000,
+    std::uint32_t src_ip_be = 0);
 
 // One-shot sender: wrap `ut_payload` in a UDP datagram (RFC 768
 // checksum) + IPv4 frame, and inject on `iface` via AF_PACKET SOCK_RAW.
@@ -503,5 +557,25 @@ int emitTriggerSendUdpBoot(std::string_view iface,
                            std::uint32_t dut_ip_be,
                            const std::array<std::uint8_t, 6> &dut_mac,
                            const BootTiming &timing = {});
+
+// One-shot UT 0x17 ConditionArpCache injection via AF_PACKET SOCK_RAW
+// — the §4.2.4.2 ARP_48/49 mid-stimulus conditioning step against a
+// DUT that advertises the opcode (lwIP fixture). Raw-injected like
+// `emitTriggerSendUdpBoot` (same identity rules: TOPOLOGY values, see
+// there) rather than SOCK_DGRAM so the exchange cannot create tester-
+// kernel socket state mid-case. No boot cadence: by the time a case
+// conditions the cache its earlier UT emits have already proven the
+// DUT's UT server up. Returns `sendUpperTesterRequest`'s result.
+//
+// Sequencing note: UT requests ride in-order UDP on the test link and
+// the DUT dispatches them serially, so a 0x17 injected after a 0x02
+// is conditioned strictly between the two egress provocations — no
+// tester-side sleep is needed for ordering, only for wire drain.
+int emitConditionArpCache(std::string_view iface,
+                          std::uint32_t tester_ip_be,
+                          std::uint32_t dut_ip_be,
+                          const std::array<std::uint8_t, 6> &dut_mac,
+                          std::uint8_t action,
+                          std::uint16_t param);
 
 }  // namespace tc8::stimulus

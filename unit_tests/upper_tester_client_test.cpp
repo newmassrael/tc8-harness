@@ -382,10 +382,71 @@ TEST(UpperTesterClient, PingRequestLayout) {
     EXPECT_EQ(req[0], 0x15U);  // opcode 0x15 lock-in (response = 0x95)
     EXPECT_EQ(req[1], 0x42U);
     EXPECT_EQ(ut::OpPing & ut::kResponseBit, 0u);
-    // kMaxImplementedOpcode must track the highest enum value — a new
-    // opcode without the bump would under-report the reference DUT's
-    // feature level to every prober.
-    EXPECT_EQ(ut::kMaxImplementedOpcode, static_cast<std::uint8_t>(ut::OpPing));
+    // kMaxProtocolOpcode must track the highest enum value — a new
+    // opcode without the bump would size the capability bitmap too
+    // small for the new bit.
+    EXPECT_EQ(ut::kMaxProtocolOpcode,
+              static_cast<std::uint8_t>(ut::OpConditionArpCache));
+}
+
+
+TEST(UpperTesterClient, QueryCapabilitiesRequestLayout) {
+    // Wire format: <opcode:u8=0x16> <req_id:u8> — parameterless probe
+    // mirroring OpPing. Response carries <bitmap_len:u8> <bitmap[]>.
+    const auto req = buildQueryCapabilitiesRequest(0x17);
+    ASSERT_EQ(req.size(), 2u);
+    EXPECT_EQ(req[0], static_cast<std::uint8_t>(ut::OpQueryCapabilities));
+    EXPECT_EQ(req[0], 0x16U);  // opcode lock-in (response = 0x96)
+    EXPECT_EQ(req[1], 0x17U);
+    EXPECT_EQ(ut::OpQueryCapabilities & ut::kResponseBit, 0u);
+}
+
+
+TEST(UpperTesterClient, ConditionArpCacheRequestLayout) {
+    // Wire format: <opcode:u8=0x17> <req_id:u8> <action:u8>
+    // <param:u16 BE>. ARP_48/49 AgeBySeconds with the lwIP fixture's
+    // 300 s ARP_MAXAGE = 0x012C.
+    const auto req = buildConditionArpCacheRequest(
+        0x05, ut::kArpConditionAgeBySeconds, 300U);
+    ASSERT_EQ(req.size(), 5u);
+    EXPECT_EQ(req[0], static_cast<std::uint8_t>(ut::OpConditionArpCache));
+    EXPECT_EQ(req[0], 0x17U);  // opcode lock-in (response = 0x97)
+    EXPECT_EQ(req[1], 0x05U);
+    EXPECT_EQ(req[2], ut::kArpConditionAgeBySeconds);
+    EXPECT_EQ(req[3], 0x01U);
+    EXPECT_EQ(req[4], 0x2CU);
+    EXPECT_EQ(ut::OpConditionArpCache & ut::kResponseBit, 0u);
+}
+
+
+TEST(UpperTesterClient, CapabilityBitmapRoundTrip) {
+    // The packing SSOT: makeCapabilityBitmap sets exactly the listed
+    // opcodes' bits; capabilityBitSet reads them back; everything
+    // unlisted reads as unimplemented. The sparse lwIP-shaped set
+    // (contiguous low block + 0x13+ block) is the motivating case.
+    constexpr std::uint8_t kSet[] = {
+        ut::OpGetReceivedUdp,    ut::OpReceiveTcpDataOob,
+        ut::OpQueryTcpInfo,      ut::OpPing,
+        ut::OpQueryCapabilities, ut::OpConditionArpCache,
+    };
+    constexpr auto bitmap = ut::makeCapabilityBitmap(kSet);
+    ASSERT_EQ(bitmap.size(), ut::kCapabilityBitmapBytes);
+    for (unsigned op = 0x00; op <= ut::kMaxProtocolOpcode; ++op) {
+        bool expected = false;
+        for (const std::uint8_t s : kSet) {
+            expected = expected || (s == op);
+        }
+        EXPECT_EQ(ut::capabilityBitSet(bitmap.data(), bitmap.size(),
+                                       static_cast<std::uint8_t>(op)),
+                  expected)
+            << "opcode 0x" << std::hex << op;
+    }
+    // A truncated wire bitmap (older DUT, shorter response) reads the
+    // missing high bytes as all-unimplemented, never out-of-bounds.
+    EXPECT_FALSE(ut::capabilityBitSet(bitmap.data(), 2u,
+                                      ut::OpConditionArpCache));
+    EXPECT_TRUE(ut::capabilityBitSet(bitmap.data(), 2u,
+                                     ut::OpReceiveTcpDataOob));
 }
 
 

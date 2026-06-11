@@ -58,9 +58,44 @@ int UtPingCommand::run() {
     }
 
     std::printf("ut-ping: %s:%u answered — UT implemented up to opcode "
-                "0x%02X (reference tc8-dut: 0x%02X)\n",
+                "0x%02X (protocol max: 0x%02X)\n",
                 dut_ip_.c_str(), port, result->max_opcode,
-                ut::kMaxImplementedOpcode);
+                ut::kMaxProtocolOpcode);
+
+    // OpPing's byte is the contiguous feature level; the exact set
+    // (sparse implementations like the lwIP DUT) rides the 0x16
+    // bitmap. A pre-0x16 DUT answers kStatusUnknownOpcode and the
+    // probe degrades to the line above.
+    const auto caps = stimulus::queryUpperTesterCapabilities(
+        addr.s_addr, port, timeout_ms_, src_addr.s_addr);
+    if (!caps.has_value()) {
+        // Liveness (the probe's preflight contract) is already proven
+        // by the OpPing reply — a DUT that silently drops 0x16 instead
+        // of answering kStatusUnknownOpcode degrades the capability
+        // report, not the probe verdict.
+        std::fprintf(stderr,
+                     "ut-ping: capability query got no usable reply — "
+                     "feature level is the OpPing byte\n");
+        return 0;
+    }
+    if (!caps->supported) {
+        std::printf("ut-ping: capabilities: not supported (pre-0x16 "
+                    "firmware) — feature level is the OpPing byte\n");
+        return 0;
+    }
+    // Walk the DUT-reported bitmap length, not kMaxProtocolOpcode — a
+    // DUT built against a newer protocol rev may set bits this harness
+    // does not know yet, and hiding them would misreport the surface.
+    std::printf("ut-ping: capabilities:");
+    int count = 0;
+    const unsigned top = static_cast<unsigned>(caps->bitmap.size()) * 8u;
+    for (unsigned op = 0x01; op < top && op <= 0xFF; ++op) {
+        if (caps->supports(static_cast<std::uint8_t>(op))) {
+            std::printf(" 0x%02X", op);
+            ++count;
+        }
+    }
+    std::printf(" (%d opcodes)\n", count);
     return 0;
 }
 

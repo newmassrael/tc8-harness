@@ -42,6 +42,31 @@ constexpr std::uint16_t kDataPort = ::tc8::ut::kDataPort;
 // fits comfortably in Linux's default 8 MB thread stack.
 constexpr std::size_t kRecvBufferLen = 65536;
 
+// The reference tc8-dut's implemented-opcode surface — the
+// OpQueryCapabilities bitmap is baked from this list at compile time,
+// and OpPing answers the list's contiguous top. Everything up to
+// OpQueryCapabilities is handled; OpConditionArpCache (0x17) is
+// deliberately absent: this DUT's §4.2.4.2 ARP-cache conditioning
+// rides the smoke-test.sh per-case netns sysctls (the kernel cache is
+// not reachable from this process), so advertising the opcode would
+// promise a conditioning path that does not exist here.
+constexpr std::uint8_t kImplementedOpcodes[] = {
+    ut::OpGetReceivedUdp,       ut::OpTriggerSendUdp,
+    ut::OpOpenTcpSocket,        ut::OpCloseTcpSocket,
+    ut::OpQueryTcpEstablished,  ut::OpSendTcpData,
+    ut::OpReceiveTcpData,       ut::OpShutdownTcpSocketWr,
+    ut::OpAbortTcpSocket,       ut::OpSendTcpDataPattern,
+    ut::OpReceiveTcpDataOob,    ut::OpStartLLAutoconf,
+    ut::OpQueryLLAddress,       ut::OpAbortLLAutoconf,
+    ut::OpStartLLAutoconfBuggy, ut::OpStartDhcpClient,
+    ut::OpQueryDhcpLease,       ut::OpAbortDhcpClient,
+    ut::OpQueryTcpInfo,         ut::OpCreateUdpReceivePorts,
+    ut::OpPing,                 ut::OpQueryCapabilities,
+};
+constexpr auto kCapabilityBitmap =
+    ut::makeCapabilityBitmap(kImplementedOpcodes);
+constexpr std::uint8_t kMaxImplementedOpcode = ut::OpQueryCapabilities;
+
 // Per-spec directed-broadcast silent discard. For a /24 subnet the
 // broadcast is the iface IP with the host octet (last byte of NBO
 // uint32) forced to 0xFF. Any netmask would require computing the
@@ -1037,7 +1062,22 @@ void UpperTesterServer::utServerLoop(int fd) {
             // this implementation handles so the tester can detect the
             // firmware's UT feature level.
             std::vector<std::uint8_t> body;
-            body.push_back(ut::kMaxImplementedOpcode);
+            body.push_back(kMaxImplementedOpcode);
+            sendResponse(fd, peer, peer_len, response_opcode, req_id,
+                         ut::kStatusOk, body);
+            continue;
+        }
+
+        if (opcode == ut::OpQueryCapabilities) {
+            // Precise implemented-opcode surface — length-prefixed
+            // bitmap baked from kImplementedOpcodes at compile time.
+            // Side-effect-free like OpPing.
+            std::vector<std::uint8_t> body;
+            body.reserve(1 + kCapabilityBitmap.size());
+            body.push_back(
+                static_cast<std::uint8_t>(kCapabilityBitmap.size()));
+            body.insert(body.end(), kCapabilityBitmap.begin(),
+                        kCapabilityBitmap.end());
             sendResponse(fd, peer, peer_len, response_opcode, req_id,
                          ut::kStatusOk, body);
             continue;

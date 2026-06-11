@@ -2,7 +2,12 @@
 //
 // Functional mirror of dut/dut_service/upper_tester_server.cpp scoped
 // to the UDP opcode family (0x01/0x02/0x14) + the TCP opcode family
-// (0x03..0x0B, 0x13) + OpPing (0x15), rebuilt on the lwIP socket API.
+// (0x03..0x0B, 0x13) + the probe family (0x15/0x16), plus
+// OpConditionArpCache (0x17) which the Linux reference DUT
+// deliberately does NOT carry (its §4.2.4.2 cache conditioning rides
+// the smoke-test.sh netns sysctls; lwIP's compile-time ARP_MAXAGE is
+// reachable only from inside the stack). Rebuilt on the lwIP socket
+// API.
 // Structural differences from the Linux server, each forced by a stack
 // property:
 //
@@ -54,6 +59,7 @@
 
 #include "lwip/sockets.h"
 #include "lwip/api.h"
+#include "lwip/etharp.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
@@ -240,13 +246,26 @@ private:
     std::vector<struct udp_pcb *> udp_receive_ports_;
 };
 
-// Highest opcode this implementation answers. The implemented set is
-// sparse (0x0C..0x12 autoconf/DHCP opcodes are not ported;
-// OpQueryTcpInfo 0x13 and OpCreateUdpReceivePorts 0x14 ARE, beyond
-// the gap); OpPing's single-byte capability field cannot express a
-// sparse set, so the honest value is the top of the contiguous
-// 0x01..0x0B block — a tester probing feature level sees "UDP + TCP
-// session control available" and nothing more.
+// This implementation's opcode surface. The set is sparse
+// (0x0C..0x12 autoconf/DHCP opcodes are not ported; the 0x13+ block
+// IS); OpPing's single-byte capability field cannot express a sparse
+// set, so its honest value stays the top of the contiguous 0x01..0x0B
+// block — a tester probing feature level sees "UDP + TCP session
+// control available". The exact set rides OpQueryCapabilities' bitmap,
+// baked from this list at compile time.
+constexpr std::uint8_t kImplementedOpcodes[] = {
+    ut::OpGetReceivedUdp,      ut::OpTriggerSendUdp,
+    ut::OpOpenTcpSocket,       ut::OpCloseTcpSocket,
+    ut::OpQueryTcpEstablished, ut::OpSendTcpData,
+    ut::OpReceiveTcpData,      ut::OpShutdownTcpSocketWr,
+    ut::OpAbortTcpSocket,      ut::OpSendTcpDataPattern,
+    ut::OpReceiveTcpDataOob,   ut::OpQueryTcpInfo,
+    ut::OpCreateUdpReceivePorts,
+    ut::OpPing,                ut::OpQueryCapabilities,
+    ut::OpConditionArpCache,
+};
+constexpr auto kCapabilityBitmap =
+    ut::makeCapabilityBitmap(kImplementedOpcodes);
 constexpr std::uint8_t kMaxImplementedOpcode = ut::OpReceiveTcpDataOob;
 
 void UpperTesterServer::applyTimeout(int fd, int optname, int ms) {
@@ -736,6 +755,64 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
         respond(fd, peer, opcode, req_id, ut::kStatusOk, body);
         return;
 
+    case ut::OpQueryCapabilities:
+        body.push_back(static_cast<std::uint8_t>(kCapabilityBitmap.size()));
+        body.insert(body.end(), kCapabilityBitmap.begin(),
+                    kCapabilityBitmap.end());
+        respond(fd, peer, opcode, req_id, ut::kStatusOk, body);
+        return;
+
+    case ut::OpConditionArpCache: {
+        // Params: <action:u8> <param:u16>. §4.2.4.2 ARP_48/49 cache
+        // conditioning against the stack's own table — lwIP's
+        // ARP_MAXAGE is a compile-time constant, so the spec's "set a
+        // timeout" / "wait for the cache to refresh" steps are
+        // rendered by driving the aging machinery directly.
+        //
+        // The response datagram is sent AFTER the conditioning ran.
+        // When AgeBySeconds expired the requester's own entry, the
+        // response egress itself finds an empty table and lwIP emits
+        // the ARP Request the §4.2.4.2 step-11/15 pass criteria
+        // observe (the response pbuf rides queued behind the query,
+        // RFC 826-conformant) — deliberate, not a quirk.
+        if (n < 2 + 1 + 2) {
+            respond(fd, peer, opcode, req_id, ut::kStatusMalformed, body);
+            return;
+        }
+        const std::uint8_t  action = buf[2];
+        const std::uint16_t param  = readBe16(buf + 3);
+        if (action == ut::kArpConditionFlushAll) {
+            // ARP_48/49 step 1 "clear the dynamic entries". Per-case
+            // DUT respawn already yields a cold table; this is the
+            // persistent-fixture rendering. `param` is ignored.
+            LOCK_TCPIP_CORE();
+            etharp_cleanup_netif(netif_default);
+            UNLOCK_TCPIP_CORE();
+        } else if (action == ut::kArpConditionAgeBySeconds) {
+            // Compress the step-8/12 <DYNAMIC-ARP-CACHE-TIMEOUT> wait:
+            // one etharp_tmr() call advances every entry's ctime by
+            // one ARP_TMR_INTERVAL (1 s) tick — `param` calls age the
+            // table by `param` seconds of virtual time through the
+            // exact code path wall-clock aging takes (entries whose
+            // ctime crosses ARP_MAXAGE are freed by etharp_tmr
+            // itself).
+            LOCK_TCPIP_CORE();
+            for (std::uint16_t i = 0; i < param; ++i) {
+                etharp_tmr();
+            }
+            UNLOCK_TCPIP_CORE();
+        } else {
+            // No compliant fallback for an unknown conditioning — a
+            // silent no-op would run the case against an
+            // unconditioned cache and time out with a misleading
+            // verdict.
+            respond(fd, peer, opcode, req_id, ut::kStatusMalformed, body);
+            return;
+        }
+        respond(fd, peer, opcode, req_id, ut::kStatusOk, body);
+        return;
+    }
+
     case ut::OpGetReceivedUdp: {
         // Params: <listen_port:u16> <expected_dst_ip:u32>
         if (n < 2 + 2 + 4) {
@@ -1106,7 +1183,8 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
     startUdpDataListener();
     std::fprintf(stderr,
                  "tc8-lwip-ut: serving on UDP port %u (opcodes 0x01..0x0B + "
-                 "0x13 + 0x14 + OpPing; max_opcode reported 0x%02X)\n",
+                 "0x13..0x17; max_opcode reported 0x%02X, exact set via "
+                 "OpQueryCapabilities)\n",
                  ut::kPort, kMaxImplementedOpcode);
 
     // Mirror of the Linux server's 64 KiB request buffer. The largest

@@ -156,6 +156,10 @@
         {
           "file": "dut/env/topology.d/external.conf",
           "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
         }
       ]
     },
@@ -485,6 +489,30 @@
         },
         {
           "file": "tests/arp_49/arp_49.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/upper_tester_server.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ut_server.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_arp_traits_base.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
