@@ -19,8 +19,10 @@
 
   Linux backstop: smoke-test.sh sets delay_first_probe_time=1 +
   ucast_solicit=0 so the DELAY entered at first USE proceeds to
-  PROBE → broadcast ARP after 1 s. stim2 (second Subscribe) fires
-  before that PROBE, preserving the UDP1 → UDP2 → ARP wire order.
+  PROBE → broadcast ARP after 1 s. All stimulus-driven UDP (each UT
+  0x02 emit yields the response + triggered-datagram pair; the second
+  emit lands at ~2.25 s) fires before that PROBE, preserving the
+  UDP1 → UDP2 → ARP wire order.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

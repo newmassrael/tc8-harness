@@ -24,7 +24,7 @@ namespace tc8 {
 // `stimulus_timing` is read by stimulus-driven cases (FORMAT_12/13 today)
 // so the CLI can override DUT-tuning defaults via `--stimulus-wait`,
 // `--stimulus-retry`, `--stimulus-emits`. Defaults are the same as
-// `SdBootTiming{}` and suit the tc8-dut bootstrap; real DUTs with
+// `BootTiming{}` and suit the tc8-dut bootstrap; real DUTs with
 // slower/faster SD init are expected to override.
 struct TestConfig {
     SomeIpExpectations someip{};
@@ -32,7 +32,7 @@ struct TestConfig {
     Icmpv4Expectations icmpv4{};
     Ipv4Expectations ipv4{};
     Dhcpv4Expectations dhcpv4{};
-    ::tc8::stimulus::SdBootTiming stimulus_timing{};
+    ::tc8::stimulus::BootTiming stimulus_timing{};
 };
 
 }  // namespace tc8

@@ -8,7 +8,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_49_sm.h"
 
@@ -31,36 +31,43 @@ struct TestCaseTraits<cases::Arp49SM>
     // Four-phase blocking stimulus driving learn → UDP1 → UDP2 →
     // (DELAY-timer-fired ARP Request):
     //   1. Inject ARP Request (sender_hw=MAC1). Cache REACHABLE.
-    //   2. Sub1 (initial_wait 1500 ms) → DUT UDP1 with eth_dst=MAC1
-    //      (~t=1.75 s). Cache has already gone STALE (max randomised
+    //   2. UT req 1 (initial_wait 1500 ms) → DUT UDP with eth_dst=MAC1
+    //      (~t=1.75 s; the 0x02 response + triggered datagram pair —
+    //      the SCXML's wait_udp1/wait_udp2 may both be satisfied here,
+    //      which still proves the spec's "in use" precondition). Cache
+    //      has already gone STALE (max randomised
     //      base_reachable_time_ms = 749 ms, < 1.75 s); USE → DELAY.
-    //   3. Sub2 (initial_wait 500 ms) → DUT UDP2 with eth_dst=MAC1
-    //      (~t=2.25 s). USE keeps DELAY (no state change on USE during
-    //      DELAY, lladdr remains).
+    //   3. UT req 2 (initial_wait 500 ms) → more DUT UDP with
+    //      eth_dst=MAC1 (~t=2.25 s), matching the spec's second send.
+    //      USE keeps DELAY (no state change on USE during DELAY,
+    //      lladdr remains).
     //   4. 2 s sleep covers the DELAY → PROBE transition
     //      (delay_first_probe_time=1) — kernel emits broadcast ARP
     //      Request at ~t=2.75 s (1 s after stim1's USE entered DELAY).
     //      ucast_solicit=0 ensures it's broadcast not unicast probe.
     //
-    // Wire-order invariant: stim2's UDP2 (~2.25 s) precedes the
-    // PROBE-fired ARP Request (~2.75 s) — that 0.5 s margin is what
-    // keeps the SCXML's wait_udp1 → wait_udp2 → wait_arp_request
-    // walk well-defined under the per-case sysctl timing.
+    // Wire-order invariant: every stimulus-driven UDP (≤ ~2.25 s)
+    // precedes the PROBE-fired ARP Request (~2.75 s) — that 0.5 s
+    // margin is what keeps the SCXML's wait_udp1 → wait_udp2 →
+    // wait_arp_request walk well-defined under the per-case sysctl
+    // timing.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
 
-        ::tc8::stimulus::SdBootTiming sub1;
-        sub1.initial_wait = std::chrono::milliseconds(1500);
-        sub1.retry_interval = std::chrono::milliseconds(0);
-        sub1.total_emits = 1;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{}, sub1);
+        ::tc8::stimulus::BootTiming ut1;
+        ut1.initial_wait = std::chrono::milliseconds(1500);
+        ut1.retry_interval = std::chrono::milliseconds(0);
+        ut1.total_emits = 1;
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, ut1);
 
-        ::tc8::stimulus::SdBootTiming sub2;
-        sub2.initial_wait = std::chrono::milliseconds(500);
-        sub2.retry_interval = std::chrono::milliseconds(0);
-        sub2.total_emits = 1;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{}, sub2);
+        ::tc8::stimulus::BootTiming ut2;
+        ut2.initial_wait = std::chrono::milliseconds(500);
+        ut2.retry_interval = std::chrono::milliseconds(0);
+        ut2.total_emits = 1;
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, ut2);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     }

@@ -8,6 +8,8 @@
 
 #include "tc8/upper_tester_protocol.h"
 
+#include "stimulus/boot_timing.h"
+
 namespace tc8::stimulus {
 
 // Builder helpers for tester-side Upper Tester request frames (§4.8.5).
@@ -444,5 +446,57 @@ int sendUpperTesterRequest(std::string_view iface,
                            const std::array<std::uint8_t, 6> &dut_mac,
                            std::uint16_t tester_src_port,
                            const std::vector<std::uint8_t> &ut_payload);
+
+// DUT-side source port of the datagram a boot-cadence OpTriggerSendUdp
+// asks for. Disjoint from the §4.6 UDP_FIELDS per-case literals (20001+)
+// and from `ut::kDataPort` (20000) so a pcap reader can attribute the
+// frame to the egress-provocation stimulus at a glance. The §4.2 SCXML
+// guards never compare ports — only dst_ip and Eth-dst — so the value
+// carries no verdict weight.
+inline constexpr std::uint16_t kEgressBootDutSrcPort = 20010;
+
+// Tester-side source port the boot-cadence UT request rides on; the UT
+// response returns to it. Matches the §4.6 UDP_FIELDS convention
+// (`kUdpFieldsTesterSrcPort`) so tester-originated UT traffic shares one
+// port across spec areas.
+inline constexpr std::uint16_t kEgressBootTesterSrcPort = 20100;
+
+// High-level TESTER boot-time DUT-egress provocation used by the §4.2.4
+// entry-learning / cache-use cases. Renders the spec step "DUT
+// CONFIGURE: Configure DUT to send a UDP Message from <DIface-0>
+// (src=<DIface-0-IP>, dst=<HOST-1-IP>)" literally as a UT 0x02
+// OpTriggerSendUdp request (replacing the historical SubscribeEventgroup
+// → Nack substitute that predated the UT UDP opcodes).
+//
+// Each emit injects one UT request via AF_PACKET; a live DUT answers
+// with (a) the UT response datagram (DUT:`ut::kPort` →
+// tester:`kEgressBootTesterSrcPort`) and (b) the triggered datagram
+// (DUT:`kEgressBootDutSrcPort` → tester:`ut::kDataPort`). Both are
+// DUT-originated UDP to HOST-1-IP, so either satisfies the spec's
+// egress observation — and both exercise the DUT's ARP resolution of
+// `tester_ip_be` the §4.2 verdicts hang on.
+//
+// Emit cadence mirrors `emitSubscribeEventgroupBoot`: sleep
+// `timing.initial_wait` for DUT bring-up, then `timing.total_emits`
+// requests spaced `timing.retry_interval` apart to ride out a DUT whose
+// UT server is not yet listening (the raw-injected request is lost, not
+// queued). Blocks the calling thread for the full envelope. Returns 0
+// if every injection succeeded, or the first negative return from
+// `sendUpperTesterRequest`.
+//
+// `tester_ip_be` / `dut_ip_be` / `dut_mac` are TOPOLOGY identities, not
+// SCXML expectations: §4.2 callers pass `cfg.ipv4.tester_ip` +
+// `cfg.arp.dut_real_*` (the same split as the §4.6 UDP traits and the
+// `dut_real_ip` vs `dut_iface_ip` precedent in `ArpExpectations`).
+// Passing the `arp.tester_ip` expectation knob instead would let a
+// `--negative` override silence the DUT (request sourced from / reply
+// routed to an unroutable IP) rather than shift only the SCXML
+// comparison — exactly the failure mode the ARP_03/05/15 negative rows
+// exist to catch.
+int emitTriggerSendUdpBoot(std::string_view iface,
+                           std::uint32_t tester_ip_be,
+                           std::uint32_t dut_ip_be,
+                           const std::array<std::uint8_t, 6> &dut_mac,
+                           const BootTiming &timing = {});
 
 }  // namespace tc8::stimulus

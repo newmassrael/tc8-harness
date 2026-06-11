@@ -5,7 +5,7 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_10_sm.h"
 
@@ -24,13 +24,12 @@ struct TestCaseTraits<cases::Arp10SM>
     static constexpr std::string_view kSpecSection  = "4.2.4.1";
     static constexpr std::string_view kDescription  =
         "ARP request Hardware Address Length field shall carry ETHERNET_ADDR_LEN (6)";
-    // Subscribe-Nack stimulus to provoke DUT unicast egress — see arp_07.h.
+    // UT 0x02 egress-provocation stimulus — see arp_07.h.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface,
-            ::tc8::stimulus::SubscribeEventgroupTarget{},
-            cfg.stimulus_timing);
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip,
+            cfg.arp.dut_real_ip, cfg.arp.dut_real_mac, cfg.stimulus_timing);
     }
 
     static std::string_view verdictFor(State s) {

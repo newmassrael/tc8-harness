@@ -6,16 +6,16 @@
 
   Spec sequence:
     Step 3: TESTER injects ARP Request (populates DUT cache with MAC1).
-    Step 7: DUT sends UDP with eth_dst=MAC1 (cache hit after first
-            Subscribe stimulus).
+    Step 7: DUT sends UDP with eth_dst=MAC1 (cache hit after the
+            UT 0x02 stimulus).
     Step 11: After <DYNAMIC-ARP-CACHE-TIMEOUT>, cache is forgotten.
-             Subsequent Subscribe forces DUT to re-ARP — DUT emits its
-             own broadcast Request.
+             The kernel-spontaneous DELAY → PROBE transition re-ARPs —
+             DUT emits its own broadcast Request.
 
   SCXML observes the two-phase outcome sequentially. Stimulus is fully
   self-contained: cache timers are compressed via smoke-test.sh's
   per-case sysctl toggle (base_reachable_time_ms=500, gc_stale_time=1,
-  gc_thresh1=0) so the 3 s inter-subscribe sleep fits within the test
+  gc_thresh1=0) so the 3 s post-stimulus sleep fits within the test
   budget.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

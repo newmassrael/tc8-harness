@@ -6,7 +6,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_04_sm.h"
 
@@ -32,8 +32,8 @@ struct TestCaseTraits<cases::Arp04SM>
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{},
-                                                     cfg.stimulus_timing);
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, cfg.stimulus_timing);
     }
 
     static std::string_view verdictFor(State s) {

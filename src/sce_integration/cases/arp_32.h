@@ -6,7 +6,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_32_sm.h"
 
@@ -29,8 +29,9 @@ struct TestCaseTraits<cases::Arp32SM>
     // Two tester ARP Requests back-to-back: sender_hw = kTesterInjectedMac
     // then kTesterInjectedMac2 for the same sender_proto_ip. RFC 826 §2.3
     // "merge" clause requires the second frame to overwrite the first's
-    // entry. Subscribe-Nack stimulus then exercises the cache: the DUT's
-    // unicast UDP back to the tester must carry eth_dst = MAC2.
+    // entry. The UT 0x02 egress-provocation stimulus then exercises the
+    // cache: the DUT's unicast UDP back to the tester must carry
+    // eth_dst = MAC2.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0001;  // Request
@@ -48,8 +49,8 @@ struct TestCaseTraits<cases::Arp32SM>
         spec2.target_ip_be = cfg.arp.dut_real_ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec2);
 
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{},
-                                                     cfg.stimulus_timing);
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, cfg.stimulus_timing);
     }
 
     static std::string_view verdictFor(State s) {

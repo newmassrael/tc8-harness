@@ -3,8 +3,8 @@
   TC8 §4.2.4.2 ARP_32: ARP cache merge on two Requests. Tester injects
   ARP Request with MAC1, then ARP Request with MAC2, same sender_proto_ip
   = <HOST-1-IP>. RFC 826 translation-table update requires the second
-  frame to overwrite the first's entry. Follow-up Subscribe provokes DUT
-  UDP egress back to tester; pass = eth_dst == MAC2.
+  frame to overwrite the first's entry. The follow-up UT 0x02 stimulus
+  provokes DUT UDP egress back to tester; pass = eth_dst == MAC2.
 
   Pass/fail guards all predicate on udp_observed events destined for the
   tester_ip (filters out tester-originated UDP). The arp_observed branch

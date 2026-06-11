@@ -55,10 +55,10 @@ inline constexpr std::array<std::uint8_t, 6> kTesterInjectedMac3{
 enum class ArpLearningVariant { Request, GratuitousResponse };
 
 // Timing envelope for the tester-side ARP Learning stimulus. Unlike the
-// SOME/IP `SdBootTiming`, this primitive injects exactly one frame — ARP
+// shared `BootTiming`, this primitive injects exactly one frame — ARP
 // cache population is idempotent and the DUT's RFC 826 learning
 // algorithm runs on first reception. `initial_wait` gives the DUT kernel
-// a brief settle window before the injection so the subsequent Subscribe
+// a brief settle window before the injection so the subsequent UT 0x02
 // stimulus (which provokes the DUT UDP egress) sees a populated cache.
 struct ArpBootTiming {
     std::chrono::milliseconds initial_wait{200};
@@ -126,7 +126,7 @@ int sendRawEthernet(const std::vector<std::uint8_t> &frame, std::string_view ifa
 // High-level TESTER boot-time ARP Learning emit used by §4.2.4.1 cases
 // ARP_03..06. Sleeps `initial_wait`, then builds and injects the frame
 // matching `variant`. Caller is expected to follow with a second-stage
-// stimulus (e.g. `emitSubscribeEventgroupBoot`) that provokes the DUT's
+// stimulus (e.g. `emitTriggerSendUdpBoot`) that provokes the DUT's
 // unicast UDP egress so the learned cache entry is exercised.
 //
 // Blocks the calling thread for `timing.initial_wait`. Returns 0 on

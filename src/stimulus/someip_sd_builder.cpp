@@ -475,7 +475,7 @@ int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view if
     return 0;
 }
 
-int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target, const SdBootTiming &timing) {
+int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target, const BootTiming &timing) {
     std::this_thread::sleep_for(timing.initial_wait);
 
     // SD §4.2.1: Reboot=1 stays set until Session ID wraps 0xFFFF -> 0x0000.
@@ -974,7 +974,7 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
 }
 
 int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgroupTarget &target,
-                                const SdBootTiming &timing, const SubscribeDestination &dest) {
+                                const BootTiming &timing, const SubscribeDestination &dest) {
     std::this_thread::sleep_for(timing.initial_wait);
 
     constexpr std::uint8_t kSdFlagsBoot = 0xC0;
@@ -993,7 +993,7 @@ int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgrou
 }
 
 int emitSubscribeEventgroupBootTcpOption(std::string_view iface, const SubscribeEventgroupTarget &target,
-                                         const SdBootTiming &timing, const SubscribeDestination &dest) {
+                                         const BootTiming &timing, const SubscribeDestination &dest) {
     std::this_thread::sleep_for(timing.initial_wait);
 
     constexpr std::uint8_t kSdFlagsBoot = 0xC0;

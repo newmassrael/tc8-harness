@@ -806,10 +806,12 @@ run_case() {
     # Tester side is intentionally NOT flushed: Phase 2 entry-learning
     # cases (ARP_03..06) rely on the DUT's cache holding the tester's
     # *injected* MAC (kTesterInjectedMac) that our raw-ARP stimulus puts
-    # there. If the tester's cache were flushed, the subsequent Subscribe
-    # stimulus would trigger tester-kernel ARP resolution via a normal
-    # ARP Request (sender_hw = kernel MAC, not injected MAC). DUT learns
-    # kernel MAC and overwrites the injected entry per RFC 826 §2.3, and
+    # there. If the tester's cache were flushed, any tester-kernel
+    # egress toward the DUT (e.g. the ICMP port-unreachable reply to
+    # the UT-triggered datagram landing on an unbound port) would
+    # trigger tester-kernel ARP resolution via a normal ARP Request
+    # (sender_hw = kernel MAC, not injected MAC). DUT learns kernel MAC
+    # and overwrites the injected entry per RFC 826 §2.3, and
     # ARP_04/06's UDP-egress eth_dst check fails. The NUD_PROBE flakiness
     # on the tester side is addressed via `ucast_solicit=0` in
     # setup-netns.sh instead (keeps cache intact, just disables re-probing).
@@ -856,7 +858,7 @@ run_case() {
 
     # ARP_39/40 exercise the spec's "DUT learns from a tester-injected
     # ARP frame" path. The tester first lets the DUT broadcast its own
-    # ARP Request (cache miss after Subscribe), then injects an ARP
+    # ARP Request (cache miss after the UT 0x02 stimulus), then injects an ARP
     # Request (ARP_39) or Response (ARP_40) carrying the new MAC. For
     # this to work, the tester *kernel* must NOT auto-respond to the
     # DUT's broadcast — otherwise the DUT learns the kernel's veth MAC
@@ -959,7 +961,7 @@ run_case() {
         toggle_neigh_gc=1
         # base_reachable_time_ms = 500 puts the kernel's randomised
         # REACHABLE expiry in [250, 749] ms — always before the first
-        # stimulus Subscribe reaches the DUT (~1.75 s after harness
+        # UT 0x02 request reaches the DUT (~1.75 s after harness
         # start). First DUT egress USE therefore transitions STALE →
         # DELAY; the delay_first_probe_time knob below then schedules
         # DELAY → PROBE, at which point the kernel emits the broadcast
@@ -973,7 +975,7 @@ run_case() {
         # fires DELAY → PROBE and the kernel emits ARP Request.
         # ARP_49's two-UDP flow still works because DELAY→PROBE fires
         # ~1 s after the FIRST USE (~1.75 s into stimulus), which is
-        # AFTER the second Subscribe at ~2.25 s — order UDP1 → UDP2 →
+        # AFTER the second UT request at ~2.25 s — order UDP1 → UDP2 →
         # ARP is preserved on the wire.
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.delay_first_probe_time=1"   >/dev/null
         # Keep `ucast_solicit` at kernel default (3). Setting it to 0 is
@@ -1117,7 +1119,7 @@ run_case() {
 
     # Per-case harness watchdog override — default 7 s is tight for cases
     # whose stimulus wall-time approaches it. Group E uses several seconds
-    # of sleeps between subscribes to let the cache age. Default falls
+    # of sleeps between UT requests to let the cache age. Default falls
     # back to 7.
     local -A CASE_TIMEOUT_SEC=(
         [ARP_48]=9
@@ -3831,9 +3833,11 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "ARP_14|arp.dut_iface_ip=10.99.99.99|fail:sender_proto_ip_not_dut_iface"
         "ARP_15|arp.tester_ip=10.99.99.99|fail:target_proto_ip_not_tester"
         # §4.2.4.1 Phase 2 (ARP_03..06) negatives:
-        #   ARP_03/05: override arp.tester_ip so the stimulus injects a
-        #     *wrong* sender_proto_ip; DUT's cache stays cold for the real
-        #     tester_ip; DUT unicast Nack reply then triggers a real ARP
+        #   ARP_03/05: override arp.tester_ip so the learning stimulus
+        #     injects a *wrong* sender_proto_ip; DUT's cache stays cold
+        #     for the real tester IP; the UT-provoked unicast egress
+        #     (envelope pinned to the ipv4.tester_ip topology identity,
+        #     untouched by this override) then triggers a real ARP
         #     Request → case lands on fail_unexpected_arp_request.
         #   ARP_04/06: override arp.tester_mac so the SCXML expected.tester_mac
         #     mismatches the MAC actually injected (hardcoded in arp_builder.h);

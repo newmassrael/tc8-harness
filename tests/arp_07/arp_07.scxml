@@ -5,8 +5,8 @@
   unicast packet to the tester it must first ARP-resolve the tester's IP
   by broadcasting an ARP Request. setup-netns.sh flushes the DUT's neigh
   table after the reachability ping, so cache-miss is the steady-state
-  precondition; the harness then sends a FindService stimulus to provoke
-  a unicast OfferService reply, which is what triggers the ARP Request.
+  precondition; the harness then sends a UT 0x02 OpTriggerSendUdp
+  request whose unicast reply path is what triggers the ARP Request.
 
   The case passes on observation of any ARP Request frame; an ARP frame
   with a non-Request opcode is an explicit conformance failure.

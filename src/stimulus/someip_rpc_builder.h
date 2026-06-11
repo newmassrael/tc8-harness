@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-#include "stimulus/someip_sd_builder.h"  // SdBootTiming for shared envelope.
+#include "stimulus/someip_sd_builder.h"  // BootTiming for shared envelope.
 
 namespace tc8::stimulus {
 
@@ -62,7 +62,7 @@ struct MethodRequestDestination {
     std::uint16_t port = 30502;
 };
 
-// Tester-side Method Request emit envelope mirrored on `SdBootTiming` so
+// Tester-side Method Request emit envelope mirrored on `BootTiming` so
 // callers can chain `emitFindServiceBoot` → `emitMethodRequestAfter` with
 // the same wall-time vocabulary. `pre_emit_wait` is the gap *after* the
 // last preceding stimulus (FindService) so the DUT has already published

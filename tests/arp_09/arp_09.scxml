@@ -2,8 +2,8 @@
 <!--
   TC8 §4.2.4.1 ARP_09: ARP request sending (Protocol Type check). The
   DUT's emitted ARP Request must carry Protocol Type = 0x0800 (IPv4,
-  ARP_PROTOCOL_IP per RFC 826). Stimulus reuses the §5.1 Subscribe emit
-  so the DUT's unicast Nack reply forces an ARP Request — see
+  ARP_PROTOCOL_IP per RFC 826). The UT 0x02 egress-provocation
+  stimulus forces a DUT unicast reply and therefore an ARP Request — see
   arp_07.scxml for the rationale.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

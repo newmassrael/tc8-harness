@@ -7,7 +7,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_39_sm.h"
 
@@ -28,13 +28,15 @@ struct TestCaseTraits<cases::Arp39SM>
         "ARP learning via received Request — DUT must populate cache from "
         "tester-injected Request and use it for subsequent UDP egress";
     // Two-phase split-stimulus matching spec steps 4 → 5 → 9:
-    //   1. Subscribe → DUT processes, queues Nack UDP back to tester,
-    //      hits cold cache, broadcasts ARP Request (spec step 4 — SCXML
-    //      wait_dut_request observes).
+    //   1. UT 0x02 OpTriggerSendUdp (the spec's "Configure DUT to send a
+    //      UDP Message" step, literally) → DUT queues the UT response +
+    //      triggered datagram toward tester_ip, hits cold cache,
+    //      broadcasts ARP Request (spec step 4 — SCXML wait_dut_request
+    //      observes).
     //   2. Inject ARP Request with sender_hw = MAC-ADDR2 (spec step 5).
     //      Linux populates neigh table via RFC 826 §2.3 (sender_ip is
     //      tester_ip, target_ip is DUT_IP so DUT is the target). The
-    //      kernel queue-pending Nack from step 1 immediately drains via
+    //      kernel queue-pending UDP from step 1 immediately drains via
     //      `neigh_resolve_output_skb_queue` once the entry transitions
     //      from INCOMPLETE to REACHABLE — Eth-dst = MAC2 (spec step 9).
     //
@@ -45,16 +47,17 @@ struct TestCaseTraits<cases::Arp39SM>
     // injection. Confirmed via pcap analysis on first attempt: pre-fix
     // the DUT's UDP carried the kernel's veth MAC instead of MAC2.
     //
-    // No second Subscribe needed — the queued Nack from step 1 fires
+    // No second UT request needed — the queued frames from step 1 drain
     // exactly once when the ARP entry resolves.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
-        // Single Subscribe with full bootstrap initial_wait (tc8-dut
+        // Single UT request with full bootstrap initial_wait (tc8-dut
         // starts ~0.5 s after harness; 1500 ms gives ample margin).
-        ::tc8::stimulus::SdBootTiming sub_timing;
-        sub_timing.initial_wait = std::chrono::milliseconds(1500);
-        sub_timing.retry_interval = std::chrono::milliseconds(0);
-        sub_timing.total_emits = 1;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{}, sub_timing);
+        ::tc8::stimulus::BootTiming ut_timing;
+        ut_timing.initial_wait = std::chrono::milliseconds(1500);
+        ut_timing.retry_interval = std::chrono::milliseconds(0);
+        ut_timing.total_emits = 1;
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, ut_timing);
 
         // emitArpFromTester's default 200 ms settle gives the DUT's
         // own broadcast Request time to reach pcap before our injection.

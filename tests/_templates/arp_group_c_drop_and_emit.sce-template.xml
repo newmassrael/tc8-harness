@@ -2,9 +2,9 @@
 <!--
   §4.2.4.2 Phase 3b Group C sub-shape 1 body: the DUT rejects a malformed
   ARP frame (dropped at RFC 826 ar$hrd / ar$pro / target_ip check) so the
-  cache is not populated. Follow-up Subscribe stimulus provokes DUT
-  unicast UDP egress, and a conformant DUT must emit its own ARP Request
-  first to resolve the tester's MAC.
+  cache is not populated. The follow-up UT 0x02 egress-provocation
+  stimulus provokes DUT unicast UDP egress, and a conformant DUT must
+  emit its own ARP Request first to resolve the tester's MAC.
 
   Shared body for ARP_22 / ARP_28 / ARP_38. Call sites differ only in
   the per-case top XML comment narrative and the <scxml name="...">

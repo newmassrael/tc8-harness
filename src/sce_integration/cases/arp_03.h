@@ -6,7 +6,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_03_sm.h"
 
@@ -36,15 +36,15 @@ struct TestCaseTraits<cases::Arp03SM>
     //   1. Inject an ARP Request sourced from kTesterInjectedMac with
     //      sender-IP = tester_ip, target-IP = dut_iface_ip. DUT learns
     //      <tester_ip, kTesterInjectedMac> via RFC 826 §2.3 reception.
-    //   2. Subscribe-Nack stimulus (same as ARP_07..15) — triggers DUT
-    //      unicast UDP back to tester_ip, exercising the learned cache
-    //      entry. A conformant DUT sends the UDP without an intervening
-    //      ARP Request.
+    //   2. UT 0x02 egress-provocation stimulus (same as ARP_07..15) —
+    //      triggers DUT unicast UDP back to tester_ip, exercising the
+    //      learned cache entry. A conformant DUT sends the UDP without
+    //      an intervening ARP Request.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{},
-                                                     cfg.stimulus_timing);
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, cfg.stimulus_timing);
     }
 
     static std::string_view verdictFor(State s) {

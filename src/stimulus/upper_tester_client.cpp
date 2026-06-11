@@ -1,6 +1,7 @@
 #include "stimulus/upper_tester_client.h"
 
 #include <algorithm>
+#include <thread>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -420,6 +421,36 @@ int sendUpperTesterRequest(std::string_view iface,
     spec.ip_protocol = kIpProtoUdp;
     const auto frame = buildIpv4Frame(spec, udp);
     return sendRawEthernet(frame, iface);
+}
+
+int emitTriggerSendUdpBoot(std::string_view iface,
+                           std::uint32_t tester_ip_be,
+                           std::uint32_t dut_ip_be,
+                           const std::array<std::uint8_t, 6> &dut_mac,
+                           const BootTiming &timing) {
+    // Payload content carries no verdict weight (§4.2 guards compare
+    // dst_ip + Eth-dst only); a recognisable literal helps pcap readers.
+    static constexpr std::uint8_t kPayload[] = {'T', 'C', '8', '-', 'E', 'G',
+                                                'R', 'E', 'S', 'S'};
+
+    std::this_thread::sleep_for(timing.initial_wait);
+
+    for (int i = 0; i < timing.total_emits; ++i) {
+        if (i > 0) {
+            std::this_thread::sleep_for(timing.retry_interval);
+        }
+        const auto req = buildTriggerSendUdpRequest(
+            static_cast<std::uint8_t>(1 + i), kEgressBootDutSrcPort,
+            tester_ip_be, ut::kDataPort, kPayload,
+            static_cast<std::uint16_t>(sizeof(kPayload)));
+        const int rc = sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be,
+                                              dut_mac,
+                                              kEgressBootTesterSrcPort, req);
+        if (rc != 0) {
+            return rc;
+        }
+    }
+    return 0;
 }
 
 }  // namespace tc8::stimulus

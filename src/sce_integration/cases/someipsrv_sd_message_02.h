@@ -101,7 +101,7 @@ struct TestCaseTraits<cases::SdMessage02SM>
                 ::tc8::stimulus::FindServiceTarget find_inst1{};
                 find_inst1.service_id = service_id;
                 find_inst1.instance_id = c.extracted_instance_id_1;
-                ::tc8::stimulus::SdBootTiming timing{};
+                ::tc8::stimulus::BootTiming timing{};
                 timing.initial_wait = std::chrono::milliseconds{100};
                 timing.retry_interval = std::chrono::milliseconds{500};
                 timing.total_emits = 2;
@@ -115,7 +115,7 @@ struct TestCaseTraits<cases::SdMessage02SM>
                 ::tc8::stimulus::FindServiceTarget find_inst2{};
                 find_inst2.service_id = service_id;
                 find_inst2.instance_id = c.extracted_instance_id_2;
-                ::tc8::stimulus::SdBootTiming timing{};
+                ::tc8::stimulus::BootTiming timing{};
                 timing.initial_wait = std::chrono::milliseconds{100};
                 timing.retry_interval = std::chrono::milliseconds{500};
                 timing.total_emits = 2;

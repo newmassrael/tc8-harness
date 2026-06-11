@@ -3,7 +3,7 @@
   TC8 §4.2.4.1 ARP_03: ARP entry learned on ARP Request (no ARP Request).
   TESTER injects an ARP Request carrying <HOST-1-IP, MAC-ADDR1> so the DUT
   populates its cache via RFC 826 §2.3 learning. The subsequent
-  Subscribe-Nack stimulus provokes DUT unicast UDP egress, which should
+  UT 0x02 egress-provocation stimulus provokes DUT unicast UDP egress, which should
   reuse the learned entry — the DUT must NOT emit its own ARP Request.
 
   Pass criterion is absence: the deadline expires without an ARP Request

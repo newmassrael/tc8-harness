@@ -3,8 +3,8 @@
   §4.2.4.2 Phase 3b Group C sub-shape 2 body: ARP cache merge under two
   successive tester injections with sender_proto_ip = HOST-1-IP. RFC 826
   translation-table update requires the second frame to overwrite the
-  first's entry. Follow-up Subscribe provokes DUT UDP egress; pass =
-  eth_dst == MAC2 (second-injection dominance).
+  first's entry. The follow-up UT 0x02 stimulus provokes DUT UDP egress;
+  pass = eth_dst == MAC2 (second-injection dominance).
 
   Shared body for ARP_32 / ARP_33 / ARP_34 / ARP_35 (Req/Req, Rsp/Rsp,
   Req/Rsp, Rsp/Req injection pairs). Call sites differ only in the

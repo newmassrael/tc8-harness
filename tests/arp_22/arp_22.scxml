@@ -3,7 +3,7 @@
   TC8 §4.2.4.2 ARP_22: Gratuitous ARP Response reception with unknown
   hw_type. Tester injects a malformed Response, DUT kernel drops it at
   ar$hrd check (RFC 826 §2.3), so the cache is NOT populated. The
-  follow-up Subscribe stimulus provokes DUT unicast UDP egress, and a
+  follow-up UT 0x02 stimulus provokes DUT unicast UDP egress, and a
   conformant DUT must emit its own ARP Request first to resolve the
   tester's MAC.
 

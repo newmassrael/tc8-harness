@@ -6,7 +6,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_22_sm.h"
 
@@ -31,9 +31,10 @@ struct TestCaseTraits<cases::Arp22SM>
     //      (ARP_HARDWARE_TYPE_UNKNOWN). Linux drops the frame at its ARP
     //      reception algorithm (RFC 826 §2.3 step 1: "Do I have the
     //      hardware type in ar$hrd?") so the DUT's cache is NOT updated.
-    //   2. Subscribe-Nack stimulus to force DUT unicast UDP egress. With
-    //      no cache entry for `tester_ip`, a conformant DUT must emit its
-    //      own ARP Request to resolve the tester MAC before the UDP.
+    //   2. UT 0x02 egress-provocation stimulus to force DUT unicast UDP
+    //      egress. With no cache entry for `tester_ip`, a conformant DUT
+    //      must emit its own ARP Request to resolve the tester MAC before
+    //      the UDP.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.hw_type = 0xFFFF;  // ARP_HARDWARE_TYPE_UNKNOWN
@@ -42,8 +43,8 @@ struct TestCaseTraits<cases::Arp22SM>
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.arp.tester_ip;  // gratuitous: target_ip == sender_ip
         ::tc8::stimulus::emitArpFromTester(iface, spec);
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{},
-                                                     cfg.stimulus_timing);
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, cfg.stimulus_timing);
     }
 
     static std::string_view verdictFor(State s) {

@@ -67,7 +67,7 @@ private:
     std::vector<std::string> expect_tokens_;
 
     // Stimulus timing knobs — optional so unset values inherit
-    // `SdBootTiming{}` defaults inside TestConfig. Used by §5.1 cases with
+    // `BootTiming{}` defaults inside TestConfig. Used by §5.1 cases with
     // tester-initiated packet emits (FORMAT_12/13); real DUTs with slower
     // SD init override `--stimulus-wait` to widen the initial pause.
     std::optional<int> stimulus_wait_ms_;

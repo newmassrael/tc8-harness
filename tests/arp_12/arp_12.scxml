@@ -4,8 +4,8 @@
   DUT's emitted ARP Request must carry Operation Code = 1
   (OPERATION_REQUEST per RFC 826). ARP_07 verifies the same opcode at
   the "did the DUT emit a request" level; ARP_12 phrases the check as
-  a field-level conformance. Stimulus reuses the §5.1 Subscribe emit
-  so the DUT's unicast Nack reply forces an ARP Request — see
+  a field-level conformance. The UT 0x02 egress-provocation stimulus
+  forces a DUT unicast reply and therefore an ARP Request — see
   arp_07.scxml for the rationale.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

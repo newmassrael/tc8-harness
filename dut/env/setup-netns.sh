@@ -132,8 +132,8 @@ ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.neigh.${VETH_D}.delay_first_probe_t
 # triggering outbound ARP during the listen window. Flushing the tester
 # cache between cases is NOT an option: Phase 2 entry-learning (ARP_03..06)
 # relies on the DUT keeping the tester's *injected* MAC (kTesterInjectedMac)
-# in its cache, and a tester-kernel-initiated ARP during Subscribe would
-# overwrite that per RFC 826 §2.3.
+# in its cache, and a tester-kernel-initiated ARP during the stimulus
+# window would overwrite that per RFC 826 §2.3.
 ip netns exec "$TESTER_NS" sysctl -wq "net.ipv4.neigh.${VETH_T}.ucast_solicit=0" >/dev/null
 
 # Multicast route needed for SOME/IP-SD (224.244.224.245 in vsomeip default).
@@ -178,8 +178,8 @@ fi
 # when it tries to emit a unicast response, so flush the DUT's table here —
 # once, at setup — after the ping has served its sanity purpose. The tester's
 # own neighbor cache is intentionally left populated so tester→DUT stimulus
-# (FindService, SubscribeEventgroup) doesn't eat an ARP round-trip before
-# every case.
+# (UT requests, FindService, SubscribeEventgroup) doesn't eat an ARP
+# round-trip before every case.
 ip -n "$DUT_NS" neigh flush dev "$VETH_D"
 
 cat <<INFO

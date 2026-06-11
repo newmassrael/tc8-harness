@@ -7,6 +7,8 @@
 #include <string_view>
 #include <vector>
 
+#include "stimulus/boot_timing.h"
+
 namespace tc8::stimulus {
 
 // Target identity of a FindService — the "what we're looking for" half of
@@ -37,17 +39,9 @@ struct FindServiceParams {
     std::uint8_t sd_flags = 0xC0;
 };
 
-// Timing envelope for the tester-side SD boot sequence:
-//   - `initial_wait` before the first emit, so the DUT's SD init
-//     (vsomeip initial_delay_min/max + bootstrap) can complete.
-//   - `retry_interval` between consecutive emits.
-//   - `total_emits` total FindService datagrams sent.
-// Total blocking time = initial_wait + (total_emits - 1) * retry_interval.
-struct SdBootTiming {
-    std::chrono::milliseconds initial_wait{1500};
-    std::chrono::milliseconds retry_interval{1000};
-    int total_emits{2};
-};
+// Timing envelope for the tester-side SD boot sequences lives in
+// `stimulus/boot_timing.h` (`BootTiming`) — shared with the UT
+// OpTriggerSendUdp boot emitter in `stimulus/upper_tester_client.h`.
 
 // Builds the 44-byte SOME/IP-SD FindService datagram payload (16-byte
 // SOME/IP header + 28-byte SD payload with one FindService entry and no
@@ -91,7 +85,7 @@ int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view if
 // if every emit succeeded, or the first negative return from
 // `sendSdMulticast` on any failure (no retry-on-failure — the cadence
 // is fixed so higher layers can reason about total wall time).
-int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target = {}, const SdBootTiming &timing = {});
+int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target = {}, const BootTiming &timing = {});
 
 
 // Tester endpoint advertised inside a SubscribeEventgroup's IPv4 Endpoint
@@ -243,7 +237,7 @@ struct SubscribeDestination {
 // on success or the first negative return from the underlying send
 // logic.
 int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgroupTarget &target = {},
-                                const SdBootTiming &timing = {}, const SubscribeDestination &dest = {});
+                                const BootTiming &timing = {}, const SubscribeDestination &dest = {});
 
 // §5.1.6 SOMEIP_ETS_096 helper: emit boot-time SubscribeEventgroup whose
 // IPv4 Endpoint option declares l4proto = 0x06 (TCP) instead of 0x11
@@ -255,7 +249,7 @@ int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgrou
 // Same blocking + cadence semantics as `emitSubscribeEventgroupBoot`;
 // only the option's `l4proto` byte differs on the wire.
 int emitSubscribeEventgroupBootTcpOption(std::string_view iface, const SubscribeEventgroupTarget &target = {},
-                                         const SdBootTiming &timing = {}, const SubscribeDestination &dest = {});
+                                         const BootTiming &timing = {}, const SubscribeDestination &dest = {});
 
 // §5.1.6 SOMEIP_ETS_093 helper: emit one SubscribeEventgroup with the
 // caller's exact `session_id` + `sd_flags` (no boot cadence). Tester

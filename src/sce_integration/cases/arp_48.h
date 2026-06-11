@@ -8,7 +8,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/someip_sd_builder.h"
+#include "stimulus/upper_tester_client.h"
 
 #include "arp_48_sm.h"
 
@@ -32,16 +32,17 @@ struct TestCaseTraits<cases::Arp48SM>
     // → cache-expiry → ARP-request flow:
     //   1. Inject ARP Request (sender_hw=MAC1) — DUT cache populated
     //      REACHABLE via RFC 826 §2.3 (spec step 3).
-    //   2. Subscribe → DUT UDP egress with eth_dst=MAC1 (spec step 7).
-    //      Per the smoke-test.sh per-case sysctls, the entry has
-    //      already transitioned REACHABLE → STALE (base_reachable_time
-    //      ms=500, max-randomised expiry 749 ms, well before the
-    //      ~1.75 s when stim1's UDP fires). DUT USE moves it to DELAY.
+    //   2. UT 0x02 OpTriggerSendUdp → DUT UDP egress with eth_dst=MAC1
+    //      (spec step 7). Per the smoke-test.sh per-case sysctls, the
+    //      entry has already transitioned REACHABLE → STALE
+    //      (base_reachable_time ms=500, max-randomised expiry 749 ms,
+    //      well before the ~1.75 s when stim1's UDP fires). DUT USE
+    //      moves it to DELAY.
     //   3. 3 s sleep covers the DELAY → PROBE transition
     //      (delay_first_probe_time=1) and the resulting broadcast ARP
     //      Request (ucast_solicit=0 skips the unicast probe path).
     //
-    // No second Subscribe — the kernel-spontaneous PROBE is the
+    // No second UT request — the kernel-spontaneous PROBE is the
     // ARP-Request observation; stim2 would be redundant and only adds
     // post-stimulus drain noise. SCXML walks wait_udp1 →
     // wait_arp_request → pass on the {UDP1, ARP} wire pair.
@@ -49,11 +50,12 @@ struct TestCaseTraits<cases::Arp48SM>
         ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.arp.dut_real_ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
 
-        ::tc8::stimulus::SdBootTiming sub_timing;
-        sub_timing.initial_wait = std::chrono::milliseconds(1500);
-        sub_timing.retry_interval = std::chrono::milliseconds(0);
-        sub_timing.total_emits = 1;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, ::tc8::stimulus::SubscribeEventgroupTarget{}, sub_timing);
+        ::tc8::stimulus::BootTiming ut_timing;
+        ut_timing.initial_wait = std::chrono::milliseconds(1500);
+        ut_timing.retry_interval = std::chrono::milliseconds(0);
+        ut_timing.total_emits = 1;
+        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
+                                                cfg.arp.dut_real_mac, ut_timing);
 
         // Wait for DELAY → PROBE (delay_first_probe_time=1 s) plus
         // tc8-dut-jitter / scheduling margin.

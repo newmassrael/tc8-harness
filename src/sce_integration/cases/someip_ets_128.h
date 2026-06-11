@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128
                          const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface) {
         // Burst A: Major = 0xFF (any major), Minor = 0 (default).
-        ::tc8::stimulus::SdBootTiming timing_a{};
+        ::tc8::stimulus::BootTiming timing_a{};
         timing_a.initial_wait    = std::chrono::milliseconds(1500);
         timing_a.retry_interval  = std::chrono::milliseconds(100);
         timing_a.total_emits     = 10;
@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128
 
         // Burst B: Major = 1 (default), Minor = 0xFFFFFFFF (any minor).
         // initial_wait = 0 — already in main phase after burst A.
-        ::tc8::stimulus::SdBootTiming timing_b{};
+        ::tc8::stimulus::BootTiming timing_b{};
         timing_b.initial_wait    = std::chrono::milliseconds(0);
         timing_b.retry_interval  = std::chrono::milliseconds(100);
         timing_b.total_emits     = 10;
