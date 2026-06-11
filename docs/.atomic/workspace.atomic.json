@@ -152,6 +152,10 @@
         {
           "file": "src/stimulus/upper_tester_client.h",
           "kind": "references"
+        },
+        {
+          "file": "dut/env/topology.d/external.conf",
+          "kind": "references"
         }
       ]
     },
@@ -207,6 +211,10 @@
         },
         {
           "file": "src/stimulus/upper_tester_client.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/cases/_arp_traits_base.h",
           "kind": "references"
         }
       ]

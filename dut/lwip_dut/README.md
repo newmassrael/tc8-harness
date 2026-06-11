@@ -261,16 +261,20 @@ behaviour-shaping ones:
 - Stimulus-suppression iptables leaks from killed prior runs are
   handled by smoke-test.sh flushing the harness-owned `tc8-stimulus`
   chain at bring-up — no fixture-side rule knowledge.
-- **Preflight must not warm the DUT's primary-tester ARP entry**
-  (`ut-ping --source-ip 172.16.0.4`): the readiness probe's reply path
-  makes the DUT ARP-resolve the probe's source address, and this
-  fixture has no way to flush the lwIP ARP table afterwards (per-case
-  neigh conditioning is a Linux-netns affordance). Probing from the
-  primary tester IP handed every freshly respawned DUT a warm
-  `<172.16.0.1>` entry and silently broke the §4.2 cold-cache cases —
-  the DUT emitted its UDP egress without the ARP Request the cases
-  assert on. Pinning the probe source to the tester alias keeps the
-  warm entry on an address no §4.2 assertion references.
+- **Preflights must not warm the DUT's primary-tester ARP entry**
+  (`ut-ping --source-ip` + `TC8_TOPOLOGY_PREFLIGHT_SRC_IP`): every
+  probe's reply path makes the DUT ARP-resolve the probe's source
+  address — and the host's own ARP request for the DUT IP teaches the
+  DUT `<sender_ip, host MAC>` per RFC 826 target-is-us learning — and
+  this fixture has no way to flush the lwIP ARP table afterwards
+  (per-case neigh conditioning is a Linux-netns affordance). Probing
+  from the primary tester IP broke the §4.2 cold-cache cases two ways:
+  the per-respawn readiness poll warmed every case until the poll was
+  alias-pinned, and the once-per-run external.conf preflight (ICMP
+  reachability + UT probe) kept warming the bring-up DUT that serves
+  position 1 until `TC8_TOPOLOGY_PREFLIGHT_SRC_IP` steered it to the
+  alias too. The warm entry now lands on an address no §4.2 assertion
+  references.
 
 ## ARP egress provocation (SOME/IP-blocked bucket, RETIRED 2026-06-11)
 
