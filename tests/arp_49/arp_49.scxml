@@ -16,13 +16,21 @@
   Three states walk the {UDP1, UDP2, ARP-Request} wire sequence. The
   in-between USE-while-cached behavior is the "busy" aspect — the
   DUT must still expire the entry on schedule despite the traffic.
+  The guards are neutral to the conditioning strategy the trait
+  stimulus selects on arp.ut_cache_conditioning_s:
 
-  Linux backstop: smoke-test.sh sets delay_first_probe_time=1 +
-  ucast_solicit=0 so the DELAY entered at first USE proceeds to
-  PROBE → broadcast ARP after 1 s. All stimulus-driven UDP (each UT
-  0x02 emit yields the response + triggered-datagram pair; the second
-  emit lands at ~2.25 s) fires before that PROBE, preserving the
-  UDP1 → UDP2 → ARP wire order.
+  Linux reference DUT (knob 0): smoke-test.sh sets
+  delay_first_probe_time=1 + ucast_solicit=0 so the DELAY entered at
+  first USE proceeds to PROBE → broadcast ARP after 1 s. All
+  stimulus-driven UDP (each UT 0x02 emit yields the response +
+  triggered-datagram pair; the second emit lands at ~2.25 s) fires
+  before that PROBE, preserving the UDP1 → UDP2 → ARP wire order.
+
+  UT-conditioned DUT (knob = stack timeout; lwIP fixture): UT 0x17
+  ages the table by half (entry survives — UDP2 still rides MAC1),
+  then by the remaining half (entry freed); the step-13 0x02 egress
+  finds no entry and the DUT's queue-and-query Request is the
+  step-15 observation. Same wire order, virtual time.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

@@ -8,15 +8,20 @@
     Step 3: TESTER injects ARP Request (populates DUT cache with MAC1).
     Step 7: DUT sends UDP with eth_dst=MAC1 (cache hit after the
             UT 0x02 stimulus).
-    Step 11: After <DYNAMIC-ARP-CACHE-TIMEOUT>, cache is forgotten.
-             The kernel-spontaneous DELAY → PROBE transition re-ARPs —
-             DUT emits its own broadcast Request.
+    Step 11: After <DYNAMIC-ARP-CACHE-TIMEOUT>, cache is forgotten —
+             DUT emits its own ARP Request.
 
-  SCXML observes the two-phase outcome sequentially. Stimulus is fully
-  self-contained: cache timers are compressed via smoke-test.sh's
-  per-case sysctl toggle (base_reachable_time_ms=500, gc_stale_time=1,
-  gc_thresh1=0) so the 3 s post-stimulus sleep fits within the test
-  budget.
+  SCXML observes the two-phase outcome sequentially; the guards are
+  neutral to the conditioning strategy the trait stimulus selects on
+  arp.ut_cache_conditioning_s:
+    * Linux reference DUT (knob 0): cache timers compressed via
+      smoke-test.sh's per-case sysctl toggle (base_reachable_time_ms
+      =500, gc_stale_time=1); the kernel-spontaneous DELAY → PROBE
+      transition is the step-11 Request.
+    * UT-conditioned DUT (knob = stack timeout; lwIP fixture): UT
+      0x17 ages the table past the timeout, a second 0x02 renders
+      the spec's step-9 send, and the DUT's queue-and-query Request
+      is the step-11 observation.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

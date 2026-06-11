@@ -157,6 +157,7 @@ TEST(ApplyExpectToken_Arp, AcceptsAllArpKeys) {
     EXPECT_TRUE(applyExpectToken("arp.dut_real_mac=11:22:33:44:55:66", e));
     EXPECT_TRUE(applyExpectToken("arp.tester_mac2=02:00:00:00:00:A2", e));
     EXPECT_TRUE(applyExpectToken("arp.tester_mac3=02:00:00:00:00:A3", e));
+    EXPECT_TRUE(applyExpectToken("arp.ut_cache_conditioning_s=300", e));
     EXPECT_EQ(e.dut_iface_ip, 0x0200'10ACu);
     EXPECT_EQ(e.tester_ip, 0x0100'10ACu);
     const std::array<std::uint8_t, 6> expected_mac{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
@@ -170,6 +171,15 @@ TEST(ApplyExpectToken_Arp, AcceptsAllArpKeys) {
     EXPECT_EQ(e.tester_mac2, expected_tester_mac2);
     const std::array<std::uint8_t, 6> expected_tester_mac3{0x02, 0x00, 0x00, 0x00, 0x00, 0xA3};
     EXPECT_EQ(e.tester_mac3, expected_tester_mac3);
+    EXPECT_EQ(e.ut_cache_conditioning_s, 300u);
+}
+
+TEST(ApplyExpectToken_Arp, RejectsOverflowUtCacheConditioning) {
+    ::tc8::ArpExpectations e{};
+    // u16 knob — the 0x17 wire param is <param:u16>.
+    EXPECT_FALSE(applyExpectToken("arp.ut_cache_conditioning_s=65536", e));
+    EXPECT_TRUE(applyExpectToken("arp.ut_cache_conditioning_s=65535", e));
+    EXPECT_EQ(e.ut_cache_conditioning_s, 65535u);
 }
 
 TEST(ApplyExpectToken_Arp, RejectsMissingPrefix) {

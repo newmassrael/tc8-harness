@@ -170,6 +170,19 @@ ARP_DUT_EXPECT_STATIC=(
     --expect "arp.tester_mac2=$ARP_TESTER_INJECTED_MAC2"
     --expect "arp.tester_mac3=$ARP_TESTER_INJECTED_MAC3"
 )
+# §4.2.4.2 ARP_48/49 UT-channel cache conditioning: a topology whose
+# DUT advertises UT 0x17 OpConditionArpCache declares its
+# <DYNAMIC-ARP-CACHE-TIMEOUT> via TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S (see
+# the profile contract above); the knob rides into the trait stimulus,
+# which then ages the DUT's table through the UT channel instead of
+# relying on the Linux netns sysctl compression. Evaluated here —
+# init_expectation_defaults runs after the --topology-conf source, so
+# fixture confs (lwip-tap-fixture.conf) reach this branch.
+if [[ -n "${TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S:-}" ]]; then
+    ARP_DUT_EXPECT_STATIC+=(
+        --expect "arp.ut_cache_conditioning_s=$TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S"
+    )
+fi
 
 # §4.3 ICMPv4 pilot cases (TYPE_08/09/10) compare captured Echo Reply
 # identifier / sequence against operator-supplied values. The matching
@@ -275,6 +288,23 @@ DUT_IP4_2=172.17.0.2
 #                                 per case; 0 = a persistent external
 #                                 DUT is assumed already running
 #     TOPOLOGY_MAX_WORKERS        worker cap ("" = no cap)
+#
+#   Optional variables:
+#     TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S
+#                                 non-empty = the DUT advertises UT
+#                                 0x17 OpConditionArpCache and this is
+#                                 its <DYNAMIC-ARP-CACHE-TIMEOUT> in
+#                                 seconds (lwIP fixture: compile-time
+#                                 ARP_MAXAGE = 300). Rides into the
+#                                 harness as --expect
+#                                 arp.ut_cache_conditioning_s so the
+#                                 ARP_48/49 stimulus conditions the
+#                                 cache through the UT channel; also
+#                                 suppresses the Group E
+#                                 conditioning-skip INFO (the UT path
+#                                 carries the case instead of the
+#                                 netns sysctls). Empty/unset = only
+#                                 TOPOLOGY_DUT_CONDITIONING decides.
 #
 #   Functions (every one must log its own failures — no silent fail):
 #     topology_preflight                 startup environment validation
@@ -996,7 +1026,11 @@ run_case() {
         # would no-op and log an error. The DELAY → PROBE path is the
         # primary ARP-request trigger for Group E; GC is incidental.
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=1"             >/dev/null
-    elif [[ "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ]]; then
+    elif [[ ( "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ) \
+            && -z "${TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S:-}" ]]; then
+        # When the topology declares TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S the
+        # case conditions the DUT cache through UT 0x17 instead — no
+        # sysctl substitute is being skipped, so no INFO either.
         log_conditioning_skip "$W" "$case_id" \
             "compressed neigh-cache expiry timers — the case's STALE/DELAY/PROBE window assumes a conditioned Linux reference DUT"
     fi

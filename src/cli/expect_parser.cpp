@@ -248,6 +248,12 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
             return false;
         }
         e.tester_linklocal_ip = ip;
+    } else if (key == "ut_cache_conditioning_s") {
+        std::uint64_t n = 0;
+        if (!parseNumeric(val, n) || n > 0xFFFF) {
+            return false;
+        }
+        e.ut_cache_conditioning_s = static_cast<std::uint16_t>(n);
     } else {
         return false;
     }

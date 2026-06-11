@@ -51,24 +51,36 @@ re-pointed at the tester alias so freshly respawned DUTs start with the
 primary tester IP genuinely cold in their ARP table (see the fixture
 notes below). 19 of the 24 ARP egress cases PASS — including
 `ARP_33`-sibling `ARP_34` and Group D `ARP_39/_40`, which the Linux
-reference known-fails — 3 join the deviation set, and `ARP_48/_49`
-remain `expected:false` for want of per-case ARP-timer conditioning.
+reference known-fails — and 3 join the deviation set.
+
+A second 2026-06-11 PM follow-up retired the last ARP gap: UT 0x17
+OpConditionArpCache ages the stack's own table by virtual seconds
+(driving `etharp_tmr()` under the core lock — the exact code path
+wall-clock aging takes), so `ARP_48/_49`'s re-ARP-after-timeout
+envelope no longer needs the netns sysctl compression only the Linux
+reference DUT can offer. The fixture conf declares
+`TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S=300` (tracking the compile-time
+`ARP_MAXAGE` this build inherits from the lwIP default); both cases
+PASS with pcap-verified spec wire order (learn → UDP(MAC1) [→
+UDP2(MAC1) at half timeout] → DUT broadcast ARP Request after the
+full timeout). UT 0x16 OpQueryCapabilities accompanies it — the
+bitmap answer is what lets a tester see this DUT's sparse opcode set
+(0x01..0x0B + 0x13..0x17) precisely, where OpPing's contiguous
+feature-level byte honestly reports only 0x0B.
 
 | Bucket | Count | Notes |
 |---|---|---|
-| Meaningful PASS | 207 | 105 non-TCP + 102 TCP |
+| Meaningful PASS | 209 | 107 non-TCP + 102 TCP |
 | lwIP stack deviation (`platform_known_fail`) | 23 | 9 non-TCP + 14 TCP, each verified against lwIP source and/or pcap (below) |
-| Blocked: no per-case ARP-timer conditioning | 2 | `ARP_48/_49` — re-ARP-after-timeout envelope needs compressed cache timers; lwIP ages at compile-time `ARP_MAXAGE` (300 s) and no UT opcode conditions it |
 
 `dut/lwip_dut/inventory_overrides.json` is the machine-readable single
-source of truth for the last bucket plus the deviation set; this
-table is a dated report.
+source of truth for the deviation set; this table is a dated report.
 
 The 39 `IPv4_AUTOCONF_*` cases (29 positive + 10 `_NEG`) sit outside
 the sweep scope entirely: the fixture builds with `LWIP_AUTOIP`
 disabled (`lwipopts.h`) and no UT opcode drives autoconf. They are
 ledgered `expected:false` in the overrides file so the sweep command
-below emits exactly the 207-case regression list (the meaningful-PASS
+below emits exactly the 209-case regression list (the meaningful-PASS
 set) and `--vs-spec`
 reports them as honest gaps.
 
@@ -289,8 +301,9 @@ that literally as a UT 0x02 OpTriggerSendUdp boot emit
 (`emitTriggerSendUdpBoot`); the SD subscribe was a historical
 substitute that predated the UT UDP opcodes. With opcode 0x02 already
 ported here, the bucket opened wholesale: 19/24 PASS, `ARP_05/_06/_33`
-joined the deviation ledger (gratuitous-learning, above), `ARP_48/_49`
-stay `expected:false` (timer conditioning, above).
+joined the deviation ledger (gratuitous-learning, above), and
+`ARP_48/_49` followed the same day once UT 0x17 OpConditionArpCache
+landed (virtual-time table aging, above).
 
 ## Running the sweep
 

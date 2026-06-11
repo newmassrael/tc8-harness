@@ -56,6 +56,19 @@ inline int emitArpEgressProvocation(const ::tc8::TestConfig &cfg, std::string_vi
                                                    cfg.arp.dut_real_mac, timing);
 }
 
+// §4.2.4.2 ARP_48/49 mid-stimulus cache-conditioning step (UT 0x17)
+// for topologies whose DUT advertises OpConditionArpCache —
+// `cfg.arp.ut_cache_conditioning_s > 0` is the caller-side gate. Same
+// UT-envelope identity rules as `emitArpEgressProvocation` above:
+// TOPOLOGY values, never the SCXML-expectation knobs.
+inline int emitArpCacheConditioning(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                    std::uint8_t action, std::uint16_t param) {
+    return ::tc8::stimulus::emitConditionArpCache(iface, cfg.ipv4.tester_ip,
+                                                  cfg.arp.dut_real_ip,
+                                                  cfg.arp.dut_real_mac,
+                                                  action, param);
+}
+
 template <typename StateMachine>
 struct ArpAnyBase {
     using SM       = StateMachine;

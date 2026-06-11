@@ -14,14 +14,6 @@
       "platform_known_fail": true,
       "reason": "both injections are gratuitous Responses not addressed to the DUT; lwIP etharp creates no table entry from either (RFC 826 literal: add only when the DUT is the target), the cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_double_injection). Distinct mechanism from the Linux reference known-fail on the same case (arp_is_garp target_hw shape + LOCKTIME); ARP_34 passes here because its first injection is a Request addressed to the DUT (dut/lwip_dut/README.md)"
     },
-    "ARP_48": {
-      "expected": false,
-      "reason": "needs per-case ARP-cache timer conditioning (Linux reference compresses base_reachable_time_ms/delay_first_probe_time per case); lwIP ages its ARP table at compile-time ARP_MAXAGE (300 s) and no UT opcode exists to compress or flush it, so the re-ARP never lands inside the case envelope (dut/lwip_dut/README.md)"
-    },
-    "ARP_49": {
-      "expected": false,
-      "reason": "needs per-case ARP-cache timer conditioning (Linux reference compresses base_reachable_time_ms/delay_first_probe_time per case); lwIP ages its ARP table at compile-time ARP_MAXAGE (300 s) and no UT opcode exists to compress or flush it, so the re-ARP never lands inside the case envelope (dut/lwip_dut/README.md)"
-    },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_01": {
       "expected": false,
       "reason": "link-local autoconf cases need the DUT to run an RFC 3927 engine; the lwIP fixture deliberately disables LWIP_AUTOIP (lwipopts.h) and no Upper Tester opcode exists to drive it yet (dut/lwip_dut/README.md)"
