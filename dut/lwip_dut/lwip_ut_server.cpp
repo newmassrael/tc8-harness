@@ -49,6 +49,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <memory>
@@ -749,6 +750,17 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
     const std::uint8_t req_id = buf[1];
     std::vector<std::uint8_t> body;
 
+    // kImplementedOpcodes (and the bitmap baked from it) is the single
+    // authority for which opcodes this fixture implements: it gates
+    // admission here AND is what OpQueryCapabilities reports, so the
+    // capability bitmap can never advertise an opcode the switch would
+    // not admit, nor admit one it does not advertise.
+    if (!ut::capabilityBitSet(kCapabilityBitmap.data(),
+                              kCapabilityBitmap.size(), opcode)) {
+        respond(fd, peer, opcode, req_id, ut::kStatusUnknownOpcode, body);
+        return;
+    }
+
     switch (opcode) {
     case ut::OpPing:
         body.push_back(kMaxImplementedOpcode);
@@ -1154,12 +1166,17 @@ void UpperTesterServer::dispatch(int fd, const sockaddr_in &peer,
     }
 
     default:
+        // Unreachable in a consistent build: the opcode passed the
+        // capability-bitmap admission check above, so it is in
+        // kImplementedOpcodes — yet no case claimed it. That is a drift
+        // between the array and the switch. Fail fast so the bitmap can
+        // never advertise an opcode the fixture cannot actually serve.
         std::fprintf(stderr,
-                     "tc8-lwip-ut: opcode 0x%02X not implemented on the lwIP "
-                     "fixture (req_id %u)\n",
+                     "tc8-lwip-ut: opcode 0x%02X is in the capability bitmap"
+                     " but has no dispatch case — kImplementedOpcodes drifted"
+                     " from the switch (req_id %u)\n",
                      opcode, req_id);
-        respond(fd, peer, opcode, req_id, ut::kStatusUnknownOpcode, body);
-        return;
+        std::abort();
     }
 }
 

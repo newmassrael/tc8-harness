@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include "tc8/iface_enumeration.h"
@@ -510,6 +511,20 @@ void UpperTesterServer::utServerLoop(int fd) {
         // tester loopback quirk could otherwise cause an amplification
         // loop between two UT instances on the same bus.
         if ((opcode & ut::kResponseBit) != 0) {
+            continue;
+        }
+
+        // kImplementedOpcodes (and the bitmap baked from it) is the
+        // single authority for which opcodes this server implements:
+        // it gates admission here AND is what OpQueryCapabilities
+        // reports, so the capability bitmap can never advertise an
+        // opcode dispatch would not admit, nor admit one it does not
+        // advertise. An opcode outside the bitmap is rejected before
+        // any handler runs.
+        if (!ut::capabilityBitSet(kCapabilityBitmap.data(),
+                                  kCapabilityBitmap.size(), opcode)) {
+            sendResponse(fd, peer, peer_len, response_opcode, req_id,
+                         ut::kStatusUnknownOpcode, {});
             continue;
         }
 
@@ -1083,8 +1098,18 @@ void UpperTesterServer::utServerLoop(int fd) {
             continue;
         }
 
-        sendResponse(fd, peer, peer_len, response_opcode, req_id,
-                     ut::kStatusUnknownOpcode, {});
+        // Unreachable in a consistent build: the opcode passed the
+        // capability-bitmap admission check above, so it is in
+        // kImplementedOpcodes — yet no handler claimed it. That is a
+        // registration drift (an opcode added to the array without a
+        // matching handler). Fail fast so the bitmap can never
+        // advertise an opcode the server cannot actually serve.
+        std::fprintf(stderr,
+                     "upper-tester: opcode 0x%02X is in the capability"
+                     " bitmap but has no handler — kImplementedOpcodes"
+                     " drifted from the dispatch chain\n",
+                     opcode);
+        std::abort();
     }
 }
 
