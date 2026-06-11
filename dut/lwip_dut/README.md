@@ -302,9 +302,12 @@ sudo -n dut/env/smoke-test.sh \
 ```
 
 `sweep-cases.sh` is the single source of the case selection (overrides
-ledger + category filter — its header documents both); CI runs the same
-command weekly (single invocation, JUnit-reported) via
-`.github/workflows/lwip-sweep.yml` against the lwIP commit pinned in
-`dut/lwip_dut/LWIP_PIN`; the per-push smoke-test workflow only covers a
-14-case regression slice. When bumping the pin, re-run this sweep and
-refresh `inventory_overrides.json` in the same commit.
+ledger + category filter — its header documents both); CI exposes the
+same command as an on-demand dispatch (single invocation,
+JUnit-reported) via `.github/workflows/lwip-sweep.yml` against the lwIP
+commit pinned in `dut/lwip_dut/LWIP_PIN`; the per-push smoke-test
+workflow covers a 14-case regression slice. Dispatch the full sweep
+when there is new evidence to gather — a pin bump (mandatory: re-run
+and refresh `inventory_overrides.json` in the same commit), a session
+touching the fixture or shared harness paths, or a refresh of the
+dated table above.

@@ -1,21 +1,25 @@
 name: lwip-sweep
 
 on:
-  # Weekly full sweep of every case the lwIP DUT fixture can
+  # On-demand full sweep of every case the lwIP DUT fixture can
   # meaningfully pass (dut/lwip_dut/sweep-cases.sh emits the list; the
   # external topology is capped at one worker because the fixture is a
-  # single shared DUT). The push-triggered smoke-test workflow only
-  # re-runs a small lwIP regression slice; without this job a harness
-  # change could silently regress any other swept case and only
-  # surface in a manual sweep.
+  # single shared DUT). The push-triggered smoke-test workflow re-runs
+  # a small lwIP regression slice on every push; this job is the
+  # one-button full validation, dispatched when there is new evidence
+  # to gather rather than on a timer (an unchanged SHA re-validates
+  # nothing):
+  #   * lwIP pin bump (dut/lwip_dut/LWIP_PIN) — mandatory, see the
+  #     README "Running the sweep" contract;
+  #   * session close-out for changes touching the lwIP fixture or
+  #     shared harness paths;
+  #   * refreshing the dated sweep table in dut/lwip_dut/README.md.
+  # (A weekly cron ran 2026-06-11..2026-06-11; retired because every
+  # axis it guarded is covered per-push or per-session, and the
+  # serialized self-hosted runner paid ~30 min/week for it.)
   #
   # Self-hosted runner: same fork-PR code-execution constraint as
-  # smoke-test.yml — schedule + manual dispatch only, never
-  # pull_request.
-  schedule:
-    # Sunday 17:00 UTC = Monday 02:00 KST, the runner's idle overnight
-    # slot.
-    - cron: '0 17 * * 0'
+  # smoke-test.yml — manual dispatch only, never pull_request.
   workflow_dispatch: {}
 
 permissions:
