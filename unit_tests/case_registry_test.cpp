@@ -104,6 +104,56 @@ TEST(CaseRegistry, AddFind) {
     EXPECT_EQ(reg.find("ARP_99"), nullptr);
 }
 
+TEST(CaseRegistry, FindIsCaseInsensitive) {
+    // The registered id keeps the spec's canonical notation (mixed-case
+    // categories like UDP_DatagramLength_01), but a CLI arg or override
+    // key may arrive in any letter case. find() resolves them all to the
+    // one registered entry — matching how the inventory cross-check
+    // (SpecInventory::canonicalise) already treats case IDs, so the CLI
+    // and the override/--vs-spec paths never disagree on identity (P10).
+    CaseRegistry reg;
+    reg.add(makeEntry("UDP_DatagramLength_01"));
+
+    for (const char *probe : {"UDP_DatagramLength_01", "UDP_DATAGRAMLENGTH_01",
+                              "udp_datagramlength_01", "Udp_DatagramLength_01"}) {
+        const auto *hit = reg.find(probe);
+        ASSERT_NE(hit, nullptr) << "probe: " << probe;
+        // The resolved entry always reports the canonical registered id,
+        // never the probe's notation.
+        EXPECT_EQ(hit->id, "UDP_DatagramLength_01") << "probe: " << probe;
+    }
+    EXPECT_EQ(reg.find("UDP_DatagramLength_02"), nullptr);
+}
+
+TEST(CaseRegistry, FindKeepsVariantTagDistinct) {
+    // Case-insensitivity must not fold a negative variant onto its
+    // positive sibling: the two are distinct registered cases. (This is
+    // why find() uppercases rather than reusing SpecInventory::canonicalise,
+    // which strips the _NEG tag to derive a shared primary key.)
+    CaseRegistry reg;
+    reg.add(makeEntry("IPv4_AUTOCONF_CONFLICT_06"));
+    reg.add(makeEntry("IPv4_AUTOCONF_CONFLICT_06_NEG"));
+
+    const auto *pos = reg.find("ipv4_autoconf_conflict_06");
+    const auto *neg = reg.find("IPV4_AUTOCONF_CONFLICT_06_NEG");
+    ASSERT_NE(pos, nullptr);
+    ASSERT_NE(neg, nullptr);
+    EXPECT_EQ(pos->id, "IPv4_AUTOCONF_CONFLICT_06");
+    EXPECT_EQ(neg->id, "IPv4_AUTOCONF_CONFLICT_06_NEG");
+    EXPECT_NE(pos, neg);
+}
+
+TEST(CaseRegistryDeathTest, AddRejectsCaseInsensitiveCollision) {
+    // find() resolves case-insensitively, so two ids equal under ASCII
+    // case would make resolution ambiguous (first-wins). add() rejects
+    // the collision at registration — the registry's canonical-uniqueness
+    // invariant fails loud and early, before main().
+    CaseRegistry reg;
+    reg.add(makeEntry("UDP_Padding_02"));
+    EXPECT_DEATH(reg.add(makeEntry("UDP_PADDING_02")),
+                 "duplicate case registration");
+}
+
 TEST(CaseRegistry, ListSortedByCategoryThenNumericSuffix) {
     CaseRegistry reg;
     // Insert intentionally out of order, and include a numeric suffix

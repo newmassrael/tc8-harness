@@ -2372,9 +2372,9 @@ run_case() {
         # envelope keeps margin for the 2 s suspend duration + post-
         # resume cyclic OfferService landing in phase 3.
         [SOMEIP_ETS_089]=25
-        [UDP_DATAGRAMLENGTH_01]=10
-        [UDP_MESSAGEFORMAT_02]=10
-        [UDP_PADDING_02]=10
+        [UDP_DatagramLength_01]=10
+        [UDP_MessageFormat_02]=10
+        [UDP_Padding_02]=10
         [IPv4_HEADER_05]=10
         # §5.1.5.3 SD_MESSAGE_09 — three-phase SCXML (6 + 6 + 4 = 16 s
         # SCXML upper bound) + FindService + Subscribe stimulus
@@ -3351,7 +3351,7 @@ run_negative_case() {
         [UDP_USER_INTERFACE_06]=10
         [UDP_USER_INTERFACE_07]=10
         [UDP_USER_INTERFACE_08]=10
-        [UDP_PADDING_02]=10
+        [UDP_Padding_02]=10
         [UDP_INTRODUCTION_03]=10
         [IPv4_HEADER_05]=10
     )
@@ -4302,7 +4302,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # `ipv4.tester_alias_ip` makes SCXML expect a different dst,
         # forcing the cond to land on `fail_wrong_dst_ip`.
         "UDP_USER_INTERFACE_08|ipv4.tester_alias_ip=10.99.99.99|fail:dut_emitted_udp_with_wrong_user_interface_dst_ip"
-        "UDP_PADDING_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
+        "UDP_Padding_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
         # §4.6.5.6 UDP_INTRODUCTION_03: SCXML observes ICMP via the
         # icmp_observed event with `captured.src_ip == expected.dut_iface_ip`
         # filter; flipping ipv4.dut_iface_ip sends the filter out of reach

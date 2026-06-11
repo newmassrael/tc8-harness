@@ -28,6 +28,34 @@ struct SplitId {
     std::string_view variant_tag;
 };
 
+// ASCII case-insensitive equality over the FULL case id (variant tag
+// included). Case IDs are the registry's identity key, and every
+// inventory-facing path already treats them case-insensitively
+// (SpecInventory::canonicalise uppercases before comparing). Resolving
+// case-sensitively here while the inventory resolves case-insensitively
+// is exactly the split-brain identity P10 closed: a canonical-notation
+// CLI arg (`UDP_DatagramLength_01`) failed find() while the same id
+// matched the override set. Comparing uppercased keeps the two layers
+// in agreement.
+//
+// Deliberately NOT SpecInventory::canonicalise: that strips `_NEG` /
+// `_PLATFORM_KNOWN_FAIL` to derive a primary key, which would fold a
+// negative variant onto its positive sibling. The registry keeps those
+// distinct, so resolution must preserve the variant tag — only the
+// letter case is normalised.
+bool equalsIgnoreAsciiCase(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (std::toupper(static_cast<unsigned char>(a[i])) !=
+            std::toupper(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 SplitId splitCaseId(std::string_view id) {
     std::string_view variant_tag;
     std::string_view core = id;
@@ -63,15 +91,20 @@ CaseRegistry &CaseRegistry::instance() {
 
 void CaseRegistry::add(CaseEntry entry) {
     for (const auto &existing : entries_) {
-        if (existing.id == entry.id) {
-            // Two TestCaseTraits<> specializations claim the same kCaseId.
-            // This is almost always a copy-paste bug where a new case header
-            // was duplicated without updating the string — the silent
-            // first-wins behaviour it would produce is worse than aborting.
+        if (equalsIgnoreAsciiCase(existing.id, entry.id)) {
+            // Two TestCaseTraits<> specializations claim the same kCaseId
+            // (case-insensitively). This is almost always a copy-paste bug
+            // where a new case header was duplicated without updating the
+            // string — the silent first-wins behaviour it would produce is
+            // worse than aborting. The check is case-insensitive because
+            // find() now resolves the same way: two ids equal under ASCII
+            // case would make resolution ambiguous, so the registry's
+            // canonical-uniqueness invariant must reject them at the source.
             std::fprintf(stderr,
                          "tc8-harness: duplicate case registration for '%.*s'"
                          " — two TestCaseTraits<> specializations share the"
-                         " same kCaseId. Aborting before main().\n",
+                         " same kCaseId (case-insensitively). Aborting before"
+                         " main().\n",
                          static_cast<int>(entry.id.size()), entry.id.data());
             std::abort();
         }
@@ -81,7 +114,7 @@ void CaseRegistry::add(CaseEntry entry) {
 
 const CaseEntry *CaseRegistry::find(std::string_view id) const {
     for (const auto &e : entries_) {
-        if (e.id == id) {
+        if (equalsIgnoreAsciiCase(e.id, id)) {
             return &e;
         }
     }

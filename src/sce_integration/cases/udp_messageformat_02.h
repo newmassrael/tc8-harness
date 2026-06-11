@@ -21,7 +21,7 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::UdpMessageFormat02SM>
     : UdpAnyBase<cases::UdpMessageFormat02SM> {
-    static constexpr std::string_view kCaseId      = "UDP_MESSAGEFORMAT_02";
+    static constexpr std::string_view kCaseId      = "UDP_MessageFormat_02";
     static constexpr std::string_view kSpecSection = "4.6.5.1";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP packet with a well-formed Header (RFC 768 "
