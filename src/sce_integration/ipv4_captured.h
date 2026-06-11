@@ -7,6 +7,7 @@
 
 #include "tc8/protocol_frames/ipv4_frame.h"
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
@@ -33,7 +34,7 @@ namespace tc8 {
 // should be added rather than caching stale pointers here.
 // `Ipv4Frame::options_data` / `options_len` are left untouched for that
 // future expansion.
-struct Ipv4Captured {
+struct Ipv4Captured : CapturedFrameTiming {
     std::uint8_t  version         = 0;
     std::uint8_t  ihl             = 0;   // header length in 32-bit words
     std::uint8_t  tos             = 0;
@@ -100,22 +101,12 @@ struct Ipv4Captured {
         return (sum & 0xFFFFU) == 0xFFFFU;
     }
 
-    // Wall-clock arrival timestamp surface — same contract as
-    // `TcpCaptured::observed_ts_us` / `prev_observed_ts_us` /
-    // `frame_delta_us()`. IPv4 cases dispatch via
-    // `dispatchIpv4Frame` which auto-snapshots prev on
-    // fired-transition frames; first-transition guards must NOT
-    // depend on `frame_delta_us()`. §4.4.4.7 REASSEMBLY-style
-    // inter-fragment timing cases (when they land) use this to
-    // verify reassembly-timer behaviour.
-    std::int64_t observed_ts_us = 0;
-    std::int64_t prev_observed_ts_us = 0;
-    std::int64_t frame_delta_us() const noexcept {
-        if (prev_observed_ts_us == 0) {
-            return 0;
-        }
-        return observed_ts_us - prev_observed_ts_us;
-    }
+    // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
+    // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`. IPv4
+    // cases dispatch via `dispatchIpv4Frame`, which auto-snapshots prev on
+    // fired-transition frames; first-transition guards must NOT depend on
+    // `frame_delta_us()`. §4.4.4.7 REASSEMBLY-style inter-fragment timing
+    // cases (when they land) read it to verify reassembly-timer behaviour.
 };
 
 // ADL hook called by `TestRunner<SM>` at construction. No-op for captured

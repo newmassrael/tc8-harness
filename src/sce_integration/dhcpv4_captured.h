@@ -8,6 +8,7 @@
 
 #include "tc8/protocol_frames/dhcpv4_frame.h"
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
@@ -27,7 +28,7 @@ namespace tc8 {
 // the `cpp:captured.X` → `this->captured_->X` SCE codegen rewrite
 // covers every check uniformly — same pattern as
 // `ArpCaptured::is_arp_probe()` and `Ipv4Captured::header_checksum_valid()`.
-struct Dhcpv4Captured {
+struct Dhcpv4Captured : CapturedFrameTiming {
     // Encapsulating Ethernet header.
     std::array<std::uint8_t, 6> eth_src{};
     std::array<std::uint8_t, 6> eth_dst{};
@@ -72,21 +73,14 @@ struct Dhcpv4Captured {
     const std::uint8_t* options_data = nullptr;
     std::uint32_t       options_len  = 0;
 
-    // Wall-clock arrival timestamp surface — same contract as
-    // `UdpCaptured::observed_ts_us` / `prev_observed_ts_us` /
-    // `frame_delta_us()`. REACQUISITION timing cases (_03/_04 via
-    // `ack_to_request_within_us()`) and CONSTRUCTING_MESSAGES_12/_13
-    // retransmission backoff cases dispatch via
-    // `dispatchDhcpv4Frame` (auto-managed prev snapshot on fired
-    // transitions).
-    std::int64_t observed_ts_us = 0;
-    std::int64_t prev_observed_ts_us = 0;
-    std::int64_t frame_delta_us() const noexcept {
-        if (prev_observed_ts_us == 0) {
-            return 0;
-        }
-        return observed_ts_us - prev_observed_ts_us;
-    }
+    // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
+    // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
+    // REACQUISITION timing cases (_03/_04 via `ack_to_request_within_us()`)
+    // and CONSTRUCTING_MESSAGES_12/_13 retransmission-backoff cases
+    // dispatch via `dispatchDhcpv4Frame` (auto-managed prev snapshot on
+    // fired transitions). The `last_ack/nak/decline_observed_ts_us` slots
+    // below are DHCPv4-specific companions that read the inherited
+    // `observed_ts_us`.
 
     // Most-recent ACK arrival timestamp (microseconds) seen on the
     // captured wire. Updated by `dispatchDhcpv4Frame` whenever a

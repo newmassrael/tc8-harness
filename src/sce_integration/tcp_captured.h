@@ -6,6 +6,7 @@
 
 #include "tc8/protocol_frames/tcp_frame.h"
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -34,7 +35,7 @@ namespace tc8 {
 //
 // `src_port` / `dst_port` let SCXML guards filter out SOME/IP-over-TCP
 // traffic on the same interface (vsomeip port range 30490..30510).
-struct TcpCaptured : CapturedPayloadSnapshot {
+struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming {
     std::uint32_t src_ip         = 0;  // network byte order
     std::uint32_t dst_ip         = 0;  // network byte order
     std::uint16_t src_port       = 0;
@@ -235,44 +236,21 @@ struct TcpCaptured : CapturedPayloadSnapshot {
     bool          checksum_valid = false;
     bool tcp_checksum_valid() const noexcept { return checksum_valid; }
 
-    // Wall-clock arrival timestamp of the most-recently-dispatched
-    // TcpFrame, in microseconds since the Unix epoch. Mirrored from
-    // `TcpFrame::observed_ts_us` by `fillTcpCapturedFromFrame` on
-    // every frame regardless of whether the SCXML guard fires — so a
-    // failing-cond frame still updates `observed_ts_us` but does NOT
-    // disturb `prev_observed_ts_us`.
-    std::int64_t observed_ts_us = 0;
-
-    // Wall-clock timestamp of the frame that fired the most recent
-    // SCXML transition, in microseconds since the Unix epoch.
-    // Auto-managed by `dispatchTcpFrame`: snapshots `observed_ts_us`
-    // when `sm.step()` advances `getCurrentState()`. Initial value 0
-    // means "no prior fired transition" — first-transition guards
-    // must therefore NOT depend on `frame_delta_us()` (the delta
-    // would equal `observed_ts_us` itself, an enormous epoch-relative
-    // number).
-    std::int64_t prev_observed_ts_us = 0;
-
-    // Microsecond delta between the current frame and the
-    // most-recently-fired-transition frame. Returns 0 when no prior
-    // transition has fired so first-transition guards remain
-    // unbiased. §4.8.6.11 RETRANSMISSION_TO_04/_05/_06 use this to
-    // gate on RFC 6298 RTO timing — the first transition guards on
-    // `is_dut_syn(...)`/`is_dut_data_segment(...)` alone, the second
-    // and later guard on `... and frame_delta_us() > N_us` (lower
-    // bound that rejects sub-RTO traffic) and optionally
-    // `... and frame_delta_us() < M_us` (upper bound to anchor the
-    // initial RTO at ~1 s). For backoff cases, monotonically
-    // increasing per-state lower bounds rule out a constant-interval
-    // ("linear") response: a DUT that retransmits every 1 s passes
-    // `frame_delta_us() > 0.8 s` at retx1 but fails the strict
+    // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
+    // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
+    // `fillTcpCapturedFromFrame` mirrors `observed_ts_us` on every frame;
+    // `dispatchTcpFrame` snapshots `prev_observed_ts_us` when `sm.step()`
+    // advances `getCurrentState()`. §4.8.6.11 RETRANSMISSION_TO_04/_05/_06
+    // gate RFC 6298 RTO timing on `frame_delta_us()` from the second
+    // fired transition onward — the first transition guards on
+    // `is_dut_syn(...)`/`is_dut_data_segment(...)` alone, later ones add
+    // `... and frame_delta_us() > N_us` (lower bound rejecting sub-RTO
+    // traffic) and optionally `... and frame_delta_us() < M_us` (upper
+    // bound anchoring the initial RTO at ~1 s). For backoff cases,
+    // monotonically increasing per-state lower bounds rule out a
+    // constant-interval ("linear") response: a DUT that retransmits every
+    // 1 s passes `frame_delta_us() > 0.8 s` at retx1 but fails the strict
     // `> 1.5 s` at retx2.
-    std::int64_t frame_delta_us() const noexcept {
-        if (prev_observed_ts_us == 0) {
-            return 0;
-        }
-        return observed_ts_us - prev_observed_ts_us;
-    }
 
     // §4.8.6.2 / §4.8.6.3 share a recurring pass-guard shape: a
     // DUT-origin pure ACK with no payload, distinguished only by

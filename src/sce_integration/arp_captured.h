@@ -9,6 +9,7 @@
 #include "tc8/protocol_frames/arp_frame.h"
 #include "tc8/protocol_frames/udp_frame.h"
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
 
@@ -24,7 +25,7 @@ namespace tc8 {
 // `fillArpCapturedFromFrame(c, frame)` after pulling the variant
 // alternative; SCXML guards then compare per-field against `expected`
 // (see `arp_expected.h`).
-struct ArpCaptured {
+struct ArpCaptured : CapturedFrameTiming {
     std::uint16_t hw_type = 0;
     std::uint16_t proto_type = 0;
     std::uint8_t hw_addr_len = 0;
@@ -49,23 +50,16 @@ struct ArpCaptured {
     std::array<std::uint8_t, 6> observed_udp_eth_dst{};
     std::uint32_t observed_udp_dst_ip = 0;  // network byte order
 
-    // Wall-clock arrival timestamp of the most-recently-dispatched
-    // ArpFrame / UdpFrame in microseconds since the Unix epoch.
-    // Mirrored by `fillArpCapturedFromFrame` /
-    // `fillArpCapturedFromUdpFrame` on every fill regardless of
-    // whether the SCXML guard fires.
-    std::int64_t observed_ts_us = 0;
-
-    // Wall-clock timestamp of the frame that fired the most recent
-    // SCXML transition. ARP cases dispatch inline (no shared
-    // `dispatchArpFrame` helper) so a case that needs inter-frame
-    // delta semantics must update `prev_observed_ts_us =
-    // observed_ts_us` itself when `sm.getCurrentState()` advances —
-    // see `tcp_pilot_common.h::dispatchTcpFrame` for the auto-managed
-    // pattern. No current ARP case uses this, but the field is
-    // reserved so future §4.2.4.x ANNOUNCE_REPS gap-timing cases can
-    // express `frame_delta_us()` without revisiting this header.
-    std::int64_t prev_observed_ts_us = 0;
+    // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
+    // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
+    // `fillArpCapturedFromFrame` / `fillArpCapturedFromUdpFrame` mirror
+    // `observed_ts_us` on every fill. ARP cases dispatch inline (no shared
+    // `dispatchArpFrame` helper), so a case that needs inter-frame delta
+    // semantics must snapshot `prev_observed_ts_us = observed_ts_us`
+    // itself when `sm.getCurrentState()` advances — see
+    // `tcp_pilot_common.h::dispatchTcpFrame` for the auto-managed pattern.
+    // No current ARP case reads the delta, but the surface is shared so
+    // future §4.2.4.x ANNOUNCE_REPS gap-timing cases need no rewiring.
 
     // §4.5.6.2 ADDRESS_SELECTION_11/_12/_13: snapshot of the FIRST
     // DUT-emitted ARP Probe's `target_proto_ip` so the SCXML can
@@ -108,17 +102,6 @@ struct ArpCaptured {
     // 0 until the first probe is processed; the first transition
     // listening → cycle compares LL_1 against 0 which always passes.
     std::uint32_t previous_observed_probe_target_ip = 0;
-
-    // Microsecond delta between the current frame and the
-    // most-recently-fired-transition frame. Returns 0 when no prior
-    // transition has fired so first-transition guards remain
-    // unbiased. Same semantics as `TcpCaptured::frame_delta_us()`.
-    std::int64_t frame_delta_us() const noexcept {
-        if (prev_observed_ts_us == 0) {
-            return 0;
-        }
-        return observed_ts_us - prev_observed_ts_us;
-    }
 
     // §4.5 IPv4 Link-Local Probe predicate (RFC 3927 §2.1.1). True iff
     // the captured frame is an ARP Probe targeting the 169.254/16

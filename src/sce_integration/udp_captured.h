@@ -10,6 +10,7 @@
 #include "tc8/protocol_frames/udp_frame.h"
 #include "tc8/upper_tester_protocol.h"
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -41,7 +42,7 @@ namespace tc8 {
 // drifts without the port gate. `src_port == ut::kPort` restores
 // the invariant "has_ut_response iff this frame is a response
 // from OUR UT server."
-struct UdpCaptured : CapturedPayloadSnapshot {
+struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming {
     std::uint32_t src_ip             = 0;   // network byte order
     std::uint32_t dst_ip             = 0;   // network byte order
     std::uint16_t src_port           = 0;
@@ -96,22 +97,13 @@ struct UdpCaptured : CapturedPayloadSnapshot {
     // through `pseudo_header_checksum_valid()` below to reconstruct the
     // wire region and run the RFC 1071 + RFC 768 1's-complement sum.
 
-    // Wall-clock arrival timestamp surface — same contract as
-    // `TcpCaptured::observed_ts_us` / `prev_observed_ts_us` /
-    // `frame_delta_us()`. UDP cases dispatch via `dispatchUdpFrame`
-    // which auto-snapshots prev on fired-transition frames; first-
-    // transition guards must NOT depend on `frame_delta_us()`.
-    // §4.6 SOME/IP-SD Initial-Wait-Phase / Repetitions-Phase timing
-    // cases (when they land) use this for inter-message delta
-    // assertions.
-    std::int64_t observed_ts_us = 0;
-    std::int64_t prev_observed_ts_us = 0;
-    std::int64_t frame_delta_us() const noexcept {
-        if (prev_observed_ts_us == 0) {
-            return 0;
-        }
-        return observed_ts_us - prev_observed_ts_us;
-    }
+    // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
+    // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`. UDP
+    // cases dispatch via `dispatchUdpFrame`, which auto-snapshots prev on
+    // fired-transition frames; first-transition guards must NOT depend on
+    // `frame_delta_us()`. §4.6 SOME/IP-SD Initial-Wait-Phase /
+    // Repetitions-Phase timing cases (when they land) read it for
+    // inter-message delta assertions.
 
     // §4.7.6.7 CM_05/_06 / §4.2 Group D: byte-equal MAC comparison
     // helpers. Defined here (member predicates) rather than relying

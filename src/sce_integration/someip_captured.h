@@ -8,6 +8,7 @@
 
 #include "tc8/protocol_frames/someip_frame.h"
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -118,7 +119,7 @@ inline constexpr std::uint8_t kTcp = 0x06;
 inline constexpr std::uint8_t kUdp = 0x11;
 }  // namespace sd_l4_proto
 
-struct SomeIpCaptured : CapturedPayloadSnapshot {
+struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming {
     std::uint16_t service_id = 0;
     std::uint16_t method_id = 0;
     std::uint32_t length = 0;
@@ -130,19 +131,20 @@ struct SomeIpCaptured : CapturedPayloadSnapshot {
     std::uint8_t return_code = 0;
     std::uint32_t payload_len = 0;
 
-    // pcap arrival timestamp surfaced from `SomeIpFrame::observed_ts_us`
-    // on every dispatch. `prev_observed_ts_us` snapshots `observed_ts_us`
-    // ONLY when the SCXML transitions on a fired frame (managed in
+    // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
+    // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
+    // `observed_ts_us` is surfaced from `SomeIpFrame::observed_ts_us` on
+    // every dispatch; `prev_observed_ts_us` snapshots it ONLY when the
+    // SCXML transitions on a fired frame (managed in
     // `_someipsrv_traits_base.h::SomeIpAnyBase::dispatch`), so non-fired
-    // frames between two state advances never pollute the gap. First
-    // fired transition sees `prev=0` → `frame_delta_us()` returns
-    // `observed_ts_us` itself, so guards on the very first transition
-    // must depend only on structural conjuncts (service_id, entry type,
-    // ...) — not on the delta. §5.1.5.4 SD_BEHAVIOR_01/_02 read the
-    // delta from the second fired transition onward.
-    std::int64_t observed_ts_us = 0;
-    std::int64_t prev_observed_ts_us = 0;
-    std::int64_t frame_delta_us() const { return observed_ts_us - prev_observed_ts_us; }
+    // frames between two state advances never pollute the gap. §5.1.5.4
+    // SD_BEHAVIOR_01/_02 read the delta from the second fired transition
+    // onward; both guard the delta with a two-sided bound, so the very
+    // first transition (where the base returns 0) is rejected by the
+    // lower bound and the structural conjuncts (service_id, entry type,
+    // ...) carry it — unchanged from the prior local definition, which
+    // returned `observed_ts_us` itself on the first frame and was
+    // rejected by the same conds' upper bound instead.
 
     // Snapshot of `session_id` from the previous fired SOME/IP-SD frame,
     // managed by the same dispatch hook that updates `prev_observed_ts_us`.

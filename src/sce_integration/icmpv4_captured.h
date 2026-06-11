@@ -5,6 +5,7 @@
 
 #include "tc8/protocol_frames/icmpv4_frame.h"
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -29,7 +30,7 @@ namespace tc8 {
 // `Icmpv4Frame::payload_data` pointer is non-owning and valid only
 // during `dispatch()`, so the copy is necessary — SCXML guards can
 // evaluate at any later tick.
-struct Icmpv4Captured : CapturedPayloadSnapshot {
+struct Icmpv4Captured : CapturedPayloadSnapshot, CapturedFrameTiming {
     std::uint32_t src_ip    = 0;  // network byte order
     std::uint32_t dst_ip    = 0;
     std::uint8_t  type      = 0;  // RFC 792: 0 = Echo Reply, 8 = Echo Request, ...
@@ -74,20 +75,11 @@ struct Icmpv4Captured : CapturedPayloadSnapshot {
     // datagram (RFC 791 §3.1) — and the §4.3.3.2 TYPE_08 27 B literal
     // with margin.
 
-    // Wall-clock arrival timestamp surface — same contract as
-    // `TcpCaptured::observed_ts_us` / `prev_observed_ts_us` /
-    // `frame_delta_us()`. ICMPv4 cases dispatch via
-    // `dispatchIcmpv4Frame` which auto-snapshots prev on
-    // fired-transition frames; first-transition guards must NOT
-    // depend on `frame_delta_us()`.
-    std::int64_t observed_ts_us = 0;
-    std::int64_t prev_observed_ts_us = 0;
-    std::int64_t frame_delta_us() const noexcept {
-        if (prev_observed_ts_us == 0) {
-            return 0;
-        }
-        return observed_ts_us - prev_observed_ts_us;
-    }
+    // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
+    // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
+    // ICMPv4 cases dispatch via `dispatchIcmpv4Frame`, which auto-
+    // snapshots prev on fired-transition frames; first-transition guards
+    // must NOT depend on `frame_delta_us()`.
 
     // Byte comparison of the payload snapshot is inherited from
     // `CapturedPayloadSnapshot`: `payload_equals(string_view)` for the
