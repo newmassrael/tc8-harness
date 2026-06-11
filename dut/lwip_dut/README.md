@@ -70,8 +70,8 @@ feature-level byte honestly reports only 0x0B.
 
 | Bucket | Count | Notes |
 |---|---|---|
-| Meaningful PASS | 215 | 107 non-TCP + 108 TCP |
-| lwIP stack deviation (`platform_known_fail`) | 17 | 9 non-TCP + 8 TCP, each verified against lwIP source and/or pcap (below) |
+| Meaningful PASS | 216 | 107 non-TCP + 109 TCP |
+| lwIP stack deviation (`platform_known_fail`) | 16 | 9 non-TCP + 7 TCP, each verified against lwIP source and/or pcap (below) |
 
 `dut/lwip_dut/inventory_overrides.json` is the machine-readable single
 source of truth for the deviation set; this table is a dated report.
@@ -80,7 +80,7 @@ The 39 `IPv4_AUTOCONF_*` cases (29 positive + 10 `_NEG`) sit outside
 the sweep scope entirely: the fixture builds with `LWIP_AUTOIP`
 disabled (`lwipopts.h`) and no UT opcode drives autoconf. They are
 ledgered `expected:false` in the overrides file so the sweep command
-below emits exactly the 215-case regression list (the meaningful-PASS
+below emits exactly the 216-case regression list (the meaningful-PASS
 set) and `--vs-spec`
 reports them as honest gaps.
 
@@ -140,10 +140,15 @@ TCP:
 - **`TCP_URGENT_PTR_04` — urgent/OOB path not implemented** (RFC 793
   §3.7). The UT answers `OpReceiveTcpDataOob` with zero bytes by
   design, loudly logged.
-- **`TCP_RETRANSMISSION_TO_05/_06` — SYN RTO backoff shape.** The
-  observation windows are shaped for the conditioned Linux fixture's
-  linear SYN RTO; lwIP's RFC 6298 exponential backoff exits them.
-  Test-design concern, mirrors the `TCP_UNACCEPTABLE_08` precedent.
+- **`TCP_RETRANSMISSION_TO_05` — no exponential SYN-RTO backoff.** The
+  case asserts the SYN-retransmission RTO grows (RFC 1122 §4.2.3.1 /
+  RFC 6298 §5). lwIP excludes SYN_SENT from RTO doubling (`tcp.c`
+  `tcp_slowtmr`: "unless we are trying to connect"), so the SYN RTO
+  holds the fixed ~1 s seed (measured 1 s / 1 s / 1 s on the wire) and
+  phase 1's doubled-RTO check fails deterministically. Same root cause
+  as `_09`'s missing 2*MSL SYN-RTO plateau — a genuine deviation, not a
+  harness window. (`_06`, which only asserts the RFC 6298 §2.1 ~1 s
+  initial RTO, passes on lwIP and is no longer ledgered here.)
 - **`TCP_RETRANSMISSION_TO_08` — no 2*MSL RTO ceiling.** The spec
   expects the data-retransmission RTO to plateau at 2*MSL (60 s).
   lwIP keeps doubling per retransmit (`tcp.c` `tcp_backoff` shift,

@@ -223,12 +223,7 @@
     "TCP_RETRANSMISSION_TO_05": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "case observation window is shaped for the conditioned Linux fixture's linear SYN RTO (tcp_syn_linear_timeouts); lwIP's RFC 6298 exponential backoff exits the window — test-design concern, mirrors the TCP_UNACCEPTABLE_08 precedent"
-    },
-    "TCP_RETRANSMISSION_TO_06": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "case observation window is shaped for the conditioned Linux fixture's linear SYN RTO (tcp_syn_linear_timeouts); lwIP's RFC 6298 exponential backoff exits the window — test-design concern, mirrors the TCP_UNACCEPTABLE_08 precedent"
+      "reason": "case asserts the SYN-retransmission RTO grows exponentially (RFC 1122 section 4.2.3.1 / RFC 6298 section 5 'more than linear'); lwIP excludes SYN_SENT from RTO backoff (tcp.c tcp_slowtmr: 'unless we are trying to connect') so the SYN RTO stays at the fixed ~1 s seed (measured 1 s/1 s/1 s on the wire), failing phase 1's rto-doubled check deterministically (fail:phase1_rto_below_doubled_baseline, verified x4 2026-06-11). Same root deviation as RETRANSMISSION_TO_09; genuine non-conformance, not a harness window issue"
     },
     "TCP_RETRANSMISSION_TO_08": {
       "platform_known_fail": true,
