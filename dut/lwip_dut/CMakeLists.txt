@@ -59,9 +59,17 @@ add_executable(tc8-lwip-dut
     ${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
 )
 # tcp_isn.c hashes with the PPP-bundled polarssl MD5, whose
-# implementation is guarded by PPP_SUPPORT. Force the guards on for
-# that single TU instead of dragging the whole PPP stack into the
-# build (the lwipopts.h consumed by every other TU keeps PPP off).
+# implementation is guarded by `#if PPP_SUPPORT && LWIP_INCLUDED_POLARSSL_MD5`
+# (src/netif/ppp/polarssl/md5.c). Force both guards on for that single
+# TU — via per-file COMPILE_DEFINITIONS, so the define is confined to
+# md5.c and never reaches the lwipopts.h every other TU consumes (PPP
+# stays off everywhere else; no PPP source is in the build). This is
+# lwIP's documented idiom for using the tcp_isn addon without PPP: the
+# proper long-term fix is decoupling tcp_isn's MD5 from the PPP tree
+# upstream, deferred with the rest of the lwIP upstream work (P5). The
+# alternative — vendoring a standalone MD5 here — is more invasive and
+# would diverge the DUT crypto from the shipped stack, so the scoped
+# define is the deliberate choice, not an unexamined hack.
 set_source_files_properties(${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
     PROPERTIES COMPILE_DEFINITIONS "PPP_SUPPORT=1;LWIP_INCLUDED_POLARSSL_MD5=1")
 target_include_directories(tc8-lwip-dut PRIVATE
