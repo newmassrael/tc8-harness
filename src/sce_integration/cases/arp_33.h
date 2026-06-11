@@ -6,7 +6,6 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/upper_tester_client.h"
 
 #include "arp_33_sm.h"
 
@@ -60,8 +59,7 @@ struct TestCaseTraits<cases::Arp33SM>
         spec2.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec2);
 
-        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
-                                                cfg.arp.dut_real_mac, cfg.stimulus_timing);
+        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
     }
 
     static std::string_view verdictFor(State s) {

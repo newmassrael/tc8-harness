@@ -5,7 +5,6 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_udp_traits_base.h"
-#include "sce_integration/cases/udp_fields_01.h"  // kUdpFieldsTesterSrcPort
 #include "sce_integration/test_runner.h"
 #include "sce_integration/udp_pilot_common.h"
 
@@ -48,7 +47,7 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            cases::kUdpFieldsTesterSrcPort,
+            ::tc8::ut::kTesterSrcPort,
             cfg.arp.dut_real_mac,
             ::tc8::sce::udp::kUdpPilotInitialWait,
             /*dut_src_ip_override_be=*/::tc8::sce::udp::kDutAliasIp4Be);

@@ -7,7 +7,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/upper_tester_client.h"
+#include "stimulus/boot_timing.h"
 
 #include "arp_39_sm.h"
 
@@ -56,8 +56,7 @@ struct TestCaseTraits<cases::Arp39SM>
         ut_timing.initial_wait = std::chrono::milliseconds(1500);
         ut_timing.retry_interval = std::chrono::milliseconds(0);
         ut_timing.total_emits = 1;
-        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
-                                                cfg.arp.dut_real_mac, ut_timing);
+        emitArpEgressProvocation(cfg, iface, ut_timing);
 
         // emitArpFromTester's default 200 ms settle gives the DUT's
         // own broadcast Request time to reach pcap before our injection.

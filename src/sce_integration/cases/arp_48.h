@@ -8,7 +8,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/upper_tester_client.h"
+#include "stimulus/boot_timing.h"
 
 #include "arp_48_sm.h"
 
@@ -54,8 +54,7 @@ struct TestCaseTraits<cases::Arp48SM>
         ut_timing.initial_wait = std::chrono::milliseconds(1500);
         ut_timing.retry_interval = std::chrono::milliseconds(0);
         ut_timing.total_emits = 1;
-        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
-                                                cfg.arp.dut_real_mac, ut_timing);
+        emitArpEgressProvocation(cfg, iface, ut_timing);
 
         // Wait for DELAY → PROBE (delay_first_probe_time=1 s) plus
         // tc8-dut-jitter / scheduling margin.

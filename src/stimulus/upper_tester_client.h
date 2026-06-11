@@ -466,12 +466,6 @@ int sendUpperTesterRequest(std::string_view iface,
 // carries no verdict weight.
 inline constexpr std::uint16_t kEgressBootDutSrcPort = 20010;
 
-// Tester-side source port the boot-cadence UT request rides on; the UT
-// response returns to it. Matches the §4.6 UDP_FIELDS convention
-// (`kUdpFieldsTesterSrcPort`) so tester-originated UT traffic shares one
-// port across spec areas.
-inline constexpr std::uint16_t kEgressBootTesterSrcPort = 20100;
-
 // High-level TESTER boot-time DUT-egress provocation used by the §4.2.4
 // entry-learning / cache-use cases. Renders the spec step "DUT
 // CONFIGURE: Configure DUT to send a UDP Message from <DIface-0>
@@ -481,7 +475,7 @@ inline constexpr std::uint16_t kEgressBootTesterSrcPort = 20100;
 //
 // Each emit injects one UT request via AF_PACKET; a live DUT answers
 // with (a) the UT response datagram (DUT:`ut::kPort` →
-// tester:`kEgressBootTesterSrcPort`) and (b) the triggered datagram
+// tester:`ut::kTesterSrcPort`) and (b) the triggered datagram
 // (DUT:`kEgressBootDutSrcPort` → tester:`ut::kDataPort`). Both are
 // DUT-originated UDP to HOST-1-IP, so either satisfies the spec's
 // egress observation — and both exercise the DUT's ARP resolution of

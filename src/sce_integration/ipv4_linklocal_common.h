@@ -115,7 +115,7 @@ inline void emitStartLLAutoconf(const ::tc8::TestConfig& cfg,
                                  std::uint16_t announce_wait_ms,
                                  std::uint16_t announce_interval_ms,
                                  std::uint16_t rate_limit_interval_ms = ::tc8::rfc3927::kRateLimitIntervalMs,
-                                 std::uint16_t tester_src_port = 20100,
+                                 std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort,
                                  const std::array<std::uint8_t, 6>& dut_mac = {},
                                  std::chrono::milliseconds initial_wait =
                                      kLLPilotInitialWait) {
@@ -145,7 +145,7 @@ inline void emitStartLLAutoconfFast(const ::tc8::TestConfig& cfg,
         kFastProbeMinMs,    kFastProbeMaxMs,
         kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
         ::tc8::rfc3927::kRateLimitIntervalMs,
-        /*tester_src_port=*/20100, dut_mac);
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
 }
 
 // Convenience wrapper: kick LL with RFC 3927 cadence defaults. Used
@@ -161,7 +161,7 @@ inline void emitStartLLAutoconfRfcDefaults(
         kRfcProbeMinMs,    kRfcProbeMaxMs,
         kRfcAnnounceWaitMs, kRfcAnnounceIntervalMs,
         ::tc8::rfc3927::kRateLimitIntervalMs,
-        /*tester_src_port=*/20100, dut_mac);
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
 }
 
 // §4.5.6.2 _14 fast envelope: standard fast cadence + 3 s
@@ -178,7 +178,7 @@ inline void emitStartLLAutoconfFastConflict(
         kFastProbeMinMs,    kFastProbeMaxMs,
         kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
         kFastRateLimitMs,
-        /*tester_src_port=*/20100, dut_mac);
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
 }
 
 // §4.5.6.2 fault-injection variant. Issue OpStartLLAutoconfBuggy with
@@ -204,7 +204,7 @@ inline void emitStartLLAutoconfBuggy(
         flavor);
     ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        /*tester_src_port=*/20100, req);
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
 }
 
 // §4.5.6.2 cadence-violation helper for IPv4_AUTOCONF_ADDRESS_SELECTION_10_NEG.
@@ -226,7 +226,7 @@ inline void emitStartLLAutoconfFastCadence(
         kCadenceViolationProbeMinMs, kCadenceViolationProbeMaxMs,
         kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
         ::tc8::rfc3927::kRateLimitIntervalMs,
-        /*tester_src_port=*/20100, dut_mac);
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
 }
 
 // Dispatch helper: ARP-only variant. Mirror of

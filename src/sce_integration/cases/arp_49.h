@@ -8,7 +8,7 @@
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
-#include "stimulus/upper_tester_client.h"
+#include "stimulus/boot_timing.h"
 
 #include "arp_49_sm.h"
 
@@ -59,15 +59,13 @@ struct TestCaseTraits<cases::Arp49SM>
         ut1.initial_wait = std::chrono::milliseconds(1500);
         ut1.retry_interval = std::chrono::milliseconds(0);
         ut1.total_emits = 1;
-        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
-                                                cfg.arp.dut_real_mac, ut1);
+        emitArpEgressProvocation(cfg, iface, ut1);
 
         ::tc8::stimulus::BootTiming ut2;
         ut2.initial_wait = std::chrono::milliseconds(500);
         ut2.retry_interval = std::chrono::milliseconds(0);
         ut2.total_emits = 1;
-        ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip, cfg.arp.dut_real_ip,
-                                                cfg.arp.dut_real_mac, ut2);
+        emitArpEgressProvocation(cfg, iface, ut2);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     }

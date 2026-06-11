@@ -63,8 +63,8 @@ inline constexpr std::uint16_t kBasicsClosedPort = 54321U;
 // connect path uses ephemeral source ports the kernel chooses, so this
 // constant is irrelevant to BASICS_01/02/03. 49152 is the start of the
 // IANA dynamic/private range (RFC 6335) — clear of vsomeip's range and
-// of the UT RPC tester source port (20100), so packet captures show
-// "src=49152" → §4.8 raw-inject and "src=20100" → §4.8.5 UT channel
+// of the UT RPC tester source port (ut::kTesterSrcPort, 20100), so
+// captures show "src=49152" → §4.8 raw-inject and "src=20100" → UT channel
 // without further inspection.
 inline constexpr std::uint16_t kBasicsTesterPort = 49152U;
 
@@ -656,7 +656,7 @@ inline int sendOpenTcpSocketPassiveRequest(
     const std::array<std::uint8_t, 6> &dut_mac,
     std::uint8_t  req_id,
     std::uint16_t local_port,
-    std::uint16_t tester_src_port = 20100) {
+    std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto payload =
         ::tc8::stimulus::buildOpenTcpSocketPassiveRequest(req_id, local_port);
     return ::tc8::stimulus::sendUpperTesterRequest(
@@ -672,7 +672,7 @@ inline int sendOpenTcpSocketActiveRequest(
     std::uint16_t local_port,
     std::uint32_t remote_ip_be,
     std::uint16_t remote_port,
-    std::uint16_t tester_src_port = 20100) {
+    std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto payload = ::tc8::stimulus::buildOpenTcpSocketActiveRequest(
         req_id, local_port, remote_ip_be, remote_port);
     return ::tc8::stimulus::sendUpperTesterRequest(
@@ -685,7 +685,7 @@ inline int sendCloseTcpSocketRequest(const ::tc8::TestConfig &cfg,
                                      const std::array<std::uint8_t, 6> &dut_mac,
                                      std::uint8_t req_id,
                                      std::uint8_t socket_id,
-                                     std::uint16_t tester_src_port = 20100) {
+                                     std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto payload = ::tc8::stimulus::buildCloseTcpSocketRequest(req_id, socket_id);
     return ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
@@ -697,7 +697,7 @@ inline int sendShutdownTcpSocketWrRequest(const ::tc8::TestConfig &cfg,
                                            const std::array<std::uint8_t, 6> &dut_mac,
                                            std::uint8_t  req_id,
                                            std::uint8_t  socket_id,
-                                           std::uint16_t tester_src_port = 20100) {
+                                           std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto payload = ::tc8::stimulus::buildShutdownTcpSocketWrRequest(req_id, socket_id);
     return ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
@@ -713,7 +713,7 @@ inline int sendAbortTcpSocketRequest(const ::tc8::TestConfig &cfg,
                                      const std::array<std::uint8_t, 6> &dut_mac,
                                      std::uint8_t  req_id,
                                      std::uint8_t  socket_id,
-                                     std::uint16_t tester_src_port = 20100) {
+                                     std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto payload = ::tc8::stimulus::buildAbortTcpSocketRequest(req_id, socket_id);
     return ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
@@ -725,7 +725,7 @@ inline int sendQueryTcpEstablishedRequest(const ::tc8::TestConfig &cfg,
                                           const std::array<std::uint8_t, 6> &dut_mac,
                                           std::uint8_t req_id,
                                           std::uint8_t socket_id,
-                                          std::uint16_t tester_src_port = 20100) {
+                                          std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto payload = ::tc8::stimulus::buildQueryTcpEstablishedRequest(req_id, socket_id);
     return ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
@@ -743,7 +743,7 @@ inline int sendSendTcpDataRequest(const ::tc8::TestConfig &cfg,
                                   std::uint8_t        socket_id,
                                   const std::uint8_t *payload,
                                   std::uint16_t       payload_len,
-                                  std::uint16_t tester_src_port = 20100) {
+                                  std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto buf = ::tc8::stimulus::buildSendTcpDataRequest(
         req_id, socket_id, payload, payload_len);
     return ::tc8::stimulus::sendUpperTesterRequest(
@@ -764,7 +764,7 @@ inline int sendSendTcpDataPatternRequest(
     std::uint8_t  socket_id,
     std::uint8_t  pattern,
     std::uint16_t total_len,
-    std::uint16_t tester_src_port = 20100) {
+    std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto buf = ::tc8::stimulus::buildSendTcpDataPatternRequest(
         req_id, socket_id, pattern, total_len);
     return ::tc8::stimulus::sendUpperTesterRequest(

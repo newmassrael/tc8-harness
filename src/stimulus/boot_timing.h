@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <thread>
 
 namespace tc8::stimulus {
 
@@ -22,5 +23,28 @@ struct BootTiming {
     std::chrono::milliseconds retry_interval{1000};
     int total_emits{2};
 };
+
+// Drives one boot-cadence sequence: block for `initial_wait`, then call
+// `emit_once(i)` for i in [0, total_emits) with `retry_interval` between
+// calls. Stops at the first non-zero return and forwards it; returns 0
+// when every emit succeeded (no retry-on-failure — the cadence is fixed
+// so higher layers can reason about total wall time). Single source of
+// the loop shared by the SD boot emitters (`emitFindServiceBoot`,
+// `emitSubscribeEventgroupBoot*`) and the UT boot emitter
+// (`emitTriggerSendUdpBoot`).
+template <typename EmitOnce>
+int runBootCadence(const BootTiming &timing, EmitOnce &&emit_once) {
+    std::this_thread::sleep_for(timing.initial_wait);
+    for (int i = 0; i < timing.total_emits; ++i) {
+        if (i > 0) {
+            std::this_thread::sleep_for(timing.retry_interval);
+        }
+        const int rc = emit_once(i);
+        if (rc != 0) {
+            return rc;
+        }
+    }
+    return 0;
+}
 
 }  // namespace tc8::stimulus

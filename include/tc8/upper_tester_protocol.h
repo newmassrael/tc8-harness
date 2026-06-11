@@ -61,6 +61,15 @@ inline constexpr std::uint16_t kDataPort = 20000;
 // datagram).
 inline constexpr std::uint16_t kDataPeerPort = 20001;
 
+// Tester-side source port every harness-originated UT request rides
+// on (raw-injected or socket-bound); the DUT's UT response returns to
+// it. A single value across all spec areas lets pcap readers attribute
+// "src=30600 / dst=30600" frames to the UT channel and BPF filters
+// narrow on one port pair. Harness convention, not spec-mandated —
+// historically this literal was scattered per-pilot (20100); keep new
+// call sites on this constant.
+inline constexpr std::uint16_t kTesterSrcPort = 20100;
+
 // Upper-limit on a single request/response payload. §4.4 cases send
 // 8 B Data regions; 256 B headroom covers future TCP test cases that
 // want to trigger short segment exchanges without fragmentation. UDP

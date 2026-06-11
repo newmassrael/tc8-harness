@@ -87,7 +87,7 @@ inline void emitStartDhcpClient(const ::tc8::TestConfig& cfg,
         iface_index);
     ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        /*tester_src_port=*/20100, req);
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
 }
 
 // §4.7.6.8 RENEWING REQUEST cluster trait helper. Schedules:

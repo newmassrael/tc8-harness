@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
             /*target_port=*/::tc8::sce::udp::kDataPort,        // 20000
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            /*tester_src_port=*/20100,
+            /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
             /*dut_mac=*/cfg.arp.dut_real_mac);
     }
 

@@ -71,7 +71,7 @@ struct TestCaseTraits<cases::UdpFields12SM>
             /*req_id=*/1,
             /*listen_port=*/::tc8::sce::udp::kDataPort,
             /*expected_dst_ip_be=*/cfg.ipv4.dut_iface_ip,
-            /*tester_src_port=*/20100,
+            /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
             /*dut_mac=*/cfg.arp.dut_real_mac);
     }
 

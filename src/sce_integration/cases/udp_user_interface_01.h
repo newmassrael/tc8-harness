@@ -5,7 +5,6 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_udp_traits_base.h"
-#include "sce_integration/cases/udp_fields_01.h"  // kUdpFieldsTesterSrcPort
 #include "sce_integration/test_runner.h"
 #include "sce_integration/udp_pilot_common.h"
 
@@ -36,7 +35,7 @@ struct TestCaseTraits<cases::UdpUserInterface01SM>
             cfg, iface,
             /*req_id=*/1,
             /*count=*/10,
-            cases::kUdpFieldsTesterSrcPort,
+            ::tc8::ut::kTesterSrcPort,
             cfg.arp.dut_real_mac);
     }
 

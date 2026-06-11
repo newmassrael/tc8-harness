@@ -446,24 +446,14 @@ int emitTriggerSendUdpBoot(std::string_view iface,
     static constexpr std::uint8_t kPayload[] = {'T', 'C', '8', '-', 'E', 'G',
                                                 'R', 'E', 'S', 'S'};
 
-    std::this_thread::sleep_for(timing.initial_wait);
-
-    for (int i = 0; i < timing.total_emits; ++i) {
-        if (i > 0) {
-            std::this_thread::sleep_for(timing.retry_interval);
-        }
+    return runBootCadence(timing, [&](int i) {
         const auto req = buildTriggerSendUdpRequest(
             static_cast<std::uint8_t>(1 + i), kEgressBootDutSrcPort,
             tester_ip_be, ut::kDataPort, kPayload,
             static_cast<std::uint16_t>(sizeof(kPayload)));
-        const int rc = sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be,
-                                              dut_mac,
-                                              kEgressBootTesterSrcPort, req);
-        if (rc != 0) {
-            return rc;
-        }
-    }
-    return 0;
+        return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                      ut::kTesterSrcPort, req);
+    });
 }
 
 }  // namespace tc8::stimulus

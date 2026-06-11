@@ -14,12 +14,6 @@ namespace tc8::sce::cases {
 
 using UdpFields01SM = ::SCE::Generated::udp_fields_01::udp_fields_01;
 
-// Tester-side source port used by every UDP_FIELDS / UDP_USER_INTERFACE
-// trait when issuing the OpTriggerSendUdp UT request. Disjoint from the
-// per-case DUT-side src_port literals so SCXML can attribute observed
-// frames to the right side without ambiguity.
-inline constexpr std::uint16_t kUdpFieldsTesterSrcPort = 20100;
-
 }  // namespace tc8::sce::cases
 
 namespace tc8::sce {
@@ -44,7 +38,7 @@ struct TestCaseTraits<cases::UdpFields01SM>
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            cases::kUdpFieldsTesterSrcPort,
+            ::tc8::ut::kTesterSrcPort,
             cfg.arp.dut_real_mac);
     }
 

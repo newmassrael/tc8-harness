@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string_view>
 #include <variant>
 
 #include "tc8/bpf_group.h"
@@ -7,6 +8,8 @@
 
 #include "sce_integration/arp_captured.h"
 #include "sce_integration/test_case_traits.h"
+#include "sce_integration/test_config.h"
+#include "stimulus/upper_tester_client.h"
 
 // Shared §4.2 ARP trait bases. Two siblings cover the two dispatch
 // shapes that recur across the cluster:
@@ -28,11 +31,30 @@
 // shapes — no third base needed.
 //
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
-// own per-case stimulus (ARP-learning probe, Subscribe-Nack, ...) and
-// `has_stimulus_v` SFINAE in test_case_traits.h would pick up an
+// own per-case stimulus (ARP-learning probe, UT egress provocation, ...)
+// and `has_stimulus_v` SFINAE in test_case_traits.h would pick up an
 // inherited base member, forcing kickStimulus() to fire on every case.
 
 namespace tc8::sce {
+
+// Shared §4.2.4 egress-provocation step: the spec's "DUT CONFIGURE:
+// Configure DUT to send a UDP Message from <DIface-0> (src=<DIface-0-IP>,
+// dst=<HOST-1-IP>)" as a UT 0x02 boot emit. A free function (not a base
+// member — see the SFINAE note above) so per-case `stimulus` bodies
+// compose it with their injections.
+//
+// This is the single place that selects the UT envelope identities:
+// TOPOLOGY values (`cfg.ipv4.tester_ip` + `cfg.arp.dut_real_*`), never
+// the `arp.tester_ip` / `arp.dut_iface_*` SCXML-expectation knobs — a
+// `--negative` override must shift only the SCXML comparison, not
+// silence the DUT (see `emitTriggerSendUdpBoot` in
+// stimulus/upper_tester_client.h for the full rationale).
+inline int emitArpEgressProvocation(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                    const ::tc8::stimulus::BootTiming &timing) {
+    return ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip,
+                                                   cfg.arp.dut_real_ip,
+                                                   cfg.arp.dut_real_mac, timing);
+}
 
 template <typename StateMachine>
 struct ArpAnyBase {

@@ -226,7 +226,7 @@ inline void emitGetReceivedUdp(const ::tc8::TestConfig& cfg,
                                 std::uint8_t  req_id,
                                 std::uint16_t listen_port,
                                 std::uint32_t expected_dst_ip_be,
-                                std::uint16_t tester_src_port = 20100,
+                                std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort,
                                 const std::array<std::uint8_t, 6>& dut_mac = {},
                                 std::chrono::milliseconds initial_wait =
                                     std::chrono::milliseconds(0)) {
@@ -246,7 +246,7 @@ inline void emitCreateUdpReceivePorts(const ::tc8::TestConfig& cfg,
                                        std::string_view iface,
                                        std::uint8_t  req_id,
                                        std::uint8_t  count,
-                                       std::uint16_t tester_src_port = 20100,
+                                       std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort,
                                        const std::array<std::uint8_t, 6>& dut_mac = {},
                                        std::chrono::milliseconds initial_wait =
                                            kUdpPilotInitialWait) {
@@ -271,7 +271,7 @@ inline void emitTriggerSendUdp(const ::tc8::TestConfig& cfg,
                                 std::uint16_t target_port,
                                 const std::uint8_t *payload,
                                 std::uint16_t payload_len,
-                                std::uint16_t tester_src_port = 20100,
+                                std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort,
                                 const std::array<std::uint8_t, 6>& dut_mac = {},
                                 std::chrono::milliseconds initial_wait =
                                     kUdpPilotInitialWait,
@@ -315,7 +315,7 @@ inline void emitAddressingProbeAndQuery(const ::tc8::TestConfig& cfg,
         /*req_id=*/1,
         /*listen_port=*/kDataPort,
         /*expected_dst_ip_be=*/broadcast_ip_be,
-        /*tester_src_port=*/20100,
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
         /*dut_mac=*/dut_mac);
 }
 
@@ -359,7 +359,7 @@ inline void emitIngressProbeAndQuery(const ::tc8::TestConfig& cfg,
         req_id,
         /*listen_port=*/kDataPort,
         /*expected_dst_ip_be=*/cfg.ipv4.dut_iface_ip,
-        /*tester_src_port=*/20100,
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
         /*dut_mac=*/dut_mac);
 }
 

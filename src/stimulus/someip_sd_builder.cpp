@@ -476,8 +476,6 @@ int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view if
 }
 
 int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target, const BootTiming &timing) {
-    std::this_thread::sleep_for(timing.initial_wait);
-
     // SD §4.2.1: Reboot=1 stays set until Session ID wraps 0xFFFF -> 0x0000.
     // This helper only runs the pre-wrap boot window (session 0x0001 up to
     // timing.total_emits, always < 0xFFFF in practice), so Reboot stays 1
@@ -485,23 +483,13 @@ int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target,
     // unused here.
     constexpr std::uint8_t kSdFlagsBoot = 0xC0;
 
-    for (int i = 0; i < timing.total_emits; ++i) {
-        if (i > 0) {
-            std::this_thread::sleep_for(timing.retry_interval);
-        }
-
+    return runBootCadence(timing, [&](int i) {
         FindServiceParams p{};
         p.target = target;
         p.session_id = static_cast<std::uint16_t>(0x0001 + i);
         p.sd_flags = kSdFlagsBoot;
-
-        const auto bytes = buildFindService(p);
-        const int rc = sendSdMulticast(bytes, iface);
-        if (rc != 0) {
-            return rc;
-        }
-    }
-    return 0;
+        return sendSdMulticast(buildFindService(p), iface);
+    });
 }
 
 std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupParams &p) {
@@ -975,41 +963,24 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
 
 int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgroupTarget &target,
                                 const BootTiming &timing, const SubscribeDestination &dest) {
-    std::this_thread::sleep_for(timing.initial_wait);
-
     constexpr std::uint8_t kSdFlagsBoot = 0xC0;
 
-    for (int i = 0; i < timing.total_emits; ++i) {
-        if (i > 0) {
-            std::this_thread::sleep_for(timing.retry_interval);
-        }
-        const std::uint16_t session_id = static_cast<std::uint16_t>(0x0001 + i);
-        const int rc = subscribeOnce(target, kSdFlagsBoot, session_id, iface, dest);
-        if (rc != 0) {
-            return rc;
-        }
-    }
-    return 0;
+    return runBootCadence(timing, [&](int i) {
+        return subscribeOnce(target, kSdFlagsBoot,
+                             static_cast<std::uint16_t>(0x0001 + i), iface, dest);
+    });
 }
 
 int emitSubscribeEventgroupBootTcpOption(std::string_view iface, const SubscribeEventgroupTarget &target,
                                          const BootTiming &timing, const SubscribeDestination &dest) {
-    std::this_thread::sleep_for(timing.initial_wait);
-
     constexpr std::uint8_t kSdFlagsBoot = 0xC0;
     constexpr std::uint8_t kL4ProtoTcp = 0x06;
 
-    for (int i = 0; i < timing.total_emits; ++i) {
-        if (i > 0) {
-            std::this_thread::sleep_for(timing.retry_interval);
-        }
-        const std::uint16_t session_id = static_cast<std::uint16_t>(0x0001 + i);
-        const int rc = subscribeOnce(target, kSdFlagsBoot, session_id, iface, dest, kL4ProtoTcp);
-        if (rc != 0) {
-            return rc;
-        }
-    }
-    return 0;
+    return runBootCadence(timing, [&](int i) {
+        return subscribeOnce(target, kSdFlagsBoot,
+                             static_cast<std::uint16_t>(0x0001 + i), iface, dest,
+                             kL4ProtoTcp);
+    });
 }
 
 int emitSubscribeEventgroupOnce(std::string_view iface,
