@@ -70,10 +70,19 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             return;
         }
 
-        // Three 4 B segments with 100 ms inter-arrival. Linux quickack
-        // is on for the first ~16 segments post-handshake so each
-        // elicits an immediate cumulative ACK without delayed-ACK
-        // coalescing.
+        // Three 4 B segments spaced past the RFC 1122 §4.2.3.2
+        // delayed-ACK ceiling (kDelayedAckSettle, 600 ms). The spec
+        // pass criterion is one ACK per received segment; a quickack
+        // stack (Linux) ACKs each immediately, while a delayed-ACK
+        // stack (lwIP) would coalesce segments arriving within ~250 ms
+        // into a single cumulative ACK — failing the per-segment chain
+        // for a test-design reason, not a conformance gap. Spacing the
+        // segments beyond the ceiling lets the delayed-ACK timer fire
+        // for each segment before the next arrives, so both DUT classes
+        // emit the per-segment cumulative ACKs the SCXML walks. The
+        // final gap also outlasts the close-RST race (see
+        // ACKNOWLEDGEMENT_03), so seg 3's ACK is observed before
+        // teardown.
         std::uint32_t seg_seq = kTesterInitialSeq + 1U;
         for (int i = 0; i < 3; ++i) {
             ::tc8::stimulus::TcpSegmentSpec data{};
@@ -87,7 +96,7 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             seg_seq += kSegLen;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(kDelayedAckSettle);
         }
 
         sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,

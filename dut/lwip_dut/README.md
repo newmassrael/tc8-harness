@@ -70,8 +70,8 @@ feature-level byte honestly reports only 0x0B.
 
 | Bucket | Count | Notes |
 |---|---|---|
-| Meaningful PASS | 209 | 107 non-TCP + 102 TCP |
-| lwIP stack deviation (`platform_known_fail`) | 23 | 9 non-TCP + 14 TCP, each verified against lwIP source and/or pcap (below) |
+| Meaningful PASS | 211 | 107 non-TCP + 104 TCP |
+| lwIP stack deviation (`platform_known_fail`) | 21 | 9 non-TCP + 12 TCP, each verified against lwIP source and/or pcap (below) |
 
 `dut/lwip_dut/inventory_overrides.json` is the machine-readable single
 source of truth for the deviation set; this table is a dated report.
@@ -80,7 +80,7 @@ The 39 `IPv4_AUTOCONF_*` cases (29 positive + 10 `_NEG`) sit outside
 the sweep scope entirely: the fixture builds with `LWIP_AUTOIP`
 disabled (`lwipopts.h`) and no UT opcode drives autoconf. They are
 ledgered `expected:false` in the overrides file so the sweep command
-below emits exactly the 209-case regression list (the meaningful-PASS
+below emits exactly the 211-case regression list (the meaningful-PASS
 set) and `--vs-spec`
 reports them as honest gaps.
 
@@ -137,11 +137,6 @@ TCP:
   bare ACK in SYN-SENT (RFC 793 p66; Linux silently drops).
 - **`TCP_FLAGS_INVALID_07` — no challenge ACK** for an OTW-SEQ SYN in
   SYN-RCVD (RFC 793 §3.9).
-- **`TCP_ACKNOWLEDGEMENT_03` / `TCP_SEQUENCE_05` — delayed ACK
-  coalescing.** lwIP's RFC 1122 §4.2.3.2-conformant ~250 ms delayed ACK
-  falls outside per-segment observation windows tuned to Linux
-  quickack; in `_03` the case's follow-up close converts the pending
-  ACK into RST-on-close.
 - **`TCP_URGENT_PTR_04` — urgent/OOB path not implemented** (RFC 793
   §3.7). The UT answers `OpReceiveTcpDataOob` with zero bytes by
   design, loudly logged.

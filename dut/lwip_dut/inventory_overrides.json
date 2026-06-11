@@ -215,16 +215,6 @@
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "OTW-SEQ SYN in SYN-RCVD is dropped without the RFC 793 section 3.9 challenge ACK"
     },
-    "TCP_ACKNOWLEDGEMENT_03": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "RFC 1122 section 4.2.3.2 delayed ACK (~250 ms) outlives the case's 112 ms post-data window; the follow-up OpCloseTcpSocket converts the still-pending ACK into RST-on-close"
-    },
-    "TCP_SEQUENCE_05": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "RFC 1122 section 4.2.3.2 delayed ACK coalesces the seg2 acknowledgement into the every-second-segment ACK; the case expects a per-segment ACK in a Linux-quickack-sized window"
-    },
     "TCP_URGENT_PTR_04": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "dut/lwip_dut/README.md",

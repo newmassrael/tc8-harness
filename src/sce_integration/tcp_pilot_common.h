@@ -112,6 +112,21 @@ inline constexpr auto kTcpPilotInitialWait = std::chrono::milliseconds(200);
 // stays well under the per-case CASE_TIMEOUT_SEC budget.
 inline constexpr auto kTcpPilotPhaseGap = std::chrono::milliseconds(200);
 
+// RFC 1122 §4.2.3.2 caps a delayed ACK at < 500 ms ("the delay MUST be
+// less than 0.5 seconds"). A DUT honouring delayed-ACK (e.g. the lwIP
+// fixture, which drains its TF_ACK_DELAY queue from the ~250 ms fast
+// timer) legally coalesces the acknowledgements for back-to-back
+// segments into a single cumulative ACK, and abandons a still-pending
+// ACK when the application closes over unread RX data (RST-on-close).
+// Tests that assert a per-segment ACK cadence — or that must observe a
+// data ACK before teardown — space the tester's segments and the
+// follow-up close past this ceiling: with the gap above 500 ms every
+// conformant stack emits one cumulative ACK per segment before the next
+// stimulus arrives, so the strict per-segment matchers hold for both
+// quickack-style (Linux) and delayed-ACK (lwIP) DUTs without loosening
+// the matcher. 600 ms = 500 ms RFC ceiling + scheduler-jitter margin.
+inline constexpr auto kDelayedAckSettle = std::chrono::milliseconds(600);
+
 // Seed SEQ value the tester uses on its SYN / flag-stimulus segments.
 // Chosen non-zero so BASICS_04's pass criterion ("DUT's RST SEQ == 0")
 // is structurally distinct from the tester's SEQ — a bug where the

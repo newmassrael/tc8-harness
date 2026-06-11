@@ -71,6 +71,15 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
         emitTcpFrame(cfg, iface, cfg.arp.dut_real_mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
+        // The spec procedure has no close step; the follow-up
+        // OpCloseTcpSocket is harness teardown. A delayed-ACK DUT (lwIP)
+        // holds the data ACK up to the RFC 1122 §4.2.3.2 ceiling, and a
+        // close arriving over the still-unread RX byte converts the
+        // pending ACK into an RST — losing the very ACK the case
+        // observes. Settle past the ceiling (kDelayedAckSettle) so the
+        // pure data ACK is on the wire before teardown; a quickack DUT
+        // (Linux) has already ACKed and is unaffected by the extra wait.
+        std::this_thread::sleep_for(kDelayedAckSettle);
         sendCloseTcpSocketRequest(cfg, iface, cfg.arp.dut_real_mac,
                                    /*req_id=*/2, /*socket_id=*/1);
     }
