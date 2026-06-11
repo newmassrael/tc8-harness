@@ -136,6 +136,22 @@
         {
           "file": "tests/someip_ets_093/someip_ets_093.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.h",
+          "kind": "references"
         }
       ]
     },
@@ -184,6 +200,14 @@
         {
           "file": "src/sce_integration/arp_captured.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/arp_07.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.h",
+          "kind": "references"
         }
       ]
     },
@@ -1697,6 +1721,10 @@
         {
           "file": "tests/someip_ets_122/someip_ets_122.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.h",
+          "kind": "references"
         }
       ]
     },
@@ -3933,26 +3961,6 @@
         },
         {
           "file": "src/stimulus/someip_sd_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/arp_08/arp_08.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/arp_09/arp_09.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/arp_10/arp_10.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/arp_11/arp_11.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/arp_12/arp_12.scxml",
           "kind": "implements"
         },
         {
@@ -6721,6 +6729,38 @@
       "publishable_carry_forward_bullets": [
         "11 pre-existing frozen FIN-WAIT-1 sockets on the dev host die one-by-one via the challenge-ACK/RST dance when their quad recurs (one sacrificial exchange each); no new ones form",
         "UT opcodes 0x01/0x02/0x14 + 0x13 and the SOME/IP-responder gap remain the next coverage openers (Round 10 carry)"
+      ]
+    },
+    "Round 12": {
+      "decision_summary": "Replaced the historical SOME/IP Subscribe-Nack ARP egress provocation with the TC8-literal UT 0x02 OpTriggerSendUdp boot emit, and pinned the lwIP fixture's ut-ping preflight source to the tester alias so the per-case respawned DUT starts with a genuinely cold primary-tester ARP entry.",
+      "changes_bullets": [
+        "src/stimulus/boot_timing.h: BootTiming extracted from someip_sd_builder.h (was SdBootTiming, project-wide rename); upper_tester_client.{h,cpp}: emitTriggerSendUdpBoot boot-cadence 0x02 emitter, envelope pinned to topology identities (cfg.ipv4.tester_ip + cfg.arp.dut_real_*) so --negative expectation flips cannot silence the DUT",
+        "24 ARP case headers (arp_03..49) swapped emitSubscribeEventgroupBoot -> emitTriggerSendUdpBoot; SCXML/template/smoke-test narrative comments updated",
+        "ut-ping --source-ip flag + pingUpperTester src bind; lwip-tap-fixture.conf preflight pinned to 172.16.0.4; dut/lwip_dut/inventory_overrides.json ARP bucket: 19 unblocked, ARP_05/_06/_33 platform_known_fail (for_us-only etharp entry creation), ARP_48/_49 expected:false (no per-case ARP-timer conditioning)"
+      ],
+      "verification_bullets": [
+        "Linux DUT: 22/22 expected-pass ARP cases PASS at --workers 4; ARP_33/_34 land exactly the registered platform_known_fail verdicts (HEAD-binary cross-check proved the failures predate the swap, commit 3da103a7)",
+        "Full --negative suite 323/323 green after the topology-identity envelope fix (first run caught ARP_03/05/15(neg) regressions when the envelope used arp.tester_ip)",
+        "lwIP fixture: 207/207 single-invocation full sweep green (188 prior list + 19 newly unblocked ARP), regression list 188 -> 207; ARP_34/_39/_40 pass where the Linux reference known-fails"
+      ],
+      "carry_forward_bullets": [
+        "ARP_48/_49 unlock path: UT conditioning opcode (flush/compress ARP cache timers) — same capability family as P6 OpQueryCapabilities",
+        "lwip-sweep.yml weekly run will confirm the 207-case list on the self-hosted runner"
+      ],
+      "publishable_decision_summary": "Replaced the historical SOME/IP Subscribe-Nack ARP egress provocation with the TC8-literal UT 0x02 OpTriggerSendUdp boot emit, and pinned the lwIP fixture's ut-ping preflight source to the tester alias so the per-case respawned DUT starts with a genuinely cold primary-tester ARP entry.",
+      "publishable_changes_bullets": [
+        "src/stimulus/boot_timing.h: BootTiming extracted from someip_sd_builder.h (was SdBootTiming, project-wide rename); upper_tester_client.{h,cpp}: emitTriggerSendUdpBoot boot-cadence 0x02 emitter, envelope pinned to topology identities (cfg.ipv4.tester_ip + cfg.arp.dut_real_*) so --negative expectation flips cannot silence the DUT",
+        "24 ARP case headers (arp_03..49) swapped emitSubscribeEventgroupBoot -> emitTriggerSendUdpBoot; SCXML/template/smoke-test narrative comments updated",
+        "ut-ping --source-ip flag + pingUpperTester src bind; lwip-tap-fixture.conf preflight pinned to 172.16.0.4; dut/lwip_dut/inventory_overrides.json ARP bucket: 19 unblocked, ARP_05/_06/_33 platform_known_fail (for_us-only etharp entry creation), ARP_48/_49 expected:false (no per-case ARP-timer conditioning)"
+      ],
+      "publishable_verification_bullets": [
+        "Linux DUT: 22/22 expected-pass ARP cases PASS at --workers 4; ARP_33/_34 land exactly the registered platform_known_fail verdicts (HEAD-binary cross-check proved the failures predate the swap, commit 3da103a7)",
+        "Full --negative suite 323/323 green after the topology-identity envelope fix (first run caught ARP_03/05/15(neg) regressions when the envelope used arp.tester_ip)",
+        "lwIP fixture: 207/207 single-invocation full sweep green (188 prior list + 19 newly unblocked ARP), regression list 188 -> 207; ARP_34/_39/_40 pass where the Linux reference known-fails"
+      ],
+      "publishable_carry_forward_bullets": [
+        "ARP_48/_49 unlock path: UT conditioning opcode (flush/compress ARP cache timers) — same capability family as P6 OpQueryCapabilities",
+        "lwip-sweep.yml weekly run will confirm the 207-case list on the self-hosted runner"
       ]
     },
     "Round 2": {
@@ -10640,6 +10680,8 @@
   "confirmation_events": {},
   "frames": {},
   "branches": {},
+  "entities": {},
+  "predicates": {},
   "narrative_facts": {},
-  "schema_version": 14
+  "schema_version": 19
 }

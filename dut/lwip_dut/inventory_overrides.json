@@ -1,102 +1,26 @@
 {
   "schema_version": 3,
-  "description": "Per-case overrides for the lwIP tap-interface DUT fixture (dut/lwip_dut/, driven via --topology external). Same two axes as the default Linux file: `expected:false` marks cases this fixture cannot execute meaningfully today (no SOME/IP responder / Upper Tester opcode not yet ported / vacuous-pass shapes), `platform_known_fail:true` marks verified lwIP stack deviations from RFC MUST/SHOULD that a strict-RFC DUT passes. Evidence and per-bucket discussion: dut/lwip_dut/README.md. Select with: tc8-harness test --inventory-overrides dut/lwip_dut/inventory_overrides.json.",
+  "description": "Per-case overrides for the lwIP tap-interface DUT fixture (dut/lwip_dut/, driven via --topology external). Same two axes as the default Linux file: `expected:false` marks cases this fixture cannot execute meaningfully today (no SOME/IP responder / Upper Tester opcode not yet ported / vacuous-pass shapes), `platform_known_fail:true` marks verified lwIP stack behaviours that fail the TC8 assertion — RFC MUST/SHOULD deviations a strict-RFC DUT passes, plus TC8-beyond-RFC expectations (e.g. gratuitous-announcement learning, where lwIP follows RFC 826 literally and the Linux reference needs arp_accept=1 conditioning). Evidence and per-bucket discussion: dut/lwip_dut/README.md. Select with: tc8-harness test --inventory-overrides dut/lwip_dut/inventory_overrides.json.",
   "overrides": {
-    "ARP_03": {
-      "expected": false,
-      "reason": "vacuous pass on the lwIP fixture: the no-ARP-Request absence assertion only binds when the SOME/IP Subscribe-Nack egress provocation works, and the fixture runs no SOME/IP responder (dut/lwip_dut/README.md)"
-    },
     "ARP_05": {
-      "expected": false,
-      "reason": "vacuous pass on the lwIP fixture: the no-ARP-Request absence assertion only binds when the SOME/IP Subscribe-Nack egress provocation works, and the fixture runs no SOME/IP responder (dut/lwip_dut/README.md)"
-    },
-    "ARP_04": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
+      "platform_known_fail": true,
+      "reason": "lwIP etharp implements the literal RFC 826 reception algorithm: a gratuitous Response not addressed to the DUT updates an EXISTING table entry but never creates one, so the cold cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_gratuitous_learning). The Linux reference passes only via the arp_accept=1 per-case conditioning; lwIP has no equivalent knob (dut/lwip_dut/README.md)"
     },
     "ARP_06": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_07": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_08": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_09": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_10": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_11": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_12": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_13": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_14": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_15": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_22": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_28": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_32": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
+      "platform_known_fail": true,
+      "reason": "lwIP etharp implements the literal RFC 826 reception algorithm: a gratuitous Response not addressed to the DUT updates an EXISTING table entry but never creates one, so the cold cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_gratuitous_learning). The Linux reference passes only via the arp_accept=1 per-case conditioning; lwIP has no equivalent knob (dut/lwip_dut/README.md)"
     },
     "ARP_33": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_34": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_35": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_38": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_39": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
-    },
-    "ARP_40": {
-      "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
+      "platform_known_fail": true,
+      "reason": "both injections are gratuitous Responses not addressed to the DUT; lwIP etharp creates no table entry from either (RFC 826 literal: add only when the DUT is the target), the cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_double_injection). Distinct mechanism from the Linux reference known-fail on the same case (arp_is_garp target_hw shape + LOCKTIME); ARP_34 passes here because its first injection is a Request addressed to the DUT (dut/lwip_dut/README.md)"
     },
     "ARP_48": {
       "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
+      "reason": "needs per-case ARP-cache timer conditioning (Linux reference compresses base_reachable_time_ms/delay_first_probe_time per case); lwIP ages its ARP table at compile-time ARP_MAXAGE (300 s) and no UT opcode exists to compress or flush it, so the re-ARP never lands inside the case envelope (dut/lwip_dut/README.md)"
     },
     "ARP_49": {
       "expected": false,
-      "reason": "egress provocation uses a SOME/IP SubscribeEventgroup-Nack round trip; the lwIP fixture runs no SOME/IP responder, so the DUT never attempts the provoked UDP egress (dut/lwip_dut/README.md)"
+      "reason": "needs per-case ARP-cache timer conditioning (Linux reference compresses base_reachable_time_ms/delay_first_probe_time per case); lwIP ages its ARP table at compile-time ARP_MAXAGE (300 s) and no UT opcode exists to compress or flush it, so the re-ARP never lands inside the case envelope (dut/lwip_dut/README.md)"
     },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_01": {
       "expected": false,

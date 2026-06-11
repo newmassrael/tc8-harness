@@ -43,12 +43,22 @@ listener (multicast deny, below). 2026-06-11 ported OpQueryTcpInfo
 UT-opcode-blocked bucket: `TCP_RETRANSMISSION_TO_03/_04` join the
 PASS set (x2 consecutive), `_08/_09` join the deviation set (below).
 
+A 2026-06-11 PM follow-up retired the SOME/IP-responder-blocked bucket
+entirely: the §4.2 egress-provocation stimulus is now the UT 0x02
+OpTriggerSendUdp the spec text literally asks for (harness-side change,
+`emitTriggerSendUdpBoot`), and the fixture's ut-ping preflight was
+re-pointed at the tester alias so freshly respawned DUTs start with the
+primary tester IP genuinely cold in their ARP table (see the fixture
+notes below). 19 of the 24 ARP egress cases PASS — including
+`ARP_33`-sibling `ARP_34` and Group D `ARP_39/_40`, which the Linux
+reference known-fails — 3 join the deviation set, and `ARP_48/_49`
+remain `expected:false` for want of per-case ARP-timer conditioning.
+
 | Bucket | Count | Notes |
 |---|---|---|
-| Meaningful PASS | 188 | 86 non-TCP + 102 TCP |
-| Vacuous PASS | 2 | `ARP_03/_05` — absence assertions whose SOME/IP egress provocation is inert here; excluded from the regression list |
-| lwIP stack deviation (`platform_known_fail`) | 20 | 6 non-TCP + 14 TCP, each verified against lwIP source and/or pcap (below) |
-| Blocked: no SOME/IP responder | 24 | ARP egress-provocation cases (includes the two vacuous passes) |
+| Meaningful PASS | 207 | 105 non-TCP + 102 TCP |
+| lwIP stack deviation (`platform_known_fail`) | 23 | 9 non-TCP + 14 TCP, each verified against lwIP source and/or pcap (below) |
+| Blocked: no per-case ARP-timer conditioning | 2 | `ARP_48/_49` — re-ARP-after-timeout envelope needs compressed cache timers; lwIP ages at compile-time `ARP_MAXAGE` (300 s) and no UT opcode conditions it |
 
 `dut/lwip_dut/inventory_overrides.json` is the machine-readable single
 source of truth for the last bucket plus the deviation set; this
@@ -58,7 +68,7 @@ The 39 `IPv4_AUTOCONF_*` cases (29 positive + 10 `_NEG`) sit outside
 the sweep scope entirely: the fixture builds with `LWIP_AUTOIP`
 disabled (`lwipopts.h`) and no UT opcode drives autoconf. They are
 ledgered `expected:false` in the overrides file so the sweep command
-below emits exactly the 188-case regression list (the meaningful-PASS
+below emits exactly the 207-case regression list (the meaningful-PASS
 set) and `--vs-spec`
 reports them as honest gaps.
 
@@ -86,6 +96,26 @@ Non-TCP:
   unsupported.** Chain validation requires exact
   `prev->end == next->start` contiguity, so an overlapped bucket never
   completes regardless of `IP_REASS_CHECK_OVERLAP`.
+- **`ARP_05/_06` — no entry creation from unsolicited gratuitous
+  Responses.** `etharp_input` (`src/core/ipv4/etharp.c`) updates an
+  EXISTING table entry from any incoming ARP frame but creates one only
+  when the DUT is the target (`for_us`) — the literal RFC 826 reception
+  algorithm. A gratuitous Response (`target_ip == sender_ip`, neither
+  the DUT) therefore leaves a cold cache cold; the UT-provoked egress
+  emits the DUT's own ARP Request and the cases land
+  `fail:dut_arp_request_after_gratuitous_learning`. The Linux reference
+  passes these only via per-case `arp_accept=1` conditioning — a
+  TC8-beyond-RFC expectation, not an lwIP RFC deviation.
+- **`ARP_33` — same `for_us`-only entry creation, double-injection
+  form.** Both injections are gratuitous Responses, so no entry ever
+  exists for the merge clause to act on
+  (`fail:dut_arp_request_after_double_injection`). Distinct mechanism
+  from the Linux reference's known-fail on the same case
+  (`arp_is_garp()` target_hw-shape check + 1 s LOCKTIME). `ARP_34`
+  passes here because its first injection is a Request addressed to
+  the DUT (entry created), after which lwIP's update-on-any-ARP merge
+  honours the second MAC with no locktime — one of the few cases that
+  discriminates the two stacks in lwIP's favour (`ARP_34/_39/_40`).
 
 TCP:
 
@@ -231,20 +261,32 @@ behaviour-shaping ones:
 - Stimulus-suppression iptables leaks from killed prior runs are
   handled by smoke-test.sh flushing the harness-owned `tc8-stimulus`
   chain at bring-up — no fixture-side rule knowledge.
+- **Preflight must not warm the DUT's primary-tester ARP entry**
+  (`ut-ping --source-ip 172.16.0.4`): the readiness probe's reply path
+  makes the DUT ARP-resolve the probe's source address, and this
+  fixture has no way to flush the lwIP ARP table afterwards (per-case
+  neigh conditioning is a Linux-netns affordance). Probing from the
+  primary tester IP handed every freshly respawned DUT a warm
+  `<172.16.0.1>` entry and silently broke the §4.2 cold-cache cases —
+  the DUT emitted its UDP egress without the ARP Request the cases
+  assert on. Pinning the probe source to the tester alias keeps the
+  warm entry on an address no §4.2 assertion references.
 
-## Inert provocations (why the SOME/IP-blocked bucket exists)
+## ARP egress provocation (SOME/IP-blocked bucket, RETIRED 2026-06-11)
 
-ARP egress cases provoke a DUT-originated unicast UDP datagram with a
-SOME/IP SubscribeEventgroup, expecting the Nack reply that the vsomeip
-reference DUT produces. The lwIP fixture runs no SOME/IP application,
-so the DUT never attempts the egress: positive cases fail with
-`no_arp_request_within_listen_window` /
-`no_udp_from_dut_within_listen_window`, and absence-assertions
-(`ARP_03/_05`) pass vacuously. Opening this bucket requires either a
-minimal SOME/IP subscribe-responder in the fixture app or a
-harness-side egress-provocation abstraction; both are tracked as
-follow-ups, and until then the cases are `expected:false` here so
-`--vs-spec` against this file reports them as honest gaps.
+ARP egress cases historically provoked the DUT-originated unicast UDP
+datagram with a SOME/IP SubscribeEventgroup, expecting the Nack reply
+that the vsomeip reference DUT produces — inert on this fixture (no
+SOME/IP application), which parked all 24 cases `expected:false`. The
+TC8 spec text for every one of those cases actually reads "DUT
+CONFIGURE: Configure DUT to send a UDP Message from <DIface-0>
+(src=<DIface-0-IP>, dst=<HOST-1-IP>)", and the harness now renders
+that literally as a UT 0x02 OpTriggerSendUdp boot emit
+(`emitTriggerSendUdpBoot`); the SD subscribe was a historical
+substitute that predated the UT UDP opcodes. With opcode 0x02 already
+ported here, the bucket opened wholesale: 19/24 PASS, `ARP_05/_06/_33`
+joined the deviation ledger (gratuitous-learning, above), `ARP_48/_49`
+stay `expected:false` (timer conditioning, above).
 
 ## Running the sweep
 
@@ -260,5 +302,5 @@ ledger + category filter — its header documents both); CI runs the same
 command weekly (single invocation, JUnit-reported) via
 `.github/workflows/lwip-sweep.yml` against the lwIP commit pinned in
 `dut/lwip_dut/LWIP_PIN`; the per-push smoke-test workflow only covers a
-13-case regression slice. When bumping the pin, re-run this sweep and
+14-case regression slice. When bumping the pin, re-run this sweep and
 refresh `inventory_overrides.json` in the same commit.
