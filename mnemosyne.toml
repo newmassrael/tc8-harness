@@ -8,13 +8,14 @@
 # Adoption shape — 하이브리드 (case_inventory.json SSOT 유지 + inventory_entries 는 sync target):
 # - doc/spec/case_inventory.json (PDF→python→JSON→C++) → 영구 SSOT
 # - inventory_entries (atomic store)            → cite-time 검증 surface
-# - doc/coverage/SPEC_COVERAGE.md               → atomic store 렌더링 결과 (단일 readable artifact)
 
 [workspace]
-# Mnemosyne 자체 도그푸드 패턴: 원본 마크다운 삭제 + GENERATED.md 단일 artifact (Round 251).
+# R400 store-only model (2026-06-11 M1 마이그레이션): 업스트림이 GENERATED.md
+# 렌더 아티팩트 + markdown-doc 모델을 퇴역 — atomic store
+# (docs/.atomic/workspace.atomic.json) 가 단일 직접-검증 SSOT 이고, 사람은
+# `mnemosyne-cli query` 로 읽는다. 구 `docs`/`default_doc` 키는 config 스키마에서
+# 삭제됨 (WorkspaceSection = optional `root` + `spec_source` 만).
 # TC8 spec 자산 (`doc/spec/*` PDF/JSON) 은 별개 immutable legacy — Mnemosyne 관리 surface 밖.
-docs = ["docs/GENERATED.md"]
-default_doc = "docs/GENERATED.md"
 
 [schema]
 changelog_titles = ["Changelog"]

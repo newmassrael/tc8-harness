@@ -42,7 +42,7 @@
     },
     "4.2": {
       "title": "4.2",
-      "parent_doc": "docs/GENERATED.md",
+      "parent_doc": "tc8-spec",
       "intent": "TC8 §4.2 — auto-seeded TC8-internal sub-section (40 code citations at baseline).",
       "bindings": [
         {

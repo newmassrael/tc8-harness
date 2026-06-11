@@ -1,13 +1,14 @@
 name: mnemosyne
 
-# Mnemosyne 어댑션 게이트 — Round 273-285 substrate.
+# Mnemosyne 어댑션 게이트 — R400 store-only model (atomic store = 단일 SSOT).
 # 잡 내용:
-#   1. validate-workspace  — T1 cross-ref orphan reject + round-trip + style + atomic ledger
-#   2. verify-generated    — atomic store ↔ docs/GENERATED.md sync 검증
-#   3. validate-code-refs  — § / inventory 인용 정합성 (severity = reject)
+#   1. validate-workspace  — T1 cross-ref orphan reject + style + atomic ledger
+#   2. validate-code-refs  — § / inventory 인용 정합성 (severity = reject)
 #
 # 어떤 단계든 exit != 0 이면 잡 실패. PR 의 코드 코멘트가 stale §<id> 나
 # deprecated TC ID 를 도입하면 머지 차단됨.
+# (verify-generated 단계는 업스트림 R400 이 GENERATED.md 렌더 아티팩트를
+# 퇴역시키면서 함께 퇴역 — 2026-06-11 M1 마이그레이션.)
 
 on:
   push:
@@ -28,7 +29,7 @@ permissions:
 
 jobs:
   validate:
-    name: validate-workspace + verify-generated + validate-code-refs
+    name: validate-workspace + validate-code-refs
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -46,22 +47,21 @@ jobs:
           path: ~/.cargo/bin/mnemosyne-cli
           # Pin to upstream commit so the gate is reproducible. Bump when
           # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
-          key: mnemosyne-cli-${{ runner.os }}-a40281b5
+          key: mnemosyne-cli-${{ runner.os }}-10d26cd3
 
       - name: Install mnemosyne-cli (cache miss only)
         if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        # a40281b5 = Round 447. Pin-forward from R427 (2026-06-10 PM):
-        # the local MCP server reserialized the atomic store at schema
-        # v14 while binding the lwIP UDP-port citations, and R427 only
-        # reads schema <= 11 ("schema version mismatch: store=14").
-        # Policy: the pin tracks the local CLI, never the reverse —
-        # a40281b5 reads schema <= 19 and validates this store green.
-        # (R427 context kept for the trail: it pinned-forward from R291
-        # for multiline RFC-citation classification; verify-generated
-        # has been retired since R400, the atomic store is the SSOT.)
+        # 10d26cd3 = Round 470 (upstream HEAD). Pin-forward from R447
+        # (2026-06-11, M1 migration): this repo dropped docs/GENERATED.md
+        # + the retired [workspace] docs keys to match the R400 store-only
+        # model, and re-bound the one render-era parent_doc per the R409
+        # canonical (logical label, not file path).
+        # Policy: the pin tracks the local CLI, never the reverse.
+        # (Trail: R447 read schema <= 19 after a local MCP store
+        # reserialization; R427 for multiline RFC-citation classification.)
         run: |
           cargo install --git https://github.com/newmassrael/mnemosyne \
-            --rev a40281b5 mnemosyne-cli
+            --rev 10d26cd3 mnemosyne-cli
 
       - name: validate-workspace
         run: mnemosyne-cli validate-workspace
