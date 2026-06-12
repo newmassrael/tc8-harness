@@ -21,6 +21,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
+    ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_inventory.cpp
     ${PROJECT_SOURCE_DIR}/src/dissect/someip_header.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/dot1q.cpp
@@ -73,6 +74,7 @@ tc8_add_unit_test(tcp_captured_test)
 tc8_add_unit_test(upper_tester_client_test)
 tc8_add_unit_test(testability_client_test)
 tc8_add_unit_test(iface_enumeration_test)
+tc8_add_unit_test(spec_inventory_test)
 
 # The 802.1Q round-trip test decodes the builder's output with libtins —
 # the same decoder the live dissector uses — so it links libtins on top

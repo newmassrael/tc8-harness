@@ -64,6 +64,14 @@ TestCommand::TestCommand(CLI::App &app) {
     sub_->add_option("--inventory-overrides", overrides_path_,
                      "Path to inventory overrides JSON "
                      "(default: docs/spec/inventory_overrides.json)");
+    sub_->add_option("--inventory-extra", inventory_extra_paths_,
+                     "Additional spec inventory JSON(s) to merge into the "
+                     "--vs-spec gap report (repeatable). Out-of-tree case "
+                     "injection hook: an OEM that adds cases via CMake "
+                     "TC8_EXTRA_CASE_DIRS ships a matching inventory here so "
+                     "its cases cross-check as in-spec. case_ids must be "
+                     "disjoint from the primary TC8 inventory (collision = "
+                     "error).");
     sub_->add_option("--expect", expect_tokens_,
                      "DUT-specific expected values as KEY=VALUE tokens (repeatable). "
                      "SOME/IP keys (bare): service_id, instance_id, major_version, "
@@ -109,7 +117,8 @@ int TestCommand::runListCases() const {
             ? std::string("docs/spec/inventory_overrides.json")
             : overrides_path_;
         std::string err;
-        inv_for_filter = sce::SpecInventory::load(inv_path, ov_path, &err);
+        inv_for_filter =
+            sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
         if (!inv_for_filter.has_value()) {
             std::fprintf(stderr, "error: %s\n", err.c_str());
             return 2;
@@ -169,7 +178,8 @@ int TestCommand::runVsSpecReport() const {
         : overrides_path_;
 
     std::string err;
-    auto inv_opt = sce::SpecInventory::load(inv_path, ov_path, &err);
+    auto inv_opt =
+        sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
     if (!inv_opt.has_value()) {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         return 2;

@@ -742,11 +742,25 @@ oem-conformance/            # OEM repository
 
 Case ids must keep the `<CATEGORY>_<digits>` shape (compile-time
 asserted), with directory names lowercased — OEM categories such as
-`OEMX_LINK_01` group naturally in `--list-cases` output. Spec coverage
-accounting is unaffected: `--vs-spec` compares against
-`docs/spec/case_inventory.json`, so OEM extension cases simply do not
-participate, and OEM-specific skip/known-fail policy can ride the
-`--inventory-overrides` flag with an OEM-maintained JSON.
+`OEMX_LINK_01` group naturally in `--list-cases` output.
+
+Spec coverage accounting integrates the same way. By default `--vs-spec`
+compares the registry against `docs/spec/case_inventory.json` only, so
+OEM extension cases surface under `registered-but-not-in-spec`. Pass
+`--inventory-extra PATH` (repeatable) with an OEM-maintained inventory
+JSON — same `cases` schema as the primary file — to merge those cases
+into the gap report so they cross-check as in-spec instead:
+
+```bash
+./build/tc8-harness test --list-cases --vs-spec \
+    --inventory-extra oem_cases/case_inventory.json
+```
+
+case_ids in an extra inventory must be disjoint from the primary set (a
+collision is a hard error, mirroring the `TC8_EXTRA_CASE_DIRS` collision
+policy). OEM-specific skip/known-fail policy can still ride the
+`--inventory-overrides` flag with an OEM-maintained overrides JSON, which
+is applied across the merged set.
 
 ### IEEE 802.1Q VLAN tagging
 

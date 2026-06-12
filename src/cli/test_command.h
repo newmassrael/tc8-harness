@@ -62,6 +62,14 @@ private:
     bool exclude_platform_known_fail_ = false;
     std::string inventory_path_;
     std::string overrides_path_;
+    // `--inventory-extra` (repeatable) — D5 out-of-tree injection hook.
+    // Additional inventory JSONs whose cases merge into the `--vs-spec`
+    // gap report alongside the primary TC8 inventory. Mirrors the
+    // CMake `TC8_EXTRA_CASE_DIRS` consumer idiom: an OEM that injects
+    // cases out-of-tree ships a matching inventory here so its cases
+    // cross-check as in-spec instead of polluting the
+    // `registered-but-not-in-spec` list. Empty = primary inventory only.
+    std::vector<std::string> inventory_extra_paths_;
     // Raw `KEY=VALUE` tokens collected from `--expect`. Parsed and pushed
     // into ITestRunner::seedExpectations() inside runCase().
     std::vector<std::string> expect_tokens_;

@@ -45,6 +45,27 @@ struct SpecCase {
 // to *err.
 class SpecInventory {
 public:
+    // Load the primary TC8 inventory plus zero or more EXTRA inventory
+    // JSONs, merging every case into one canonical (UPPER) id map. This
+    // is the out-of-tree injection hook (D5): an OEM that adds cases via
+    // CMake `TC8_EXTRA_CASE_DIRS` ships a matching inventory JSON here so
+    // its cases cross-check as in-spec instead of surfacing as
+    // `registered-but-not-in-spec` noise in the `--vs-spec` gap report.
+    //
+    // Every extra file is parsed with the SAME `cases` schema as the
+    // primary; its case_ids must be DISJOINT from the already-loaded set
+    // (collision = loud error, mirroring the FATAL_ERROR collision policy
+    // of TC8_EXTRA_CASE_DIRS — silent override would mask drift). The
+    // single `overrides_path` is applied AFTER the merge, so it can defer
+    // or platform-flag any case from any source. Extra files are loaded
+    // in argument order; the first collision aborts with *err set.
+    static std::optional<SpecInventory> load(const std::string &inventory_path,
+                                             const std::vector<std::string> &extra_inventory_paths,
+                                             const std::string &overrides_path,
+                                             std::string *err);
+
+    // Back-compat convenience: primary inventory + overrides, no extras.
+    // Delegates to the 4-arg overload with an empty extra list.
     static std::optional<SpecInventory> load(const std::string &inventory_path,
                                              const std::string &overrides_path,
                                              std::string *err);

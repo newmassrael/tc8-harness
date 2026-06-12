@@ -726,11 +726,24 @@ oem-conformance/            # OEM 레포지토리
 
 케이스 id는 `<CATEGORY>_<digits>` 형식을 유지해야 하고(컴파일 타임
 assert) 디렉토리 이름은 소문자입니다 — `OEMX_LINK_01` 같은 OEM
-카테고리는 `--list-cases` 출력에서 자연스럽게 그룹핑됩니다. 스펙
-커버리지 집계는 영향받지 않습니다: `--vs-spec`은
-`docs/spec/case_inventory.json` 기준으로 비교하므로 OEM 확장 케이스는
-집계에 끼어들지 않고, OEM별 스킵/known-fail 정책은 OEM이 관리하는
-JSON을 `--inventory-overrides` 플래그로 태우면 됩니다.
+카테고리는 `--list-cases` 출력에서 자연스럽게 그룹핑됩니다.
+
+스펙 커버리지 집계도 같은 방식으로 통합됩니다. 기본적으로 `--vs-spec`은
+레지스트리를 `docs/spec/case_inventory.json`하고만 비교하므로 OEM 확장
+케이스는 `registered-but-not-in-spec`에 표시됩니다. OEM이 관리하는
+인벤토리 JSON(주 파일과 동일한 `cases` 스키마)을 `--inventory-extra PATH`
+(반복 가능)로 넘기면 해당 케이스들이 갭 리포트에 병합되어 in-spec으로
+교차검증됩니다:
+
+```bash
+./build/tc8-harness test --list-cases --vs-spec \
+    --inventory-extra oem_cases/case_inventory.json
+```
+
+추가 인벤토리의 case_id는 주 인벤토리와 겹치지 않아야 합니다(충돌 시
+하드 에러 — `TC8_EXTRA_CASE_DIRS` 충돌 정책과 동일). OEM별 스킵/known-fail
+정책은 여전히 OEM이 관리하는 overrides JSON을 `--inventory-overrides`
+플래그로 태우면 되고, 병합된 집합 전체에 적용됩니다.
 
 ### IEEE 802.1Q VLAN 태깅
 

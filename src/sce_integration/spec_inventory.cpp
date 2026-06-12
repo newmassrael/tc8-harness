@@ -6,6 +6,7 @@
 #include <regex>
 #include <sstream>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 
 namespace tc8::sce {
@@ -319,6 +320,36 @@ splitJsonObjectMap(const std::string &doc, const std::string &key) {
     return out;
 }
 
+// Parse the `cases` array from one inventory JSON document, appending a
+// SpecCase per entry to `out`. Single source of the inventory-row schema
+// — both the primary TC8 inventory and every `--inventory-extra` file go
+// through here, so a schema change touches exactly one place. Returns
+// false with *err set when the `cases` array is absent (a malformed file
+// must fail loudly, never silently contribute zero cases).
+bool parseInventoryCases(const std::string &text, const std::string &path,
+                         std::vector<SpecCase> &out, std::string *err) {
+    const std::string cases_body = extractArrayBody(text, "cases");
+    if (cases_body.empty()) {
+        if (err != nullptr) {
+            *err = "inventory " + path + " missing 'cases' array";
+        }
+        return false;
+    }
+    for (const auto &block : splitJsonObjectArray(cases_body)) {
+        SpecCase sc;
+        sc.id = findStringField(block, "case_id");
+        if (sc.id.empty()) {
+            continue;
+        }
+        sc.section = findStringField(block, "section");
+        sc.split = findStringField(block, "split");
+        sc.line = findIntField(block, "line");
+        sc.category = deriveCategory(sc.id);
+        out.push_back(std::move(sc));
+    }
+    return true;
+}
+
 }  // namespace
 
 std::string SpecInventory::canonicalise(std::string id) {
@@ -343,6 +374,14 @@ const SpecCase *SpecInventory::find(const std::string &canonical_id) const {
 std::optional<SpecInventory> SpecInventory::load(const std::string &inventory_path,
                                                  const std::string &overrides_path,
                                                  std::string *err) {
+    return load(inventory_path, /*extra_inventory_paths=*/{}, overrides_path, err);
+}
+
+std::optional<SpecInventory> SpecInventory::load(
+        const std::string &inventory_path,
+        const std::vector<std::string> &extra_inventory_paths,
+        const std::string &overrides_path,
+        std::string *err) {
     auto fail = [err](std::string msg) -> std::optional<SpecInventory> {
         if (err != nullptr) {
             *err = std::move(msg);
@@ -355,27 +394,45 @@ std::optional<SpecInventory> SpecInventory::load(const std::string &inventory_pa
         return fail("cannot open spec inventory: " + inventory_path);
     }
 
-    const std::string cases_body = extractArrayBody(*inv_text, "cases");
-    if (cases_body.empty()) {
-        return fail("inventory " + inventory_path + " missing 'cases' array");
-    }
-
     SpecInventory result;
-    for (const auto &block : splitJsonObjectArray(cases_body)) {
-        SpecCase sc;
-        sc.id = findStringField(block, "case_id");
-        if (sc.id.empty()) {
-            continue;
-        }
-        sc.section = findStringField(block, "section");
-        sc.split = findStringField(block, "split");
-        sc.line = findIntField(block, "line");
-        sc.category = deriveCategory(sc.id);
-        result.cases_.push_back(std::move(sc));
+    if (!parseInventoryCases(*inv_text, inventory_path, result.cases_, err)) {
+        return std::nullopt;  // *err set by parseInventoryCases
     }
 
-    // Apply overrides (optional file). Missing file is OK; parse-failure
-    // is fatal so a malformed overrides file can't silently be ignored.
+    // Merge extra inventories (D5 out-of-tree injection hook). Each
+    // case_id must be DISJOINT from the already-loaded canonical set;
+    // a collision is a loud error rather than a silent override so an
+    // OEM inventory cannot mask drift against the primary TC8 set. The
+    // `seen` set is seeded from the primary inventory and grows as each
+    // extra file contributes, so collisions BETWEEN two extra files are
+    // caught as well.
+    std::unordered_set<std::string> seen;
+    seen.reserve(result.cases_.size());
+    for (const auto &sc : result.cases_) {
+        seen.insert(canonicalise(sc.id));
+    }
+    for (const auto &extra_path : extra_inventory_paths) {
+        auto extra_text = slurp(extra_path);
+        if (!extra_text.has_value()) {
+            return fail("cannot open extra spec inventory: " + extra_path);
+        }
+        std::vector<SpecCase> extra_cases;
+        if (!parseInventoryCases(*extra_text, extra_path, extra_cases, err)) {
+            return std::nullopt;  // *err set by parseInventoryCases
+        }
+        for (auto &sc : extra_cases) {
+            if (!seen.insert(canonicalise(sc.id)).second) {
+                return fail("extra spec inventory " + extra_path + " case '" +
+                            sc.id + "' collides with an already-loaded case id");
+            }
+            result.cases_.push_back(std::move(sc));
+        }
+    }
+
+    // Apply overrides (optional file) over the MERGED case set, so the
+    // overrides JSON can defer or platform-flag a case from any source.
+    // Missing file is OK; parse-failure is fatal so a malformed overrides
+    // file can't silently be ignored.
     if (auto ov_text = slurp(overrides_path); ov_text.has_value()) {
         for (const auto &[id, body] : splitJsonObjectMap(*ov_text, "overrides")) {
             const std::string canon = canonicalise(id);
