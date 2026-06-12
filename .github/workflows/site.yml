@@ -7,8 +7,8 @@ on:
       - 'site/**'
       - 'src/sce_integration/cases/**'
       - 'tests/**/*.scxml'
-      - 'doc/spec/case_inventory.json'
-      - 'doc/spec/inventory_overrides.json'
+      - 'docs/spec/case_inventory.json'
+      - 'docs/spec/inventory_overrides.json'
       - '.github/workflows/site.yml'
   workflow_dispatch:
 

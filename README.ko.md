@@ -352,10 +352,10 @@ vsomeip 설정으로 교체한다면 양쪽을 함께 갱신하세요.
 ```sh
 ./build/tc8-harness test --list-cases                       # 등록된 모든 케이스, 카테고리별 정렬
 ./build/tc8-harness test --list-cases --include-deprecated  # deprecated ID도 포함
-./build/tc8-harness test --list-cases --vs-spec             # doc/spec/case_inventory.json 대비 커버리지 갭
+./build/tc8-harness test --list-cases --vs-spec             # docs/spec/case_inventory.json 대비 커버리지 갭
 ./build/tc8-harness test --list-cases --vs-spec --strict    # 갭이 있으면 비-0 종료
 ./build/tc8-harness test --list-cases --exclude-deferred --exclude-platform-known-fail
-                                                            # doc/spec/inventory_overrides.json에서
+                                                            # docs/spec/inventory_overrides.json에서
                                                             # expected:false / platform_known_fail:true 로
                                                             # 표시된 ID 제외
 ```
@@ -544,7 +544,7 @@ Upper Tester(UT)는 UDP:30600 위의 tester가 발급하는 RPC 채널입니다.
 
 ### 실행 불가능한 클러스터 스킵
 
-`doc/spec/inventory_overrides.json`은 두 축을 가집니다:
+`docs/spec/inventory_overrides.json`은 두 축을 가집니다:
 
 - `expected: false` — 케이스가 이연된(deferred) 상태 (이번 릴리스 범위
   밖, 추후 세션, 또는 해당 overrides 파일의 대상 DUT에서 구현 불가).
@@ -553,7 +553,7 @@ Upper Tester(UT)는 UDP:30600 위의 tester가 발급하는 RPC 채널입니다.
   DUT를 기술). strict-RFC DUT라면 통과합니다.
 
 DUT 플랫폼마다 overrides 파일 하나를 소유합니다: 기본
-`doc/spec/inventory_overrides.json`은 Linux 레퍼런스 DUT를 기술하고,
+`docs/spec/inventory_overrides.json`은 Linux 레퍼런스 DUT를 기술하고,
 `--inventory-overrides PATH`로 다른 플랫폼의 파일(예: OEM 타겟 ECU,
 레포 내 lwIP 픽스처)을 선택합니다.
 
@@ -728,7 +728,7 @@ oem-conformance/            # OEM 레포지토리
 assert) 디렉토리 이름은 소문자입니다 — `OEMX_LINK_01` 같은 OEM
 카테고리는 `--list-cases` 출력에서 자연스럽게 그룹핑됩니다. 스펙
 커버리지 집계는 영향받지 않습니다: `--vs-spec`은
-`doc/spec/case_inventory.json` 기준으로 비교하므로 OEM 확장 케이스는
+`docs/spec/case_inventory.json` 기준으로 비교하므로 OEM 확장 케이스는
 집계에 끼어들지 않고, OEM별 스킵/known-fail 정책은 OEM이 관리하는
 JSON을 `--inventory-overrides` 플래그로 태우면 됩니다.
 
@@ -773,7 +773,7 @@ EOF
 §5 SOMEIP 케이스 때문에 지금은 비-0 종료를 내며, 팀이 게이트를 hard로
 넘길 때까지 CI 스텝은 `continue-on-error: true`로 감싸져 있습니다.
 Wall-time 이연 케이스(`TCP_RETRANSMISSION_TO_08/_09`)는 이미
-`doc/spec/inventory_overrides.json`을 통해 필터됩니다.
+`docs/spec/inventory_overrides.json`을 통해 필터됩니다.
 
 ## 라이선스
 

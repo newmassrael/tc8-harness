@@ -361,13 +361,13 @@ DUT for a different vsomeip configuration, update both sides together.
 ```sh
 ./build/tc8-harness test --list-cases                       # all registered cases, grouped
 ./build/tc8-harness test --list-cases --include-deprecated  # also show deprecated IDs
-./build/tc8-harness test --list-cases --vs-spec             # coverage gap vs doc/spec/case_inventory.json
+./build/tc8-harness test --list-cases --vs-spec             # coverage gap vs docs/spec/case_inventory.json
 ./build/tc8-harness test --list-cases --vs-spec --strict    # exit non-zero on any gap
 ./build/tc8-harness test --list-cases --exclude-deferred --exclude-platform-known-fail
                                                             # exclude IDs marked
                                                             # expected:false or
                                                             # platform_known_fail:true
-                                                            # in doc/spec/inventory_overrides.json
+                                                            # in docs/spec/inventory_overrides.json
 ```
 
 Case IDs follow `<CATEGORY>_<NAME>_<NN>` (e.g. `ARP_03`, `SOMEIPSRV_FORMAT_14`,
@@ -556,7 +556,7 @@ port 30600; no SOME/IP framing.
 
 ### Skipping case clusters you can't run
 
-`doc/spec/inventory_overrides.json` carries two axes:
+`docs/spec/inventory_overrides.json` carries two axes:
 
 - `expected: false` — case is deferred (out of scope this release, future
   session, or unimplementable on the overrides file's target DUT).
@@ -566,7 +566,7 @@ port 30600; no SOME/IP framing.
   DUT will pass.
 
 Each DUT platform owns one overrides file: the default
-`doc/spec/inventory_overrides.json` describes the Linux reference DUT,
+`docs/spec/inventory_overrides.json` describes the Linux reference DUT,
 and `--inventory-overrides PATH` swaps in another platform's file (e.g.
 an OEM target ECU or the in-repo lwIP fixture).
 
@@ -744,7 +744,7 @@ Case ids must keep the `<CATEGORY>_<digits>` shape (compile-time
 asserted), with directory names lowercased — OEM categories such as
 `OEMX_LINK_01` group naturally in `--list-cases` output. Spec coverage
 accounting is unaffected: `--vs-spec` compares against
-`doc/spec/case_inventory.json`, so OEM extension cases simply do not
+`docs/spec/case_inventory.json`, so OEM extension cases simply do not
 participate, and OEM-specific skip/known-fail policy can ride the
 `--inventory-overrides` flag with an OEM-maintained JSON.
 
@@ -789,7 +789,7 @@ runs in `build-test.yml` and currently emits a non-zero exit for the
 ~235 §4.6 UDP / §5 SOMEIP cases queued for future sessions. The CI step
 is wrapped in `continue-on-error: true` until the team flips the gate
 hard. Wall-time-deferred cases (`TCP_RETRANSMISSION_TO_08/_09`) are
-already filtered via `doc/spec/inventory_overrides.json`.
+already filtered via `docs/spec/inventory_overrides.json`.
 
 ## License
 

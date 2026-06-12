@@ -6,7 +6,7 @@
 # - P2 (TestCase 엔티티) → InventoryEntry (5번째 closed-form, Round 273)
 #
 # Adoption shape — 하이브리드 (case_inventory.json SSOT 유지 + inventory_entries 는 sync target):
-# - doc/spec/case_inventory.json (PDF→python→JSON→C++) → 영구 SSOT
+# - docs/spec/case_inventory.json (PDF→python→JSON→C++) → 영구 SSOT
 # - inventory_entries (atomic store)            → cite-time 검증 surface
 
 [workspace]
@@ -15,7 +15,7 @@
 # (docs/.atomic/workspace.atomic.json) 가 단일 직접-검증 SSOT 이고, 사람은
 # `mnemosyne-cli query` 로 읽는다. 구 `docs`/`default_doc` 키는 config 스키마에서
 # 삭제됨 (WorkspaceSection = optional `root` + `spec_source` 만).
-# TC8 spec 자산 (`doc/spec/*` PDF/JSON) 은 별개 immutable legacy — Mnemosyne 관리 surface 밖.
+# TC8 spec 자산 (`docs/spec/*` PDF/JSON) 은 별개 immutable legacy — Mnemosyne 관리 surface 밖.
 
 [schema]
 changelog_titles = ["Changelog"]

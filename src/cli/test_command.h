@@ -41,12 +41,12 @@ private:
     bool list_cases_ = false;
     bool list_all_ = false;
     // `--list-cases --vs-spec` swaps the per-case dump for a coverage
-    // gap report against doc/spec/case_inventory.json.
+    // gap report against docs/spec/case_inventory.json.
     bool vs_spec_ = false;
     bool vs_spec_strict_ = false;
     // `--list-cases --exclude-deferred` strips harness-registered cases
     // whose canonical ID is marked `expected:false` in
-    // doc/spec/inventory_overrides.json — single source of truth for
+    // docs/spec/inventory_overrides.json — single source of truth for
     // CI/smoke skip lists. Without this flag, the dump shows every
     // registered case regardless of override status.
     bool exclude_deferred_ = false;

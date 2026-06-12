@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mine doc/spec/split/*.txt → doc/spec/case_inventory.json.
+"""Mine docs/spec/split/*.txt → docs/spec/case_inventory.json.
 
 Scans the pdftotext-extracted spec splits in pagination order, tracks the
 current §-section heading, and emits one record per headed test case body.
@@ -16,7 +16,7 @@ The output JSON has the shape::
 
     {
       "schema_version": 1,
-      "generated_from": "doc/spec/split/*.txt (pdftotext -layout)",
+      "generated_from": "docs/spec/split/*.txt (pdftotext -layout)",
       "case_count": 542,
       "cases": [
         {"case_id": "ARP_03", "section": "4.2.4.1",
@@ -92,7 +92,7 @@ def main(argv: list[str]) -> int:
         "--out",
         type=Path,
         default=None,
-        help="Output JSON path (default: <repo>/doc/spec/case_inventory.json)",
+        help="Output JSON path (default: <repo>/docs/spec/case_inventory.json)",
     )
     args = parser.parse_args(argv)
 
@@ -102,7 +102,7 @@ def main(argv: list[str]) -> int:
     cases = mine(split_dir)
     payload = {
         "schema_version": 1,
-        "generated_from": "doc/spec/split/*.txt (pdftotext -layout)",
+        "generated_from": "docs/spec/split/*.txt (pdftotext -layout)",
         "case_count": len(cases),
         "cases": cases,
     }

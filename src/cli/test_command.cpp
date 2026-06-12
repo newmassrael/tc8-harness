@@ -40,14 +40,14 @@ TestCommand::TestCommand(CLI::App &app) {
     sub_->add_flag("--include-deprecated", list_all_, "With --list-cases, also print cases marked deprecated");
     sub_->add_flag("--vs-spec", vs_spec_,
                    "With --list-cases, emit a coverage gap report against "
-                   "doc/spec/case_inventory.json instead of the per-case dump");
+                   "docs/spec/case_inventory.json instead of the per-case dump");
     sub_->add_flag("--strict", vs_spec_strict_,
                    "With --list-cases --vs-spec, exit non-zero when expected "
                    "spec cases remain unregistered");
     sub_->add_flag("--exclude-deferred", exclude_deferred_,
                    "With --list-cases (no --vs-spec), drop harness cases whose "
                    "canonical ID is marked expected:false in "
-                   "doc/spec/inventory_overrides.json. Lets smoke/CI consume the "
+                   "docs/spec/inventory_overrides.json. Lets smoke/CI consume the "
                    "JSON as the single source of truth for spec-deferred cases.");
     sub_->add_flag("--exclude-platform-known-fail", exclude_platform_known_fail_,
                    "With --list-cases (no --vs-spec), drop harness cases whose "
@@ -60,10 +60,10 @@ TestCommand::TestCommand(CLI::App &app) {
                    "list.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
-                     "(default: doc/spec/case_inventory.json)");
+                     "(default: docs/spec/case_inventory.json)");
     sub_->add_option("--inventory-overrides", overrides_path_,
                      "Path to inventory overrides JSON "
-                     "(default: doc/spec/inventory_overrides.json)");
+                     "(default: docs/spec/inventory_overrides.json)");
     sub_->add_option("--expect", expect_tokens_,
                      "DUT-specific expected values as KEY=VALUE tokens (repeatable). "
                      "SOME/IP keys (bare): service_id, instance_id, major_version, "
@@ -103,10 +103,10 @@ int TestCommand::runListCases() const {
     std::optional<sce::SpecInventory> inv_for_filter;
     if (exclude_deferred_ || exclude_platform_known_fail_) {
         const std::string inv_path = inventory_path_.empty()
-            ? std::string("doc/spec/case_inventory.json")
+            ? std::string("docs/spec/case_inventory.json")
             : inventory_path_;
         const std::string ov_path = overrides_path_.empty()
-            ? std::string("doc/spec/inventory_overrides.json")
+            ? std::string("docs/spec/inventory_overrides.json")
             : overrides_path_;
         std::string err;
         inv_for_filter = sce::SpecInventory::load(inv_path, ov_path, &err);
@@ -162,10 +162,10 @@ int TestCommand::runListCases() const {
 
 int TestCommand::runVsSpecReport() const {
     const std::string inv_path = inventory_path_.empty()
-        ? std::string("doc/spec/case_inventory.json")
+        ? std::string("docs/spec/case_inventory.json")
         : inventory_path_;
     const std::string ov_path = overrides_path_.empty()
-        ? std::string("doc/spec/inventory_overrides.json")
+        ? std::string("docs/spec/inventory_overrides.json")
         : overrides_path_;
 
     std::string err;

@@ -15,7 +15,7 @@ on:
       - 'site/**'
       - '.github/workflows/site.yml'
       - '.github/workflows/pcap-refresh.yml'
-      - 'doc/spec/deprecated_cases.json'
+      - 'docs/spec/deprecated_cases.json'
   workflow_dispatch: {}
 
 permissions:
@@ -64,7 +64,7 @@ jobs:
 
       - name: Run positive smoke (--workers 4 + JUnit)
         # Two harness-side filters apply, both reading
-        # doc/spec/inventory_overrides.json as the single source of
+        # docs/spec/inventory_overrides.json as the single source of
         # truth (no inline regex maintenance burden):
         #   * `--exclude-deferred` drops cases marked `expected:false`
         #     (spec gap — harness intentionally cannot cover; today

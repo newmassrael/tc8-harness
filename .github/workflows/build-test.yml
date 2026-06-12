@@ -10,14 +10,14 @@ on:
       - 'site/**'
       - '.github/workflows/site.yml'
       - '.github/workflows/pcap-refresh.yml'
-      - 'doc/spec/deprecated_cases.json'
+      - 'docs/spec/deprecated_cases.json'
   pull_request:
     branches: [main]
     paths-ignore:
       - 'site/**'
       - '.github/workflows/site.yml'
       - '.github/workflows/pcap-refresh.yml'
-      - 'doc/spec/deprecated_cases.json'
+      - 'docs/spec/deprecated_cases.json'
 
 permissions:
   contents: read
@@ -155,16 +155,16 @@ jobs:
 
       - name: Re-mine spec inventory and verify it matches checked-in copy
         # Skipped on CI runners that don't have the TC8 spec PDF split
-        # output (`doc/spec/split/*.txt` is gitignored — see LICENSE
+        # output (`docs/spec/split/*.txt` is gitignored — see LICENSE
         # discussion in README.md). Local dev runs this from a tree
         # that has the split corpus.
         run: |
-          if [ -z "$(ls doc/spec/split/*.txt 2>/dev/null)" ]; then
+          if [ -z "$(ls docs/spec/split/*.txt 2>/dev/null)" ]; then
             echo "spec split corpus absent — skipping drift gate (CI/public-tree only)"
             exit 0
           fi
           python3 tools/extract_spec_inventory.py --out /tmp/spec_inv.json
-          diff -u doc/spec/case_inventory.json /tmp/spec_inv.json
+          diff -u docs/spec/case_inventory.json /tmp/spec_inv.json
 
       - name: Spec-coverage gate (--list-cases --vs-spec --strict)
         # Fails the build when expected spec cases are unregistered.
@@ -172,5 +172,5 @@ jobs:
         # 2026-05-03 (see memory/project_deferral_closeout_2026_05_03.md);
         # any future spec-inventory drift must either register the case
         # or land an explicit `expected:false` override in
-        # doc/spec/inventory_overrides.json.
+        # docs/spec/inventory_overrides.json.
         run: ./build/tc8-harness test --list-cases --vs-spec --strict

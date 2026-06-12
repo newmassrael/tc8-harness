@@ -7,8 +7,8 @@
 
 namespace tc8::sce {
 
-// One TC8-spec test case as mined from doc/spec/case_inventory.json.
-// Override fields come from doc/spec/inventory_overrides.json on two
+// One TC8-spec test case as mined from docs/spec/case_inventory.json.
+// Override fields come from docs/spec/inventory_overrides.json on two
 // independent axes (defaults: expected=true, platform_known_fail=false,
 // empty reason strings):
 //   - `expected:false` (+ `defer_reason`) — spec gap. The harness
@@ -19,7 +19,7 @@ namespace tc8::sce {
 //     case fails on the overrides file's target DUT platform due to
 //     platform-specific RFC deviations, but a strict-RFC DUT under the
 //     same harness lands on pass. Each per-DUT overrides JSON (the
-//     default doc/spec/inventory_overrides.json describes the Linux
+//     default docs/spec/inventory_overrides.json describes the Linux
 //     reference DUT; --inventory-overrides swaps in another platform's
 //     file) owns its platform's entries. Kept ACTIVE in coverage
 //     reports so spec coverage stays honest; CI/smoke skip lists
@@ -39,7 +39,7 @@ struct SpecCase {
     std::string platform_known_fail_ref;
 };
 
-// Loads doc/spec/case_inventory.json + doc/spec/inventory_overrides.json
+// Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json
 // and exposes them indexed by canonical (UPPER) case_id. Failure cases:
 // missing/malformed files surface as std::nullopt with the error written
 // to *err.
