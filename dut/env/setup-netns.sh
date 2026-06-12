@@ -17,6 +17,17 @@
 #   SECOND_VETH                 0 = single pair (default), 1 = add second pair
 #   VETH_T2, VETH_D2            second-pair veth names    (default: veth-tester2 / veth-dut2)
 #   TESTER_IP2, DUT_IP2         second-pair CIDR          (default: 172.17.0.1/24 / 172.17.0.2/24)
+#
+# IEEE 802.1Q VLAN profile (D2 OEM tagged-traffic enablement; default off).
+# When VLAN_ID is set, a VLAN subinterface is stacked on each veth and ALL
+# L3 configuration (addresses, routes, ARP/NUD sysctls) is homed on the
+# subinterface, so every tester<->DUT L3 frame is 802.1Q-tagged. The
+# harness and tc8-dut then bind the subinterface name instead of the bare
+# veth. TC8 itself has no VLAN cases — this enables OEM profiles layered
+# via TC8_EXTRA_CASE_DIRS.
+#   VLAN_ID                     unset = no VLAN (default); 1..4094 = tag id
+#   TESTER_VLAN_IF, DUT_VLAN_IF subinterface names (default: vlan-tester / vlan-dut;
+#                               kept dotless so per-iface sysctl keys stay unambiguous)
 set -euo pipefail
 
 TESTER_NS=${TESTER_NS:-tc8-tester}
@@ -31,6 +42,16 @@ VETH_T2=${VETH_T2:-veth-tester2}
 VETH_D2=${VETH_D2:-veth-dut2}
 TESTER_IP2=${TESTER_IP2:-172.17.0.1/24}
 DUT_IP2=${DUT_IP2:-172.17.0.2/24}
+VLAN_ID=${VLAN_ID:-}
+TESTER_VLAN_IF=${TESTER_VLAN_IF:-vlan-tester}
+DUT_VLAN_IF=${DUT_VLAN_IF:-vlan-dut}
+
+# Single source of truth for "which interface carries L3". Defaults to the
+# bare veth; the opt-in VLAN block below repoints it to the subinterface.
+# Every addr/route/sysctl/neigh operation references these, so toggling
+# VLAN_ID needs no other edit and leaves the no-VLAN path byte-identical.
+TESTER_L3IF="$VETH_T"
+DUT_L3IF="$VETH_D"
 
 die() { echo "setup-netns: $*" >&2; exit 1; }
 
@@ -53,8 +74,21 @@ ip -n "$TESTER_NS" link set lo up
 ip -n "$DUT_NS"    link set lo up
 ip -n "$TESTER_NS" link set "$VETH_T" up
 ip -n "$DUT_NS"    link set "$VETH_D" up
-ip -n "$TESTER_NS" addr add "$TESTER_IP" dev "$VETH_T"
-ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$VETH_D"
+
+# Opt-in 802.1Q: stack a VLAN subinterface on each veth and repoint L3
+# onto it. A netns delete (teardown above) cascades to its subinterfaces,
+# so no extra cleanup is needed.
+if [[ -n "$VLAN_ID" ]]; then
+    ip -n "$TESTER_NS" link add link "$VETH_T" name "$TESTER_VLAN_IF" type vlan id "$VLAN_ID"
+    ip -n "$DUT_NS"    link add link "$VETH_D" name "$DUT_VLAN_IF"    type vlan id "$VLAN_ID"
+    ip -n "$TESTER_NS" link set "$TESTER_VLAN_IF" up
+    ip -n "$DUT_NS"    link set "$DUT_VLAN_IF"    up
+    TESTER_L3IF="$TESTER_VLAN_IF"
+    DUT_L3IF="$DUT_VLAN_IF"
+fi
+
+ip -n "$TESTER_NS" addr add "$TESTER_IP" dev "$TESTER_L3IF"
+ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$DUT_L3IF"
 
 # §4.6.5.5 UDP_USER_INTERFACE_07/_08 caller-specified Source/Destination
 # IP axis: spec gates these on `<DUTSupportsDynamicInterface>=TRUE`. With
@@ -74,8 +108,8 @@ ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$VETH_D"
 # stimulus / SCXML cond. Picked outside `kUdpHost2IpBe`=172.16.0.3
 # (already pinned by FIELDS_04/_05) so the three secondary literals stay
 # disjoint.
-ip -n "$DUT_NS"    addr add 172.16.0.5/24 dev "$VETH_D"
-ip -n "$TESTER_NS" addr add 172.16.0.4/24 dev "$VETH_T"
+ip -n "$DUT_NS"    addr add 172.16.0.5/24 dev "$DUT_L3IF"
+ip -n "$TESTER_NS" addr add 172.16.0.4/24 dev "$TESTER_L3IF"
 
 # Disable TX checksum offload on both veth ends. Linux's veth driver
 # defaults to reporting CHECKSUM_PARTIAL on transmit, leaving the L4
@@ -99,8 +133,8 @@ ip netns exec "$DUT_NS"    ethtool -K "$VETH_D" tx off >/dev/null 2>&1 || true
 # fail with a DUT-originated ARP Request. `arp_accept=1` makes the
 # kernel honour the announcement and populate <sender_ip, sender_mac>
 # from the gratuitous frame, matching the spec's assumed DUT behaviour.
-ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.conf.${VETH_D}.arp_accept=1" >/dev/null
-ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.conf.all.arp_accept=1"       >/dev/null
+ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.conf.${DUT_L3IF}.arp_accept=1" >/dev/null
+ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.conf.all.arp_accept=1"         >/dev/null
 
 # Widen the NUD delay-first-probe window on the DUT (default 5 s) beyond
 # the §4.2.4.1 ARP_03/05 listen window (also 5 s). Linux puts a newly-
@@ -114,7 +148,7 @@ ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.conf.all.arp_accept=1"       >/dev/
 # covers the 5 s SCXML deadline plus stimulus wall time. The `default.*`
 # path doesn't exist in a fresh netns (it templates into per-iface files
 # only at interface creation), so only the per-iface setting matters.
-ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.neigh.${VETH_D}.delay_first_probe_time=30" >/dev/null
+ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.neigh.${DUT_L3IF}.delay_first_probe_time=30" >/dev/null
 
 # Suppress tester-side unicast NUD_PROBE. Linux re-verifies a STALE neigh
 # entry by sending a unicast ARP Request ("who-has <peer_ip> tell <us>")
@@ -134,11 +168,11 @@ ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.neigh.${VETH_D}.delay_first_probe_t
 # relies on the DUT keeping the tester's *injected* MAC (kTesterInjectedMac)
 # in its cache, and a tester-kernel-initiated ARP during the stimulus
 # window would overwrite that per RFC 826 §2.3.
-ip netns exec "$TESTER_NS" sysctl -wq "net.ipv4.neigh.${VETH_T}.ucast_solicit=0" >/dev/null
+ip netns exec "$TESTER_NS" sysctl -wq "net.ipv4.neigh.${TESTER_L3IF}.ucast_solicit=0" >/dev/null
 
 # Multicast route needed for SOME/IP-SD (224.244.224.245 in vsomeip default).
-ip -n "$TESTER_NS" route add "$MCAST_ROUTE" dev "$VETH_T"
-ip -n "$DUT_NS"    route add "$MCAST_ROUTE" dev "$VETH_D"
+ip -n "$TESTER_NS" route add "$MCAST_ROUTE" dev "$TESTER_L3IF"
+ip -n "$DUT_NS"    route add "$MCAST_ROUTE" dev "$DUT_L3IF"
 
 # §4.7.6.5 USAGE_01 second veth pair. Mirrors the first pair's setup
 # (veth + addr + tx-offload off + arp_accept + delay_first_probe_time +
@@ -180,13 +214,16 @@ fi
 # own neighbor cache is intentionally left populated so tester→DUT stimulus
 # (UT requests, FindService, SubscribeEventgroup) doesn't eat an ARP
 # round-trip before every case.
-ip -n "$DUT_NS" neigh flush dev "$VETH_D"
+ip -n "$DUT_NS" neigh flush dev "$DUT_L3IF"
 
 cat <<INFO
 tc8 netns ready:
-  $TESTER_NS: $TESTER_IP on $VETH_T
-  $DUT_NS:    $DUT_IP on $VETH_D
+  $TESTER_NS: $TESTER_IP on $TESTER_L3IF
+  $DUT_NS:    $DUT_IP on $DUT_L3IF
 INFO
+if [[ -n "$VLAN_ID" ]]; then
+    echo "  802.1Q: VLAN $VLAN_ID ($TESTER_VLAN_IF over $VETH_T / $DUT_VLAN_IF over $VETH_D)"
+fi
 if [[ "$SECOND_VETH" == 1 ]]; then
     cat <<INFO2
   $TESTER_NS: $TESTER_IP2 on $VETH_T2 (USAGE_01)
@@ -195,7 +232,7 @@ INFO2
 fi
 cat <<INFO
 run harness inside tester ns:
-  sudo ip netns exec $TESTER_NS /home/coin/tc8-harness/build/tc8-harness live -i $VETH_T
+  sudo ip netns exec $TESTER_NS /home/coin/tc8-harness/build/tc8-harness live -i $TESTER_L3IF
 
 teardown:
   sudo $(dirname "$(readlink -f "$0")")/cleanup.sh

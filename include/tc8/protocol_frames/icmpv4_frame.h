@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "tc8/protocol_frames/dot1q_tag.h"
+
 namespace tc8 {
 
 // RFC 792 ICMPv4 packet, carried inside an IPv4 datagram. Covers the
@@ -39,6 +41,11 @@ struct Icmpv4Frame {
     // midnight UT semantics. `observed_ts_us` is the pcap arrival
     // wall clock and applies to every ICMP type uniformly.
     std::int64_t observed_ts_us = 0;
+
+    // IEEE 802.1Q tag, populated by the dissector when the frame carried
+    // one (`present` false on untagged frames). OEM VLAN profiles read
+    // this; no in-tree §4.3 case asserts on it.
+    Dot1QTag vlan{};
 };
 
 }  // namespace tc8

@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include "tc8/protocol_frames/dot1q_tag.h"
+
 namespace tc8 {
 
 // RFC 826 ARP packet. Fields named after the RFC header layout so that
@@ -39,6 +41,11 @@ struct ArpFrame {
     // §4.2.4.x ANNOUNCE_REPS gap timing) can express inter-frame
     // delta guards via `frame_delta_us()`.
     std::int64_t observed_ts_us = 0;
+
+    // IEEE 802.1Q tag, populated by the dissector when the frame carried
+    // one (`present` false on untagged frames). OEM VLAN profiles read
+    // this; no in-tree §4.2 case asserts on it.
+    Dot1QTag vlan{};
 };
 
 }  // namespace tc8

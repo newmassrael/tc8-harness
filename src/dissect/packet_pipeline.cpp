@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include <tins/arp.h>
+#include <tins/dot1q.h>
 #include <tins/ethernetII.h>
 #include <tins/icmp.h>
 #include <tins/ip.h>
@@ -21,6 +22,30 @@
 namespace tc8::dissect {
 
 using namespace Tins;
+
+namespace {
+
+// Extract the IEEE 802.1Q tag from a captured Ethernet frame, if any.
+// Single decode site for the VLAN wire contract — every frame variant
+// the pipeline emits copies the result, so the tag is read exactly once
+// per frame and the meaning of each TCI field lives in one place.
+// `EthernetII::find_pdu<Dot1Q>()` returns null on untagged frames, which
+// leaves the default (`present == false`) tag. libtins recognises only
+// TPID 0x8100 as `Dot1Q`, so a present tag is always a C-TAG; QinQ
+// (0x88a8 S-TAG) is out of scope for this single-tag surface.
+::tc8::Dot1QTag dot1qTagFrom(const EthernetII &eth) {
+    ::tc8::Dot1QTag tag{};
+    if (const Dot1Q *q = eth.find_pdu<Dot1Q>()) {
+        tag.present = true;
+        tag.tpid = ::tc8::kDot1QTpid;
+        tag.pcp  = static_cast<std::uint8_t>(static_cast<unsigned>(q->priority()));
+        tag.dei  = static_cast<unsigned>(q->cfi()) != 0U;
+        tag.vid  = static_cast<std::uint16_t>(static_cast<unsigned>(q->id()));
+    }
+    return tag;
+}
+
+}  // namespace
 
 PacketPipeline::PacketPipeline(Listener listener) : listener_(std::move(listener)) {
     follower_.new_stream_callback([this](TCPIP::Stream &s) { onNewStream(s); });
@@ -81,6 +106,13 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
     try {
         EthernetII eth(bytes, hdr.caplen);
 
+        // IEEE 802.1Q tag (if any), decoded once and copied into every
+        // frame variant emitted below. libtins's `find_pdu<>` descends
+        // through the Dot1Q layer transparently, so the ARP/IP/ICMP/UDP/
+        // TCP lookups already see tagged inner PDUs; this only adds the
+        // tag itself as an observable field.
+        const ::tc8::Dot1QTag vlan = dot1qTagFrom(eth);
+
         // ARP §4.2 — no IP layer to descend into. Build the ArpFrame directly
         // from the libtins ARP PDU and hand it to the listener as a variant.
         if (const ARP *arp = eth.find_pdu<ARP>()) {
@@ -101,6 +133,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             std::copy(eth_src.begin(), eth_src.end(), af.eth_src.begin());
             std::copy(eth_dst.begin(), eth_dst.end(), af.eth_dst.begin());
             af.observed_ts_us = observed_ts_us;
+            af.vlan = vlan;
             listener_(::tc8::CapturedEvent{af});
             return;
         }
@@ -138,6 +171,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             ipf.src_addr        = static_cast<std::uint32_t>(ip->src_addr());
             ipf.dst_addr        = static_cast<std::uint32_t>(ip->dst_addr());
             ipf.observed_ts_us  = observed_ts_us;
+            ipf.vlan            = vlan;
             listener_(::tc8::CapturedEvent{ipf});
         }
 
@@ -199,6 +233,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                     Tins::Endian::be_to_host(icmp->transmit_timestamp());
             }
             icf.observed_ts_us = observed_ts_us;
+            icf.vlan = vlan;
             listener_(::tc8::CapturedEvent{icf});
             return;
         }
@@ -244,6 +279,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             uf.payload_data = body_data;
             uf.payload_len = static_cast<std::uint32_t>(body_size);
             uf.observed_ts_us = observed_ts_us;
+            uf.vlan = vlan;
             listener_(::tc8::CapturedEvent{uf});
 
             // §4.7 DHCPv4 — emit one Dhcpv4Frame per BOOTP-shaped UDP
@@ -266,6 +302,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                 df.dst_ip = uf.dst_ip;
                 df.ip_flags = uf.ip_flags;
                 df.ip_fragment_offset = uf.ip_fragment_offset;
+                df.vlan = uf.vlan;  // L2 tag inherited from the carrying frame
                 df.src_port = uf.src_port;
                 df.dst_port = uf.dst_port;
                 df.op    = bp[0];
@@ -440,6 +477,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             // top from `hdr.ts`; same value mirrored into every
             // emitted Frame variant for cross-protocol timing.
             tf.observed_ts_us = observed_ts_us;
+            tf.vlan = vlan;
             listener_(::tc8::CapturedEvent{tf});
 
             follower_.process_packet(eth);

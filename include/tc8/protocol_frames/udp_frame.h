@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include "tc8/protocol_frames/dot1q_tag.h"
+
 namespace tc8 {
 
 // RFC 768 UDP header plus encapsulating IPv4 endpoints and the Ethernet
@@ -39,6 +41,12 @@ struct UdpFrame {
     // timing cases can express inter-frame delta guards via
     // `frame_delta_us()`.
     std::int64_t observed_ts_us = 0;
+
+    // IEEE 802.1Q tag, populated by the dissector when the frame carried
+    // one (`present` false on untagged frames). OEM VLAN profiles read
+    // this; no in-tree §4.6 case asserts on it. The carried Dhcpv4Frame
+    // inherits this value (a tag is an L2 property of the same frame).
+    Dot1QTag vlan{};
 };
 
 }  // namespace tc8

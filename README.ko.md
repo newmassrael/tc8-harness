@@ -732,6 +732,35 @@ assert) 디렉토리 이름은 소문자입니다 — `OEMX_LINK_01` 같은 OEM
 집계에 끼어들지 않고, OEM별 스킵/known-fail 정책은 OEM이 관리하는
 JSON을 `--inventory-overrides` 플래그로 태우면 됩니다.
 
+### IEEE 802.1Q VLAN 태깅
+
+TC8 v3.0에는 VLAN 케이스가 없지만, 차량 이더넷 OEM 프로파일은 흔히
+트래픽을 태깅합니다(AUTOSAR `EthIf`). 하네스는 코어 수정 없이 단일
+태그(C-TAG, TPID 0x8100) 프레임을 관측·주입할 수 있도록 엔드투엔드로
+VLAN-투명합니다:
+
+- **관측** — 디서가 프레임당 한 번 태그를 디코드하여 모든 L2 프레임 변종
+  (`ArpFrame`/`Ipv4Frame`/`Icmpv4Frame`/`UdpFrame`/`Dhcpv4Frame`/`TcpFrame`)에
+  `Dot1QTag vlan` 필드로 노출합니다. out-of-tree 케이스의 `cpp:` cond가
+  `frame.vlan.present`/`frame.vlan.vid`/`frame.vlan.pcp`를 읽습니다. 내부
+  프로토콜은 태그 유무와 무관하게 디코드됩니다(libtins가 태그를 관통).
+- **주입** — `tc8::stimulus::withDot1QTag(frame, pcp, dei, vid)`가 빌드된
+  이더넷 프레임에 태그를 splice하며 `sendRawEthernet`과 그대로 합성됩니다.
+  와이어 레이아웃은 디코더와 공유되고(`include/tc8/protocol_frames/dot1q_tag.h`)
+  라운드트립 유닛 테스트로 핀됩니다.
+- **캡처 필터** — 모든 `BpfGroup` 필터가 `(<expr>) or (vlan and (<expr>))`로
+  감싸져, 태그된 프레임이 커널 BPF에서 조용히 누락되지 않습니다(plain 술어는
+  태그가 시프트하는 고정 오프셋에서 L3 필드를 읽음). `-f/--bpf` override는
+  verbatim 전달되며 재래핑되지 않습니다.
+- **토폴로지** — `VLAN_ID` 설정 시(기본 off) `setup-netns.sh`가 VLAN
+  서브인터페이스를 쌓고 L3를 그 위에 둡니다. `single-pc.conf`가 `VLAN_ID`를
+  전달합니다. 하네스는 **bare veth**에서 캡처하여 태그가 보이도록 유지하고
+  (서브인터페이스에서의 libpcap은 커널이 태그를 벗긴 것을 봄), 커널-소켓
+  stimulus와 DUT egress는 주소가 서브인터페이스에 있으므로 태깅됩니다.
+
+실 NIC에서는 RX VLAN offload를 끄세요(`ethtool -K <dev> rxvlan off`). 그래야
+태그가 패킷 메타데이터로 벗겨지지 않고 in-band로 libpcap에 도달합니다.
+
 ## CI
 
 `.github/workflows/` 아래 두 워크플로가 테스트 매트릭스의 직교 슬라이스를

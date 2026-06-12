@@ -748,6 +748,38 @@ accounting is unaffected: `--vs-spec` compares against
 participate, and OEM-specific skip/known-fail policy can ride the
 `--inventory-overrides` flag with an OEM-maintained JSON.
 
+### IEEE 802.1Q VLAN tagging
+
+TC8 v3.0 defines no VLAN cases, but vehicle-Ethernet OEM profiles routinely
+tag traffic (AUTOSAR `EthIf`). The harness is VLAN-transparent end to end so
+an out-of-tree profile can observe and inject single-tagged (C-TAG, TPID
+0x8100) frames without core changes:
+
+- **Observe** — the dissector decodes the tag once per frame and exposes it
+  as a `Dot1QTag vlan` field on every L2 frame variant (`ArpFrame`,
+  `Ipv4Frame`, `Icmpv4Frame`, `UdpFrame`, `Dhcpv4Frame`, `TcpFrame`). An
+  out-of-tree case's `cpp:` cond reads e.g. `frame.vlan.present` /
+  `frame.vlan.vid` / `frame.vlan.pcp`. The inner protocol is decoded
+  whether or not a tag is present (libtins descends through the tag).
+- **Inject** — `tc8::stimulus::withDot1QTag(frame, pcp, dei, vid)` splices a
+  tag into a built Ethernet frame; it composes with `sendRawEthernet`
+  unchanged. The wire layout is shared with the decoder
+  (`include/tc8/protocol_frames/dot1q_tag.h`) and pinned by a round-trip
+  unit test.
+- **Capture filter** — every `BpfGroup` filter is wrapped `(<expr>) or
+  (vlan and (<expr>))` so a tagged frame is never silently dropped by the
+  kernel BPF (a plain predicate reads L3 fields at fixed offsets the tag
+  shifts). A `-f/--bpf` override is passed verbatim and not re-wrapped.
+- **Topology** — `setup-netns.sh` stacks a VLAN subinterface and homes L3
+  on it when `VLAN_ID` is set (default off); `single-pc.conf` forwards
+  `VLAN_ID`. The harness still captures on the **bare veth** so the tag
+  stays visible (libpcap on the subinterface would see the kernel strip
+  it), while kernel-socket stimulus and the DUT egress are tagged because
+  their address lives on the subinterface.
+
+On a real NIC, disable RX VLAN offload (`ethtool -K <dev> rxvlan off`) so the
+tag reaches libpcap in-band rather than being stripped into packet metadata.
+
 ## CI
 
 Two workflows under `.github/workflows/` cover orthogonal slices of the test

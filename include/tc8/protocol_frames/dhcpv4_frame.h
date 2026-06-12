@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include "tc8/protocol_frames/dot1q_tag.h"
+
 namespace tc8 {
 
 // RFC 2131 DHCPv4 BOOTP header plus Option 53 (DHCP Message Type)
@@ -86,6 +88,11 @@ struct Dhcpv4Frame {
     // will read this via a `frame_delta_us()` helper on the Captured
     // context.
     std::int64_t observed_ts_us = 0;
+
+    // IEEE 802.1Q tag, populated by the dissector when the carrying UDP
+    // frame had one (inherited from the parent `UdpFrame::vlan`). OEM
+    // VLAN profiles read this; no in-tree §4.7 case asserts on it.
+    Dot1QTag vlan{};
 };
 
 }  // namespace tc8

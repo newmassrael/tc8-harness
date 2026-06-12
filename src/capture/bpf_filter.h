@@ -51,7 +51,26 @@ std::string udpAndDhcpv4();
 // Primitive: "udp portrange lo-hi or tcp portrange lo-hi".
 std::string portRange(std::uint16_t lo, std::uint16_t hi);
 
-// Dispatch: BpfGroup enum → per-group expression above.
+// Make a filter match its target frames whether or not they carry a
+// single IEEE 802.1Q tag: returns `(<expr>) or (vlan and (<expr>))`.
+//
+// A plain libpcap predicate (`arp`, `ip`, `tcp ...`) reads the L3
+// protocol/port fields at fixed Ethernet offsets and so SILENTLY MISSES
+// VLAN-tagged frames, where the 4-byte tag shifts every later field. The
+// `vlan` keyword inserts that offset adjustment for the predicates that
+// follow it, so the second arm matches the tagged copy while the first
+// arm keeps matching untagged frames. Single tag only (C-TAG 0x8100);
+// QinQ would need a second `vlan`.
+//
+// Applied once at the `expressionFor` dispatch boundary so every case's
+// capture filter is VLAN-transparent without each group function having
+// to remember to wrap itself. NOTE: a user-supplied `-f/--bpf` override
+// is passed to the kernel verbatim and is NOT wrapped — wrapping an
+// already-VLAN-aware override would double the `vlan` keyword.
+std::string vlanAware(const std::string &expr);
+
+// Dispatch: BpfGroup enum → per-group expression above, made
+// VLAN-transparent via vlanAware().
 std::string expressionFor(::tc8::BpfGroup group);
 
 }  // namespace tc8::capture::bpf

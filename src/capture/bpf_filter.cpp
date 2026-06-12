@@ -100,34 +100,45 @@ std::string udpAndDhcpv4() {
            + " or host " + unused_ip + ")";
 }
 
+std::string vlanAware(const std::string &expr) {
+    return "(" + expr + ") or (vlan and (" + expr + "))";
+}
+
 std::string expressionFor(::tc8::BpfGroup group) {
     // Exhaustive switch. A new BpfGroup alternative must add a case
     // here; -Wswitch flags the omission, and __builtin_unreachable()
     // on the fall-through path keeps us from silently defaulting to
     // someip() (a prior bug before this was locked down).
-    switch (group) {
-    case ::tc8::BpfGroup::Arp:
-        return arp();
-    case ::tc8::BpfGroup::Icmpv4:
-        return icmpv4();
-    case ::tc8::BpfGroup::Ipv4:
-        return ipv4();
-    case ::tc8::BpfGroup::Udp:
-        return udp();
-    case ::tc8::BpfGroup::Dhcpv4:
-        return dhcpv4();
-    case ::tc8::BpfGroup::Tcp:
-        return tcp();
-    case ::tc8::BpfGroup::SomeIp:
-        return someip();
-    case ::tc8::BpfGroup::ArpAndUdp:
-        return arpAndUdp();
-    case ::tc8::BpfGroup::ArpAndDhcpv4:
-        return arpAndDhcpv4();
-    case ::tc8::BpfGroup::UdpAndDhcpv4:
-        return udpAndDhcpv4();
-    }
-    __builtin_unreachable();
+    //
+    // Every arm is wrapped in vlanAware() at the single return below so
+    // a tagged frame is never silently dropped, and a future BpfGroup
+    // cannot forget to opt in.
+    const auto bare = [group]() -> std::string {
+        switch (group) {
+        case ::tc8::BpfGroup::Arp:
+            return arp();
+        case ::tc8::BpfGroup::Icmpv4:
+            return icmpv4();
+        case ::tc8::BpfGroup::Ipv4:
+            return ipv4();
+        case ::tc8::BpfGroup::Udp:
+            return udp();
+        case ::tc8::BpfGroup::Dhcpv4:
+            return dhcpv4();
+        case ::tc8::BpfGroup::Tcp:
+            return tcp();
+        case ::tc8::BpfGroup::SomeIp:
+            return someip();
+        case ::tc8::BpfGroup::ArpAndUdp:
+            return arpAndUdp();
+        case ::tc8::BpfGroup::ArpAndDhcpv4:
+            return arpAndDhcpv4();
+        case ::tc8::BpfGroup::UdpAndDhcpv4:
+            return udpAndDhcpv4();
+        }
+        __builtin_unreachable();
+    };
+    return vlanAware(bare());
 }
 
 }  // namespace tc8::capture::bpf

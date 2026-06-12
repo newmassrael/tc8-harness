@@ -23,6 +23,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/dissect/someip_header.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/dot1q.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/someip_sd_builder.cpp
@@ -53,6 +54,10 @@ function(tc8_add_unit_test name)
 endfunction()
 
 tc8_add_unit_test(bpf_filter_test)
+# bpf_filter_test pcap_compiles every group filter to prove the VLAN-aware
+# wrap is valid libpcap syntax, so it links libpcap.
+target_include_directories(bpf_filter_test PRIVATE ${PCAP_INCLUDE_DIR})
+target_link_libraries(bpf_filter_test PRIVATE ${PCAP_LIBRARY})
 tc8_add_unit_test(case_registry_test)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
@@ -68,3 +73,11 @@ tc8_add_unit_test(tcp_captured_test)
 tc8_add_unit_test(upper_tester_client_test)
 tc8_add_unit_test(testability_client_test)
 tc8_add_unit_test(iface_enumeration_test)
+
+# The 802.1Q round-trip test decodes the builder's output with libtins —
+# the same decoder the live dissector uses — so it links libtins on top
+# of the shared testable library. (LIBTINS_* are set by the top-level
+# find_path/find_library before unit_tests/ is added.)
+tc8_add_unit_test(dot1q_test)
+target_include_directories(dot1q_test PRIVATE ${LIBTINS_INCLUDE_DIR})
+target_link_libraries(dot1q_test PRIVATE ${LIBTINS_LIBRARY})

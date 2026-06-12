@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "tc8/protocol_frames/dot1q_tag.h"
+
 namespace tc8 {
 
 // RFC 793 TCP header plus encapsulating IPv4 endpoints. TC8 §4.8 covers
@@ -53,6 +55,11 @@ struct TcpFrame {
     // §4.8.6.12 PROBING_WINDOWS_06 verifies zero-window-probe
     // interval doubling.
     std::int64_t observed_ts_us = 0;
+
+    // IEEE 802.1Q tag, populated by the dissector when the frame carried
+    // one (`present` false on untagged frames). OEM VLAN profiles read
+    // this; no in-tree §4.8 case asserts on it.
+    Dot1QTag vlan{};
 };
 
 }  // namespace tc8

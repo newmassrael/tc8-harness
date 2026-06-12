@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <pcap/pcap.h>
+
 #include "capture/bpf_filter.h"
 #include "tc8/bpf_group.h"
 #include "tc8/dut_config.h"
@@ -57,17 +59,59 @@ TEST(BpfFilter, SomeIpUsesMockCaptureWindow) {
     EXPECT_NE(expr.find(hi), std::string::npos) << expr;
 }
 
-TEST(BpfFilter, ExpressionForMatchesPerGroupFunction) {
+TEST(BpfFilter, VlanAwareWrapsBothTaggedAndUntagged) {
+    // The wrapper must keep the bare predicate as the first arm (matches
+    // untagged frames) and add a `vlan and (...)` second arm (matches the
+    // tagged copy, where the 4-byte tag shifts every later field).
+    EXPECT_EQ(vlanAware("arp"), "(arp) or (vlan and (arp))");
+}
+
+TEST(BpfFilter, ExpressionForIsVlanAwareWrapOfPerGroupFunction) {
+    // expressionFor dispatches to the bare per-group function AND applies
+    // VLAN-awareness once at the boundary, so every case capture filter
+    // tolerates a single 802.1Q tag. The per-group functions themselves
+    // stay bare (testable building blocks); the wrap lives only here.
     using ::tc8::BpfGroup;
-    EXPECT_EQ(expressionFor(BpfGroup::Arp), arp());
-    EXPECT_EQ(expressionFor(BpfGroup::Icmpv4), icmpv4());
-    EXPECT_EQ(expressionFor(BpfGroup::Ipv4), ipv4());
-    EXPECT_EQ(expressionFor(BpfGroup::Udp), udp());
-    EXPECT_EQ(expressionFor(BpfGroup::Dhcpv4), dhcpv4());
-    EXPECT_EQ(expressionFor(BpfGroup::Tcp), tcp());
-    EXPECT_EQ(expressionFor(BpfGroup::SomeIp), someip());
-    EXPECT_EQ(expressionFor(BpfGroup::ArpAndUdp), arpAndUdp());
-    EXPECT_EQ(expressionFor(BpfGroup::ArpAndDhcpv4), arpAndDhcpv4());
+    EXPECT_EQ(expressionFor(BpfGroup::Arp), vlanAware(arp()));
+    EXPECT_EQ(expressionFor(BpfGroup::Icmpv4), vlanAware(icmpv4()));
+    EXPECT_EQ(expressionFor(BpfGroup::Ipv4), vlanAware(ipv4()));
+    EXPECT_EQ(expressionFor(BpfGroup::Udp), vlanAware(udp()));
+    EXPECT_EQ(expressionFor(BpfGroup::Dhcpv4), vlanAware(dhcpv4()));
+    EXPECT_EQ(expressionFor(BpfGroup::Tcp), vlanAware(tcp()));
+    EXPECT_EQ(expressionFor(BpfGroup::SomeIp), vlanAware(someip()));
+    EXPECT_EQ(expressionFor(BpfGroup::ArpAndUdp), vlanAware(arpAndUdp()));
+    EXPECT_EQ(expressionFor(BpfGroup::ArpAndDhcpv4), vlanAware(arpAndDhcpv4()));
+    EXPECT_EQ(expressionFor(BpfGroup::UdpAndDhcpv4), vlanAware(udpAndDhcpv4()));
+}
+
+TEST(BpfFilter, EveryExpressionCompilesUnderLibpcap) {
+    // The VLAN-aware wrap injects libpcap's `vlan` keyword, which only
+    // some expression shapes accept cleanly. Compile every group's filter
+    // against a dead DLT_EN10MB handle so a syntactically-invalid wrap is
+    // caught here — hermetically, without the netns smoke run — rather
+    // than at `applyBpf()` on a live capture.
+    using ::tc8::BpfGroup;
+    pcap_t *dead = pcap_open_dead(DLT_EN10MB, 65535);
+    ASSERT_NE(dead, nullptr);
+
+    const BpfGroup groups[] = {
+        BpfGroup::Arp,        BpfGroup::Icmpv4,      BpfGroup::Ipv4,
+        BpfGroup::Udp,        BpfGroup::Dhcpv4,      BpfGroup::Tcp,
+        BpfGroup::SomeIp,     BpfGroup::ArpAndUdp,   BpfGroup::ArpAndDhcpv4,
+        BpfGroup::UdpAndDhcpv4,
+    };
+    for (const auto g : groups) {
+        const std::string expr = expressionFor(g);
+        bpf_program prog{};
+        const int rc =
+            pcap_compile(dead, &prog, expr.c_str(), 1, PCAP_NETMASK_UNKNOWN);
+        EXPECT_EQ(rc, 0) << "pcap_compile rejected: " << expr << " — "
+                         << pcap_geterr(dead);
+        if (rc == 0) {
+            pcap_freecode(&prog);
+        }
+    }
+    pcap_close(dead);
 }
 
 }  // namespace

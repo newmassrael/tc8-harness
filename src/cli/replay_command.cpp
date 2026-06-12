@@ -15,7 +15,9 @@ ReplayCommand::ReplayCommand(CLI::App &app) {
 }
 
 int ReplayCommand::run(std::optional<std::string> bpf_override) {
-    const std::string bpf = bpf_override.has_value() ? std::move(*bpf_override) : capture::bpf::someip();
+    const std::string bpf = bpf_override.has_value()
+        ? std::move(*bpf_override)
+        : capture::bpf::vlanAware(capture::bpf::someip());
     std::printf("source   : replay (%s)\n", pcap_file_.c_str());
     return runCapture(capture::PcapSource::openOffline(pcap_file_), bpf);
 }

@@ -130,6 +130,7 @@ if(TC8_PORTABILITY_CHECK)
         src/dissect/someip_header.cpp
         src/dissect/someip_dispatcher.cpp
         src/stimulus/arp_builder.cpp
+        src/stimulus/dot1q.cpp
         src/stimulus/dhcpv4_frame_builder.cpp
         src/stimulus/ipv4_frame_builder.cpp
         src/stimulus/icmpv4_builder.cpp
@@ -186,6 +187,7 @@ add_executable(tc8-harness
     src/sce_integration/case_registry.cpp
     src/sce_integration/spec_inventory.cpp
     src/stimulus/arp_builder.cpp
+    src/stimulus/dot1q.cpp
     src/stimulus/dhcpv4_frame_builder.cpp
     src/stimulus/ipv4_frame_builder.cpp
     src/stimulus/icmpv4_builder.cpp
