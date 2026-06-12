@@ -7,6 +7,8 @@
 #include "tc8/protocol_frames/tcp_frame.h"
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_l3_endpoints.h"
+#include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -35,11 +37,8 @@ namespace tc8 {
 //
 // `src_port` / `dst_port` let SCXML guards filter out SOME/IP-over-TCP
 // traffic on the same interface (vsomeip port range 30490..30510).
-struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming {
-    std::uint32_t src_ip         = 0;  // network byte order
-    std::uint32_t dst_ip         = 0;  // network byte order
-    std::uint16_t src_port       = 0;
-    std::uint16_t dst_port       = 0;
+struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
+                     CapturedL3Endpoints, CapturedL4Ports {
     std::uint32_t seq_num        = 0;
     std::uint32_t ack_num        = 0;
     std::uint8_t  data_offset    = 0;  // header length in 32-bit words

@@ -9,6 +9,8 @@
 #include "tc8/protocol_frames/someip_frame.h"
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_l3_endpoints.h"
+#include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -119,7 +121,8 @@ inline constexpr std::uint8_t kTcp = 0x06;
 inline constexpr std::uint8_t kUdp = 0x11;
 }  // namespace sd_l4_proto
 
-struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming {
+struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
+                        CapturedL3Endpoints, CapturedL4Ports {
     std::uint16_t service_id = 0;
     std::uint16_t method_id = 0;
     std::uint32_t length = 0;
@@ -156,18 +159,15 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming {
     // initial value, phase 2 onward asserts strict increase.
     std::uint16_t prev_sd_session_id = 0;
 
-    // Transport 4-tuple from the encapsulating UDP datagram or TCP
-    // segment (NBO IPs, host-order ports). §5.1.5.6 ONWIRE_01 verifies
-    // the DUT-controlled src half of the Response (src_ip == DUT iface
-    // IP, src_port == SERVICE-ID-1 UDP port). The dst half is kernel-
-    // routing responsibility (return path is determined by the
+    // Transport 4-tuple (`src_ip` / `dst_ip` / `src_port` / `dst_port`)
+    // from the encapsulating UDP datagram or TCP segment is inherited
+    // from `CapturedL3Endpoints` + `CapturedL4Ports`. §5.1.5.6 ONWIRE_01
+    // verifies the DUT-controlled src half of the Response (src_ip == DUT
+    // iface IP, src_port == SERVICE-ID-1 UDP port). The dst half is
+    // kernel-routing responsibility (return path is determined by the
     // Request's source address) and is implicitly verified by the
-    // Response arriving at all — surfacing it here keeps the option
-    // open for future cases that want to assert it explicitly.
-    std::uint32_t src_ip = 0;
-    std::uint32_t dst_ip = 0;
-    std::uint16_t src_port = 0;
-    std::uint16_t dst_port = 0;
+    // Response arriving at all — surfacing it keeps the option open for
+    // future cases that want to assert it explicitly.
 
     // The SOME/IP payload snapshot (`payload_snapshot` /
     // `payload_snapshot_len`, capacity `kMaxPayloadSnapshot` = Ethernet

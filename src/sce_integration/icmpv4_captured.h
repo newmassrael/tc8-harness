@@ -6,6 +6,7 @@
 #include "tc8/protocol_frames/icmpv4_frame.h"
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -30,9 +31,8 @@ namespace tc8 {
 // `Icmpv4Frame::payload_data` pointer is non-owning and valid only
 // during `dispatch()`, so the copy is necessary — SCXML guards can
 // evaluate at any later tick.
-struct Icmpv4Captured : CapturedPayloadSnapshot, CapturedFrameTiming {
-    std::uint32_t src_ip    = 0;  // network byte order
-    std::uint32_t dst_ip    = 0;
+struct Icmpv4Captured : CapturedPayloadSnapshot, CapturedFrameTiming,
+                        CapturedL3Endpoints {
     std::uint8_t  type      = 0;  // RFC 792: 0 = Echo Reply, 8 = Echo Request, ...
     std::uint8_t  code      = 0;
     std::uint16_t checksum  = 0;

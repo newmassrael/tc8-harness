@@ -11,6 +11,8 @@
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_l3_endpoints.h"
+#include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -42,11 +44,8 @@ namespace tc8 {
 // drifts without the port gate. `src_port == ut::kPort` restores
 // the invariant "has_ut_response iff this frame is a response
 // from OUR UT server."
-struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming {
-    std::uint32_t src_ip             = 0;   // network byte order
-    std::uint32_t dst_ip             = 0;   // network byte order
-    std::uint16_t src_port           = 0;
-    std::uint16_t dst_port           = 0;
+struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
+                     CapturedL3Endpoints, CapturedL4Ports {
     std::uint16_t length             = 0;   // RFC 768 Length (header+payload)
     std::uint16_t checksum           = 0;
     std::uint8_t  ip_flags           = 0;   // carrying IP header's 3-bit flags
