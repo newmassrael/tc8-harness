@@ -136,27 +136,19 @@ inline void fillIcmpv4CapturedFromFrame(Icmpv4Captured &c, const Icmpv4Frame &f)
 // design overview; this overload exposes the ICMPv4 cond-gating subset
 // (type/code + 4-tuple + Echo id/seq + Parameter Problem pointer).
 inline void appendCapturedJson(std::string &out, const Icmpv4Captured &c) {
-    char buf[64];
-    out.append("{\"type\":");
-    std::snprintf(buf, sizeof(buf), "%u", c.type); out.append(buf);
-    out.append(",\"code\":");
-    std::snprintf(buf, sizeof(buf), "%u", c.code); out.append(buf);
-    out.append(",\"src_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.src_ip);
-    out.append(",\"dst_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
+    out.append("{");
+    ::tc8::sce::appendUintJson(out, "\"type\":", c.type);
+    ::tc8::sce::appendUintJson(out, ",\"code\":", c.code);
+    out.append(",");
+    ::tc8::sce::appendL3EndpointsJson(out, c);
     if (c.echo_id != 0 || c.echo_seq != 0) {
-        out.append(",\"echo_id\":");
-        std::snprintf(buf, sizeof(buf), "%u", c.echo_id); out.append(buf);
-        out.append(",\"echo_seq\":");
-        std::snprintf(buf, sizeof(buf), "%u", c.echo_seq); out.append(buf);
+        ::tc8::sce::appendUintJson(out, ",\"echo_id\":", c.echo_id);
+        ::tc8::sce::appendUintJson(out, ",\"echo_seq\":", c.echo_seq);
     }
     if (c.icmp_pointer != 0) {
-        out.append(",\"icmp_pointer\":");
-        std::snprintf(buf, sizeof(buf), "%u", c.icmp_pointer); out.append(buf);
+        ::tc8::sce::appendUintJson(out, ",\"icmp_pointer\":", c.icmp_pointer);
     }
-    out.append(",\"payload_len\":");
-    std::snprintf(buf, sizeof(buf), "%u", c.payload_len); out.append(buf);
+    ::tc8::sce::appendUintJson(out, ",\"payload_len\":", c.payload_len);
     out.append("}");
 }
 

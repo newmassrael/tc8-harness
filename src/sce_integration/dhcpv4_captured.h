@@ -573,26 +573,16 @@ inline void fillDhcpv4CapturedFromFrame(Dhcpv4Captured &c, const Dhcpv4Frame &f)
 // raw options blob since it's an unstable in-memory pointer at trace
 // time; the message_type alone disambiguates DISCOVER/OFFER/REQUEST/etc.
 inline void appendCapturedJson(std::string &out, const Dhcpv4Captured &c) {
-    char buf[64];
-    auto emit_u = [&](const char *key, unsigned v) {
-        out.append(key);
-        std::snprintf(buf, sizeof(buf), "%u", v);
-        out.append(buf);
-    };
     out.append("{");
-    emit_u("\"op\":", c.op);
-    emit_u(",\"message_type\":", c.message_type);
-    emit_u(",\"htype\":", c.htype);
-    emit_u(",\"hlen\":", c.hlen);
-    out.append(",\"xid\":");
-    std::snprintf(buf, sizeof(buf), "%u", c.xid); out.append(buf);
-    emit_u(",\"flags\":", c.flags);
-    out.append(",\"src_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.src_ip);
-    out.append(",\"dst_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
-    emit_u(",\"src_port\":", c.src_port);
-    emit_u(",\"dst_port\":", c.dst_port);
+    ::tc8::sce::appendUintJson(out, "\"op\":", c.op);
+    ::tc8::sce::appendUintJson(out, ",\"message_type\":", c.message_type);
+    ::tc8::sce::appendUintJson(out, ",\"htype\":", c.htype);
+    ::tc8::sce::appendUintJson(out, ",\"hlen\":", c.hlen);
+    ::tc8::sce::appendUintJson(out, ",\"xid\":", c.xid);
+    ::tc8::sce::appendUintJson(out, ",\"flags\":", c.flags);
+    out.append(",");
+    ::tc8::sce::appendL3EndpointsJson(out, c);
+    ::tc8::sce::appendL4PortsJson(out, c);
     out.append(",\"ciaddr\":");
     ::tc8::sce::appendIpv4Json(out, c.ciaddr);
     out.append(",\"yiaddr\":");

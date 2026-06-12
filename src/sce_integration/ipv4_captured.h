@@ -138,21 +138,15 @@ inline void fillIpv4CapturedFromFrame(Ipv4Captured &c, const Ipv4Frame &f) {
 // design overview; this overload exposes the IPv4 header subset most
 // SCXML conds gate on (version/ihl/ttl + 3-tuple + total_length).
 inline void appendCapturedJson(std::string &out, const Ipv4Captured &c) {
-    char buf[64];
-    auto emit_u = [&](const char *key, unsigned v) {
-        out.append(key);
-        std::snprintf(buf, sizeof(buf), "%u", v);
-        out.append(buf);
-    };
     out.append("{");
-    emit_u("\"version\":", c.version);
-    emit_u(",\"ihl\":", c.ihl);
-    emit_u(",\"ttl\":", c.ttl);
-    emit_u(",\"protocol\":", c.protocol);
-    emit_u(",\"total_length\":", c.total_length);
-    emit_u(",\"identification\":", c.identification);
-    emit_u(",\"flags\":", c.flags);
-    emit_u(",\"fragment_offset\":", c.fragment_offset);
+    ::tc8::sce::appendUintJson(out, "\"version\":", c.version);
+    ::tc8::sce::appendUintJson(out, ",\"ihl\":", c.ihl);
+    ::tc8::sce::appendUintJson(out, ",\"ttl\":", c.ttl);
+    ::tc8::sce::appendUintJson(out, ",\"protocol\":", c.protocol);
+    ::tc8::sce::appendUintJson(out, ",\"total_length\":", c.total_length);
+    ::tc8::sce::appendUintJson(out, ",\"identification\":", c.identification);
+    ::tc8::sce::appendUintJson(out, ",\"flags\":", c.flags);
+    ::tc8::sce::appendUintJson(out, ",\"fragment_offset\":", c.fragment_offset);
     out.append(",\"src_addr\":");
     ::tc8::sce::appendIpv4Json(out, c.src_addr);
     out.append(",\"dst_addr\":");

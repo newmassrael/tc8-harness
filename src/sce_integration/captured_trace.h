@@ -1,8 +1,12 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
+
+#include "sce_integration/captured_l3_endpoints.h"
+#include "sce_integration/captured_l4_ports.h"
 
 // Transition trace recording infrastructure (Evidence Export — Option 3).
 //
@@ -104,6 +108,42 @@ inline void appendIpv4Json(std::string &out, std::uint32_t ip) {
                   static_cast<unsigned>((ip >> 16) & 0xFFu),
                   static_cast<unsigned>((ip >> 24) & 0xFFu));
     out.append(buf);
+}
+
+// Append `<key><decimal>` where ``key`` carries its own leading
+// separator and quoting (e.g. ``,"seq_num":``). The single integer
+// emitter every per-context appendCapturedJson serialiser shares, in
+// place of the identical `emit_u` lambda each used to re-declare locally.
+inline void appendUintJson(std::string &out, const char *key, unsigned v) {
+    char buf[16];
+    out.append(key);
+    std::snprintf(buf, sizeof(buf), "%u", v);
+    out.append(buf);
+}
+
+// Append the L3 endpoint pair as ``"src_ip":<ip>,"dst_ip":<ip>`` — no
+// surrounding brace or separator, so the caller controls whether it
+// follows ``{`` (endpoints first) or ``,`` (endpoints mid-object). The
+// one place the dotted-quad src/dst emission lives, shared by every Named
+// Context that derives from CapturedL3Endpoints (TCP / UDP / SOME/IP /
+// DHCPv4 / ICMPv4) instead of each re-inlining the two appendIpv4Json
+// calls and key literals.
+inline void appendL3EndpointsJson(std::string &out,
+                                  const tc8::CapturedL3Endpoints &e) {
+    out.append("\"src_ip\":");
+    appendIpv4Json(out, e.src_ip);
+    out.append(",\"dst_ip\":");
+    appendIpv4Json(out, e.dst_ip);
+}
+
+// Append the L4 port pair as ``,"src_port":N,"dst_port":N`` (leading
+// separator, since the ports always immediately follow the L3 pair).
+// Shared by every Named Context that derives from CapturedL4Ports
+// (TCP / UDP / SOME/IP / DHCPv4).
+inline void appendL4PortsJson(std::string &out,
+                              const tc8::CapturedL4Ports &p) {
+    appendUintJson(out, ",\"src_port\":", p.src_port);
+    appendUintJson(out, ",\"dst_port\":", p.dst_port);
 }
 
 }  // namespace tc8::sce

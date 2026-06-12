@@ -279,24 +279,15 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
 // design overview; this overload exposes the UDP cond-gating subset
 // (4-tuple + length/checksum + UT opcode/req/status when present).
 inline void appendCapturedJson(std::string &out, const UdpCaptured &c) {
-    char buf[64];
-    auto emit_u = [&](const char *key, unsigned v) {
-        out.append(key);
-        std::snprintf(buf, sizeof(buf), "%u", v);
-        out.append(buf);
-    };
-    out.append("{\"src_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.src_ip);
-    out.append(",\"dst_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
-    emit_u(",\"src_port\":", c.src_port);
-    emit_u(",\"dst_port\":", c.dst_port);
-    emit_u(",\"length\":", c.length);
-    emit_u(",\"checksum\":", c.checksum);
+    out.append("{");
+    ::tc8::sce::appendL3EndpointsJson(out, c);
+    ::tc8::sce::appendL4PortsJson(out, c);
+    ::tc8::sce::appendUintJson(out, ",\"length\":", c.length);
+    ::tc8::sce::appendUintJson(out, ",\"checksum\":", c.checksum);
     if (c.ut_opcode != 0 || c.ut_req_id != 0) {
-        emit_u(",\"ut_opcode\":", c.ut_opcode);
-        emit_u(",\"ut_req_id\":", c.ut_req_id);
-        emit_u(",\"ut_status\":", c.ut_status);
+        ::tc8::sce::appendUintJson(out, ",\"ut_opcode\":", c.ut_opcode);
+        ::tc8::sce::appendUintJson(out, ",\"ut_req_id\":", c.ut_req_id);
+        ::tc8::sce::appendUintJson(out, ",\"ut_status\":", c.ut_status);
     }
     out.append("}");
 }

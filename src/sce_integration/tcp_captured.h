@@ -454,29 +454,20 @@ inline void fillTcpCapturedFromFrame(TcpCaptured &c, const TcpFrame &f) {
 // design overview; this overload exposes the TCP cond-gating subset
 // (4-tuple + flags + seq/ack + MSS option + ut_established).
 inline void appendCapturedJson(std::string &out, const TcpCaptured &c) {
-    char buf[64];
-    auto emit_u = [&](const char *key, unsigned v) {
-        out.append(key);
-        std::snprintf(buf, sizeof(buf), "%u", v);
-        out.append(buf);
-    };
-    out.append("{\"src_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.src_ip);
-    out.append(",\"dst_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
-    emit_u(",\"src_port\":", c.src_port);
-    emit_u(",\"dst_port\":", c.dst_port);
-    emit_u(",\"seq_num\":", c.seq_num);
-    emit_u(",\"ack_num\":", c.ack_num);
-    emit_u(",\"flags\":", c.flags);
-    emit_u(",\"window\":", c.window);
-    emit_u(",\"data_offset\":", c.data_offset);
-    emit_u(",\"payload_len\":", c.payload_len);
+    out.append("{");
+    ::tc8::sce::appendL3EndpointsJson(out, c);
+    ::tc8::sce::appendL4PortsJson(out, c);
+    ::tc8::sce::appendUintJson(out, ",\"seq_num\":", c.seq_num);
+    ::tc8::sce::appendUintJson(out, ",\"ack_num\":", c.ack_num);
+    ::tc8::sce::appendUintJson(out, ",\"flags\":", c.flags);
+    ::tc8::sce::appendUintJson(out, ",\"window\":", c.window);
+    ::tc8::sce::appendUintJson(out, ",\"data_offset\":", c.data_offset);
+    ::tc8::sce::appendUintJson(out, ",\"payload_len\":", c.payload_len);
     if (c.mss != 0) {
-        emit_u(",\"mss\":", c.mss);
+        ::tc8::sce::appendUintJson(out, ",\"mss\":", c.mss);
     }
     if (c.ut_established != 0xFF) {
-        emit_u(",\"ut_established\":", c.ut_established);
+        ::tc8::sce::appendUintJson(out, ",\"ut_established\":", c.ut_established);
     }
     out.append("}");
 }

@@ -600,29 +600,20 @@ inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, s
 // transport 4-tuple) without enumerating the bulky SD entry/option
 // arrays — those rarely drive verdict-decider disclosure.
 inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
-    char buf[64];
-    auto emit_u = [&](const char *key, unsigned v) {
-        out.append(key);
-        std::snprintf(buf, sizeof(buf), "%u", v);
-        out.append(buf);
-    };
     out.append("{");
-    emit_u("\"service_id\":", c.service_id);
-    emit_u(",\"method_id\":", c.method_id);
-    emit_u(",\"client_id\":", c.client_id);
-    emit_u(",\"session_id\":", c.session_id);
-    emit_u(",\"message_type\":", c.message_type);
-    emit_u(",\"return_code\":", c.return_code);
-    emit_u(",\"payload_len\":", c.payload_len);
-    out.append(",\"src_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.src_ip);
-    out.append(",\"dst_ip\":");
-    ::tc8::sce::appendIpv4Json(out, c.dst_ip);
-    emit_u(",\"src_port\":", c.src_port);
-    emit_u(",\"dst_port\":", c.dst_port);
+    ::tc8::sce::appendUintJson(out, "\"service_id\":", c.service_id);
+    ::tc8::sce::appendUintJson(out, ",\"method_id\":", c.method_id);
+    ::tc8::sce::appendUintJson(out, ",\"client_id\":", c.client_id);
+    ::tc8::sce::appendUintJson(out, ",\"session_id\":", c.session_id);
+    ::tc8::sce::appendUintJson(out, ",\"message_type\":", c.message_type);
+    ::tc8::sce::appendUintJson(out, ",\"return_code\":", c.return_code);
+    ::tc8::sce::appendUintJson(out, ",\"payload_len\":", c.payload_len);
+    out.append(",");
+    ::tc8::sce::appendL3EndpointsJson(out, c);
+    ::tc8::sce::appendL4PortsJson(out, c);
     if (c.sd_entry_count != 0) {
-        emit_u(",\"sd_entry_count\":", c.sd_entry_count);
-        emit_u(",\"sd_option_count\":", c.sd_option_count);
+        ::tc8::sce::appendUintJson(out, ",\"sd_entry_count\":", c.sd_entry_count);
+        ::tc8::sce::appendUintJson(out, ",\"sd_option_count\":", c.sd_option_count);
     }
     out.append("}");
 }
