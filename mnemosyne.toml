@@ -73,7 +73,9 @@ external_section_prefixes = ["RFC"]
 
 # P1 axis 2 (Round 284) — <PREFIX> §<id> form (doc-name-keyed; AUTOSAR family lacks numeric doc id).
 # Bare "AUTOSAR" 는 옵트인 안 함 — generic token 이라 internal §<id> 도 silently skip 위험.
-external_section_prefixes_bare = ["TR_SOMEIP", "SOMEIPSD", "SWS_SD"]
+# PRS_TPSP (2026-06-12) — AUTOSAR PRS Testability Protocol and Service Primitives
+# (Document ID 778, TC 1.2.0); the testability UT-channel code cites its §6.x / §5.1.
+external_section_prefixes_bare = ["TR_SOMEIP", "SOMEIPSD", "SWS_SD", "PRS_TPSP"]
 # Phase F 2026-05-13 — baseline 0 도달 후 reject 승격. 새 위반 = build fail.
 severity_missing = "reject"
 severity_binding = "reject"

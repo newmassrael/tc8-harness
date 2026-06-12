@@ -138,6 +138,7 @@ if(TC8_PORTABILITY_CHECK)
         src/stimulus/tcp_segment_builder.cpp
         src/stimulus/udp_datagram_builder.cpp
         src/stimulus/upper_tester_client.cpp
+        src/stimulus/testability_client.cpp
         src/wire/ip_checksum.cpp
     )
     target_include_directories(tc8-core-portability PRIVATE src include)
@@ -181,6 +182,7 @@ add_executable(tc8-harness
     src/cli/replay_command.cpp
     src/cli/test_command.cpp
     src/cli/ut_ping_command.cpp
+    src/cli/testability_probe_command.cpp
     src/sce_integration/case_registry.cpp
     src/sce_integration/spec_inventory.cpp
     src/stimulus/arp_builder.cpp
@@ -192,6 +194,7 @@ add_executable(tc8-harness
     src/stimulus/tcp_segment_builder.cpp
     src/stimulus/udp_datagram_builder.cpp
     src/stimulus/upper_tester_client.cpp
+    src/stimulus/testability_client.cpp
     src/wire/ip_checksum.cpp
 )
 

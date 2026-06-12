@@ -7,6 +7,7 @@ add_executable(tc8-dut
     ets_impl_2.cpp
     linklocal_autoconf.cpp
     upper_tester_server.cpp
+    testability_server.cpp
     ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.cpp
 )
 target_include_directories(tc8-dut PRIVATE

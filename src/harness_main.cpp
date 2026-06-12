@@ -8,6 +8,7 @@
 #include "cli/live_command.h"
 #include "cli/replay_command.h"
 #include "cli/test_command.h"
+#include "cli/testability_probe_command.h"
 #include "cli/ut_ping_command.h"
 
 int main(int argc, char** argv) {
@@ -27,6 +28,7 @@ int main(int argc, char** argv) {
     tc8::cli::ReplayCommand replay(app);
     tc8::cli::TestCommand   test(app);
     tc8::cli::UtPingCommand ut_ping(app);
+    tc8::cli::TestabilityProbeCommand testability_probe(app);
 
     CLI11_PARSE(app, argc, argv);
 
@@ -38,6 +40,7 @@ int main(int argc, char** argv) {
         if (replay.parsed())  return replay.run(bpf_override);
         if (test.parsed())    return test.run(bpf_override);
         if (ut_ping.parsed()) return ut_ping.run();
+        if (testability_probe.parsed()) return testability_probe.run();
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error: %s\n", e.what());
         return 1;

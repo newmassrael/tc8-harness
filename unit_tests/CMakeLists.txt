@@ -21,6 +21,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
+    ${PROJECT_SOURCE_DIR}/src/dissect/someip_header.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
@@ -28,6 +29,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/testability_client.cpp
     ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.cpp
 )
 target_include_directories(tc8_harness_testable PUBLIC
@@ -64,4 +66,5 @@ tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
 tc8_add_unit_test(tcp_captured_test)
 tc8_add_unit_test(upper_tester_client_test)
+tc8_add_unit_test(testability_client_test)
 tc8_add_unit_test(iface_enumeration_test)

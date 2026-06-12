@@ -10,6 +10,7 @@
 
 #include "ets_impl.h"
 #include "ets_impl_2.h"
+#include "testability_server.h"
 #include "upper_tester_server.h"
 
 namespace {
@@ -114,6 +115,16 @@ int main() {
         std::_Exit(1);
     }
 
+    // AUTOSAR Testability Protocol endpoint (PRS Testability TC 1.2.0). The
+    // standard-protocol UT channel, additive to the opcode UT above: a
+    // standard-compliant tester drives the DUT over SOME/IP on the testability
+    // port (30700). A bind failure is non-fatal — the opcode UT still serves
+    // the in-tree cases; testability is an OEM-neutral enablement channel.
+    tc8::dut::TestabilityServer testability;
+    if (!testability.start()) {
+        std::fprintf(stderr, "tc8-dut: testability endpoint start failed (continuing)\n");
+    }
+
     // §5.1.5.5 BASIC_03 + §5.1.5.4 SD_MESSAGE event-flow cases require
     // the DUT to emit Notifications post-Subscribe. CommonAPI's stub
     // queues a notification; vsomeip distributes it only to currently
@@ -141,6 +152,7 @@ int main() {
     if (event_thread.joinable()) {
         event_thread.join();
     }
+    testability.stop();
     upper_tester.stop();
     if (impl_si2) {
         runtime->unregisterService(kDomain, kInterfaceSi2, kInstanceSi2);
