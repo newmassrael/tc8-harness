@@ -1,5 +1,8 @@
 #include <array>
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -7,6 +10,30 @@
 #include "sce_integration/arp_expectations.h"
 #include "sce_integration/dhcpv4_expectations.h"
 #include "sce_integration/someip_expectations.h"
+
+// Mock out-of-tree OEM Context in ITS OWN namespace, so the
+// `applyExpectToken` overload below is reachable only via ADL — exactly
+// how a real OEM would ship it. Used by the ApplyExpectTokens test to
+// prove `--expect-extra` tokens reach an OEM Expected with no core edit.
+namespace oem_test {
+struct OemExpectations {
+    std::uint32_t calib_id = 0;
+    int applied = 0;
+};
+inline bool applyExpectToken(std::string_view token, OemExpectations &e) {
+    constexpr std::string_view kPrefix = "oem.calib_id=";
+    if (token.substr(0, kPrefix.size()) != kPrefix) {
+        return false;
+    }
+    std::uint64_t v = 0;
+    if (!::tc8::cli::parseNumeric(token.substr(kPrefix.size()), v)) {
+        return false;
+    }
+    e.calib_id = static_cast<std::uint32_t>(v);
+    ++e.applied;
+    return true;
+}
+}  // namespace oem_test
 
 namespace tc8::cli {
 namespace {
@@ -246,6 +273,20 @@ TEST(ApplyExpectToken_Dhcpv4, RejectsUnknownKey) {
 TEST(ApplyExpectToken_Dhcpv4, RejectsMalformedValue) {
     ::tc8::Dhcpv4Expectations e{};
     EXPECT_FALSE(applyExpectToken("dhcpv4.dut_iface_mac=aa:bb:cc:dd:ee", e));
+}
+
+// --expect-extra: applyExpectTokens routes each raw token to the OEM
+// Context's own applyExpectToken via ADL (no core edit), and a token the
+// OEM parser declines is silently skipped — the OEM owns its key space.
+TEST(ApplyExpectTokens, RoutesToOemContextViaAdl) {
+    oem_test::OemExpectations e{};
+    const std::vector<std::string> tokens{
+        "oem.calib_id=0x42",        // OEM key → consumed
+        "someip.service_id=0xF00D"  // not the OEM's key → skipped
+    };
+    applyExpectTokens(tokens, e);
+    EXPECT_EQ(e.calib_id, 0x42u);
+    EXPECT_EQ(e.applied, 1);  // only the oem.* token was consumed
 }
 
 }  // namespace

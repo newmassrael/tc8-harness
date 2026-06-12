@@ -73,6 +73,12 @@ private:
     // Raw `KEY=VALUE` tokens collected from `--expect`. Parsed and pushed
     // into ITestRunner::seedExpectations() inside runCase().
     std::vector<std::string> expect_tokens_;
+    // Raw `KEY=VALUE` tokens from `--expect-extra` — out-of-tree OEM
+    // passthrough. Not validated against the in-tree key set; carried into
+    // `TestConfig::expect_extra_tokens` for an OEM Context's own
+    // `applyTestConfig` overload to parse. See expect_parser.h
+    // `applyExpectTokens`.
+    std::vector<std::string> expect_extra_tokens_;
 
     // Stimulus timing knobs — optional so unset values inherit
     // `BootTiming{}` defaults inside TestConfig. Used by §5.1 cases with

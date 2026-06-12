@@ -2,7 +2,9 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "sce_integration/arp_expectations.h"
 #include "sce_integration/arp_stimulus_config.h"
@@ -144,5 +146,28 @@ bool applyExpectToken(std::string_view token, ::tc8::Ipv4Expectations &e);
 // Returns false when the token lacks the `dhcpv4.` prefix, the value
 // fails its per-key parser, or the post-prefix key is unknown.
 bool applyExpectToken(std::string_view token, ::tc8::Dhcpv4Expectations &e);
+
+// Apply a batch of raw `--expect-extra` tokens to an out-of-tree OEM
+// Context, calling `applyExpectToken(token, e)` per token via ADL. An
+// OEM provides one overload `applyExpectToken(std::string_view, OemCtx&)`
+// in its own namespace and wires this into its
+// `applyTestConfig(OemCtx&, cfg)` seam:
+//
+//   void applyTestConfig(OemCtx& ctx, const tc8::TestConfig& cfg) {
+//       tc8::cli::applyExpectTokens(cfg.expect_extra_tokens, ctx);
+//   }
+//
+// so a deployment-varying OEM value reaches the case's Expected without
+// editing core `expect_parser`. In-tree Contexts never use this — their
+// values arrive through the strict `--expect` parser and the closed
+// TestConfig sub-structs. Unrecognised tokens are silently skipped (the
+// OEM overload returns false), so the OEM owns validation of its own key
+// namespace.
+template <typename Context>
+void applyExpectTokens(const std::vector<std::string> &tokens, Context &e) {
+    for (const auto &tok : tokens) {
+        applyExpectToken(tok, e);
+    }
+}
 
 }  // namespace tc8::cli

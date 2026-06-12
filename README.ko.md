@@ -704,6 +704,29 @@ constexpr std::string_view kBpfExpression`을 선언하세요 — `kBpfGroup`
 앞 둘은 libpcap에 그대로 전달되므로 커스텀 필터는 자신의 VLAN-인지를
 직접 책임집니다(태그 트래픽을 매치하려면 `(X) or (vlan and (X))`로 감쌀 것).
 
+in-tree `--expect` 키 집합에 없는 DUT 고유 런타임 값(배포마다 달라지는
+OEM 값 — 캘리브레이션 id, OEM 서비스 카탈로그, 벤치별 주소)은, OEM
+`Expected` Context가 자신의 `applyTestConfig` 오버로드에서 raw
+`--expect-extra KEY=VALUE` 토큰을 읽습니다 — `TestRunner`가 모든 context
+시딩에 이미 쓰는 그 ADL seam입니다:
+
+```cpp
+namespace oem {
+struct OemExpectations { std::uint32_t calib_id = 0; };
+inline bool applyExpectToken(std::string_view tok, OemExpectations& e) {
+    /* "oem.calib_id=..."를 e에 파싱; 소비 여부 반환 */
+}
+inline void applyTestConfig(OemExpectations& e, const tc8::TestConfig& cfg) {
+    tc8::cli::applyExpectTokens(cfg.expect_extra_tokens, e);
+}
+}  // namespace oem
+```
+
+`--expect`는 닫힌 in-tree 키 집합을 계속 소유하며(인식 못 하는 키는
+에러 — 오타 가드), OEM 키는 별도 `--expect-extra` 채널로 타고 OEM이
+자기 네임스페이스의 검증을 책임집니다. 코어 `expect_parser` 수정
+불필요.
+
 대체는 codegen 이전의 수집 단계에서 일어나므로 케이스 id당 정확히
 하나의 상태머신만 링크에 도달합니다 — 레지스트리의 중복-id abort는
 메커니즘이 아니라 안전망으로 남습니다.

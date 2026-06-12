@@ -721,6 +721,29 @@ so no edit to core `bpf_filter` is needed. Precedence is `-f/--bpf` >
 so a custom filter owns its own VLAN-awareness (wrap it `(X) or (vlan and
 (X))` if tagged traffic must match).
 
+For DUT-specific runtime values the in-tree `--expect` key set doesn't
+model (a deployment-varying OEM value — calibration id, OEM service
+catalogue, per-bench address), an OEM `Expected` Context reads raw
+`--expect-extra KEY=VALUE` tokens in its own `applyTestConfig` overload —
+the same ADL seam `TestRunner` already uses to seed every context:
+
+```cpp
+namespace oem {
+struct OemExpectations { std::uint32_t calib_id = 0; };
+inline bool applyExpectToken(std::string_view tok, OemExpectations& e) {
+    /* parse "oem.calib_id=..." into e; return whether consumed */
+}
+inline void applyTestConfig(OemExpectations& e, const tc8::TestConfig& cfg) {
+    tc8::cli::applyExpectTokens(cfg.expect_extra_tokens, e);
+}
+}  // namespace oem
+```
+
+`--expect` keeps owning the closed in-tree key set (it errors on an
+unrecognised key — the typo guard), so OEM keys ride the separate
+`--expect-extra` channel and the OEM owns validation of its own
+namespace. No edit to core `expect_parser` is needed.
+
 Replacement happens at collection time, before codegen — exactly one
 state machine per case id reaches the link, and the registry's
 duplicate-id abort remains a backstop rather than the mechanism.

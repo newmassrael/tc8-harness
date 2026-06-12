@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include "arp_expectations.h"
 #include "arp_stimulus_config.h"
 #include "dhcpv4_expectations.h"
@@ -40,6 +43,16 @@ struct TestConfig {
     Ipv4Expectations ipv4{};
     Dhcpv4Expectations dhcpv4{};
     ::tc8::stimulus::BootTiming stimulus_timing{};
+
+    // Raw `--expect-extra KEY=VALUE` tokens (out-of-tree OEM passthrough).
+    // The strict `--expect` parser owns the closed in-tree key set and
+    // errors on anything it doesn't recognise (typo guard); OEM-specific
+    // runtime keys ride here instead, unvalidated by core. An OEM Context
+    // type reads them in its own `applyTestConfig(OemContext&, cfg)`
+    // overload — e.g. `tc8::cli::applyExpectTokens(cfg.expect_extra_tokens,
+    // ctx)` — so a deployment-varying OEM value reaches the case's Expected
+    // without editing core `expect_parser`. Empty for every in-tree case.
+    std::vector<std::string> expect_extra_tokens{};
 };
 
 }  // namespace tc8

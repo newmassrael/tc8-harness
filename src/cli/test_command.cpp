@@ -80,6 +80,12 @@ TestCommand::TestCommand(CLI::App &app) {
                      "(IPv4 dotted), arp.dut_iface_mac (six colon-separated hex "
                      "octets). Example: --expect service_id=0xF4E7 "
                      "arp.tester_ip=172.16.0.1 arp.dut_iface_mac=aa:bb:cc:dd:ee:ff");
+    sub_->add_option("--expect-extra", expect_extra_tokens_,
+                     "Out-of-tree OEM KEY=VALUE tokens (repeatable), carried "
+                     "verbatim into TestConfig::expect_extra_tokens for an "
+                     "OEM Context's own applyTestConfig overload to parse. "
+                     "Unlike --expect, these are NOT validated against the "
+                     "in-tree key set — the OEM owns its key namespace.");
     sub_->add_option("--stimulus-wait", stimulus_wait_ms_,
                      "Milliseconds to wait before the first tester-side stimulus "
                      "emit (default 1500, suits tc8-dut). Widen when the DUT's "
@@ -368,6 +374,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
 
     ::tc8::TestConfig config{};
+    // OEM passthrough tokens ride into the config verbatim — an out-of-tree
+    // Context parses them in its own applyTestConfig overload. The strict
+    // --expect loop below keeps owning the closed in-tree key set.
+    config.expect_extra_tokens = expect_extra_tokens_;
     for (const auto &tok : expect_tokens_) {
         // Try each protocol's parser; the first that recognises the token
         // wins. ARP's parser short-circuits on the `arp.` prefix so SOME/IP
