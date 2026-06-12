@@ -1402,10 +1402,6 @@
       "intent": "TC8 §4.5.6.1 — IPv4 Link-Local Autoconf — Introduction. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
         },
@@ -1449,10 +1445,6 @@
         },
         {
           "file": "dut/dut_service/linklocal_autoconf.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -1602,10 +1594,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
@@ -1665,10 +1653,6 @@
         },
         {
           "file": "dut/dut_service/linklocal_autoconf.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -2294,10 +2278,6 @@
       "intent": "TC8 §4.7.6.1 — DHCPv4 Client — Summary. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
@@ -2348,10 +2328,6 @@
       "intent": "TC8 §4.7.6.2 — DHCPv4 Client — Protocol. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/dhcpv4_captured.h",
           "kind": "implements"
         },
@@ -2379,10 +2355,6 @@
         },
         {
           "file": "dut/dut_service/dhcpv4_client.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -2660,10 +2632,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/dhcpv4_captured.h",
           "kind": "implements"
         },
@@ -2783,10 +2751,6 @@
         },
         {
           "file": "dut/dut_service/dhcpv4_client.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -3044,10 +3008,6 @@
       "intent": "TC8 §4.8.6 — auto-seeded TC8-internal sub-section (27 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/tcp_header_04.h",
           "kind": "implements"
         },
@@ -3188,10 +3148,6 @@
       "intent": "TC8 §4.8.6.10 — TCP — Out of Order. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/tcp_captured.h",
           "kind": "implements"
         },
@@ -3296,10 +3252,6 @@
       "intent": "TC8 §4.8.6.12 — TCP — Probing Windows. 5 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/protocol_frames/tcp_frame.h",
           "kind": "implements"
         },
@@ -3338,10 +3290,6 @@
       "intent": "TC8 §4.8.6.13 — TCP — Nagle. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/tcp_pilot_common.h",
           "kind": "implements"
         },
@@ -3361,10 +3309,6 @@
       "bindings": [
         {
           "file": "dut/dut_service/upper_tester_server.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -3389,10 +3333,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.15 — TCP — Connection Establishment. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/tcp_pilot_common.h",
           "kind": "implements"
@@ -3462,10 +3402,6 @@
       "intent": "TC8 §4.8.6.17 — TCP — Sequence. 5 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/tcp_pilot_common.h",
           "kind": "implements"
         },
@@ -3496,10 +3432,6 @@
       "intent": "TC8 §4.8.6.18 — TCP — Acknowledgement. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/tcp_pilot_common.h",
           "kind": "implements"
         },
@@ -3521,10 +3453,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.19 — TCP — Control Flags. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/tcp_pilot_common.h",
           "kind": "implements"
@@ -3692,10 +3620,6 @@
       "intent": "TC8 §4.8.6.4 — TCP — Call Receive. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/tcp_captured.h",
           "kind": "implements"
         },
@@ -3719,10 +3643,6 @@
         },
         {
           "file": "dut/dut_service/upper_tester_server.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -3838,10 +3758,6 @@
       "intent": "TC8 §4.8.6.7 — TCP — Flag Processing. 8 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/tcp_pilot_common.h",
           "kind": "implements"
         },
@@ -3893,10 +3809,6 @@
         },
         {
           "file": "dut/dut_service/upper_tester_server.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -3967,10 +3879,6 @@
       "bindings": [
         {
           "file": "dut/dut_service/upper_tester_server.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
