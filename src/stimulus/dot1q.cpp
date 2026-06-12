@@ -1,19 +1,27 @@
 #include "stimulus/dot1q.h"
 
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 
 namespace tc8::stimulus {
 
 std::vector<std::uint8_t> withDot1QTag(const std::vector<std::uint8_t> &untagged,
                                        std::uint8_t pcp, bool dei, std::uint16_t vid,
                                        std::uint16_t tpid) {
-    // A complete Ethernet-II frame is at least 14 B (dst + src +
-    // EtherType). Anything shorter is not a frame we can tag — return it
-    // verbatim so the mistake stays visible at the call site rather than
-    // producing a malformed tagged frame.
+    // Precondition: `untagged` is a complete Ethernet-II frame (>= 14 B:
+    // dst + src + EtherType). A shorter buffer is a caller bug — there is
+    // no MAC pair to splice the tag behind — so fail fast and loud rather
+    // than fabricate a malformed frame or silently no-op. NDEBUG strips
+    // assert() in the Release build, so this is an always-active guard in
+    // the house std::abort() backstop style (see CaseRegistry::add).
     constexpr std::size_t kEthHeaderLen = 14U;
     if (untagged.size() < kEthHeaderLen) {
-        return untagged;
+        std::fprintf(stderr,
+                     "withDot1QTag: frame too short to tag (%zu B < 14 B"
+                     " Ethernet header). Caller must pass a complete frame.\n",
+                     untagged.size());
+        std::abort();
     }
 
     // Tag Control Information: PCP(3) | DEI(1) | VID(12), per the shared

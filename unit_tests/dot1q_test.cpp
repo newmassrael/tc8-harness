@@ -89,10 +89,13 @@ TEST(Dot1QBuilder, PcpAndVidMasked) {
     EXPECT_EQ(tci, static_cast<std::uint16_t>((0x7U << 13) | (1U << 12) | 0x0FFFU));
 }
 
-TEST(Dot1QBuilder, ShortFrameReturnedUnchanged) {
+TEST(Dot1QBuilderDeathTest, ShortFrameAborts) {
+    // Precondition violation: a buffer shorter than the 14-byte Ethernet
+    // header has no MAC pair to tag behind, so the builder fails fast
+    // rather than fabricate a malformed frame.
     const std::vector<std::uint8_t> tiny{0x01, 0x02, 0x03};
-    const auto out = tc8::stimulus::withDot1QTag(tiny, 1, false, 1);
-    EXPECT_EQ(out, tiny);
+    EXPECT_DEATH(tc8::stimulus::withDot1QTag(tiny, 1, false, 1),
+                 "frame too short to tag");
 }
 
 }  // namespace

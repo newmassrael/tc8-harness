@@ -23,10 +23,11 @@ namespace tc8::stimulus {
 // EtherType at offset 12..13, which now holds 0x8100, so the kernel hint
 // follows the tag without any caller change.
 //
-// `pcp` is masked to 3 bits and `vid` to 12 bits. A frame shorter than
-// the 14-byte Ethernet-II minimum is returned unchanged (a caller
-// mistake degrades to a no-op rather than corrupting bytes), mirroring
-// the defensive size check in `sendRawEthernet`.
+// `pcp` is masked to 3 bits and `vid` to 12 bits. Precondition:
+// `untagged` MUST be a complete Ethernet-II frame (>= 14 bytes) — there
+// is otherwise no MAC pair to splice the tag behind. A shorter buffer is
+// a caller bug and aborts with a diagnostic (fail fast; NDEBUG would
+// strip a bare assert in the Release build).
 std::vector<std::uint8_t> withDot1QTag(const std::vector<std::uint8_t> &untagged,
                                        std::uint8_t pcp, bool dei, std::uint16_t vid,
                                        std::uint16_t tpid = ::tc8::kDot1QTpid);
