@@ -9,6 +9,7 @@
 #include "tc8/protocol_frames/dhcpv4_frame.h"
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_ip_fragmentation.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_trace.h"
@@ -31,17 +32,15 @@ namespace tc8 {
 // covers every check uniformly — same pattern as
 // `ArpCaptured::is_arp_probe()` and `Ipv4Captured::header_checksum_valid()`.
 struct Dhcpv4Captured : CapturedFrameTiming, CapturedL3Endpoints,
-                        CapturedL4Ports {
+                        CapturedL4Ports, CapturedIpFragmentation {
     // Encapsulating Ethernet header.
     std::array<std::uint8_t, 6> eth_src{};
     std::array<std::uint8_t, 6> eth_dst{};
 
-    // IPv4 envelope: `src_ip` / `dst_ip` (network byte order) are
-    // inherited from `CapturedL3Endpoints`; the UDP `src_port` /
-    // `dst_port` from `CapturedL4Ports`. The fragmentation knobs stay
-    // here.
-    std::uint8_t  ip_flags = 0;
-    std::uint16_t ip_fragment_offset = 0;
+    // IPv4 / UDP envelope is fully inherited: `src_ip` / `dst_ip`
+    // (network byte order) from `CapturedL3Endpoints`, `src_port` /
+    // `dst_port` from `CapturedL4Ports`, and `ip_flags` /
+    // `ip_fragment_offset` from `CapturedIpFragmentation`.
 
     // BOOTP fixed body.
     std::uint8_t  op    = 0;

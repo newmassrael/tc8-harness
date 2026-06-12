@@ -11,6 +11,7 @@
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_ip_fragmentation.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
@@ -45,11 +46,10 @@ namespace tc8 {
 // the invariant "has_ut_response iff this frame is a response
 // from OUR UT server."
 struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
-                     CapturedL3Endpoints, CapturedL4Ports {
+                     CapturedL3Endpoints, CapturedL4Ports,
+                     CapturedIpFragmentation {
     std::uint16_t length             = 0;   // RFC 768 Length (header+payload)
     std::uint16_t checksum           = 0;
-    std::uint8_t  ip_flags           = 0;   // carrying IP header's 3-bit flags
-    std::uint16_t ip_fragment_offset = 0;   // carrying IP header's offset
 
     // Encapsulating Ethernet addresses. §4.7.6.7 CM_05/_06 reads
     // `eth_dst` from the SCXML cond to verify that DUT's UDP egress to
