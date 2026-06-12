@@ -30,6 +30,18 @@ class IStimulusScheduler;
 //     static constexpr int              kTopology;     // Test setup — Topology N
 //     static constexpr ::tc8::BpfGroup  kBpfGroup;     // capture-filter bucket
 //
+//   Optional capture-filter override (out-of-tree escape hatch):
+//     static constexpr std::string_view kBpfExpression;
+//   A literal libpcap filter used VERBATIM instead of the
+//   kBpfGroup-derived expression, for a case whose capture needs fall
+//   outside the closed BpfGroup enum (e.g. an OEM protocol on a
+//   non-standard port). Declared in the case's own header so an
+//   out-of-tree case ships a novel filter without editing core
+//   bpf_filter. Precedence: CLI `-f` > kBpfExpression > kBpfGroup. Like
+//   `-f`, the string is passed to the kernel as-is, so the case owns its
+//   own VLAN-awareness (see `vlanAware`). kBpfGroup stays required (it is
+//   the reporting bucket) but is unused for the filter when this is set.
+//
 //   (Category is derived from kCaseId — everything before the final
 //   "_<digits>" suffix — so there is no separate kCategory field. The
 //   registrar static_asserts the required shape.)
@@ -155,5 +167,30 @@ struct has_iface_dispatch<
 template <typename Traits>
 inline constexpr bool has_iface_dispatch_v =
     has_iface_dispatch<Traits>::value;
+
+// Detects whether TestCaseTraits<SM> declares the optional
+// `static constexpr std::string_view kBpfExpression` capture-filter
+// override (see the contract above). `bpfExpressionOf<T>()` returns it
+// when present and an empty view otherwise, so the registrar can carry
+// it into CaseEntry uniformly — a case without the member compiles
+// unchanged and falls back to its kBpfGroup-derived filter.
+template <typename Traits, typename = void>
+struct has_bpf_expression : std::false_type {};
+
+template <typename Traits>
+struct has_bpf_expression<Traits, std::void_t<decltype(Traits::kBpfExpression)>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_bpf_expression_v = has_bpf_expression<Traits>::value;
+
+template <typename Traits>
+constexpr std::string_view bpfExpressionOf() {
+    if constexpr (has_bpf_expression_v<Traits>) {
+        return Traits::kBpfExpression;
+    } else {
+        return std::string_view{};
+    }
+}
 
 }  // namespace tc8::sce

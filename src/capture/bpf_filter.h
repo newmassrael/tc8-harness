@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include "tc8/bpf_group.h"
 
@@ -72,5 +74,17 @@ std::string vlanAware(const std::string &expr);
 // Dispatch: BpfGroup enum → per-group expression above, made
 // VLAN-transparent via vlanAware().
 std::string expressionFor(::tc8::BpfGroup group);
+
+// Resolve the capture filter for one case by precedence:
+//   1. `cli_override` — the top-level `-f/--bpf` flag, used verbatim.
+//   2. `per_case_expression` — a case's own `kBpfExpression`, verbatim;
+//      lets an out-of-tree case ship a filter outside the BpfGroup enum.
+//   3. `expressionFor(group)` — the kBpfGroup-derived, VLAN-aware filter.
+// (1) and (2) are passed to the kernel as-is (the caller owns any
+// VLAN-awareness), exactly as a hand-written `-f` is; only (3) is wrapped.
+// This is the single place the three filter sources are ranked.
+std::string resolveCaptureFilter(const std::optional<std::string> &cli_override,
+                                 std::string_view per_case_expression,
+                                 ::tc8::BpfGroup group);
 
 }  // namespace tc8::capture::bpf

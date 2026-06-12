@@ -26,6 +26,11 @@ struct CaseEntry {
     bool deprecated = false;
     int topology = 1;
     ::tc8::BpfGroup bpf_group = ::tc8::BpfGroup::SomeIp;
+    // Optional per-case capture-filter override (from TestCaseTraits<>::
+    // kBpfExpression). Empty = derive from bpf_group. Points at a static
+    // string literal so the view outlives the registry. See
+    // `capture::bpf::resolveCaptureFilter`.
+    std::string_view bpf_expression = {};
     std::function<std::unique_ptr<ITestRunner>(const ::tc8::TestConfig &)> factory;
 };
 
@@ -128,7 +133,7 @@ template <typename StateMachine> struct CaseRegistrar {
                                                       "e.g. 'SOMEIPSRV_FORMAT_01' or 'SOMEIP_ETS_025'");
         CaseRegistry::instance().add(
             CaseEntry{T::kCaseId, deriveCategory(T::kCaseId), T::kSpecSection, T::kDescription, T::kDeprecated,
-                      T::kTopology, T::kBpfGroup, [](const ::tc8::TestConfig &cfg) {
+                      T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(), [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
                       }});
     }

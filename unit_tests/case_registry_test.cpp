@@ -43,7 +43,8 @@ public:
 
 CaseEntry makeEntry(std::string_view id, bool deprecated = false) {
     return CaseEntry{
-        id, deriveCategory(id), "0.0", "desc", deprecated, 1, ::tc8::BpfGroup::SomeIp, [](const ::tc8::TestConfig &) {
+        id, deriveCategory(id), "0.0", "desc", deprecated, 1, ::tc8::BpfGroup::SomeIp,
+        /*bpf_expression=*/{}, [](const ::tc8::TestConfig &) {
             return std::unique_ptr<ITestRunner>(new DummyRunner());
         }};
 }
@@ -222,6 +223,22 @@ TEST(CaseRegistryDeathTest, DuplicateIdAborts) {
     CaseRegistry reg;
     reg.add(makeEntry("ARP_01"));
     EXPECT_DEATH_IF_SUPPORTED(reg.add(makeEntry("ARP_01")), "duplicate case registration for 'ARP_01'");
+}
+
+// Out-of-tree capture-filter escape hatch: bpfExpressionOf<T>() reads the
+// optional kBpfExpression member when present and yields an empty view
+// otherwise, so a case without it (the overwhelming majority) registers
+// with bpf_expression empty and falls back to its kBpfGroup filter.
+struct TraitsWithBpfExpr {
+    static constexpr std::string_view kBpfExpression = "udp port 5000";
+};
+struct TraitsWithoutBpfExpr {};
+
+TEST(BpfExpression, SfinaeReadsOptionalMember) {
+    EXPECT_EQ(bpfExpressionOf<TraitsWithBpfExpr>(), "udp port 5000");
+    EXPECT_TRUE(bpfExpressionOf<TraitsWithoutBpfExpr>().empty());
+    static_assert(has_bpf_expression_v<TraitsWithBpfExpr>);
+    static_assert(!has_bpf_expression_v<TraitsWithoutBpfExpr>);
 }
 
 }  // namespace

@@ -712,6 +712,15 @@ Traits header resolution for every collected case tries
   cases (`src/`, `include/`), so it can reuse the trait bases, stimulus
   builders, and `TC8_REGISTER_CASE()` registrar.
 
+If an out-of-tree case needs a capture filter outside the closed
+`BpfGroup` enum (e.g. an OEM protocol on a non-standard port), declare an
+optional `static constexpr std::string_view kBpfExpression` in its traits
+header — it is used verbatim instead of the `kBpfGroup`-derived filter,
+so no edit to core `bpf_filter` is needed. Precedence is `-f/--bpf` >
+`kBpfExpression` > `kBpfGroup`; the first two are passed to libpcap as-is,
+so a custom filter owns its own VLAN-awareness (wrap it `(X) or (vlan and
+(X))` if tagged traffic must match).
+
 Replacement happens at collection time, before codegen — exactly one
 state machine per case id reaches the link, and the registry's
 duplicate-id abort remains a backstop rather than the mechanism.

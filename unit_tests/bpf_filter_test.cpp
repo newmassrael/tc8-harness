@@ -1,3 +1,4 @@
+#include <optional>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -82,6 +83,23 @@ TEST(BpfFilter, ExpressionForIsVlanAwareWrapOfPerGroupFunction) {
     EXPECT_EQ(expressionFor(BpfGroup::ArpAndUdp), vlanAware(arpAndUdp()));
     EXPECT_EQ(expressionFor(BpfGroup::ArpAndDhcpv4), vlanAware(arpAndDhcpv4()));
     EXPECT_EQ(expressionFor(BpfGroup::UdpAndDhcpv4), vlanAware(udpAndDhcpv4()));
+}
+
+TEST(BpfFilter, ResolveCaptureFilterPrecedence) {
+    using ::tc8::BpfGroup;
+    // 1. CLI -f override wins and is passed verbatim (even over a
+    //    per-case expression).
+    EXPECT_EQ(resolveCaptureFilter(std::optional<std::string>("ether host 1:2:3:4:5:6"),
+                                   "udp port 5000", BpfGroup::Arp),
+              "ether host 1:2:3:4:5:6");
+    // 2. No override + a per-case kBpfExpression → used verbatim (the
+    //    out-of-tree escape hatch; not VLAN-wrapped — the case owns that).
+    EXPECT_EQ(resolveCaptureFilter(std::nullopt, "udp port 5000", BpfGroup::Arp),
+              "udp port 5000");
+    // 3. No override + empty per-case expression → the VLAN-aware
+    //    kBpfGroup filter (the normal path for every in-tree case).
+    EXPECT_EQ(resolveCaptureFilter(std::nullopt, "", BpfGroup::Arp),
+              vlanAware(arp()));
 }
 
 TEST(BpfFilter, EveryExpressionCompilesUnderLibpcap) {

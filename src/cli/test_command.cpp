@@ -324,7 +324,8 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         return 2;
     }
 
-    const std::string bpf = bpf_override.has_value() ? *bpf_override : capture::bpf::expressionFor(entry->bpf_group);
+    const std::string bpf = capture::bpf::resolveCaptureFilter(
+        bpf_override, entry->bpf_expression, entry->bpf_group);
 
     std::printf("case     : %.*s  (§%.*s)\n", static_cast<int>(entry->id.size()), entry->id.data(),
                 static_cast<int>(entry->spec_section.size()), entry->spec_section.data());

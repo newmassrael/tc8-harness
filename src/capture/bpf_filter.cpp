@@ -3,7 +3,9 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include "sce_integration/dhcpv4_default_endpoints.h"
 #include "tc8/dut_config.h"
@@ -102,6 +104,18 @@ std::string udpAndDhcpv4() {
 
 std::string vlanAware(const std::string &expr) {
     return "(" + expr + ") or (vlan and (" + expr + "))";
+}
+
+std::string resolveCaptureFilter(const std::optional<std::string> &cli_override,
+                                 std::string_view per_case_expression,
+                                 ::tc8::BpfGroup group) {
+    if (cli_override.has_value()) {
+        return *cli_override;
+    }
+    if (!per_case_expression.empty()) {
+        return std::string(per_case_expression);
+    }
+    return expressionFor(group);
 }
 
 std::string expressionFor(::tc8::BpfGroup group) {

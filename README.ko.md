@@ -696,6 +696,14 @@ FetchContent, git 서브모듈, 벤더링 스냅샷 모두 가능합니다. 두 
   경로(`src/`, `include/`)를 보므로 trait 베이스, stimulus 빌더,
   `TC8_REGISTER_CASE()` 레지스트라를 그대로 재사용할 수 있습니다.
 
+out-of-tree 케이스가 닫힌 `BpfGroup` enum 밖의 캡처 필터가 필요하면
+(예: OEM 프로토콜이 비표준 포트), traits 헤더에 optional `static
+constexpr std::string_view kBpfExpression`을 선언하세요 — `kBpfGroup`
+파생 필터 대신 verbatim으로 사용되어 코어 `bpf_filter` 수정이
+불필요합니다. 우선순위는 `-f/--bpf` > `kBpfExpression` > `kBpfGroup`이고,
+앞 둘은 libpcap에 그대로 전달되므로 커스텀 필터는 자신의 VLAN-인지를
+직접 책임집니다(태그 트래픽을 매치하려면 `(X) or (vlan and (X))`로 감쌀 것).
+
 대체는 codegen 이전의 수집 단계에서 일어나므로 케이스 id당 정확히
 하나의 상태머신만 링크에 도달합니다 — 레지스트리의 중복-id abort는
 메커니즘이 아니라 안전망으로 남습니다.
