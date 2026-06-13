@@ -9,6 +9,7 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -36,13 +37,15 @@ namespace tc8::sce {
 // the spec's 2*MSL = 60 s expectation. On a Linux DUT this case is
 // expected to fail; a strict-RFC DUT honouring 2*MSL=60s would pass.
 //
-// Verdict mechanism (kernel-side via OpQueryTcpInfo, dispatch=no-op):
+// Verdict mechanism (kernel-side state probe through the seam,
+// dispatch=no-op):
 //   1. TesterAutoRstDrop suppresses tester-kernel auto-RST against
 //      the unbound destination port; without it Linux's
 //      tcp_v4_send_reset would close DUT's SYN-SENT TCB on the first
 //      SYN, defeating the test.
-//   2. UT OpOpenTcpSocket(Active) on +182 port quad — DUT issues SYN,
-//      enters SYN-SENT, kernel arms retransmit timer.
+//   2. Active OPEN on +182 port quad — DUT issues SYN, enters
+//      SYN-SENT, kernel arms retransmit timer. No tester listener, so
+//      the SYN goes unanswered and the socket stays in SYN-SENT.
 //   3. Poll TCP_INFO every 2 s on the SYN-SENT socket. Track the
 //      same plateau detection as _08 (3 consecutive identical
 //      `tcpi_rto` snapshots ⇒ plateaued). Budget cap: 35 s
@@ -79,6 +82,15 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
     static constexpr int              kTopology    = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup    = ::tc8::BpfGroup::Tcp;
 
+    // The verdict reads the DUT's kernel SYN-RTO plateau (tcpi_rto) — a
+    // state introspection the opcode UT exposes (OpQueryTcpInfo) but the
+    // standard AUTOSAR testability protocol does not. Declaring
+    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this
+    // case on a testability backend (Tier 2 2b#4) instead of failing it;
+    // kCapTcpControl covers the active open itself.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
@@ -88,7 +100,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -101,30 +114,41 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         // SYN retransmits keep landing on the unbound destination port,
         // and without the iptables drop the tester kernel would auto-
         // RST every retransmit and tear the DUT's SYN-SENT TCB before
-        // the RTO has a chance to plateau.
+        // the RTO has a chance to plateau. Body-scoped is sufficient
+        // here: the poll loop always runs to the 35 s budget (or a
+        // plateau break) inside this function, so a deferred hold is
+        // unnecessary (unlike _05/_06 which break early on a retx
+        // threshold). Installed BEFORE the active open so the first SYN
+        // never draws a closed-port RST.
         TesterAutoRstDrop rst_drop(cfg);
 
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, local_port,
-            cfg.ipv4.tester_ip, remote_port);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        // Active OPEN routed through the backend-agnostic seam, no tester
+        // listener — the SYN goes unanswered so the DUT stays in SYN-SENT
+        // and retransmits. connectTcp returns the socket handle as soon
+        // as it is bound (still SYN-SENT), so it is immediately queryable
+        // via the state probe.
+        auto open_conn = dut.tcpControl()->connectTcp(
+            ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
+            ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
 
-        // The handshake never completes (SYN-SENT only). Mark prelude
-        // success on UT round-trip — `driveActiveOpenEstablished`
-        // would normally do this gating, but here we issue
-        // OpOpenTcpSocket directly because the TCP state we want is
-        // SYN-SENT, not ESTABLISHED.
+        // A nullopt open is an unreachable DUT: nothing to probe →
+        // ut_handshake_completed stays false → SCXML verdicts
+        // fail (dut_active_open_did_not_initiate).
+        if (!open_conn) return;
+        const ::tc8::sce::DutSocket dut_sock = open_conn->socket;
         c.ut_handshake_completed = true;
 
         const auto start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot last{};
+        ::tc8::sce::DutTcpInfo last{};
+        bool last_valid = false;
         std::uint32_t prev_rto = 0;
         std::uint8_t  plateau_count = 0;
         while (std::chrono::steady_clock::now() - start < kBudget) {
             std::this_thread::sleep_for(kPollInterval);
-            last = queryTcpInfoSync(cfg, /*req_id=*/2, /*socket_id=*/1);
-            if (!last.valid) continue;
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (!probe) continue;
+            last = *probe;
+            last_valid = true;
             if (last.rto_us == prev_rto && prev_rto != 0) {
                 if (++plateau_count >= kPlateauSnapshots) break;
             } else {
@@ -133,15 +157,13 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
             }
         }
 
-        c.ut_tcpi_p1_valid       = last.valid;
+        c.ut_tcpi_p1_valid       = last_valid;
         c.ut_tcpi_p1_state       = last.state;
         c.ut_tcpi_p1_rto_us      = last.rto_us;
         c.ut_tcpi_p1_retransmits = last.retransmits;
         c.ut_tcpi_p1_unacked     = last.unacked;
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(dut_sock);
     }
 
     static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {
