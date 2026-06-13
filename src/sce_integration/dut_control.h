@@ -102,12 +102,18 @@ public:
         return stimulus::testabilityGetVersion(cfg_, timeout_ms_, src_ip_be_);
     }
 
-    // Generic service-primitive call — the standard extension surface.
+    // Generic service-primitive call — the OEM-specific extension surface
+    // (non-standard SPs build on this directly).
     stimulus::TestabilityResponse call(std::uint8_t gid, std::uint8_t pid,
                                        const std::vector<std::uint8_t> &dat = {}) {
         return stimulus::testabilityCall(cfg_, gid, pid, dat, timeout_ms_, src_ip_be_);
     }
 
+    // Standard typed service primitives are NOT re-exposed here: they are the
+    // free functions in testability_client.h (the single source of truth for SP
+    // wire encoding), invoked with config(). The case-facing seam for
+    // protocol-agnostic DUT operations belongs on IDutControl as semantic
+    // operations, not as protocol-specific SP forwarders — see that interface.
     const stimulus::TestabilityConfig &config() const { return cfg_; }
 
 private:

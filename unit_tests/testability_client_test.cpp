@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -171,9 +172,16 @@ TEST(TestabilityParams, Vint8RoundTripAndBounds) {
 
 // Minimal in-process testability responder: bind a UDP socket on 127.0.0.1,
 // then for each request reply with a Response (TID 0x80, E_OK) echoing the
-// service/method, with version DAT for GET_VERSION. Returns the bound port.
+// service/method, with version DAT for GET_VERSION and a fixed socketId for
+// CREATE_AND_BIND. Captures the last request's raw bytes so a test can assert
+// the wrapper's wire encoding. Returns the bound port.
 class LoopbackResponder {
 public:
+    // The socketId returned for any CREATE_AND_BIND (UDP or TCP).
+    static constexpr std::uint16_t kSocketId = 0x0042;
+    // Fabricated accept-Event fields emitted after a LISTEN_AND_ACCEPT request.
+    static constexpr std::uint16_t kAcceptNewSocketId = 0x0099;
+    static constexpr std::uint16_t kAcceptClientPort = 0x1234;
     LoopbackResponder() {
         fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
         sockaddr_in addr{};
@@ -196,6 +204,12 @@ public:
     }
     std::uint16_t port() const { return port_; }
 
+    // The DAT (parameter bytes after the 16-byte header) of the last request.
+    std::vector<std::uint8_t> lastRequestDat() {
+        std::lock_guard<std::mutex> lk(mu_);
+        return last_req_dat_;
+    }
+
 private:
     void serve() {
         std::uint8_t buf[1500];
@@ -211,23 +225,55 @@ private:
             const auto req = tp::parseHeader(buf, static_cast<std::size_t>(n));
             if (!req) continue;
 
+            {
+                std::lock_guard<std::mutex> lk(mu_);
+                last_req_dat_.assign(buf + tp::kHeaderSize, buf + n);
+            }
+
             tp::Header resp = *req;
             resp.tid = tp::kTidResponse;
             resp.rid = tp::kRidEOk;
             std::vector<std::uint8_t> dat;
-            if (tp::gidOf(req->method_id) == tp::kGidGeneral &&
-                tp::pidOf(req->method_id) == tp::kPidGetVersion) {
+            const std::uint8_t gid = tp::gidOf(req->method_id);
+            const std::uint8_t pid = tp::pidOf(req->method_id);
+            if (gid == tp::kGidGeneral && pid == tp::kPidGetVersion) {
                 const std::uint16_t v[3] = {tp::kVersionMajor, tp::kVersionMinor,
                                             tp::kVersionPatch};
                 for (std::uint16_t x : v) {
                     dat.push_back(static_cast<std::uint8_t>(x >> 8));
                     dat.push_back(static_cast<std::uint8_t>(x & 0xFF));
                 }
+            } else if ((gid == tp::kGidUdp || gid == tp::kGidTcp) &&
+                       pid == tp::kPidCreateAndBind) {
+                dat.push_back(static_cast<std::uint8_t>(kSocketId >> 8));
+                dat.push_back(static_cast<std::uint8_t>(kSocketId & 0xFF));
             }
             const auto out = tp::buildMessage(resp, dat.empty() ? nullptr : dat.data(),
                                               dat.size());
             ::sendto(fd_, out.data(), out.size(), 0, reinterpret_cast<sockaddr *>(&peer),
                      plen);
+
+            // LISTEN_AND_ACCEPT: after the E_OK response, emit one fabricated
+            // accept Event (TID 0x02 / EVB set) so the client wrapper's
+            // event-await path is exercised. listenSocketId is echoed from the
+            // request DAT (first u16).
+            if (gid == tp::kGidTcp && pid == tp::kPidListenAndAccept &&
+                static_cast<std::size_t>(n) >= tp::kHeaderSize + 2) {
+                const std::uint16_t lsid = tp::readU16(buf + tp::kHeaderSize);
+                tp::Header eh = *req;
+                eh.method_id =
+                    tp::methodId(tp::kGidTcp, tp::kPidListenAndAccept, /*event=*/true);
+                eh.tid = tp::kTidEvent;
+                eh.rid = tp::kRidEOk;
+                std::vector<std::uint8_t> edat;
+                tp::appendU16(edat, lsid);
+                tp::appendU16(edat, kAcceptNewSocketId);
+                tp::appendU16(edat, kAcceptClientPort);
+                tp::appendIpv4Addr(edat, ::htonl(INADDR_LOOPBACK));
+                const auto evout = tp::buildMessage(eh, edat.data(), edat.size());
+                ::sendto(fd_, evout.data(), evout.size(), 0,
+                         reinterpret_cast<sockaddr *>(&peer), plen);
+            }
         }
     }
 
@@ -235,6 +281,8 @@ private:
     std::uint16_t port_ = 0;
     std::thread thread_;
     bool stop_ = false;
+    std::mutex mu_;
+    std::vector<std::uint8_t> last_req_dat_;
 };
 
 TestabilityConfig loopbackConfig(std::uint16_t port) {
@@ -269,6 +317,108 @@ TEST(TestabilityClient, CallTimesOutWithNoServer) {
     const auto r = testabilityCall(cfg, tp::kGidGeneral, tp::kPidStartTest, {},
                                    /*timeout_ms=*/150);
     EXPECT_FALSE(r.ok);
+}
+
+// ── PRS_TPSP §6.10 TCP group typed wrappers: return value + wire encoding ──
+
+TEST(TestabilityClient, TcpCreateAndBindReturnsSocketIdAndEncodesRequest) {
+    LoopbackResponder server;
+    const auto sock = testabilityCreateAndBind(loopbackConfig(server.port()), tp::kGidTcp,
+                                               /*do_bind=*/false, /*local_port=*/0xFFFF,
+                                               /*local_addr_be=*/0, /*timeout_ms=*/1000);
+    ASSERT_TRUE(sock.has_value());
+    EXPECT_EQ(*sock, LoopbackResponder::kSocketId);
+
+    // Request DAT: doBind(0) + localPort(0xFFFF) + localAddr ipxaddr(n=4, 0.0.0.0).
+    const auto dat = server.lastRequestDat();
+    ASSERT_EQ(dat.size(), 1u + 2u + 2u + 4u);
+    EXPECT_EQ(dat[0], 0x00u);              // doBind = false
+    EXPECT_EQ(dat[1], 0xFFu);              // localPort hi
+    EXPECT_EQ(dat[2], 0xFFu);              // localPort lo (PORT_ANY)
+    EXPECT_EQ(dat[3], 0x00u);              // ipxaddr n hi
+    EXPECT_EQ(dat[4], 0x04u);              // ipxaddr n lo = 4
+    EXPECT_EQ(dat[5], 0x00u);              // 0.0.0.0
+    EXPECT_EQ(dat[8], 0x00u);
+}
+
+TEST(TestabilityClient, TcpConnectEncodesSocketDestPortAddr) {
+    LoopbackResponder server;
+    const auto r = testabilityTcpConnect(loopbackConfig(server.port()), /*socket_id=*/0x0042,
+                                         /*dest_port=*/0x1F40, ::htonl(0xAC100001),
+                                         /*timeout_ms=*/1000);
+    EXPECT_TRUE(r.eok());
+
+    // Request DAT: socketId(u16) + destPort(u16) + destAddr ipxaddr(n=4, AC 10 00 01).
+    const auto dat = server.lastRequestDat();
+    ASSERT_EQ(dat.size(), 2u + 2u + 2u + 4u);
+    EXPECT_EQ(dat[0], 0x00u);  // socketId hi
+    EXPECT_EQ(dat[1], 0x42u);  // socketId lo
+    EXPECT_EQ(dat[2], 0x1Fu);  // destPort hi
+    EXPECT_EQ(dat[3], 0x40u);  // destPort lo (8000)
+    EXPECT_EQ(dat[4], 0x00u);  // ipxaddr n hi
+    EXPECT_EQ(dat[5], 0x04u);  // ipxaddr n lo
+    EXPECT_EQ(dat[6], 0xACu);  // 172.16.0.1
+    EXPECT_EQ(dat[7], 0x10u);
+    EXPECT_EQ(dat[8], 0x00u);
+    EXPECT_EQ(dat[9], 0x01u);
+}
+
+TEST(TestabilityClient, TcpSendDataEncodesFlagsAndVint8Data) {
+    LoopbackResponder server;
+    const std::vector<std::uint8_t> body = {0xDE, 0xAD, 0xBE};
+    const auto r = testabilityTcpSendData(loopbackConfig(server.port()), /*socket_id=*/0x0042,
+                                          /*total_len=*/6, /*flags=*/0x00, body,
+                                          /*timeout_ms=*/1000);
+    EXPECT_TRUE(r.eok());
+
+    // Request DAT: socketId(u16) + totalLen(u16) + flags(u8) + data vint8(n=3, DE AD BE).
+    const auto dat = server.lastRequestDat();
+    ASSERT_EQ(dat.size(), 2u + 2u + 1u + 2u + 3u);
+    EXPECT_EQ(dat[0], 0x00u);  // socketId hi
+    EXPECT_EQ(dat[1], 0x42u);  // socketId lo
+    EXPECT_EQ(dat[2], 0x00u);  // totalLen hi
+    EXPECT_EQ(dat[3], 0x06u);  // totalLen lo
+    EXPECT_EQ(dat[4], 0x00u);  // flags (bit 7 reserved)
+    EXPECT_EQ(dat[5], 0x00u);  // data vint8 n hi
+    EXPECT_EQ(dat[6], 0x03u);  // data vint8 n lo = 3
+    EXPECT_EQ(dat[7], 0xDEu);
+    EXPECT_EQ(dat[8], 0xADu);
+    EXPECT_EQ(dat[9], 0xBEu);
+}
+
+TEST(TestabilityClient, CloseSocketEncodesSocketIdInGivenGroup) {
+    LoopbackResponder server;
+    const auto r = testabilityCloseSocket(loopbackConfig(server.port()), tp::kGidTcp,
+                                          /*socket_id=*/0x0042, /*timeout_ms=*/1000);
+    EXPECT_TRUE(r.eok());
+    const auto dat = server.lastRequestDat();
+    ASSERT_EQ(dat.size(), 2u);
+    EXPECT_EQ(dat[0], 0x00u);
+    EXPECT_EQ(dat[1], 0x42u);
+}
+
+TEST(TestabilityClient, ListenAndAcceptEncodesRequestAndParsesEvent) {
+    LoopbackResponder server;
+    bool triggered = false;
+    const auto ev = testabilityTcpListenAndAccept(
+        loopbackConfig(server.port()), /*listen_socket_id=*/0x0042, /*max_con=*/2,
+        [&] { triggered = true; }, /*resp_timeout_ms=*/1000, /*event_timeout_ms=*/1000);
+
+    // on_listening runs after the E_OK response and before the Event wait.
+    EXPECT_TRUE(triggered);
+    ASSERT_TRUE(ev.received);
+    EXPECT_EQ(ev.listen_socket_id, 0x0042u);
+    EXPECT_EQ(ev.new_socket_id, LoopbackResponder::kAcceptNewSocketId);
+    EXPECT_EQ(ev.client_port, LoopbackResponder::kAcceptClientPort);
+    EXPECT_EQ(ev.client_addr_be, ::htonl(INADDR_LOOPBACK));
+
+    // Request DAT: listenSocketId(0x0042) + maxCon(0x0002).
+    const auto dat = server.lastRequestDat();
+    ASSERT_EQ(dat.size(), 4u);
+    EXPECT_EQ(dat[0], 0x00u);
+    EXPECT_EQ(dat[1], 0x42u);
+    EXPECT_EQ(dat[2], 0x00u);
+    EXPECT_EQ(dat[3], 0x02u);
 }
 
 }  // namespace

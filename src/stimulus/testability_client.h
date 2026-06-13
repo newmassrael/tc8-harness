@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -76,5 +77,78 @@ TestabilityResponse testabilityStartTest(const TestabilityConfig &cfg, int timeo
 TestabilityResponse testabilityEndTest(const TestabilityConfig &cfg, std::uint16_t tc_id,
                                        const std::string &ts_name, int timeout_ms = 1000,
                                        std::uint32_t src_ip_be = 0);
+
+// ── PRS_TPSP §6.10 socket-group typed wrappers (the standard, in-tree primitives) ──
+//
+// Mandatory standard service primitives, provided in-tree so a consumer drives
+// a conformant DUT through configuration alone — the OEM does not hand-write
+// these wrappers. Only non-standard / OEM-specific SPs build directly on the
+// generic testabilityCall engine. Primitives whose wire shape is identical
+// across UDP and TCP take a `gid`; those whose parameters differ by group
+// (SEND_DATA) or that are TCP-only (CONNECT / LISTEN_AND_ACCEPT) are split.
+
+// CREATE_AND_BIND (UDP/TCP / PID 0x01): create a socket in group `gid`,
+// optionally bound to (local_addr_be, local_port). local_port 0xFFFF == PORT_ANY
+// (kernel-assigned); local_addr_be 0 == INADDR_ANY. Returns the DUT socketId on
+// E_OK, else nullopt. The request shape is group-independent (PRS_TPSP §6.10).
+std::optional<std::uint16_t> testabilityCreateAndBind(const TestabilityConfig &cfg,
+                                                      std::uint8_t gid, bool do_bind,
+                                                      std::uint16_t local_port,
+                                                      std::uint32_t local_addr_be,
+                                                      int timeout_ms = 1000,
+                                                      std::uint32_t src_ip_be = 0);
+
+// SEND_DATA (UDP / PID 0x02): connectionless transmit of `data` (repeated up to
+// total_len bytes) to (dest_addr_be, dest_port).
+TestabilityResponse testabilityUdpSendData(const TestabilityConfig &cfg, std::uint16_t socket_id,
+                                           std::uint16_t total_len, std::uint16_t dest_port,
+                                           std::uint32_t dest_addr_be,
+                                           const std::vector<std::uint8_t> &data,
+                                           int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
+// CONNECT (TCP / PID 0x05): active-open `socket_id` to (dest_addr_be, dest_port).
+TestabilityResponse testabilityTcpConnect(const TestabilityConfig &cfg, std::uint16_t socket_id,
+                                          std::uint16_t dest_port, std::uint32_t dest_addr_be,
+                                          int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
+// SEND_DATA (TCP / PID 0x02): transmit `data` on the connected socket, repeated
+// up to total_len bytes (PRS_TPSP §6.10; total_len < data sends data in full).
+TestabilityResponse testabilityTcpSendData(const TestabilityConfig &cfg, std::uint16_t socket_id,
+                                           std::uint16_t total_len, std::uint8_t flags,
+                                           const std::vector<std::uint8_t> &data,
+                                           int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
+// CLOSE_SOCKET (UDP/TCP / PID 0x00): close the DUT socket. `gid` selects the
+// group; the request shape — socketId(uint16) — is identical for both.
+TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::uint8_t gid,
+                                           std::uint16_t socket_id, int timeout_ms = 1000,
+                                           std::uint32_t src_ip_be = 0);
+
+// The asynchronous accept Event a DUT emits per connection accepted on a
+// LISTEN_AND_ACCEPT socket (PRS_TPSP §6.10). `received` is false if no Event
+// arrived within the timeout (or the listen request itself failed).
+struct TestabilityAcceptEvent {
+    bool received = false;
+    std::uint16_t listen_socket_id = 0;
+    std::uint16_t new_socket_id = 0;   // socket id of the accepted connection
+    std::uint16_t client_port = 0;     // accepted peer's port
+    std::uint32_t client_addr_be = 0;  // accepted peer's IPv4 (network byte order)
+};
+
+// LISTEN_AND_ACCEPT (TCP / PID 0x04): mark `listen_socket_id` (a bound TCP
+// socket) as listening with backlog `max_con`, then wait for the DUT's
+// asynchronous accept Event. The request, its response, and the Event share one
+// UDP socket so the DUT's Event reaches the tester. `on_listening` is invoked
+// once the listen returns E_OK and before the Event wait — the caller triggers
+// the incoming connection there (e.g. opens a TCP connection to the DUT's
+// listen port). Returns the parsed Event (received=false on listen failure or
+// Event timeout). Uses the UDP control transport (cfg.use_tcp is ignored).
+TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cfg,
+                                                     std::uint16_t listen_socket_id,
+                                                     std::uint16_t max_con,
+                                                     const std::function<void()> &on_listening,
+                                                     int resp_timeout_ms = 1000,
+                                                     int event_timeout_ms = 2000,
+                                                     std::uint32_t src_ip_be = 0);
 
 }  // namespace tc8::stimulus

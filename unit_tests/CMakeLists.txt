@@ -73,6 +73,14 @@ tc8_add_unit_test(someip_captured_test)
 tc8_add_unit_test(tcp_captured_test)
 tc8_add_unit_test(upper_tester_client_test)
 tc8_add_unit_test(testability_client_test)
+# Server-side integration: drives the real DUT-side TestabilityServer
+# (vsomeip-independent) with the client wrappers over loopback, covering the
+# UDP and TCP active-open service-primitive backends end to end.
+tc8_add_unit_test(testability_server_test)
+target_sources(testability_server_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service/testability_server.cpp)
+target_include_directories(testability_server_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service)
 tc8_add_unit_test(iface_enumeration_test)
 tc8_add_unit_test(spec_inventory_test)
 

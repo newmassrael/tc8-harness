@@ -35,6 +35,30 @@ bool bindSource(int fd, std::uint32_t src_ip_be) {
     return ::bind(fd, reinterpret_cast<const sockaddr *>(&src), sizeof(src)) == 0;
 }
 
+// Open a UDP client socket, bound to src_ip_be when nonzero. -1 on failure
+// (caller closes). The single place the control-plane UDP socket is created, so
+// the one-shot round trip and the listen/event flow set it up identically.
+int openUdpClient(std::uint32_t src_ip_be) {
+    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        return -1;
+    }
+    if (!bindSource(fd, src_ip_be)) {
+        ::close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+// The DUT testability endpoint address from cfg.
+sockaddr_in dutAddr(const TestabilityConfig &cfg) {
+    sockaddr_in dst{};
+    dst.sin_family = AF_INET;
+    dst.sin_port = htons(cfg.dut_port);
+    dst.sin_addr.s_addr = cfg.dut_ip_be;
+    return dst;
+}
+
 // One UDP request/response round trip. Returns the response bytes, or nullopt
 // on socket error / timeout. Mirrors dgramUtRoundTrip in upper_tester_client
 // but reads a full SOME/IP datagram rather than the opcode header.
@@ -42,21 +66,13 @@ std::optional<std::vector<std::uint8_t>> udpRoundTrip(const TestabilityConfig &c
                                                       const std::vector<std::uint8_t> &req,
                                                       int timeout_ms,
                                                       std::uint32_t src_ip_be) {
-    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    const int fd = openUdpClient(src_ip_be);
     if (fd < 0) {
-        return std::nullopt;
-    }
-    if (!bindSource(fd, src_ip_be)) {
-        ::close(fd);
         return std::nullopt;
     }
     setRecvTimeout(fd, timeout_ms);
 
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(cfg.dut_port);
-    dst.sin_addr.s_addr = cfg.dut_ip_be;
-
+    const sockaddr_in dst = dutAddr(cfg);
     if (::sendto(fd, req.data(), req.size(), 0, reinterpret_cast<const sockaddr *>(&dst),
                  sizeof(dst)) < 0) {
         ::close(fd);
@@ -200,6 +216,150 @@ TestabilityResponse testabilityEndTest(const TestabilityConfig &cfg, std::uint16
     tp::appendU16(dat, tc_id);
     tp::appendText(dat, ts_name);
     return testabilityCall(cfg, tp::kGidGeneral, tp::kPidEndTest, dat, timeout_ms, src_ip_be);
+}
+
+std::optional<std::uint16_t> testabilityCreateAndBind(const TestabilityConfig &cfg,
+                                                      std::uint8_t gid, bool do_bind,
+                                                      std::uint16_t local_port,
+                                                      std::uint32_t local_addr_be,
+                                                      int timeout_ms, std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    dat.push_back(do_bind ? 0x01 : 0x00);    // doBind
+    tp::appendU16(dat, local_port);          // localPort (0xFFFF = PORT_ANY)
+    tp::appendIpv4Addr(dat, local_addr_be);  // localAddr (ipxaddr)
+    const TestabilityResponse r =
+        testabilityCall(cfg, gid, tp::kPidCreateAndBind, dat, timeout_ms, src_ip_be);
+    if (!r.eok() || r.dat.size() < 2) {
+        return std::nullopt;
+    }
+    return static_cast<std::uint16_t>((r.dat[0] << 8) | r.dat[1]);
+}
+
+TestabilityResponse testabilityUdpSendData(const TestabilityConfig &cfg, std::uint16_t socket_id,
+                                           std::uint16_t total_len, std::uint16_t dest_port,
+                                           std::uint32_t dest_addr_be,
+                                           const std::vector<std::uint8_t> &data, int timeout_ms,
+                                           std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    tp::appendU16(dat, total_len);
+    tp::appendU16(dat, dest_port);
+    tp::appendIpv4Addr(dat, dest_addr_be);
+    tp::appendVint8(dat, data.empty() ? nullptr : data.data(), data.size());
+    return testabilityCall(cfg, tp::kGidUdp, tp::kPidSendData, dat, timeout_ms, src_ip_be);
+}
+
+TestabilityResponse testabilityTcpConnect(const TestabilityConfig &cfg, std::uint16_t socket_id,
+                                          std::uint16_t dest_port, std::uint32_t dest_addr_be,
+                                          int timeout_ms, std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    tp::appendU16(dat, dest_port);
+    tp::appendIpv4Addr(dat, dest_addr_be);
+    return testabilityCall(cfg, tp::kGidTcp, tp::kPidConnect, dat, timeout_ms, src_ip_be);
+}
+
+TestabilityResponse testabilityTcpSendData(const TestabilityConfig &cfg, std::uint16_t socket_id,
+                                           std::uint16_t total_len, std::uint8_t flags,
+                                           const std::vector<std::uint8_t> &data, int timeout_ms,
+                                           std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    tp::appendU16(dat, total_len);
+    dat.push_back(flags);
+    tp::appendVint8(dat, data.empty() ? nullptr : data.data(), data.size());
+    return testabilityCall(cfg, tp::kGidTcp, tp::kPidSendData, dat, timeout_ms, src_ip_be);
+}
+
+TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::uint8_t gid,
+                                           std::uint16_t socket_id, int timeout_ms,
+                                           std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    return testabilityCall(cfg, gid, tp::kPidCloseSocket, dat, timeout_ms, src_ip_be);
+}
+
+TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cfg,
+                                                     std::uint16_t listen_socket_id,
+                                                     std::uint16_t max_con,
+                                                     const std::function<void()> &on_listening,
+                                                     int resp_timeout_ms, int event_timeout_ms,
+                                                     std::uint32_t src_ip_be) {
+    TestabilityAcceptEvent ev;
+
+    // One persistent UDP socket carries the request, its response, and the
+    // later Event: the DUT replies (and emits the Event) to the request's source
+    // address, so reusing the socket is what routes the Event back to us.
+    const int fd = openUdpClient(src_ip_be);
+    if (fd < 0) {
+        return ev;
+    }
+    setRecvTimeout(fd, resp_timeout_ms);
+    const sockaddr_in dst = dutAddr(cfg);
+
+    // LISTEN_AND_ACCEPT request: listenSocketId(u16) + maxCon(u16).
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, listen_socket_id);
+    tp::appendU16(dat, max_con);
+    tp::Header h;
+    h.service_id = cfg.service_id;
+    h.method_id = tp::methodId(tp::kGidTcp, tp::kPidListenAndAccept);
+    h.tid = tp::kTidRequest;
+    const std::vector<std::uint8_t> req = tp::buildMessage(h, dat.data(), dat.size());
+    if (::sendto(fd, req.data(), req.size(), 0, reinterpret_cast<const sockaddr *>(&dst),
+                 sizeof(dst)) < 0) {
+        ::close(fd);
+        return ev;
+    }
+
+    // Response (TID 0x80) — must be E_OK for this primitive before we wait.
+    std::uint8_t buf[1500];
+    ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+    const auto resp = (n >= static_cast<ssize_t>(tp::kHeaderSize))
+                          ? tp::parseHeader(buf, static_cast<std::size_t>(n))
+                          : std::nullopt;
+    if (!resp || resp->tid != tp::kTidResponse || resp->rid != tp::kRidEOk ||
+        tp::gidOf(resp->method_id) != tp::kGidTcp ||
+        tp::pidOf(resp->method_id) != tp::kPidListenAndAccept) {
+        ::close(fd);
+        return ev;
+    }
+
+    // The DUT is now listening — let the caller drive the incoming connection.
+    if (on_listening) {
+        on_listening();
+    }
+
+    // Await the accept Event (TID 0x02 / EVB set) on the same socket.
+    setRecvTimeout(fd, event_timeout_ms);
+    n = ::recv(fd, buf, sizeof(buf), 0);
+    ::close(fd);
+    if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
+        return ev;  // no Event within the timeout
+    }
+    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
+    if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
+        tp::gidOf(evh->method_id) != tp::kGidTcp ||
+        tp::pidOf(evh->method_id) != tp::kPidListenAndAccept) {
+        return ev;
+    }
+    // Event DAT: listenSocketId(u16) + newSocketId(u16) + port(u16) + addr(ipxaddr).
+    const std::uint8_t *edat = buf + tp::kHeaderSize;
+    const std::size_t edat_len = static_cast<std::size_t>(n) - tp::kHeaderSize;
+    if (edat_len < 2 + 2 + 2) {
+        return ev;
+    }
+    ev.listen_socket_id = tp::readU16(edat);
+    ev.new_socket_id = tp::readU16(edat + 2);
+    ev.client_port = tp::readU16(edat + 4);
+    std::size_t off = 6;
+    const std::uint8_t *addr_body = nullptr;
+    std::uint16_t addr_len = 0;
+    if (tp::readVint8(edat, edat_len, off, addr_body, addr_len) && addr_len == 4) {
+        std::memcpy(&ev.client_addr_be, addr_body, 4);
+    }
+    ev.received = true;
+    return ev;
 }
 
 }  // namespace tc8::stimulus

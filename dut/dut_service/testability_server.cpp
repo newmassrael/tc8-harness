@@ -1,6 +1,7 @@
 #include "testability_server.h"
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -13,6 +14,61 @@
 namespace tc8::dut {
 
 namespace tp = ::tc8::testability;
+
+namespace {
+
+// PRS_TPSP §6.10 SEND_DATA totalLen rule, shared by the UDP and TCP backends:
+// repeat `data` up to `total_len` bytes; if total_len < data_len send the full
+// data. data_len == 0 yields `total_len` zero bytes.
+std::vector<std::uint8_t> buildRepeatedPayload(const std::uint8_t *data_body,
+                                               std::uint16_t data_len,
+                                               std::uint16_t total_len) {
+    std::vector<std::uint8_t> payload;
+    const std::size_t want = (total_len > data_len) ? total_len : data_len;
+    payload.reserve(want);
+    if (data_len == 0) {
+        payload.assign(want, 0);
+    } else {
+        while (payload.size() < want) {
+            const std::size_t take =
+                ((want - payload.size()) < data_len) ? (want - payload.size()) : data_len;
+            payload.insert(payload.end(), data_body, data_body + take);
+        }
+    }
+    return payload;
+}
+
+// Bounded active connect on `fd` to `dst`: O_NONBLOCK connect + select up to
+// `timeout_ms`, so a missing peer cannot stall the single server thread. The
+// fd is left in blocking mode on return. 0 on an established connection, -1 on
+// failure or timeout.
+int connectWithTimeout(int fd, const sockaddr_in &dst, int timeout_ms) {
+    const int flags = ::fcntl(fd, F_GETFL, 0);
+    ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    int result = -1;
+    const int rc = ::connect(fd, reinterpret_cast<const sockaddr *>(&dst), sizeof(dst));
+    if (rc == 0) {
+        result = 0;  // immediate (loopback) connect
+    } else if (errno == EINPROGRESS) {
+        fd_set wset;
+        FD_ZERO(&wset);
+        FD_SET(fd, &wset);
+        timeval tv{};
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        if (::select(fd + 1, nullptr, &wset, nullptr, &tv) > 0) {
+            int err = 0;
+            socklen_t len = sizeof(err);
+            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len) == 0 && err == 0) {
+                result = 0;
+            }
+        }
+    }
+    ::fcntl(fd, F_SETFL, flags);  // restore blocking mode
+    return result;
+}
+
+}  // namespace
 
 TestabilityServer::TestabilityServer() = default;
 
@@ -52,6 +108,9 @@ void TestabilityServer::stop() {
     if (thread_.joinable()) {
         thread_.join();
     }
+    // Join accept threads before tearing down the socket table — they touch the
+    // listen fds and register accepted sockets.
+    joinAcceptThreads();
     if (fd_ >= 0) {
         ::close(fd_);
         fd_ = -1;
@@ -79,7 +138,7 @@ void TestabilityServer::serverLoop() {
 
         std::uint8_t rid = tp::kRidEOk;
         std::vector<std::uint8_t> resp_dat;
-        dispatch(*header, dat, dat_len, rid, resp_dat);
+        dispatch(*header, dat, dat_len, peer, rid, resp_dat);
 
         tp::Header resp = *header;     // echo service_id + method_id
         resp.tid = tp::kTidResponse;   // PRS_TPSP §6.2 Response
@@ -91,21 +150,19 @@ void TestabilityServer::serverLoop() {
 }
 
 void TestabilityServer::dispatch(const testability::Header &req, const std::uint8_t *dat,
-                                 std::size_t dat_len, std::uint8_t &rid_out,
-                                 std::vector<std::uint8_t> &resp_dat) {
+                                 std::size_t dat_len, const sockaddr_in &peer,
+                                 std::uint8_t &rid_out, std::vector<std::uint8_t> &resp_dat) {
     const std::uint8_t gid = tp::gidOf(req.method_id);
     const std::uint8_t pid = tp::pidOf(req.method_id);
 
     if (gid == tp::kGidGeneral) {
         switch (pid) {
             case tp::kPidGetVersion: {
-                // PRS_TPSP §6.10 GET_VERSION response: major/minor/patch (uint16 x3).
-                const std::uint16_t ver[3] = {tp::kVersionMajor, tp::kVersionMinor,
-                                              tp::kVersionPatch};
-                for (std::uint16_t v : ver) {
-                    resp_dat.push_back(static_cast<std::uint8_t>(v >> 8));
-                    resp_dat.push_back(static_cast<std::uint8_t>(v & 0xFF));
-                }
+                // PRS_TPSP §6.10 GET_VERSION response: major/minor/patch (uint16 x3),
+                // serialised through the protocol SSOT helper.
+                tp::appendU16(resp_dat, tp::kVersionMajor);
+                tp::appendU16(resp_dat, tp::kVersionMinor);
+                tp::appendU16(resp_dat, tp::kVersionPatch);
                 rid_out = tp::kRidEOk;
                 return;
             }
@@ -114,7 +171,11 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
                 rid_out = tp::kRidEOk;
                 return;
             case tp::kPidEndTest:
-                // PRS_TPSP §6.10 reset: close all test-channel sockets, clear state.
+                // PRS_TPSP §6.10 reset: terminate active SPs (accept threads),
+                // then close all test-channel sockets and clear state.
+                reset_accepts_ = true;
+                joinAcceptThreads();
+                reset_accepts_ = false;
                 closeAllSockets();
                 rid_out = tp::kRidEOk;
                 return;
@@ -126,17 +187,11 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
 
     if (gid == tp::kGidUdp) {
         switch (pid) {
-            case tp::kPidCreateAndBind: {
-                std::uint16_t id = 0;
-                rid_out = createAndBind(dat, dat_len, id);
-                if (rid_out == tp::kRidEOk) {
-                    resp_dat.push_back(static_cast<std::uint8_t>(id >> 8));
-                    resp_dat.push_back(static_cast<std::uint8_t>(id & 0xFF));
-                }
+            case tp::kPidCreateAndBind:
+                respondCreateAndBind(SOCK_DGRAM, dat, dat_len, rid_out, resp_dat);
                 return;
-            }
             case tp::kPidSendData:
-                rid_out = sendData(dat, dat_len);
+                rid_out = sendDataUdp(dat, dat_len);
                 return;
             case tp::kPidCloseSocket:
                 rid_out = closeSocket(dat, dat_len);
@@ -147,13 +202,37 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
         }
     }
 
+    if (gid == tp::kGidTcp) {
+        switch (pid) {
+            case tp::kPidCreateAndBind:
+                respondCreateAndBind(SOCK_STREAM, dat, dat_len, rid_out, resp_dat);
+                return;
+            case tp::kPidConnect:
+                rid_out = connectTcp(dat, dat_len);
+                return;
+            case tp::kPidListenAndAccept:
+                rid_out = listenAndAcceptTcp(dat, dat_len, req.service_id, peer);
+                return;
+            case tp::kPidSendData:
+                rid_out = sendDataTcp(dat, dat_len);
+                return;
+            case tp::kPidCloseSocket:
+                rid_out = closeSocket(dat, dat_len);
+                return;
+            default:
+                rid_out = tp::kRidENtf;  // RECEIVE_AND_FORWARD et al. not yet served
+                return;
+        }
+    }
+
     rid_out = tp::kRidENtf;  // group not implemented by this DUT
 }
 
 std::uint8_t TestabilityServer::createAndBind(const std::uint8_t *dat, std::size_t dat_len,
-                                              std::uint16_t &socket_id_out) {
+                                              int socktype, std::uint16_t &socket_id_out) {
     // PRS_TPSP §6.10 CREATE_AND_BIND request: doBind(bool) + localPort(uint16) +
-    // localAddr(ipxaddr). UDP group => SOCK_DGRAM.
+    // localAddr(ipxaddr). Shape is identical for UDP/TCP; socktype selects
+    // SOCK_DGRAM / SOCK_STREAM.
     if (dat_len < 1 + 2 + 2) {
         return tp::kRidEInv;
     }
@@ -169,7 +248,8 @@ std::uint8_t TestabilityServer::createAndBind(const std::uint8_t *dat, std::size
         return tp::kRidEInv;  // IPv6 (n=16) not implemented in this iteration
     }
 
-    const int s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    const int proto = (socktype == SOCK_STREAM) ? IPPROTO_TCP : IPPROTO_UDP;
+    const int s = ::socket(AF_INET, socktype, proto);
     if (s < 0) {
         return tp::kRidEUcs;  // unable to create socket
     }
@@ -194,13 +274,21 @@ std::uint8_t TestabilityServer::createAndBind(const std::uint8_t *dat, std::size
         }
     }
 
-    const std::uint16_t id = next_socket_id_++;
-    sockets_[id] = s;
-    socket_id_out = id;
+    socket_id_out = registerSocket(s);
     return tp::kRidEOk;
 }
 
-std::uint8_t TestabilityServer::sendData(const std::uint8_t *dat, std::size_t dat_len) {
+void TestabilityServer::respondCreateAndBind(int socktype, const std::uint8_t *dat,
+                                             std::size_t dat_len, std::uint8_t &rid_out,
+                                             std::vector<std::uint8_t> &resp_dat) {
+    std::uint16_t id = 0;
+    rid_out = createAndBind(dat, dat_len, socktype, id);
+    if (rid_out == tp::kRidEOk) {
+        tp::appendU16(resp_dat, id);  // PRS_TPSP §6.10 response: socketId(uint16)
+    }
+}
+
+std::uint8_t TestabilityServer::sendDataUdp(const std::uint8_t *dat, std::size_t dat_len) {
     // PRS_TPSP §6.10 SEND_DATA (UDP): socketId(u16) + totalLen(u16) + destPort(u16) +
     // destAddr(ipxaddr) + data(vint8).
     if (dat_len < 2 + 2 + 2) {
@@ -221,36 +309,154 @@ std::uint8_t TestabilityServer::sendData(const std::uint8_t *dat, std::size_t da
         return tp::kRidEInv;
     }
 
-    const auto it = sockets_.find(socket_id);
-    if (it == sockets_.end()) {
+    const auto fd = lookupSocket(socket_id);
+    if (!fd) {
         return tp::kRidEIsd;  // invalid socket id
     }
 
-    // totalLen: repeat data up to that length; if smaller than data, send the
-    // full data (PRS_TPSP §6.10).
-    std::vector<std::uint8_t> payload;
-    const std::size_t want = (total_len > data_len) ? total_len : data_len;
-    payload.reserve(want);
-    if (data_len == 0) {
-        payload.assign(want, 0);
-    } else {
-        while (payload.size() < want) {
-            const std::size_t take = ((want - payload.size()) < data_len)
-                                         ? (want - payload.size())
-                                         : data_len;
-            payload.insert(payload.end(), data_body, data_body + take);
-        }
+    const std::vector<std::uint8_t> payload =
+        buildRepeatedPayload(data_body, data_len, total_len);
+
+    sockaddr_in dst{};
+    dst.sin_family = AF_INET;
+    dst.sin_port = htons(dest_port);
+    std::memcpy(&dst.sin_addr.s_addr, addr_body, 4);  // wire bytes are NBO
+    const ssize_t sent = ::sendto(*fd, payload.data(), payload.size(), 0,
+                                  reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
+    // Non-blocking semantics (PRS_TPSP §6.10): E_OK signals the transmission was issued,
+    // not that it was delivered. A hard send failure surfaces as E_NOK.
+    return sent < 0 ? tp::kRidENok : tp::kRidEOk;
+}
+
+std::uint8_t TestabilityServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 CONNECT (TCP): socketId(u16) + destPort(u16) + destAddr(ipxaddr).
+    if (dat_len < 2 + 2) {
+        return tp::kRidEInv;
+    }
+    const std::uint16_t socket_id = tp::readU16(dat);
+    const std::uint16_t dest_port = tp::readU16(dat + 2);
+    std::size_t off = 4;
+    const std::uint8_t *addr_body = nullptr;
+    std::uint16_t addr_len = 0;
+    if (!tp::readVint8(dat, dat_len, off, addr_body, addr_len) || addr_len != 4) {
+        return tp::kRidEInv;
+    }
+
+    const auto fd = lookupSocket(socket_id);
+    if (!fd) {
+        return tp::kRidEIsd;  // invalid socket id
     }
 
     sockaddr_in dst{};
     dst.sin_family = AF_INET;
     dst.sin_port = htons(dest_port);
     std::memcpy(&dst.sin_addr.s_addr, addr_body, 4);  // wire bytes are NBO
-    const ssize_t sent = ::sendto(it->second, payload.data(), payload.size(), 0,
-                                  reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    // Non-blocking semantics (PRS_TPSP §6.10): E_OK signals the transmission was issued,
-    // not that it was delivered. A hard send failure surfaces as E_NOK.
+    // Bounded so an absent peer times out instead of freezing the dispatch loop.
+    if (connectWithTimeout(*fd, dst, /*timeout_ms=*/1000) != 0) {
+        return tp::kRidENok;  // connection refused / unreachable / timed out
+    }
+    return tp::kRidEOk;
+}
+
+std::uint8_t TestabilityServer::sendDataTcp(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 SEND_DATA (TCP): socketId(u16) + totalLen(u16) + flags(u8) +
+    // data(vint8). The socket is connection-oriented, so there is no per-call
+    // destination; flags bit 7 is reserved and ignored here.
+    if (dat_len < 2 + 2 + 1) {
+        return tp::kRidEInv;
+    }
+    const std::uint16_t socket_id = tp::readU16(dat);
+    const std::uint16_t total_len = tp::readU16(dat + 2);
+    std::size_t off = 5;  // skip flags(u8) at dat[4]
+    const std::uint8_t *data_body = nullptr;
+    std::uint16_t data_len = 0;
+    if (!tp::readVint8(dat, dat_len, off, data_body, data_len)) {
+        return tp::kRidEInv;
+    }
+
+    const auto fd = lookupSocket(socket_id);
+    if (!fd) {
+        return tp::kRidEIsd;  // invalid socket id
+    }
+
+    const std::vector<std::uint8_t> payload =
+        buildRepeatedPayload(data_body, data_len, total_len);
+    const ssize_t sent = ::send(*fd, payload.data(), payload.size(), 0);
+    // Non-blocking semantics (PRS_TPSP §6.10): E_OK signals the transmission was issued.
     return sent < 0 ? tp::kRidENok : tp::kRidEOk;
+}
+
+std::uint8_t TestabilityServer::listenAndAcceptTcp(const std::uint8_t *dat, std::size_t dat_len,
+                                                   std::uint16_t service_id,
+                                                   const sockaddr_in &peer) {
+    // PRS_TPSP §6.10 LISTEN_AND_ACCEPT (TCP): listenSocketId(u16) + maxCon(u16).
+    if (dat_len < 2 + 2) {
+        return tp::kRidEInv;
+    }
+    const std::uint16_t listen_socket_id = tp::readU16(dat);
+    std::uint16_t max_con = tp::readU16(dat + 2);
+    if (max_con == 0) {
+        max_con = 1;  // a zero backlog cannot accept anything; treat as one
+    }
+
+    const auto fd = lookupSocket(listen_socket_id);
+    if (!fd) {
+        return tp::kRidEIsd;  // invalid socket id
+    }
+    if (::listen(*fd, max_con) < 0) {
+        return tp::kRidENok;  // not a bound stream socket / listen failed
+    }
+
+    // Accept asynchronously: E_OK returns now, each accepted connection is
+    // reported later as an Event to the requesting tester.
+    accept_threads_.emplace_back(&TestabilityServer::acceptLoop, this, *fd, service_id,
+                                 listen_socket_id, max_con, peer);
+    return tp::kRidEOk;
+}
+
+void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
+                                   std::uint16_t listen_socket_id, std::uint16_t max_con,
+                                   sockaddr_in peer) {
+    const int flags = ::fcntl(listen_fd, F_GETFL, 0);
+    ::fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK);
+
+    std::uint16_t accepted = 0;
+    while (!stop_requested_ && !reset_accepts_ && accepted < max_con) {
+        fd_set rset;
+        FD_ZERO(&rset);
+        FD_SET(listen_fd, &rset);
+        timeval tv{};
+        tv.tv_usec = 200 * 1000;  // 200 ms wake to re-check stop_requested_
+        if (::select(listen_fd + 1, &rset, nullptr, nullptr, &tv) <= 0) {
+            continue;  // timeout or error — loop and re-check
+        }
+        sockaddr_in client{};
+        socklen_t clen = sizeof(client);
+        const int conn = ::accept(listen_fd, reinterpret_cast<sockaddr *>(&client), &clen);
+        if (conn < 0) {
+            continue;
+        }
+        const std::uint16_t new_socket_id = registerSocket(conn);
+        ++accepted;
+
+        // PRS_TPSP §6.10 LISTEN_AND_ACCEPT Event: listenSocketId + newSocketId +
+        // clientPort + clientAddr(ipxaddr), TID 0x02 / EVB set in the method id.
+        std::vector<std::uint8_t> ev_dat;
+        tp::appendU16(ev_dat, listen_socket_id);
+        tp::appendU16(ev_dat, new_socket_id);
+        tp::appendU16(ev_dat, ntohs(client.sin_port));
+        tp::appendIpv4Addr(ev_dat, client.sin_addr.s_addr);
+
+        tp::Header ev;
+        ev.service_id = service_id;
+        ev.method_id = tp::methodId(tp::kGidTcp, tp::kPidListenAndAccept, /*event=*/true);
+        ev.tid = tp::kTidEvent;
+        ev.rid = tp::kRidEOk;
+        const auto out = tp::buildMessage(ev, ev_dat.data(), ev_dat.size());
+        ::sendto(fd_, out.data(), out.size(), 0, reinterpret_cast<const sockaddr *>(&peer),
+                 sizeof(peer));
+    }
+    ::fcntl(listen_fd, F_SETFL, flags);  // restore (listen fd lives in the table)
 }
 
 std::uint8_t TestabilityServer::closeSocket(const std::uint8_t *dat, std::size_t dat_len) {
@@ -259,20 +465,51 @@ std::uint8_t TestabilityServer::closeSocket(const std::uint8_t *dat, std::size_t
         return tp::kRidEInv;
     }
     const std::uint16_t socket_id = tp::readU16(dat);
-    const auto it = sockets_.find(socket_id);
+    return eraseSocket(socket_id) ? tp::kRidEOk : tp::kRidEIsd;
+}
+
+std::uint16_t TestabilityServer::registerSocket(int fd) {
+    std::lock_guard<std::mutex> lk(sockets_mu_);
+    const std::uint16_t id = next_socket_id_++;
+    sockets_[id] = fd;
+    return id;
+}
+
+std::optional<int> TestabilityServer::lookupSocket(std::uint16_t id) const {
+    std::lock_guard<std::mutex> lk(sockets_mu_);
+    const auto it = sockets_.find(id);
     if (it == sockets_.end()) {
-        return tp::kRidEIsd;
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+bool TestabilityServer::eraseSocket(std::uint16_t id) {
+    std::lock_guard<std::mutex> lk(sockets_mu_);
+    const auto it = sockets_.find(id);
+    if (it == sockets_.end()) {
+        return false;
     }
     ::close(it->second);
     sockets_.erase(it);
-    return tp::kRidEOk;
+    return true;
 }
 
 void TestabilityServer::closeAllSockets() {
+    std::lock_guard<std::mutex> lk(sockets_mu_);
     for (const auto &kv : sockets_) {
         ::close(kv.second);
     }
     sockets_.clear();
+}
+
+void TestabilityServer::joinAcceptThreads() {
+    for (std::thread &t : accept_threads_) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+    accept_threads_.clear();
 }
 
 }  // namespace tc8::dut
