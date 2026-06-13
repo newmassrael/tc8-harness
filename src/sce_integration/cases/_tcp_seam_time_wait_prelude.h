@@ -52,4 +52,23 @@ inline TcpTimeWaitInfo driveSeamCloseToTimeWaitClosing(::tc8::sce::IDutControl &
                                      [&]() { dut.tcpControl()->closeTcp(dut_socket); });
 }
 
+// CLOSING path that STOPS at CLOSING (no advance to TIME-WAIT): the caller has
+// already established the connection through the seam and owns `tester_fd` (the
+// accepted tester socket) and `dut_socket` (the DUT's connected socket, from the
+// seam open's DutConnection). Delegates to the shared `driveToClosingState` core
+// with the DUT CLOSE bound to `closeTcp`. Per that core's contract the caller
+// installs TesterAutoAckDrop in its own scope and silentlyCloseTesterFd's the
+// (still-live) tester_fd after its post-CLOSING probe phase.
+inline TcpTimeWaitInfo driveSeamCloseToClosing(::tc8::sce::IDutControl &dut,
+                                               const ::tc8::TestConfig &cfg,
+                                               std::string_view iface,
+                                               int tester_fd,
+                                               ::tc8::sce::DutSocket dut_socket,
+                                               std::uint16_t local_port,
+                                               std::uint16_t remote_port) {
+    return driveToClosingState(cfg, iface, cfg.dut.mac, tester_fd,
+                               local_port, remote_port,
+                               [&]() { dut.tcpControl()->closeTcp(dut_socket); });
+}
+
 }  // namespace tc8::sce::tcp
