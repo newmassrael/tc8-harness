@@ -56,38 +56,49 @@ struct SeamActiveOpen {
     std::optional<::tc8::sce::DutConnection> conn;     // DUT's connected socket, or nullopt
 };
 
+// Shared seam active connect (the single source of truth for both the
+// established active-OPEN and the SYN-SENT helpers): bind the DUT's local
+// endpoint (do_bind + local_port) and connect to the tester `remote_port` — the
+// standard CREATE_AND_BIND + CONNECT. `phase` labels the caller's intent for the
+// ops-diagnostic failure log. Returns the DUT's connected socket, or nullopt.
+//
+// Active-OPEN cases require the DUT's TCP data plane (kCapTcpControl). Both
+// shipped backends expose it; a future backend that does not must be
+// conditioning-skipped by the centralised capability gate (Tier 2 2b#4) BEFORE
+// stimulus runs — a silent return here would mis-report as a timeout FAIL, not a
+// SKIP. The deref is therefore contract-guaranteed; the assert documents it.
+//
+// connectTcp returns nullopt only on failure (RPC timeout, bind collision, a
+// refused connect); the stderr line names the backend so a dual-backend smoke
+// run points at the right side and a failed open does not mis-report downstream
+// as a DUT "no SYN / no FIN" timeout. Matches the fprintf-on-failure convention
+// of the other tcp-pilot tester helpers (TesterTcpListener, connectToDutTcp).
+inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
+    ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
+    std::uint16_t local_port, std::uint16_t remote_port, const char *phase) {
+    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
+    assert(tcp != nullptr && "active-OPEN cases require kCapTcpControl");
+
+    auto conn = tcp->connectTcp(
+        ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
+        ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
+    if (!conn) {
+        std::fprintf(stderr,
+                     "tcp-pilot: seam %s failed (connectTcp local=%u "
+                     "remote=%u, backend=%s)\n",
+                     phase, local_port, remote_port, dut.backendName());
+    }
+    return conn;
+}
+
 inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,
                                           const ::tc8::TestConfig &cfg,
                                           std::uint16_t local_port,
                                           std::uint16_t remote_port) {
-    // Active-OPEN cases require the DUT's TCP data plane (kCapTcpControl).
-    // Both shipped backends expose it; a future backend that does not must be
-    // conditioning-skipped by the centralised capability gate (Tier 2 2b#4)
-    // BEFORE stimulus runs — a silent return here would mis-report as a
-    // timeout FAIL, not a SKIP. The deref is therefore contract-guaranteed;
-    // the assert documents it.
-    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
-    assert(tcp != nullptr && "active-OPEN cases require kCapTcpControl");
-
+    // Listener bound before the connect; grace settles the handshake — see the
+    // block comment above for the rationale of both.
     TesterTcpListener listener(remote_port);
-    auto conn = tcp->connectTcp(
-        ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
-        ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
-
-    if (!conn) {
-        // Surface the backend-side failure for ops diagnosis. connectTcp
-        // returns nullopt only on failure (RPC timeout, bind collision, a
-        // refused connect); without this line a failed open would mis-report
-        // downstream as a DUT "no SYN / no FIN" timeout, hiding the real
-        // cause. Names the backend so a dual-backend smoke run points at the
-        // right side. Matches the fprintf-on-failure convention of the other
-        // tcp-pilot tester helpers (TesterTcpListener, connectToDutTcp).
-        std::fprintf(stderr,
-                     "tcp-pilot: seam active-OPEN failed (connectTcp "
-                     "local=%u remote=%u, backend=%s)\n",
-                     local_port, remote_port, dut.backendName());
-    }
-
+    auto conn = seamConnectTcp(dut, cfg, local_port, remote_port, "active-OPEN");
     std::this_thread::sleep_for(kTcpActiveHandshakeGrace);
     return SeamActiveOpen{std::move(listener), std::move(conn)};
 }
@@ -113,19 +124,7 @@ inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,
 inline std::optional<::tc8::sce::DutConnection> driveSeamSynSentOpen(
     ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
     std::uint16_t local_port, std::uint16_t remote_port) {
-    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
-    assert(tcp != nullptr && "active-OPEN cases require kCapTcpControl");
-
-    auto conn = tcp->connectTcp(
-        ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
-        ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
-    if (!conn) {
-        std::fprintf(stderr,
-                     "tcp-pilot: seam SYN-SENT open failed (connectTcp "
-                     "local=%u remote=%u, backend=%s)\n",
-                     local_port, remote_port, dut.backendName());
-    }
-    return conn;
+    return seamConnectTcp(dut, cfg, local_port, remote_port, "SYN-SENT open");
 }
 
 }  // namespace tc8::sce::tcp
