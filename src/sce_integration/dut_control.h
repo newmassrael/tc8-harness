@@ -1,8 +1,10 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "sce_integration/dut_socket_control.h"
@@ -72,15 +74,102 @@ public:
     virtual IUdpControl *udpControl() { return nullptr; }
 };
 
+// Opcode-UT backend of ITcpControl — a synchronous SOCK_DGRAM round-trip
+// adapter over the opcode builders. The opcode UT server answers every request
+// on the bound socket, so the AF_PACKET inject path the cases use is not needed
+// here. Active open maps to OpOpenTcpSocket(Active); passive open is
+// OpOpenTcpSocket(Passive) + an OpQueryTcpEstablished poll (the opcode model
+// reports acceptance as a boolean and does not surface the client endpoint).
+class OpcodeTcpControl final : public ITcpControl {
+public:
+    OpcodeTcpControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+                     int timeout_ms)
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
+
+    std::optional<DutConnection> connectTcp(const Endpoint &peer) override {
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildOpenTcpSocketActiveRequest(nextReqId(), /*local_port=*/0,
+                                                      peer.addr_be, peer.port),
+            port_, timeout_ms_, src_ip_be_);
+        if (!r || r->status != ut::kStatusOk || r->data.empty()) {
+            return std::nullopt;
+        }
+        return DutConnection{DutSocket{r->data[0]}, peer};
+    }
+
+    std::optional<DutConnection> acceptTcp(const BindSpec &listen,
+                                           const std::function<void()> &trigger) override {
+        const auto open = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildOpenTcpSocketPassiveRequest(nextReqId(), listen.local_port), port_,
+            timeout_ms_, src_ip_be_);
+        if (!open || open->status != ut::kStatusOk || open->data.empty()) {
+            return std::nullopt;
+        }
+        const std::uint8_t listen_sid = open->data[0];
+        if (trigger) {
+            trigger();
+        }
+        // Poll until the listener reports acceptance — the opcode UT's
+        // boolean-progress model, no async event.
+        for (int i = 0; i < kAcceptPolls; ++i) {
+            const auto q = stimulus::upperTesterRoundTrip(
+                dut_ip_be_, stimulus::buildQueryTcpEstablishedRequest(nextReqId(), listen_sid),
+                port_, timeout_ms_, src_ip_be_);
+            if (q && q->status == ut::kStatusOk && !q->data.empty() && q->data[0] != 0) {
+                // OpQueryTcpEstablished does not return the client endpoint.
+                return DutConnection{DutSocket{listen_sid}, Endpoint{}};
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(kAcceptPollMs));
+        }
+        return std::nullopt;
+    }
+
+    bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
+                 std::uint16_t /*total_len*/) override {
+        // The opcode SEND_DATA has no totalLen-repeat; send the data as given.
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildSendTcpDataRequest(nextReqId(), static_cast<std::uint8_t>(sock.id),
+                                              data.empty() ? nullptr : data.data(),
+                                              static_cast<std::uint16_t>(data.size())),
+            port_, timeout_ms_, src_ip_be_);
+        return r && r->status == ut::kStatusOk;
+    }
+
+    bool closeTcp(DutSocket sock) override {
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildCloseTcpSocketRequest(nextReqId(), static_cast<std::uint8_t>(sock.id)),
+            port_, timeout_ms_, src_ip_be_);
+        return r && r->status == ut::kStatusOk;
+    }
+
+private:
+    std::uint8_t nextReqId() { return req_id_++; }
+
+    static constexpr int kAcceptPolls = 20;
+    static constexpr int kAcceptPollMs = 25;  // up to ~500 ms for the accept
+
+    std::uint32_t dut_ip_be_;
+    std::uint16_t port_;
+    std::uint32_t src_ip_be_;
+    int timeout_ms_;
+    std::uint8_t req_id_ = 1;
+};
+
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
 // the existing builders/transport with no behaviour change. Kernel-routed
-// SOCK_DGRAM probe (matching `ut-ping`); a future revision can route data-plane
-// triggers through OpTriggerSendUdp if a unified driver needs them.
+// SOCK_DGRAM probe (matching `ut-ping`); the TCP data plane is exposed through
+// OpcodeTcpControl. UDP through the seam stays on the direct TriggerSendUdp
+// path (port-based, no handle), so kCapUdpControl is not set here.
 class OpcodeUtControl final : public IDutControl {
 public:
     explicit OpcodeUtControl(std::uint32_t dut_ip_be, std::uint16_t port = ut::kPort,
                              std::uint32_t src_ip_be = 0, int timeout_ms = 1000)
-        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
+          tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -92,17 +181,15 @@ public:
     bool endTest() override { return true; }
     const char *backendName() const override { return "opcode-ut"; }
 
-    // OpcodeTcpControl (a SOCK_DGRAM round-trip adapter over the builders) wires
-    // kCapTcpControl below; UDP through the seam stays on the direct
-    // TriggerSendUdp path for now (port-based, no handle), so kCapUdpControl is
-    // off here.
-    DutCapabilities capabilities() const override { return 0; }
+    DutCapabilities capabilities() const override { return kCapTcpControl; }
+    ITcpControl *tcpControl() override { return &tcp_ctrl_; }
 
 private:
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
+    OpcodeTcpControl tcp_ctrl_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).

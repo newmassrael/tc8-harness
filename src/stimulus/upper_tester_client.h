@@ -495,6 +495,25 @@ std::optional<UtCapabilities> queryUpperTesterCapabilities(
     int timeout_ms = 1000,
     std::uint32_t src_ip_be = 0);
 
+// A decoded opcode UT response: the status byte plus any trailing data
+// (the bytes after <opcode|0x80> <req_id> <status>).
+struct UtResponse {
+    std::uint8_t status = 0;
+    std::vector<std::uint8_t> data;
+};
+
+// Generic blocking SOCK_DGRAM round trip — send a build*Request payload to the
+// opcode UT and decode the reply. Same transport + source-binding contract as
+// pingUpperTester. nullopt on socket error, timeout, or a reply that does not
+// correlate (opcode|0x80 and the echoed req_id); the status and any trailing
+// data are returned even for non-OK statuses so callers can branch on them.
+// The reusable synchronous driver the IDutControl opcode backend builds on.
+std::optional<UtResponse> upperTesterRoundTrip(std::uint32_t dut_ip_be,
+                                               const std::vector<std::uint8_t> &request,
+                                               std::uint16_t dut_port = ut::kPort,
+                                               int timeout_ms = 1000,
+                                               std::uint32_t src_ip_be = 0);
+
 // One-shot sender: wrap `ut_payload` in a UDP datagram (RFC 768
 // checksum) + IPv4 frame, and inject on `iface` via AF_PACKET SOCK_RAW.
 // `dut_mac` is the DUT's hardware address — Linux dispatches by dst_ip

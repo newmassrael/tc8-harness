@@ -81,6 +81,9 @@ target_sources(testability_server_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service/testability_server.cpp)
 target_include_directories(testability_server_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service)
+# Opcode-UT TCP control adapter, driven against a mock UT responder (the real
+# opcode server needs a netns/veth topology, not loopback).
+tc8_add_unit_test(opcode_tcp_control_test)
 tc8_add_unit_test(iface_enumeration_test)
 tc8_add_unit_test(spec_inventory_test)
 
