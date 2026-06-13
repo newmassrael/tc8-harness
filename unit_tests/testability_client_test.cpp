@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
@@ -196,11 +197,11 @@ public:
     }
     ~LoopbackResponder() {
         stop_ = true;
-        ::shutdown(fd_, SHUT_RDWR);
-        ::close(fd_);
+        ::shutdown(fd_, SHUT_RDWR);  // unblock the serve() recvfrom
         if (thread_.joinable()) {
-            thread_.join();
+            thread_.join();  // serve() has stopped touching fd_ before we close it
         }
+        ::close(fd_);
     }
     std::uint16_t port() const { return port_; }
 
@@ -280,7 +281,7 @@ private:
     int fd_ = -1;
     std::uint16_t port_ = 0;
     std::thread thread_;
-    bool stop_ = false;
+    std::atomic<bool> stop_{false};
     std::mutex mu_;
     std::vector<std::uint8_t> last_req_dat_;
 };
