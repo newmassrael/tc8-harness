@@ -31,16 +31,15 @@ struct TestCaseTraits<cases::TcpBasics06SM>
         "(RFC 793 §3.2 p23 Terminology)";
 
     // Spec Test Procedure (v3.0 p281-p300.txt:558):
-    //   1. TESTER: Cause DUT app to issue active OPEN — UT
-    //              OpOpenTcpSocket(Active).
+    //   1. TESTER: Cause DUT app to issue an active OPEN call.
     //   2. DUT:    Send a SYN — observed on pcap.
     //
     // Mechanism: the tester first arms an auxiliary kernel listener on
     // `kBasicsActiveRemotePort` so the DUT's outbound SYN reaches a
     // real receiver instead of the tester-kernel's RST-on-closed-port
     // path. The active OPEN is then driven through the Tier-2 DUT-control
-    // seam (`IDutControl::tcpControl()->connectTcp`), which spawns the
-    // DUT's connect() worker — emitting the SYN observed by SCXML — on
+    // seam (`IDutControl::tcpControl()->connectTcp`), which drives the
+    // DUT's active open — emitting the SYN observed by SCXML — on
     // whichever backend `--dut-control` selected (opcode UT or AUTOSAR
     // testability). This is the first pilot case migrated onto the seam:
     // the same case runs against a standard testability DUT with config

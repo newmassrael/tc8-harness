@@ -3,6 +3,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <thread>
 #include <utility>
@@ -72,6 +73,20 @@ inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,
     auto conn = tcp->connectTcp(
         ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
         ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
+
+    if (!conn) {
+        // Surface the backend-side failure for ops diagnosis. connectTcp
+        // returns nullopt only on failure (RPC timeout, bind collision, a
+        // refused connect); without this line a failed open would mis-report
+        // downstream as a DUT "no SYN / no FIN" timeout, hiding the real
+        // cause. Names the backend so a dual-backend smoke run points at the
+        // right side. Matches the fprintf-on-failure convention of the other
+        // tcp-pilot tester helpers (TesterTcpListener, connectToDutTcp).
+        std::fprintf(stderr,
+                     "tcp-pilot: seam active-OPEN failed (connectTcp "
+                     "local=%u remote=%u, backend=%s)\n",
+                     local_port, remote_port, dut.backendName());
+    }
 
     std::this_thread::sleep_for(kTcpActiveHandshakeGrace);
     return SeamActiveOpen{std::move(listener), std::move(conn)};
