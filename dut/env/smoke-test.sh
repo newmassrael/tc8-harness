@@ -788,9 +788,21 @@ log_conditioning_skip() {
     echo "[w$W] INFO ${case_id}: DUT-stack conditioning not applied ($what) — topology '$TOPOLOGY' does not manage the DUT network stack"
 }
 
+# SSOT for "this case is skipped": JUnit <skipped/> stream + per-worker skips
+# ledger (feeds the summary count). Callers emit their own stdout block. Used
+# by both the pre-run topology skip (skip_case) and the post-harness
+# capability skip in run_case (Tier 2 2b#4) so the two skip flavours record
+# identically.
+record_skip() {
+    local W=$1 case_id=$2 reason=$3
+    junit_record_skip "$W" "$case_id" positive "$reason"
+    echo "${case_id}|${reason}" >>"$WORK_ROOT/$W/skips"
+}
+
 # Record a case the selected topology cannot execute, with the reason,
 # in stdout + summary + JUnit. Never silent: shows up as SKIP in all
-# three places.
+# three places. Decided in bash BEFORE the harness runs (topology limit);
+# contrast the capability skip in run_case, decided from the harness verdict.
 skip_case() {
     local W=$1 case_id=$2 reason=$3
     {
@@ -798,8 +810,7 @@ skip_case() {
         echo "[w$W] SKIP ${case_id} — ${reason}"
         echo "=========================================="
     } | emit_block
-    junit_record_skip "$W" "$case_id" positive "$reason"
-    echo "${case_id}|${reason}" >>"$WORK_ROOT/$W/skips"
+    record_skip "$W" "$case_id" "$reason"
 }
 
 # Run one case against a specific worker's tester context.
@@ -1543,6 +1554,17 @@ run_case() {
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=1" >/dev/null
     fi
 
+    # Tier-2 2b#4 capability-skip: the harness emits `verdict  : skip:<reason>`
+    # when the selected --dut-control backend lacks a capability the case
+    # requires (e.g. a kernel state-probe absent from standard AUTOSAR
+    # testability). Route it to the skip ledger — same treatment as a topology
+    # skip, NOT a failure.
+    local cap_skip_reason=""
+    if [[ -r "$hlog" ]]; then
+        cap_skip_reason=$(grep -m1 -E '^verdict  : skip:' "$hlog" 2>/dev/null \
+            | sed -E 's/^verdict  : skip:(.*)$/\1/' || true)
+    fi
+
     {
         echo "=========================================="
         echo "[w$W] ${case_id}"
@@ -1552,12 +1574,22 @@ run_case() {
         echo "---- tc8-dut output (tail) ----"
         tail -20 "$dlog"
         echo "--------------------------------"
-        if grep -q 'verdict  : pass' "$hlog"; then
+        if [[ -n "$cap_skip_reason" ]]; then
+            echo "[w$W] SKIP ${case_id} — ${cap_skip_reason}"
+        elif grep -q 'verdict  : pass' "$hlog"; then
             echo "[w$W] PASS ${case_id}"
         else
             echo "[w$W] FAIL ${case_id} did not return pass verdict"
         fi
     } | emit_block
+
+    if [[ -n "$cap_skip_reason" ]]; then
+        record_skip "$W" "$case_id" "$cap_skip_reason"
+        if (( keep_logs == 0 )); then
+            rm -f "$hlog" "$dlog"
+        fi
+        return 0
+    fi
 
     local rc=0
     grep -q 'verdict  : pass' "$hlog" || rc=1

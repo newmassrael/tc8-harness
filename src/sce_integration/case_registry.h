@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string_view>
@@ -31,6 +32,11 @@ struct CaseEntry {
     // string literal so the view outlives the registry. See
     // `capture::bpf::resolveCaptureFilter`.
     std::string_view bpf_expression = {};
+    // Optional DUT-control capability requirement (from TestCaseTraits<>::
+    // kRequiredCapabilities; bitmask of DutCapability). 0 = no requirement.
+    // The CLI capability-skip gate skips a case whose bits are not all present
+    // in the selected --dut-control backend's capabilities() (Tier 2 2b#4).
+    std::uint32_t required_capabilities = 0;
     std::function<std::unique_ptr<ITestRunner>(const ::tc8::TestConfig &)> factory;
 };
 
@@ -133,7 +139,8 @@ template <typename StateMachine> struct CaseRegistrar {
                                                       "e.g. 'SOMEIPSRV_FORMAT_01' or 'SOMEIP_ETS_025'");
         CaseRegistry::instance().add(
             CaseEntry{T::kCaseId, deriveCategory(T::kCaseId), T::kSpecSection, T::kDescription, T::kDeprecated,
-                      T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(), [](const ::tc8::TestConfig &cfg) {
+                      T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(), requiredCapabilitiesOf<T>(),
+                      [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
                       }});
     }

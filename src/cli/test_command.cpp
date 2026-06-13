@@ -436,6 +436,22 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // opcode builders directly never touch it. Built once, not per-case.
     std::unique_ptr<sce::IDutControl> dut_control = sce::makeDutControl(config);
 
+    // Tier-2 2b#4 capability-skip gate. A case may declare the DUT-control
+    // capabilities it needs (TestCaseTraits<>::kRequiredCapabilities, mirrored
+    // into CaseEntry). If the selected --dut-control backend lacks any of them
+    // the case cannot run meaningfully there — the standard AUTOSAR testability
+    // backend, for one, exposes no kernel state-probe SP. Emit a skip verdict
+    // (NOT a fail) and a distinct exit code so smoke-test.sh routes it to the
+    // existing conditioning-skip ledger, honestly surfacing the standard's
+    // limit instead of a misleading timeout failure. Checked before the capture
+    // pipeline and stimulus are set up, so a skipped case does no I/O.
+    if (const std::uint32_t missing = entry->required_capabilities & ~dut_control->capabilities();
+        missing != 0U) {
+        std::printf("verdict  : skip:requires_capability_0x%x_unavailable_on_%s\n",
+                    static_cast<unsigned>(missing), dut_control->backendName());
+        return 2;  // distinct from 0 (pass) / 1 (fail): capability-skip
+    }
+
     dissect::PacketPipeline pipeline([&runner](const ::tc8::CapturedEvent &ev) { runner->onCaptured(ev); });
     // Wire pcap's timestamp precision into the dissector so
     // TcpFrame.observed_ts_us stays in microseconds for both live

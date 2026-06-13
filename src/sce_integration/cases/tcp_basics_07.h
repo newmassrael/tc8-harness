@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_basics_07_sm.h"
@@ -28,41 +30,55 @@ struct TestCaseTraits<cases::TcpBasics07SM>
         "TCP MUST progress to ESTABLISHED after receiving SYN,ACK in "
         "SYN-SENT state (RFC 793 §3.2 p23 Terminology)";
 
+    // This case verifies the DUT reached ESTABLISHED, which it can only
+    // confirm by reading kernel socket state — a capability the opcode UT has
+    // (OpQueryTcpEstablished) but the standard AUTOSAR testability protocol
+    // does not (no state-introspection SP). Declaring kCapTcpStateProbe makes
+    // the CLI capability-skip gate honestly SKIP this case on a testability
+    // backend (Tier 2 2b#4) rather than fail it — the standard's limit, not a
+    // DUT fault. kCapTcpControl covers the active open itself. This is the
+    // first case on the seam whose verdict depends on the state-probe.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+
     // Spec Test Procedure (v3.0 p281-p300.txt:587):
-    //   1. TESTER: Cause DUT SYN-SENT — UT OpOpenTcpSocket(Active).
+    //   1. TESTER: Cause DUT SYN-SENT — active OPEN.
     //   2. TESTER: Send SYN,ACK     — tester kernel listener replies.
     //   3. DUT:    Send ACK         — observed on pcap.
-    //   4. TESTER: Verify ESTABLISHED — UT OpQueryTcpEstablished.
+    //   4. TESTER: Verify ESTABLISHED — kernel state probe.
     //
     // The auxiliary tester listener replies SYN,ACK to the DUT's SYN
     // automatically as part of Linux's TCP fast-path; the spec does
     // not constrain how the SYN,ACK is produced, only that it arrives
-    // and the DUT responds. queryTcpEstablishedSync runs after the
-    // handshake has completed (kTcpUtRpcWait + 50 ms covers the
-    // SYN→SYN+ACK→ACK round trip on a loaded netns) and writes its
-    // result into `c.ut_established` BEFORE the SCXML arms.
+    // and the DUT responds. The state probe runs after the handshake has
+    // settled (driveSeamActiveOpen's grace covers the SYN→SYN+ACK→ACK round
+    // trip on a loaded netns) and writes its tristate into `c.ut_established`
+    // BEFORE the SCXML arms.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1,
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics07LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics07LocalOffset);
-        (void)listener;
 
-        // queryTcpEstablishedSync reads tc8-dut's TCP_INFO and writes
-        // the resulting tristate (0x00 / 0x01 / 0xFF) into Captured
-        // before the SCXML arms its assertion on `ut_established == 1`.
-        c.ut_established = queryTcpEstablishedSync(
-            cfg, /*req_id=*/3, /*socket_id=*/1);
-
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) {
+            // tcpStateProbe() is non-null by contract: the capability gate
+            // skipped this case before stimulus if the backend lacked
+            // kCapTcpStateProbe. Map the tristate onto `ut_established` with
+            // the same encoding the prior OpQueryTcpEstablished helper used:
+            // query failed -> 0xFF, established -> 0x01, not established -> 0x00.
+            const auto est = dut.tcpStateProbe()->isEstablished(open.conn->socket);
+            c.ut_established = static_cast<std::uint8_t>(
+                !est.has_value() ? 0xFF : (*est ? 0x01 : 0x00));
+            dut.tcpControl()->closeTcp(open.conn->socket);
+        } else {
+            c.ut_established = static_cast<std::uint8_t>(0xFF);
+        }
     }
 
     static std::string_view verdictFor(State s) {

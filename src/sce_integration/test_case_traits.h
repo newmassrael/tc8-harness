@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string_view>
 #include <type_traits>
 
@@ -221,6 +222,36 @@ constexpr std::string_view bpfExpressionOf() {
         return Traits::kBpfExpression;
     } else {
         return std::string_view{};
+    }
+}
+
+// Detects whether TestCaseTraits<SM> declares the optional
+// `static constexpr DutCapabilities kRequiredCapabilities` member — the set of
+// DUT-control sub-interfaces (DutCapability bits, dut_control.h) the case needs
+// from the `--dut-control` backend. `requiredCapabilitiesOf<T>()` returns it
+// when present and 0 otherwise, so the registrar carries it into CaseEntry
+// uniformly and a case with no DUT-control dependency compiles unchanged. The
+// value is a bitmask kept as a plain std::uint32_t here so this header need not
+// pull in dut_control.h (and its concrete-backend includes) — the case that
+// sets the member includes dut_control.h itself for the kCap* constants. The
+// CLI gate (test_command.cpp) skips a case whose required bits are not all
+// present in the selected backend's capabilities() (Tier 2 2b#4).
+template <typename Traits, typename = void>
+struct has_required_capabilities : std::false_type {};
+
+template <typename Traits>
+struct has_required_capabilities<Traits, std::void_t<decltype(Traits::kRequiredCapabilities)>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_required_capabilities_v = has_required_capabilities<Traits>::value;
+
+template <typename Traits>
+constexpr std::uint32_t requiredCapabilitiesOf() {
+    if constexpr (has_required_capabilities_v<Traits>) {
+        return static_cast<std::uint32_t>(Traits::kRequiredCapabilities);
+    } else {
+        return 0U;
     }
 }
 

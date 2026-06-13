@@ -72,6 +72,11 @@ public:
     // overriding once it implements the sub-interface.
     virtual ITcpControl *tcpControl() { return nullptr; }
     virtual IUdpControl *udpControl() { return nullptr; }
+
+    // Kernel-state probe — opcode-only (no standard testability SP reads kernel
+    // TCP state). nullptr on a backend without it; a case declaring
+    // kCapTcpStateProbe is capability-skipped there (Tier 2 2b#4).
+    virtual ITcpStateProbe *tcpStateProbe() { return nullptr; }
 };
 
 // Opcode-UT backend of ITcpControl — a synchronous SOCK_DGRAM round-trip
@@ -173,17 +178,75 @@ private:
     std::uint8_t req_id_ = 1;
 };
 
+// Opcode-UT backend of ITcpStateProbe — synchronous OpQueryTcpEstablished
+// (0x05) and OpQueryTcpInfo (0x13) round-trips over the bound UT socket. No
+// AUTOSAR testability counterpart (the standard exposes no kernel-state SP), so
+// this sub-interface gates kCapTcpStateProbe.
+class OpcodeTcpStateProbe final : public ITcpStateProbe {
+public:
+    OpcodeTcpStateProbe(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+                        int timeout_ms)
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
+
+    std::optional<bool> isEstablished(DutSocket sock) override {
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildQueryTcpEstablishedRequest(nextReqId(),
+                                                      static_cast<std::uint8_t>(sock.id)),
+            port_, timeout_ms_, src_ip_be_);
+        if (!r || r->status != ut::kStatusOk || r->data.empty()) {
+            return std::nullopt;
+        }
+        return r->data[0] != 0;
+    }
+
+    std::optional<DutTcpInfo> queryInfo(DutSocket sock) override {
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildQueryTcpInfoRequest(nextReqId(), static_cast<std::uint8_t>(sock.id)),
+            port_, timeout_ms_, src_ip_be_);
+        // Body: <state:u8> <rto_us:u32 BE> <retransmits:u8> <unacked:u32 BE> = 10 B.
+        if (!r || r->status != ut::kStatusOk || r->data.size() < 10) {
+            return std::nullopt;
+        }
+        const auto &d = r->data;
+        DutTcpInfo info{};
+        info.state       = d[0];
+        info.rto_us      = (static_cast<std::uint32_t>(d[1]) << 24) |
+                           (static_cast<std::uint32_t>(d[2]) << 16) |
+                           (static_cast<std::uint32_t>(d[3]) << 8) |
+                           static_cast<std::uint32_t>(d[4]);
+        info.retransmits = d[5];
+        info.unacked     = (static_cast<std::uint32_t>(d[6]) << 24) |
+                           (static_cast<std::uint32_t>(d[7]) << 16) |
+                           (static_cast<std::uint32_t>(d[8]) << 8) |
+                           static_cast<std::uint32_t>(d[9]);
+        return info;
+    }
+
+private:
+    std::uint8_t nextReqId() { return req_id_++; }
+
+    std::uint32_t dut_ip_be_;
+    std::uint16_t port_;
+    std::uint32_t src_ip_be_;
+    int timeout_ms_;
+    std::uint8_t req_id_ = 1;
+};
+
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
 // the existing builders/transport with no behaviour change. Kernel-routed
 // SOCK_DGRAM probe (matching `ut-ping`); the TCP data plane is exposed through
-// OpcodeTcpControl. UDP through the seam stays on the direct TriggerSendUdp
-// path (port-based, no handle), so kCapUdpControl is not set here.
+// OpcodeTcpControl and the kernel-state probe through OpcodeTcpStateProbe. UDP
+// through the seam stays on the direct TriggerSendUdp path (port-based, no
+// handle), so kCapUdpControl is not set here.
 class OpcodeUtControl final : public IDutControl {
 public:
     explicit OpcodeUtControl(std::uint32_t dut_ip_be, std::uint16_t port = ut::kPort,
                              std::uint32_t src_ip_be = 0, int timeout_ms = 1000)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
-          tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms) {}
+          tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
+          state_probe_(dut_ip_be, port, src_ip_be, timeout_ms) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -195,8 +258,11 @@ public:
     bool endTest() override { return true; }
     const char *backendName() const override { return "opcode-ut"; }
 
-    DutCapabilities capabilities() const override { return kCapTcpControl; }
+    DutCapabilities capabilities() const override {
+        return kCapTcpControl | kCapTcpStateProbe;
+    }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
+    ITcpStateProbe *tcpStateProbe() override { return &state_probe_; }
 
 private:
     std::uint32_t dut_ip_be_;
@@ -204,6 +270,7 @@ private:
     std::uint32_t src_ip_be_;
     int timeout_ms_;
     OpcodeTcpControl tcp_ctrl_;
+    OpcodeTcpStateProbe state_probe_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).

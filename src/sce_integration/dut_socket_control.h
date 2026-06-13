@@ -94,6 +94,36 @@ public:
                               const std::vector<std::uint8_t> &data) = 0;
 };
 
+// Live kernel TCP_INFO snapshot of a DUT socket. Mirrors the four fields the
+// TCP retransmission-timeout cluster verdicts on (getsockopt(SOL_TCP,
+// TCP_INFO)).
+struct DutTcpInfo {
+    std::uint8_t  state       = 0;  // tcpi_state (1=ESTABLISHED, 2=SYN_SENT, ...)
+    std::uint32_t rto_us      = 0;  // tcpi_rto (microseconds)
+    std::uint8_t  retransmits = 0;  // tcpi_retransmits
+    std::uint32_t unacked     = 0;  // tcpi_unacked (tp->packets_out)
+};
+
+// Kernel-state probe — query the DUT's live socket state. This is the FIRST
+// genuinely opcode-only sub-interface: no standard AUTOSAR testability service
+// primitive exposes kernel TCP state (the standard surface is connection
+// lifecycle + data, not introspection). A backend that cannot answer returns
+// nullptr from IDutControl::tcpStateProbe(), and a case that declares
+// kCapTcpStateProbe is capability-skipped on that backend rather than failed
+// (Tier 2 2b#4) — the honest expression of the standard's limit. See
+// claudedocs/testability_seam_tier2_design.md.
+class ITcpStateProbe {
+public:
+    virtual ~ITcpStateProbe() = default;
+
+    // Has the DUT's socket reached ESTABLISHED? nullopt on query failure
+    // (the case treats that as a third state, distinct from true/false).
+    virtual std::optional<bool> isEstablished(DutSocket sock) = 0;
+
+    // Live TCP_INFO snapshot of the DUT's socket, or nullopt on query failure.
+    virtual std::optional<DutTcpInfo> queryInfo(DutSocket sock) = 0;
+};
+
 // AUTOSAR Testability backend of ITcpControl — thin adapter over the typed free
 // functions in testability_client.h (the SP-encoding SSOT).
 class TestabilityTcpControl final : public ITcpControl {
