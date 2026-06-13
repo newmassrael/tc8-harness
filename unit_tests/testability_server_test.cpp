@@ -322,6 +322,49 @@ TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenAndSend) {
     ::close(lfd);
 }
 
+// TCP control active open with an explicit local bind: the DUT's connection
+// must source the bound local port, so the tester observes that exact port on
+// accept(). Guards the connectTcp(peer, BindSpec) path the §4.8 seam pilot
+// (TCP_BASICS_06) relies on to satisfy its src_port-pinned guard.
+TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenWithLocalBind) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    sce::ITcpControl *tcp = ctrl.tcpControl();
+    ASSERT_NE(tcp, nullptr);
+
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    la.sin_port = 0;
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(lfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    constexpr std::uint16_t kLocalBindPort = 39822;
+    const auto conn = tcp->connectTcp(
+        sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)},
+        sce::BindSpec{/*do_bind=*/true, kLocalBindPort, /*local_addr_be=*/0});
+    ASSERT_TRUE(conn.has_value());
+
+    sockaddr_in peer{};
+    socklen_t pl = sizeof(peer);
+    const int afd = ::accept(lfd, reinterpret_cast<sockaddr *>(&peer), &pl);
+    ASSERT_GE(afd, 0);
+    EXPECT_EQ(ntohs(peer.sin_port), kLocalBindPort)
+        << "DUT did not source the bound local port";
+
+    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    ::close(afd);
+    ::close(lfd);
+}
+
 // TCP control passive open: acceptTcp binds+listens on the DUT, the trigger
 // connects in, and the accepted connection carries the client endpoint.
 TEST_F(TestabilityServerTest, TcpControlSeamPassiveOpen) {

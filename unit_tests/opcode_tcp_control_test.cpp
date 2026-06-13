@@ -90,7 +90,7 @@ sce::OpcodeTcpControl makeControl(std::uint16_t port) {
 TEST(OpcodeTcpControl, ConnectReturnsSocketId) {
     MockOpcodeResponder server;
     auto ctrl = makeControl(server.port());
-    const auto conn = ctrl.connectTcp(sce::Endpoint{::htonl(0xAC100001), 8000});
+    const auto conn = ctrl.connectTcp(sce::Endpoint{::htonl(0xAC100001), 8000}, sce::BindSpec{});
     ASSERT_TRUE(conn.has_value());
     EXPECT_EQ(conn->socket.id, MockOpcodeResponder::kSocketId);
     EXPECT_EQ(conn->peer.port, 8000u);
@@ -120,7 +120,8 @@ TEST(OpcodeTcpControl, SendAndCloseSucceed) {
 TEST(OpcodeTcpControl, NoServerFailsGracefully) {
     // Nothing listening on this loopback port — the round trip times out.
     auto ctrl = sce::OpcodeTcpControl(::htonl(INADDR_LOOPBACK), /*port=*/1, 0, /*timeout_ms=*/150);
-    EXPECT_FALSE(ctrl.connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), 80}).has_value());
+    EXPECT_FALSE(
+        ctrl.connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), 80}, sce::BindSpec{}).has_value());
     EXPECT_FALSE(ctrl.closeTcp(sce::DutSocket{1}));
 }
 

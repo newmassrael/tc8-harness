@@ -56,9 +56,20 @@ class ITcpControl {
 public:
     virtual ~ITcpControl() = default;
 
-    // Active open: the DUT connects to `peer` (the caller's listener). Returns
-    // the DUT's connected socket, or nullopt on failure.
-    virtual std::optional<DutConnection> connectTcp(const Endpoint &peer) = 0;
+    // Active open: the DUT connects to `peer` (the caller's listener),
+    // optionally binding a specific local endpoint first (`local.do_bind`).
+    // Cases whose guard pins the DUT's source port need the bind (standard
+    // CREATE_AND_BIND + CONNECT); the default (`do_bind=false`) leaves the
+    // local endpoint to the DUT (ephemeral port, route-chosen source IP).
+    // Returns the DUT's connected socket, or nullopt on failure.
+    //
+    // The `= {}` default is declared here ONLY (not on the overrides) per C++
+    // Core Guidelines C.140 — a default on a virtual is resolved by the static
+    // type, so duplicating it on overriders invites silent divergence. Callers
+    // through `ITcpControl` get the ephemeral-local default; the overrides take
+    // the parameter plain.
+    virtual std::optional<DutConnection> connectTcp(const Endpoint &peer,
+                                                    const BindSpec &local = {}) = 0;
     // Passive open: the DUT binds+listens per `listen`; `trigger` drives one
     // inbound connection once the DUT is listening; returns the accepted
     // connection (with the client endpoint when the backend reports it), or
@@ -91,10 +102,11 @@ public:
                           std::uint32_t src_ip_be)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
 
-    std::optional<DutConnection> connectTcp(const Endpoint &peer) override {
-        const auto id = stimulus::testabilityCreateAndBind(cfg_, testability::kGidTcp,
-                                                           /*do_bind=*/false, 0xFFFF, 0,
-                                                           timeout_ms_, src_ip_be_);
+    std::optional<DutConnection> connectTcp(const Endpoint &peer,
+                                            const BindSpec &local) override {
+        const auto id = stimulus::testabilityCreateAndBind(
+            cfg_, testability::kGidTcp, local.do_bind, local.local_port, local.local_addr_be,
+            timeout_ms_, src_ip_be_);
         if (!id) {
             return std::nullopt;
         }

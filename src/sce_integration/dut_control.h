@@ -86,10 +86,11 @@ public:
                      int timeout_ms)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
 
-    std::optional<DutConnection> connectTcp(const Endpoint &peer) override {
+    std::optional<DutConnection> connectTcp(const Endpoint &peer,
+                                            const BindSpec &local) override {
         const auto r = stimulus::upperTesterRoundTrip(
             dut_ip_be_,
-            stimulus::buildOpenTcpSocketActiveRequest(nextReqId(), /*local_port=*/0,
+            stimulus::buildOpenTcpSocketActiveRequest(nextReqId(), opcodeLocalPort(local),
                                                       peer.addr_be, peer.port),
             port_, timeout_ms_, src_ip_be_);
         if (!r || r->status != ut::kStatusOk || r->data.empty()) {
@@ -102,8 +103,8 @@ public:
                                            const std::function<void()> &trigger) override {
         const auto open = stimulus::upperTesterRoundTrip(
             dut_ip_be_,
-            stimulus::buildOpenTcpSocketPassiveRequest(nextReqId(), listen.local_port), port_,
-            timeout_ms_, src_ip_be_);
+            stimulus::buildOpenTcpSocketPassiveRequest(nextReqId(), opcodeLocalPort(listen)),
+            port_, timeout_ms_, src_ip_be_);
         if (!open || open->status != ut::kStatusOk || open->data.empty()) {
             return std::nullopt;
         }
@@ -148,6 +149,19 @@ public:
 
 private:
     std::uint8_t nextReqId() { return req_id_++; }
+
+    // Map the seam BindSpec's local endpoint onto the opcode protocol's single
+    // local-port slot (the active/passive OPEN take one port; 0 == DUT-chosen
+    // ephemeral). The seam follows the PRS_TPSP convention — PORT_ANY is
+    // spelled 0xFFFF and binding is gated on do_bind — so an unbound spec OR an
+    // explicit PORT_ANY both collapse to 0. This keeps the documented
+    // "local_port 0xFFFF == PORT_ANY" BindSpec contract identical on this
+    // backend and the testability one (whose server maps 0xFFFF -> 0). The
+    // opcode OPEN has no local-addr slot (the DUT sources its iface IP), so
+    // BindSpec::local_addr_be is deliberately not represented here.
+    static std::uint16_t opcodeLocalPort(const BindSpec &b) {
+        return (b.do_bind && b.local_port != 0xFFFF) ? b.local_port : 0;
+    }
 
     static constexpr int kAcceptPolls = 20;
     static constexpr int kAcceptPollMs = 25;  // up to ~500 ms for the accept
