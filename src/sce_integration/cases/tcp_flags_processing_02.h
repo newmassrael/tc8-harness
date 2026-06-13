@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -11,7 +10,10 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -38,38 +40,66 @@ struct TestCaseTraits<cases::TcpFlagsProcessing02SM>
         "CW}; per phase a verify-probe ACK on the killed 4-tuple "
         "elicits DUT RST as wire-observable proof of CLOSED";
 
+    // Migrated onto the Tier-2 DUT-control seam: phase 1 puts the DUT
+    // into LISTEN via the listen-only seam verb (driveSeamListen) and
+    // verdicts on its wire response to a tester SYN that the spec RST
+    // then kills (SYN-RCVD never completes an accept, so there is no
+    // handle to close). Phases 2..5 active-OPEN through
+    // driveSeamActiveOpen and drive the DUT CLOSE via closeTcp, so the
+    // case runs unchanged on whichever backend --dut-control selected.
+    // The tester-side raw RST / verify-ACK injects, AckDrop / RstDrop,
+    // and silent dispose stay case-owned. The deferred-phase lambdas
+    // capture an IDutControl* (CLI-owned, outlives the scheduler
+    // callbacks) as in FLAGS_PROCESSING_09.
+    //
+    // Phase 1 SYN-RCVD prelude is the SCXML's initial state, so its
+    // stimulus runs synchronously in the body. Phases 2..5 schedule via
+    // scheduleAfterStateEntry on each phase's handshake_ack state: each
+    // prior phase's verify-probe absence is wall-clock, so a synchronous
+    // all-phases-up-front stimulus would queue every event into pcap
+    // before SCXML reaches the later state and the prior absence would
+    // drain them.
+    //
+    // Per-phase state drive:
+    //   * Phase 2 EST: active OPEN, no DUT close.
+    //   * Phase 3 FW1: TesterAutoAckDrop holds the DUT FIN unacked so
+    //     the DUT stays in FIN-WAIT-1 across the verify probe.
+    //   * Phase 4 FW2: no AckDrop — the tester kernel auto-ACK advances
+    //     the DUT FIN-WAIT-1 -> FIN-WAIT-2; no shutdown(WR) follows.
+    //   * Phase 5 CW: tester shutdown(WR) -> DUT CLOSE-WAIT, no DUT close.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1SynRecv(cfg, iface);
+        runPhase1SynRecv(cfg, iface, dut);
 
-        std::string                 iface_copy(iface);
-        ::tc8::TestConfig           cfg_copy = cfg;
-        std::array<std::uint8_t, 6> dut_mac  = cfg.dut.mac;
+        std::string       iface_copy(iface);
+        ::tc8::TestConfig cfg_copy = cfg;
+        ::tc8::sce::IDutControl* dut_ptr = &dut;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
-            [iface_copy, cfg_copy, dut_mac]() {
-                runPhase2Established(cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, dut_ptr]() {
+                runPhase2Established(cfg_copy, iface_copy, *dut_ptr);
             });
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_handshake_ack),
-            [iface_copy, cfg_copy, dut_mac]() {
-                runPhase3FinWait1(cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, dut_ptr]() {
+                runPhase3FinWait1(cfg_copy, iface_copy, *dut_ptr);
             });
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p4_handshake_ack),
-            [iface_copy, cfg_copy, dut_mac]() {
-                runPhase4FinWait2(cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, dut_ptr]() {
+                runPhase4FinWait2(cfg_copy, iface_copy, *dut_ptr);
             });
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p5_handshake_ack),
-            [iface_copy, cfg_copy, dut_mac]() {
-                runPhase5CloseWait(cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, dut_ptr]() {
+                runPhase5CloseWait(cfg_copy, iface_copy, *dut_ptr);
             });
     }
 
@@ -137,15 +167,17 @@ private:
     }
 
     static void runPhase1SynRecv(const ::tc8::TestConfig& cfg,
-                                 std::string_view iface) {
+                                 std::string_view iface,
+                                 ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kListenPort = kBasicsListenPort + 12U;
         constexpr std::uint16_t kTesterPort = kBasicsTesterPort + 76U;
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, kListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        // Listen-only seam open: LISTEN on kListenPort. No accept
+        // completes (the spec RST kills the SYN-RCVD request), so there
+        // is no handle to close — the listen socket is reclaimed at
+        // END_TEST.
+        if (!driveSeamListen(dut, kListenPort)) return;
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
@@ -181,15 +213,14 @@ private:
     }
 
     static void runPhase2Established(const ::tc8::TestConfig& cfg,
-                                     std::string_view iface) {
+                                     std::string_view iface,
+                                     ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 60U;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 60U;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/3, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) {
@@ -205,7 +236,8 @@ private:
     }
 
     static void runPhase3FinWait1(const ::tc8::TestConfig& cfg,
-                                  std::string_view iface) {
+                                  std::string_view iface,
+                                  ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 61U;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 61U;
@@ -213,14 +245,15 @@ private:
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/5, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
-        if (tester_fd < 0) return;
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*close_req_id=*/6, /*socket_id=*/3);
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
+        if (tester_fd < 0 || !open.conn) {
+            silentlyCloseTesterFd(tester_fd);
+            return;
+        }
+        // DUT CLOSE -> DUT FIN; the tester AckDrop holds it unacked so
+        // the DUT stays in FIN-WAIT-1 across the verify probe.
+        dut.tcpControl()->closeTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) {
@@ -236,27 +269,25 @@ private:
     }
 
     static void runPhase4FinWait2(const ::tc8::TestConfig& cfg,
-                                  std::string_view iface) {
+                                  std::string_view iface,
+                                  ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 62U;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 62U;
 
-        // Drive DUT to FW2 manually (driveTcpToTimeWaitFw2 goes
-        // all the way to TW; we want to stop at FW2). Steps 1..3
-        // match the helper through "tester kernel auto-ACK → DUT
-        // FW2" but skip the shutdown(WR) that would advance to TW.
-        // socket_id=4 — tc8-dut's next_tcp_socket_id_ allocation
-        // advances on every OpOpenTcpSocket call (phase 1 passive
-        // = 1, phase 2 active = 2, phase 3 active = 3, this phase
-        // = 4).
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/7, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
-        if (tester_fd < 0) return;
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*close_req_id=*/8, /*socket_id=*/4);
+        // Drive DUT to FW2: the DUT CLOSE emits the DUT FIN, and the
+        // tester kernel's auto-ACK (no AckDrop here, unlike the FW1
+        // phase) advances the DUT FIN-WAIT-1 -> FIN-WAIT-2. No
+        // shutdown(WR) follows, so the DUT stops at FW2 rather than
+        // proceeding to TIME-WAIT. The 200 ms settle lets that ACK land
+        // before the verify probe.
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
+        if (tester_fd < 0 || !open.conn) {
+            silentlyCloseTesterFd(tester_fd);
+            return;
+        }
+        dut.tcpControl()->closeTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) {
@@ -272,15 +303,14 @@ private:
     }
 
     static void runPhase5CloseWait(const ::tc8::TestConfig& cfg,
-                                   std::string_view iface) {
+                                   std::string_view iface,
+                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 63U;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 63U;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/9, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         ::shutdown(tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
