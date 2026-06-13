@@ -246,7 +246,8 @@ public:
                              std::uint32_t src_ip_be = 0, int timeout_ms = 1000)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
-          state_probe_(dut_ip_be, port, src_ip_be, timeout_ms) {}
+          state_probe_(dut_ip_be, port, src_ip_be,
+                       timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -265,6 +266,17 @@ public:
     ITcpStateProbe *tcpStateProbe() override { return &state_probe_; }
 
 private:
+    // Fail-fast ceiling for the kernel-state probe, independent of the
+    // control-plane timeout. The TCP retransmission-timeout cluster polls
+    // queryInfo() inside tight phase deadlines (e.g. SYN-RTO cases give
+    // ~2 s to observe a retransmit at +1 s); a stalled query that blocked
+    // the full control-plane timeout would burn most of that window and
+    // starve the loop of retry attempts. 500 ms matches the proven
+    // pre-seam queryTcpInfoSync ceiling so poll loops fail a dropped probe
+    // quickly and re-poll. Capped by std::min semantics so a caller that
+    // sets an even shorter control timeout still wins.
+    static constexpr int kStateProbeTimeoutMs = 500;
+
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
