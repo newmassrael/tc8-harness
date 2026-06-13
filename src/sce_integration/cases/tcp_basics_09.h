@@ -9,7 +9,9 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -42,12 +44,12 @@ struct TestCaseTraits<cases::TcpBasics09SM>
     // Stimulus stages (each separated by a brief grace so the kernel
     // FSMs settle into the expected per-stage state before the next
     // edge fires):
-    //   a. Active-OPEN handshake — DUT in ESTABLISHED.
+    //   a. Active-OPEN handshake (via the seam) — DUT in ESTABLISHED.
     //   b. Tester FIN (shutdown SHUT_WR on accepted fd) — DUT auto-ACK
     //      the FIN, enters CLOSE-WAIT.
-    //   c. UT close — DUT close path emits its own FIN, enters
-    //      LAST-ACK. SCXML observes this FIN as the spec step-2
-    //      assertion.
+    //   c. DUT CLOSE via the seam (closeTcp) — DUT close path emits its
+    //      own FIN, enters LAST-ACK. SCXML observes this FIN as the spec
+    //      step-2 assertion.
     //   d. Wait for the tester kernel's auto-ACK of the DUT's FIN to
     //      land at the DUT — the LAST-ACK → CLOSED transition trigger.
     //   e. Raw-inject a SYN-only stimulus to the (now-closed) DUT port,
@@ -58,29 +60,36 @@ struct TestCaseTraits<cases::TcpBasics09SM>
     // BASICS_04 iter 1 uses; "non-RST segment" leaves the choice open
     // and SYN provides the cleanest closed-port → RST path with no
     // payload to sequence.
+    //
+    // Migrated onto the Tier-2 DUT-control seam: the active open and the
+    // DUT close run through `driveSeamActiveOpen` / `closeTcp` so the
+    // case runs unchanged on whichever backend `--dut-control` selected.
+    // The tester FIN (accept + shutdown) and the closed-port raw-inject
+    // stay case-owned harness infrastructure — they exercise the tester
+    // side, not the DUT, so they do not belong on the DUT-control seam.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1,
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics09LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics09LocalOffset);
 
         // Stage b: tester FIN puts DUT in CLOSE-WAIT.
-        const int tester_fd = listener.acceptOne();
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd >= 0) {
             ::shutdown(tester_fd, SHUT_WR);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        // Stage c: UT close → DUT FIN, LAST-ACK.
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        // Stage c: DUT CLOSE → DUT FIN, LAST-ACK.
+        if (open.conn) {
+            dut.tcpControl()->closeTcp(open.conn->socket);
+        }
 
         // Stage d: grace for tester kernel's auto-ACK of the DUT's
         // FIN to reach the DUT and clinch LAST-ACK → CLOSED. Without
