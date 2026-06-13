@@ -133,9 +133,12 @@ inline constexpr std::uint16_t kVersionPatch = 0;
 // request/response). GID is masked to its 7-bit field.
 inline constexpr std::uint16_t methodId(std::uint8_t gid, std::uint8_t pid,
                                         bool event = false) {
-    return static_cast<std::uint16_t>((event ? kEventBit : 0u) |
-                                      (static_cast<std::uint16_t>(gid & 0x7Fu) << 8) |
-                                      pid);
+    // Compose in unsigned so the bitwise OR never mixes signed/unsigned operands
+    // (an int promotion of `<< 8` would otherwise trip -Wsign-conversion at -O0).
+    const unsigned evb = event ? static_cast<unsigned>(kEventBit) : 0u;
+    const unsigned grp = static_cast<unsigned>(gid & 0x7Fu) << 8;
+    const unsigned prm = static_cast<unsigned>(pid);
+    return static_cast<std::uint16_t>(evb | grp | prm);
 }
 
 inline constexpr std::uint8_t gidOf(std::uint16_t method_id) {
