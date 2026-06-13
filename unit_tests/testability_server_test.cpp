@@ -9,6 +9,7 @@
 
 #include <gtest/gtest.h>
 
+#include "sce_integration/dut_control.h"
 #include "stimulus/testability_client.h"
 #include "tc8/testability_protocol.h"
 #include "testability_server.h"
@@ -274,6 +275,92 @@ TEST_F(TestabilityServerTest, EndTestTerminatesPendingAcceptThread) {
     // END_TEST terminates the pending accept thread, then the server still answers.
     EXPECT_TRUE(stimulus::testabilityEndTest(cfg, /*tc_id=*/0, "reset").eok());
     EXPECT_TRUE(stimulus::testabilityStartTest(cfg).eok());
+}
+
+// ── Tier 2 seam: TestabilityControl::socketControl() over the real server ──
+
+// The socket-control seam reports kCapSocketData and drives UDP open/close +
+// TCP active open + send, all through the backend-agnostic ISocketControl.
+TEST_F(TestabilityServerTest, SocketControlSeamActiveOpenAndSend) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapSocketData, sce::kCapSocketData);
+    sce::ISocketControl *sc = ctrl.socketControl();
+    ASSERT_NE(sc, nullptr);
+
+    // UDP: open (bound) then close.
+    const auto udp = sc->openUdp(sce::BindSpec{/*do_bind=*/true, 0xFFFF, 0});
+    ASSERT_TRUE(udp.has_value());
+    EXPECT_TRUE(sc->closeSocket(*udp));
+
+    // TCP active open: tester listener accepts the DUT's connect; send is read back.
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    la.sin_port = 0;
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(lfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const auto conn = sc->connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)});
+    ASSERT_TRUE(conn.has_value());
+    sockaddr_in peer{};
+    socklen_t pl = sizeof(peer);
+    const int afd = ::accept(lfd, reinterpret_cast<sockaddr *>(&peer), &pl);
+    ASSERT_GE(afd, 0);
+
+    const std::vector<std::uint8_t> body = {'T', 'C', '8'};
+    EXPECT_TRUE(sc->sendTcp(*conn, body, /*total_len=*/3));
+    ::setsockopt(afd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    std::uint8_t buf[16];
+    const ssize_t n = ::recv(afd, buf, sizeof(buf), 0);
+    EXPECT_EQ(n, 3);
+
+    EXPECT_TRUE(sc->closeSocket(conn->socket));
+    ::close(afd);
+    ::close(lfd);
+}
+
+// Passive open through the seam: acceptTcp binds+listens on the DUT, the
+// trigger connects in, and the accepted connection carries the client endpoint.
+TEST_F(TestabilityServerTest, SocketControlSeamPassiveOpen) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    sce::ISocketControl *sc = ctrl.socketControl();
+    ASSERT_NE(sc, nullptr);
+
+    constexpr std::uint16_t kListenPort = 39813;
+    int cfd = -1;
+    const auto conn = sc->acceptTcp(
+        sce::BindSpec{/*do_bind=*/true, kListenPort, 0},
+        [&] {
+            cfd = ::socket(AF_INET, SOCK_STREAM, 0);
+            if (cfd >= 0) {
+                sockaddr_in da{};
+                da.sin_family = AF_INET;
+                da.sin_port = htons(kListenPort);
+                da.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+                if (::connect(cfd, reinterpret_cast<sockaddr *>(&da), sizeof(da)) < 0) {
+                    ::close(cfd);
+                    cfd = -1;
+                }
+            }
+        });
+
+    ASSERT_TRUE(conn.has_value());
+    EXPECT_NE(conn->socket.id, 0u);
+    EXPECT_EQ(conn->peer.addr_be, ::htonl(INADDR_LOOPBACK));
+    EXPECT_NE(conn->peer.port, 0u);
+    if (cfd >= 0) {
+        ::close(cfd);
+    }
+    EXPECT_TRUE(sc->closeSocket(conn->socket));
 }
 
 // CONNECT / SEND_DATA / CLOSE_SOCKET against an unknown socketId -> E_ISD.

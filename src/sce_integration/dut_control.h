@@ -5,12 +5,25 @@
 #include <string>
 #include <vector>
 
+#include "sce_integration/dut_socket_control.h"
 #include "stimulus/testability_client.h"
 #include "stimulus/upper_tester_client.h"
 #include "tc8/testability_protocol.h"
 #include "tc8/upper_tester_protocol.h"
 
 namespace tc8::sce {
+
+// Which semantic DUT-control sub-interfaces a backend exposes. Backends and
+// real DUTs differ (opcode UT is a TC8-tailored superset; AUTOSAR testability
+// is the portable standard subset), so a case queries the bit it needs and is
+// conditioning-skipped when the selected backend lacks it.
+enum DutCapability : std::uint32_t {
+    kCapSocketData = 1u << 0,        // ISocketControl (UDP/TCP data plane)
+    kCapTcpStateProbe = 1u << 1,     // TCP kernel-state query (opcode only)
+    kCapArpConditioning = 1u << 2,   // ARP cache conditioning (opcode only)
+    kCapLinkLocalControl = 1u << 3,  // link-local autoconf control (opcode only)
+};
+using DutCapabilities = std::uint32_t;
 
 // Upper-Tester-channel abstraction so the harness can drive either an in-house
 // opcode DUT (the reference tc8-dut / lwIP DUT) or a standard AUTOSAR
@@ -47,6 +60,14 @@ public:
 
     // Human-readable backend tag for diagnostics / probe output.
     virtual const char *backendName() const = 0;
+
+    // Which semantic sub-interfaces this backend exposes (DutCapability bits).
+    virtual DutCapabilities capabilities() const = 0;
+
+    // Socket data-plane operations, or nullptr when unsupported — a case checks
+    // for nullptr and conditioning-skips. Default nullptr: a backend opts in by
+    // overriding once it implements the sub-interface.
+    virtual ISocketControl *socketControl() { return nullptr; }
 };
 
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
@@ -69,6 +90,12 @@ public:
     bool endTest() override { return true; }
     const char *backendName() const override { return "opcode-ut"; }
 
+    // No seam sub-interface is wired through this backend yet — the opcode UT
+    // serves the in-tree cases via the direct builder path. OpcodeSocketControl
+    // (a SOCK_DGRAM round-trip adapter over the builders) lands alongside the
+    // first case migrated onto the seam, and toggles kCapSocketData on then.
+    DutCapabilities capabilities() const override { return 0; }
+
 private:
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
@@ -84,7 +111,8 @@ class TestabilityControl final : public IDutControl {
 public:
     explicit TestabilityControl(const stimulus::TestabilityConfig &cfg, int timeout_ms = 1000,
                                 std::uint32_t src_ip_be = 0)
-        : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
+        : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
+          socket_ctrl_(cfg, timeout_ms, src_ip_be) {}
 
     bool probe() override { return getVersion().has_value(); }
     bool startTest() override {
@@ -96,6 +124,12 @@ public:
             .eok();
     }
     const char *backendName() const override { return "autosar-testability"; }
+
+    // The standard socket SPs (CREATE_AND_BIND/CONNECT/LISTEN_AND_ACCEPT/
+    // SEND_DATA/CLOSE_SOCKET) are all implemented, so the socket data-plane
+    // seam is available on every testability DUT.
+    DutCapabilities capabilities() const override { return kCapSocketData; }
+    ISocketControl *socketControl() override { return &socket_ctrl_; }
 
     // GET_VERSION (GENERAL/0x01).
     std::optional<stimulus::TestabilityVersion> getVersion() {
@@ -120,6 +154,7 @@ private:
     stimulus::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
+    TestabilitySocketControl socket_ctrl_;
 };
 
 }  // namespace tc8::sce
