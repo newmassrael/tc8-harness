@@ -1899,47 +1899,44 @@ inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
     });
 }
 
-// Drive DUT into CLOSING (the "FIN-WAIT-1 + tester FIN crossed
-// before our ACK" transition) WITHOUT advancing further to
-// TIME-WAIT. Identical to driveCloseToTimeWaitClosing through
-// step 3 (raw-inject FIN+ACK with non-acking ack) — the
-// follow-on ACK that would acknowledge DUT FIN and drive
-// CLOSING → TIME-WAIT is omitted. Tester fd is also left open
-// because the caller needs the (live, kernel-tracked) socket to
-// stay non-conflicting with subsequent raw-inject probes inside
-// the still-active TesterAutoAckDrop scope; the caller must
-// silently dispose the fd via TCP_REPAIR + close once the probe
-// phase completes.
+// CLOSING-state core (stops at CLOSING, does NOT advance to TIME-WAIT):
+// given an accepted tester_fd and a DUT-close callback, drive DUT
+// ESTABLISHED → FIN-WAIT-1 → CLOSING and leave it there. The single source
+// of truth for the CLOSING-entry wire mechanics — the opcode
+// `driveCloseToClosing` and the seam `driveSeamCloseToClosing`
+// (cases/_tcp_seam_time_wait_prelude.h) bind `dut_close` and re-implement
+// nothing. Identical to `driveToTimeWaitViaClosing` through the non-acking
+// FIN+ACK, then it STOPS: the follow-on DUT-FIN-acking ACK and the
+// TCP_REPAIR dispose are both omitted, so the DUT stays in CLOSING and the
+// caller keeps a live tester_fd.
 //
-// Caller responsibilities (UNACCEPTABLE_11 / FLAGS_INVALID_12):
-//   1. Install TesterAutoAckDrop in caller scope BEFORE invoking
-//      this helper — the helper relies on the kernel pure-ACK
-//      auto-reply being suppressed.
-//   2. Use returned info.tester_seq_post_fin / .tester_ack_post_fin
-//      as the seq/ack BASE for any subsequent raw-inject probe
-//      (offset OTW SEQ via kOutOfWindowSeqOffset, etc.).
-//   3. After the probe phase, TCP_REPAIR-silently close `tester_fd`
-//      to free kernel state without emitting FIN+ACK. The
-//      TesterAutoAckDrop scope can then end.
+// Caller responsibilities (UNACCEPTABLE_11 / FLAGS_INVALID_12 / ...):
+//   1. Install TesterAutoAckDrop in caller scope BEFORE invoking this core
+//      — unlike `driveToTimeWaitViaClosing` it does NOT install its own, so
+//      the kernel pure-ACK auto-reply stays suppressed (DUT pinned in
+//      FIN-WAIT-1) for the caller's whole probe phase, not just this call.
+//   2. Use returned info.tester_seq_post_fin / .tester_ack_post_fin as the
+//      seq/ack BASE for any subsequent raw-inject probe (OTW SEQ via
+//      kOutOfWindowSeqOffset, unacceptable ACK, etc.).
+//   3. After the probe phase, silentlyCloseTesterFd(`tester_fd`) to free the
+//      4-tuple without emitting a stray FIN+ACK; the TesterAutoAckDrop scope
+//      can then end.
 //
-// Returns `ok=false` on local syscall failure; tester_fd is closed
-// with plain ::close on the queryTcpSeqRange-failure path so the
-// helper does not leak the descriptor.
-// `local_port` + `remote_port` are intentionally non-default — see
-// `driveActiveOpenEstablished` block comment for the per-case
-// 4-tuple isolation rationale.
-inline TcpTimeWaitInfo driveCloseToClosing(
+// Returns ok=false on tester_fd<0 or a failed seq snapshot (tester_fd is
+// plain-::close'd on that path so the core does not leak it; otherwise the
+// caller owns it). dut_close (a std::function) carries no dut_control.h
+// dependency — see the SSOT block comment above injectTesterFinAck.
+inline TcpTimeWaitInfo driveToClosingState(
     const ::tc8::TestConfig &cfg,
     std::string_view iface,
     const std::array<std::uint8_t, 6> &dut_mac,
     int           tester_fd,
-    std::uint8_t  close_req_id,
-    std::uint8_t  socket_id,
     std::uint16_t local_port,
-    std::uint16_t remote_port) {
+    std::uint16_t remote_port,
+    const std::function<void()> &dut_close) {
     if (tester_fd < 0) return {};
 
-    sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
+    dut_close();
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     const auto seq = queryTcpSeqRange(tester_fd);
@@ -1958,6 +1955,29 @@ inline TcpTimeWaitInfo driveCloseToClosing(
     info.tester_seq_post_fin = seq->snd_nxt + 1U;
     info.tester_ack_post_fin = seq->rcv_nxt;
     return info;
+}
+
+// Opcode-UT CLOSING prelude: thin wrapper binding the opcode UT close to the
+// `driveToClosingState` core. SSOT for the opcode §4.8 CLOSING callers; the
+// seam counterpart is driveSeamCloseToClosing
+// (cases/_tcp_seam_time_wait_prelude.h). See driveToClosingState for the
+// caller contract (TesterAutoAckDrop in caller scope; silentlyCloseTesterFd
+// after the probe phase). `local_port` + `remote_port` are intentionally
+// non-default — see `driveActiveOpenEstablished` block comment for the
+// per-case 4-tuple isolation rationale.
+inline TcpTimeWaitInfo driveCloseToClosing(
+    const ::tc8::TestConfig &cfg,
+    std::string_view iface,
+    const std::array<std::uint8_t, 6> &dut_mac,
+    int           tester_fd,
+    std::uint8_t  close_req_id,
+    std::uint8_t  socket_id,
+    std::uint16_t local_port,
+    std::uint16_t remote_port) {
+    return driveToClosingState(cfg, iface, dut_mac, tester_fd,
+                               local_port, remote_port, [&]() {
+        sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
+    });
 }
 
 // TCP_REPAIR-silent dispose of a tester socket: setting
