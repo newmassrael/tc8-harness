@@ -4,9 +4,12 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
+#include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_basics_01_sm.h"
@@ -29,38 +32,34 @@ struct TestCaseTraits<cases::TcpBasics01SM>
         "received SYN (RFC 793 §3.2 p23 Terminology)";
 
     // Spec Test Procedure (v3.0 p281-p300.txt:399):
-    //   1. TESTER: Cause DUT to LISTEN — UT OpOpenTcpSocket on the
-    //      well-known port (kBasicsListenPort = 12345).
-    //   2. TESTER: Send a SYN — normal socket connect() from the tester
-    //      netns. The kernel emits SYN; the handshake completes end-to-
-    //      end because no tester-side RST is injected (no raw-inject
-    //      path on the listening socket).
-    //   3. DUT: Send SYN,ACK — observed on pcap, SCXML gates on
+    //   1. TESTER: Cause DUT to LISTEN — a passive open on the well-known
+    //      port (kBasicsListenPort = 12345).
+    //   2. TESTER: Send a SYN — a kernel connect() from the tester netns. The
+    //      handshake completes end-to-end because no tester-side RST is
+    //      injected on the listening socket.
+    //   3. DUT: Send SYN,ACK — observed on pcap; the SCXML gates on the
     //      SYN+ACK flags with src_ip == DUT.
     //
-    // Socket teardown: connect() is followed by close() so the tester
-    // does not hold the connection past the SYN+ACK observation.
-    // tc8-dut's acceptor sees the tester's ACK (completion of 3-way), then
-    // the tester's FIN (from close), and tears down accordingly. The
-    // UT OpCloseTcpSocket still fires so the listener socket frees
-    // its resources for the next case on the same worker.
+    // Migrated onto the Tier-2 DUT-control seam: the passive open runs through
+    // `driveSeamPassiveOpen` (ITcpControl::acceptTcp) and the DUT teardown
+    // through `closeTcp`, so the case runs unchanged on whichever backend
+    // `--dut-control` selected (opcode UT or AUTOSAR testability). The DUT emits
+    // SYN,ACK during the seam's accept handshake — the verdict's observable —
+    // and the tester connect is the seam trigger (case-owned harness
+    // infrastructure). The tester-held fd is closed after the observation so the
+    // connection does not linger; the DUT socket is freed via the seam so the
+    // next case on the same worker starts clean.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, kBasicsListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
-        connectToDutTcp(cfg, kBasicsListenPort, TcpPostClose::kClose);
-        // Issue the close UT request best-effort. A tc8-dut that is
-        // still processing the socket_id=1 state does not acknowledge
-        // before we exit the stimulus, but the UT server thread joins
-        // the acceptor on stop() (dtor path), so no listener leaks.
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+
+        auto open = driveSeamPassiveOpen(dut, cfg, kBasicsListenPort);
+
+        if (open.tester_fd >= 0) ::close(open.tester_fd);
+        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
     }
 
     static std::string_view verdictFor(State s) {
