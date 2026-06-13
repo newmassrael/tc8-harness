@@ -11,7 +11,9 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -35,9 +37,18 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
         "in case of an error (RFC 1122 §4.2.2.7 p86 TCP Checksum)";
 
     // Spec Test Procedure (v3.0 p301-p320.txt:161):
-    //   1. TESTER: Cause DUT ESTABLISHED — UT OpOpenTcpSocket(Active).
+    //   1. TESTER: Cause DUT ESTABLISHED — active OPEN.
     //   2. TESTER: Send a data segment with incorrect checksum.
     //   3. DUT:    Do not send ACK (absence-pass).
+    //
+    // Migrated onto the Tier-2 DUT-control seam: the active OPEN runs
+    // through `driveSeamActiveOpen` (ITcpControl), so the case runs unchanged
+    // on whichever backend `--dut-control` selected (opcode UT or AUTOSAR
+    // testability). Only the OPEN prelude is DUT control; the corrupt-checksum
+    // raw inject is tester-side and stays case-owned harness infrastructure.
+    // No seam close: the connection is intentionally left open (see the
+    // tail comment) so a teardown FIN exchange cannot false-fail the absence
+    // guard.
     //
     // The kernel-driven handshake leaves the tester accept fd in
     // ESTABLISHED with `snd_nxt` = ISN_tester+1, `rcv_nxt` =
@@ -56,17 +67,17 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1,
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpChecksum02LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum02LocalOffset);
 
-        const int tester_fd = listener.acceptOne();
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd >= 0) {
             // Snapshot the tester kernel's view of the connection's
             // SEQ space so the corrupt-checksum raw inject lands
