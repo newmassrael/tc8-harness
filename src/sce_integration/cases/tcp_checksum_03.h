@@ -5,9 +5,12 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_checksum_03_sm.h"
@@ -30,18 +33,23 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
         "checksum (RFC 1122 §4.2.2.7 p86 TCP Checksum)";
 
     // Spec Test Procedure (v3.0 p301-p320.txt:194):
-    //   1. TESTER: Cause DUT ESTABLISHED — UT OpOpenTcpSocket(Active).
-    //   2. TESTER: Cause DUT-side application SEND — UT OpSendTcpData.
+    //   1. TESTER: Cause DUT ESTABLISHED — active OPEN.
+    //   2. TESTER: Cause DUT-side application SEND.
     //   3. DUT:    Send the data segment.
     //   4. TESTER: Verify checksum is correct (SCXML pass guard reads
     //              captured.tcp_checksum_valid()).
     //
-    // Same active-OPEN scaffold as BASICS_06+: the tester arms an
-    // auxiliary listener so DUT's connect() lands on a real receiver
-    // and the kernel completes the 3-way handshake. Once ESTABLISHED,
-    // the UT OpSendTcpData request flushes a small fixed payload
-    // through tc8-dut's accepted_fd; Linux frames the bytes into
-    // one DATA segment whose checksum SCXML observes.
+    // Same active-OPEN scaffold as BASICS_06+ via the Tier-2 seam
+    // (driveSeamActiveOpen): the tester arms an auxiliary listener so the
+    // DUT's connect() lands on a real receiver and the kernel completes
+    // the 3-way handshake. Once ESTABLISHED, the seam's sendTcp flushes a
+    // small fixed payload through the DUT's connected socket; the DUT's
+    // stack frames the bytes into one DATA segment whose checksum SCXML
+    // observes. Migrating the SEND onto the seam is the first exercise of
+    // ITcpControl::sendTcp — the case runs unchanged on whichever backend
+    // `--dut-control` selected. No tester accept() is needed: the segment
+    // is on the wire (and kernel-ACKed) whether or not the listener app
+    // dequeues the connection.
     //
     // The 4 B payload is small enough to fit in a single segment on
     // any sane MTU but non-empty so payload_len > 0 in the SCXML
@@ -53,32 +61,28 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1,
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpChecksum03LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum03LocalOffset);
-        (void)listener;
 
-        // OpSendTcpData runs through the same UT RPC channel as
-        // OpenTcp; the tc8-dut writes the bytes synchronously inside
-        // the UT server loop, so a single kTcpUtRpcWait is enough for
-        // the DATA segment to land on the wire before the SCXML's
-        // listen window expires.
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kChecksumPayload.data(),
-            static_cast<std::uint16_t>(kChecksumPayload.size()));
-        std::this_thread::sleep_for(kTcpUtRpcWait);
-
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1);
+        if (open.conn) {
+            // total_len == payload size: emit exactly these bytes once
+            // (no pattern-repeat). sendTcp is a synchronous round trip,
+            // so the DATA segment is on the wire before it returns and
+            // well inside the SCXML listen window.
+            const std::vector<std::uint8_t> payload(
+                kChecksumPayload.begin(), kChecksumPayload.end());
+            dut.tcpControl()->sendTcp(
+                open.conn->socket, payload,
+                static_cast<std::uint16_t>(payload.size()));
+            dut.tcpControl()->closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {
