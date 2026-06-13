@@ -10,6 +10,7 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -43,6 +44,16 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
     static constexpr int              kTopology     = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup     = ::tc8::BpfGroup::Tcp;
 
+    // The verdict reads the DUT's kernel SYN-RTO/retransmit counters
+    // across three retransmissions (tcpi_rto, tcpi_retransmits) — a state
+    // introspection the opcode UT exposes (OpQueryTcpInfo) but the
+    // standard AUTOSAR testability protocol does not. Declaring
+    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this
+    // case on a testability backend (Tier 2 2b#4) instead of failing it;
+    // kCapTcpControl covers the active open itself.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
@@ -72,7 +83,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -87,39 +99,47 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         // a delayed scheduler.schedule lambda keeps the rule alive
         // past stimulus return (a body-scoped RAII would dtor before
         // the kernel fires retx 1, racing the SYN-SENT-stay path).
+        // Installed BEFORE the active open so the DUT's first SYN never
+        // draws a closed-port RST from the tester kernel.
         auto rst_drop = std::make_shared<TesterAutoRstDrop>(cfg);
 
-        // OpenTcpSocket(Active): tc8-dut creates the connect-side fd,
-        // binds it to (iface_ip, local_port) BEFORE spawning the
-        // connector worker — so the fd is queryable via
-        // OpQueryTcpInfo while the worker's connect() is still
-        // blocking in SYN-SENT. See upper_tester_server.cpp:1199.
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, local_port,
-            cfg.ipv4.tester_ip, remote_port);
+        // Active OPEN routed through the backend-agnostic seam. No tester
+        // listener is bound on remote_port — the SYN goes unanswered so
+        // the DUT stays in SYN-SENT and retransmits, which is what this
+        // case observes. The seam's active open returns the socket handle
+        // as soon as it is bound (the connection is still in SYN-SENT),
+        // so the handle is immediately queryable via the state probe
+        // while the handshake remains outstanding.
+        auto open_conn = dut.tcpControl()->connectTcp(
+            ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
+            ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
 
         scheduler.schedule(kRstDropHold, [rst_drop]() {
             (void)rst_drop;
         });
 
+        // A nullopt open is an unreachable DUT (e.g. the negative
+        // dut_iface_ip flip): nothing to probe → ut_handshake_completed
+        // stays false → SCXML verdicts fail_handshake_did_not_complete.
+        if (!open_conn) return;
+        const ::tc8::sce::DutSocket dut_sock = open_conn->socket;
+
         // SYN-SENT probe: poll until the kernel reports
-        // state == TCP_SYN_SENT — this proves the DUT-side worker
-        // called connect() and the SYN is on the wire. Sets
-        // ut_handshake_completed under the same semantic _03/_04 use
-        // (DUT reached the spec-mandated prelude state). Doubles as
-        // the negative-flip detector: wrong dut_iface_ip → UT RPC
-        // unreachable → snap.valid stays false → flag stays false →
-        // SCXML's first cond verdicts fail_handshake_did_not_complete.
+        // state == TCP_SYN_SENT — this proves the DUT-side active open
+        // is on the wire. Sets ut_handshake_completed under the same
+        // semantic _03/_04 use (DUT reached the spec-mandated prelude
+        // state). Doubles as the negative-flip detector: an unreachable
+        // DUT leaves every probe invalid → flag stays false → SCXML's
+        // first cond verdicts fail_handshake_did_not_complete.
         const auto probe_start = std::chrono::steady_clock::now();
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = queryTcpInfoSync(cfg, /*req_id=*/2, /*socket_id=*/1);
-            if (!probe.valid) {
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (!probe) {
                 if (std::chrono::steady_clock::now() - probe_start >= kSynSentProbeDeadline) break;
                 continue;
             }
-            if (probe.state == kTcpStateSynSent) {
+            if (probe->state == kTcpStateSynSent) {
                 c.ut_handshake_completed = true;
                 break;
             }
@@ -131,23 +151,25 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         // (tcpi_retransmits >= 1). After this, tcpi_rto reflects the
         // doubled value Linux installed when tcp_retransmit_timer
         // re-armed — RFC 6298 §5 step 5.5 "Set RTO <- RTO * 2."
-        // Transient RPC failures (`probe.valid == false`) retry within
+        // Transient probe failures (`probe == nullopt`) retry within
         // the deadline budget rather than aborting the phase — a
-        // single dropped UT response under workers=4 CPU saturation
+        // single dropped probe response under workers=4 CPU saturation
         // must not collapse the verdict to phase1_query_failed when
         // the next poll 50 ms later would have succeeded.
         const auto phase1_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p1{};
+        ::tc8::sce::DutTcpInfo p1{};
+        bool p1_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = queryTcpInfoSync(cfg, /*req_id=*/3, /*socket_id=*/1);
-            if (probe.valid) {
-                p1 = probe;
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (probe) {
+                p1 = *probe;
+                p1_valid = true;
                 if (p1.retransmits >= 1) break;
             }
             if (std::chrono::steady_clock::now() - phase1_start >= kPhase1Deadline) break;
         }
-        c.ut_tcpi_p1_valid       = p1.valid;
+        c.ut_tcpi_p1_valid       = p1_valid;
         c.ut_tcpi_p1_state       = p1.state;
         c.ut_tcpi_p1_rto_us      = p1.rto_us;
         c.ut_tcpi_p1_retransmits = p1.retransmits;
@@ -158,17 +180,19 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         // leave p2.rto_us == p1.rto_us; the SCXML's strict-growth
         // cond rejects it.
         const auto phase2_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p2{};
+        ::tc8::sce::DutTcpInfo p2{};
+        bool p2_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = queryTcpInfoSync(cfg, /*req_id=*/4, /*socket_id=*/1);
-            if (probe.valid) {
-                p2 = probe;
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (probe) {
+                p2 = *probe;
+                p2_valid = true;
                 if (p2.retransmits >= 2) break;
             }
             if (std::chrono::steady_clock::now() - phase2_start >= kPhase2Deadline) break;
         }
-        c.ut_tcpi_p2_valid       = p2.valid;
+        c.ut_tcpi_p2_valid       = p2_valid;
         c.ut_tcpi_p2_state       = p2.state;
         c.ut_tcpi_p2_rto_us      = p2.rto_us;
         c.ut_tcpi_p2_retransmits = p2.retransmits;
@@ -179,27 +203,28 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         // icsk_rto a third time. Three observations of strict growth
         // pin the "more than linear" RFC 1122 §4.2.3.1 MUST.
         const auto phase3_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p3{};
+        ::tc8::sce::DutTcpInfo p3{};
+        bool p3_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = queryTcpInfoSync(cfg, /*req_id=*/5, /*socket_id=*/1);
-            if (probe.valid) {
-                p3 = probe;
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (probe) {
+                p3 = *probe;
+                p3_valid = true;
                 if (p3.retransmits >= 3) break;
             }
             if (std::chrono::steady_clock::now() - phase3_start >= kPhase3Deadline) break;
         }
-        c.ut_tcpi_p3_valid       = p3.valid;
+        c.ut_tcpi_p3_valid       = p3_valid;
         c.ut_tcpi_p3_state       = p3.state;
         c.ut_tcpi_p3_rto_us      = p3.rto_us;
         c.ut_tcpi_p3_retransmits = p3.retransmits;
         c.ut_tcpi_p3_unacked     = p3.unacked;
 
-        // No sendCloseTcpSocketRequest — closing a SYN-SENT socket
-        // via the upper-tester would shutdown(fd, SHUT_RDWR) and abort
-        // the retransmit sequence. smoke-test's kill_worker_procs
-        // reaps tc8-dut so the leaked socket is released by SIGKILL
-        // and netns teardown.
+        // No closeTcp — closing a SYN-SENT socket through the seam would
+        // shutdown the fd and abort the retransmit sequence. smoke-test's
+        // kill_worker_procs reaps the DUT so the leaked socket is released
+        // by SIGKILL and netns teardown.
     }
 
     static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {
