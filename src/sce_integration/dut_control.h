@@ -106,14 +106,14 @@ public:
 
     std::optional<DutConnection> acceptTcp(const BindSpec &listen,
                                            const std::function<void()> &trigger) override {
-        const auto open = stimulus::upperTesterRoundTrip(
-            dut_ip_be_,
-            stimulus::buildOpenTcpSocketPassiveRequest(nextReqId(), opcodeLocalPort(listen)),
-            port_, timeout_ms_, src_ip_be_);
-        if (!open || open->status != ut::kStatusOk || open->data.empty()) {
+        // Accept = listen, then await acceptance. The passive open is the
+        // listenTcp() seam (single source of the OpOpenTcpSocket(Passive)
+        // round trip); acceptTcp adds the trigger + the OpQueryTcpEstablished
+        // poll the listen-only verb omits.
+        const auto listen_sock = listenTcp(listen);
+        if (!listen_sock) {
             return std::nullopt;
         }
-        const std::uint8_t listen_sid = open->data[0];
         if (trigger) {
             trigger();
         }
@@ -121,11 +121,13 @@ public:
         // boolean-progress model, no async event.
         for (int i = 0; i < kAcceptPolls; ++i) {
             const auto q = stimulus::upperTesterRoundTrip(
-                dut_ip_be_, stimulus::buildQueryTcpEstablishedRequest(nextReqId(), listen_sid),
+                dut_ip_be_,
+                stimulus::buildQueryTcpEstablishedRequest(
+                    nextReqId(), static_cast<std::uint8_t>(listen_sock->id)),
                 port_, timeout_ms_, src_ip_be_);
             if (q && q->status == ut::kStatusOk && !q->data.empty() && q->data[0] != 0) {
                 // OpQueryTcpEstablished does not return the client endpoint.
-                return DutConnection{DutSocket{listen_sid}, Endpoint{}};
+                return DutConnection{*listen_sock, Endpoint{}};
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(kAcceptPollMs));
         }
@@ -134,9 +136,9 @@ public:
 
     std::optional<DutSocket> listenTcp(const BindSpec &listen) override {
         // OpOpenTcpSocket(Passive) leaves the DUT listening and returns the
-        // listener socket id at once — the first half of acceptTcp() WITHOUT the
-        // OpQueryTcpEstablished poll, since the caller drives and observes its
-        // own (handshake-incomplete) stimulus rather than awaiting an accept.
+        // listener socket id at once. acceptTcp() builds on this and adds the
+        // OpQueryTcpEstablished poll; a listen-only caller drives and observes
+        // its own (handshake-incomplete) stimulus instead of awaiting an accept.
         const auto open = stimulus::upperTesterRoundTrip(
             dut_ip_be_,
             stimulus::buildOpenTcpSocketPassiveRequest(nextReqId(), opcodeLocalPort(listen)),
