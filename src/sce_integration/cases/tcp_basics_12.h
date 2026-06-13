@@ -9,7 +9,9 @@
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -39,24 +41,28 @@ struct TestCaseTraits<cases::TcpBasics12SM>
     // chained with schedule(kTimeWaitFullWait, …) — same
     // wall-time-decoupled pattern as BASICS_11 but with the prelude
     // exercising the CLOSING entry path instead of FIN-WAIT-2.
+    // Migrated onto the Tier-2 DUT-control seam: the CLOSING-path TIME-WAIT
+    // prelude runs through `driveSeamActiveOpen` (active OPEN) +
+    // `driveSeamCloseToTimeWaitClosing` (DUT CLOSE via closeTcp), so the case
+    // runs unchanged on whichever backend `--dut-control` selected. The
+    // tester-side FIN/ACK raw inject and the post-2*MSL replay stay case-owned.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1,
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics12LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics12LocalOffset);
-        const int tester_fd = listener.acceptOne();
-        if (tester_fd < 0) return;
+        const int tester_fd = open.listener.acceptOne();
+        if (tester_fd < 0 || !open.conn) return;
 
-        const auto info = driveCloseToTimeWaitClosing(
-            cfg, iface, cfg.dut.mac, tester_fd,
-            /*close_req_id=*/2, /*socket_id=*/1,
+        const auto info = driveSeamCloseToTimeWaitClosing(
+            dut, cfg, iface, tester_fd, open.conn->socket,
             kBasicsActiveLocalPort  + kTcpBasics12LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics12LocalOffset);
         if (!info.ok) return;
