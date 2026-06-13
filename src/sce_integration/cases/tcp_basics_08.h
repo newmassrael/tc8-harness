@@ -9,7 +9,9 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_basics_08_sm.h"
@@ -47,33 +49,41 @@ struct TestCaseTraits<cases::TcpBasics08SM>
     // 49501↔23457) so the SCXML phase-1 → phase-2 transition is not at
     // risk of matching a phase-1 teardown FIN late, and phase-2's
     // listener cannot accidentally pick up a stray retransmit from the
-    // earlier connection. socket_id 1 (phase 1) is closed by phase 1's
-    // UT close; phase 2 opens socket_id 2 fresh.
+    // earlier connection.
+    //
+    // Migrated onto the Tier-2 DUT-control seam: both active opens run
+    // through `driveSeamActiveOpen` (ITcpControl) and both DUT closes
+    // through `closeTcp`, so the case runs unchanged on whichever backend
+    // `--dut-control` selected (opcode UT or AUTOSAR testability). This is
+    // the second TCP case on the seam after the BASICS_06 pilot, and the
+    // first whose verdict rests on the FIN that `closeTcp` produces — the
+    // pilot only asserted the SYN from the open. The DUT-assigned socket id
+    // is threaded from each open's connection (no hardcoded id): phase 1's
+    // socket is closed inside phase 1; phase 2 opens a fresh one. The
+    // tester-side accept/shutdown stays case-owned harness infrastructure.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: ESTABLISHED → CLOSE → FIN --------
         {
-            auto listener1 = driveActiveOpenEstablished(
-                cfg, iface, cfg.dut.mac,
-                /*open_req_id=*/1,
+            auto open1 = driveSeamActiveOpen(
+                dut, cfg,
                 kBasicsActiveLocalPort  + kTcpBasics08Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics08Phase1LocalOffset);
-            (void)listener1;
 
-            // UT close on the DUT side closes the active fd; tc8-dut's
-            // ::close() on a connected SOCK_STREAM emits FIN — the
-            // observable artifact of the spec-mandated CLOSE call. The
-            // matching SCXML pass guard's `(flags & FIN)` conjunct
-            // fires on this segment.
-            sendCloseTcpSocketRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/2, /*socket_id=*/1);
+            // CLOSE on the DUT side closes the connected socket; a graceful
+            // close of a connected SOCK_STREAM emits FIN — the observable
+            // artifact of the spec-mandated CLOSE call. The matching SCXML
+            // pass guard's `(flags & FIN)` conjunct fires on this segment.
+            if (open1.conn) {
+                dut.tcpControl()->closeTcp(open1.conn->socket);
+            }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
-        }  // listener1 destructed: its queued accepted connection
+        }  // open1.listener destructed: its queued accepted connection
            // (never accept()'d) is RST'd by the kernel — by design,
            // a FIN_WAIT_2 → CLOSED transition for the post-DUT-FIN
            // remnant. Distinct phase 2 ports keep this RST out of
@@ -81,14 +91,10 @@ struct TestCaseTraits<cases::TcpBasics08SM>
 
         // -------- Phase 2: CLOSE-WAIT → CLOSE → FIN --------
         {
-            const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpBasics08Phase2LocalOffset;
-            const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpBasics08Phase2LocalOffset;
-
-            auto listener2 = driveActiveOpenEstablished(
-                cfg, iface, cfg.dut.mac,
-                /*open_req_id=*/3,
-                /*local_port=*/phase2_local_port,
-                /*remote_port=*/phase2_remote_port);
+            auto open2 = driveSeamActiveOpen(
+                dut, cfg,
+                kBasicsActiveLocalPort  + kTcpBasics08Phase2LocalOffset,
+                kBasicsActiveRemotePort + kTcpBasics08Phase2LocalOffset);
 
             // Accept the queued tester-side connection so we have a
             // userland handle for the FIN emission. 1 s timeout absorbs
@@ -96,22 +102,21 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             // SCXML lands on fail_timeout_phase2 (no DUT FIN observed)
             // — a clean diagnostic that points at the helper, not the
             // DUT.
-            const int tester_fd = listener2.acceptOne();
+            const int tester_fd = open2.listener.acceptOne();
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);
                 // Brief grace so the DUT kernel processes the FIN and
-                // emits its CLOSE-WAIT auto-ACK before the UT close
-                // request triggers the spec-required DUT FIN. Without
-                // this the close path can race the auto-ACK out and
-                // produce a single FIN+ACK from DUT that batches both
-                // — still spec-conformant, but using a lighter pass
-                // guard.
+                // emits its CLOSE-WAIT auto-ACK before the CLOSE
+                // triggers the spec-required DUT FIN. Without this the
+                // close path can race the auto-ACK out and produce a
+                // single FIN+ACK from DUT that batches both — still
+                // spec-conformant, but using a lighter pass guard.
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
 
-            sendCloseTcpSocketRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/4, /*socket_id=*/2);
+            if (open2.conn) {
+                dut.tcpControl()->closeTcp(open2.conn->socket);
+            }
 
             if (tester_fd >= 0) ::close(tester_fd);
             std::this_thread::sleep_for(kTcpPilotPhaseGap);

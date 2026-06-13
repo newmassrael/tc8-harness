@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <string_view>
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
@@ -58,46 +58,28 @@ struct TestCaseTraits<cases::TcpBasics06SM>
     // after it would race-lose to a tester-kernel RST and the
     // spec-assertion edge would never fire. The listener is harness
     // infrastructure, not DUT control, so it stays on the tester side.
+    // The listener-bind + active-open + handshake-settle is the shared
+    // `driveSeamActiveOpen` prelude (the seam counterpart of
+    // `driveActiveOpenEstablished`); BASICS_06 keeps only its
+    // case-specific teardown.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view /*iface*/,
                          ::tc8::sce::IDutControl& dut) {
-        using namespace ::tc8::sce;
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        // BASICS_06 requires the DUT's TCP data plane (kCapTcpControl). Both
-        // shipped backends (opcode UT, AUTOSAR testability) expose it; a future
-        // backend that does not must be conditioning-skipped by the centralised
-        // capability gate (Tier 2 2b#4) BEFORE stimulus runs — a per-case
-        // silent return here would mis-report as a timeout FAIL, not a SKIP.
-        // The deref is therefore contract-guaranteed; the assert documents it.
-        ITcpControl* tcp = dut.tcpControl();
-        assert(tcp != nullptr && "TCP_BASICS_06 requires kCapTcpControl");
+        // By the time driveSeamActiveOpen returns, the DUT's SYN is on the
+        // wire (and settled into the pcap ring), so the SCXML arms its listen
+        // window with the spec-asserted edge already in pcap's kernel buffer.
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
+            kBasicsActiveLocalPort  + kTcpBasics06LocalOffset,
+            kBasicsActiveRemotePort + kTcpBasics06LocalOffset);
 
-        const std::uint16_t local_port  =
-            kBasicsActiveLocalPort  + kTcpBasics06LocalOffset;
-        const std::uint16_t remote_port =
-            kBasicsActiveRemotePort + kTcpBasics06LocalOffset;
-
-        // RAII tester listener up before the DUT connects; the DUT's SYN
-        // is on the wire by the time connectTcp returns, so the SCXML
-        // arms its listen window with the spec-asserted edge already in
-        // pcap's kernel buffer.
-        TesterTcpListener listener(remote_port);
-        const auto conn = tcp->connectTcp(
-            Endpoint{cfg.ipv4.tester_ip, remote_port},
-            BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
-
-        // Give the handshake a beat to settle into the pcap ring before
-        // start() arms the deadline — matches the opcode-direct prelude's
-        // kTcpActiveHandshakeGrace.
-        std::this_thread::sleep_for(kTcpActiveHandshakeGrace);
-
-        if (conn) {
-            tcp->closeTcp(conn->socket);
+        if (open.conn) {
+            dut.tcpControl()->closeTcp(open.conn->socket);
         }
-        (void)listener;
     }
 
     static std::string_view verdictFor(State s) {
