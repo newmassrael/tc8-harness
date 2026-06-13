@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -41,16 +43,22 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
     // The arbitrary `kTesterInitialSeq + 1` ack value avoids landing
     // on 0 (which a buggy emit-any-RST might use as a default) so
     // the wire-level SEQ inheritance is observable.
+    //
+    // Migrated onto the Tier-2 DUT-control seam: the LISTEN is established
+    // through `driveSeamListen` (ITcpControl::listenTcp, listen-only — the
+    // handshake never completes so there is no accept to confirm) and torn down
+    // through `closeTcp`, so the case runs on whichever backend `--dut-control`
+    // selected. The SYN+ACK inject and the RST observation are tester-side
+    // (raw-inject + SCXML gate), unchanged.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, /*local_port=*/kBasicsListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        if (!listen) return;
 
         ::tc8::stimulus::TcpSegmentSpec synack{};
         synack.src_port = kBasicsTesterPort;
@@ -62,9 +70,7 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
         emitTcpFrame(cfg, iface, cfg.dut.mac, synack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(*listen);
     }
 
     static std::string_view verdictFor(State s) {

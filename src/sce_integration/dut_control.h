@@ -132,6 +132,21 @@ public:
         return std::nullopt;
     }
 
+    std::optional<DutSocket> listenTcp(const BindSpec &listen) override {
+        // OpOpenTcpSocket(Passive) leaves the DUT listening and returns the
+        // listener socket id at once — the first half of acceptTcp() WITHOUT the
+        // OpQueryTcpEstablished poll, since the caller drives and observes its
+        // own (handshake-incomplete) stimulus rather than awaiting an accept.
+        const auto open = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildOpenTcpSocketPassiveRequest(nextReqId(), opcodeLocalPort(listen)),
+            port_, timeout_ms_, src_ip_be_);
+        if (!open || open->status != ut::kStatusOk || open->data.empty()) {
+            return std::nullopt;
+        }
+        return DutSocket{open->data[0]};
+    }
+
     bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
                  std::uint16_t /*total_len*/) override {
         // The opcode SEND_DATA has no totalLen-repeat; send the data as given.

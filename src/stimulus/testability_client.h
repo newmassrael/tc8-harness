@@ -124,6 +124,19 @@ TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::ui
                                            std::uint16_t socket_id, int timeout_ms = 1000,
                                            std::uint32_t src_ip_be = 0);
 
+// LISTEN_AND_ACCEPT (TCP / PID 0x04), listen-only: mark `listen_socket_id` (a
+// bound TCP socket) as listening with backlog `max_con` and return the
+// synchronous E_OK Response — WITHOUT awaiting the asynchronous accept Event.
+// The DUT is left in LISTEN so the caller can drive its own raw tester-side
+// stimulus and observe the DUT's wire responses (invalid-flag SYNs, OTW RSTs)
+// for cases that never complete a kernel handshake. Use
+// testabilityTcpListenAndAccept when an accepted connection IS expected.
+// Same request shape (listenSocketId(u16) + maxCon(u16)) and SP as that wrapper
+// — the SSOT for the LISTEN_AND_ACCEPT request framing lives in this .cpp.
+TestabilityResponse testabilityTcpListen(const TestabilityConfig &cfg,
+                                         std::uint16_t listen_socket_id, std::uint16_t max_con,
+                                         int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
 // The asynchronous accept Event a DUT emits per connection accepted on a
 // LISTEN_AND_ACCEPT socket (PRS_TPSP §6.10). `received` is false if no Event
 // arrived within the timeout (or the listen request itself failed).

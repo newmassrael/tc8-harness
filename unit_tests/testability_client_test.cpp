@@ -398,6 +398,24 @@ TEST(TestabilityClient, CloseSocketEncodesSocketIdInGivenGroup) {
     EXPECT_EQ(dat[1], 0x42u);
 }
 
+TEST(TestabilityClient, TcpListenEncodesRequestAndReturnsEOk) {
+    LoopbackResponder server;
+    // Listen-only: the synchronous E_OK is enough; the responder still emits an
+    // accept Event afterwards, which this wrapper ignores (no persistent fd).
+    const auto r = testabilityTcpListen(loopbackConfig(server.port()), /*listen_socket_id=*/0x0042,
+                                        /*max_con=*/1, /*timeout_ms=*/1000);
+    EXPECT_TRUE(r.eok());
+
+    // Request DAT: listenSocketId(0x0042) + maxCon(0x0001) — same framing as
+    // testabilityTcpListenAndAccept (shared SSOT in the .cpp).
+    const auto dat = server.lastRequestDat();
+    ASSERT_EQ(dat.size(), 4u);
+    EXPECT_EQ(dat[0], 0x00u);
+    EXPECT_EQ(dat[1], 0x42u);
+    EXPECT_EQ(dat[2], 0x00u);
+    EXPECT_EQ(dat[3], 0x01u);
+}
+
 TEST(TestabilityClient, ListenAndAcceptEncodesRequestAndParsesEvent) {
     LoopbackResponder server;
     bool triggered = false;

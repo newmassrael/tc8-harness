@@ -109,6 +109,17 @@ TEST(OpcodeTcpControl, AcceptPollsUntilEstablished) {
     EXPECT_EQ(conn->peer.addr_be, 0u);
 }
 
+TEST(OpcodeTcpControl, ListenReturnsSocketIdWithoutAccept) {
+    MockOpcodeResponder server;
+    auto ctrl = makeControl(server.port());
+    // Listen-only: the passive OPEN returns the listener id immediately; unlike
+    // acceptTcp there is no OpQueryTcpEstablished poll (the case drives its own
+    // handshake-incomplete stimulus).
+    const auto handle = ctrl.listenTcp(sce::BindSpec{/*do_bind=*/true, 30751, 0});
+    ASSERT_TRUE(handle.has_value());
+    EXPECT_EQ(handle->id, MockOpcodeResponder::kSocketId);
+}
+
 TEST(OpcodeTcpControl, SendAndCloseSucceed) {
     MockOpcodeResponder server;
     auto ctrl = makeControl(server.port());

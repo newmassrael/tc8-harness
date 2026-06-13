@@ -76,6 +76,14 @@ public:
     // nullopt if none arrived.
     virtual std::optional<DutConnection> acceptTcp(const BindSpec &listen,
                                                    const std::function<void()> &trigger) = 0;
+    // Passive open WITHOUT awaiting accept: the DUT binds+listens per `listen`
+    // and is left in the LISTEN state. Unlike acceptTcp, the caller drives its
+    // own tester-side stimulus (raw SYNs / invalid segments) and observes the
+    // DUT's wire responses — for cases that never complete a kernel handshake
+    // (SYN met with RST, or left in SYN-RCVD), where acceptTcp's accept
+    // confirmation would never arrive. Returns the listening socket handle (for
+    // a later closeTcp), or nullopt on failure.
+    virtual std::optional<DutSocket> listenTcp(const BindSpec &listen) = 0;
     // Transmit `data` (repeated up to total_len) on the connected socket.
     virtual bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
                          std::uint16_t total_len) = 0;
@@ -167,6 +175,24 @@ public:
         }
         return DutConnection{DutSocket{ev.new_socket_id},
                              Endpoint{ev.client_addr_be, ev.client_port}};
+    }
+
+    std::optional<DutSocket> listenTcp(const BindSpec &listen) override {
+        const auto listen_id = stimulus::testabilityCreateAndBind(
+            cfg_, testability::kGidTcp, listen.do_bind, listen.local_port, listen.local_addr_be,
+            timeout_ms_, src_ip_be_);
+        if (!listen_id) {
+            return std::nullopt;
+        }
+        // LISTEN_AND_ACCEPT, listen-only: the synchronous E_OK leaves the DUT in
+        // LISTEN; the async accept Event is intentionally not awaited. max_con=1
+        // for parity with acceptTcp and the opcode listen(fd, 1).
+        if (!stimulus::testabilityTcpListen(cfg_, *listen_id, /*max_con=*/1, timeout_ms_,
+                                            src_ip_be_)
+                 .eok()) {
+            return std::nullopt;
+        }
+        return DutSocket{*listen_id};
     }
 
     bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,

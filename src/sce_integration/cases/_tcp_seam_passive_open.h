@@ -81,4 +81,33 @@ inline SeamPassiveOpen driveSeamPassiveOpen(::tc8::sce::IDutControl &dut,
     return SeamPassiveOpen{std::move(conn), tester_fd};
 }
 
+// Listen-only counterpart of driveSeamPassiveOpen: put the DUT into LISTEN on
+// `listen_port` and hand back the listening socket handle, WITHOUT awaiting an
+// accept (`ITcpControl::listenTcp`). For raw-inject cases that drive the DUT
+// into LISTEN and then emit their own tester-side stimulus (invalid-flag SYNs,
+// OTW RSTs, verify-probe ACKs) and verdict on the DUT's wire responses — the
+// handshake never completes through the kernel, so there is no accept to
+// confirm and hence no `trigger`/`tester_fd` (the case owns all stimulus). The
+// caller closes the returned handle (`closeTcp`) when done.
+//
+// Mirrors driveSeamPassiveOpen's capability contract and ops diagnostic: the
+// deref is guaranteed by the centralised capability gate (Tier 2 2b#4), the
+// assert documents it, and a nullopt is logged with backend + port so a
+// passive-open RPC failure is not mis-reported downstream as a DUT timeout.
+inline std::optional<::tc8::sce::DutSocket> driveSeamListen(::tc8::sce::IDutControl &dut,
+                                                            std::uint16_t listen_port) {
+    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
+    assert(tcp != nullptr && "passive-OPEN cases require kCapTcpControl");
+
+    auto handle = tcp->listenTcp(
+        ::tc8::sce::BindSpec{/*do_bind=*/true, listen_port, /*local_addr_be=*/0});
+    if (!handle) {
+        std::fprintf(stderr,
+                     "tcp-pilot: seam listen-only failed (listenTcp "
+                     "listen=%u, backend=%s)\n",
+                     listen_port, dut.backendName());
+    }
+    return handle;
+}
+
 }  // namespace tc8::sce::tcp

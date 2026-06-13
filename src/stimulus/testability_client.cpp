@@ -279,6 +279,20 @@ TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::ui
     return testabilityCall(cfg, gid, tp::kPidCloseSocket, dat, timeout_ms, src_ip_be);
 }
 
+TestabilityResponse testabilityTcpListen(const TestabilityConfig &cfg,
+                                         std::uint16_t listen_socket_id, std::uint16_t max_con,
+                                         int timeout_ms, std::uint32_t src_ip_be) {
+    // LISTEN_AND_ACCEPT request DAT (PRS_TPSP §6.10): listenSocketId(u16) +
+    // maxCon(u16) — the same framing testabilityTcpListenAndAccept builds below.
+    // Listen-only routes through the generic round-trip engine (a throwaway fd)
+    // because it never awaits the async Event; only the accept variant needs the
+    // persistent fd that keeps the Event's return path open.
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, listen_socket_id);
+    tp::appendU16(dat, max_con);
+    return testabilityCall(cfg, tp::kGidTcp, tp::kPidListenAndAccept, dat, timeout_ms, src_ip_be);
+}
+
 TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cfg,
                                                      std::uint16_t listen_socket_id,
                                                      std::uint16_t max_con,
