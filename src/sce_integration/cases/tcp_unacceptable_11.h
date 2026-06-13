@@ -8,7 +8,9 @@
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -36,12 +38,18 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
     static constexpr std::array<std::uint8_t, 4> kCorruptPayload = {
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
+    // Migrated onto the Tier-2 DUT-control seam: active OPEN via
+    // driveSeamActiveOpen + DUT CLOSE via driveSeamCloseToClosing
+    // (closeTcp), so the case runs unchanged on whichever backend
+    // --dut-control selected. The tester-side AutoAckDrop, corrupt
+    // probe, and silent dispose stay case-owned.
+    //
     // Function-scoped TesterAutoAckDrop covers both phases. Per phase:
-    // distinct port quad active-OPEN handshake → driveCloseToClosing
-    // (UT close + non-acking tester FIN+ACK injection drives DUT FW1
-    // → CLOSING) → CASE-distinct corrupt segment → DUT empty ACK →
-    // silentlyCloseTesterFd (TCP_REPAIR + close, no tester FIN
-    // emitted, frees the 4-tuple cleanly between phases).
+    // distinct port quad active-OPEN handshake → driveSeamCloseToClosing
+    // (DUT close via closeTcp + non-acking tester FIN+ACK injection
+    // drives DUT FW1 → CLOSING) → CASE-distinct corrupt segment → DUT
+    // empty ACK → silentlyCloseTesterFd (TCP_REPAIR + close, no tester
+    // FIN emitted, frees the 4-tuple cleanly between phases).
     //
     // Phase 1 (CASE 1 OTW SEQ): seq = tester_seq_post_fin +
     // kOutOfWindowSeqOffset; ack = tester_ack_post_fin (acceptable,
@@ -60,7 +68,8 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
     // different branch and emits a dup-ACK on the data path.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -70,25 +79,18 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
         for (std::uint16_t phase = 0; phase < 2U; ++phase) {
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + phase;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + phase;
-            const std::uint8_t open_req_id =
-                static_cast<std::uint8_t>(1U + phase * 2U);
-            const std::uint8_t close_req_id =
-                static_cast<std::uint8_t>(2U + phase * 2U);
-            const std::uint8_t socket_id =
-                static_cast<std::uint8_t>(phase + 1U);
 
-            auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.dut.mac,
-                open_req_id, local_port, remote_port);
-            const int tester_fd = listener.acceptOne();
-            if (tester_fd < 0) {
+            auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+            const int tester_fd = open.listener.acceptOne();
+            if (tester_fd < 0 || !open.conn) {
+                silentlyCloseTesterFd(tester_fd);
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
                 continue;
             }
 
-            const auto info = driveCloseToClosing(
-                cfg, iface, cfg.dut.mac, tester_fd,
-                close_req_id, socket_id, local_port, remote_port);
+            const auto info = driveSeamCloseToClosing(
+                dut, cfg, iface, tester_fd, open.conn->socket,
+                local_port, remote_port);
             if (!info.ok) {
                 silentlyCloseTesterFd(tester_fd);
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
