@@ -5,12 +5,15 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
+#include <vector>
 #include <unistd.h>
 
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -45,6 +48,16 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
     static constexpr int              kTopology     = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup     = ::tc8::BpfGroup::Tcp;
 
+    // The verdict reads the DUT's kernel RTO/retransmit counters
+    // (tcpi_rto, tcpi_retransmits, tcpi_unacked) — a state introspection
+    // the opcode UT exposes (OpQueryTcpInfo) but the standard AUTOSAR
+    // testability protocol does not. Declaring kCapTcpStateProbe makes the
+    // CLI capability gate honestly SKIP this case on a testability backend
+    // (Tier 2 2b#4) instead of failing it; kCapTcpControl covers the active
+    // open + data send themselves.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
@@ -68,21 +81,22 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
     static constexpr std::chrono::milliseconds kPhase1Deadline{3000};
 
     // Phase-2 TCP_INFO poll cadence + deadline. After the Karn-
-    // excluded ACK + UT SEND seg2, the kernel rearms the retx timer
-    // sub-millisecond — but the UT round-trip + tc8-dut ::send call
-    // between `sendSendTcpDataRequest` returning and seg2 actually
-    // hitting the wire can take hundreds of ms under load. Polling
-    // until `tcpi_unacked >= 1` confirms seg2 is in-flight (timer
-    // armed at the current `icsk_rto` value); deadline 1 s is an
-    // order of magnitude past observed worst-case. Symmetric with
-    // the phase-1 poll so a future contributor sees one consistent
-    // pattern instead of "phase 1 polls, phase 2 sleeps fixed."
+    // excluded ACK + seg2 send, the kernel rearms the retx timer
+    // sub-millisecond — but the seam round-trip + the DUT's ::send
+    // between the send call returning and seg2 actually hitting the
+    // wire can take hundreds of ms under load. Polling until
+    // `tcpi_unacked >= 1` confirms seg2 is in-flight (timer armed at
+    // the current `icsk_rto` value); deadline 1 s is an order of
+    // magnitude past observed worst-case. Symmetric with the phase-1
+    // poll so a future contributor sees one consistent pattern
+    // instead of "phase 1 polls, phase 2 sleeps fixed."
     static constexpr std::chrono::milliseconds kPhase2PollInterval{50};
     static constexpr std::chrono::milliseconds kPhase2Deadline{1000};
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -91,17 +105,20 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpRetransmissionTo03LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        // Active OPEN → ESTABLISHED routed through the backend-agnostic
+        // seam (driveSeamActiveOpen binds the tester-side listener and
+        // issues the DUT's CREATE_AND_BIND + CONNECT). The tester fd is
+        // grabbed off the auxiliary listener for the in-window seq probe.
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
         const auto seq_range = queryTcpSeqRange(tester_fd);
-        if (!seq_range.has_value()) {
+        if (!seq_range.has_value() || !open.conn) {
             ::close(tester_fd);
             return;
         }
+        const ::tc8::sce::DutSocket dut_sock = open.conn->socket;
 
         // Mark prelude success — the SCXML's first cond gates on
         // this so a negative IP-flip flow lands on
@@ -120,24 +137,32 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         // TCP_INFO snapshots by then.
         TesterAutoAckDrop ack_drop(cfg);
 
-        // Phase 1: UT SEND seg1, poll TCP_INFO until kernel confirms
-        // retx fired.
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kPhase1Payload.data(),
+        // Phase 1: send seg1 over the seam, poll TCP_INFO until the
+        // kernel confirms retx fired.
+        dut.tcpControl()->sendTcp(
+            dut_sock,
+            std::vector<std::uint8_t>(kPhase1Payload.begin(), kPhase1Payload.end()),
             static_cast<std::uint16_t>(kPhase1Payload.size()));
 
         const auto phase1_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p1{};
+        ::tc8::sce::DutTcpInfo p1{};
+        bool p1_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPhase1PollInterval);
-            p1 = queryTcpInfoSync(cfg, /*req_id=*/3, /*socket_id=*/1);
-            if (!p1.valid) break;
-            if (p1.retransmits >= 1) break;
+            // Retry-on-invalid: a transient seam-probe failure under
+            // workers=4 CPU saturation must not collapse the verdict to
+            // phase1_query_failed when the next poll 50 ms later would
+            // have succeeded; only a persistent failure to the deadline
+            // leaves p1_valid false.
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (probe) {
+                p1 = *probe;
+                p1_valid = true;
+                if (p1.retransmits >= 1) break;
+            }
             if (std::chrono::steady_clock::now() - phase1_start >= kPhase1Deadline) break;
         }
-        c.ut_tcpi_p1_valid       = p1.valid;
+        c.ut_tcpi_p1_valid       = p1_valid;
         c.ut_tcpi_p1_state       = p1.state;
         c.ut_tcpi_p1_rto_us      = p1.rto_us;
         c.ut_tcpi_p1_retransmits = p1.retransmits;
@@ -146,11 +171,12 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         // Phase 2: raw-inject Karn-excluded ACK acknowledging seg1
         // (snd_una advances past seg1; RFC 6298 §3 / §5.3 forbids the
         // RTT estimator from sampling this round-trip and forbids the
-        // retransmission timer from being reset). Then UT SEND seg2
-        // — Linux arms the new timer with the *current* `icsk_rto`,
-        // so a Karn-correct DUT's tcpi_rto stays at the doubled value
+        // retransmission timer from being reset). Then send seg2 — Linux
+        // arms the new timer with the *current* `icsk_rto`, so a
+        // Karn-correct DUT's tcpi_rto stays at the doubled value
         // observed in phase 1 while a Karn-violating DUT collapses it
-        // back to TCP_RTO_MIN baseline (200 ms).
+        // back to TCP_RTO_MIN baseline (200 ms). This raw inject is
+        // tester-side and stays off the seam.
         ::tc8::stimulus::TcpSegmentSpec ack_seg{};
         ack_seg.src_port = remote_port;
         ack_seg.dst_port = local_port;
@@ -162,31 +188,39 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
             cfg, iface, cfg.dut.mac, ack_seg,
             /*initial_wait=*/std::chrono::milliseconds(0));
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/4, /*socket_id=*/1,
-            kPhase2Payload.data(),
+        dut.tcpControl()->sendTcp(
+            dut_sock,
+            std::vector<std::uint8_t>(kPhase2Payload.begin(), kPhase2Payload.end()),
             static_cast<std::uint16_t>(kPhase2Payload.size()));
 
         // Poll until the kernel confirms seg2 is in-flight
         // (tcpi_unacked >= 1 ⇒ timer armed at the current icsk_rto
         // value the SCXML verdicts on). Symmetric with phase-1's
-        // poll-until-condition pattern.
+        // poll-until-condition pattern, same retry-on-invalid.
         const auto phase2_start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot p2{};
+        ::tc8::sce::DutTcpInfo p2{};
+        bool p2_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPhase2PollInterval);
-            p2 = queryTcpInfoSync(cfg, /*req_id=*/5, /*socket_id=*/1);
-            if (!p2.valid) break;
-            if (p2.unacked >= 1) break;
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (probe) {
+                p2 = *probe;
+                p2_valid = true;
+                if (p2.unacked >= 1) break;
+            }
             if (std::chrono::steady_clock::now() - phase2_start >= kPhase2Deadline) break;
         }
-        c.ut_tcpi_p2_valid       = p2.valid;
+        c.ut_tcpi_p2_valid       = p2_valid;
         c.ut_tcpi_p2_state       = p2.state;
         c.ut_tcpi_p2_rto_us      = p2.rto_us;
         c.ut_tcpi_p2_retransmits = p2.retransmits;
         c.ut_tcpi_p2_unacked     = p2.unacked;
 
+        // Tester fd is intentionally left open (matching the pre-seam
+        // flow): the verdict is already captured, and closing here would
+        // emit a tester FIN the original procedure never sent. The
+        // listener RAII reaps the listen fd; the accepted fd is released
+        // at harness process teardown after the case.
         (void)tester_fd;
     }
 
