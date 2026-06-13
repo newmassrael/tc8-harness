@@ -38,8 +38,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
     //   3. DUT:    Send no response.
     //   4. TESTER: Verify DUT remains in LISTEN.
     //
-    // Three raw-injects bracketed by a UT passive open / close. The
-    // third inject (LISTEN-survival probe) and the close fire from
+    // Three raw-injects bracketed by a seam passive open / close
+    // (driveSeamListen, listen-only). The third inject (LISTEN-survival
+    // probe) and the close fire from
     // `tick()` the moment SCXML lands on `listening_phase3_synack`,
     // so they hit the wire only AFTER the absence window has elapsed:
     //   Phase 1 — bare SYN on (kBasicsTesterPort, kBasicsListenPort)
@@ -121,7 +122,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        // Phase 3 + UT close — registered on `listening_phase3_synack`
+        // Phase 3 + seam close — registered on `listening_phase3_synack`
         // entry. Captures arguments by value so kickStimulus returns
         // immediately. When the action fires from tick() (the same
         // tick that processed `deadline_absence` and transitioned the

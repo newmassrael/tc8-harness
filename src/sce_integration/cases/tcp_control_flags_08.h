@@ -67,8 +67,9 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
 
         // Settle so the DUT egress SYN,ACK is in pcap and the
         // listener has reached SYN-RECEIVED before the recovery RST
-        // arrives. 500 ms covers UT bind + bind→listen + DUT
-        // tcp_v4_rcv + scheduler jitter on a busy worker.
+        // arrives. 500 ms covers the DUT tcp_v4_rcv of the stale SYN +
+        // SYN,ACK emission + scheduler jitter on a busy worker (the
+        // passive listen itself already completed in driveSeamListen).
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // Phase 1 recovery — RST with believable seq. Spec text:

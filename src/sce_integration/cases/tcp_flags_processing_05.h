@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -41,7 +40,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
     // (multi-phase wall-time absence pattern).
     //
     // Each phase:
-    //   1. UT OpOpenTcpSocket(passive, listen_port).
+    //   1. seam passive open (driveSeamListen, listen-only) on listen_port.
     //   2. snippet on (tester_prelude_port → listen_port) for DUT
     //      SYN+ACK observation.
     //   3. TesterAutoRstDrop alive throughout (otherwise tester
