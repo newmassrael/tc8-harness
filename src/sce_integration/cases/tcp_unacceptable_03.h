@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -50,7 +52,8 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
     // land before the pcap handle accepts it.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -63,10 +66,11 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, /*local_port=*/kBasicsListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so
+        // the case runs on whichever backend `--dut-control` selected; the
+        // SYN-RCVD drive and bad-ACK inject stay tester-side.
+        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        if (!listen) return;
 
         // Snippet matches DUT-emitted SYN+ACK on the tester's
         // raw-inject source port — picks up the spec-asserted
@@ -105,9 +109,7 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(*listen);
     }
 
     static std::string_view verdictFor(State s) {
