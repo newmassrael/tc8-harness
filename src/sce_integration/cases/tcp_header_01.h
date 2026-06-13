@@ -5,9 +5,12 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_header_01_sm.h"
@@ -33,38 +36,39 @@ struct TestCaseTraits<cases::TcpHeader01SM>
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
     // Spec Test Procedure (v3.0 p385):
-    //   1. Tester brings DUT to ESTABLISHED — driveActiveOpenEstablished.
-    //   2. Tester triggers <generateTCPSegment> — UT OpSendTcpData.
+    //   1. Tester brings DUT to ESTABLISHED — active OPEN.
+    //   2. Tester triggers a DUT-side application SEND.
     //   3. DUT emits the data segment; SCXML asserts header validity.
     //
-    // Same scaffold as CHECKSUM_03 with a stricter pass guard
-    // (data_offset >= 5 in addition to checksum_valid). The DATA-only
-    // payload_len > 0 disambiguator distinguishes the spec-asserted
-    // segment from the handshake third-leg ACK that egressed first.
+    // Same scaffold as CHECKSUM_03 via the Tier-2 seam: open through
+    // `driveSeamActiveOpen`, SEND through `sendTcp`, close through `closeTcp`,
+    // so the case runs unchanged on whichever backend `--dut-control` selected
+    // (opcode UT or AUTOSAR testability). The pass guard is stricter than
+    // CHECKSUM_03 (data_offset >= 5 in addition to checksum_valid). The
+    // DATA-only payload_len > 0 disambiguator distinguishes the spec-asserted
+    // segment from the handshake third-leg ACK that egressed first. sendTcp is
+    // a synchronous round trip, so the DATA segment is on the wire before it
+    // returns and no post-send RPC settle is needed.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 30U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 30U;
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
+            kBasicsActiveLocalPort  + 30U,
+            kBasicsActiveRemotePort + 30U);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        (void)listener;
-
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kHeaderPayload.data(),
-            static_cast<std::uint16_t>(kHeaderPayload.size()));
-        std::this_thread::sleep_for(kTcpUtRpcWait);
-
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1);
+        if (open.conn) {
+            const std::vector<std::uint8_t> payload(
+                kHeaderPayload.begin(), kHeaderPayload.end());
+            dut.tcpControl()->sendTcp(
+                open.conn->socket, payload,
+                static_cast<std::uint16_t>(payload.size()));
+            dut.tcpControl()->closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {
