@@ -8,7 +8,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -32,9 +34,15 @@ struct TestCaseTraits<cases::TcpBasics13SM>
         "before 2*MSL time expires, where TIME-WAIT is reached "
         "through FINWAIT-2 (NEGATIVE RFC 793 §3.2 p23 Terminology)";
 
-    // Synchronous prelude (driveTcpToTimeWaitFw2):
-    //   handshake → UT close → tester kernel auto-ACK → tester
-    //   shutdown(WR) FIN → DUT pure ACK → DUT TIME-WAIT.
+    // Migrated onto the Tier-2 DUT-control seam: the FIN-WAIT-2
+    // TIME-WAIT prelude runs through driveSeamTimeWaitFw2 (active OPEN
+    // via the seam, DUT CLOSE via closeTcp), so the case runs unchanged
+    // on whichever backend --dut-control selected. The within-2*MSL
+    // replay FIN and its observation stay tester-side / SCXML-driven.
+    //
+    // Synchronous prelude (driveSeamTimeWaitFw2):
+    //   handshake → DUT close via the seam → tester kernel auto-ACK →
+    //   tester shutdown(WR) FIN → DUT pure ACK → DUT TIME-WAIT.
     // Captures tester snd_nxt/rcv_nxt for the replay-FIN raw-inject.
     //
     // Phase 2 emit (within-2*MSL replay FIN) is registered as a
@@ -51,13 +59,13 @@ struct TestCaseTraits<cases::TcpBasics13SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const auto info = driveTcpToTimeWaitFw2(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+        const auto info = driveSeamTimeWaitFw2(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics13LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics13LocalOffset);
         if (!info.ok) {
