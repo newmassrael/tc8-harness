@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::TcpBasics14SM>
         "through CLOSING (NEGATIVE RFC 793 §3.2 p23 Terminology)";
 
     // CLOSING-path prelude: active-OPEN handshake → tester accepts
-    // → driveCloseToTimeWaitClosing (UT close + ack-suppressed
+    // → driveSeamCloseToTimeWaitClosing (DUT close + ack-suppressed
     // raw-inject FIN/ACK pair → DUT FIN-WAIT-1 → CLOSING →
     // TIME-WAIT → silent tester-side close). Replay phase fires
     // immediately when the SCXML lands on Listening_replay_ack

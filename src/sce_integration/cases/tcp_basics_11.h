@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::TcpBasics11SM>
         "a timeout of 2*MSL, where TIME-WAIT is reached through "
         "FINWAIT-2 (RFC 793 §3.2 p23 Terminology)";
 
-    // Synchronous prelude (driveTcpToTimeWaitFw2) drives DUT into
+    // Synchronous prelude (driveSeamTimeWaitFw2) drives DUT into
     // TIME-WAIT. The post-2*MSL FIN-replay and DUT RST observation
     // is split into a state-entry observer chained with a wall-time
     // schedule:

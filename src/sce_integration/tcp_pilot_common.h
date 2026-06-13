@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -487,9 +488,9 @@ inline constexpr std::uint16_t kTcpChecksum04LocalOffset     = 180U;
 // the prior per-case-unique pattern at +20..+25 / +50..+56 /
 // +100..+182 is extended here to retire the last bare-port (offset 0)
 // callers of `driveActiveOpenEstablished` / `driveTcpToTimeWaitFw2` /
-// `driveCloseToTimeWaitClosing` / `driveCloseToClosing` (those four
-// helpers no longer carry default port arguments — the compiler
-// rejects any future caller that omits explicit ports).
+// `driveToTimeWaitViaClosing` / `driveCloseToClosing` (those helpers
+// no longer carry default port arguments — the compiler rejects any
+// future caller that omits explicit ports).
 //
 // §4.8.6.1 BASICS_06..14 — UT-driven active-OPEN cluster. _08 / _10
 // each chain two distinct active-OPEN handshakes per case, so they
@@ -1745,52 +1746,55 @@ inline RawPassiveHandshakeInfo driveRawPassiveHandshake(
     return info;
 }
 
-// Drive DUT into TIME-WAIT via the FIN-WAIT-2 path:
-//   1. Active-OPEN handshake → ESTABLISHED (driveActiveOpenEstablished).
-//   2. Tester accept() pulls the connected fd off the listener queue.
-//   3. UT OpCloseTcpSocket → DUT FIN. Tester kernel auto-ACKs the FIN
-//      (no iptables suppression), advancing DUT's TCB through
-//      FIN-WAIT-1 → FIN-WAIT-2 in a single auto-ACK pass.
-//   4. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt at the
-//      moment DUT FIN has been consumed but tester FIN has not yet
-//      been sent. The captured pair is used by callers that raw-
-//      inject post-TIME-WAIT probes (UNACCEPTABLE_13 / FLAGS_INVALID
-//      _14 OTW SEQ, BASICS_11/13 replay FIN).
-//   5. ::shutdown(tester_fd, SHUT_WR) → tester FIN+ACK. DUT replies
-//      pure ACK and transitions FIN-WAIT-2 → TIME-WAIT.
-//   6. ::close(tester_fd) — tester socket has already completed its
-//      LAST-ACK / CLOSED transition by step 5, so close() is a no-op
-//      teardown of the fd. After return, the tester kernel holds no
-//      socket on the (local_port, remote_port) quad — subsequent
-//      raw-inject from this 4-tuple goes through cleanly.
-//
-// The 200 ms settle wait between UT close and queryTcpSeqRange
-// matches UNACCEPTABLE_10's empirically-validated grace; the second
-// 200 ms wait between shutdown(WR) and ::close gives the DUT ACK
-// time to land at tester before tester closes (preventing the rare
-// race where ::close races the ACK reception and the kernel emits
-// a stray RST instead of completing LAST-ACK).
-//
-// Returns `ok=false` on any local syscall failure; the wire-level
-// transitions are observed by SCXML, not asserted here.
-// `local_port` + `remote_port` are intentionally non-default — see
-// `driveActiveOpenEstablished` block comment for the per-case
-// 4-tuple isolation rationale.
-inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  open_req_id,
-    std::uint8_t  close_req_id,
-    std::uint8_t  socket_id,
-    std::uint16_t local_port,
-    std::uint16_t remote_port) {
-    auto listener = driveActiveOpenEstablished(
-        cfg, iface, dut_mac, open_req_id, local_port, remote_port);
-    const int tester_fd = listener.acceptOne();
+// ---- Backend-agnostic TIME-WAIT prelude cores ----------------------------
+// The tester-side choreography that drives the DUT into TIME-WAIT lives here as
+// the single source of truth, parameterised by a `dut_close` callback — the ONLY
+// operation that varies by DUT-control backend (opcode UT close vs the Tier-2
+// seam's closeTcp). The opcode wrappers below and the seam wrappers in
+// cases/_tcp_seam_time_wait_prelude.h bind that callback; neither re-implements
+// the wire mechanics. `dut_close` (a std::function) carries no dut_control.h
+// dependency, so this file stays free of the concrete backend includes the 113
+// sharing TUs reject.
+
+// Raw-inject one tester FIN+ACK segment. `ack_num` = rcv_nxt-1 makes it NOT
+// acknowledge the DUT FIN (RFC 793 §3.9 acceptable). Shared step of the
+// CLOSING-path preludes.
+inline void injectTesterFinAck(const ::tc8::TestConfig &cfg,
+                               std::string_view iface,
+                               const std::array<std::uint8_t, 6> &dut_mac,
+                               std::uint16_t local_port,
+                               std::uint16_t remote_port,
+                               std::uint32_t seq_num,
+                               std::uint32_t ack_num) {
+    ::tc8::stimulus::TcpSegmentSpec fin_seg{};
+    fin_seg.src_port = remote_port;
+    fin_seg.dst_port = local_port;
+    fin_seg.seq_num  = seq_num;
+    fin_seg.ack_num  = ack_num;
+    fin_seg.flags    = ::tc8::stimulus::kTcpFlagFin | ::tc8::stimulus::kTcpFlagAck;
+    emitTcpFrame(cfg, iface, dut_mac, fin_seg,
+                 /*initial_wait=*/std::chrono::milliseconds(0));
+}
+
+// FIN-WAIT-2 path core: given an accepted tester_fd and a way to close the DUT
+// socket, drive DUT ESTABLISHED → FIN-WAIT-1 → FIN-WAIT-2 → TIME-WAIT.
+//   1. dut_close() → DUT FIN. Tester kernel auto-ACKs (no suppression),
+//      advancing the DUT TCB FIN-WAIT-1 → FIN-WAIT-2 in one pass.
+//   2. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt with the DUT FIN
+//      consumed but the tester FIN not yet sent.
+//   3. ::shutdown(WR) → tester FIN+ACK; DUT replies pure ACK and moves
+//      FIN-WAIT-2 → TIME-WAIT.
+// The 200 ms settle after dut_close matches UNACCEPTABLE_10's validated grace;
+// the second 200 ms before ::close lets the DUT ACK land first (avoiding a
+// close()/ACK race RST). Consumes tester_fd (closed on every path). ok=false on
+// tester_fd<0 or a failed seq snapshot. The returned seq/ack base feeds callers
+// that raw-inject post-TIME-WAIT probes (UNACCEPTABLE_13, FLAGS_INVALID_14 OTW
+// SEQ, BASICS_11/13 replay FIN).
+inline TcpTimeWaitInfo finishFw2ToTimeWait(int tester_fd,
+                                           const std::function<void()> &dut_close) {
     if (tester_fd < 0) return {};
 
-    sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
+    dut_close();
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     const auto seq_pre_fin = queryTcpSeqRange(tester_fd);
@@ -1804,77 +1808,35 @@ inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
     ::close(tester_fd);
 
     TcpTimeWaitInfo info{};
-    info.ok                  = true;
-    // Pre-FIN snd_nxt = ISN_t + 1 (post-handshake, no data sent).
-    // After kernel emits FIN at shutdown(WR), snd_nxt advances by 1
-    // (FIN consumes 1 sequence number) → ISN_t + 2.
+    info.ok = true;
+    // snd_nxt = ISN_t+1 pre-FIN; +1 for the shutdown FIN consumed → ISN_t+2.
+    // rcv_nxt already reflects the consumed DUT FIN (ISN_d+2).
     info.tester_seq_post_fin = seq_pre_fin->snd_nxt + 1U;
-    // rcv_nxt at query time already reflects the consumed DUT FIN
-    // (= ISN_d + 2). No further advance from the tester FIN.
     info.tester_ack_post_fin = seq_pre_fin->rcv_nxt;
     return info;
 }
 
-// Drive DUT into TIME-WAIT via the CLOSING path:
-//   1. UT OpCloseTcpSocket → DUT FIN. TesterAutoAckDrop installed
-//      for the duration of this call suppresses the tester kernel's
-//      pure-ACK auto-reply, so DUT stays in FIN-WAIT-1 instead of
-//      transitioning into FIN-WAIT-2.
-//   2. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt with
-//      DUT FIN consumed (rcv_nxt = ISN_d + 2) but tester FIN not
-//      yet sent (snd_nxt = ISN_t + 1).
-//   3. Raw-inject tester FIN+ACK with seq = snd_nxt (ISN_t + 1) and
-//      ack = rcv_nxt - 1 (ISN_d + 1). The ack is RFC 793 acceptable
-//      (in [snd.una, snd.nxt]) but does NOT acknowledge the DUT FIN
-//      — DUT in FIN-WAIT-1 receives a non-acking FIN and per RFC
-//      793 RFC 793 §3.9 enters CLOSING. DUT replies pure ACK (which the
-//      ack_drop iptables rule does NOT block — it only matches
-//      pure ACKs egressing from the tester kernel, not DUT egress).
-//   4. Raw-inject tester ACK with seq = snd_nxt + 1 (ISN_t + 2,
-//      post-FIN) and ack = rcv_nxt (ISN_d + 2, acknowledging DUT
-//      FIN). DUT transitions CLOSING → TIME-WAIT silently.
-//   5. TCP_REPAIR + ::close on tester_fd silently disposes the
-//      kernel socket — no FIN goes out (TCP_REPAIR mode suppresses
-//      the close-time FIN per the documented kernel semantics).
-//      The (local_port, remote_port) 4-tuple is now free of any
-//      tester-side kernel state, so subsequent post-prelude raw-
-//      inject (the replay-FIN phase) does not race kernel auto-
-//      replies.
-//
-// Returns `ok=false` if any local syscall fails. The caller owns
-// `tester_fd` ON ENTRY and the helper consumes it; on either
-// success or failure the fd is closed before return (TCP_REPAIR
-// path on success, plain ::close on failure).
-//
-// The TesterAutoAckDrop is scoped inside this helper — its
-// destructor removes the iptables rule before return. After return
-// the kernel has no socket on the 4-tuple, so the iptables rule is
-// no longer load-bearing; releasing it eliminates cross-case state
-// pollution.
-// `local_port` + `remote_port` are intentionally non-default — see
-// `driveActiveOpenEstablished` block comment for the per-case
-// 4-tuple isolation rationale.
-inline TcpTimeWaitInfo driveCloseToTimeWaitClosing(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    int           tester_fd,
-    std::uint8_t  close_req_id,
-    std::uint8_t  socket_id,
-    std::uint16_t local_port,
-    std::uint16_t remote_port) {
-    auto silent_close = [tester_fd]() {
-        if (tester_fd < 0) return;
-        int repair_on = 1;
-        ::setsockopt(tester_fd, IPPROTO_TCP, TCP_REPAIR,
-                     &repair_on, sizeof(repair_on));
-        ::close(tester_fd);
-    };
-
+// CLOSING path core: given an accepted tester_fd and a DUT-close callback, drive
+// DUT ESTABLISHED → FIN-WAIT-1 → CLOSING → TIME-WAIT.
+//   1. TesterAutoAckDrop suppresses the kernel pure-ACK auto-reply so the DUT
+//      stays in FIN-WAIT-1 (not FIN-WAIT-2) after dut_close()'s FIN.
+//   2. A tester FIN+ACK that does NOT ack the DUT FIN crosses it into CLOSING.
+//   3. A tester ACK that DOES ack the DUT FIN drives CLOSING → TIME-WAIT.
+//   4. TCP_REPAIR + ::close disposes the tester socket without a stray FIN,
+//      freeing the 4-tuple for the caller's post-TIME-WAIT replay.
+// Consumes tester_fd (closed on every path). ok=false on tester_fd<0 or a failed
+// seq snapshot.
+inline TcpTimeWaitInfo driveToTimeWaitViaClosing(const ::tc8::TestConfig &cfg,
+                                                 std::string_view iface,
+                                                 const std::array<std::uint8_t, 6> &dut_mac,
+                                                 int tester_fd,
+                                                 std::uint16_t local_port,
+                                                 std::uint16_t remote_port,
+                                                 const std::function<void()> &dut_close) {
     if (tester_fd < 0) return {};
 
     TesterAutoAckDrop ack_drop(cfg);
-    sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
+    dut_close();
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     const auto seq = queryTcpSeqRange(tester_fd);
@@ -1883,23 +1845,11 @@ inline TcpTimeWaitInfo driveCloseToTimeWaitClosing(
         return {};
     }
 
-    // Step 3 — tester FIN+ACK that does NOT acknowledge DUT FIN.
-    {
-        ::tc8::stimulus::TcpSegmentSpec fin_seg{};
-        fin_seg.src_port = remote_port;
-        fin_seg.dst_port = local_port;
-        fin_seg.seq_num  = seq->snd_nxt;
-        // ack = rcv_nxt - 1 → "acceptable" ACK (in snd_una..snd_nxt
-        // window from DUT's perspective) but does NOT ack DUT FIN.
-        fin_seg.ack_num  = seq->rcv_nxt - 1U;
-        fin_seg.flags    = ::tc8::stimulus::kTcpFlagFin
-                         | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, dut_mac, fin_seg,
-                     /*initial_wait=*/std::chrono::milliseconds(0));
-    }
+    injectTesterFinAck(cfg, iface, dut_mac, local_port, remote_port,
+                       seq->snd_nxt, seq->rcv_nxt - 1U);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Step 4 — tester ACK that DOES acknowledge DUT FIN.
+    // Tester ACK that DOES ack the DUT FIN → CLOSING → TIME-WAIT.
     {
         ::tc8::stimulus::TcpSegmentSpec ack_seg{};
         ack_seg.src_port = remote_port;
@@ -1912,13 +1862,41 @@ inline TcpTimeWaitInfo driveCloseToTimeWaitClosing(
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    silent_close();
+    // TCP_REPAIR-silent dispose: no stray tester FIN on the freed 4-tuple.
+    {
+        int repair_on = 1;
+        ::setsockopt(tester_fd, IPPROTO_TCP, TCP_REPAIR, &repair_on, sizeof(repair_on));
+        ::close(tester_fd);
+    }
 
     TcpTimeWaitInfo info{};
     info.ok                  = true;
     info.tester_seq_post_fin = seq->snd_nxt + 1U;
     info.tester_ack_post_fin = seq->rcv_nxt;
     return info;
+}
+
+// Opcode-UT FIN-WAIT-2 prelude: thin wrapper binding the opcode UT close to the
+// `finishFw2ToTimeWait` core (active OPEN via the opcode builder). SSOT for the
+// 8 opcode §4.8 callers; the seam counterpart is driveSeamTimeWaitFw2
+// (cases/_tcp_seam_time_wait_prelude.h).
+// `local_port` + `remote_port` are intentionally non-default — see
+// `driveActiveOpenEstablished` block comment for the per-case 4-tuple rationale.
+inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
+    const ::tc8::TestConfig &cfg,
+    std::string_view iface,
+    const std::array<std::uint8_t, 6> &dut_mac,
+    std::uint8_t  open_req_id,
+    std::uint8_t  close_req_id,
+    std::uint8_t  socket_id,
+    std::uint16_t local_port,
+    std::uint16_t remote_port) {
+    auto listener = driveActiveOpenEstablished(
+        cfg, iface, dut_mac, open_req_id, local_port, remote_port);
+    const int tester_fd = listener.acceptOne();
+    return finishFw2ToTimeWait(tester_fd, [&]() {
+        sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
+    });
 }
 
 // Drive DUT into CLOSING (the "FIN-WAIT-1 + tester FIN crossed
@@ -1970,17 +1948,9 @@ inline TcpTimeWaitInfo driveCloseToClosing(
         return {};
     }
 
-    {
-        ::tc8::stimulus::TcpSegmentSpec fin_seg{};
-        fin_seg.src_port = remote_port;
-        fin_seg.dst_port = local_port;
-        fin_seg.seq_num  = seq->snd_nxt;
-        fin_seg.ack_num  = seq->rcv_nxt - 1U;  // Does NOT ack DUT FIN.
-        fin_seg.flags    = ::tc8::stimulus::kTcpFlagFin
-                         | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, dut_mac, fin_seg,
-                     /*initial_wait=*/std::chrono::milliseconds(0));
-    }
+    // FIN+ACK that does NOT ack the DUT FIN → DUT FIN-WAIT-1 → CLOSING.
+    injectTesterFinAck(cfg, iface, dut_mac, local_port, remote_port,
+                       seq->snd_nxt, seq->rcv_nxt - 1U);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     TcpTimeWaitInfo info{};

@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::TcpBasics12SM>
         "a timeout of 2*MSL, where TIME-WAIT is reached through "
         "CLOSING (RFC 793 §3.2 p23 Terminology)";
 
-    // CLOSING-path prelude (driveCloseToTimeWaitClosing) walks DUT
+    // CLOSING-path prelude (driveSeamCloseToTimeWaitClosing) walks DUT
     // through ESTABLISHED → FIN-WAIT-1 → CLOSING → TIME-WAIT. The
     // post-2*MSL FIN-replay schedules through scheduleAfterStateEntry
     // chained with schedule(kTimeWaitFullWait, …) — same
