@@ -8,7 +8,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -43,7 +45,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
     // learn ISN_d + CASE-distinct OTW probe with ack_num = ISN_d + 1
     // (acceptable per RFC 793 §3.4 even though SEQ is unacceptable;
     // isolates the spec assertion to the OTW-SEQ challenge-ACK path)
-    // + DUT challenge ACK observation + UT close on socket_id = N + 1.
+    // + DUT challenge ACK observation + seam close of that phase's
+    // listener. The LISTEN is established via driveSeamListen
+    // (ITcpControl::listenTcp, listen-only) so the case runs on
+    // whichever backend `--dut-control` selected; the injects stay
+    // tester-side.
     //
     // Function-scoped TesterAutoRstDrop covers all 5 phases: each
     // raw-inject SYN elicits a DUT SYN+ACK landing on the tester at
@@ -70,7 +76,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
     // CASE iterations — populated once before the loop.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -84,17 +91,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
                 static_cast<std::uint16_t>(kBasicsListenPort + phase);
             const std::uint16_t tester_port =
                 static_cast<std::uint16_t>(kBasicsTesterPort + phase);
-            const std::uint8_t open_req_id =
-                static_cast<std::uint8_t>(1U + phase * 2U);
-            const std::uint8_t close_req_id =
-                static_cast<std::uint8_t>(2U + phase * 2U);
-            const std::uint8_t socket_id =
-                static_cast<std::uint8_t>(phase + 1U);
 
-            sendOpenTcpSocketPassiveRequest(
-                cfg, iface, cfg.dut.mac,
-                open_req_id, listen_port);
-            std::this_thread::sleep_for(kTcpUtRpcWait);
+            const auto listen = driveSeamListen(dut, listen_port);
+            if (!listen) continue;
 
             auto snippet = TcpFrameSnippet::forDutSynAck(
                 cfg, iface, tester_port);
@@ -149,9 +148,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
             }
 
-            sendCloseTcpSocketRequest(
-                cfg, iface, cfg.dut.mac,
-                close_req_id, socket_id);
+            dut.tcpControl()->closeTcp(*listen);
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
     }
