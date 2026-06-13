@@ -5,12 +5,15 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
+#include <vector>
 #include <unistd.h>
 
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -43,6 +46,16 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
     static constexpr bool             kDeprecated   = false;
     static constexpr int              kTopology     = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup     = ::tc8::BpfGroup::Tcp;
+
+    // The verdict reads the DUT's kernel RTO/retransmit counters across
+    // three retransmissions (tcpi_rto, tcpi_retransmits) — a state
+    // introspection the opcode UT exposes (OpQueryTcpInfo) but the
+    // standard AUTOSAR testability protocol does not. Declaring
+    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this
+    // case on a testability backend (Tier 2 2b#4) instead of failing it;
+    // kCapTcpControl covers the active open + data send themselves.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
@@ -81,7 +94,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -90,17 +104,20 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpRetransmissionTo04LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        // Active OPEN → ESTABLISHED routed through the backend-agnostic
+        // seam (CREATE_AND_BIND + CONNECT against the tester-side
+        // listener). queryTcpSeqRange on the accepted tester fd doubles
+        // as the prelude-success gate before the SCXML first cond.
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
         const auto seq_range = queryTcpSeqRange(tester_fd);
-        if (!seq_range.has_value()) {
+        if (!seq_range.has_value() || !open.conn) {
             ::close(tester_fd);
             return;
         }
+        const ::tc8::sce::DutSocket dut_sock = open.conn->socket;
 
         // Prelude success — the SCXML's first cond gates on this so a
         // negative IP-flip variant lands on
@@ -114,7 +131,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         // return, which only happens AFTER the third snapshot lands.
         TesterAutoAckDrop ack_drop(cfg);
 
-        // Spec step 2-3: UT SEND → DUT data segment 1. With ack_drop
+        // Spec step 2-3: data SEND → DUT data segment 1. With ack_drop
         // active the tester kernel's auto-ACK is silently dropped on
         // egress; DUT snd_una stays at seg_seq, the retransmit timer
         // fires when icsk_rto elapses, and `tcp_retransmit_timer`
@@ -122,10 +139,9 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         // fire (state == TCP_ESTABLISHED — `tcp_syn_linear_timeouts`
         // applies only to TCP_SYN_SENT, see
         // [[linux-syn-data-rto-deviations]]).
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kSegPayload.data(),
+        dut.tcpControl()->sendTcp(
+            dut_sock,
+            std::vector<std::uint8_t>(kSegPayload.begin(), kSegPayload.end()),
             static_cast<std::uint16_t>(kSegPayload.size()));
 
         // Combined poll loop with per-phase deadline reset.
@@ -135,47 +151,50 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         // absorbs correlated CI hrtimer drift — if all three retx
         // events are individually slow, each gets its own 8 s budget.
         // `kAbsoluteDeadline` caps total wall-time so a wedged DUT
-        // cannot hang forever. Transient RPC failures
-        // (`probe.valid == false`) retry rather than abort, mirroring
+        // cannot hang forever. Transient seam-probe failures
+        // (`probe == nullopt`) retry rather than abort, mirroring
         // the _05/_06 retry-on-invalid pattern.
         const auto poll_start = std::chrono::steady_clock::now();
         auto phase_anchor = poll_start;
-        ::tc8::sce::tcp::TcpInfoSnapshot p1{}, p2{}, p3{};
-        std::uint8_t req_id = 3;
+        ::tc8::sce::DutTcpInfo p1{}, p2{}, p3{};
+        bool p1_valid = false, p2_valid = false, p3_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = queryTcpInfoSync(cfg, req_id++, /*socket_id=*/1);
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
             const auto now = std::chrono::steady_clock::now();
-            if (probe.valid) {
-                if (!p1.valid && probe.retransmits >= 1) {
-                    p1 = probe;
+            if (probe) {
+                if (!p1_valid && probe->retransmits >= 1) {
+                    p1 = *probe;
+                    p1_valid = true;
                     phase_anchor = now;
                 }
-                if (!p2.valid && probe.retransmits >= 2) {
-                    p2 = probe;
+                if (!p2_valid && probe->retransmits >= 2) {
+                    p2 = *probe;
+                    p2_valid = true;
                     phase_anchor = now;
                 }
-                if (!p3.valid && probe.retransmits >= 3) {
-                    p3 = probe;
+                if (!p3_valid && probe->retransmits >= 3) {
+                    p3 = *probe;
+                    p3_valid = true;
                     break;
                 }
             }
             if (now - phase_anchor >= kPerPhaseDeadline) break;
             if (now - poll_start >= kAbsoluteDeadline) break;
         }
-        c.ut_tcpi_p1_valid       = p1.valid;
+        c.ut_tcpi_p1_valid       = p1_valid;
         c.ut_tcpi_p1_state       = p1.state;
         c.ut_tcpi_p1_rto_us      = p1.rto_us;
         c.ut_tcpi_p1_retransmits = p1.retransmits;
         c.ut_tcpi_p1_unacked     = p1.unacked;
 
-        c.ut_tcpi_p2_valid       = p2.valid;
+        c.ut_tcpi_p2_valid       = p2_valid;
         c.ut_tcpi_p2_state       = p2.state;
         c.ut_tcpi_p2_rto_us      = p2.rto_us;
         c.ut_tcpi_p2_retransmits = p2.retransmits;
         c.ut_tcpi_p2_unacked     = p2.unacked;
 
-        c.ut_tcpi_p3_valid       = p3.valid;
+        c.ut_tcpi_p3_valid       = p3_valid;
         c.ut_tcpi_p3_state       = p3.state;
         c.ut_tcpi_p3_rto_us      = p3.rto_us;
         c.ut_tcpi_p3_retransmits = p3.retransmits;
