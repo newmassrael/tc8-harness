@@ -10,7 +10,9 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_checksum_01_sm.h"
@@ -33,9 +35,16 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
         "in case of no error (RFC 1122 §4.2.2.7 p86 TCP Checksum)";
 
     // Spec Test Procedure (v3.0 p301-p320.txt:128):
-    //   1. TESTER: Cause DUT ESTABLISHED — UT OpOpenTcpSocket(Active).
+    //   1. TESTER: Cause DUT ESTABLISHED — active OPEN.
     //   2. TESTER: Send a data segment with correct checksum.
     //   3. DUT:    Send ACK.
+    //
+    // Migrated onto the Tier-2 DUT-control seam: the active OPEN runs
+    // through `driveSeamActiveOpen` (ITcpControl) and the DUT teardown
+    // through `closeTcp`, so the case runs unchanged on whichever backend
+    // `--dut-control` selected (opcode UT or AUTOSAR testability). Only the
+    // OPEN prelude is DUT control; the data send is tester-side and stays
+    // case-owned harness infrastructure.
     //
     // The DATA send goes through the tester kernel's ::send() so the
     // emitted segment carries an RFC-correct checksum without the
@@ -56,13 +65,13 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1,
+        auto open = driveSeamActiveOpen(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpChecksum01LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum01LocalOffset);
 
@@ -71,7 +80,7 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
         // timeout — under a busy worker netns the handshake completes
         // in single-digit milliseconds, the timeout is sized for
         // scheduling jitter not happy-path latency.
-        const int tester_fd = listener.acceptOne();
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd >= 0) {
             (void)::send(tester_fd, kChecksumPayload.data(),
                           kChecksumPayload.size(), MSG_NOSIGNAL);
@@ -83,9 +92,7 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
             ::close(tester_fd);
         }
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
     }
 
     static std::string_view verdictFor(State s) {
