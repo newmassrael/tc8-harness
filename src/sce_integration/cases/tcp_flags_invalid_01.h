@@ -7,7 +7,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -83,14 +85,16 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, /*local_port=*/kBasicsListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so
+        // the case runs on whichever backend `--dut-control` selected; the
+        // three raw injects and the deferred close stay tester/seam-side.
+        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        if (!listen) return;
 
         // Phase 1 — drive DUT from LISTEN into SYN-RCVD; the
         // SYN+ACK reply is the SCXML's first-state observation.
@@ -131,9 +135,13 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
         std::array<std::uint8_t, 6> dut_mac_copy = cfg.dut.mac;
+        // dut outlives the poll loop (CLI-owned), so capturing &dut for the
+        // deferred close is lifetime-safe (FLAGS_PROCESSING_09 idiom).
+        ::tc8::sce::IDutControl*    dut_ptr = &dut;
+        const ::tc8::sce::DutSocket listen_handle = *listen;
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_synack),
-            [iface_copy, cfg_copy, dut_mac_copy]() {
+            [iface_copy, cfg_copy, dut_mac_copy, dut_ptr, listen_handle]() {
                 ::tc8::stimulus::TcpSegmentSpec syn3{};
                 syn3.src_port = kBasicsTesterPort + 2U;
                 syn3.dst_port = kBasicsListenPort;
@@ -142,9 +150,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
                 syn3.flags    = ::tc8::stimulus::kTcpFlagSyn;
                 emitTcpFrame(cfg_copy, iface_copy, dut_mac_copy, syn3,
                              /*initial_wait=*/std::chrono::milliseconds(0));
-                sendCloseTcpSocketRequest(
-                    cfg_copy, iface_copy, dut_mac_copy,
-                    /*req_id=*/2, /*socket_id=*/1);
+                dut_ptr->tcpControl()->closeTcp(listen_handle);
             });
     }
 
