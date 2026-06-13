@@ -8,7 +8,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -50,16 +52,21 @@ struct TestCaseTraits<cases::TcpBasics11SM>
     // schedule" keeps the trait independent of the SCXML's deadline
     // value (78 s in this case) — the trait names the state
     // symbolically and the runner observes the transition.
+    // Migrated onto the Tier-2 DUT-control seam: the FIN-WAIT-2 TIME-WAIT
+    // prelude runs through `driveSeamTimeWaitFw2` (active OPEN via the seam, DUT
+    // CLOSE via closeTcp), so the case runs unchanged on whichever backend
+    // `--dut-control` selected. The post-2*MSL FIN replay and DUT RST
+    // observation stay tester-side / SCXML-driven.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const auto info = driveTcpToTimeWaitFw2(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+        const auto info = driveSeamTimeWaitFw2(
+            dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics11LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics11LocalOffset);
         if (!info.ok) return;
