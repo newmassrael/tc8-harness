@@ -8,7 +8,10 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -34,6 +37,18 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         "(RFC 793 §3.9 p75 Event Processing). 3 spec iterations "
         "exercise wst ∈ {CLOSED, LISTEN, SYN-SENT}";
 
+    // Phase 3 drives the DUT to SYN-SENT via a non-establishing active
+    // OPEN (the SYN goes unanswered). The opcode UT's non-blocking
+    // openTcpActive worker leaves the socket in SYN-SENT and returns at
+    // once; the AUTOSAR testability CONNECT SP instead blocks until the
+    // handshake establishes (or times out) and so cannot represent a
+    // sustained SYN-SENT. Declaring kCapTcpSynSentOpen makes the CLI
+    // capability gate honestly SKIP this case on a testability backend
+    // (Tier 2 2b#4) rather than fail it — the standard's limit, not a
+    // DUT fault. kCapTcpControl covers the phase 2 LISTEN open.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
+
     // Phase 1 CLOSED + phase 2 LISTEN run synchronously in stimulus
     // body; phase 3 SYN-SENT defers to scheduleAfterStateEntry so its
     // DUT-emitted SYN is not consumed (and discarded) by SCXML's
@@ -55,8 +70,9 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
     // RFC 793 §3.9; SCXML absence guard catches any DUT-emitted segment on
     // the listen 4-tuple.
     //
-    // Phase 3 SYN-SENT: active-OPEN on (kBasicsActiveLocalPort + 52,
-    // kBasicsActiveRemotePort + 52). TesterAutoRstDrop scoped to the
+    // Phase 3 SYN-SENT: active-OPEN via driveSeamSynSentOpen on
+    // (kBasicsActiveLocalPort + 52, kBasicsActiveRemotePort + 52).
+    // TesterAutoRstDrop scoped to the
     // schedule lambda — alive during the FIRST DUT SYN emission so
     // tester kernel's auto-RST to that SYN is dropped. After the
     // lambda returns RstDrop dies; the next DUT SYN retransmit (Linux
@@ -69,6 +85,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -90,10 +107,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         constexpr std::uint16_t kPhase2TesterPort =
             kBasicsTesterPort + 71U;
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, kPhase2ListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        (void)driveSeamListen(dut, kPhase2ListenPort);
 
         ::tc8::stimulus::TcpSegmentSpec p2_fin{};
         p2_fin.src_port = kPhase2TesterPort;
@@ -113,18 +127,21 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy = cfg;
         std::array<std::uint8_t, 6> dut_mac  = cfg.dut.mac;
+        ::tc8::sce::IDutControl*     dut_ptr  = &dut;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_dut_syn),
-            [iface_copy, cfg_copy, dut_mac]() {
+            [iface_copy, cfg_copy, dut_mac, dut_ptr]() {
                 TesterAutoRstDrop rst_drop(cfg_copy);
                 (void)rst_drop;
 
-                sendOpenTcpSocketActiveRequest(
-                    cfg_copy, iface_copy, dut_mac,
-                    /*req_id=*/3, kPhase3LocalPort,
-                    cfg_copy.ipv4.tester_ip, kPhase3RemotePort);
-                std::this_thread::sleep_for(kTcpUtRpcWait);
+                // Non-establishing active OPEN: fire the SYN and (on the
+                // opcode non-blocking worker) return with the socket in
+                // SYN-SENT. The handle is unused — the case observes the
+                // DUT SYN on the wire and the absence of any response to
+                // the bare FIN below.
+                (void)driveSeamSynSentOpen(
+                    *dut_ptr, cfg_copy, kPhase3LocalPort, kPhase3RemotePort);
 
                 ::tc8::stimulus::TcpSegmentSpec p3_fin{};
                 p3_fin.src_port = kPhase3RemotePort;

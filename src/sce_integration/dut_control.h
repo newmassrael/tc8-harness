@@ -25,6 +25,7 @@ enum DutCapability : std::uint32_t {
     kCapTcpStateProbe = 1u << 2,     // TCP kernel-state query (opcode only)
     kCapArpConditioning = 1u << 3,   // ARP cache conditioning (opcode only)
     kCapLinkLocalControl = 1u << 4,  // link-local autoconf control (opcode only)
+    kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing (opcode only)
 };
 using DutCapabilities = std::uint32_t;
 
@@ -277,7 +278,7 @@ public:
     const char *backendName() const override { return "opcode-ut"; }
 
     DutCapabilities capabilities() const override {
-        return kCapTcpControl | kCapTcpStateProbe;
+        return kCapTcpControl | kCapTcpStateProbe | kCapTcpSynSentOpen;
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     ITcpStateProbe *tcpStateProbe() override { return &state_probe_; }
