@@ -11,6 +11,7 @@
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
@@ -100,15 +101,10 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
         // the DUT's first SYN never draws a closed-port RST.
         auto rst_drop = std::make_shared<TesterAutoRstDrop>(cfg);
 
-        // Active OPEN routed through the backend-agnostic seam. No tester
-        // listener is bound on remote_port — the SYN goes unanswered so
-        // the DUT stays in SYN-SENT, which is the initial-RTO window this
-        // case observes. The seam's active open returns the socket handle
-        // as soon as it is bound (still in SYN-SENT), so the handle is
-        // immediately queryable via the state probe.
-        auto open_conn = dut.tcpControl()->connectTcp(
-            ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
-            ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
+        // Active OPEN routed through the backend-agnostic seam, no tester
+        // listener — the SYN goes unanswered so the DUT stays in SYN-SENT,
+        // which is the initial-RTO window this case observes.
+        auto open_conn = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         scheduler.schedule(kRstDropHold, [rst_drop]() {
             (void)rst_drop;

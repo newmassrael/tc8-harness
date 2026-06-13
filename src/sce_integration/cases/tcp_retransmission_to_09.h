@@ -9,6 +9,7 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
@@ -124,12 +125,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
 
         // Active OPEN routed through the backend-agnostic seam, no tester
         // listener — the SYN goes unanswered so the DUT stays in SYN-SENT
-        // and retransmits. connectTcp returns the socket handle as soon
-        // as it is bound (still SYN-SENT), so it is immediately queryable
-        // via the state probe.
-        auto open_conn = dut.tcpControl()->connectTcp(
-            ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
-            ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
+        // and retransmits, which is what this case observes.
+        auto open_conn = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         // A nullopt open is an unreachable DUT: nothing to probe →
         // ut_handshake_completed stays false → SCXML verdicts

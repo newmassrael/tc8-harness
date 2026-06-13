@@ -92,4 +92,40 @@ inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,
     return SeamActiveOpen{std::move(listener), std::move(conn)};
 }
 
+// SYN-SENT counterpart of `driveSeamActiveOpen`: a seam active OPEN to a
+// destination with NO tester listener, so the SYN goes unanswered and the
+// DUT stays in SYN-SENT and retransmits. `connectTcp` returns the socket
+// handle as soon as it is bound (still SYN-SENT), so it is immediately
+// queryable via the state probe. Used by the SYN-RTO RETRANSMISSION_TO
+// cases (_05/_06/_09).
+//
+// Unlike `driveSeamActiveOpen` there is no tester listener and no handshake
+// grace: these cases observe the embryonic SYN-SENT socket, not an
+// established connection. The caller owns the tester-side auto-RST
+// suppression (TesterAutoRstDrop) because its lifetime differs per case
+// (a deferred scheduler hold for early-breaking poll loops vs a body-scoped
+// RAII for a budget-bounded loop).
+//
+// Returns nullopt on connectTcp failure, logging the backend + 4-tuple to
+// match `driveSeamActiveOpen`'s ops-diagnostic convention so a SYN-SENT
+// open failure (RPC timeout, a mis-pointed dut_iface_ip) is not
+// mis-reported downstream as a DUT "no SYN" timeout.
+inline std::optional<::tc8::sce::DutConnection> driveSeamSynSentOpen(
+    ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
+    std::uint16_t local_port, std::uint16_t remote_port) {
+    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
+    assert(tcp != nullptr && "active-OPEN cases require kCapTcpControl");
+
+    auto conn = tcp->connectTcp(
+        ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
+        ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
+    if (!conn) {
+        std::fprintf(stderr,
+                     "tcp-pilot: seam SYN-SENT open failed (connectTcp "
+                     "local=%u remote=%u, backend=%s)\n",
+                     local_port, remote_port, dut.backendName());
+    }
+    return conn;
+}
+
 }  // namespace tc8::sce::tcp
