@@ -272,9 +272,9 @@ private:
     // ~2 s to observe a retransmit at +1 s); a stalled query that blocked
     // the full control-plane timeout would burn most of that window and
     // starve the loop of retry attempts. 500 ms matches the proven
-    // pre-seam queryTcpInfoSync ceiling so poll loops fail a dropped probe
-    // quickly and re-poll. Capped by std::min semantics so a caller that
-    // sets an even shorter control timeout still wins.
+    // ceiling the pre-seam direct TCP_INFO probe used so poll loops fail a
+    // dropped probe quickly and re-poll. Capped by min semantics so a
+    // caller that sets an even shorter control timeout still wins.
     static constexpr int kStateProbeTimeoutMs = 500;
 
     std::uint32_t dut_ip_be_;

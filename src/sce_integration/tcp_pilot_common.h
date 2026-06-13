@@ -858,83 +858,12 @@ inline std::uint8_t queryTcpEstablishedSync(const ::tc8::TestConfig &cfg,
     return buf[3];
 }
 
-// §4.8.6.11 RETRANSMISSION_TO kernel-side TCP_INFO snapshot returned
-// by `queryTcpInfoSync`. Mirrors the four `struct tcp_info` fields
-// the §4.8.6.11 cluster verdicts on; see the `OpQueryTcpInfo`
-// documentation in `include/tc8/upper_tester_protocol.h`. `valid`
-// is false on any RPC failure (socket / send / recv timeout /
-// malformed response / unknown socket on the tc8-dut side) so the
-// caller treats every non-success path as "no kernel state to
-// report" and the SCXML guard chain trips a fail_query verdict.
-struct TcpInfoSnapshot {
-    bool          valid       = false;
-    std::uint8_t  state       = 0U;  // tcpi_state (1=ESTABLISHED, ...)
-    std::uint32_t rto_us      = 0U;  // tcpi_rto in microseconds
-    std::uint8_t  retransmits = 0U;  // tcpi_retransmits
-    std::uint32_t unacked     = 0U;  // tcpi_unacked (tp->packets_out)
-};
-
-// Synchronous UT OpQueryTcpInfo (0x13). Opens a transient UDP
-// socket, sends the query to DUT:30600, waits up to `timeout` for
-// the Confirmation, and returns a TcpInfoSnapshot. Used by §4.8.6.11
-// TCP_RETRANSMISSION_TO_03's stimulus to verdict RFC 6298 RTO
-// behaviour off kernel state instead of pcap timing — eliminating
-// the dependency on pcap delivering retransmits within tight wall-
-// clock windows under `--workers >= 2` parallel load.
-inline TcpInfoSnapshot queryTcpInfoSync(const ::tc8::TestConfig &cfg,
-                                        std::uint8_t req_id,
-                                        std::uint8_t socket_id,
-                                        std::chrono::milliseconds timeout =
-                                            std::chrono::milliseconds(500)) {
-    TcpInfoSnapshot snap{};
-    const int fd = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (fd < 0) return snap;
-    timeval tv{};
-    tv.tv_sec  = static_cast<time_t>(timeout.count() / 1000);
-    tv.tv_usec = static_cast<suseconds_t>((timeout.count() % 1000) * 1000);
-    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-    sockaddr_in remote{};
-    remote.sin_family      = AF_INET;
-    remote.sin_addr.s_addr = cfg.ipv4.dut_iface_ip;
-    remote.sin_port        = htons(::tc8::ut::kPort);
-
-    const auto payload = ::tc8::stimulus::buildQueryTcpInfoRequest(
-        req_id, socket_id);
-    if (::sendto(fd, payload.data(), payload.size(), 0,
-                 reinterpret_cast<sockaddr*>(&remote), sizeof(remote))
-        != static_cast<ssize_t>(payload.size())) {
-        ::close(fd);
-        return snap;
-    }
-
-    std::uint8_t buf[64];
-    sockaddr_in peer{};
-    socklen_t peer_len = sizeof(peer);
-    const ssize_t n = ::recvfrom(fd, buf, sizeof(buf), 0,
-                                  reinterpret_cast<sockaddr*>(&peer), &peer_len);
-    ::close(fd);
-    // Expected: <0x93 (response opcode)> <req_id> <status=0x00>
-    //           <state:u8> <rto_us:u32 BE> <retransmits:u8>
-    //           <unacked:u32 BE>. 13 bytes total.
-    if (n < 13) return snap;
-    if (buf[0] != static_cast<std::uint8_t>(::tc8::ut::OpQueryTcpInfo
-                                            | ::tc8::ut::kResponseBit)) return snap;
-    if (buf[1] != req_id)                                              return snap;
-    if (buf[2] != ::tc8::ut::kStatusOk)                                return snap;
-    snap.valid       = true;
-    snap.state       = buf[3];
-    snap.rto_us      = (static_cast<std::uint32_t>(buf[4]) << 24)
-                     | (static_cast<std::uint32_t>(buf[5]) << 16)
-                     | (static_cast<std::uint32_t>(buf[6]) << 8)
-                     |  static_cast<std::uint32_t>(buf[7]);
-    snap.retransmits = buf[8];
-    snap.unacked     = (static_cast<std::uint32_t>(buf[9])  << 24)
-                     | (static_cast<std::uint32_t>(buf[10]) << 16)
-                     | (static_cast<std::uint32_t>(buf[11]) << 8)
-                     |  static_cast<std::uint32_t>(buf[12]);
-    return snap;
-}
+// Kernel-side TCP_INFO probing for the §4.8.6.11 RETRANSMISSION_TO
+// cluster now goes through the Tier-2 seam: `IDutControl::tcpStateProbe()
+// ->queryInfo()` returns a `DutTcpInfo` snapshot (see
+// sce_integration/dut_socket_control.h and dut_control.h). The former
+// direct `queryTcpInfoSync` / `TcpInfoSnapshot` helpers were retired once
+// every cluster case (_03/_04/_05/_06/_08/_09) moved onto the seam.
 
 // Synchronous UT OpReceiveTcpData. Sends the request, blocks for the
 // Confirmation (which itself blocks in tc8-dut until expected_len
