@@ -8,6 +8,7 @@
 
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
+#include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/dut_control.h"
@@ -78,8 +79,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
     // scheduler jitter.
     static constexpr std::chrono::milliseconds kRstDropHold{20000};
 
-    // tcpi_state == TCP_SYN_SENT (uapi/linux/tcp.h).
-    static constexpr std::uint8_t kTcpStateSynSent = 2U;
+    // tcpi_state == TCP_SYN_SENT comes from the protocol SSOT
+    // (upper_tester_protocol.h kTcpStateSynSent), shared with _06.
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
@@ -139,7 +140,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
                 if (std::chrono::steady_clock::now() - probe_start >= kSynSentProbeDeadline) break;
                 continue;
             }
-            if (probe->state == kTcpStateSynSent) {
+            if (probe->state == ::tc8::ut::kTcpStateSynSent) {
                 c.ut_handshake_completed = true;
                 break;
             }
