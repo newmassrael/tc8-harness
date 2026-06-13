@@ -231,7 +231,15 @@ public:
         // CLI hands a temporary, and dispatch may fire arbitrarily
         // later from the poll loop.
         iface_ = std::string(iface);
-        if constexpr (has_dut_stimulus_v<Traits>) {
+        if constexpr (has_dut_scheduled_stimulus_v<Traits>) {
+            // Tier-2 seam + scheduler: drive the DUT through the backend
+            // selected by `--dut-control` AND let the case enqueue actions
+            // that outlive this call (e.g. a deferred tester-side iptables
+            // RAII release). Checked first — a 5-arg signature matches
+            // neither 4-arg concept below.
+            Traits::stimulus(captured_, cfg_, iface, dut_control,
+                             static_cast<IStimulusScheduler &>(*this));
+        } else if constexpr (has_dut_stimulus_v<Traits>) {
             // Tier-2 seam: drive the DUT through the backend selected by
             // `--dut-control` (opcode UT or AUTOSAR testability).
             Traits::stimulus(captured_, cfg_, iface, dut_control);

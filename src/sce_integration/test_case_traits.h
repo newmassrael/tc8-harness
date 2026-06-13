@@ -173,6 +173,35 @@ struct has_dut_stimulus<
 template <typename Traits>
 inline constexpr bool has_dut_stimulus_v = has_dut_stimulus<Traits>::value;
 
+// Detects whether TestCaseTraits<SM> specializes the 5-arg Tier-2 seam +
+// scheduler overload `static void stimulus(Captured&, const TestConfig&,
+// string_view, ::tc8::sce::IDutControl&, IStimulusScheduler&)`. A case
+// needs this when it both drives the DUT through the backend-agnostic seam
+// AND must enqueue an action that outlives `kickStimulus` (e.g. holding a
+// tester-side iptables RAII alive past stimulus return via a deferred
+// `scheduler.schedule`). It is the union of `has_dut_stimulus` and
+// `has_scheduled_stimulus`, not a third independent axis; a 5-arg signature
+// matches neither 4-arg concept (arity differs), so `kickStimulus` checks
+// this form FIRST and forwards both the resolved `IDutControl&` and the
+// runner-as-scheduler. A case declares exactly one stimulus signature.
+template <typename Traits, typename = void>
+struct has_dut_scheduled_stimulus : std::false_type {};
+
+template <typename Traits>
+struct has_dut_scheduled_stimulus<
+    Traits,
+    std::void_t<decltype(Traits::stimulus(
+        std::declval<typename Traits::Captured &>(),
+        std::declval<const ::tc8::TestConfig &>(),
+        std::declval<std::string_view>(),
+        std::declval<IDutControl &>(),
+        std::declval<IStimulusScheduler &>()))>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_dut_scheduled_stimulus_v =
+    has_dut_scheduled_stimulus<Traits>::value;
+
 // Detects whether TestCaseTraits<SM> specializes the 4-arg
 // `static void dispatch(Captured&, StateMachine&, const CapturedEvent&,
 // std::string_view iface)` overload. Cases whose dispatch helper needs
