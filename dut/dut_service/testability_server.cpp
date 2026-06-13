@@ -427,8 +427,17 @@ void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
         FD_SET(listen_fd, &rset);
         timeval tv{};
         tv.tv_usec = 200 * 1000;  // 200 ms wake to re-check stop_requested_
-        if (::select(listen_fd + 1, &rset, nullptr, nullptr, &tv) <= 0) {
-            continue;  // timeout or error — loop and re-check
+        const int sr = ::select(listen_fd + 1, &rset, nullptr, nullptr, &tv);
+        if (sr == 0 || (sr < 0 && errno == EINTR)) {
+            continue;  // 200 ms timeout or a signal — re-check stop flags
+        }
+        if (sr < 0) {
+            // The listen fd was closed out from under us (EBADF after a
+            // CLOSE_SOCKET on a listen-only socket that never accepted) or a
+            // fatal select error: the listener is gone, so exit instead of
+            // spinning on the dead fd. The thread is reclaimed at the next
+            // joinAcceptThreads (END_TEST / stop).
+            break;
         }
         sockaddr_in client{};
         socklen_t clen = sizeof(client);
