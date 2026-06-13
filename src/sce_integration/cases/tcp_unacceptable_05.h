@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -37,11 +39,13 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
     //   * Phase 1 — flag set = SYN,ACK with arbitrary ACK number.
     //   * Phase 2 — flag set = ACK only with arbitrary ACK number.
     //
-    // Each phase walks UT passive open → tester raw-inject → DUT RST
-    // → UT close. Distinct DUT listener ports (12345 / 12346) ensure
-    // phase 1 RST cannot contaminate phase 2 listen window. socket_id
-    // 1 (phase 1) is closed by phase 1's UT close; phase 2 opens
-    // socket_id 2 fresh.
+    // Each phase walks a seam passive open → tester raw-inject → DUT
+    // RST → seam close. Distinct DUT listener ports (12345 / 12346)
+    // ensure phase 1 RST cannot contaminate phase 2 listen window; the
+    // two LISTENs use independent seam handles (no socket-id literals).
+    // The LISTEN is established via driveSeamListen
+    // (ITcpControl::listenTcp, listen-only) so the case runs on
+    // whichever backend `--dut-control` selected.
     //
     // The "unacceptable ACK number" in LISTEN is any non-zero ACK —
     // LISTEN has sent no bytes, so any positive ACK is acknowledging
@@ -49,15 +53,14 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
     // non-zero literal.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: SYN+ACK to LISTEN --------
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, /*local_port=*/kPhase1ListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        const auto listen1 = driveSeamListen(dut, kPhase1ListenPort);
+        if (!listen1) return;
 
         ::tc8::stimulus::TcpSegmentSpec synack{};
         synack.src_port = kBasicsTesterPort;
@@ -69,16 +72,12 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
         emitTcpFrame(cfg, iface, cfg.dut.mac, synack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(*listen1);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // -------- Phase 2: bare ACK to LISTEN --------
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*local_port=*/kPhase2ListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        const auto listen2 = driveSeamListen(dut, kPhase2ListenPort);
+        if (!listen2) return;
 
         ::tc8::stimulus::TcpSegmentSpec ack{};
         ack.src_port = kBasicsTesterPort;
@@ -90,9 +89,7 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/4, /*socket_id=*/2);
+        dut.tcpControl()->closeTcp(*listen2);
     }
 
     static std::string_view verdictFor(State s) {
