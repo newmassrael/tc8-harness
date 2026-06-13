@@ -3,11 +3,14 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -34,7 +37,6 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
     struct Leg {
         std::uint16_t listen_port;
         std::uint16_t tester_src_port;
-        std::uint8_t  socket_id;
     };
 
     static void emitSyn(const ::tc8::TestConfig& cfg,
@@ -52,25 +54,26 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::array<Leg, 3> legs{
-            Leg{kTcpConnEstab02ListenPort1, kTcpConnEstab02TesterSrcPort1, 1U},
-            Leg{kTcpConnEstab02ListenPort2, kTcpConnEstab02TesterSrcPort2, 2U},
-            Leg{kTcpConnEstab02ListenPort3, kTcpConnEstab02TesterSrcPort3, 3U},
+            Leg{kTcpConnEstab02ListenPort1, kTcpConnEstab02TesterSrcPort1},
+            Leg{kTcpConnEstab02ListenPort2, kTcpConnEstab02TesterSrcPort2},
+            Leg{kTcpConnEstab02ListenPort3, kTcpConnEstab02TesterSrcPort3},
         };
 
-        // Open 3 passive sockets (tc8-dut OpOpenTcpSocket increments
-        // socket_id internally; we pass req_id 1/2/3 to keep the UT
-        // RPC matching deterministic per leg).
+        // Open 3 passive listeners via driveSeamListen (ITcpControl::listenTcp,
+        // listen-only) so the case runs on whichever backend `--dut-control`
+        // selected; each leg's seam handle is threaded to its own close (no
+        // socket-id literals). The SYN injects and SYN,ACK observations stay
+        // tester-side.
+        std::array<std::optional<::tc8::sce::DutSocket>, 3> handles;
         for (std::uint8_t i = 0; i < legs.size(); ++i) {
-            sendOpenTcpSocketPassiveRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/static_cast<std::uint8_t>(i + 1U),
-                legs[i].listen_port);
-            std::this_thread::sleep_for(kTcpUtRpcWait);
+            handles[i] = driveSeamListen(dut, legs[i].listen_port);
+            if (!handles[i]) return;
         }
 
         TesterAutoRstDrop rst_drop(cfg);
@@ -84,11 +87,8 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
         // the listeners and any stray tester segments could race.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        for (std::uint8_t i = 0; i < legs.size(); ++i) {
-            sendCloseTcpSocketRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/static_cast<std::uint8_t>(i + 4U),
-                legs[i].socket_id);
+        for (auto& handle : handles) {
+            dut.tcpControl()->closeTcp(*handle);
         }
     }
 
