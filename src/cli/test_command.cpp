@@ -22,6 +22,8 @@
 #include "cli/signal_handler.h"
 #include "dissect/packet_pipeline.h"
 #include "sce_integration/case_registry.h"
+#include "sce_integration/dut_control.h"
+#include "sce_integration/dut_control_factory.h"
 #include "sce_integration/spec_inventory.h"
 #include "sce_integration/test_config.h"
 
@@ -95,6 +97,12 @@ TestCommand::TestCommand(CLI::App &app) {
     sub_->add_option("--stimulus-emits", stimulus_emits_,
                      "Total stimulus datagrams sent during the boot sequence "
                      "(default 2). Higher counts cost wall time but tolerate jitter.");
+    sub_->add_option("--dut-control", dut_control_,
+                     "DUT-control backend for seam-routed cases: 'opcode' (in-house "
+                     "Upper Tester, port 30600, default) or 'testability' (AUTOSAR "
+                     "Testability Protocol, port 30700). Cases driving the opcode "
+                     "builders directly ignore this.")
+        ->check(CLI::IsMember({"opcode", "testability"}));
     sub_->add_option("--pcap-dump", pcap_dump_path_,
                      "Write every captured frame to the given pcap file "
                      "(debug only). Empty = disabled.");
@@ -417,8 +425,17 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     if (stimulus_emits_.has_value()) {
         config.stimulus_timing.total_emits = *stimulus_emits_;
     }
+    config.dut_control_backend = (dut_control_ == "testability")
+                                     ? sce::DutControlBackend::kTestability
+                                     : sce::DutControlBackend::kOpcode;
 
     std::unique_ptr<sce::ITestRunner> runner = entry->factory(config);
+
+    // Tier-2 DUT-control backend (--dut-control). Owned here for the run's
+    // lifetime and forwarded to seam-routed stimulus; cases that drive the
+    // opcode builders directly never touch it. Built once, not per-case.
+    std::unique_ptr<sce::IDutControl> dut_control = sce::makeDutControl(config);
+
     dissect::PacketPipeline pipeline([&runner](const ::tc8::CapturedEvent &ev) { runner->onCaptured(ev); });
     // Wire pcap's timestamp precision into the dissector so
     // TcpFrame.observed_ts_us stays in microseconds for both live
@@ -432,7 +449,7 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // TESTER-initiated request (e.g. FORMAT_12/13 FindService). Called
     // after BPF is applied so kernel capture is armed before the DUT's
     // solicited response arrives. No-op for cases without a stimulus hook.
-    runner->kickStimulus(iface_);
+    runner->kickStimulus(iface_, *dut_control);
 
     // Initialize the state machine AFTER stimulus so SCXML delay-based
     // deadline timers arm fresh. Without this split the stimulus's wall

@@ -5,8 +5,13 @@
 #
 # Usage:
 #   sudo smoke-test.sh [--topology NAME] [--workers N] [--dut-first] \
-#                      [--log-dir DIR] [--junit-xml PATH] [CASE_ID ...]
+#                      [--log-dir DIR] [--junit-xml PATH] \
+#                      [--dut-control opcode|testability] [CASE_ID ...]
 #   sudo smoke-test.sh [--workers N] --negative [--junit-xml PATH]
+#
+# --dut-control selects the DUT-control backend for seam-migrated cases
+# (default opcode = in-house Upper Tester; testability = AUTOSAR Testability
+# Protocol, port 30700). Cases driving the opcode builders directly ignore it.
 #
 # Runs each listed case against a fresh tc8-dut and reports a summary;
 # exits non-zero if any case fails. Defaults to SOMEIPSRV_FORMAT_01.
@@ -243,6 +248,7 @@ NEGATIVE=0
 LOG_DIR=""
 JUNIT_OUT=""
 WORKERS=1
+DUT_CONTROL=""
 TOPOLOGY=${TC8_TOPOLOGY:-single-pc}
 TOPOLOGY_CONF=""
 while [[ $# -gt 0 ]]; do
@@ -254,6 +260,7 @@ while [[ $# -gt 0 ]]; do
         --negative)  NEGATIVE=1;  shift ;;
         --log-dir)   LOG_DIR="$2"; shift 2 ;;
         --junit-xml) JUNIT_OUT="$2"; shift 2 ;;
+        --dut-control) DUT_CONTROL="$2"; shift 2 ;;
         *) break ;;
     esac
 done
@@ -1301,6 +1308,16 @@ run_case() {
     local -a extra_args=()
     if [[ -n "$LOG_DIR" ]]; then
         extra_args+=(--pcap-dump "$LOG_DIR/${case_id}.pcap")
+    fi
+
+    # Tier-2 DUT-control backend passthrough (--dut-control). 'testability'
+    # drives seam-migrated cases (those whose stimulus takes IDutControl&)
+    # through the AUTOSAR Testability endpoint (port 30700) instead of the
+    # default in-house opcode UT — the North Star validation path. Cases
+    # that call the opcode builders directly ignore the flag. Empty = opcode
+    # (every existing case unaffected).
+    if [[ -n "$DUT_CONTROL" ]]; then
+        extra_args+=(--dut-control "$DUT_CONTROL")
     fi
 
     # §5.1.5 SOMEIPSRV multi-instance / multi-service plumbing:

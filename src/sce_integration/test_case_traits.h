@@ -15,6 +15,13 @@ namespace tc8::sce {
 // inside its SFINAE probe without pulling the runner include.
 class IStimulusScheduler;
 
+// Forward declaration — full definition in `dut_control.h`. Declared here so
+// `has_dut_stimulus` (below) can probe the Tier-2 seam overload without pulling
+// the concrete backends (and their testability/upper-tester client includes)
+// into every case TU. The case TU that opts into the overload includes
+// `dut_control.h` itself.
+class IDutControl;
+
 // Per-case metadata plugged into TestRunner<StateMachine> and
 // CaseRegistry. The primary template is left undefined on purpose: an
 // unspecialized instantiation must be a compile-time error, not a
@@ -140,6 +147,30 @@ struct has_scheduled_stimulus<
 template <typename Traits>
 inline constexpr bool has_scheduled_stimulus_v =
     has_scheduled_stimulus<Traits>::value;
+
+// Detects whether TestCaseTraits<SM> specializes the 4-arg Tier-2 seam
+// overload `static void stimulus(Captured&, const TestConfig&, string_view,
+// ::tc8::sce::IDutControl&)`. A case routed over the backend-agnostic seam
+// (opcode UT or AUTOSAR testability, selected by `--dut-control`) picks this
+// signature; `kickStimulus` forwards the resolved `IDutControl&`. Distinct
+// from `has_scheduled_stimulus` purely by the 4th parameter type — a case
+// declares exactly one stimulus signature. TestRunner prefers this form when
+// present (see the dispatch order in `kickStimulus`).
+template <typename Traits, typename = void>
+struct has_dut_stimulus : std::false_type {};
+
+template <typename Traits>
+struct has_dut_stimulus<
+    Traits,
+    std::void_t<decltype(Traits::stimulus(
+        std::declval<typename Traits::Captured &>(),
+        std::declval<const ::tc8::TestConfig &>(),
+        std::declval<std::string_view>(),
+        std::declval<IDutControl &>()))>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_dut_stimulus_v = has_dut_stimulus<Traits>::value;
 
 // Detects whether TestCaseTraits<SM> specializes the 4-arg
 // `static void dispatch(Captured&, StateMachine&, const CapturedEvent&,

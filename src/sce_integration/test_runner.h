@@ -140,7 +140,14 @@ public:
     // window. `iface` is the same `--interface` the capture is bound to
     // — the stimulus reuses it to pin multicast egress. Cases without a
     // stimulus hook (most of §5.1) get a no-op.
-    virtual void kickStimulus(std::string_view iface) = 0;
+    //
+    // `dut_control` is the Tier-2 seam handle (built by the CLI via
+    // `makeDutControl` from `--dut-control`), forwarded to cases whose
+    // stimulus takes `IDutControl&`. Passed by reference — the CLI always
+    // owns exactly one backend for the run, so there is no "no backend"
+    // state to model; cases that drive the opcode builders directly ignore
+    // it (as they ignore `iface` when they don't emit on it).
+    virtual void kickStimulus(std::string_view iface, IDutControl &dut_control) = 0;
 
     // Initializes the underlying state machine. Separate from the ctor
     // so SCXML deadline timers do not arm until after `kickStimulus`
@@ -217,14 +224,18 @@ public:
         applyTestConfig(expected_, cfg_);
     }
 
-    void kickStimulus(std::string_view iface) override {
+    void kickStimulus(std::string_view iface, IDutControl &dut_control) override {
         // Pin the iface name for any later dispatch path that opted
         // into the 4-arg overload. Held by value (not string_view) so
         // the buffer outlives the kickStimulus caller's string — the
         // CLI hands a temporary, and dispatch may fire arbitrarily
         // later from the poll loop.
         iface_ = std::string(iface);
-        if constexpr (has_scheduled_stimulus_v<Traits>) {
+        if constexpr (has_dut_stimulus_v<Traits>) {
+            // Tier-2 seam: drive the DUT through the backend selected by
+            // `--dut-control` (opcode UT or AUTOSAR testability).
+            Traits::stimulus(captured_, cfg_, iface, dut_control);
+        } else if constexpr (has_scheduled_stimulus_v<Traits>) {
             Traits::stimulus(captured_, cfg_, iface,
                              static_cast<IStimulusScheduler &>(*this));
         } else if constexpr (has_stimulus_v<Traits>) {

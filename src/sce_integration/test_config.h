@@ -6,6 +6,7 @@
 #include "arp_expectations.h"
 #include "arp_stimulus_config.h"
 #include "dhcpv4_expectations.h"
+#include "dut_control_backend.h"
 #include "dut_identity.h"
 #include "icmpv4_expectations.h"
 #include "ipv4_expectations.h"
@@ -43,6 +44,13 @@ struct TestConfig {
     Ipv4Expectations ipv4{};
     Dhcpv4Expectations dhcpv4{};
     ::tc8::stimulus::BootTiming stimulus_timing{};
+
+    // Which DUT-control backend a seam-routed case's stimulus drives the DUT
+    // through (set by `--dut-control`; default = the in-house opcode UT, so
+    // every existing case is unaffected). Cases that call the opcode builders
+    // directly ignore this; only stimulus taking `IDutControl&` reads it,
+    // resolved by `makeDutControl` (dut_control_factory.h).
+    ::tc8::sce::DutControlBackend dut_control_backend = ::tc8::sce::DutControlBackend::kOpcode;
 
     // Raw `--expect-extra KEY=VALUE` tokens (out-of-tree OEM passthrough).
     // The strict `--expect` parser owns the closed in-tree key set and

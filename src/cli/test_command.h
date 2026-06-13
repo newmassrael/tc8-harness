@@ -91,6 +91,12 @@ private:
     // Optional pcap-file dump of every captured frame for post-mortem
     // debugging of flaky cases. Empty = off. Must be a writable path.
     std::string pcap_dump_path_;
+
+    // `--dut-control` backend selector for the Tier-2 seam: "opcode"
+    // (default, in-house Upper Tester) or "testability" (AUTOSAR
+    // Testability Protocol). Mapped to TestConfig::dut_control_backend in
+    // runCase(); CLI11 IsMember-validated so a typo errors at parse time.
+    std::string dut_control_ = "opcode";
 };
 
 }  // namespace tc8::cli
