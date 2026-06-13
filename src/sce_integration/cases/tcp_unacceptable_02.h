@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -44,16 +46,19 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
     //   3. DUT:    Ignore the unacceptable RST.
     //   4. TESTER: Verify DUT remains in SYN-RCVD state.
     //
-    // Two raw-injects bracketed by a UT passive open / close. The
+    // Two raw-injects bracketed by a seam passive open / close. The
     // SCXML's listening_absence state proves the spec assertion via
     // absence of a DUT-emitted RST during a 3 s window — Linux's
     // syn-recv SYN+ACK retransmits during the same window are
     // expected behavior (DUT actively trying to complete the
     // handshake) and are filtered out of the absence-fail guard by
-    // the RST-flag conjunct.
+    // the RST-flag conjunct. The LISTEN is established via
+    // driveSeamListen (ITcpControl::listenTcp, listen-only) so the
+    // case runs on whichever backend `--dut-control` selected.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -68,10 +73,8 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, /*local_port=*/kBasicsListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        if (!listen) return;
 
         // Probe — drive DUT from LISTEN into SYN-RCVD.
         ::tc8::stimulus::TcpSegmentSpec syn{};
@@ -96,9 +99,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(*listen);
     }
 
     static std::string_view verdictFor(State s) {
