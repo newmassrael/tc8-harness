@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -36,8 +38,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
     //   3. DUT:    Send RST with SEQ == incoming SEG.ACK.
     //   4. TESTER: Verify DUT remains in LISTEN.
     //
-    // Two synchronous raw-injects bracketed by a UT passive open /
-    // close:
+    // Two synchronous raw-injects bracketed by a seam passive open /
+    // close (driveSeamListen, listen-only, backend-agnostic):
     //   Phase 1 — SYN+ACK on (kBasicsTesterPort, kBasicsListenPort)
     //             with ack_num=kFlagsInvalid02ProbeAck. DUT MUST
     //             reply RST with seq=kFlagsInvalid02ProbeAck.
@@ -60,14 +62,13 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
     // SYNs after the RST emission.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, /*local_port=*/kBasicsListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        if (!listen) return;
 
         // Phase 1 — spec-asserted invalid segment. ack_num planted
         // with kFlagsInvalid02ProbeAck so the SCXML can verify
@@ -99,9 +100,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(*listen);
     }
 
     static std::string_view verdictFor(State s) {
