@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -58,14 +60,18 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
     //   4. TESTER: Verify DUT is in LISTEN — send fresh SYN, expect
     //              new DUT SYN+ACK.
     //
-    // Three raw-injects bracketed by a UT passive open / close drive
+    // Three raw-injects bracketed by a seam passive open / close drive
     // the DUT through SYN-RCVD → LISTEN → SYN-RCVD'. The first SYN+ACK
     // and the post-RST second SYN+ACK are the two observable edges
     // that distinguish a conformant LISTEN return from a stuck
-    // syn-recv state.
+    // syn-recv state. The LISTEN is established via driveSeamListen
+    // (ITcpControl::listenTcp, listen-only — the handshake never
+    // completes) so the case runs on whichever backend `--dut-control`
+    // selected; the raw injects stay tester-side.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -81,10 +87,8 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, /*local_port=*/kBasicsListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        if (!listen) return;
 
         // Probe 1 — drive DUT from LISTEN into SYN-RCVD.
         ::tc8::stimulus::TcpSegmentSpec syn1{};
@@ -123,9 +127,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(*listen);
     }
 
     static std::string_view verdictFor(State s) {
