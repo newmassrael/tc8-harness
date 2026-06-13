@@ -8,7 +8,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -35,6 +37,12 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
     static constexpr std::array<std::uint8_t, 4> kCorruptPayload = {
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
+    // Migrated onto the Tier-2 DUT-control seam: the FIN-WAIT-2
+    // TIME-WAIT prelude runs through driveSeamTimeWaitFw2 (active OPEN
+    // via the seam, DUT CLOSE via closeTcp), so the case runs unchanged
+    // on whichever backend --dut-control selected. The tester-side
+    // raw-injected OTW probes stay case-owned.
+    //
     // Two iterations:
     //   * Phase 1 — flag set = FIN.
     //   * Phase 2 — flag set = Data segment.
@@ -47,22 +55,22 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
     // for any non-RST OTW segment, regardless of whether FIN is set
     // or whether the segment carries payload).
     //
-    // Per phase: driveTcpToTimeWaitFw2 walks DUT through ESTABLISHED
+    // Per phase: driveSeamTimeWaitFw2 walks DUT through ESTABLISHED
     // → FIN-WAIT-1 → FIN-WAIT-2 → TIME-WAIT. The helper closes the
     // tester fd before returning, freeing the (49500, 23456) quad
     // for the raw-injected probe; the captured tester snd_nxt /
     // rcv_nxt pair feeds the corrupt segment's seq / ack base.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: OTW SEQ FIN in TIME-WAIT --------
         {
-            const auto info = driveTcpToTimeWaitFw2(
-                cfg, iface, cfg.dut.mac,
-                /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+            const auto info = driveSeamTimeWaitFw2(
+                dut, cfg,
                 kBasicsActiveLocalPort  + kTcpFlagsInvalid14Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase1LocalOffset);
             if (info.ok) {
@@ -90,9 +98,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
             const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid14Phase2LocalOffset;
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase2LocalOffset;
 
-            const auto info = driveTcpToTimeWaitFw2(
-                cfg, iface, cfg.dut.mac,
-                /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
+            const auto info = driveSeamTimeWaitFw2(
+                dut, cfg,
                 phase2_local_port, phase2_remote_port);
             if (info.ok) {
                 c.expected_ack_num_phase2 = info.tester_seq_post_fin;
