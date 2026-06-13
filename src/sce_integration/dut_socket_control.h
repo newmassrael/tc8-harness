@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <optional>
 #include <vector>
 
@@ -11,17 +10,20 @@
 
 namespace tc8::sce {
 
-// Tier 2 socket-control seam (see claudedocs/testability_seam_tier2_design.md).
+// Tier 2 data-plane seam (see claudedocs/testability_seam_tier2_design.md).
 //
 // The backend-agnostic vocabulary cases use to drive the DUT's socket data
-// plane: open/send UDP, active/passive TCP open, send TCP, close. Each DUT
-// control backend (opcode UT, AUTOSAR testability) implements this from its own
-// transport — cases stay protocol-neutral. Operations whose wire shape only one
-// backend supports (TCP kernel-state query, ARP conditioning, link-local) live
-// on separate sub-interfaces, not here.
+// plane. Split by protocol (ISP): the TCP side is handle-based (open returns a
+// socket the caller threads to send/close) and maps cleanly onto both the
+// opcode UT and AUTOSAR testability; the UDP side is a one-shot send (the
+// opcode UT's TriggerSendUdp is port-based, not handle-based, so a unified
+// handle interface would not fit it). A backend implements whichever
+// sub-interfaces it supports and toggles the matching capability bit;
+// operations only one backend can do (TCP kernel-state query, ARP
+// conditioning, link-local) live on their own sub-interfaces, not here.
 //
 // Handles are opaque: a `DutSocket` is an id the backend issued; the seam does
-// not encode the protocol group (the backend tracks it internally).
+// not encode the protocol group (the backend tracks what it needs internally).
 
 struct Endpoint {
     std::uint32_t addr_be = 0;  // IPv4, network byte order
@@ -49,60 +51,45 @@ struct DutConnection {
     Endpoint peer;
 };
 
-class ISocketControl {
+// Handle-based TCP data plane — both backends support it.
+class ITcpControl {
 public:
-    virtual ~ISocketControl() = default;
-
-    // CREATE_AND_BIND a UDP socket. nullopt on failure.
-    virtual std::optional<DutSocket> openUdp(const BindSpec &spec) = 0;
-    // SEND_DATA (UDP): transmit `data` (repeated up to total_len) to `dest`.
-    virtual bool sendUdp(DutSocket sock, const Endpoint &dest,
-                         const std::vector<std::uint8_t> &data, std::uint16_t total_len) = 0;
+    virtual ~ITcpControl() = default;
 
     // Active open: the DUT connects to `peer` (the caller's listener). Returns
     // the DUT's connected socket, or nullopt on failure.
     virtual std::optional<DutConnection> connectTcp(const Endpoint &peer) = 0;
     // Passive open: the DUT binds+listens per `listen`; `trigger` drives one
     // inbound connection once the DUT is listening; returns the accepted
-    // connection (with the client endpoint), or nullopt if none arrived.
+    // connection (with the client endpoint when the backend reports it), or
+    // nullopt if none arrived.
     virtual std::optional<DutConnection> acceptTcp(const BindSpec &listen,
                                                    const std::function<void()> &trigger) = 0;
-    // SEND_DATA (TCP): transmit `data` (repeated up to total_len) on `conn`.
-    virtual bool sendTcp(const DutConnection &conn, const std::vector<std::uint8_t> &data,
+    // Transmit `data` (repeated up to total_len) on the connected socket.
+    virtual bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
                          std::uint16_t total_len) = 0;
-
-    // CLOSE_SOCKET the given DUT socket.
-    virtual bool closeSocket(DutSocket sock) = 0;
+    // Close a TCP socket.
+    virtual bool closeTcp(DutSocket sock) = 0;
 };
 
-// AUTOSAR Testability backend of ISocketControl — thin adapter over the typed
-// free functions in testability_client.h (the SP-encoding SSOT). Tracks each
-// socket's service group so CLOSE_SOCKET addresses the right group while the
-// seam handle stays opaque.
-class TestabilitySocketControl final : public ISocketControl {
+// One-shot UDP send — no handle, matching the opcode UT's port-based model.
+class IUdpControl {
 public:
-    TestabilitySocketControl(const stimulus::TestabilityConfig &cfg, int timeout_ms,
-                             std::uint32_t src_ip_be)
+    virtual ~IUdpControl() = default;
+
+    // Make the DUT emit one UDP datagram from `src_port` to `dest` carrying
+    // `data`. true on success.
+    virtual bool sendDatagram(std::uint16_t src_port, const Endpoint &dest,
+                              const std::vector<std::uint8_t> &data) = 0;
+};
+
+// AUTOSAR Testability backend of ITcpControl — thin adapter over the typed free
+// functions in testability_client.h (the SP-encoding SSOT).
+class TestabilityTcpControl final : public ITcpControl {
+public:
+    TestabilityTcpControl(const stimulus::TestabilityConfig &cfg, int timeout_ms,
+                          std::uint32_t src_ip_be)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
-
-    std::optional<DutSocket> openUdp(const BindSpec &spec) override {
-        const auto id = stimulus::testabilityCreateAndBind(cfg_, testability::kGidUdp,
-                                                           spec.do_bind, spec.local_port,
-                                                           spec.local_addr_be, timeout_ms_,
-                                                           src_ip_be_);
-        if (!id) {
-            return std::nullopt;
-        }
-        socket_gid_[*id] = testability::kGidUdp;
-        return DutSocket{*id};
-    }
-
-    bool sendUdp(DutSocket sock, const Endpoint &dest,
-                 const std::vector<std::uint8_t> &data, std::uint16_t total_len) override {
-        return stimulus::testabilityUdpSendData(cfg_, sock.id, total_len, dest.port,
-                                                dest.addr_be, data, timeout_ms_, src_ip_be_)
-            .eok();
-    }
 
     std::optional<DutConnection> connectTcp(const Endpoint &peer) override {
         const auto id = stimulus::testabilityCreateAndBind(cfg_, testability::kGidTcp,
@@ -111,7 +98,6 @@ public:
         if (!id) {
             return std::nullopt;
         }
-        socket_gid_[*id] = testability::kGidTcp;
         if (!stimulus::testabilityTcpConnect(cfg_, *id, peer.port, peer.addr_be, timeout_ms_,
                                              src_ip_be_)
                  .eok()) {
@@ -128,35 +114,61 @@ public:
         if (!listen_id) {
             return std::nullopt;
         }
-        socket_gid_[*listen_id] = testability::kGidTcp;
         const auto ev = stimulus::testabilityTcpListenAndAccept(
             cfg_, *listen_id, /*max_con=*/1, trigger, timeout_ms_, /*event_timeout_ms=*/2000,
             src_ip_be_);
+        // The listen socket has done its job; the accepted connection lives on.
+        stimulus::testabilityCloseSocket(cfg_, testability::kGidTcp, *listen_id, timeout_ms_,
+                                         src_ip_be_);
         if (!ev.received) {
             return std::nullopt;
         }
-        socket_gid_[ev.new_socket_id] = testability::kGidTcp;
         return DutConnection{DutSocket{ev.new_socket_id},
                              Endpoint{ev.client_addr_be, ev.client_port}};
     }
 
-    bool sendTcp(const DutConnection &conn, const std::vector<std::uint8_t> &data,
+    bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
                  std::uint16_t total_len) override {
-        return stimulus::testabilityTcpSendData(cfg_, conn.socket.id, total_len, /*flags=*/0,
-                                                data, timeout_ms_, src_ip_be_)
+        return stimulus::testabilityTcpSendData(cfg_, sock.id, total_len, /*flags=*/0, data,
+                                                timeout_ms_, src_ip_be_)
             .eok();
     }
 
-    bool closeSocket(DutSocket sock) override {
-        const auto it = socket_gid_.find(sock.id);
-        const std::uint8_t gid = (it != socket_gid_.end())
-                                     ? it->second
-                                     : static_cast<std::uint8_t>(testability::kGidTcp);
-        const bool ok =
-            stimulus::testabilityCloseSocket(cfg_, gid, sock.id, timeout_ms_, src_ip_be_).eok();
-        if (it != socket_gid_.end()) {
-            socket_gid_.erase(it);
+    bool closeTcp(DutSocket sock) override {
+        return stimulus::testabilityCloseSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
+                                                src_ip_be_)
+            .eok();
+    }
+
+private:
+    stimulus::TestabilityConfig cfg_;
+    int timeout_ms_;
+    std::uint32_t src_ip_be_;
+};
+
+// AUTOSAR Testability backend of IUdpControl — a one-shot CREATE_AND_BIND (to
+// src_port) + SEND_DATA + CLOSE_SOCKET, presenting the connectionless send the
+// seam asks for over the connection-table SPs.
+class TestabilityUdpControl final : public IUdpControl {
+public:
+    TestabilityUdpControl(const stimulus::TestabilityConfig &cfg, int timeout_ms,
+                          std::uint32_t src_ip_be)
+        : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
+
+    bool sendDatagram(std::uint16_t src_port, const Endpoint &dest,
+                      const std::vector<std::uint8_t> &data) override {
+        const auto id = stimulus::testabilityCreateAndBind(cfg_, testability::kGidUdp,
+                                                           /*do_bind=*/true, src_port, 0,
+                                                           timeout_ms_, src_ip_be_);
+        if (!id) {
+            return false;
         }
+        const bool ok = stimulus::testabilityUdpSendData(
+                            cfg_, *id, static_cast<std::uint16_t>(data.size()), dest.port,
+                            dest.addr_be, data, timeout_ms_, src_ip_be_)
+                            .eok();
+        stimulus::testabilityCloseSocket(cfg_, testability::kGidUdp, *id, timeout_ms_,
+                                         src_ip_be_);
         return ok;
     }
 
@@ -164,7 +176,6 @@ private:
     stimulus::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
-    std::map<std::uint16_t, std::uint8_t> socket_gid_;  // socketId -> service group
 };
 
 }  // namespace tc8::sce

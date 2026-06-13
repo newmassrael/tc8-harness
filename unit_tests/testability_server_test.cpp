@@ -277,22 +277,16 @@ TEST_F(TestabilityServerTest, EndTestTerminatesPendingAcceptThread) {
     EXPECT_TRUE(stimulus::testabilityStartTest(cfg).eok());
 }
 
-// ── Tier 2 seam: TestabilityControl::socketControl() over the real server ──
+// ── Tier 2 seam: ITcpControl / IUdpControl over the real testability server ──
 
-// The socket-control seam reports kCapSocketData and drives UDP open/close +
-// TCP active open + send, all through the backend-agnostic ISocketControl.
-TEST_F(TestabilityServerTest, SocketControlSeamActiveOpenAndSend) {
+// TCP control: capability bit set, active open against a tester listener (read
+// back the DUT's send), driven through the backend-agnostic ITcpControl.
+TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenAndSend) {
     sce::TestabilityControl ctrl(loopbackConfig());
-    EXPECT_EQ(ctrl.capabilities() & sce::kCapSocketData, sce::kCapSocketData);
-    sce::ISocketControl *sc = ctrl.socketControl();
-    ASSERT_NE(sc, nullptr);
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapTcpControl, sce::kCapTcpControl);
+    sce::ITcpControl *tcp = ctrl.tcpControl();
+    ASSERT_NE(tcp, nullptr);
 
-    // UDP: open (bound) then close.
-    const auto udp = sc->openUdp(sce::BindSpec{/*do_bind=*/true, 0xFFFF, 0});
-    ASSERT_TRUE(udp.has_value());
-    EXPECT_TRUE(sc->closeSocket(*udp));
-
-    // TCP active open: tester listener accepts the DUT's connect; send is read back.
     const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(lfd, 0);
     int on = 1;
@@ -309,7 +303,7 @@ TEST_F(TestabilityServerTest, SocketControlSeamActiveOpenAndSend) {
     tv.tv_sec = 2;
     ::setsockopt(lfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    const auto conn = sc->connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)});
+    const auto conn = tcp->connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)});
     ASSERT_TRUE(conn.has_value());
     sockaddr_in peer{};
     socklen_t pl = sizeof(peer);
@@ -317,27 +311,27 @@ TEST_F(TestabilityServerTest, SocketControlSeamActiveOpenAndSend) {
     ASSERT_GE(afd, 0);
 
     const std::vector<std::uint8_t> body = {'T', 'C', '8'};
-    EXPECT_TRUE(sc->sendTcp(*conn, body, /*total_len=*/3));
+    EXPECT_TRUE(tcp->sendTcp(conn->socket, body, /*total_len=*/3));
     ::setsockopt(afd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     std::uint8_t buf[16];
     const ssize_t n = ::recv(afd, buf, sizeof(buf), 0);
     EXPECT_EQ(n, 3);
 
-    EXPECT_TRUE(sc->closeSocket(conn->socket));
+    EXPECT_TRUE(tcp->closeTcp(conn->socket));
     ::close(afd);
     ::close(lfd);
 }
 
-// Passive open through the seam: acceptTcp binds+listens on the DUT, the
-// trigger connects in, and the accepted connection carries the client endpoint.
-TEST_F(TestabilityServerTest, SocketControlSeamPassiveOpen) {
+// TCP control passive open: acceptTcp binds+listens on the DUT, the trigger
+// connects in, and the accepted connection carries the client endpoint.
+TEST_F(TestabilityServerTest, TcpControlSeamPassiveOpen) {
     sce::TestabilityControl ctrl(loopbackConfig());
-    sce::ISocketControl *sc = ctrl.socketControl();
-    ASSERT_NE(sc, nullptr);
+    sce::ITcpControl *tcp = ctrl.tcpControl();
+    ASSERT_NE(tcp, nullptr);
 
     constexpr std::uint16_t kListenPort = 39813;
     int cfd = -1;
-    const auto conn = sc->acceptTcp(
+    const auto conn = tcp->acceptTcp(
         sce::BindSpec{/*do_bind=*/true, kListenPort, 0},
         [&] {
             cfd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -360,7 +354,38 @@ TEST_F(TestabilityServerTest, SocketControlSeamPassiveOpen) {
     if (cfd >= 0) {
         ::close(cfd);
     }
-    EXPECT_TRUE(sc->closeSocket(conn->socket));
+    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+}
+
+// UDP control: capability bit set, one-shot sendDatagram emits an observable
+// datagram to a tester receiver.
+TEST_F(TestabilityServerTest, UdpControlSeamOneShotSend) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapUdpControl, sce::kCapUdpControl);
+    sce::IUdpControl *udp = ctrl.udpControl();
+    ASSERT_NE(udp, nullptr);
+
+    const int rfd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(rfd, 0);
+    sockaddr_in ra{};
+    ra.sin_family = AF_INET;
+    ra.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    ra.sin_port = 0;
+    ASSERT_EQ(::bind(rfd, reinterpret_cast<sockaddr *>(&ra), sizeof(ra)), 0);
+    socklen_t rl = sizeof(ra);
+    ASSERT_EQ(::getsockname(rfd, reinterpret_cast<sockaddr *>(&ra), &rl), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const std::vector<std::uint8_t> body = {'U', 'D', 'P'};
+    EXPECT_TRUE(udp->sendDatagram(/*src_port=*/0xFFFF,
+                                  sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(ra.sin_port)},
+                                  body));
+    std::uint8_t buf[16];
+    const ssize_t n = ::recv(rfd, buf, sizeof(buf), 0);
+    EXPECT_EQ(n, 3);
+    ::close(rfd);
 }
 
 // CONNECT / SEND_DATA / CLOSE_SOCKET against an unknown socketId -> E_ISD.

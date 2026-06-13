@@ -18,10 +18,11 @@ namespace tc8::sce {
 // is the portable standard subset), so a case queries the bit it needs and is
 // conditioning-skipped when the selected backend lacks it.
 enum DutCapability : std::uint32_t {
-    kCapSocketData = 1u << 0,        // ISocketControl (UDP/TCP data plane)
-    kCapTcpStateProbe = 1u << 1,     // TCP kernel-state query (opcode only)
-    kCapArpConditioning = 1u << 2,   // ARP cache conditioning (opcode only)
-    kCapLinkLocalControl = 1u << 3,  // link-local autoconf control (opcode only)
+    kCapTcpControl = 1u << 0,        // ITcpControl (handle-based TCP data plane)
+    kCapUdpControl = 1u << 1,        // IUdpControl (one-shot UDP send)
+    kCapTcpStateProbe = 1u << 2,     // TCP kernel-state query (opcode only)
+    kCapArpConditioning = 1u << 3,   // ARP cache conditioning (opcode only)
+    kCapLinkLocalControl = 1u << 4,  // link-local autoconf control (opcode only)
 };
 using DutCapabilities = std::uint32_t;
 
@@ -64,10 +65,11 @@ public:
     // Which semantic sub-interfaces this backend exposes (DutCapability bits).
     virtual DutCapabilities capabilities() const = 0;
 
-    // Socket data-plane operations, or nullptr when unsupported — a case checks
-    // for nullptr and conditioning-skips. Default nullptr: a backend opts in by
+    // Data-plane sub-interfaces, or nullptr when unsupported — a case checks for
+    // nullptr and conditioning-skips. Default nullptr: a backend opts in by
     // overriding once it implements the sub-interface.
-    virtual ISocketControl *socketControl() { return nullptr; }
+    virtual ITcpControl *tcpControl() { return nullptr; }
+    virtual IUdpControl *udpControl() { return nullptr; }
 };
 
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
@@ -90,10 +92,10 @@ public:
     bool endTest() override { return true; }
     const char *backendName() const override { return "opcode-ut"; }
 
-    // No seam sub-interface is wired through this backend yet — the opcode UT
-    // serves the in-tree cases via the direct builder path. OpcodeSocketControl
-    // (a SOCK_DGRAM round-trip adapter over the builders) lands alongside the
-    // first case migrated onto the seam, and toggles kCapSocketData on then.
+    // OpcodeTcpControl (a SOCK_DGRAM round-trip adapter over the builders) wires
+    // kCapTcpControl below; UDP through the seam stays on the direct
+    // TriggerSendUdp path for now (port-based, no handle), so kCapUdpControl is
+    // off here.
     DutCapabilities capabilities() const override { return 0; }
 
 private:
@@ -112,7 +114,7 @@ public:
     explicit TestabilityControl(const stimulus::TestabilityConfig &cfg, int timeout_ms = 1000,
                                 std::uint32_t src_ip_be = 0)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
-          socket_ctrl_(cfg, timeout_ms, src_ip_be) {}
+          tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be) {}
 
     bool probe() override { return getVersion().has_value(); }
     bool startTest() override {
@@ -126,10 +128,11 @@ public:
     const char *backendName() const override { return "autosar-testability"; }
 
     // The standard socket SPs (CREATE_AND_BIND/CONNECT/LISTEN_AND_ACCEPT/
-    // SEND_DATA/CLOSE_SOCKET) are all implemented, so the socket data-plane
-    // seam is available on every testability DUT.
-    DutCapabilities capabilities() const override { return kCapSocketData; }
-    ISocketControl *socketControl() override { return &socket_ctrl_; }
+    // SEND_DATA/CLOSE_SOCKET) are all implemented, so both data-plane
+    // sub-interfaces are available on every testability DUT.
+    DutCapabilities capabilities() const override { return kCapTcpControl | kCapUdpControl; }
+    ITcpControl *tcpControl() override { return &tcp_ctrl_; }
+    IUdpControl *udpControl() override { return &udp_ctrl_; }
 
     // GET_VERSION (GENERAL/0x01).
     std::optional<stimulus::TestabilityVersion> getVersion() {
@@ -154,7 +157,8 @@ private:
     stimulus::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
-    TestabilitySocketControl socket_ctrl_;
+    TestabilityTcpControl tcp_ctrl_;
+    TestabilityUdpControl udp_ctrl_;
 };
 
 }  // namespace tc8::sce
