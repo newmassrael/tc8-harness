@@ -7,7 +7,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -35,14 +37,16 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, kTcpControlFlags08ListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so
+        // the case runs on whichever backend `--dut-control` selected; the
+        // stale-SYN / recovery-RST / fresh-SYN injects stay tester-side.
+        const auto listen = driveSeamListen(dut, kTcpControlFlags08ListenPort);
+        if (!listen) return;
 
         // Suppress tester-kernel auto-RST against DUT-emitted SYN,ACK
         // for the entire stimulus — the raw-inject 4-tuple has no
@@ -98,9 +102,7 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(*listen);
         (void)rst_drop;
     }
 
