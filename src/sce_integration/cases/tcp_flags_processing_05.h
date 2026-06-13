@@ -8,7 +8,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -60,20 +62,23 @@ struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1SynInWindow(cfg, iface);
+        runPhase1SynInWindow(cfg, iface, dut);
 
-        std::string                 iface_copy(iface);
-        ::tc8::TestConfig           cfg_copy = cfg;
-        std::array<std::uint8_t, 6> dut_mac  = cfg.dut.mac;
+        std::string              iface_copy(iface);
+        ::tc8::TestConfig        cfg_copy = cfg;
+        // dut outlives the poll loop (CLI-owned), so capturing &dut for the
+        // deferred phase 2 is lifetime-safe (FLAGS_PROCESSING_09 idiom).
+        ::tc8::sce::IDutControl* dut_ptr = &dut;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_prelude_synack),
-            [iface_copy, cfg_copy, dut_mac]() {
-                runPhase2SynAckInWindow(cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, dut_ptr]() {
+                runPhase2SynAckInWindow(cfg_copy, iface_copy, *dut_ptr);
             });
     }
 
@@ -124,16 +129,14 @@ private:
     }
 
     static void runPhase1SynInWindow(const ::tc8::TestConfig& cfg,
-                                     std::string_view iface) {
+                                     std::string_view iface,
+                                     ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kListenPort   = kBasicsListenPort + 10U;
         constexpr std::uint16_t kPreludeTester = kBasicsTesterPort + 72U;
         constexpr std::uint16_t kVerifyTester  = kBasicsTesterPort + 73U;
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, kListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        if (!driveSeamListen(dut, kListenPort)) return;
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
@@ -164,16 +167,14 @@ private:
     }
 
     static void runPhase2SynAckInWindow(const ::tc8::TestConfig& cfg,
-                                        std::string_view iface) {
+                                        std::string_view iface,
+                                        ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kListenPort   = kBasicsListenPort + 11U;
         constexpr std::uint16_t kPreludeTester = kBasicsTesterPort + 74U;
         constexpr std::uint16_t kVerifyTester  = kBasicsTesterPort + 75U;
 
-        sendOpenTcpSocketPassiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, kListenPort);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        if (!driveSeamListen(dut, kListenPort)) return;
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
