@@ -487,7 +487,7 @@ inline constexpr std::uint16_t kTcpChecksum04LocalOffset     = 180U;
 // the BASICS_11 EADDRNOTAVAIL precedent that motivated this block —
 // the prior per-case-unique pattern at +20..+25 / +50..+56 /
 // +100..+182 is extended here to retire the last bare-port (offset 0)
-// callers of `driveActiveOpenEstablished` / `driveTcpToTimeWaitFw2` /
+// callers of `driveActiveOpenEstablished` /
 // `driveToTimeWaitViaClosing` / `driveCloseToClosing` (those helpers
 // no longer carry default port arguments — the compiler rejects any
 // future caller that omits explicit ports).
@@ -518,7 +518,7 @@ inline constexpr std::uint16_t kTcpChecksum03LocalOffset           = 213U;
 
 // §4.8.6.6 FLAGS_INVALID_14 — two TIME-WAIT phases (FIN-flag OTW
 // probe + data-segment OTW probe). Each phase runs its own
-// driveTcpToTimeWaitFw2 prelude on a unique 4-tuple so the
+// driveSeamTimeWaitFw2 prelude on a unique 4-tuple so the
 // 78-second TIME-WAIT window does not collide between phases or
 // with sibling cases on the same worker queue.
 inline constexpr std::uint16_t kTcpFlagsInvalid14Phase1LocalOffset = 214U;
@@ -1568,8 +1568,8 @@ inline constexpr auto kTimeWaitFullWait = std::chrono::seconds(72);
 // acknowledges through the DUT FIN.
 //
 // Both values reflect the wire-level state immediately AFTER the
-// FW2 → TIME-WAIT transition; the tester socket is closed before
-// `driveTcpToTimeWaitFw2` returns, so subsequent kernel queries
+// FW2 → TIME-WAIT transition; the tester socket is closed inside the
+// `finishFw2ToTimeWait` core, so subsequent kernel queries
 // against the same fd would fail.
 struct TcpTimeWaitInfo {
     bool          ok                  = false;
@@ -1874,29 +1874,6 @@ inline TcpTimeWaitInfo driveToTimeWaitViaClosing(const ::tc8::TestConfig &cfg,
     info.tester_seq_post_fin = seq->snd_nxt + 1U;
     info.tester_ack_post_fin = seq->rcv_nxt;
     return info;
-}
-
-// Opcode-UT FIN-WAIT-2 prelude: thin wrapper binding the opcode UT close to the
-// `finishFw2ToTimeWait` core (active OPEN via the opcode builder). SSOT for the
-// 8 opcode §4.8 callers; the seam counterpart is driveSeamTimeWaitFw2
-// (cases/_tcp_seam_time_wait_prelude.h).
-// `local_port` + `remote_port` are intentionally non-default — see
-// `driveActiveOpenEstablished` block comment for the per-case 4-tuple rationale.
-inline TcpTimeWaitInfo driveTcpToTimeWaitFw2(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  open_req_id,
-    std::uint8_t  close_req_id,
-    std::uint8_t  socket_id,
-    std::uint16_t local_port,
-    std::uint16_t remote_port) {
-    auto listener = driveActiveOpenEstablished(
-        cfg, iface, dut_mac, open_req_id, local_port, remote_port);
-    const int tester_fd = listener.acceptOne();
-    return finishFw2ToTimeWait(tester_fd, [&]() {
-        sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
-    });
 }
 
 // CLOSING-state core (stops at CLOSING, does NOT advance to TIME-WAIT):
