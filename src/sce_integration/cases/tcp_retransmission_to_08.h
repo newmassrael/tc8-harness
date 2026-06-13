@@ -5,12 +5,15 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
+#include <vector>
 #include <unistd.h>
 
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -38,14 +41,14 @@ namespace tc8::sce {
 // RTO doubles past 60 s before plateauing at 120 s; a strict-RFC DUT
 // honouring the 2*MSL ceiling would pass.
 //
-// Verdict mechanism (RETRANSMISSION_TO_03 pattern, kernel-side
-// observation via OpQueryTcpInfo):
+// Verdict mechanism (RETRANSMISSION_TO_03 pattern, kernel-side state
+// probe through the seam):
 //   1. Active-OPEN handshake on +181 port quad. acceptOne() drains
 //      the tester accept queue.
 //   2. TesterAutoAckDrop installs an iptables rule suppressing every
 //      tester-kernel auto-ACK so the DUT's RTO timer fires
 //      uninterrupted.
-//   3. UT SEND seg1 (8 B) → DUT data segment 1.
+//   3. Data SEND seg1 (8 B) → DUT data segment 1.
 //   4. Poll TCP_INFO every 2 s. Track plateau detection: when
 //      `tcpi_rto` repeats unchanged for 3 consecutive snapshots the
 //      RTO has plateaued. Otherwise the budget cap (35 s wall-time)
@@ -80,6 +83,15 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
     static constexpr int              kTopology    = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup    = ::tc8::BpfGroup::Tcp;
 
+    // The verdict reads the DUT's kernel RTO plateau (tcpi_rto) — a
+    // state introspection the opcode UT exposes (OpQueryTcpInfo) but the
+    // standard AUTOSAR testability protocol does not. Declaring
+    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this
+    // case on a testability backend (Tier 2 2b#4) instead of failing it;
+    // kCapTcpControl covers the active open + data send themselves.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
@@ -98,7 +110,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -107,29 +120,36 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
         const std::uint16_t remote_port = static_cast<std::uint16_t>(
             kBasicsActiveRemotePort + kTcpRetransmissionTo08LocalOffset);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        // Active OPEN → ESTABLISHED routed through the backend-agnostic
+        // seam; acceptOne() drains the tester accept queue.
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) {
+            ::close(tester_fd);
+            return;
+        }
+        const ::tc8::sce::DutSocket dut_sock = open.conn->socket;
         c.ut_handshake_completed = true;
 
         TesterAutoAckDrop ack_drop(cfg);
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kPayload.data(),
+        dut.tcpControl()->sendTcp(
+            dut_sock,
+            std::vector<std::uint8_t>(kPayload.begin(), kPayload.end()),
             static_cast<std::uint16_t>(kPayload.size()));
 
         const auto start = std::chrono::steady_clock::now();
-        ::tc8::sce::tcp::TcpInfoSnapshot last{};
+        ::tc8::sce::DutTcpInfo last{};
+        bool last_valid = false;
         std::uint32_t prev_rto = 0;
         std::uint8_t  plateau_count = 0;
         while (std::chrono::steady_clock::now() - start < kBudget) {
             std::this_thread::sleep_for(kPollInterval);
-            last = queryTcpInfoSync(cfg, /*req_id=*/3, /*socket_id=*/1);
-            if (!last.valid) continue;
+            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            if (!probe) continue;
+            last = *probe;
+            last_valid = true;
             if (last.rto_us == prev_rto && prev_rto != 0) {
                 if (++plateau_count >= kPlateauSnapshots) break;
             } else {
@@ -138,7 +158,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
             }
         }
 
-        c.ut_tcpi_p1_valid       = last.valid;
+        c.ut_tcpi_p1_valid       = last_valid;
         c.ut_tcpi_p1_state       = last.state;
         c.ut_tcpi_p1_rto_us      = last.rto_us;
         c.ut_tcpi_p1_retransmits = last.retransmits;
