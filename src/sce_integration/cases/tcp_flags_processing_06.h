@@ -9,7 +9,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -41,7 +43,14 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
     // second replay FIN.
     static constexpr auto kHalfMslWait = std::chrono::seconds(45);
 
-    // Synchronous prelude (driveTcpToTimeWaitFw2) drives DUT into
+    // Migrated onto the Tier-2 DUT-control seam: the FIN-WAIT-2
+    // TIME-WAIT prelude runs through driveSeamTimeWaitFw2 (active OPEN
+    // via the seam, DUT CLOSE via closeTcp), so the case runs unchanged
+    // on whichever backend --dut-control selected. The two replay FINs,
+    // the shared_ptr TesterAutoRstDrop, and the 1.5*MSL wall-time wait
+    // stay tester-side / SCXML-driven.
+    //
+    // Synchronous prelude (driveSeamTimeWaitFw2) drives DUT into
     // TIME-WAIT on (kBasicsActiveLocalPort + 51, kBasicsActiveRemotePort
     // + 51) — distinct from the §4.8 TIME-WAIT cluster's default +0
     // quad to dodge cross-case TIME-WAIT residue collisions
@@ -65,7 +74,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
     // both schedule lambdas — load-bearing for the wall-time wait.
     // Without it, the DUT pure ACK to the first replay FIN arrives
     // at the tester on a 4-tuple with no kernel socket
-    // (driveTcpToTimeWaitFw2 closes the tester fd at prelude end);
+    // (driveSeamTimeWaitFw2 closes the tester fd at prelude end);
     // the tester kernel's `tcp_v4_send_reset` would emit RST per
     // RFC 793 §3.4, the RST would reach DUT, and Linux's
     // `tcp_timewait_state_process` would `goto kill` the TW socket
@@ -78,6 +87,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -86,10 +96,8 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        const auto info = driveTcpToTimeWaitFw2(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
-            local_port, remote_port);
+        const auto info = driveSeamTimeWaitFw2(
+            dut, cfg, local_port, remote_port);
         if (!info.ok) return;
 
         auto rst_drop = std::make_shared<TesterAutoRstDrop>(cfg);
