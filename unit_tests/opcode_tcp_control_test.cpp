@@ -182,6 +182,19 @@ TEST(OpcodeTcpControl, ReceiveInvokesTriggerThenQueriesReceiveOpcode) {
     EXPECT_EQ((*bytes)[1], 'X');
 }
 
+TEST(OpcodeUdpControl, SendDatagramUsesTriggerSendUdpOpcode) {
+    // The connectionless UDP send routes to OpTriggerSendUdp (0x02) — the
+    // opcode backend's IUdpControl parity with the testability CREATE_AND_BIND +
+    // SEND_DATA path.
+    MockOpcodeResponder server;
+    sce::OpcodeUdpControl udp(::htonl(INADDR_LOOPBACK), server.port(), /*src_ip_be=*/0,
+                              /*timeout_ms=*/1000);
+    const std::vector<std::uint8_t> body = {'U', 'D', 'P'};
+    EXPECT_TRUE(udp.sendDatagram(/*src_port=*/30000,
+                                 sce::Endpoint{::htonl(0xAC100001), 8000}, body));
+    EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpTriggerSendUdp));
+}
+
 TEST(OpcodeTcpControl, NoServerFailsGracefully) {
     // Nothing listening on this loopback port — the round trip times out.
     auto ctrl = sce::OpcodeTcpControl(::htonl(INADDR_LOOPBACK), /*port=*/1, 0, /*timeout_ms=*/150);

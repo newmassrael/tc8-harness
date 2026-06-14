@@ -376,12 +376,44 @@ private:
     std::uint8_t req_id_ = 1;
 };
 
+// Opcode-UT backend of IUdpControl — a one-shot OpTriggerSendUdp round-trip. The
+// opcode UDP model is port-based (no socket handle): each send is a
+// self-contained TriggerSendUdp, which matches IUdpControl's connectionless
+// sendDatagram one-to-one (the testability backend reaches the same shape via
+// CREATE_AND_BIND + SEND_DATA + CLOSE_SOCKET).
+class OpcodeUdpControl final : public IUdpControl {
+public:
+    OpcodeUdpControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+                     int timeout_ms)
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
+
+    bool sendDatagram(std::uint16_t src_port, const Endpoint &dest,
+                      const std::vector<std::uint8_t> &data) override {
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildTriggerSendUdpRequest(nextReqId(), src_port, dest.addr_be, dest.port,
+                                                 data.empty() ? nullptr : data.data(),
+                                                 static_cast<std::uint16_t>(data.size())),
+            port_, timeout_ms_, src_ip_be_);
+        return r && r->status == ut::kStatusOk;
+    }
+
+private:
+    std::uint8_t nextReqId() { return req_id_++; }
+
+    std::uint32_t dut_ip_be_;
+    std::uint16_t port_;
+    std::uint32_t src_ip_be_;
+    int timeout_ms_;
+    std::uint8_t req_id_ = 1;
+};
+
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
 // the existing builders/transport with no behaviour change. Kernel-routed
 // SOCK_DGRAM probe (matching `ut-ping`); the TCP data plane is exposed through
-// OpcodeTcpControl and the kernel-state probe through OpcodeTcpStateProbe. UDP
-// through the seam stays on the direct TriggerSendUdp path (port-based, no
-// handle), so kCapUdpControl is not set here.
+// OpcodeTcpControl, the kernel-state probe through OpcodeTcpStateProbe, OOB
+// receive through OpcodeTcpRecvOob, and the connectionless UDP send through
+// OpcodeUdpControl.
 class OpcodeUtControl final : public IDutControl {
 public:
     explicit OpcodeUtControl(std::uint32_t dut_ip_be, std::uint16_t port = ut::kPort,
@@ -390,7 +422,8 @@ public:
           tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
           state_probe_(dut_ip_be, port, src_ip_be,
                        timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
-          recv_oob_(dut_ip_be, port, src_ip_be, timeout_ms) {}
+          recv_oob_(dut_ip_be, port, src_ip_be, timeout_ms),
+          udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -403,9 +436,11 @@ public:
     const char *backendName() const override { return "opcode-ut"; }
 
     DutCapabilities capabilities() const override {
-        return kCapTcpControl | kCapTcpStateProbe | kCapTcpSynSentOpen | kCapTcpRecvOob;
+        return kCapTcpControl | kCapUdpControl | kCapTcpStateProbe | kCapTcpSynSentOpen |
+               kCapTcpRecvOob;
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
+    IUdpControl *udpControl() override { return &udp_ctrl_; }
     ITcpStateProbe *tcpStateProbe() override { return &state_probe_; }
     ITcpRecvOob *tcpRecvOob() override { return &recv_oob_; }
 
@@ -428,6 +463,7 @@ private:
     OpcodeTcpControl tcp_ctrl_;
     OpcodeTcpStateProbe state_probe_;
     OpcodeTcpRecvOob recv_oob_;
+    OpcodeUdpControl udp_ctrl_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).
