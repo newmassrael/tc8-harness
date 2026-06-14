@@ -129,31 +129,26 @@ TEST(OpcodeTcpControl, SendAndCloseSucceed) {
     MockOpcodeResponder server;
     auto ctrl = makeControl(server.port());
     const std::vector<std::uint8_t> body = {'T', 'C', '8'};
-    EXPECT_TRUE(ctrl.sendTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}, body, 3));
+    EXPECT_TRUE(ctrl.sendTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}, body));
     EXPECT_TRUE(ctrl.closeTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}));
 }
 
 TEST(OpcodeTcpControl, SendLiteralUsesSendTcpDataOpcode) {
-    // total_len == data.size(): the repeat is a no-op, so the literal
-    // OpSendTcpData (0x06) request carries the bytes verbatim.
+    // A literal send carries the bytes verbatim via OpSendTcpData (0x06).
     MockOpcodeResponder server;
     auto ctrl = makeControl(server.port());
     const std::vector<std::uint8_t> body = {'T', 'C', '8'};
-    EXPECT_TRUE(ctrl.sendTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}, body,
-                             static_cast<std::uint16_t>(body.size())));
+    EXPECT_TRUE(ctrl.sendTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}, body));
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpSendTcpData));
 }
 
-TEST(OpcodeTcpControl, SendTotalLenRepeatRoutesToPatternOpcode) {
-    // total_len > data.size() with a single-byte template: the bulk repeat
-    // routes to OpSendTcpDataPattern (0x0A) so the DUT generates total_len
-    // bytes past the literal OpSendTcpData kMaxPayload (256 B) cap, matching
-    // the testability backend's one-byte template repeat.
+TEST(OpcodeTcpControl, SendPatternUsesPatternOpcode) {
+    // A bulk pattern send routes to OpSendTcpDataPattern (0x0A) so the DUT
+    // generates total_len bytes past the OpSendTcpData kMaxPayload (256 B) cap.
     MockOpcodeResponder server;
     auto ctrl = makeControl(server.port());
-    const std::vector<std::uint8_t> pattern = {0xC3U};
-    EXPECT_TRUE(ctrl.sendTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}, pattern,
-                             /*total_len=*/4000U));
+    EXPECT_TRUE(ctrl.sendTcpPattern(sce::DutSocket{MockOpcodeResponder::kSocketId},
+                                    /*pattern=*/0xC3U, /*total_len=*/4000U));
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpSendTcpDataPattern));
 }
 

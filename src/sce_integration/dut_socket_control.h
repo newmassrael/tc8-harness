@@ -84,9 +84,21 @@ public:
     // confirmation would never arrive. Returns the listening socket handle (for
     // a later closeTcp), or nullopt on failure.
     virtual std::optional<DutSocket> listenTcp(const BindSpec &listen) = 0;
-    // Transmit `data` (repeated up to total_len) on the connected socket.
-    virtual bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
-                         std::uint16_t total_len) = 0;
+    // Transmit exactly `data` on the connected socket — a literal send
+    // (opcode OpSendTcpData / testability SEND_DATA with totalLen == size).
+    // For a bulk fill past the literal-payload cap use sendTcpPattern.
+    virtual bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data) = 0;
+    // Make the DUT emit `total_len` bytes formed by repeating the single byte
+    // `pattern` — a bulk/fill send for the MSS / segmentation / window tests
+    // whose byte content is not load-bearing. Both backends generate the bytes
+    // DUT-side so the request stays compact and bypasses the opcode literal
+    // cap: opcode OpSendTcpDataPattern, testability SEND_DATA with a one-byte
+    // template repeated to total_len (PRS_TPSP §6.10). Split from sendTcp so
+    // each verb is a total function both backends implement faithfully (the
+    // opcode pattern op repeats one byte; folding it into sendTcp's total_len
+    // would make sendTcp a partial function on the opcode backend).
+    virtual bool sendTcpPattern(DutSocket sock, std::uint8_t pattern,
+                                std::uint16_t total_len) = 0;
     // Close a TCP socket.
     virtual bool closeTcp(DutSocket sock) = 0;
 };
@@ -195,9 +207,21 @@ public:
         return DutSocket{*listen_id};
     }
 
-    bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
-                 std::uint16_t total_len) override {
-        return stimulus::testabilityTcpSendData(cfg_, sock.id, total_len, /*flags=*/0, data,
+    bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data) override {
+        // SEND_DATA with totalLen == size: a literal send, no repeat.
+        return stimulus::testabilityTcpSendData(cfg_, sock.id,
+                                                static_cast<std::uint16_t>(data.size()),
+                                                /*flags=*/0, data, timeout_ms_, src_ip_be_)
+            .eok();
+    }
+
+    bool sendTcpPattern(DutSocket sock, std::uint8_t pattern,
+                        std::uint16_t total_len) override {
+        // SEND_DATA: a one-byte template repeated to total_len (PRS_TPSP §6.10
+        // totalLen rule) — the DUT generates the bytes, so a multi-kB fill
+        // rides a tiny request.
+        return stimulus::testabilityTcpSendData(cfg_, sock.id, total_len, /*flags=*/0,
+                                                std::vector<std::uint8_t>{pattern},
                                                 timeout_ms_, src_ip_be_)
             .eok();
     }

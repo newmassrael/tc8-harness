@@ -94,13 +94,10 @@ inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
 }
 
 // Thin convenience over `ITcpControl::sendTcp` for the common DUT-send case:
-// transmit a fixed-size byte array verbatim. `total_len` is pinned to the
-// payload size so the seam's total_len-repeat is a no-op and both backends put
-// identical bytes on the wire (the >size repeat path carries the documented
-// backend asymmetry — keeping size == total_len sidesteps it). Collapses the
-// array -> vector + size-cast + duplicated-length idiom every DUT-send case
-// otherwise repeats (HEADER_01, CHECKSUM_03, ACKNOWLEDGEMENT_02/04, NAGLE_02,
-// FLAGS_PROCESSING_10, PROBING_WINDOWS_02/04/05/06, RETRANSMISSION_TO_03/04/08).
+// transmit a fixed-size byte array verbatim (a literal send). Collapses the
+// array -> vector idiom every DUT-send case otherwise repeats (HEADER_01,
+// CHECKSUM_03, ACKNOWLEDGEMENT_02/04, NAGLE_02/03, FLAGS_PROCESSING_10,
+// PROBING_WINDOWS_02/04/05/06, RETRANSMISSION_TO_03/04/08).
 //
 // The tcpControl() deref is contract-guaranteed: a DUT-send case has already
 // driven an active OPEN through the seam (kCapTcpControl), and a backend lacking
@@ -111,16 +108,11 @@ inline bool seamSendTcp(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSocket sock
                         const std::array<std::uint8_t, N> &payload) {
     ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
     assert(tcp != nullptr && "DUT-send cases require kCapTcpControl");
-    return tcp->sendTcp(sock,
-                        std::vector<std::uint8_t>(payload.begin(), payload.end()),
-                        static_cast<std::uint16_t>(payload.size()));
+    return tcp->sendTcp(sock, std::vector<std::uint8_t>(payload.begin(), payload.end()));
 }
 
 // Bulk / pattern DUT send: make the DUT emit `total_len` bytes formed by
-// repeating a single `pattern` byte. Routes through ITcpControl::sendTcp's
-// total_len-repeat contract (PRS_TPSP §6.10 SEND_DATA) — on the standard
-// testability backend a one-byte template repeated to total_len, on the opcode
-// backend OpSendTcpDataPattern; both put identical bytes on the wire. The bulk
+// repeating a single `pattern` byte (ITcpControl::sendTcpPattern). The bulk
 // generation lives DUT-side so the request stays compact and bypasses the
 // opcode UT's literal-payload cap (kMaxPayload, 256 B). Cases use this for the
 // MSS / segmentation / window-shrink flows that need the DUT's send buffer to
@@ -135,7 +127,7 @@ inline bool seamSendTcpPattern(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSock
                                std::uint8_t pattern, std::uint16_t total_len) {
     ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
     assert(tcp != nullptr && "DUT-send cases require kCapTcpControl");
-    return tcp->sendTcp(sock, std::vector<std::uint8_t>{pattern}, total_len);
+    return tcp->sendTcpPattern(sock, pattern, total_len);
 }
 
 inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,

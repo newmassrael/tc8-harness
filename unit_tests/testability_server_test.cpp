@@ -311,7 +311,7 @@ TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenAndSend) {
     ASSERT_GE(afd, 0);
 
     const std::vector<std::uint8_t> body = {'T', 'C', '8'};
-    EXPECT_TRUE(tcp->sendTcp(conn->socket, body, /*total_len=*/3));
+    EXPECT_TRUE(tcp->sendTcp(conn->socket, body));
     ::setsockopt(afd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     std::uint8_t buf[16];
     const ssize_t n = ::recv(afd, buf, sizeof(buf), 0);
