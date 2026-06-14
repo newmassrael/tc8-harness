@@ -18,7 +18,7 @@ namespace tc8::sce::tcp {
 // Core TCP DUT-control seam helpers: the backend-agnostic vocabulary cases use
 // to drive the DUT's connection + data plane through the `ITcpControl` seam
 // instead of the opcode Upper Tester directly — active OPEN
-// (driveSeamActiveOpen, the Tier-2 counterpart of driveActiveOpenEstablished),
+// (driveSeamActiveOpen, the Tier-2 active-OPEN prelude),
 // embryonic SYN-SENT open (driveSeamSynSentOpen), connect (seamConnectTcp), and
 // the DUT-send verbs (seamSendTcp / seamSendTcpPattern). The passive-OPEN and
 // TIME-WAIT-prelude helpers extend this base in sibling headers
@@ -40,17 +40,16 @@ namespace tc8::sce::tcp {
 //
 // The DUT's active open carries an explicit local BindSpec so its source port
 // is the spec-pinned `local_port` the SCXML guard filters on (standard
-// CREATE_AND_BIND + CONNECT). The `kTcpActiveHandshakeGrace` settle mirrors
-// `driveActiveOpenEstablished`: it gives the SYN -> SYN+ACK -> ACK round trip
-// time to land in the pcap ring before the caller arms the SCXML deadline or
-// issues a follow-up close.
+// CREATE_AND_BIND + CONNECT). The `kTcpActiveHandshakeGrace` settle gives the
+// SYN -> SYN+ACK -> ACK round trip time to land in the pcap ring before the
+// caller arms the SCXML deadline or issues a follow-up close.
 //
-// Unlike `driveActiveOpenEstablished` this helper does NOT also wait
-// `kTcpUtRpcWait`. That wait exists in the opcode-direct path because its open
-// is an AF_PACKET fire-and-forget inject — the tester must pause for the DUT
-// to process it. `connectTcp` is instead a synchronous round trip (the backend
-// has issued the active open by the time it returns), so the post-open RPC
-// settle is already subsumed and only the handshake grace remains.
+// This helper does NOT wait `kTcpUtRpcWait`. That post-RPC settle is needed
+// only by an AF_PACKET fire-and-forget opcode inject, where the tester must
+// pause for the DUT to process the request. `connectTcp` is instead a
+// synchronous round trip (the backend has issued the active open by the time
+// it returns), so the post-open RPC settle is already subsumed and only the
+// handshake grace remains.
 //
 // `local_port` / `remote_port` are intentionally non-default — every caller
 // must pick a unique 4-tuple from the +200.. reservation block so a

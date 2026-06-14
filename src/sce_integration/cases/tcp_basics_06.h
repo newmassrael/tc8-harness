@@ -58,8 +58,7 @@ struct TestCaseTraits<cases::TcpBasics06SM>
     // spec-assertion edge would never fire. The listener is harness
     // infrastructure, not DUT control, so it stays on the tester side.
     // The listener-bind + active-open + handshake-settle is the shared
-    // `driveSeamActiveOpen` prelude (the seam counterpart of
-    // `driveActiveOpenEstablished`); BASICS_06 keeps only its
+    // `driveSeamActiveOpen` prelude; BASICS_06 keeps only its
     // case-specific teardown.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

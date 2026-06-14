@@ -499,10 +499,10 @@ inline constexpr std::uint16_t kTcpChecksum04LocalOffset     = 180U;
 // the BASICS_11 EADDRNOTAVAIL precedent that motivated this block —
 // the prior per-case-unique pattern at +20..+25 / +50..+56 /
 // +100..+182 is extended here to retire the last bare-port (offset 0)
-// callers of `driveActiveOpenEstablished` /
-// `driveToTimeWaitViaClosing` (those helpers no longer carry default
-// port arguments — the compiler rejects any future caller that omits
-// explicit ports).
+// callers of the active-OPEN preludes (the seam `driveSeamActiveOpen`
+// and the TIME-WAIT `driveToTimeWaitViaClosing` both take explicit
+// ports — neither carries a default, so the compiler rejects any
+// future caller that omits them).
 //
 // §4.8.6.1 BASICS_06..14 — UT-driven active-OPEN cluster. _08 / _10
 // each chain two distinct active-OPEN handshakes per case, so they
@@ -662,22 +662,23 @@ inline constexpr auto kTcpUtBootWait = std::chrono::milliseconds(1500);
 // worker without burning wall time.
 inline constexpr auto kTcpUtRpcWait = std::chrono::milliseconds(100);
 
-// Grace window between the UT Active-OPEN RPC return and the moment
-// the tester-side socket is ESTABLISHED. Linux completes the 3-way
+// Grace window between the active-OPEN return and the moment the
+// tester-side socket is ESTABLISHED. Linux completes the 3-way
 // handshake on a same-host netns in single-digit milliseconds; 50 ms
 // is the conservative ceiling across observed jitter on busy parallel
-// workers. Used by `driveActiveOpenEstablished` so callers do not
-// duplicate the magic-number sleep at every active-open prelude.
+// workers. Used by `driveSeamActiveOpen` so callers do not duplicate
+// the magic-number sleep at every active-open prelude.
 inline constexpr auto kTcpActiveHandshakeGrace = std::chrono::milliseconds(50);
 
 // Inline UT request sender. Wraps the opcode-specific builder and the
 // raw-inject path in one line so BASICS traits stay a clean sequence
 // of "open socket, connect, query established, close socket".
 //
-// Two flavours mirror the §4.8.5 `<openTCPSocket(typeOfSocket=…)>`
-// procedure split. Passive opens a DUT-side listener (BASICS_01..03,
-// 09, 10's prep stage); active drives the DUT to issue its own SYN
-// (BASICS_06..08).
+// Passive open only: arms a DUT-side listener (BASICS_01..03, 09, 10's
+// prep stage) per the §4.8.5 `<openTCPSocket(typeOfSocket=passive)>`
+// procedure. The active counterpart is gone — the DUT's active OPEN now
+// runs through the Tier-2 seam (`ITcpControl::connectTcp`,
+// cases/_tcp_seam.h) on whichever backend `--dut-control` selects.
 inline int sendOpenTcpSocketPassiveRequest(
     const ::tc8::TestConfig &cfg,
     std::string_view iface,
@@ -687,22 +688,6 @@ inline int sendOpenTcpSocketPassiveRequest(
     std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
     const auto payload =
         ::tc8::stimulus::buildOpenTcpSocketPassiveRequest(req_id, local_port);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, payload);
-}
-
-inline int sendOpenTcpSocketActiveRequest(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  req_id,
-    std::uint16_t local_port,
-    std::uint32_t remote_ip_be,
-    std::uint16_t remote_port,
-    std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto payload = ::tc8::stimulus::buildOpenTcpSocketActiveRequest(
-        req_id, local_port, remote_ip_be, remote_port);
     return ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
         tester_src_port, payload);
@@ -742,25 +727,6 @@ inline int sendQueryTcpEstablishedRequest(const ::tc8::TestConfig &cfg,
     return ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
         tester_src_port, payload);
-}
-
-// §4.8.6.2 CHECKSUM_03 driver: ask tc8-dut to write `payload` bytes
-// onto the previously-opened connected fd. The DUT-emitted segment
-// falls out of Linux's TCP stack with a correct pseudo-header
-// checksum, observable on pcap.
-inline int sendSendTcpDataRequest(const ::tc8::TestConfig &cfg,
-                                  std::string_view iface,
-                                  const std::array<std::uint8_t, 6> &dut_mac,
-                                  std::uint8_t        req_id,
-                                  std::uint8_t        socket_id,
-                                  const std::uint8_t *payload,
-                                  std::uint16_t       payload_len,
-                                  std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto buf = ::tc8::stimulus::buildSendTcpDataRequest(
-        req_id, socket_id, payload, payload_len);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, buf);
 }
 
 // §4.8.6.9 MSS_OPTIONS_06/_09/_10 driver: ask tc8-dut to allocate
@@ -1473,53 +1439,6 @@ struct TcpTimeWaitInfo {
     std::uint32_t tester_seq_post_fin = 0;
     std::uint32_t tester_ack_post_fin = 0;
 };
-
-// Active-OPEN prelude. Drives DUT into ESTABLISHED via UT
-// OpOpenTcpSocket(Active) against an auxiliary tester listener bound
-// on `remote_port`, returning the listener (move-only RAII). Single
-// call replaces the four-step prelude — listener bind, UT request,
-// RPC settle, handshake settle — that BASICS_06+ and CHECKSUM_01..03
-// otherwise repeat verbatim.
-//
-// What this helper deliberately does NOT do:
-//   * Top-level kTcpUtBootWait. Compound shapes (BASICS_08, BASICS_10)
-//     run the helper twice with distinct port quads, but only the
-//     first phase needs the boot sync; the caller pays kTcpUtBootWait
-//     once at the head of stimulus.
-//   * acceptOne(). Some callers do not need the tester-side fd
-//     (BASICS_06, BASICS_07) and forcing accept() in the helper would
-//     consume the queue prematurely. Cases that need the tester fd
-//     (CHECKSUM_01/02, BASICS_08 phase 2, BASICS_09, BASICS_10) call
-//     `listener.acceptOne()` after the helper returns.
-//
-// The kTcpActiveHandshakeGrace inclusion is unconditional: BASICS_06
-// observes only the SYN and does not strictly require ESTABLISHED,
-// but the 50 ms cost is well inside its 5 s SCXML deadline and
-// keeping the prelude shape uniform across all eight call sites
-// removes a per-case decision point.
-// `local_port` + `remote_port` are intentionally non-default — every
-// caller must pick a unique 4-tuple so a TIME-WAIT / LAST_ACK residue
-// from a sibling on the same worker netns cannot collide with the
-// next case's bind. See `reference_active_open_port_quad_collision.md`
-// for the BASICS_11 EADDRNOTAVAIL precedent. Per-case offsets live
-// in the +200..+219 reservation block above (kTcpBasicsNNLocalOffset,
-// kTcpChecksumNNLocalOffset, kTcpUnacceptableNNLocalOffset).
-inline TesterTcpListener driveActiveOpenEstablished(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  open_req_id,
-    std::uint16_t local_port,
-    std::uint16_t remote_port) {
-    TesterTcpListener listener(remote_port);
-    sendOpenTcpSocketActiveRequest(
-        cfg, iface, dut_mac,
-        open_req_id, local_port,
-        cfg.ipv4.tester_ip, remote_port);
-    std::this_thread::sleep_for(kTcpUtRpcWait);
-    std::this_thread::sleep_for(kTcpActiveHandshakeGrace);
-    return listener;
-}
 
 // Result of `driveRawPassiveHandshake`. `dut_isn` is the DUT-emitted
 // SYN+ACK seq_num parsed from the snippet capture — callers that need

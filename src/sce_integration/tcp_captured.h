@@ -126,7 +126,7 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
 
     // §4.8.6.11 TCP_RETRANSMISSION_TO_03 stimulus-progress flag.
     // Set by the case's `stimulus()` to true ONLY after
-    // `driveActiveOpenEstablished + acceptOne + queryTcpSeqRange`
+    // `driveSeamActiveOpen + acceptOne + queryTcpSeqRange`
     // all succeed; remains false on any prelude failure (e.g. the
     // negative IP-flip variant where the tester cannot reach the
     // wrong-IP DUT). The SCXML's first cond gates on this so a
