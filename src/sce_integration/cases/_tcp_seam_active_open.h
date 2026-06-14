@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -7,6 +8,7 @@
 #include <optional>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "sce_integration/dut_control.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -89,6 +91,29 @@ inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
                      phase, local_port, remote_port, dut.backendName());
     }
     return conn;
+}
+
+// Thin convenience over `ITcpControl::sendTcp` for the common DUT-send case:
+// transmit a fixed-size byte array verbatim. `total_len` is pinned to the
+// payload size so the seam's total_len-repeat is a no-op and both backends put
+// identical bytes on the wire (the >size repeat path carries the documented
+// backend asymmetry — keeping size == total_len sidesteps it). Collapses the
+// array -> vector + size-cast + duplicated-length idiom every DUT-send case
+// otherwise repeats (HEADER_01, CHECKSUM_03, ACKNOWLEDGEMENT_02/04, NAGLE_02,
+// FLAGS_PROCESSING_10, PROBING_WINDOWS_02/04/05/06, RETRANSMISSION_TO_03/04/08).
+//
+// The tcpControl() deref is contract-guaranteed: a DUT-send case has already
+// driven an active OPEN through the seam (kCapTcpControl), and a backend lacking
+// it is conditioning-skipped by the centralised capability gate before stimulus
+// runs. The assert documents that invariant.
+template <std::size_t N>
+inline bool seamSendTcp(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSocket sock,
+                        const std::array<std::uint8_t, N> &payload) {
+    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
+    assert(tcp != nullptr && "DUT-send cases require kCapTcpControl");
+    return tcp->sendTcp(sock,
+                        std::vector<std::uint8_t>(payload.begin(), payload.end()),
+                        static_cast<std::uint16_t>(payload.size()));
 }
 
 inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,

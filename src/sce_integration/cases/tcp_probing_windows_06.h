@@ -6,7 +6,6 @@
 #include <memory>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
@@ -85,10 +84,7 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSeg1Payload.begin(), kSeg1Payload.end()),
-            static_cast<std::uint16_t>(kSeg1Payload.size()));
+        seamSendTcp(dut, open.conn->socket, kSeg1Payload);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: window=0 ACK.
@@ -106,10 +102,7 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0.
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSeg2Payload.begin(), kSeg2Payload.end()),
-            static_cast<std::uint16_t>(kSeg2Payload.size()));
+        seamSendTcp(dut, open.conn->socket, kSeg2Payload);
 
         // No per-probe ACK injection — Linux's `icsk_backoff`
         // increments on each probe-fire, so successive probes ship

@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "tc8/bpf_group.h"
@@ -139,10 +138,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
 
         // Phase 1: send seg1 over the seam, poll TCP_INFO until the
         // kernel confirms retx fired.
-        dut.tcpControl()->sendTcp(
-            dut_sock,
-            std::vector<std::uint8_t>(kPhase1Payload.begin(), kPhase1Payload.end()),
-            static_cast<std::uint16_t>(kPhase1Payload.size()));
+        seamSendTcp(dut, dut_sock, kPhase1Payload);
 
         const auto phase1_start = std::chrono::steady_clock::now();
         ::tc8::sce::DutTcpInfo p1{};
@@ -188,10 +184,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
             cfg, iface, cfg.dut.mac, ack_seg,
             /*initial_wait=*/std::chrono::milliseconds(0));
 
-        dut.tcpControl()->sendTcp(
-            dut_sock,
-            std::vector<std::uint8_t>(kPhase2Payload.begin(), kPhase2Payload.end()),
-            static_cast<std::uint16_t>(kPhase2Payload.size()));
+        seamSendTcp(dut, dut_sock, kPhase2Payload);
 
         // Poll until the kernel confirms seg2 is in-flight
         // (tcpi_unacked >= 1 ⇒ timer armed at the current icsk_rto

@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
@@ -101,10 +100,7 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
 
         std::this_thread::sleep_for(kPostInjectSettle);
 
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSendPayload.begin(), kSendPayload.end()),
-            static_cast<std::uint16_t>(kSendPayload.size()));
+        seamSendTcp(dut, open.conn->socket, kSendPayload);
 
         (void)tester_fd;
     }

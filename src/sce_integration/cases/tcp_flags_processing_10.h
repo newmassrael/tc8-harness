@@ -6,7 +6,6 @@
 #include <memory>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
@@ -75,10 +74,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kFirstPayload.begin(), kFirstPayload.end()),
-            static_cast<std::uint16_t>(kFirstPayload.size()));
+        seamSendTcp(dut, open.conn->socket, kFirstPayload);
         // Gap must clear seg1's RTO (Linux TCP_RTO_MIN ~200 ms) so the
         // second SEND is enqueued after seg1's first retransmit instead
         // of racing it — a small SEND landing exactly at the RTO boundary
@@ -88,10 +84,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
         // deterministic on both backends.
         std::this_thread::sleep_for(std::chrono::milliseconds(350));
 
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSecondPayload.begin(), kSecondPayload.end()),
-            static_cast<std::uint16_t>(kSecondPayload.size()));
+        seamSendTcp(dut, open.conn->socket, kSecondPayload);
 
         const auto dut_mac = cfg.dut.mac;
         const std::string iface_str(iface);

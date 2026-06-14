@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam_active_open.h"
@@ -62,11 +61,7 @@ struct TestCaseTraits<cases::TcpHeader01SM>
             kBasicsActiveRemotePort + 30U);
 
         if (open.conn) {
-            const std::vector<std::uint8_t> payload(
-                kHeaderPayload.begin(), kHeaderPayload.end());
-            dut.tcpControl()->sendTcp(
-                open.conn->socket, payload,
-                static_cast<std::uint16_t>(payload.size()));
+            seamSendTcp(dut, open.conn->socket, kHeaderPayload);
             dut.tcpControl()->closeTcp(open.conn->socket);
         }
     }

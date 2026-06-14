@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "tc8/bpf_group.h"
@@ -139,10 +138,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         // fire (state == TCP_ESTABLISHED — `tcp_syn_linear_timeouts`
         // applies only to TCP_SYN_SENT, see
         // [[linux-syn-data-rto-deviations]]).
-        dut.tcpControl()->sendTcp(
-            dut_sock,
-            std::vector<std::uint8_t>(kSegPayload.begin(), kSegPayload.end()),
-            static_cast<std::uint16_t>(kSegPayload.size()));
+        seamSendTcp(dut, dut_sock, kSegPayload);
 
         // Combined poll loop with per-phase deadline reset.
         // `phase_anchor` resets to `now()` each time a new phase

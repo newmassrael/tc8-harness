@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam_active_open.h"
@@ -72,15 +71,10 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
             kBasicsActiveRemotePort + kTcpChecksum03LocalOffset);
 
         if (open.conn) {
-            // total_len == payload size: emit exactly these bytes once
-            // (no pattern-repeat). sendTcp is a synchronous round trip,
-            // so the DATA segment is on the wire before it returns and
-            // well inside the SCXML listen window.
-            const std::vector<std::uint8_t> payload(
-                kChecksumPayload.begin(), kChecksumPayload.end());
-            dut.tcpControl()->sendTcp(
-                open.conn->socket, payload,
-                static_cast<std::uint16_t>(payload.size()));
+            // seamSendTcp is a synchronous round trip, so the DATA
+            // segment is on the wire before it returns and well inside
+            // the SCXML listen window.
+            seamSendTcp(dut, open.conn->socket, kChecksumPayload);
             dut.tcpControl()->closeTcp(open.conn->socket);
         }
     }

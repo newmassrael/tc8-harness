@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "tc8/bpf_group.h"
@@ -134,10 +133,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
 
         TesterAutoAckDrop ack_drop(cfg);
 
-        dut.tcpControl()->sendTcp(
-            dut_sock,
-            std::vector<std::uint8_t>(kPayload.begin(), kPayload.end()),
-            static_cast<std::uint16_t>(kPayload.size()));
+        seamSendTcp(dut, dut_sock, kPayload);
 
         const auto start = std::chrono::steady_clock::now();
         ::tc8::sce::DutTcpInfo last{};

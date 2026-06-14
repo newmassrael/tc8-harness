@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam_active_open.h"
@@ -53,11 +52,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement04SM>
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
-        const std::vector<std::uint8_t> payload(
-            kDutPayload.begin(), kDutPayload.end());
-        dut.tcpControl()->sendTcp(
-            open.conn->socket, payload,
-            static_cast<std::uint16_t>(payload.size()));
+        seamSendTcp(dut, open.conn->socket, kDutPayload);
 
         std::this_thread::sleep_for(std::chrono::seconds(3) +
                                      std::chrono::milliseconds(200));

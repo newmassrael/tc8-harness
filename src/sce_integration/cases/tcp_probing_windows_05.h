@@ -6,7 +6,6 @@
 #include <memory>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
@@ -111,10 +110,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         // Spec step 2/3: SEND 1 → DUT seg1.
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSeg1Payload.begin(), kSeg1Payload.end()),
-            static_cast<std::uint16_t>(kSeg1Payload.size()));
+        seamSendTcp(dut, open.conn->socket, kSeg1Payload);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: tester ACKs seg1 with `window=0`. snd_una
@@ -135,10 +131,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0; the
         // socket is now in persist state, awaiting the probe timer.
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSeg2Payload.begin(), kSeg2Payload.end()),
-            static_cast<std::uint16_t>(kSeg2Payload.size()));
+        seamSendTcp(dut, open.conn->socket, kSeg2Payload);
 
         // Defer ack_drop release to the runner's scheduler so the
         // iptables OUTPUT rule remains installed across the SCXML

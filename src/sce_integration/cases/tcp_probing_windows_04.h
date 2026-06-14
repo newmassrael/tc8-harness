@@ -7,7 +7,6 @@
 #include <string>
 #include <string_view>
 #include <thread>
-#include <vector>
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
@@ -86,10 +85,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSeg1Payload.begin(), kSeg1Payload.end()),
-            static_cast<std::uint16_t>(kSeg1Payload.size()));
+        seamSendTcp(dut, open.conn->socket, kSeg1Payload);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: tester ACKs seg1 with `window=0`.
@@ -107,10 +103,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0.
-        dut.tcpControl()->sendTcp(
-            open.conn->socket,
-            std::vector<std::uint8_t>(kSeg2Payload.begin(), kSeg2Payload.end()),
-            static_cast<std::uint16_t>(kSeg2Payload.size()));
+        seamSendTcp(dut, open.conn->socket, kSeg2Payload);
 
         // Spec step 7: acknowledge each probe maintaining zero
         // window. State-entry observers fire their lambda when SCXML
