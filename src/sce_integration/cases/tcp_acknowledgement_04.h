@@ -5,9 +5,12 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_acknowledgement_04_sm.h"
@@ -36,7 +39,8 @@ struct TestCaseTraits<cases::TcpAcknowledgement04SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -45,24 +49,20 @@ struct TestCaseTraits<cases::TcpAcknowledgement04SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpAck04LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
-        if (tester_fd < 0) return;
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
+        if (tester_fd < 0 || !open.conn) return;
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kDutPayload.data(),
-            static_cast<std::uint16_t>(kDutPayload.size()));
+        const std::vector<std::uint8_t> payload(
+            kDutPayload.begin(), kDutPayload.end());
+        dut.tcpControl()->sendTcp(
+            open.conn->socket, payload,
+            static_cast<std::uint16_t>(payload.size()));
 
         std::this_thread::sleep_for(std::chrono::seconds(3) +
                                      std::chrono::milliseconds(200));
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(open.conn->socket);
         (void)tester_fd;
     }
 
