@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_mss_options_12_sm.h"
@@ -31,7 +33,7 @@ struct TestCaseTraits<cases::TcpMssOptions12SM>
     // Spec Test Procedure (v3.0 p363):
     //   Prerequisite: DUT receive MSS != 536 (Ethernet MTU 1500 → 1460
     //   on the veth pair satisfies this without setup-netns mods).
-    //   1. Tester triggers DUT active OPEN — UT OpOpenTcpSocket(Active).
+    //   1. Tester triggers the DUT active OPEN through the Tier-2 seam.
     //   2. DUT emits a SYN with MSS != 536; SCXML asserts.
     //
     // Same scaffold as MSS_OPTIONS_11 with a stricter pass guard
@@ -40,21 +42,18 @@ struct TestCaseTraits<cases::TcpMssOptions12SM>
     // both cases on the same worker netns.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 41U;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 41U;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        (void)listener;
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        if (!open.conn) return;
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        dut.tcpControl()->closeTcp(open.conn->socket);
     }
 
     static std::string_view verdictFor(State s) {
