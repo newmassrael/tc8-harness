@@ -8,7 +8,9 @@
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -42,11 +44,16 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         'A', 'B', 'C', 'D', 'E', 'F'};
     static constexpr std::uint16_t kUrgentPointer       = 3U;
     static constexpr std::uint8_t  kExpectedUrgentByte  = 'C';
-    static constexpr std::uint16_t kOobRecvTimeoutMs    = 2000U;
+    // recv(MSG_OOB) is opcode-only — the standard AUTOSAR testability protocol
+    // has no urgent/OOB receive SP, so the case is honestly capability-skipped on
+    // the testability backend (Tier 2 2b#4) rather than failed.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpRecvOob;
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -55,11 +62,10 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpUrgentPtr04LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) return;
 
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) {
@@ -80,23 +86,21 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         emitTcpFrame(cfg, iface, cfg.dut.mac, urg_seg,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
-        // Buffer-of-size-6 satisfies spec step 4 "data buffer having
-        // size equal to the size of the incoming data segment". The
-        // spec step 5 assertion is that the call returns only the
-        // urgent data — recv(MSG_OOB) on Linux fulfils that
-        // structurally (the 5 non-urgent bytes stay queued for a
-        // separate normal recv()).
-        const auto bytes = queryReceivedBytesOobSync(
-            cfg, /*req_id=*/2, /*socket_id=*/1,
-            static_cast<std::uint16_t>(kUrgPayload.size()),
-            kOobRecvTimeoutMs);
-        if (bytes.size() == 1U && bytes[0] == kExpectedUrgentByte) {
+        // Buffer-of-size-6 satisfies spec step 4 "data buffer having size equal
+        // to the size of the incoming data segment". The spec step 5 assertion is
+        // that the call returns only the urgent data — recv(MSG_OOB) fulfils that
+        // structurally (the 5 non-urgent bytes stay queued for a separate normal
+        // recv()). The deref is contract-guaranteed: the capability gate has
+        // already skipped any backend lacking kCapTcpRecvOob.
+        auto* oob = dut.tcpRecvOob();
+        if (oob == nullptr) return;
+        const auto received = oob->receiveTcpOob(
+            open.conn->socket, static_cast<std::uint16_t>(kUrgPayload.size()));
+        if (received && received->size() == 1U && (*received)[0] == kExpectedUrgentByte) {
             c.ut_received_payload_len = 1U;
         }
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1);
+        seamTcpControl(dut).closeTcp(open.conn->socket);
         (void)tester_fd;
     }
 
