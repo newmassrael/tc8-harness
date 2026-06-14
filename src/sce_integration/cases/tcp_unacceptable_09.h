@@ -8,7 +8,9 @@
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -74,24 +76,22 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
     //   7. Pcap observes DUT empty ACK on the data path.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: OTW SEQ in FIN-WAIT-1 --------
         {
-            auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.dut.mac,
-                /*open_req_id=*/1,
+            auto open = driveSeamActiveOpen(
+                dut, cfg,
                 kBasicsActiveLocalPort  + kTcpUnacceptable09Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable09Phase1LocalOffset);
-            const int tester_fd = listener.acceptOne();
+            const int tester_fd = open.listener.acceptOne();
             TesterAutoAckDrop ack_drop(cfg);
-            // UT close drives DUT into FIN-WAIT-1 (no tester ACK
+            // Seam close drives DUT into FIN-WAIT-1 (no tester ACK
             // because of ack_drop).
-            sendCloseTcpSocketRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/2, /*socket_id=*/1);
+            if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
                 const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -124,16 +124,13 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
             const std::uint16_t phase2_local_port  = kBasicsActiveLocalPort  + kTcpUnacceptable09Phase2LocalOffset;
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable09Phase2LocalOffset;
 
-            auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.dut.mac,
-                /*open_req_id=*/3,
+            auto open = driveSeamActiveOpen(
+                dut, cfg,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
-            const int tester_fd = listener.acceptOne();
+            const int tester_fd = open.listener.acceptOne();
             TesterAutoAckDrop ack_drop(cfg);
-            sendCloseTcpSocketRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/4, /*socket_id=*/2);
+            if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
                 const auto seq_range = queryTcpSeqRange(tester_fd);
