@@ -3,12 +3,15 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <thread>
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -32,6 +35,16 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         "segment without crashing (RFC 1122 §4.2.2.5 p85). Iterations: "
         "ilen=0 and ilen=5.";
 
+    // Each iteration holds the DUT's active open in SYN-SENT (no tester
+    // listener) until the crafted SYN+ACK injection establishes it. The
+    // testability CONNECT SP requires the handshake to establish and so cannot
+    // hold a socket in SYN-SENT, while the opcode non-blocking worker can —
+    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
+    // on a testability backend (Tier 2 2b#4) instead of failing it. The DUT
+    // third-leg ACK is observed on pcap, so no state probe is required.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
+
     // Drive one iteration of the spec procedure: active OPEN, capture
     // DUT SYN, raw-inject SYN+ACK carrying `bad_options` bytes, wait
     // for the DUT third-leg ACK to land on pcap, UT-close the socket.
@@ -40,12 +53,10 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
     // RST is no longer needed, and tearing the rule down before UT
     // close lets the tester kernel cleanly RST the orphaned 4-tuple
     // when tc8-dut emits FIN.
-    static void runPhase(const ::tc8::TestConfig &cfg,
+    static void runPhase(::tc8::sce::IDutControl& dut,
+                         const ::tc8::TestConfig &cfg,
                          std::string_view iface,
                          const std::array<std::uint8_t, 6> &dut_mac,
-                         std::uint8_t  open_req_id,
-                         std::uint8_t  close_req_id,
-                         std::uint8_t  socket_id,
                          std::uint16_t port_offset,
                          const std::vector<std::uint8_t> &bad_options) {
         using namespace ::tc8::sce::tcp;
@@ -56,14 +67,14 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
 
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
+        std::optional<::tc8::sce::DutConnection> open;
         {
             TesterAutoRstDrop rst_drop(cfg);
             (void)rst_drop;
 
-            sendOpenTcpSocketActiveRequest(
-                cfg, iface, dut_mac,
-                open_req_id, local_port,
-                cfg.ipv4.tester_ip, remote_port);
+            // Seam active OPEN, no tester listener: the SYN stays unanswered so
+            // the DUT remains in SYN-SENT until the SYN+ACK injection below.
+            open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
             const auto syn = snippet.tryCapture(
                 std::chrono::milliseconds(1000));
@@ -86,14 +97,14 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, dut_mac, close_req_id, socket_id);
+        if (open) dut.tcpControl()->closeTcp(open->socket);
         std::this_thread::sleep_for(kTcpUtRpcWait);
     }
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -101,8 +112,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // Wire bytes [0x02 0x00] padded with NOP×2 → 4 B. Linux's
         // `tcp_parse_options` aborts further option parsing at
         // `opsize < 2` and proceeds with the rest of the SYN+ACK.
-        runPhase(cfg, iface, cfg.dut.mac,
-                 /*open_req_id=*/1, /*close_req_id=*/2, /*socket_id=*/1,
+        runPhase(dut, cfg, iface, cfg.dut.mac,
                  kTcpMssOptions05Phase1LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x00U, 0x01U, 0x01U});
 
@@ -111,8 +121,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // bytes, one more than the RFC encoding's 2). Builder pads
         // with NOP×3 → 8 B options region; Data Offset = 7. Linux
         // skips the option per `opsize > TCPOLEN_MSS` and continues.
-        runPhase(cfg, iface, cfg.dut.mac,
-                 /*open_req_id=*/3, /*close_req_id=*/4, /*socket_id=*/2,
+        runPhase(dut, cfg, iface, cfg.dut.mac,
                  kTcpMssOptions05Phase2LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});
     }
