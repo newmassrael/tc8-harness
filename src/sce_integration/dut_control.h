@@ -101,6 +101,18 @@ inline ITcpControl &seamTcpControl(IDutControl &dut) {
     return *tcp;
 }
 
+// The ITcpRecvOob counterpart of seamTcpControl: fetch the OOB-receive
+// sub-interface as a reference, asserting it is present. A case declaring
+// kCapTcpRecvOob has already been capability-skipped by the centralised gate on
+// a backend lacking it, so tcpRecvOob() is non-null by contract; the reference
+// encodes that and the assert documents the invariant. A silent null path would
+// mis-report the honest capability SKIP as a stimulus timeout FAIL.
+inline ITcpRecvOob &seamTcpRecvOob(IDutControl &dut) {
+    ITcpRecvOob *oob = dut.tcpRecvOob();
+    assert(oob != nullptr && "OOB-receive cases require kCapTcpRecvOob");
+    return *oob;
+}
+
 // Opcode-UT backend of ITcpControl — a synchronous SOCK_DGRAM round-trip
 // adapter over the opcode builders. The opcode UT server answers every request
 // on the bound socket, so the AF_PACKET inject path the cases use is not needed

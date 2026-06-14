@@ -90,18 +90,16 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         // to the size of the incoming data segment". The spec step 5 assertion is
         // that the call returns only the urgent data — recv(MSG_OOB) fulfils that
         // structurally (the 5 non-urgent bytes stay queued for a separate normal
-        // recv()). The deref is contract-guaranteed: the capability gate has
+        // recv()). seamTcpRecvOob asserts non-null: the capability gate has
         // already skipped any backend lacking kCapTcpRecvOob.
-        auto* oob = dut.tcpRecvOob();
-        if (oob == nullptr) return;
-        const auto received = oob->receiveTcpOob(
+        const auto received = seamTcpRecvOob(dut).receiveTcpOob(
             open.conn->socket, static_cast<std::uint16_t>(kUrgPayload.size()));
         if (received && received->size() == 1U && (*received)[0] == kExpectedUrgentByte) {
             c.ut_received_payload_len = 1U;
         }
 
         seamTcpControl(dut).closeTcp(open.conn->socket);
-        (void)tester_fd;
+        silentlyCloseTesterFd(tester_fd);
     }
 
     static std::string_view verdictFor(State s) {
