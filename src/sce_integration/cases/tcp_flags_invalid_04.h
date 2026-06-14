@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -29,6 +31,17 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
         "TCP in SYN-SENT state MUST ignore a RST control message "
         "(RFC 793 §3.9 p67 Event Processing)";
 
+    // The DUT's active open is left in SYN-SENT (no tester listener), then the
+    // bare RST is injected into that state and absence-of-response asserted. The
+    // testability CONNECT SP requires the handshake to establish and so cannot
+    // hold a socket in SYN-SENT, while the opcode non-blocking worker can —
+    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
+    // on a testability backend (Tier 2 2b#4) instead of failing it. No state
+    // probe is needed: the DUT SYN is observed on pcap and the verdict is the
+    // SCXML absence window.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
+
     // Mechanism (single iteration). Same prelude shape as
     // FLAGS_INVALID_03; the only difference is the injected segment
     // carries RST without ACK (bare RST). Linux's
@@ -44,7 +57,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
     // branch.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -56,10 +70,12 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
 
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, local_port,
-            cfg.ipv4.tester_ip, remote_port);
+        // Active OPEN routed through the backend-agnostic seam, no tester
+        // listener — the SYN goes unanswered so the DUT stays in SYN-SENT, the
+        // state this case injects the bare RST into. The handle is discarded
+        // (no closeTcp): closing a SYN-SENT socket would abort the state the
+        // case observes; the leaked socket is reaped by DUT teardown.
+        (void)driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         const auto syn = snippet.tryCapture(
             std::chrono::milliseconds(500));
