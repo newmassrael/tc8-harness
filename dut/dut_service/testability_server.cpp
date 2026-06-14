@@ -737,6 +737,7 @@ void TestabilityServer::closeAllSockets() {
         ::close(kv.second);
     }
     sockets_.clear();
+    tcp_conn_.clear();  // keep the connected-4-tuple map in lockstep with sockets_
 }
 
 void TestabilityServer::joinEventThreads() {

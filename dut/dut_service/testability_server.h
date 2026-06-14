@@ -152,8 +152,11 @@ private:
     // sockets_mu_ (concurrent access from serverLoop + accept threads).
     mutable std::mutex sockets_mu_;
     std::map<std::uint16_t, int> sockets_;
-    // Connected-TCP 4-tuples captured at CONNECT, keyed by socketId — consulted
-    // by the abort path's SOCK_DESTROY. Also guarded by sockets_mu_.
+    // Connected-TCP 4-tuples captured at CONNECT (active open only), keyed by
+    // socketId — consulted by the abort path's SOCK_DESTROY. Passive-accepted
+    // sockets are not tracked: no TIME-WAIT abort case exercises them, matching
+    // the opcode firmware's active-only ss -K. Guarded by sockets_mu_; cleared
+    // in lockstep with sockets_ (eraseSocket / closeAllSockets).
     std::map<std::uint16_t, TcpConnTuple> tcp_conn_;
     std::uint16_t next_socket_id_ = 1;
 };
