@@ -10,7 +10,9 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -51,20 +53,16 @@ struct TestCaseTraits<cases::TcpFlagsInvalid11SM>
     // FLAGS_INVALID_08.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         for (std::uint16_t phase = 0; phase < 5U; ++phase) {
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + phase;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + phase;
-            const std::uint8_t open_req_id =
-                static_cast<std::uint8_t>(1U + phase * 2U);
-
-            auto listener = driveActiveOpenEstablished(
-                cfg, iface, cfg.dut.mac,
-                open_req_id, local_port, remote_port);
-            const int tester_fd = listener.acceptOne();
+            auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+            const int tester_fd = open.listener.acceptOne();
             if (tester_fd < 0) {
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
                 continue;
