@@ -43,13 +43,11 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
     // SENDs each ship out as their own data segment without requiring
     // TCP_NODELAY on the DUT-side socket.
     //
-    // OpSendTcpData caps at upper_tester_protocol.h kMaxPayload (256 B)
-    // because the bytes traverse the UT UDP request. For >256 B sends
-    // the harness uses OpSendTcpDataPattern: the tc8-dut allocates
-    // `total_len` bytes filled with `pattern` and writes them via
-    // ::send() — Linux's TCP stack segments per the negotiated send
-    // MSS without crossing the UT-UDP boundary. Same idiom NAGLE_03
-    // uses for its 1450-byte aggregate-fill phase.
+    // For a bulk fill past the literal-payload cap the stimulus uses the seam's
+    // pattern send (seamSendTcpPattern): the DUT generates `total_len` bytes
+    // itself and its TCP stack segments them per the negotiated send MSS, so a
+    // full-MSS fill needs no oversize tester->DUT request. Same idiom NAGLE_03 /
+    // MSS_OPTIONS_09 use.
     static constexpr std::uint16_t kSegmentPayloadLen = 1460U;
 
     // Pattern bytes for each SEND — distinct first nibble aids pcap
@@ -59,7 +57,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
     static constexpr std::uint8_t kSeg3Pattern = 0xA3U;
     static constexpr std::uint8_t kSeg4Pattern = 0xA4U;
 
-    // Settle between an injected ACK and the next UT SEND so the
+    // Settle between an injected ACK and the next DUT SEND so the
     // DUT's tcp_ack_update_window has run before the application
     // send is enqueued. 150 ms covers softirq scheduling jitter
     // under parallel workers without bloating case wall-time.
