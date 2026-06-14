@@ -117,7 +117,7 @@ private:
     // close go through these under sockets_mu_.
     std::uint16_t registerSocket(int fd);
     std::optional<int> lookupSocket(std::uint16_t id) const;
-    bool eraseSocket(std::uint16_t id);  // close + erase; false if absent
+    bool eraseSocket(std::uint16_t id, bool abort = false);  // close (abort -> RST) + erase
     void closeAllSockets();
 
     // Signal the async-event SP threads to stop, join them, and clear the list.

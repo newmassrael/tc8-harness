@@ -235,6 +235,16 @@ public:
         return r && r->status == ut::kStatusOk;
     }
 
+    bool abortTcp(DutSocket sock) override {
+        // OpAbortTcpSocket (0x09): the DUT applies SO_LINGER {1,0} + close so the
+        // kernel emits RST (the abortive counterpart of closeTcp's graceful FIN).
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildAbortTcpSocketRequest(nextReqId(), static_cast<std::uint8_t>(sock.id)),
+            port_, timeout_ms_, src_ip_be_);
+        return r && r->status == ut::kStatusOk;
+    }
+
 private:
     std::uint8_t nextReqId() { return req_id_++; }
 

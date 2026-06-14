@@ -124,6 +124,14 @@ TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::ui
                                            std::uint16_t socket_id, int timeout_ms = 1000,
                                            std::uint32_t src_ip_be = 0);
 
+// CLOSE_SOCKET with abort=true (TCP / PID 0x00): an abortive close — the stack
+// closes the socket immediately with a RST, not waiting for outstanding
+// transmissions/acknowledgements (PRS_TPSP §6.10 CLOSE_SOCKET abort param). The
+// request appends the abort byte the graceful testabilityCloseSocket omits.
+TestabilityResponse testabilityAbortSocket(const TestabilityConfig &cfg, std::uint8_t gid,
+                                           std::uint16_t socket_id, int timeout_ms = 1000,
+                                           std::uint32_t src_ip_be = 0);
+
 // SHUTDOWN (UDP/TCP / PID 0x07): half-close the DUT socket in the direction
 // `type_id` (testability::kShutdownRd/Wr/RdWr) — the fd lives on, unlike
 // CLOSE_SOCKET. `gid` selects the group; the request shape —

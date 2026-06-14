@@ -393,6 +393,15 @@ TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::ui
     return testabilityCall(cfg, gid, tp::kPidCloseSocket, dat, timeout_ms, src_ip_be);
 }
 
+TestabilityResponse testabilityAbortSocket(const TestabilityConfig &cfg, std::uint8_t gid,
+                                           std::uint16_t socket_id, int timeout_ms,
+                                           std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    dat.push_back(1U);  // abort = true (CLOSE_SOCKET abort param, TCP)
+    return testabilityCall(cfg, gid, tp::kPidCloseSocket, dat, timeout_ms, src_ip_be);
+}
+
 TestabilityResponse testabilityShutdown(const TestabilityConfig &cfg, std::uint8_t gid,
                                         std::uint16_t socket_id, std::uint8_t type_id,
                                         int timeout_ms, std::uint32_t src_ip_be) {

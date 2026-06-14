@@ -121,8 +121,15 @@ public:
     // partial function on that backend; the dedicated WR verb stays a total
     // function on both. Add RD/RDWR verbs if a case ever needs them (YAGNI).
     virtual bool shutdownTcpWr(DutSocket sock) = 0;
-    // Close a TCP socket.
+    // Close a TCP socket gracefully (FIN).
     virtual bool closeTcp(DutSocket sock) = 0;
+    // Abortive close: the DUT closes the socket immediately with a RST (no
+    // graceful FIN), not waiting for outstanding transmissions/acknowledgements —
+    // the application ABORT primitive (RFC 793 §3.9). opcode OpAbortTcpSocket
+    // (SO_LINGER {1,0} + close), testability CLOSE_SOCKET with the abort flag set
+    // (PRS_TPSP §6.10 CLOSE_SOCKET abort param). Split from closeTcp's graceful
+    // ::close so each verb is a total function both backends implement faithfully.
+    virtual bool abortTcp(DutSocket sock) = 0;
 };
 
 // One-shot UDP send — no handle, matching the opcode UT's port-based model.
@@ -273,6 +280,14 @@ public:
 
     bool closeTcp(DutSocket sock) override {
         return stimulus::testabilityCloseSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
+                                                src_ip_be_)
+            .eok();
+    }
+
+    bool abortTcp(DutSocket sock) override {
+        // CLOSE_SOCKET with abort=true: immediate RST close, no wait for
+        // outstanding tx/acks (PRS_TPSP §6.10 CLOSE_SOCKET abort param).
+        return stimulus::testabilityAbortSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
                                                 src_ip_be_)
             .eok();
     }

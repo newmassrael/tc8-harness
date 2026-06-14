@@ -477,12 +477,16 @@ void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
 }
 
 std::uint8_t TestabilityServer::closeSocket(const std::uint8_t *dat, std::size_t dat_len) {
-    // PRS_TPSP §6.10 CLOSE_SOCKET request: socketId(uint16).
+    // PRS_TPSP §6.10 CLOSE_SOCKET request: socketId(uint16) + optional abort(bool,
+    // TCP). abort=true closes the socket immediately (SO_LINGER {1,0} -> RST), not
+    // waiting for outstanding transmissions and acknowledgements; the byte is
+    // absent (or 0) for a graceful close and for UDP.
     if (dat_len < 2) {
         return tp::kRidEInv;
     }
     const std::uint16_t socket_id = tp::readU16(dat);
-    return eraseSocket(socket_id) ? tp::kRidEOk : tp::kRidEIsd;
+    const bool abort = (dat_len >= 3) && (dat[2] != 0);
+    return eraseSocket(socket_id, abort) ? tp::kRidEOk : tp::kRidEIsd;
 }
 
 std::uint8_t TestabilityServer::shutdownSocket(const std::uint8_t *dat, std::size_t dat_len) {
@@ -646,11 +650,21 @@ std::optional<int> TestabilityServer::lookupSocket(std::uint16_t id) const {
     return it->second;
 }
 
-bool TestabilityServer::eraseSocket(std::uint16_t id) {
+bool TestabilityServer::eraseSocket(std::uint16_t id, bool abort) {
     std::lock_guard<std::mutex> lk(sockets_mu_);
     const auto it = sockets_.find(id);
     if (it == sockets_.end()) {
         return false;
+    }
+    if (abort) {
+        // Abortive close: SO_LINGER {on, linger=0} makes ::close emit a RST and
+        // skip the graceful FIN — "closes immediately, not waiting for
+        // outstanding transmissions and acknowledgements" (PRS_TPSP §6.10
+        // CLOSE_SOCKET abort). Reaches CLOSED from EST / FIN-WAIT / CLOSING /
+        // LAST-ACK; a TIME-WAIT residual is force-terminated separately (the
+        // abort SOCK_DESTROY path).
+        const linger lg{/*l_onoff=*/1, /*l_linger=*/0};
+        ::setsockopt(it->second, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
     }
     ::close(it->second);
     sockets_.erase(it);

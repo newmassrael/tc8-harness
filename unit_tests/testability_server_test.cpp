@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <thread>
@@ -462,6 +463,48 @@ TEST_F(TestabilityServerTest, TcpControlSeamShutdownWrEmitsFin) {
     EXPECT_EQ(n, 0) << "DUT did not FIN on shutdownTcpWr (tester saw no EOF)";
 
     EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    ::close(afd);
+    ::close(lfd);
+}
+
+// TCP control abort: abortTcp makes the DUT close with SO_LINGER {1,0}, so the
+// kernel emits a RST and the tester's accepted socket reads ECONNRESET — the
+// abortive counterpart of closeTcp's graceful FIN (RFC 793 §3.9 ABORT). Backs
+// the seam abortTcp used by TCP_CALL_ABORT_02/03.
+TEST_F(TestabilityServerTest, TcpControlSeamAbortEmitsRst) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    sce::ITcpControl *tcp = ctrl.tcpControl();
+    ASSERT_NE(tcp, nullptr);
+
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    la.sin_port = 0;
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+
+    const auto conn = tcp->connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)});
+    ASSERT_TRUE(conn.has_value());
+    const int afd = ::accept(lfd, nullptr, nullptr);
+    ASSERT_GE(afd, 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(afd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    EXPECT_TRUE(tcp->abortTcp(conn->socket));
+    // A graceful FIN would surface as recv == 0 (EOF); the RST surfaces as
+    // recv == -1 / ECONNRESET.
+    std::uint8_t buf[16];
+    const ssize_t n = ::recv(afd, buf, sizeof(buf), 0);
+    EXPECT_LT(n, 0) << "expected RST (ECONNRESET), got EOF/data n=" << n;
+    EXPECT_EQ(errno, ECONNRESET);
+
     ::close(afd);
     ::close(lfd);
 }
