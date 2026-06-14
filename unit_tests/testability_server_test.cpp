@@ -327,6 +327,59 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardConsumesThenForwards) {
     EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
+// RECEIVE_AND_FORWARD aggregation: a stream the DUT reads as several recv()s
+// (each forwarded as its own Event) is reassembled by the client into one
+// max_len buffer — the seam receiveTcp's multi-segment reassembly contract
+// (TCP_CALL_RECEIVE_04), matching the opcode OpReceiveTcpData recv-loop.
+TEST_F(TestabilityServerTest, TcpReceiveAndForwardReassemblesMultiSegment) {
+    const auto cfg = loopbackConfig();
+
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    la.sin_port = 0;
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+
+    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+    ASSERT_TRUE(stimulus::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
+                                                ::htonl(INADDR_LOOPBACK))
+                    .eok());
+    const int afd = ::accept(lfd, nullptr, nullptr);
+    ASSERT_GE(afd, 0);
+
+    // Four 32-byte segments with 20 ms gaps so the DUT's receiveLoop reads them
+    // as separate recv()s (separate forward Events). The client must concatenate
+    // them back into the 128-byte buffer regardless of how the stream chunked.
+    constexpr int kSeg = 32;
+    constexpr int kCount = 4;
+    std::vector<std::uint8_t> expected;
+    const auto res = stimulus::testabilityReceiveAndForward(
+        cfg, *sock, /*max_fwd=*/kSeg * kCount, /*max_len=*/kSeg * kCount, [&] {
+            for (int i = 0; i < kCount; ++i) {
+                const std::vector<std::uint8_t> chunk(kSeg, static_cast<std::uint8_t>(0xA0 + i));
+                ::send(afd, chunk.data(), chunk.size(), 0);
+                expected.insert(expected.end(), chunk.begin(), chunk.end());
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            }
+        });
+
+    EXPECT_TRUE(res.ok);
+    EXPECT_EQ(res.payload.size(), static_cast<std::size_t>(kSeg * kCount));
+    EXPECT_EQ(res.payload, expected);
+
+    ::close(afd);
+    ::close(lfd);
+    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+}
+
 // ── Tier 2 seam: ITcpControl / IUdpControl over the real testability server ──
 
 // TCP control: capability bit set, active open against a tester listener (read

@@ -172,24 +172,28 @@ TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cf
                                                      int event_timeout_ms = 2000,
                                                      std::uint32_t src_ip_be = 0);
 
-// One forward Event collected from a TCP RECEIVE_AND_FORWARD socket
-// (PRS_TPSP §6.10). `ok` is true when the arm request returned E_OK; `payload`
-// is empty if no Event arrived within the timeout. TCP carries fullLen +
-// payload only (no srcPort/srcAddr — connection-oriented).
+// The forward Events collected from a TCP RECEIVE_AND_FORWARD socket
+// (PRS_TPSP §6.10), reassembled into one buffer. `ok` is true when the arm
+// request returned E_OK; `payload` is empty if no Event arrived within the
+// timeout. TCP carries fullLen + payload only (no srcPort/srcAddr —
+// connection-oriented).
 struct TestabilityForwardResult {
     bool ok = false;                    // arm request round-tripped and returned E_OK
     std::uint16_t drop_cnt = 0;         // inactive-phase bytes consumed before the arm
-    std::uint16_t full_len = 0;         // full length of the forwarded bulk
-    std::vector<std::uint8_t> payload;  // forwarded payload (<= maxFwd)
+    std::uint16_t full_len = 0;         // total length the DUT received across the Events
+    std::vector<std::uint8_t> payload;  // reassembled forwarded payload (<= max_len)
 };
 
 // RECEIVE_AND_FORWARD (TCP / PID 0x03): arm `socket_id` to forward inbound
 // stream data as Events. The request consumes the bytes queued before the call
 // (returned as drop_cnt) to reopen the receive window and returns E_OK;
-// `on_armed` is then invoked to drive the inbound data, and ONE forward Event
-// (fullLen + payload, payload capped at `max_fwd`, total capped at `max_len`;
-// max_len 0xFFFF == limitless) is collected on the same socket. Uses the UDP
-// control transport.
+// `on_armed` is then invoked to drive the inbound data. The DUT emits one
+// forward Event per recv() (fullLen + payload, payload capped at `max_fwd`);
+// the Events are accumulated on the same socket until `max_len` bytes are
+// gathered or the event budget expires, so a stream split across the DUT's
+// recv()s reassembles into one buffer (mirrors the opcode OpReceiveTcpData
+// recv-loop). max_len 0xFFFF == limitless, which collects a single Event. Uses
+// the UDP control transport.
 TestabilityForwardResult testabilityReceiveAndForward(
     const TestabilityConfig &cfg, std::uint16_t socket_id, std::uint16_t max_fwd,
     std::uint16_t max_len, const std::function<void()> &on_armed, int resp_timeout_ms = 1000,

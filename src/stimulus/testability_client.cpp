@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <cstring>
 
 namespace tc8::stimulus {
@@ -156,18 +157,47 @@ struct ArmedEventResult {
     std::vector<std::uint8_t> event_dat;   // Event DAT (valid when event_received)
 };
 
-// Arm an async-event SP and collect its first Event over one persistent UDP
-// socket — the SSOT for the LISTEN_AND_ACCEPT / RECEIVE_AND_FORWARD shape. The
-// socket carries the request, its E_OK Response, and the later Event (the DUT
-// routes both to the request's source address). `on_armed` runs after the
-// Response and before the Event wait, so the caller drives whatever produces the
-// Event. Each wrapper supplies only its request DAT and parses resp_dat /
-// event_dat.
-ArmedEventResult armAndCollectEvent(const TestabilityConfig &cfg, std::uint8_t gid,
-                                    std::uint8_t pid, const std::vector<std::uint8_t> &req_dat,
-                                    const std::function<void()> &on_armed, int resp_timeout_ms,
-                                    int event_timeout_ms, std::uint32_t src_ip_be) {
-    ArmedEventResult res;
+// An armed async-event SP socket: the UDP fd left open after the arm request's
+// E_OK Response and `on_armed`, ready for the caller to collect one or more
+// Events. fd == -1 (armed == false) when the arm failed; otherwise the caller
+// owns the open fd and must ::close it.
+struct ArmedSocket {
+    bool armed = false;
+    std::vector<std::uint8_t> resp_dat;
+    int fd = -1;
+};
+
+// Receive one Event (TID 0x02 / EVB set) of SP (gid,pid) on an already-armed
+// socket whose recv timeout the caller has set; returns the Event DAT (bytes
+// after the 16-byte header) or nullopt on timeout / malformed / wrong-SP frame.
+// The Event-parse SSOT shared by the single-Event (accept) and accumulating
+// (receive-and-forward) collectors.
+std::optional<std::vector<std::uint8_t>> recvSpEvent(int fd, std::uint8_t gid, std::uint8_t pid) {
+    std::uint8_t buf[2048];
+    const ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+    if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
+        return std::nullopt;
+    }
+    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
+    if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
+        tp::gidOf(evh->method_id) != gid || tp::pidOf(evh->method_id) != pid) {
+        return std::nullopt;
+    }
+    return std::vector<std::uint8_t>(buf + tp::kHeaderSize, buf + n);
+}
+
+// Arm an async-event SP over one persistent UDP socket — the SSOT for the
+// LISTEN_AND_ACCEPT / RECEIVE_AND_FORWARD arm shape. The socket carries the
+// request, its E_OK Response, and the later Event(s) (the DUT routes them to the
+// request's source address). `on_armed` runs after the Response and before any
+// Event wait, so the caller drives whatever produces the Event(s). Returns the
+// open fd (armed == true) for the caller to collect Events on and ::close, or
+// fd == -1 (armed == false) when the open / send / Response step failed.
+ArmedSocket armEventSocket(const TestabilityConfig &cfg, std::uint8_t gid, std::uint8_t pid,
+                           const std::vector<std::uint8_t> &req_dat,
+                           const std::function<void()> &on_armed, int resp_timeout_ms,
+                           std::uint32_t src_ip_be) {
+    ArmedSocket res;
 
     const int fd = openUdpClient(src_ip_be);
     if (fd < 0) {
@@ -189,7 +219,7 @@ ArmedEventResult armAndCollectEvent(const TestabilityConfig &cfg, std::uint8_t g
 
     // Response (TID 0x80) — must be an E_OK Response to this SP before we wait.
     std::uint8_t buf[2048];
-    ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+    const ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
     const auto resp = (n >= static_cast<ssize_t>(tp::kHeaderSize))
                           ? tp::parseHeader(buf, static_cast<std::size_t>(n))
                           : std::nullopt;
@@ -200,25 +230,34 @@ ArmedEventResult armAndCollectEvent(const TestabilityConfig &cfg, std::uint8_t g
     }
     res.armed = true;
     res.resp_dat.assign(buf + tp::kHeaderSize, buf + n);
+    res.fd = fd;
 
     if (on_armed) {
         on_armed();
     }
+    return res;
+}
 
-    // Await one Event (TID 0x02 / EVB set) of the same SP on the same socket.
-    setRecvTimeout(fd, event_timeout_ms);
-    n = ::recv(fd, buf, sizeof(buf), 0);
-    ::close(fd);
-    if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
+// Arm an async-event SP and collect its first Event — the single-Event shape
+// LISTEN_AND_ACCEPT uses. Wraps armEventSocket + one recvSpEvent.
+ArmedEventResult armAndCollectEvent(const TestabilityConfig &cfg, std::uint8_t gid,
+                                    std::uint8_t pid, const std::vector<std::uint8_t> &req_dat,
+                                    const std::function<void()> &on_armed, int resp_timeout_ms,
+                                    int event_timeout_ms, std::uint32_t src_ip_be) {
+    ArmedEventResult res;
+    ArmedSocket arm = armEventSocket(cfg, gid, pid, req_dat, on_armed, resp_timeout_ms, src_ip_be);
+    res.armed = arm.armed;
+    res.resp_dat = std::move(arm.resp_dat);
+    if (!arm.armed) {
         return res;
     }
-    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
-    if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
-        tp::gidOf(evh->method_id) != gid || tp::pidOf(evh->method_id) != pid) {
-        return res;
+    setRecvTimeout(arm.fd, event_timeout_ms);
+    const auto ev = recvSpEvent(arm.fd, gid, pid);
+    ::close(arm.fd);
+    if (ev) {
+        res.event_received = true;
+        res.event_dat = *ev;
     }
-    res.event_received = true;
-    res.event_dat.assign(buf + tp::kHeaderSize, buf + n);
     return res;
 }
 
@@ -424,22 +463,50 @@ TestabilityForwardResult testabilityReceiveAndForward(
     tp::appendU16(dat, socket_id);
     tp::appendU16(dat, max_fwd);
     tp::appendU16(dat, max_len);
-    const auto r = armAndCollectEvent(cfg, tp::kGidTcp, tp::kPidReceiveAndForward, dat, on_armed,
-                                      resp_timeout_ms, event_timeout_ms, src_ip_be);
-    res.ok = r.armed;
-    if (r.resp_dat.size() >= 2) {
-        res.drop_cnt = tp::readU16(r.resp_dat.data());  // Response DAT: dropCnt(u16)
+    ArmedSocket arm = armEventSocket(cfg, tp::kGidTcp, tp::kPidReceiveAndForward, dat, on_armed,
+                                     resp_timeout_ms, src_ip_be);
+    res.ok = arm.armed;
+    if (arm.resp_dat.size() >= 2) {
+        res.drop_cnt = tp::readU16(arm.resp_dat.data());  // Response DAT: dropCnt(u16)
     }
-    if (r.event_received && r.event_dat.size() >= 2) {
-        // Event DAT: fullLen(u16) + payload(vint8).
-        res.full_len = tp::readU16(r.event_dat.data());
+    if (!arm.armed) {
+        return res;
+    }
+
+    // Accumulate forward Events until max_len bytes are gathered or the event
+    // budget expires — mirroring the opcode OpReceiveTcpData recv-loop so a
+    // stream the DUT reads as several recv()s (one forward Event each,
+    // PRS_TPSP §6.10) reassembles into one buffer on both backends. A limitless
+    // arm (max_len 0xFFFF) has no byte target, so it collects a single Event as
+    // before — no seam caller uses the limitless mode.
+    const bool limitless = (max_len == 0xFFFF);
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(event_timeout_ms);
+    bool first = true;
+    while (limitless ? first : res.payload.size() < max_len) {
+        first = false;
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) {
+            break;
+        }
+        const auto remaining =
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+        setRecvTimeout(arm.fd, static_cast<int>(remaining > 0 ? remaining : 1));
+        const auto ev = recvSpEvent(arm.fd, tp::kGidTcp, tp::kPidReceiveAndForward);
+        if (!ev || ev->size() < 2) {
+            break;  // timeout / malformed — stop with what we have
+        }
+        // Event DAT: fullLen(u16) + payload(vint8). fullLen is THIS recv()'s
+        // length; sum them for the bulk total, append each forwarded chunk.
+        res.full_len = static_cast<std::uint16_t>(res.full_len + tp::readU16(ev->data()));
         std::size_t off = 2;
         const std::uint8_t *body = nullptr;
         std::uint16_t body_len = 0;
-        if (tp::readVint8(r.event_dat.data(), r.event_dat.size(), off, body, body_len)) {
-            res.payload.assign(body, body + body_len);
+        if (tp::readVint8(ev->data(), ev->size(), off, body, body_len)) {
+            res.payload.insert(res.payload.end(), body, body + body_len);
         }
     }
+    ::close(arm.fd);
     return res;
 }
 
