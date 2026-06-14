@@ -7,7 +7,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_connection_estab_03_sm.h"
@@ -33,52 +35,39 @@ struct TestCaseTraits<cases::TcpConnectionEstab03SM>
     struct Leg {
         std::uint16_t local_port;
         std::uint16_t remote_port;
-        std::uint8_t  socket_id;
     };
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::array<Leg, 3> legs{
             Leg{static_cast<std::uint16_t>(kBasicsActiveLocalPort  + kTcpConnEstab03LocalOffset1),
-                static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpConnEstab03LocalOffset1), 1U},
+                static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpConnEstab03LocalOffset1)},
             Leg{static_cast<std::uint16_t>(kBasicsActiveLocalPort  + kTcpConnEstab03LocalOffset2),
-                static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpConnEstab03LocalOffset2), 2U},
+                static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpConnEstab03LocalOffset2)},
             Leg{static_cast<std::uint16_t>(kBasicsActiveLocalPort  + kTcpConnEstab03LocalOffset3),
-                static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpConnEstab03LocalOffset3), 3U},
+                static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpConnEstab03LocalOffset3)},
         };
 
-        // Each leg has its own RAII tester listener that absorbs the
-        // DUT's connect()-emitted SYN. Holding the listeners alive
-        // through the entire stimulus prevents tester-kernel auto-RST
-        // on the connected sockets — drop a listener and the kernel
-        // sends FIN-RST on the leg's queued connection.
-        TesterTcpListener l1(legs[0].remote_port);
-        TesterTcpListener l2(legs[1].remote_port);
-        TesterTcpListener l3(legs[2].remote_port);
-
-        for (std::uint8_t i = 0; i < legs.size(); ++i) {
-            sendOpenTcpSocketActiveRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/static_cast<std::uint8_t>(i + 1U),
-                legs[i].local_port,
-                cfg.ipv4.tester_ip, legs[i].remote_port);
-            std::this_thread::sleep_for(kTcpUtRpcWait);
-        }
-        std::this_thread::sleep_for(kTcpActiveHandshakeGrace);
+        // Each leg's seam active open binds its own RAII tester listener that
+        // absorbs the DUT's connect()-emitted SYN and completes the 3-way
+        // handshake. Holding all three SeamActiveOpen results alive through the
+        // stimulus keeps every listener up — drop one and the tester kernel
+        // sends FIN-RST on that leg's connection.
+        auto open1 = driveSeamActiveOpen(dut, cfg, legs[0].local_port, legs[0].remote_port);
+        auto open2 = driveSeamActiveOpen(dut, cfg, legs[1].local_port, legs[1].remote_port);
+        auto open3 = driveSeamActiveOpen(dut, cfg, legs[2].local_port, legs[2].remote_port);
 
         // Settle so all 3 third-leg ACKs land in pcap before close.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        for (std::uint8_t i = 0; i < legs.size(); ++i) {
-            sendCloseTcpSocketRequest(
-                cfg, iface, cfg.dut.mac,
-                /*req_id=*/static_cast<std::uint8_t>(i + 4U),
-                legs[i].socket_id);
-        }
+        if (open1.conn) dut.tcpControl()->closeTcp(open1.conn->socket);
+        if (open2.conn) dut.tcpControl()->closeTcp(open2.conn->socket);
+        if (open3.conn) dut.tcpControl()->closeTcp(open3.conn->socket);
     }
 
     static std::string_view verdictFor(State s) {
