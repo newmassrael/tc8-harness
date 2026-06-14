@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 #include <sys/socket.h>
 
@@ -73,9 +72,12 @@ struct TestCaseTraits<cases::TcpClosing09SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         // Seam DUT-send → DUT app send() → DUT emits PSH+ACK with
-        // payload bytes.
-        std::vector<std::uint8_t> payload(kPayloadLen, 0x5AU);
-        seamTcpControl(dut).sendTcp(open.conn->socket, payload);
+        // payload bytes. seamSendTcp is the shared array→send helper used by
+        // every literal DUT-send case (its byte content is the only
+        // load-bearing part; the SCXML guard matches payload_len == 16U).
+        std::array<std::uint8_t, kPayloadLen> payload;
+        payload.fill(0x5AU);
+        seamSendTcp(dut, open.conn->socket, payload);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         // Silent tester disposal — TCP_REPAIR + close drops the
