@@ -10,9 +10,10 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
-#include "stimulus/tcp_segment_builder.h"
 
 #include "tcp_closing_09_sm.h"
 
@@ -41,16 +42,18 @@ struct TestCaseTraits<cases::TcpClosing09SM>
     // reader can attribute a stray data segment to the correct case.
     static constexpr std::size_t kPayloadLen = 16U;
 
-    // Single iteration. Active-OPEN handshake on +72 quad → tester
+    // Single iteration, backend-agnostic (opcode UT or AUTOSAR
+    // testability). Seam active-OPEN handshake on +72 quad → tester
     // shutdown(SHUT_WR) emits FIN+ACK from kernel → DUT enters
-    // CLOSE-WAIT and pure-ACKs the FIN → UT sendTcpData triggers
+    // CLOSE-WAIT and pure-ACKs the FIN → the seam DUT-send drives the
     // DUT app's send() of kPayloadLen bytes → DUT emits PSH+ACK with
     // payload → 3 s remain-in-CW absence asserts no DUT FIN/RST →
     // silentlyCloseTesterFd disposes tester socket without emitting
     // FIN/RST so the absence window stays clean.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -58,11 +61,10 @@ struct TestCaseTraits<cases::TcpClosing09SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) return;
 
         // Tester FIN: kernel emits FIN+ACK on shutdown(WR). DUT in
         // EST processes the FIN, emits pure ACK, transitions to
@@ -70,13 +72,10 @@ struct TestCaseTraits<cases::TcpClosing09SM>
         ::shutdown(tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
-        // UT sendTcpData → DUT app send() → DUT emits PSH+ACK with
+        // Seam DUT-send → DUT app send() → DUT emits PSH+ACK with
         // payload bytes.
         std::vector<std::uint8_t> payload(kPayloadLen, 0x5AU);
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            payload.data(), static_cast<std::uint16_t>(payload.size()));
+        seamTcpControl(dut).sendTcp(open.conn->socket, payload);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         // Silent tester disposal — TCP_REPAIR + close drops the

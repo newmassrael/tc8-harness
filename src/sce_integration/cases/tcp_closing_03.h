@@ -9,7 +9,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -41,17 +43,19 @@ struct TestCaseTraits<cases::TcpClosing03SM>
     // the pass criterion (only payload-presence matters per spec).
     static constexpr std::size_t kRstPayloadLen = 16U;
 
-    // Single iteration. driveActiveOpenEstablished + queryTcpSeqRange
-    // → raw-inject RST+ACK with seq=snd_nxt (in-window) and a 16-byte
-    // payload → wait for SCXML's spec_silence deadline (3 s) →
-    // verify-probe ACK on entry to listening_verify_rst draws DUT RST
-    // proving CLOSED. Verify-probe ACK is scheduled via
+    // Single iteration, backend-agnostic (opcode UT or AUTOSAR
+    // testability). Seam active-OPEN (driveSeamActiveOpen) +
+    // queryTcpSeqRange → raw-inject RST+ACK with seq=snd_nxt (in-window)
+    // and a 16-byte payload → wait for SCXML's spec_silence deadline
+    // (3 s) → verify-probe ACK on entry to listening_verify_rst draws
+    // DUT RST proving CLOSED. Verify-probe ACK is scheduled via
     // scheduleAfterStateEntry to phase it AFTER the absence window
     // closes, not by wall clock — same shape as FP_06's replay-FIN
     // chaining. Port quad +71 reserves the §4.8.6.8 EST-RST slot.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -60,11 +64,10 @@ struct TestCaseTraits<cases::TcpClosing03SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) {
             silentlyCloseTesterFd(tester_fd);
