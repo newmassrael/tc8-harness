@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid09SM>
 
     // Function-scoped TesterAutoAckDrop installed at top: iptables
     // OUTPUT drops tester-kernel pure ACK toward DUT for the entire
-    // stimulus duration. Per phase, UT close drives DUT FIN; the
+    // stimulus duration. Per phase, the seam CLOSE drives DUT FIN; the
     // suppressed auto-ACK keeps DUT pinned in FIN-WAIT-1 across the
     // probe observation window. The handshake third-leg ACK and
     // raw-injected probe both have additional flags (SYN piggyback

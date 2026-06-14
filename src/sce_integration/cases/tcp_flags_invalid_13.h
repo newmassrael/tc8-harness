@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
     // stimulus, preventing the auto-ACK to DUT FIN from advancing
     // DUT past LAST-ACK on every phase. Per phase: handshake →
     // tester shutdown(SHUT_WR) (tester FIN, DUT auto-ACK observed,
-    // DUT CW) → 100 ms settle → UT close (DUT FIN+ACK, tester ACK
+    // DUT CW) → 100 ms settle → the seam CLOSE (DUT FIN+ACK, tester ACK
     // suppressed by ack_drop, DUT LA) → 100 ms settle →
     // queryTcpSeqRange → CASE-distinct OTW probe with ack_num =
     // rcv_nxt - 1 (acceptable but does NOT acknowledge DUT FIN).

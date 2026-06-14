@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
     //
     // Mechanism:
     //   1. Active-OPEN handshake → ESTABLISHED.
-    //   2. UT OpCloseTcpSocket — DUT FIN → DUT enters FIN-WAIT-1.
+    //   2. The seam CLOSE — DUT FIN → DUT enters FIN-WAIT-1.
     //   3. Tester kernel auto-ACKs DUT FIN (NOT suppressed) → DUT
     //      transitions FIN-WAIT-1 → FIN-WAIT-2. The 200 ms settle
     //      wait covers the auto-ACK round-trip + tester socket TCP

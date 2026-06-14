@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
     static constexpr std::array<std::uint8_t, 4> kSendPayload = {
         'P', 'R', 'B', 'E'};
 
-    // Settle wait between window-update inject and UT SEND so the
+    // Settle wait between window-update inject and the seam SEND so the
     // DUT's tcp_ack_update_window has fired before the application
     // send is enqueued. Linux processes inbound segments in the
     // softirq immediately after pcap capture; 100 ms covers

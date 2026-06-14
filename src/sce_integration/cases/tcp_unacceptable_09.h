@@ -43,12 +43,12 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
     //
     // Per phase:
     //   1. Active-OPEN handshake → ESTABLISHED (DUT-side bind/connect
-    //      via UT OpOpenTcpSocket(Active) against tester listener).
+    //      via the seam active OPEN against the tester listener).
     //   2. Install TesterAutoAckDrop — iptables OUTPUT drops tester-
     //      kernel pure ACK toward DUT. Without this, the auto-ACK to
     //      DUT FIN advances DUT into FIN-WAIT-2, collapsing the
     //      spec-targeted state.
-    //   3. UT OpCloseTcpSocket — DUT app close() → DUT emits FIN →
+    //   3. The seam CLOSE — DUT app close() → DUT emits FIN →
     //      DUT enters FIN-WAIT-1. (Tester ACK suppressed by step 2.)
     //   4. 100 ms settle wait — let Linux flush the FIN onto pcap and
     //      stabilise tester socket TCP state (CLOSE-WAIT after rcv-

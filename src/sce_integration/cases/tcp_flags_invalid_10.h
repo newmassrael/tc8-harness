@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid10SM>
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
     // Per phase: independent active-OPEN handshake on its own port
-    // quad → UT close drives DUT FIN → tester-kernel auto-ACK
+    // quad → the seam CLOSE drives DUT FIN → tester-kernel auto-ACK
     // (NOT suppressed) advances DUT FW1 → FW2 → 200 ms post-FIN
     // settle covers the auto-ACK round-trip + tester socket TCP
     // state stabilisation before TCP_REPAIR query → queryTcpSeqRange
