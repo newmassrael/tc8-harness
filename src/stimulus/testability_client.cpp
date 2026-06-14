@@ -385,21 +385,30 @@ TestabilityResponse testabilityTcpSendData(const TestabilityConfig &cfg, std::ui
     return testabilityCall(cfg, tp::kGidTcp, tp::kPidSendData, dat, timeout_ms, src_ip_be);
 }
 
-TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::uint8_t gid,
-                                           std::uint16_t socket_id, int timeout_ms,
+// CLOSE_SOCKET request-encoding SSOT (PRS_TPSP §6.10): socketId(u16) + optional
+// abort(u8). The graceful and abortive public wrappers differ only in the abort
+// byte, so the wire shape lives here once.
+static TestabilityResponse closeSocketCall(const TestabilityConfig &cfg, std::uint8_t gid,
+                                           std::uint16_t socket_id, bool abort, int timeout_ms,
                                            std::uint32_t src_ip_be) {
     std::vector<std::uint8_t> dat;
     tp::appendU16(dat, socket_id);
+    if (abort) {
+        dat.push_back(1U);  // abort = true (TCP only)
+    }
     return testabilityCall(cfg, gid, tp::kPidCloseSocket, dat, timeout_ms, src_ip_be);
+}
+
+TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::uint8_t gid,
+                                           std::uint16_t socket_id, int timeout_ms,
+                                           std::uint32_t src_ip_be) {
+    return closeSocketCall(cfg, gid, socket_id, /*abort=*/false, timeout_ms, src_ip_be);
 }
 
 TestabilityResponse testabilityAbortSocket(const TestabilityConfig &cfg, std::uint8_t gid,
                                            std::uint16_t socket_id, int timeout_ms,
                                            std::uint32_t src_ip_be) {
-    std::vector<std::uint8_t> dat;
-    tp::appendU16(dat, socket_id);
-    dat.push_back(1U);  // abort = true (CLOSE_SOCKET abort param, TCP)
-    return testabilityCall(cfg, gid, tp::kPidCloseSocket, dat, timeout_ms, src_ip_be);
+    return closeSocketCall(cfg, gid, socket_id, /*abort=*/true, timeout_ms, src_ip_be);
 }
 
 TestabilityResponse testabilityShutdown(const TestabilityConfig &cfg, std::uint8_t gid,
