@@ -1,9 +1,14 @@
 #pragma once
 
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <optional>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #include "sce_integration/dut_control.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -108,6 +113,72 @@ inline std::optional<::tc8::sce::DutSocket> driveSeamListen(::tc8::sce::IDutCont
                      listen_port, dut.backendName());
     }
     return handle;
+}
+
+// Result of driveSeamRawPassiveHandshake. `listen` is the DUT LISTEN handle the
+// caller closes (closeTcp); `ut_established` is the kCapTcpStateProbe verdict
+// byte (0xFF = query failed / handshake never landed, 0x00 = not established,
+// 0x01 = established) — same encoding the opcode OpQueryTcpEstablished helper
+// used.
+struct SeamRawPassiveHandshake {
+    std::optional<::tc8::sce::DutSocket> listen;
+    std::uint8_t                         ut_established = 0xFFU;
+};
+
+// Seam counterpart of driveRawPassiveHandshake (tcp_pilot_common.h): open a DUT
+// LISTEN via the listen-only seam verb, raw-inject a tester SYN whose options
+// bytes the caller fully controls, complete the 3-way handshake, then confirm
+// the DUT reached ESTABLISHED via the kCapTcpStateProbe sub-interface. Used by
+// the MSS_OPTIONS verify phases (a hand-crafted SYN that must not
+// disturb the kernel's TCP stack, proven by a clean follow-up handshake).
+//
+// Because the established check reads kernel socket state — opcode-only — a
+// case using this MUST declare kRequiredCapabilities |= kCapTcpStateProbe so
+// the CLI gate SKIPs it on a testability backend (Tier 2 2b#4); the
+// tcpStateProbe() deref is then contract-guaranteed. The caller closes the
+// returned listen handle once it has read ut_established. A nullopt `listen` or
+// a missing DUT SYN+ACK leaves ut_established at 0xFF.
+inline SeamRawPassiveHandshake driveSeamRawPassiveHandshake(
+    ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
+    std::string_view iface, std::uint16_t listen_port,
+    std::vector<std::uint8_t> syn_options, std::uint16_t tester_src_port,
+    std::chrono::milliseconds capture_timeout = std::chrono::milliseconds(2000)) {
+    SeamRawPassiveHandshake info{};
+    info.listen = driveSeamListen(dut, listen_port);
+    if (!info.listen) return info;
+
+    auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_src_port);
+    if (!snippet.ok()) return info;
+
+    TesterAutoRstDrop rst_drop(cfg);
+
+    ::tc8::stimulus::TcpSegmentSpec syn_spec{};
+    syn_spec.src_port = tester_src_port;
+    syn_spec.dst_port = listen_port;
+    syn_spec.seq_num  = kTesterInitialSeq;
+    syn_spec.flags    = ::tc8::stimulus::kTcpFlagSyn;
+    syn_spec.options  = std::move(syn_options);
+    emitTcpFrame(cfg, iface, cfg.dut.mac, syn_spec);
+
+    const auto syn_ack = snippet.tryCapture(capture_timeout);
+    if (!syn_ack) return info;
+
+    ::tc8::stimulus::TcpSegmentSpec ack_spec{};
+    ack_spec.src_port = tester_src_port;
+    ack_spec.dst_port = listen_port;
+    ack_spec.seq_num  = kTesterInitialSeq + 1U;
+    ack_spec.ack_num  = syn_ack->seq_num + 1U;
+    ack_spec.flags    = ::tc8::stimulus::kTcpFlagAck;
+    emitTcpFrame(cfg, iface, cfg.dut.mac, ack_spec);
+
+    // Settle so the kernel's accept queue drains and the established child is
+    // visible to the state probe (mirrors driveRawPassiveHandshake's 50 ms).
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    const auto est = dut.tcpStateProbe()->isEstablished(*info.listen);
+    info.ut_established = static_cast<std::uint8_t>(
+        !est.has_value() ? 0xFFU : (*est ? 0x01U : 0x00U));
+    return info;
 }
 
 }  // namespace tc8::sce::tcp
