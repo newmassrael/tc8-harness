@@ -8,7 +8,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -35,14 +37,16 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         "ACK on killed 4-tuple draws closed-port RST as wire-observable "
         "proof of CLOSED";
 
-    // Single iteration. Active-OPEN handshake on +90 quad → UT abort
-    // → DUT RST → verify-probe ACK on entry to listening_verify_rst →
-    // DUT closed-port RST → pass. Same shape as TCP_CLOSING_03 modulo
-    // the spec inject vs UT abort split: _03 raw-injects RST at DUT,
-    // ABORT_02 drives DUT to emit its own RST via the LINGER primitive.
+    // Single iteration, backend-agnostic (opcode UT or AUTOSAR testability).
+    // Seam active-OPEN on +90 quad → seam abort → DUT RST → verify-probe ACK on
+    // entry to listening_verify_rst → DUT closed-port RST → pass. Same shape as
+    // TCP_CLOSING_03 modulo the spec inject vs abort split: _03 raw-injects RST
+    // at the DUT, ABORT_02 drives the DUT to emit its own RST via the abortive
+    // close (opcode SO_LINGER {1,0} / testability CLOSE_SOCKET abort).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -51,19 +55,14 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) return;
 
-        // UT abort — tc8-dut applies SO_LINGER {1,0} + ::close →
-        // kernel RST egress + immediate socket disposal. The
-        // socket_id is erased from tcp_listeners_ inside the server
-        // path; no further UT calls on socket_id=1 are issued.
-        sendAbortTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        // Abort — the DUT closes the socket immediately with a RST and disposes
+        // it. The DUT-side socket is gone; no further seam calls on it are made.
+        seamTcpControl(dut).abortTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         // Dispose tester fd silently — the DUT RST has already
