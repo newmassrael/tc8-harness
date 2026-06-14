@@ -76,9 +76,20 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
 
+        // Per-phase unique 4-tuples from the +200 reservation block. Each
+        // phase establishes then closes the DUT to LAST-ACK, leaving a
+        // ~60 s LAST_ACK residue, so the two phase offsets must differ from
+        // each other AND from sibling UNACCEPTABLE_11 — otherwise a
+        // same-worker bind hits EADDRNOTAVAIL (the BASICS_11 collision class,
+        // reference_active_open_port_quad_collision.md).
+        constexpr std::array<std::uint16_t, 2> kPhaseOffsets = {
+            kTcpUnacceptable12Phase1LocalOffset,
+            kTcpUnacceptable12Phase2LocalOffset};
+
         for (std::uint16_t phase = 0; phase < 2U; ++phase) {
-            const std::uint16_t local_port  = kBasicsActiveLocalPort  + phase;
-            const std::uint16_t remote_port = kBasicsActiveRemotePort + phase;
+            const std::uint16_t offset      = kPhaseOffsets[phase];
+            const std::uint16_t local_port  = kBasicsActiveLocalPort  + offset;
+            const std::uint16_t remote_port = kBasicsActiveRemotePort + offset;
 
             auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
             const int tester_fd = open.listener.acceptOne();

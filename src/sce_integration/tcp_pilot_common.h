@@ -491,7 +491,7 @@ inline constexpr std::uint16_t kTcpRetransmissionTo09LocalOffset = 182U;
 inline constexpr std::uint16_t kTcpChecksum04LocalOffset     = 180U;
 
 // §4.8.6.1 BASICS / §4.8.6.2 CHECKSUM / §4.8.6.6 FLAGS_INVALID_14 /
-// §4.8.6.3 UNACCEPTABLE active-OPEN port-quad reservations (+200..+221).
+// §4.8.6.3 UNACCEPTABLE active-OPEN port-quad reservations (+200..+228).
 // Each case (and each phase within a multi-phase case) binds a unique
 // 4-tuple via its offset so a TIME-WAIT / LAST_ACK residue from a
 // sibling on the same worker netns does not collide with the next
@@ -536,14 +536,22 @@ inline constexpr std::uint16_t kTcpChecksum03LocalOffset           = 213U;
 inline constexpr std::uint16_t kTcpFlagsInvalid14Phase1LocalOffset = 214U;
 inline constexpr std::uint16_t kTcpFlagsInvalid14Phase2LocalOffset = 222U;
 
-// §4.8.6.3 UNACCEPTABLE_04/_06/_09/_10/_13/_14 — active-OPEN +
+// §4.8.6.3 UNACCEPTABLE_04/_06/_09/_10/_11/_12/_13/_14 — active-OPEN +
 // raw-inject sequences. _14 uses two phases on consecutive offsets so
-// each phase's 4-tuple is unique even within the case.
+// each phase's 4-tuple is unique even within the case. _11 (CLOSING)
+// and _12 (LAST-ACK) each establish then close per phase, leaving a
+// LAST_ACK residue, so both reserve two distinct offsets here; they
+// previously shared the bare +0/+1 band — a latent same-worker
+// EADDRNOTAVAIL collision (the BASICS_11 class) this block prevents.
 inline constexpr std::uint16_t kTcpUnacceptable04LocalOffset       = 215U;
 inline constexpr std::uint16_t kTcpUnacceptable06LocalOffset       = 216U;
 inline constexpr std::uint16_t kTcpUnacceptable09Phase1LocalOffset = 217U;
 inline constexpr std::uint16_t kTcpUnacceptable09Phase2LocalOffset = 223U;
 inline constexpr std::uint16_t kTcpUnacceptable10LocalOffset       = 218U;
+inline constexpr std::uint16_t kTcpUnacceptable11Phase1LocalOffset = 225U;
+inline constexpr std::uint16_t kTcpUnacceptable11Phase2LocalOffset = 226U;
+inline constexpr std::uint16_t kTcpUnacceptable12Phase1LocalOffset = 227U;
+inline constexpr std::uint16_t kTcpUnacceptable12Phase2LocalOffset = 228U;
 inline constexpr std::uint16_t kTcpUnacceptable13Phase1LocalOffset = 219U;
 inline constexpr std::uint16_t kTcpUnacceptable13Phase2LocalOffset = 224U;
 inline constexpr std::uint16_t kTcpUnacceptable14Phase1LocalOffset = 220U;
