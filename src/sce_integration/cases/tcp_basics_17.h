@@ -2,11 +2,14 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -29,9 +32,20 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         "TCP MUST support simultaneous OPEN attempts (RFC 1122 "
         "§4.2.2.10 p87, RFC 793 §3.4 simultaneous-open path).";
 
+    // Two opcode-only dependencies force a testability SKIP (Tier 2 2b#4): the
+    // DUT is held in SYN-SENT with no tester listener until the simultaneous-
+    // open SYN+ACK establishes it (kCapTcpSynSentOpen — the testability CONNECT
+    // SP cannot hold a socket in SYN-SENT), and the ESTABLISHED verdict reads
+    // kernel TCP_INFO state (kCapTcpStateProbe). The opcode backend exposes
+    // both, so it runs; testability lacks them and is honestly skipped.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe |
+        ::tc8::sce::kCapTcpSynSentOpen;
+
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -49,10 +63,10 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         // guess.
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, local_port,
-            cfg.ipv4.tester_ip, remote_port);
+        // Seam active OPEN, no tester listener: the DUT starts in SYN-SENT and
+        // reaches ESTABLISHED only via the simultaneous-open SYN+ACK injected
+        // below (a tester listener would complete a normal handshake instead).
+        auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         const auto dut_syn = snippet.tryCapture(
             std::chrono::milliseconds(1000));
@@ -91,14 +105,21 @@ struct TestCaseTraits<cases::TcpBasics17SM>
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
 
-        // Read kernel TCP_INFO state into Captured before SCXML's
-        // first dispatch — same synchronous pattern as BASICS_07.
-        c.ut_established = queryTcpEstablishedSync(
-            cfg, /*req_id=*/3, /*socket_id=*/1);
+        // Read kernel TCP_INFO state into Captured before SCXML's first
+        // dispatch (same synchronous pattern as BASICS_07). tcpStateProbe() is
+        // non-null by contract: the capability gate skips this case if the
+        // backend lacks kCapTcpStateProbe. Map the tristate the same way the
+        // prior OpQueryTcpEstablished helper did: query failed -> 0xFF,
+        // established -> 0x01, not established -> 0x00.
+        if (open) {
+            const auto est = dut.tcpStateProbe()->isEstablished(open->socket);
+            c.ut_established = static_cast<std::uint8_t>(
+                !est.has_value() ? 0xFF : (*est ? 0x01 : 0x00));
+        } else {
+            c.ut_established = static_cast<std::uint8_t>(0xFF);
+        }
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        if (open) dut.tcpControl()->closeTcp(open->socket);
     }
 
     static std::string_view verdictFor(State s) {
