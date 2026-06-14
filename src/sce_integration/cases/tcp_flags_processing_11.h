@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
     // kBasicsActiveRemotePort + 50) → DUT in ESTABLISHED. Snapshot
     // tester snd_nxt / rcv_nxt via queryTcpSeqRange (= the
     // post-handshake ACK shape: seq = ISN_t + 1, ack = ISN_d + 1).
-    // Synchronously fetch DUT's TCP_INFO via queryTcpEstablishedSync
+    // Synchronously fetch DUT's TCP_INFO via the seam state probe
     // and write into `captured.ut_established` BEFORE the SCXML arms,
     // so the handshake_ack pass guard's `ut_established == 1` conjunct
     // resolves against a known value. Then raw-inject the duplicate

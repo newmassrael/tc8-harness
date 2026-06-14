@@ -57,16 +57,16 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 
     // Spec Test Procedure (v3.0 p301-p320.txt:216):
-    //   1. TESTER: Cause DUT-side application to issue CONNECT — UT
-    //      OpOpenTcpSocket(Active) cycle 1.
+    //   1. TESTER: Cause DUT-side application to issue CONNECT — the
+    //      seam active OPEN, cycle 1.
     //   2. DUT:    Send SYN.
     //   3. TESTER: Send RST,ACK to take DUT to CLOSED state — handled
     //      implicitly by the tester kernel: the DUT's SYN targets a
     //      destination port with no socket bound on the tester side, so
     //      `tcp_v4_send_reset` emits RST+ACK ack=ISN_d+1 that closes
     //      cycle 1's SYN-SENT TCB. No explicit raw inject required.
-    //   4. TESTER: Cause DUT-side CONNECT again — UT OpOpenTcpSocket
-    //      (Active) cycle 2 on the same 4-tuple.
+    //   4. TESTER: Cause DUT-side CONNECT again — the seam active
+    //      OPEN, cycle 2 on the same 4-tuple.
     //   5. DUT:    Send SYN (with a fresh, clock-driven ISN).
     //   6. TESTER: Verify SYN2.seq != SYN1.seq.
     //

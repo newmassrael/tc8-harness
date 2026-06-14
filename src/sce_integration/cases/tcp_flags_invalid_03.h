@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
     //      DUT-emitted SYN to the unbound tester port does not provoke
     //      a kernel RST that would race-kill DUT's SYN-SENT before the
     //      ACK+RST inject lands.
-    //   2. UT Active-OPEN drives DUT to SYN-SENT.
+    //   2. Seam active OPEN drives DUT to SYN-SENT.
     //   3. TcpFrameSnippet captures the DUT-emitted pure SYN to learn
     //      ISN_d.
     //   4. Raw-inject ACK+RST with seq=kTesterInitialSeq and

@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
 
     // Drive one iteration of the spec procedure: active OPEN, capture
     // DUT SYN, raw-inject SYN+ACK carrying `bad_options` bytes, wait
-    // for the DUT third-leg ACK to land on pcap, UT-close the socket.
+    // for the DUT third-leg ACK to land on pcap, close the socket.
     // The TesterAutoRstDrop scope spans the SYN-SENT period only —
     // after the DUT reaches ESTABLISHED via our injection, dropping
     // RST is no longer needed, and tearing the rule down before UT
