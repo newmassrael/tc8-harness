@@ -11,7 +11,10 @@
 #include <sys/socket.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -45,28 +48,32 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1Closing(cfg, iface);
+        runPhase1Closing(cfg, iface, dut);
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy = cfg;
+        ::tc8::sce::IDutControl*     dut_ptr  = &dut;
 
         // Phase 2 + 3 deferred: the per-phase active-OPEN, FIN
         // exchange, and abort all happen on the matching SCXML
         // observation entry so wire events arrive while listening
         // transitions are armed. Mirrors FP_02 / RECEIVE_04 phasing.
+        // The DUT-control handle is owned by the CLI for the whole run,
+        // so the deferred phases capture a raw pointer to it (FP_09 idiom).
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
-            [iface_copy, cfg_copy]() {
-                runPhase2LastAck(cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, dut_ptr]() {
+                runPhase2LastAck(cfg_copy, iface_copy, *dut_ptr);
             });
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_handshake_ack),
-            [iface_copy, cfg_copy]() {
-                runPhase3TimeWait(cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, dut_ptr]() {
+                runPhase3TimeWait(cfg_copy, iface_copy, *dut_ptr);
             });
 
         // Verify-probe ACK on entry to each verify_rst state. The
@@ -126,13 +133,15 @@ private:
             });
     }
 
-    // Phase 1 CLOSING: driveCloseToClosing helper drives DUT through
-    // FW1 → CLOSING (caller-managed AckDrop scope). UT abort then
-    // emits RST via tcp_disconnect path. silentlyCloseTesterFd
-    // disposes the tester fd. AckDrop dtor at scope end removes the
-    // iptables rule.
+    // Phase 1 CLOSING: driveSeamCloseToClosing drives the DUT through FW1 →
+    // CLOSING (caller-managed AckDrop scope). The seam close that reaches CLOSING
+    // disposes the DUT-side socket, so the trailing abort is a no-op (preserving
+    // the original's abort-in-CLOSING intent); the verify-probe is the
+    // load-bearing CLOSED proof. silentlyCloseTesterFd disposes the tester fd;
+    // the AckDrop dtor at scope end removes the iptables rule.
     static void runPhase1Closing(const ::tc8::TestConfig& cfg,
-                                 std::string_view iface) {
+                                 std::string_view iface,
+                                 ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffsetClosing;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffsetClosing;
@@ -140,23 +149,18 @@ private:
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) return;
 
-        const auto info = driveCloseToClosing(
-            cfg, iface, cfg.dut.mac, tester_fd,
-            /*close_req_id=*/2, /*socket_id=*/1,
+        const auto info = driveSeamCloseToClosing(
+            dut, cfg, iface, tester_fd, open.conn->socket,
             local_port, remote_port);
         if (!info.ok) return;
-        // DUT now in CLOSING; tester_fd ownership transferred to
-        // caller per helper contract.
+        // DUT now in CLOSING.
 
-        sendAbortTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1);
+        seamTcpControl(dut).abortTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         silentlyCloseTesterFd(tester_fd);
@@ -169,7 +173,8 @@ private:
     // AckDrop blocks tester auto-ACK so DUT stays in LAST-ACK). UT
     // abort emits RST via tcp_disconnect.
     static void runPhase2LastAck(const ::tc8::TestConfig& cfg,
-                                 std::string_view iface) {
+                                 std::string_view /*iface*/,
+                                 ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffsetLastAck;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffsetLastAck;
@@ -177,31 +182,28 @@ private:
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/4, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) return;
 
-        // Tester FIN → DUT EST→CW. The ACK DUT emits in response is
-        // wire-egress (not affected by tester OUTPUT chain). Tester
-        // socket transitions EST→FW1 on shutdown(WR).
+        auto& tcp = seamTcpControl(dut);
+
+        // Tester FIN → DUT EST→CW. The ACK the DUT emits in response is
+        // wire-egress (not affected by tester OUTPUT chain). Tester socket
+        // transitions EST→FW1 on shutdown(WR).
         ::shutdown(tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        // UT shutdownTcpSocketWr → DUT CW→LAST-ACK. Tester auto-ACK
-        // to DUT FIN is dropped by ack_drop; DUT stays in LAST-ACK.
-        sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/5, /*socket_id=*/2);
+        // shutdownTcpWr → DUT CW→LAST-ACK. Tester auto-ACK to the DUT FIN is
+        // dropped by ack_drop; the DUT stays in LAST-ACK.
+        tcp.shutdownTcpWr(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        // UT abort on a LAST-ACK socket → tcp_disconnect →
-        // tcp_send_active_reset → DUT RST. Verify-probe still fires
-        // for the closed-port RST as redundant proof.
-        sendAbortTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/6, /*socket_id=*/2);
+        // Abort on a LAST-ACK socket → RST (SO_LINGER {1,0} + close reaches
+        // CLOSED). The verify-probe still fires for the closed-port RST as
+        // redundant proof.
+        tcp.abortTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         silentlyCloseTesterFd(tester_fd);
@@ -214,39 +216,36 @@ private:
     // directly (the socket struct is detached into a tw_sock); the
     // verify-probe ACK is the wire-observable pass criterion.
     static void runPhase3TimeWait(const ::tc8::TestConfig& cfg,
-                                  std::string_view iface) {
+                                  std::string_view /*iface*/,
+                                  ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffsetTimeWait;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffsetTimeWait;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/7, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) return;
 
-        // shutdown(WR) — DUT FIN. Tester kernel auto-ACK drives
-        // DUT FW1→FW2. NO AckDrop here — we want the auto-ACK.
-        sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/8, /*socket_id=*/3);
+        auto& tcp = seamTcpControl(dut);
+
+        // shutdown(WR) — DUT FIN. Tester kernel auto-ACK drives DUT FW1→FW2.
+        // NO AckDrop here — we want the auto-ACK.
+        tcp.shutdownTcpWr(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        // Tester FIN → DUT FW2→TIME-WAIT. DUT emits pure ACK; tester
-        // sees it and transitions tester FW1 (after shutdown WR
-        // earlier had transitioned EST→FW1) → CLOSED. Wait for DUT
-        // ACK egress before issuing abort so the wire signature of
-        // TW entry is captured before abort fires.
+        // Tester FIN → DUT FW2→TIME-WAIT. DUT emits pure ACK; tester sees it and
+        // transitions tester FW1 (after the earlier shutdown WR EST→FW1) →
+        // CLOSED. Wait for the DUT ACK egress before issuing abort so the wire
+        // signature of TW entry is captured before abort fires.
         ::shutdown(tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        // UT abort on TW socket. Linux's behaviour: setsockopt may
-        // succeed but close on a TW-state fd typically just frees
-        // the fd reference without emitting RST. The verify-probe
-        // ACK is the load-bearing CLOSED-proof for this iter.
-        sendAbortTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/9, /*socket_id=*/3);
+        // Abort on the TIME-WAIT socket. SO_LINGER + close does not destroy the
+        // detached tw_sock, so the abort path also issues a sock_diag
+        // SOCK_DESTROY to terminate the TIME-WAIT residual; the verify-probe ACK
+        // is the load-bearing CLOSED-proof for this iter.
+        tcp.abortTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         silentlyCloseTesterFd(tester_fd);
