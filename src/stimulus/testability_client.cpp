@@ -147,6 +147,81 @@ std::optional<std::vector<std::uint8_t>> tcpRoundTrip(const TestabilityConfig &c
     return resp;
 }
 
+// Outcome of an arm-then-collect-event round trip (LISTEN_AND_ACCEPT,
+// RECEIVE_AND_FORWARD). DAT vectors are the bytes after the 16-byte header.
+struct ArmedEventResult {
+    bool armed = false;                    // request round-tripped with an E_OK Response
+    std::vector<std::uint8_t> resp_dat;    // Response DAT (valid when armed)
+    bool event_received = false;           // a well-formed Event of this SP arrived
+    std::vector<std::uint8_t> event_dat;   // Event DAT (valid when event_received)
+};
+
+// Arm an async-event SP and collect its first Event over one persistent UDP
+// socket — the SSOT for the LISTEN_AND_ACCEPT / RECEIVE_AND_FORWARD shape. The
+// socket carries the request, its E_OK Response, and the later Event (the DUT
+// routes both to the request's source address). `on_armed` runs after the
+// Response and before the Event wait, so the caller drives whatever produces the
+// Event. Each wrapper supplies only its request DAT and parses resp_dat /
+// event_dat.
+ArmedEventResult armAndCollectEvent(const TestabilityConfig &cfg, std::uint8_t gid,
+                                    std::uint8_t pid, const std::vector<std::uint8_t> &req_dat,
+                                    const std::function<void()> &on_armed, int resp_timeout_ms,
+                                    int event_timeout_ms, std::uint32_t src_ip_be) {
+    ArmedEventResult res;
+
+    const int fd = openUdpClient(src_ip_be);
+    if (fd < 0) {
+        return res;
+    }
+    setRecvTimeout(fd, resp_timeout_ms);
+    const sockaddr_in dst = dutAddr(cfg);
+
+    tp::Header h;
+    h.service_id = cfg.service_id;
+    h.method_id = tp::methodId(gid, pid);
+    h.tid = tp::kTidRequest;
+    const std::vector<std::uint8_t> req = tp::buildMessage(h, req_dat.data(), req_dat.size());
+    if (::sendto(fd, req.data(), req.size(), 0, reinterpret_cast<const sockaddr *>(&dst),
+                 sizeof(dst)) < 0) {
+        ::close(fd);
+        return res;
+    }
+
+    // Response (TID 0x80) — must be an E_OK Response to this SP before we wait.
+    std::uint8_t buf[2048];
+    ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+    const auto resp = (n >= static_cast<ssize_t>(tp::kHeaderSize))
+                          ? tp::parseHeader(buf, static_cast<std::size_t>(n))
+                          : std::nullopt;
+    if (!resp || resp->tid != tp::kTidResponse || resp->rid != tp::kRidEOk ||
+        tp::gidOf(resp->method_id) != gid || tp::pidOf(resp->method_id) != pid) {
+        ::close(fd);
+        return res;
+    }
+    res.armed = true;
+    res.resp_dat.assign(buf + tp::kHeaderSize, buf + n);
+
+    if (on_armed) {
+        on_armed();
+    }
+
+    // Await one Event (TID 0x02 / EVB set) of the same SP on the same socket.
+    setRecvTimeout(fd, event_timeout_ms);
+    n = ::recv(fd, buf, sizeof(buf), 0);
+    ::close(fd);
+    if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
+        return res;
+    }
+    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
+    if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
+        tp::gidOf(evh->method_id) != gid || tp::pidOf(evh->method_id) != pid) {
+        return res;
+    }
+    res.event_received = true;
+    res.event_dat.assign(buf + tp::kHeaderSize, buf + n);
+    return res;
+}
+
 }  // namespace
 
 TestabilityResponse testabilityCall(const TestabilityConfig &cfg, std::uint8_t gid,
@@ -310,65 +385,18 @@ TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cf
                                                      std::uint32_t src_ip_be) {
     TestabilityAcceptEvent ev;
 
-    // One persistent UDP socket carries the request, its response, and the
-    // later Event: the DUT replies (and emits the Event) to the request's source
-    // address, so reusing the socket is what routes the Event back to us.
-    const int fd = openUdpClient(src_ip_be);
-    if (fd < 0) {
-        return ev;
-    }
-    setRecvTimeout(fd, resp_timeout_ms);
-    const sockaddr_in dst = dutAddr(cfg);
-
     // LISTEN_AND_ACCEPT request: listenSocketId(u16) + maxCon(u16).
     std::vector<std::uint8_t> dat;
     tp::appendU16(dat, listen_socket_id);
     tp::appendU16(dat, max_con);
-    tp::Header h;
-    h.service_id = cfg.service_id;
-    h.method_id = tp::methodId(tp::kGidTcp, tp::kPidListenAndAccept);
-    h.tid = tp::kTidRequest;
-    const std::vector<std::uint8_t> req = tp::buildMessage(h, dat.data(), dat.size());
-    if (::sendto(fd, req.data(), req.size(), 0, reinterpret_cast<const sockaddr *>(&dst),
-                 sizeof(dst)) < 0) {
-        ::close(fd);
-        return ev;
-    }
-
-    // Response (TID 0x80) — must be E_OK for this primitive before we wait.
-    std::uint8_t buf[1500];
-    ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
-    const auto resp = (n >= static_cast<ssize_t>(tp::kHeaderSize))
-                          ? tp::parseHeader(buf, static_cast<std::size_t>(n))
-                          : std::nullopt;
-    if (!resp || resp->tid != tp::kTidResponse || resp->rid != tp::kRidEOk ||
-        tp::gidOf(resp->method_id) != tp::kGidTcp ||
-        tp::pidOf(resp->method_id) != tp::kPidListenAndAccept) {
-        ::close(fd);
-        return ev;
-    }
-
-    // The DUT is now listening — let the caller drive the incoming connection.
-    if (on_listening) {
-        on_listening();
-    }
-
-    // Await the accept Event (TID 0x02 / EVB set) on the same socket.
-    setRecvTimeout(fd, event_timeout_ms);
-    n = ::recv(fd, buf, sizeof(buf), 0);
-    ::close(fd);
-    if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
-        return ev;  // no Event within the timeout
-    }
-    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
-    if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
-        tp::gidOf(evh->method_id) != tp::kGidTcp ||
-        tp::pidOf(evh->method_id) != tp::kPidListenAndAccept) {
-        return ev;
+    const auto r = armAndCollectEvent(cfg, tp::kGidTcp, tp::kPidListenAndAccept, dat, on_listening,
+                                      resp_timeout_ms, event_timeout_ms, src_ip_be);
+    if (!r.event_received) {
+        return ev;  // listen failed or no accept Event within the timeout
     }
     // Event DAT: listenSocketId(u16) + newSocketId(u16) + port(u16) + addr(ipxaddr).
-    const std::uint8_t *edat = buf + tp::kHeaderSize;
-    const std::size_t edat_len = static_cast<std::size_t>(n) - tp::kHeaderSize;
+    const std::uint8_t *edat = r.event_dat.data();
+    const std::size_t edat_len = r.event_dat.size();
     if (edat_len < 2 + 2 + 2) {
         return ev;
     }
@@ -391,78 +419,26 @@ TestabilityForwardResult testabilityReceiveAndForward(
     int event_timeout_ms, std::uint32_t src_ip_be) {
     TestabilityForwardResult res;
 
-    // One persistent UDP socket carries the request, its response, and the later
-    // forward Event — the DUT routes the Event to the request's source address.
-    const int fd = openUdpClient(src_ip_be);
-    if (fd < 0) {
-        return res;
-    }
-    setRecvTimeout(fd, resp_timeout_ms);
-    const sockaddr_in dst = dutAddr(cfg);
-
     // RECEIVE_AND_FORWARD request: socketId(u16) + maxFwd(u16) + maxLen(u16).
     std::vector<std::uint8_t> dat;
     tp::appendU16(dat, socket_id);
     tp::appendU16(dat, max_fwd);
     tp::appendU16(dat, max_len);
-    tp::Header h;
-    h.service_id = cfg.service_id;
-    h.method_id = tp::methodId(tp::kGidTcp, tp::kPidReceiveAndForward);
-    h.tid = tp::kTidRequest;
-    const std::vector<std::uint8_t> req = tp::buildMessage(h, dat.data(), dat.size());
-    if (::sendto(fd, req.data(), req.size(), 0, reinterpret_cast<const sockaddr *>(&dst),
-                 sizeof(dst)) < 0) {
-        ::close(fd);
-        return res;
+    const auto r = armAndCollectEvent(cfg, tp::kGidTcp, tp::kPidReceiveAndForward, dat, on_armed,
+                                      resp_timeout_ms, event_timeout_ms, src_ip_be);
+    res.ok = r.armed;
+    if (r.resp_dat.size() >= 2) {
+        res.drop_cnt = tp::readU16(r.resp_dat.data());  // Response DAT: dropCnt(u16)
     }
-
-    // Response (TID 0x80, E_OK) carrying dropCnt(u16).
-    std::uint8_t buf[2048];
-    ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
-    const auto resp = (n >= static_cast<ssize_t>(tp::kHeaderSize))
-                          ? tp::parseHeader(buf, static_cast<std::size_t>(n))
-                          : std::nullopt;
-    if (!resp || resp->tid != tp::kTidResponse || resp->rid != tp::kRidEOk ||
-        tp::gidOf(resp->method_id) != tp::kGidTcp ||
-        tp::pidOf(resp->method_id) != tp::kPidReceiveAndForward) {
-        ::close(fd);
-        return res;
-    }
-    res.ok = true;
-    if (static_cast<std::size_t>(n) - tp::kHeaderSize >= 2) {
-        res.drop_cnt = tp::readU16(buf + tp::kHeaderSize);
-    }
-
-    // Armed — let the caller drive the inbound data (e.g. inject a segment).
-    if (on_armed) {
-        on_armed();
-    }
-
-    // Await one forward Event (TID 0x02 / EVB set) on the same socket.
-    setRecvTimeout(fd, event_timeout_ms);
-    n = ::recv(fd, buf, sizeof(buf), 0);
-    ::close(fd);
-    if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
-        return res;  // no Event within the timeout (payload stays empty)
-    }
-    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
-    if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
-        tp::gidOf(evh->method_id) != tp::kGidTcp ||
-        tp::pidOf(evh->method_id) != tp::kPidReceiveAndForward) {
-        return res;
-    }
-    // Event DAT: fullLen(u16) + payload(vint8).
-    const std::uint8_t *edat = buf + tp::kHeaderSize;
-    const std::size_t edat_len = static_cast<std::size_t>(n) - tp::kHeaderSize;
-    if (edat_len < 2) {
-        return res;
-    }
-    res.full_len = tp::readU16(edat);
-    std::size_t off = 2;
-    const std::uint8_t *body = nullptr;
-    std::uint16_t body_len = 0;
-    if (tp::readVint8(edat, edat_len, off, body, body_len)) {
-        res.payload.assign(body, body + body_len);
+    if (r.event_received && r.event_dat.size() >= 2) {
+        // Event DAT: fullLen(u16) + payload(vint8).
+        res.full_len = tp::readU16(r.event_dat.data());
+        std::size_t off = 2;
+        const std::uint8_t *body = nullptr;
+        std::uint16_t body_len = 0;
+        if (tp::readVint8(r.event_dat.data(), r.event_dat.size(), off, body, body_len)) {
+            res.payload.assign(body, body + body_len);
+        }
     }
     return res;
 }

@@ -102,8 +102,15 @@ private:
     // Forward-thread body: consume up to `max_len` bytes from `conn_fd`, emitting
     // a forward Event (fullLen + payload, payload capped at `max_fwd`) per bulk
     // to `peer`. Exits on stop/reset or once max_len bytes were consumed.
-    void receiveLoop(int conn_fd, std::uint16_t service_id, std::uint16_t socket_id,
-                     std::uint16_t max_fwd, std::uint16_t max_len, sockaddr_in peer);
+    void receiveLoop(int conn_fd, std::uint16_t service_id, std::uint16_t max_fwd,
+                     std::uint16_t max_len, sockaddr_in peer);
+
+    // Single emit path for every async Event (PRS_TPSP §6.2 TID 0x02, EVB-set TCP
+    // method id) — shared by the LISTEN_AND_ACCEPT and RECEIVE_AND_FORWARD worker
+    // threads so the Event framing lives in one place. See the .cpp for the fd_
+    // concurrency invariant.
+    void emitEvent(std::uint16_t service_id, std::uint8_t pid,
+                   const std::vector<std::uint8_t> &dat, const sockaddr_in &peer);
 
     // Thread-safe socket-table access — the serverLoop thread and the accept
     // threads both touch the table, so all of socketId allocation, lookup, and
@@ -125,8 +132,10 @@ private:
     std::atomic<bool> reset_events_{false};
 
     // Async-event SP threads spawned by LISTEN_AND_ACCEPT (accept Events) and
-    // RECEIVE_AND_FORWARD (forward Events); joined before the socket table is
-    // torn down (END_TEST resets them, stop() shuts them down).
+    // RECEIVE_AND_FORWARD (forward Events). A finished worker stays joinable in
+    // this vector until the next joinEventThreads() reap at END_TEST / stop(),
+    // so the count is bounded by the arm-per-case lifecycle (not by liveness):
+    // it grows only within one test session and is cleared between sessions.
     std::vector<std::thread> event_threads_;
 
     // PRS_TPSP §6.10 testability socket table: socketId -> fd, guarded by

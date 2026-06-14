@@ -188,8 +188,9 @@ public:
         return r && r->status == ut::kStatusOk;
     }
 
-    std::vector<std::uint8_t> receiveTcp(DutSocket sock, std::uint16_t max_len,
-                                         const std::function<void()> &trigger) override {
+    std::optional<std::vector<std::uint8_t>> receiveTcp(
+        DutSocket sock, std::uint16_t max_len,
+        const std::function<void()> &trigger) override {
         // The opcode UT has no arm: the kernel queues inbound data, so drive the
         // trigger first, then query OpReceiveTcpData for what was received.
         constexpr std::uint16_t kRecvTimeoutMs = 2000;
@@ -202,9 +203,11 @@ public:
                                                  max_len, kRecvTimeoutMs),
             port_, timeout_ms_ + kRecvTimeoutMs, src_ip_be_);
         if (!r || r->status != ut::kStatusOk || r->data.size() < 2) {
-            return {};
+            return std::nullopt;
         }
-        // OpReceiveTcpData response data: receivedLen(u16 BE) + payload.
+        // OpReceiveTcpData response data: receivedLen(u16 BE) + payload. Clamp the
+        // length to the bytes actually present — a DUT that reports more than it
+        // sent is tolerated by truncating rather than over-reading.
         const std::uint16_t received_len =
             static_cast<std::uint16_t>((r->data[0] << 8) | r->data[1]);
         const std::size_t avail = r->data.size() - 2;
