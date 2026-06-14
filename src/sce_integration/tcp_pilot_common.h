@@ -500,9 +500,9 @@ inline constexpr std::uint16_t kTcpChecksum04LocalOffset     = 180U;
 // the prior per-case-unique pattern at +20..+25 / +50..+56 /
 // +100..+182 is extended here to retire the last bare-port (offset 0)
 // callers of `driveActiveOpenEstablished` /
-// `driveToTimeWaitViaClosing` / `driveCloseToClosing` (those helpers
-// no longer carry default port arguments — the compiler rejects any
-// future caller that omits explicit ports).
+// `driveToTimeWaitViaClosing` (those helpers no longer carry default
+// port arguments — the compiler rejects any future caller that omits
+// explicit ports).
 //
 // §4.8.6.1 BASICS_06..14 — UT-driven active-OPEN cluster. _08 / _10
 // each chain two distinct active-OPEN handshakes per case, so they
@@ -732,22 +732,6 @@ inline int sendShutdownTcpSocketWrRequest(const ::tc8::TestConfig &cfg,
         tester_src_port, payload);
 }
 
-// §4.8.6.5 CALL_ABORT_02/_03 driver: ask tc8-dut to issue an ABORT
-// (SO_LINGER {1,0} + close) on the previously-opened socket. tc8-dut
-// emits RST on the wire and removes the socket_id from its listener
-// map; subsequent UT calls on the id collapse to kStatusUnknownSocket.
-inline int sendAbortTcpSocketRequest(const ::tc8::TestConfig &cfg,
-                                     std::string_view iface,
-                                     const std::array<std::uint8_t, 6> &dut_mac,
-                                     std::uint8_t  req_id,
-                                     std::uint8_t  socket_id,
-                                     std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto payload = ::tc8::stimulus::buildAbortTcpSocketRequest(req_id, socket_id);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, payload);
-}
-
 inline int sendQueryTcpEstablishedRequest(const ::tc8::TestConfig &cfg,
                                           std::string_view iface,
                                           const std::array<std::uint8_t, 6> &dut_mac,
@@ -892,120 +876,6 @@ inline std::uint8_t queryTcpEstablishedSync(const ::tc8::TestConfig &cfg,
 // sce_integration/dut_socket_control.h and dut_control.h). The former
 // direct `queryTcpInfoSync` / `TcpInfoSnapshot` helpers were retired once
 // every cluster case (_03/_04/_05/_06/_08/_09) moved onto the seam.
-
-// Synchronous UT OpReceiveTcpData. Sends the request, blocks for the
-// Confirmation (which itself blocks in tc8-dut until expected_len
-// bytes arrive on the connected fd or `timeout_ms` elapses), and
-// returns the bytes the tc8-dut read. Empty return ⇒ unknown
-// socket / tc8-dut got 0 bytes / RPC failure (the three are
-// indistinguishable to the caller; empty short-circuits to "didn't
-// receive proper data" at the SCXML guard).
-//
-// The tester-side recvfrom timeout = timeout_ms + 500 ms so the UT
-// RPC reply has headroom past the tc8-dut blocking window. No
-// retries — TC8_CLOSING_07/_08 expect a single recv-and-respond
-// cycle within the SCXML observation deadline.
-inline std::vector<std::uint8_t> queryReceivedBytesSync(
-    const ::tc8::TestConfig &cfg,
-    std::uint8_t  req_id,
-    std::uint8_t  socket_id,
-    std::uint16_t expected_len,
-    std::uint16_t timeout_ms) {
-    const int fd = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (fd < 0) return {};
-
-    timeval tv{};
-    const long total_ms = static_cast<long>(timeout_ms) + 500L;
-    tv.tv_sec  = static_cast<time_t>(total_ms / 1000);
-    tv.tv_usec = static_cast<suseconds_t>((total_ms % 1000) * 1000);
-    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-    sockaddr_in remote{};
-    remote.sin_family      = AF_INET;
-    remote.sin_addr.s_addr = cfg.ipv4.dut_iface_ip;
-    remote.sin_port        = htons(::tc8::ut::kPort);
-
-    const auto payload = ::tc8::stimulus::buildReceiveTcpDataRequest(
-        req_id, socket_id, expected_len, timeout_ms);
-    if (::sendto(fd, payload.data(), payload.size(), 0,
-                 reinterpret_cast<sockaddr*>(&remote), sizeof(remote))
-        != static_cast<ssize_t>(payload.size())) {
-        ::close(fd);
-        return {};
-    }
-
-    // 3-byte header (opcode|0x80, req_id, status) + 2-byte received_len
-    // + up to kMaxPayload bytes. Use kMaxPayload as cap.
-    std::uint8_t buf[5 + ::tc8::ut::kMaxPayload];
-    sockaddr_in peer{};
-    socklen_t peer_len = sizeof(peer);
-    const ssize_t n = ::recvfrom(fd, buf, sizeof(buf), 0,
-                                  reinterpret_cast<sockaddr*>(&peer), &peer_len);
-    ::close(fd);
-
-    if (n < 5) return {};
-    if (buf[0] != static_cast<std::uint8_t>(::tc8::ut::OpReceiveTcpData
-                                            | ::tc8::ut::kResponseBit)) return {};
-    if (buf[1] != req_id)                                               return {};
-    if (buf[2] != ::tc8::ut::kStatusOk)                                 return {};
-    const std::uint16_t received_len =
-        static_cast<std::uint16_t>((buf[3] << 8) | buf[4]);
-    if (5 + received_len > n) return {};
-    return std::vector<std::uint8_t>(buf + 5, buf + 5 + received_len);
-}
-
-// Synchronous UT OpReceiveTcpDataOob. Same shape as
-// queryReceivedBytesSync — the only difference is the request
-// opcode the tc8-dut uses to dispatch to recv(MSG_OOB) vs recv(0).
-// Returns the bytes Linux's OOB queue surfaced (1 byte per URG
-// segment under default sysctl_tcp_stdurg=0); empty vector on RPC
-// failure / unknown socket / timeout.
-inline std::vector<std::uint8_t> queryReceivedBytesOobSync(
-    const ::tc8::TestConfig &cfg,
-    std::uint8_t  req_id,
-    std::uint8_t  socket_id,
-    std::uint16_t expected_len,
-    std::uint16_t timeout_ms) {
-    const int fd = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (fd < 0) return {};
-
-    timeval tv{};
-    const long total_ms = static_cast<long>(timeout_ms) + 500L;
-    tv.tv_sec  = static_cast<time_t>(total_ms / 1000);
-    tv.tv_usec = static_cast<suseconds_t>((total_ms % 1000) * 1000);
-    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-    sockaddr_in remote{};
-    remote.sin_family      = AF_INET;
-    remote.sin_addr.s_addr = cfg.ipv4.dut_iface_ip;
-    remote.sin_port        = htons(::tc8::ut::kPort);
-
-    const auto payload = ::tc8::stimulus::buildReceiveTcpDataOobRequest(
-        req_id, socket_id, expected_len, timeout_ms);
-    if (::sendto(fd, payload.data(), payload.size(), 0,
-                 reinterpret_cast<sockaddr*>(&remote), sizeof(remote))
-        != static_cast<ssize_t>(payload.size())) {
-        ::close(fd);
-        return {};
-    }
-
-    std::uint8_t buf[5 + ::tc8::ut::kMaxPayload];
-    sockaddr_in peer{};
-    socklen_t peer_len = sizeof(peer);
-    const ssize_t n = ::recvfrom(fd, buf, sizeof(buf), 0,
-                                  reinterpret_cast<sockaddr*>(&peer), &peer_len);
-    ::close(fd);
-
-    if (n < 5) return {};
-    if (buf[0] != static_cast<std::uint8_t>(::tc8::ut::OpReceiveTcpDataOob
-                                            | ::tc8::ut::kResponseBit)) return {};
-    if (buf[1] != req_id)                                               return {};
-    if (buf[2] != ::tc8::ut::kStatusOk)                                 return {};
-    const std::uint16_t received_len =
-        static_cast<std::uint16_t>((buf[3] << 8) | buf[4]);
-    if (5 + received_len > n) return {};
-    return std::vector<std::uint8_t>(buf + 5, buf + 5 + received_len);
-}
 
 // Tester-side TCP listener. BASICS_06+ active-open cases need the
 // tester to bind+listen on `kBasicsActiveRemotePort` so the DUT's
@@ -1932,10 +1802,10 @@ inline TcpTimeWaitInfo driveToTimeWaitViaClosing(const ::tc8::TestConfig &cfg,
 // CLOSING-state core (stops at CLOSING, does NOT advance to TIME-WAIT):
 // given an accepted tester_fd and a DUT-close callback, drive DUT
 // ESTABLISHED → FIN-WAIT-1 → CLOSING and leave it there. The single source
-// of truth for the CLOSING-entry wire mechanics — the opcode
-// `driveCloseToClosing` and the seam `driveSeamCloseToClosing`
-// (cases/_tcp_seam_time_wait_prelude.h) bind `dut_close` and re-implement
-// nothing. Identical to `driveToTimeWaitViaClosing` through the non-acking
+// of truth for the CLOSING-entry wire mechanics — the seam
+// `driveSeamCloseToClosing` (cases/_tcp_seam_time_wait_prelude.h) binds
+// `dut_close` and re-implements nothing. Identical to
+// `driveToTimeWaitViaClosing` through the non-acking
 // FIN+ACK, then it STOPS: the follow-on DUT-FIN-acking ACK and the
 // TCP_REPAIR dispose are both omitted, so the DUT stays in CLOSING and the
 // caller keeps a live tester_fd.
@@ -1985,29 +1855,6 @@ inline TcpTimeWaitInfo driveToClosingState(
     info.tester_seq_post_fin = seq->snd_nxt + 1U;
     info.tester_ack_post_fin = seq->rcv_nxt;
     return info;
-}
-
-// Opcode-UT CLOSING prelude: thin wrapper binding the opcode UT close to the
-// `driveToClosingState` core. SSOT for the opcode §4.8 CLOSING callers; the
-// seam counterpart is driveSeamCloseToClosing
-// (cases/_tcp_seam_time_wait_prelude.h). See driveToClosingState for the
-// caller contract (TesterAutoAckDrop in caller scope; silentlyCloseTesterFd
-// after the probe phase). `local_port` + `remote_port` are intentionally
-// non-default — see `driveActiveOpenEstablished` block comment for the
-// per-case 4-tuple isolation rationale.
-inline TcpTimeWaitInfo driveCloseToClosing(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    int           tester_fd,
-    std::uint8_t  close_req_id,
-    std::uint8_t  socket_id,
-    std::uint16_t local_port,
-    std::uint16_t remote_port) {
-    return driveToClosingState(cfg, iface, dut_mac, tester_fd,
-                               local_port, remote_port, [&]() {
-        sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
-    });
 }
 
 // TCP_REPAIR-silent dispose of a tester socket: setting

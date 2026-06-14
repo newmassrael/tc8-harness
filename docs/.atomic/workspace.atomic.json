@@ -3650,10 +3650,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
@@ -10920,5 +10916,6 @@
   "entities": {},
   "predicates": {},
   "narrative_facts": {},
-  "schema_version": 19
+  "disclosure_plans": {},
+  "schema_version": 22
 }
