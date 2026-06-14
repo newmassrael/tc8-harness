@@ -8,7 +8,9 @@
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -90,6 +92,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -99,10 +102,9 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpProbingWindows03LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        if (!open.conn) return;
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
         const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -139,10 +141,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         // Spec step 2/3: SEND 1 → DUT seg1 at seq=S.
-        sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kSeg1Pattern, seg_len);
+        seamSendTcpPattern(dut, open.conn->socket, kSeg1Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: tester ACKs seg1 with full window. Linux's
@@ -163,16 +162,10 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5/6: SEND 2 + SEND 3 → DUT seg2 + seg3.
-        sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1,
-            kSeg2Pattern, seg_len);
+        seamSendTcpPattern(dut, open.conn->socket, kSeg2Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
 
-        sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/4, /*socket_id=*/1,
-            kSeg3Pattern, seg_len);
+        seamSendTcpPattern(dut, open.conn->socket, kSeg3Pattern, seg_len);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 7: tester ACKs seg2 only with `window=0` —
@@ -198,10 +191,7 @@ struct TestCaseTraits<cases::TcpProbingWindows03SM>
         // those carry payload_len==0 and are filtered out by the
         // SCXML `is_dut_data_segment` predicate (payload_len > 0
         // conjunct).
-        sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/5, /*socket_id=*/1,
-            kSeg4Pattern, seg_len);
+        seamSendTcpPattern(dut, open.conn->socket, kSeg4Pattern, seg_len);
 
         // Defer ack_drop release to the runner's scheduler — the
         // captured shared_ptr keeps the iptables OUTPUT rule
