@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
         "TCP in CLOSING / LAST-ACK / TIME-WAIT MUST respond with ok "
         "and enter CLOSED on application ABORT call (RFC 793 §3.9 p62 "
         "Event Processing). 3-iter compound: per-iter prelude drives "
-        "DUT to wst, UT abort triggers tcp_disconnect, verify-probe ACK "
+        "DUT to wst, abort triggers the DUT's abortive close, verify-probe ACK "
         "on killed 4-tuple proves CLOSED uniformly across iters";
 
     static constexpr std::uint16_t kPortOffsetClosing  = 91U;
@@ -168,10 +168,9 @@ private:
 
     // Phase 2 LAST-ACK: AckDrop installed BEFORE handshake (tester
     // outbound pure ACK to DUT FIN must be suppressed). Tester
-    // shutdown(WR) drives DUT EST→CW (DUT acks tester FIN). UT
-    // shutdownTcpSocketWr drives DUT CW→LAST-ACK (DUT FIN egress;
-    // AckDrop blocks tester auto-ACK so DUT stays in LAST-ACK). UT
-    // abort emits RST via tcp_disconnect.
+    // shutdown(WR) drives DUT EST→CW (DUT acks tester FIN). seam
+    // shutdownTcpWr drives DUT CW→LAST-ACK (DUT FIN egress; AckDrop
+    // blocks tester auto-ACK so DUT stays in LAST-ACK). abort → RST.
     static void runPhase2LastAck(const ::tc8::TestConfig& cfg,
                                  std::string_view /*iface*/,
                                  ::tc8::sce::IDutControl& dut) {
@@ -200,21 +199,21 @@ private:
         tcp.shutdownTcpWr(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        // Abort on a LAST-ACK socket → RST (SO_LINGER {1,0} + close reaches
-        // CLOSED). The verify-probe still fires for the closed-port RST as
-        // redundant proof.
+        // Abort on a LAST-ACK socket → RST (the abortive close reaches CLOSED).
+        // The verify-probe still fires for the closed-port RST as redundant
+        // proof.
         tcp.abortTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         silentlyCloseTesterFd(tester_fd);
     }
 
-    // Phase 3 TIME-WAIT: UT shutdownTcpSocketWr → DUT FIN → tester
+    // Phase 3 TIME-WAIT: seam shutdownTcpWr → DUT FIN → tester
     // auto-ACK (NO AckDrop) drives DUT FW1→FW2. Tester shutdown(WR)
-    // → tester FIN → DUT FW2→TW (DUT pure ACK egress). UT abort on
-    // the TW socket: Linux's TIME-WAIT bucket may not emit RST
-    // directly (the socket struct is detached into a tw_sock); the
-    // verify-probe ACK is the wire-observable pass criterion.
+    // → tester FIN → DUT FW2→TW (DUT pure ACK egress). abort on the
+    // TW socket emits no wire RST (a TIME-WAIT abort is silent on the
+    // wire), so the verify-probe ACK is the wire-observable pass
+    // criterion.
     static void runPhase3TimeWait(const ::tc8::TestConfig& cfg,
                                   std::string_view /*iface*/,
                                   ::tc8::sce::IDutControl& dut) {
@@ -241,10 +240,9 @@ private:
         ::shutdown(tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        // Abort on the TIME-WAIT socket. SO_LINGER + close does not destroy the
-        // detached tw_sock, so the abort path also issues a sock_diag
-        // SOCK_DESTROY to terminate the TIME-WAIT residual; the verify-probe ACK
-        // is the load-bearing CLOSED-proof for this iter.
+        // Abort on the TIME-WAIT socket → CLOSED (the DUT force-terminates the
+        // TIME-WAIT residual internally). A TIME-WAIT abort emits no wire RST, so
+        // the verify-probe ACK is the load-bearing CLOSED-proof for this iter.
         tcp.abortTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 

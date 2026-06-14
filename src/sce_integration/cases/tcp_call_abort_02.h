@@ -32,8 +32,8 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
     static constexpr std::string_view kSpecSection  = "4.8.6.5";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST enter CLOSED on application "
-        "ABORT call (RFC 793 §3.9 p62 Event Processing). UT abort "
-        "(SO_LINGER {1,0} + close) drives DUT RST egress; verify-probe "
+        "ABORT call (RFC 793 §3.9 p62 Event Processing). The abort "
+        "primitive drives DUT RST egress; verify-probe "
         "ACK on killed 4-tuple draws closed-port RST as wire-observable "
         "proof of CLOSED";
 
