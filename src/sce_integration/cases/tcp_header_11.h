@@ -10,7 +10,9 @@
 #include <arpa/inet.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/tcp_segment_builder.h"
@@ -42,17 +44,16 @@ struct TestCaseTraits<cases::TcpHeader11SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 38U;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 38U;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        (void)listener;
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        (void)open;
 
         // 224.0.0.1 — IANA all-hosts multicast group, the canonical
         // multicast address for testing the spec's "Multicast IP
