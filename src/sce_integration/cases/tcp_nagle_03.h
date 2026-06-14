@@ -9,7 +9,9 @@
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_nagle_03_sm.h"
@@ -44,7 +46,8 @@ struct TestCaseTraits<cases::TcpNagle03SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -53,10 +56,11 @@ struct TestCaseTraits<cases::TcpNagle03SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpNagle03LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        // Active OPEN through the backend-agnostic seam; the tester listener
+        // (the receiver the DUT's data lands on) lives on `open`.
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        if (!open.conn) return;
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
         const auto seq_range_pre = queryTcpSeqRange(tester_fd);
@@ -69,24 +73,24 @@ struct TestCaseTraits<cases::TcpNagle03SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
         (void)ack_drop;
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kFirstPayload.data(),
-            static_cast<std::uint16_t>(kFirstPayload.size()));
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        // Two small SENDs: seg1 ships immediately; seg2 is held by Nagle
+        // while seg1 is unacked (ack_drop suppresses tester ACKs).
+        seamSendTcp(dut, open.conn->socket, kFirstPayload);
+        // Gap must clear seg1's RTO (Linux TCP_RTO_MIN ~200 ms) so the second
+        // SEND is enqueued after seg1's first retransmit instead of racing it —
+        // a small SEND landing exactly at the RTO boundary escapes Nagle (the
+        // pcap showed seg2 released on its own at ~263 ms). The opcode open's
+        // kTcpUtRpcWait slack masked this; the synchronous seam open removes it,
+        // so widen the gap to keep the Nagle hold deterministic on both
+        // backends (matches NAGLE_02 / FLAGS_PROCESSING_10).
+        std::this_thread::sleep_for(std::chrono::milliseconds(350));
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1,
-            kSecondPayload.data(),
-            static_cast<std::uint16_t>(kSecondPayload.size()));
+        seamSendTcp(dut, open.conn->socket, kSecondPayload);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        sendSendTcpDataPatternRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/4, /*socket_id=*/1,
-            kThirdPattern, kThirdPayloadLen);
+        // Bulk SEND fills the remaining MSS room; Nagle releases one
+        // aggregate segment (held seg2 + this fill) of MSS bytes.
+        seamSendTcpPattern(dut, open.conn->socket, kThirdPattern, kThirdPayloadLen);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         (void)tester_fd;
     }
