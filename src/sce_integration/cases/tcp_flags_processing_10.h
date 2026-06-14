@@ -6,10 +6,13 @@
 #include <memory>
 #include <string_view>
 #include <thread>
+#include <vector>
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -45,6 +48,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -54,11 +58,9 @@ struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpFlagsProcessing10LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
-        if (tester_fd < 0) return;
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
+        if (tester_fd < 0 || !open.conn) return;
 
         const auto seq_range_pre = queryTcpSeqRange(tester_fd);
         if (!seq_range_pre.has_value()) {
@@ -73,17 +75,22 @@ struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kFirstPayload.data(),
+        dut.tcpControl()->sendTcp(
+            open.conn->socket,
+            std::vector<std::uint8_t>(kFirstPayload.begin(), kFirstPayload.end()),
             static_cast<std::uint16_t>(kFirstPayload.size()));
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        // Gap must clear seg1's RTO (Linux TCP_RTO_MIN ~200 ms) so the
+        // second SEND is enqueued after seg1's first retransmit instead
+        // of racing it — a small SEND landing exactly at the RTO boundary
+        // escapes Nagle and ships seg2 before the piggyback inject. The
+        // opcode open's kTcpUtRpcWait slack masked this; the synchronous
+        // seam open removes it, so widen the gap to keep the hold
+        // deterministic on both backends.
+        std::this_thread::sleep_for(std::chrono::milliseconds(350));
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1,
-            kSecondPayload.data(),
+        dut.tcpControl()->sendTcp(
+            open.conn->socket,
+            std::vector<std::uint8_t>(kSecondPayload.begin(), kSecondPayload.end()),
             static_cast<std::uint16_t>(kSecondPayload.size()));
 
         const auto dut_mac = cfg.dut.mac;
