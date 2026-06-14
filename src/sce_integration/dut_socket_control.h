@@ -173,6 +173,26 @@ public:
     virtual std::optional<DutTcpInfo> queryInfo(DutSocket sock) = 0;
 };
 
+// Out-of-band (urgent) TCP receive — an opcode-only sub-interface. The standard
+// AUTOSAR testability protocol exposes no urgent/OOB receive primitive (its
+// RECEIVE_AND_FORWARD carries no urgent flag, and the spec has no MSG_OOB
+// surface), so a backend that cannot answer returns nullptr from
+// IDutControl::tcpRecvOob() and a case declaring kCapTcpRecvOob is
+// capability-skipped on it (Tier 2 2b#4) rather than failed — the honest
+// expression of the standard's limit, exactly like ITcpStateProbe.
+class ITcpRecvOob {
+public:
+    virtual ~ITcpRecvOob() = default;
+
+    // Receive up to `max_len` bytes from the socket's out-of-band (urgent) queue
+    // (recv(MSG_OOB)). The urgent data must already have been delivered, so this
+    // is a pure query — no trigger, unlike ITcpControl::receiveTcp's armed
+    // receive. Returns the urgent bytes the DUT surfaced (1 per URG segment under
+    // default sysctl), or nullopt on query failure.
+    virtual std::optional<std::vector<std::uint8_t>> receiveTcpOob(DutSocket sock,
+                                                                   std::uint16_t max_len) = 0;
+};
+
 // AUTOSAR Testability backend of ITcpControl — thin adapter over the typed free
 // functions in testability_client.h (the SP-encoding SSOT).
 class TestabilityTcpControl final : public ITcpControl {
