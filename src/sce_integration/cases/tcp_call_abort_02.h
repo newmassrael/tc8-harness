@@ -37,6 +37,7 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         "ACK on killed 4-tuple draws closed-port RST as wire-observable "
         "proof of CLOSED";
 
+    // TC8 §4.8.6.5 — TCP Call Abort (ESTABLISHED).
     // Single iteration, backend-agnostic (opcode UT or AUTOSAR testability).
     // Seam active-OPEN on +90 quad → seam abort → DUT RST → verify-probe ACK on
     // entry to listening_verify_rst → DUT closed-port RST → pass. Same shape as

@@ -41,6 +41,8 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
         "DUT to wst, abort triggers the DUT's abortive close, verify-probe ACK "
         "on killed 4-tuple proves CLOSED uniformly across iters";
 
+    // TC8 §4.8.6.5 — TCP Call Abort (CLOSING / LAST-ACK / TIME-WAIT).
+    // One port-quad offset per compound iteration.
     static constexpr std::uint16_t kPortOffsetClosing  = 91U;
     static constexpr std::uint16_t kPortOffsetLastAck  = 92U;
     static constexpr std::uint16_t kPortOffsetTimeWait = 93U;

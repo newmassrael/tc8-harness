@@ -3660,6 +3660,14 @@
         {
           "file": "tests/tcp_call_abort_03/tcp_call_abort_03.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_call_abort_02.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_call_abort_03.h",
+          "kind": "implements"
         }
       ]
     },
