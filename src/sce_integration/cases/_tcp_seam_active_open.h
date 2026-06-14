@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -78,10 +77,7 @@ struct SeamActiveOpen {
 inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
     ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
     std::uint16_t local_port, std::uint16_t remote_port, const char *phase) {
-    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
-    assert(tcp != nullptr && "active-OPEN cases require kCapTcpControl");
-
-    auto conn = tcp->connectTcp(
+    auto conn = ::tc8::sce::seamTcpControl(dut).connectTcp(
         ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
         ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
     if (!conn) {
@@ -106,9 +102,8 @@ inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
 template <std::size_t N>
 inline bool seamSendTcp(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSocket sock,
                         const std::array<std::uint8_t, N> &payload) {
-    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
-    assert(tcp != nullptr && "DUT-send cases require kCapTcpControl");
-    return tcp->sendTcp(sock, std::vector<std::uint8_t>(payload.begin(), payload.end()));
+    return ::tc8::sce::seamTcpControl(dut).sendTcp(
+        sock, std::vector<std::uint8_t>(payload.begin(), payload.end()));
 }
 
 // Bulk / pattern DUT send: make the DUT emit `total_len` bytes formed by
@@ -125,9 +120,7 @@ inline bool seamSendTcp(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSocket sock
 // capability gate before stimulus runs. The assert documents that invariant.
 inline bool seamSendTcpPattern(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSocket sock,
                                std::uint8_t pattern, std::uint16_t total_len) {
-    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
-    assert(tcp != nullptr && "DUT-send cases require kCapTcpControl");
-    return tcp->sendTcpPattern(sock, pattern, total_len);
+    return ::tc8::sce::seamTcpControl(dut).sendTcpPattern(sock, pattern, total_len);
 }
 
 inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <optional>
@@ -79,6 +80,20 @@ public:
     // kCapTcpStateProbe is capability-skipped there (Tier 2 2b#4).
     virtual ITcpStateProbe *tcpStateProbe() { return nullptr; }
 };
+
+// Seam-case convenience: fetch the DUT's TCP control sub-interface as a
+// reference, asserting it is present. A seam TCP case has already been
+// conditioning-skipped by the centralised capability gate (Tier 2 2b#4) when
+// the selected backend lacks kCapTcpControl, so the pointer is non-null by
+// contract; returning a reference encodes that at the call site (callers use
+// `.`) and the assert documents the invariant. Collapses the tcpControl()-deref
+// + null-assert idiom the seam helpers (active / passive / listen / send)
+// otherwise repeat.
+inline ITcpControl &seamTcpControl(IDutControl &dut) {
+    ITcpControl *tcp = dut.tcpControl();
+    assert(tcp != nullptr && "seam TCP cases require kCapTcpControl");
+    return *tcp;
+}
 
 // Opcode-UT backend of ITcpControl — a synchronous SOCK_DGRAM round-trip
 // adapter over the opcode builders. The opcode UT server answers every request

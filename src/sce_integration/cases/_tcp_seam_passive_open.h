@@ -62,17 +62,12 @@ struct SeamPassiveOpen {
 inline SeamPassiveOpen driveSeamPassiveOpen(::tc8::sce::IDutControl &dut,
                                             const ::tc8::TestConfig &cfg,
                                             std::uint16_t listen_port) {
-    // Passive-OPEN cases require the DUT's TCP data plane (kCapTcpControl).
-    // Both shipped backends expose it; a future backend that does not must be
-    // conditioning-skipped by the centralised capability gate (Tier 2 2b#4)
-    // BEFORE stimulus runs — a silent return here would mis-report as a timeout
-    // FAIL, not a SKIP. The deref is therefore contract-guaranteed; the assert
-    // documents it.
-    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
-    assert(tcp != nullptr && "passive-OPEN cases require kCapTcpControl");
-
+    // Passive-OPEN cases require the DUT's TCP data plane (kCapTcpControl);
+    // seamTcpControl asserts it (contract-guaranteed by the centralised
+    // capability gate, Tier 2 2b#4 — a silent return here would mis-report as a
+    // timeout FAIL, not a SKIP).
     int tester_fd = -1;
-    auto conn = tcp->acceptTcp(
+    auto conn = ::tc8::sce::seamTcpControl(dut).acceptTcp(
         ::tc8::sce::BindSpec{/*do_bind=*/true, listen_port, /*local_addr_be=*/0},
         [&] { connectToDutTcp(cfg, listen_port, TcpPostClose::kKeepOpen, &tester_fd); });
 
@@ -100,10 +95,7 @@ inline SeamPassiveOpen driveSeamPassiveOpen(::tc8::sce::IDutControl &dut,
 // passive-open RPC failure is not mis-reported downstream as a DUT timeout.
 inline std::optional<::tc8::sce::DutSocket> driveSeamListen(::tc8::sce::IDutControl &dut,
                                                             std::uint16_t listen_port) {
-    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
-    assert(tcp != nullptr && "passive-OPEN cases require kCapTcpControl");
-
-    auto handle = tcp->listenTcp(
+    auto handle = ::tc8::sce::seamTcpControl(dut).listenTcp(
         ::tc8::sce::BindSpec{/*do_bind=*/true, listen_port, /*local_addr_be=*/0});
     if (!handle) {
         std::fprintf(stderr,
