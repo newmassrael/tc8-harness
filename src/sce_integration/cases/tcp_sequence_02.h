@@ -6,7 +6,9 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -30,9 +32,20 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         "From SYN-SENT, DUT acknowledges tester ISN by emitting "
         "ACK with ack_num == tester_seq + 1 (RFC 793 §3.4).";
 
+    // The DUT's active open is held in SYN-SENT (no tester listener, so the
+    // injected SYN+ACK can carry a custom Sequence Number). The testability
+    // CONNECT SP requires the handshake to establish and so cannot hold a
+    // socket in SYN-SENT, while the opcode non-blocking worker can —
+    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
+    // on a testability backend (Tier 2 2b#4) instead of failing it. The DUT
+    // ACK is observed on pcap, so no state probe is required.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
+
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -55,17 +68,15 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         auto syn_snippet =
             TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port,
-            cfg.ipv4.tester_ip, remote_port);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        // Seam active OPEN, no tester listener: the SYN stays unanswered so the
+        // DUT remains in SYN-SENT, the state the custom SYN+ACK is injected
+        // into. Synchronous connect, so no post-open RPC settle is needed.
+        auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         const auto dut_syn = syn_snippet.tryCapture(
             std::chrono::milliseconds(2000));
         if (!dut_syn) {
-            sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                       /*req_id=*/2, /*socket_id=*/1);
+            if (open) dut.tcpControl()->closeTcp(open->socket);
             return;
         }
         const std::uint32_t dut_isn = dut_syn->seq_num;
@@ -82,8 +93,7 @@ struct TestCaseTraits<cases::TcpSequence02SM>
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                   /*req_id=*/2, /*socket_id=*/1);
+        if (open) dut.tcpControl()->closeTcp(open->socket);
     }
 
     static std::string_view verdictFor(State s) {
