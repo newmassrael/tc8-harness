@@ -11,7 +11,7 @@
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"
-#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"

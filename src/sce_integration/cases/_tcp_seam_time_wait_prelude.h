@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "sce_integration/cases/_tcp_seam_active_open.h"  // driveSeamActiveOpen
+#include "sce_integration/cases/_tcp_seam.h"  // driveSeamActiveOpen
 #include "sce_integration/dut_control.h"                  // IDutControl, DutSocket
 #include "sce_integration/tcp_pilot_common.h"             // TcpTimeWaitInfo + cores
 #include "sce_integration/test_config.h"

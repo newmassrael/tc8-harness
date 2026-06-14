@@ -16,7 +16,7 @@
 namespace tc8::sce::tcp {
 
 // Tier-2 passive-OPEN counterpart of `driveSeamActiveOpen`
-// (_tcp_seam_active_open.h): drive the DUT through a LISTEN-then-ACCEPT via the
+// (_tcp_seam.h): drive the DUT through a LISTEN-then-ACCEPT via the
 // backend-agnostic `ITcpControl::acceptTcp` seam instead of the opcode Upper
 // Tester's OpOpenTcpSocket(Passive) builder directly. A case built on this
 // helper runs unchanged on whichever backend `--dut-control` selected (opcode

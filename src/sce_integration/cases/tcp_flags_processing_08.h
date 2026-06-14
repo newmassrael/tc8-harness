@@ -8,7 +8,7 @@
 #include <thread>
 
 #include "sce_integration/case_registry.h"
-#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"

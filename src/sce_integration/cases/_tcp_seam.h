@@ -15,11 +15,16 @@
 
 namespace tc8::sce::tcp {
 
-// Tier-2 counterpart of `driveActiveOpenEstablished` (tcp_pilot_common.h):
-// the active-OPEN prelude routed through the backend-agnostic `ITcpControl`
-// seam instead of the opcode Upper Tester directly. A case built on this
-// helper runs unchanged on whichever backend `--dut-control` selected (opcode
-// UT or AUTOSAR testability) — the Tier-2 North Star
+// Core TCP DUT-control seam helpers: the backend-agnostic vocabulary cases use
+// to drive the DUT's connection + data plane through the `ITcpControl` seam
+// instead of the opcode Upper Tester directly — active OPEN
+// (driveSeamActiveOpen, the Tier-2 counterpart of driveActiveOpenEstablished),
+// embryonic SYN-SENT open (driveSeamSynSentOpen), connect (seamConnectTcp), and
+// the DUT-send verbs (seamSendTcp / seamSendTcpPattern). The passive-OPEN and
+// TIME-WAIT-prelude helpers extend this base in sibling headers
+// (_tcp_seam_passive_open.h, _tcp_seam_time_wait_prelude.h). A case built on
+// these runs unchanged on whichever backend `--dut-control` selected (opcode UT
+// or AUTOSAR testability) — the Tier-2 North Star
 // (claudedocs/testability_seam_tier2_design.md).
 //
 // Lives in its own header (not tcp_pilot_common.h) on purpose: it pulls in
