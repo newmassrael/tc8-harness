@@ -110,7 +110,7 @@ void TestabilityServer::stop() {
     }
     // Join accept threads before tearing down the socket table — they touch the
     // listen fds and register accepted sockets.
-    joinAcceptThreads();
+    joinEventThreads();
     if (fd_ >= 0) {
         ::close(fd_);
         fd_ = -1;
@@ -173,9 +173,9 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
             case tp::kPidEndTest:
                 // PRS_TPSP §6.10 reset: terminate active SPs (accept threads),
                 // then close all test-channel sockets and clear state.
-                reset_accepts_ = true;
-                joinAcceptThreads();
-                reset_accepts_ = false;
+                reset_events_ = true;
+                joinEventThreads();
+                reset_events_ = false;
                 closeAllSockets();
                 rid_out = tp::kRidEOk;
                 return;
@@ -225,8 +225,11 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
             case tp::kPidShutdown:
                 rid_out = shutdownSocket(dat, dat_len);
                 return;
+            case tp::kPidReceiveAndForward:
+                rid_out = receiveAndForward(dat, dat_len, req.service_id, peer, resp_dat);
+                return;
             default:
-                rid_out = tp::kRidENtf;  // RECEIVE_AND_FORWARD not yet served
+                rid_out = tp::kRidENtf;  // remaining TCP SPs (CONFIGURE_SOCKET) not served
                 return;
         }
     }
@@ -415,7 +418,7 @@ std::uint8_t TestabilityServer::listenAndAcceptTcp(const std::uint8_t *dat, std:
 
     // Accept asynchronously: E_OK returns now, each accepted connection is
     // reported later as an Event to the requesting tester.
-    accept_threads_.emplace_back(&TestabilityServer::acceptLoop, this, *fd, service_id,
+    event_threads_.emplace_back(&TestabilityServer::acceptLoop, this, *fd, service_id,
                                  listen_socket_id, max_con, peer);
     return tp::kRidEOk;
 }
@@ -427,7 +430,7 @@ void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
     ::fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK);
 
     std::uint16_t accepted = 0;
-    while (!stop_requested_ && !reset_accepts_ && accepted < max_con) {
+    while (!stop_requested_ && !reset_events_ && accepted < max_con) {
         fd_set rset;
         FD_ZERO(&rset);
         FD_SET(listen_fd, &rset);
@@ -442,7 +445,7 @@ void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
             // CLOSE_SOCKET on a listen-only socket that never accepted) or a
             // fatal select error: the listener is gone, so exit instead of
             // spinning on the dead fd. The thread is reclaimed at the next
-            // joinAcceptThreads (END_TEST / stop).
+            // joinEventThreads (END_TEST / stop).
             break;
         }
         sockaddr_in client{};
@@ -513,6 +516,110 @@ std::uint8_t TestabilityServer::shutdownSocket(const std::uint8_t *dat, std::siz
     return ::shutdown(*fd, how) == 0 ? tp::kRidEOk : tp::kRidENok;
 }
 
+std::uint8_t TestabilityServer::receiveAndForward(const std::uint8_t *dat, std::size_t dat_len,
+                                                  std::uint16_t service_id,
+                                                  const sockaddr_in &peer,
+                                                  std::vector<std::uint8_t> &resp_dat) {
+    // PRS_TPSP §6.10 RECEIVE_AND_FORWARD (TCP): socketId(u16) + maxFwd(u16) +
+    // maxLen(u16). Response: dropCnt(u16).
+    if (dat_len < 2 + 2 + 2) {
+        return tp::kRidEInv;
+    }
+    const std::uint16_t socket_id = tp::readU16(dat);
+    const std::uint16_t max_fwd = tp::readU16(dat + 2);
+    const std::uint16_t max_len = tp::readU16(dat + 4);
+
+    const auto fd = lookupSocket(socket_id);
+    if (!fd) {
+        return tp::kRidEIsd;  // invalid socket id
+    }
+
+    // PRS_TPSP §6.12.4 inactive-phase drain: consume the bytes queued before
+    // this call to reopen the receive window and report the count as dropCnt.
+    // Non-blocking so an empty queue does not stall the dispatch loop.
+    const int flags = ::fcntl(*fd, F_GETFL, 0);
+    ::fcntl(*fd, F_SETFL, flags | O_NONBLOCK);
+    std::uint32_t dropped = 0;
+    std::uint8_t drain[2048];
+    for (;;) {
+        const ssize_t n = ::recv(*fd, drain, sizeof(drain), 0);
+        if (n <= 0) {
+            break;
+        }
+        dropped += static_cast<std::uint32_t>(n);
+    }
+    ::fcntl(*fd, F_SETFL, flags);
+    // dropCnt is a u16 field (PRS_TPSP §6.10); saturate rather than wrap so an
+    // overlong inactive phase reports the max instead of a small modulo value.
+    tp::appendU16(resp_dat, static_cast<std::uint16_t>(dropped > 0xFFFF ? 0xFFFF : dropped));
+
+    // Active phase: forward subsequently-received data as Events on a worker
+    // thread — the same async lifecycle LISTEN_AND_ACCEPT uses.
+    event_threads_.emplace_back(&TestabilityServer::receiveLoop, this, *fd, service_id, socket_id,
+                                max_fwd, max_len, peer);
+    return tp::kRidEOk;
+}
+
+void TestabilityServer::receiveLoop(int conn_fd, std::uint16_t service_id,
+                                    std::uint16_t socket_id, std::uint16_t max_fwd,
+                                    std::uint16_t max_len, sockaddr_in peer) {
+    (void)socket_id;  // the connection fd is the routing key; socketId is the caller's handle
+    const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
+    const int flags = ::fcntl(conn_fd, F_GETFL, 0);
+    ::fcntl(conn_fd, F_SETFL, flags | O_NONBLOCK);
+
+    std::uint32_t consumed = 0;
+    while (!stop_requested_ && !reset_events_ && (limitless || consumed < max_len)) {
+        fd_set rset;
+        FD_ZERO(&rset);
+        FD_SET(conn_fd, &rset);
+        timeval tv{};
+        tv.tv_usec = 200 * 1000;  // 200 ms wake to re-check stop/reset
+        const int sr = ::select(conn_fd + 1, &rset, nullptr, nullptr, &tv);
+        if (sr == 0 || (sr < 0 && errno == EINTR)) {
+            continue;  // timeout or signal — re-check the stop/reset flags
+        }
+        if (sr < 0) {
+            break;  // conn fd closed under us / fatal select error — stop
+        }
+        std::uint8_t buf[2048];
+        std::size_t want = sizeof(buf);
+        if (!limitless) {
+            const std::uint32_t remaining = max_len - consumed;
+            if (remaining < want) {
+                want = remaining;
+            }
+        }
+        const ssize_t n = ::recv(conn_fd, buf, want, 0);
+        if (n <= 0) {
+            if (n == 0) {
+                break;  // peer closed the connection
+            }
+            continue;
+        }
+        consumed += static_cast<std::uint32_t>(n);
+        const std::uint16_t full_len = static_cast<std::uint16_t>(n);
+        const std::uint16_t fwd_len =
+            static_cast<std::uint16_t>(n < static_cast<ssize_t>(max_fwd) ? n : max_fwd);
+
+        // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event: fullLen(u16) + payload(vint8),
+        // TID 0x02 / EVB set. TCP has no srcPort/srcAddr (connection-oriented).
+        std::vector<std::uint8_t> ev_dat;
+        tp::appendU16(ev_dat, full_len);
+        tp::appendVint8(ev_dat, buf, fwd_len);
+
+        tp::Header ev;
+        ev.service_id = service_id;
+        ev.method_id = tp::methodId(tp::kGidTcp, tp::kPidReceiveAndForward, /*event=*/true);
+        ev.tid = tp::kTidEvent;
+        ev.rid = tp::kRidEOk;
+        const auto out = tp::buildMessage(ev, ev_dat.data(), ev_dat.size());
+        ::sendto(fd_, out.data(), out.size(), 0, reinterpret_cast<const sockaddr *>(&peer),
+                 sizeof(peer));
+    }
+    ::fcntl(conn_fd, F_SETFL, flags);  // restore (conn fd lives in the table)
+}
+
 std::uint16_t TestabilityServer::registerSocket(int fd) {
     std::lock_guard<std::mutex> lk(sockets_mu_);
     const std::uint16_t id = next_socket_id_++;
@@ -548,13 +655,13 @@ void TestabilityServer::closeAllSockets() {
     sockets_.clear();
 }
 
-void TestabilityServer::joinAcceptThreads() {
-    for (std::thread &t : accept_threads_) {
+void TestabilityServer::joinEventThreads() {
+    for (std::thread &t : event_threads_) {
         if (t.joinable()) {
             t.join();
         }
     }
-    accept_threads_.clear();
+    event_threads_.clear();
 }
 
 }  // namespace tc8::dut

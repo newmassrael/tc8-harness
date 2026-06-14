@@ -385,4 +385,86 @@ TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cf
     return ev;
 }
 
+TestabilityForwardResult testabilityReceiveAndForward(
+    const TestabilityConfig &cfg, std::uint16_t socket_id, std::uint16_t max_fwd,
+    std::uint16_t max_len, const std::function<void()> &on_armed, int resp_timeout_ms,
+    int event_timeout_ms, std::uint32_t src_ip_be) {
+    TestabilityForwardResult res;
+
+    // One persistent UDP socket carries the request, its response, and the later
+    // forward Event — the DUT routes the Event to the request's source address.
+    const int fd = openUdpClient(src_ip_be);
+    if (fd < 0) {
+        return res;
+    }
+    setRecvTimeout(fd, resp_timeout_ms);
+    const sockaddr_in dst = dutAddr(cfg);
+
+    // RECEIVE_AND_FORWARD request: socketId(u16) + maxFwd(u16) + maxLen(u16).
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    tp::appendU16(dat, max_fwd);
+    tp::appendU16(dat, max_len);
+    tp::Header h;
+    h.service_id = cfg.service_id;
+    h.method_id = tp::methodId(tp::kGidTcp, tp::kPidReceiveAndForward);
+    h.tid = tp::kTidRequest;
+    const std::vector<std::uint8_t> req = tp::buildMessage(h, dat.data(), dat.size());
+    if (::sendto(fd, req.data(), req.size(), 0, reinterpret_cast<const sockaddr *>(&dst),
+                 sizeof(dst)) < 0) {
+        ::close(fd);
+        return res;
+    }
+
+    // Response (TID 0x80, E_OK) carrying dropCnt(u16).
+    std::uint8_t buf[2048];
+    ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+    const auto resp = (n >= static_cast<ssize_t>(tp::kHeaderSize))
+                          ? tp::parseHeader(buf, static_cast<std::size_t>(n))
+                          : std::nullopt;
+    if (!resp || resp->tid != tp::kTidResponse || resp->rid != tp::kRidEOk ||
+        tp::gidOf(resp->method_id) != tp::kGidTcp ||
+        tp::pidOf(resp->method_id) != tp::kPidReceiveAndForward) {
+        ::close(fd);
+        return res;
+    }
+    res.ok = true;
+    if (static_cast<std::size_t>(n) - tp::kHeaderSize >= 2) {
+        res.drop_cnt = tp::readU16(buf + tp::kHeaderSize);
+    }
+
+    // Armed — let the caller drive the inbound data (e.g. inject a segment).
+    if (on_armed) {
+        on_armed();
+    }
+
+    // Await one forward Event (TID 0x02 / EVB set) on the same socket.
+    setRecvTimeout(fd, event_timeout_ms);
+    n = ::recv(fd, buf, sizeof(buf), 0);
+    ::close(fd);
+    if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
+        return res;  // no Event within the timeout (payload stays empty)
+    }
+    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
+    if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
+        tp::gidOf(evh->method_id) != tp::kGidTcp ||
+        tp::pidOf(evh->method_id) != tp::kPidReceiveAndForward) {
+        return res;
+    }
+    // Event DAT: fullLen(u16) + payload(vint8).
+    const std::uint8_t *edat = buf + tp::kHeaderSize;
+    const std::size_t edat_len = static_cast<std::size_t>(n) - tp::kHeaderSize;
+    if (edat_len < 2) {
+        return res;
+    }
+    res.full_len = tp::readU16(edat);
+    std::size_t off = 2;
+    const std::uint8_t *body = nullptr;
+    std::uint16_t body_len = 0;
+    if (tp::readVint8(edat, edat_len, off, body, body_len)) {
+        res.payload.assign(body, body + body_len);
+    }
+    return res;
+}
+
 }  // namespace tc8::stimulus

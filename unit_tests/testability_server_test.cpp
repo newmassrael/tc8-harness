@@ -4,7 +4,9 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <cstdint>
+#include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -275,6 +277,54 @@ TEST_F(TestabilityServerTest, EndTestTerminatesPendingAcceptThread) {
     // END_TEST terminates the pending accept thread, then the server still answers.
     EXPECT_TRUE(stimulus::testabilityEndTest(cfg, /*tc_id=*/0, "reset").eok());
     EXPECT_TRUE(stimulus::testabilityStartTest(cfg).eok());
+}
+
+// RECEIVE_AND_FORWARD (TCP): bytes queued before the arm are consumed and
+// counted as dropCnt; bytes sent after the arm are forwarded back as an Event.
+TEST_F(TestabilityServerTest, TcpReceiveAndForwardConsumesThenForwards) {
+    const auto cfg = loopbackConfig();
+
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    la.sin_port = 0;
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+
+    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+    ASSERT_TRUE(stimulus::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
+                                                ::htonl(INADDR_LOOPBACK))
+                    .eok());
+    const int afd = ::accept(lfd, nullptr, nullptr);
+    ASSERT_GE(afd, 0);
+
+    // Three bytes arrive BEFORE the arm — they must be drained and counted as
+    // dropCnt (not forwarded). Give the DUT kernel a moment to queue them.
+    const std::vector<std::uint8_t> pre = {'X', 'Y', 'Z'};
+    ASSERT_EQ(::send(afd, pre.data(), pre.size(), 0), 3);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Arm; in on_armed, send the payload to be forwarded back as one Event.
+    const std::vector<std::uint8_t> body = {'T', 'C', '8', 'd', 'a', 't', 'a'};
+    const auto res = stimulus::testabilityReceiveAndForward(
+        cfg, *sock, /*max_fwd=*/16, /*max_len=*/static_cast<std::uint16_t>(body.size()),
+        [&] { ::send(afd, body.data(), body.size(), 0); });
+
+    EXPECT_TRUE(res.ok);
+    EXPECT_EQ(res.drop_cnt, pre.size());
+    EXPECT_EQ(res.full_len, body.size());
+    EXPECT_EQ(res.payload, body);
+
+    ::close(afd);
+    ::close(lfd);
+    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
 // ── Tier 2 seam: ITcpControl / IUdpControl over the real testability server ──

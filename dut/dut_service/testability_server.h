@@ -86,12 +86,24 @@ private:
     // SHUTDOWN — group-agnostic: socketId + typeId. typeId 0x00/0x01/0x02 map
     // to shutdown(fd, SHUT_RD/SHUT_WR/SHUT_RDWR) (PRS_TPSP §6.10).
     std::uint8_t shutdownSocket(const std::uint8_t *dat, std::size_t dat_len);
+    // TCP RECEIVE_AND_FORWARD (PRS_TPSP §6.10) — socketId + maxFwd + maxLen.
+    // Consumes the bytes queued before the call (returned as dropCnt) to reopen
+    // the receive window, then spawns a forward thread; returns E_OK at once.
+    std::uint8_t receiveAndForward(const std::uint8_t *dat, std::size_t dat_len,
+                                   std::uint16_t service_id, const sockaddr_in &peer,
+                                   std::vector<std::uint8_t> &resp_dat);
 
     // Accept-thread body: poll `listen_fd` for up to `max_con` incoming
     // connections; per accept, register the new socket and emit the accept Event
     // to `peer`. Exits on stop_requested_ or after max_con accepts.
     void acceptLoop(int listen_fd, std::uint16_t service_id, std::uint16_t listen_socket_id,
                     std::uint16_t max_con, sockaddr_in peer);
+
+    // Forward-thread body: consume up to `max_len` bytes from `conn_fd`, emitting
+    // a forward Event (fullLen + payload, payload capped at `max_fwd`) per bulk
+    // to `peer`. Exits on stop/reset or once max_len bytes were consumed.
+    void receiveLoop(int conn_fd, std::uint16_t service_id, std::uint16_t socket_id,
+                     std::uint16_t max_fwd, std::uint16_t max_len, sockaddr_in peer);
 
     // Thread-safe socket-table access — the serverLoop thread and the accept
     // threads both touch the table, so all of socketId allocation, lookup, and
@@ -101,20 +113,21 @@ private:
     bool eraseSocket(std::uint16_t id);  // close + erase; false if absent
     void closeAllSockets();
 
-    // Signal the accept threads to stop, join them, and clear the list. Called
-    // by END_TEST (PRS_TPSP §6.10 "terminate active SPs") and by stop().
-    void joinAcceptThreads();
+    // Signal the async-event SP threads to stop, join them, and clear the list.
+    // Called by END_TEST (PRS_TPSP §6.10 "terminate active SPs") and by stop().
+    void joinEventThreads();
 
     int fd_ = -1;
     std::thread thread_;
     std::atomic<bool> stop_requested_{false};
-    // Soft stop for accept threads on END_TEST, independent of the hard
-    // stop_requested_ used for full shutdown.
-    std::atomic<bool> reset_accepts_{false};
+    // Soft stop for the async-event SP threads on END_TEST, independent of the
+    // hard stop_requested_ used for full shutdown.
+    std::atomic<bool> reset_events_{false};
 
-    // Accept threads spawned by LISTEN_AND_ACCEPT; joined before the socket
-    // table is torn down (END_TEST resets them, stop() shuts them down).
-    std::vector<std::thread> accept_threads_;
+    // Async-event SP threads spawned by LISTEN_AND_ACCEPT (accept Events) and
+    // RECEIVE_AND_FORWARD (forward Events); joined before the socket table is
+    // torn down (END_TEST resets them, stop() shuts them down).
+    std::vector<std::thread> event_threads_;
 
     // PRS_TPSP §6.10 testability socket table: socketId -> fd, guarded by
     // sockets_mu_ (concurrent access from serverLoop + accept threads).
