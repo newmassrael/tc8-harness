@@ -120,6 +120,16 @@ private:
     bool eraseSocket(std::uint16_t id, bool abort = false);  // close (abort -> RST) + erase
     void closeAllSockets();
 
+    // A connected TCP 4-tuple, captured at CONNECT for the abort SOCK_DESTROY.
+    struct TcpConnTuple {
+        sockaddr_in local{};
+        sockaddr_in peer{};
+    };
+    // sock_diag SOCK_DESTROY (`ss -K`) for `t`'s 4-tuple — terminates a
+    // TIME-WAIT residual that SO_LINGER + close leaves behind (the detached
+    // tw_sock no longer maps to the fd). No-op for sockets already CLOSED.
+    static void destroyTimeWaitResidual(const TcpConnTuple &t);
+
     // Signal the async-event SP threads to stop, join them, and clear the list.
     // Called by END_TEST (PRS_TPSP §6.10 "terminate active SPs") and by stop().
     void joinEventThreads();
@@ -142,6 +152,9 @@ private:
     // sockets_mu_ (concurrent access from serverLoop + accept threads).
     mutable std::mutex sockets_mu_;
     std::map<std::uint16_t, int> sockets_;
+    // Connected-TCP 4-tuples captured at CONNECT, keyed by socketId — consulted
+    // by the abort path's SOCK_DESTROY. Also guarded by sockets_mu_.
+    std::map<std::uint16_t, TcpConnTuple> tcp_conn_;
     std::uint16_t next_socket_id_ = 1;
 };
 

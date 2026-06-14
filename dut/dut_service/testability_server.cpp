@@ -2,6 +2,9 @@
 
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <linux/inet_diag.h>
+#include <linux/netlink.h>
+#include <linux/sock_diag.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -371,6 +374,15 @@ std::uint8_t TestabilityServer::connectTcp(const std::uint8_t *dat, std::size_t 
     if (connectWithTimeout(*fd, dst, /*timeout_ms=*/1000) != 0) {
         return tp::kRidENok;  // connection refused / unreachable / timed out
     }
+    // Record the connected 4-tuple so a later abort can SOCK_DESTROY a TIME-WAIT
+    // residual (by then the tw_sock no longer maps back to the fd). `dst` is the
+    // peer; getsockname yields the kernel-assigned local endpoint.
+    sockaddr_in local{};
+    socklen_t llen = sizeof(local);
+    if (::getsockname(*fd, reinterpret_cast<sockaddr *>(&local), &llen) == 0) {
+        std::lock_guard<std::mutex> lk(sockets_mu_);
+        tcp_conn_[socket_id] = TcpConnTuple{local, dst};
+    }
     return tp::kRidEOk;
 }
 
@@ -651,24 +663,72 @@ std::optional<int> TestabilityServer::lookupSocket(std::uint16_t id) const {
 }
 
 bool TestabilityServer::eraseSocket(std::uint16_t id, bool abort) {
-    std::lock_guard<std::mutex> lk(sockets_mu_);
-    const auto it = sockets_.find(id);
-    if (it == sockets_.end()) {
-        return false;
+    std::optional<TcpConnTuple> tuple;
+    {
+        std::lock_guard<std::mutex> lk(sockets_mu_);
+        const auto it = sockets_.find(id);
+        if (it == sockets_.end()) {
+            return false;
+        }
+        if (abort) {
+            // Abortive close: SO_LINGER {on, linger=0} makes ::close emit a RST
+            // and skip the graceful FIN — "closes immediately, not waiting for
+            // outstanding transmissions and acknowledgements" (PRS_TPSP §6.10
+            // CLOSE_SOCKET abort). Reaches CLOSED from EST / FIN-WAIT / CLOSING /
+            // LAST-ACK on its own; a TIME-WAIT residual needs the SOCK_DESTROY
+            // below.
+            const linger lg{/*l_onoff=*/1, /*l_linger=*/0};
+            ::setsockopt(it->second, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
+        }
+        ::close(it->second);
+        sockets_.erase(it);
+        const auto ct = tcp_conn_.find(id);
+        if (ct != tcp_conn_.end()) {
+            tuple = ct->second;
+            tcp_conn_.erase(ct);
+        }
     }
-    if (abort) {
-        // Abortive close: SO_LINGER {on, linger=0} makes ::close emit a RST and
-        // skip the graceful FIN — "closes immediately, not waiting for
-        // outstanding transmissions and acknowledgements" (PRS_TPSP §6.10
-        // CLOSE_SOCKET abort). Reaches CLOSED from EST / FIN-WAIT / CLOSING /
-        // LAST-ACK; a TIME-WAIT residual is force-terminated separately (the
-        // abort SOCK_DESTROY path).
-        const linger lg{/*l_onoff=*/1, /*l_linger=*/0};
-        ::setsockopt(it->second, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
+    // Outside the lock (SOCK_DESTROY shells out): a TIME-WAIT abort needs
+    // sock_diag to kill the detached tw_sock SO_LINGER + close cannot reach.
+    if (abort && tuple.has_value()) {
+        destroyTimeWaitResidual(*tuple);
     }
-    ::close(it->second);
-    sockets_.erase(it);
     return true;
+}
+
+void TestabilityServer::destroyTimeWaitResidual(const TcpConnTuple &t) {
+    // sock_diag SOCK_DESTROY over a direct netlink request — terminate the
+    // TIME-WAIT residual that SO_LINGER + close left behind (the detached tw_sock
+    // no longer maps to the fd, so close cannot reach it). A direct netlink send,
+    // not a shell-out to `ss -K`: fork+exec from this multi-threaded server is
+    // both slow and unsafe (the child inherits locks held by other threads).
+    // Best-effort and fire-and-forget — a kernel lacking CAP_NET_ADMIN or a
+    // 4-tuple already CLOSED simply ignores it; the case's verify-probe is the
+    // authoritative CLOSED check. idiag_states = ~0 so any state (TIME-WAIT
+    // included) matches.
+    const int nl = ::socket(AF_NETLINK, SOCK_RAW, NETLINK_SOCK_DIAG);
+    if (nl < 0) {
+        return;
+    }
+    struct {
+        ::nlmsghdr nlh;
+        ::inet_diag_req_v2 req;
+    } msg{};
+    msg.nlh.nlmsg_len        = sizeof(msg);
+    msg.nlh.nlmsg_type       = SOCK_DESTROY;
+    msg.nlh.nlmsg_flags      = NLM_F_REQUEST;
+    msg.req.sdiag_family     = AF_INET;
+    msg.req.sdiag_protocol   = IPPROTO_TCP;
+    msg.req.idiag_states     = ~0U;
+    msg.req.id.idiag_sport   = t.local.sin_port;  // already network byte order
+    msg.req.id.idiag_dport   = t.peer.sin_port;
+    msg.req.id.idiag_src[0]  = t.local.sin_addr.s_addr;
+    msg.req.id.idiag_dst[0]  = t.peer.sin_addr.s_addr;
+    msg.req.id.idiag_cookie[0] = INET_DIAG_NOCOOKIE;
+    msg.req.id.idiag_cookie[1] = INET_DIAG_NOCOOKIE;
+    const ssize_t sent = ::send(nl, &msg, sizeof(msg), 0);
+    (void)sent;
+    ::close(nl);
 }
 
 void TestabilityServer::closeAllSockets() {
