@@ -8,7 +8,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -33,17 +35,26 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
         "DUT_MSS) (RFC 1122 §4.2.2.5 p85). Iterations: Mv=200 "
         "(smaller), Mv=2000 (larger).";
 
-    // Drive one iteration: active OPEN, capture DUT SYN, raw-inject
-    // SYN+ACK with kind=2 length=4 MSS=Mv, bulk-send via UT
-    // OpSendTcpDataPattern, close. The outer TesterAutoRstDrop scope
-    // (in stimulus()) covers the whole flow.
-    static void runPhase(const ::tc8::TestConfig &cfg,
+    // Each iteration holds the DUT's active open in SYN-SENT (no tester
+    // listener) until the crafted SYN+ACK injection establishes it. The
+    // testability CONNECT SP requires the handshake to establish and so cannot
+    // hold a socket in SYN-SENT, while the opcode non-blocking worker can —
+    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
+    // on a testability backend (Tier 2 2b#4) instead of failing it. The DUT
+    // third-leg ACK and the clamped data segments are observed on pcap, so no
+    // state probe is required.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
+
+    // Drive one iteration: SYN-SENT active OPEN, capture DUT SYN, raw-inject
+    // SYN+ACK with kind=2 length=4 MSS=Mv, bulk-send (DUT emits 4000 B), close.
+    // The outer TesterAutoRstDrop scope (in stimulus()) covers the whole flow —
+    // the SYN-SENT period and the post-handshake data flow on the 4-tuple the
+    // tester never accepted.
+    static void runPhase(::tc8::sce::IDutControl& dut,
+                         const ::tc8::TestConfig &cfg,
                          std::string_view iface,
                          const std::array<std::uint8_t, 6> &dut_mac,
-                         std::uint8_t  open_req_id,
-                         std::uint8_t  send_req_id,
-                         std::uint8_t  close_req_id,
-                         std::uint8_t  socket_id,
                          std::uint16_t port_offset,
                          std::uint16_t advertised_mss) {
         using namespace ::tc8::sce::tcp;
@@ -54,10 +65,9 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
 
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, dut_mac,
-            open_req_id, local_port,
-            cfg.ipv4.tester_ip, remote_port);
+        // Seam active OPEN, no tester listener: the SYN stays unanswered so the
+        // DUT remains in SYN-SENT until the crafted SYN+ACK injection below.
+        auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(1000));
         if (syn.has_value()) {
@@ -83,21 +93,22 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
 
-        // 4000 B > 2 × 1460 ensures Linux segments at least twice on
-        // the larger-Mv path; the first segment carries min(Mv, 1460).
-        sendSendTcpDataPatternRequest(
-            cfg, iface, dut_mac,
-            send_req_id, socket_id,
-            /*pattern=*/0xC3U, /*total_len=*/4000U);
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        if (open) {
+            // 4000 B > 2 × 1460 ensures Linux segments at least twice on
+            // the larger-Mv path; the first segment carries min(Mv, 1460).
+            seamSendTcpPattern(dut, open->socket, /*pattern=*/0xC3U,
+                               /*total_len=*/4000U);
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
+            dut.tcpControl()->closeTcp(open->socket);
+        }
         std::this_thread::sleep_for(kTcpUtRpcWait);
     }
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -109,17 +120,13 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
 
         // Phase 1: Mv=200 < DUT MSS=1460. Expected first DUT segment
         // size = 200.
-        runPhase(cfg, iface, cfg.dut.mac,
-                 /*open_req_id=*/1, /*send_req_id=*/2, /*close_req_id=*/3,
-                 /*socket_id=*/1,
+        runPhase(dut, cfg, iface, cfg.dut.mac,
                  kTcpMssOptions09Phase1LocalOffset,
                  /*advertised_mss=*/200U);
 
         // Phase 2: Mv=2000 > DUT MSS. Expected first segment clamped
         // to DUT MSS = 1460.
-        runPhase(cfg, iface, cfg.dut.mac,
-                 /*open_req_id=*/4, /*send_req_id=*/5, /*close_req_id=*/6,
-                 /*socket_id=*/2,
+        runPhase(dut, cfg, iface, cfg.dut.mac,
                  kTcpMssOptions09Phase2LocalOffset,
                  /*advertised_mss=*/2000U);
     }
