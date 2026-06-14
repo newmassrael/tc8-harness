@@ -6,7 +6,6 @@
 #include <cstdio>
 #include <optional>
 #include <string_view>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -147,35 +146,21 @@ inline SeamRawPassiveHandshake driveSeamRawPassiveHandshake(
     info.listen = driveSeamListen(dut, listen_port);
     if (!info.listen) return info;
 
-    auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_src_port);
-    if (!snippet.ok()) return info;
+    // Shared backend-agnostic choreography (SSOT = rawPassiveThreeWayHandshake in
+    // tcp_pilot_common.h): only the LISTEN open above and the state probe below
+    // differ from the opcode driveRawPassiveHandshake.
+    const auto dut_isn = rawPassiveThreeWayHandshake(
+        cfg, iface, listen_port, std::move(syn_options), tester_src_port,
+        kTesterInitialSeq, capture_timeout);
+    if (!dut_isn) return info;
 
-    TesterAutoRstDrop rst_drop(cfg);
-
-    ::tc8::stimulus::TcpSegmentSpec syn_spec{};
-    syn_spec.src_port = tester_src_port;
-    syn_spec.dst_port = listen_port;
-    syn_spec.seq_num  = kTesterInitialSeq;
-    syn_spec.flags    = ::tc8::stimulus::kTcpFlagSyn;
-    syn_spec.options  = std::move(syn_options);
-    emitTcpFrame(cfg, iface, cfg.dut.mac, syn_spec);
-
-    const auto syn_ack = snippet.tryCapture(capture_timeout);
-    if (!syn_ack) return info;
-
-    ::tc8::stimulus::TcpSegmentSpec ack_spec{};
-    ack_spec.src_port = tester_src_port;
-    ack_spec.dst_port = listen_port;
-    ack_spec.seq_num  = kTesterInitialSeq + 1U;
-    ack_spec.ack_num  = syn_ack->seq_num + 1U;
-    ack_spec.flags    = ::tc8::stimulus::kTcpFlagAck;
-    emitTcpFrame(cfg, iface, cfg.dut.mac, ack_spec);
-
-    // Settle so the kernel's accept queue drains and the established child is
-    // visible to the state probe (mirrors driveRawPassiveHandshake's 50 ms).
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-    const auto est = dut.tcpStateProbe()->isEstablished(*info.listen);
+    // tcpStateProbe() is non-null by contract: the capability gate skipped this
+    // case before stimulus if the backend lacked kCapTcpStateProbe (header note
+    // above). The assert documents the contract, matching driveSeamListen's
+    // tcpControl() assert.
+    ::tc8::sce::ITcpStateProbe *probe = dut.tcpStateProbe();
+    assert(probe != nullptr && "driveSeamRawPassiveHandshake requires kCapTcpStateProbe");
+    const auto est = probe->isEstablished(*info.listen);
     info.ut_established = static_cast<std::uint8_t>(
         !est.has_value() ? 0xFFU : (*est ? 0x01U : 0x00U));
     return info;

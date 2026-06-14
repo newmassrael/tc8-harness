@@ -1637,6 +1637,57 @@ struct RawPassiveHandshakeInfo {
     std::uint8_t  ut_established   = 0xFFU;
 };
 
+// Backend-agnostic raw 3-way handshake against a DUT already in LISTEN: the SSOT
+// for the tester-side choreography shared by the opcode `driveRawPassiveHandshake`
+// and the seam `driveSeamRawPassiveHandshake` (cases/_tcp_seam_passive_open.h).
+// Open the SYN+ACK snippet, suppress the tester-kernel RST (the DUT SYN+ACK lands
+// on an unbound tester port), raw-inject the tester SYN with caller-controlled
+// options bytes, capture the DUT SYN+ACK, raw-inject the acceptable third-leg
+// ACK, and settle so the kernel's accept queue drains. The DUT LISTEN open and any
+// post-handshake state query are the caller's (backend-specific) — only this
+// middle is shared, so the seq arithmetic lives in exactly one place.
+//
+// Returns the DUT ISN (SYN+ACK seq_num) or nullopt if the snippet could not open
+// or the DUT SYN+ACK never arrived. `tester_isn` lets the §4.8.6.17 SEQUENCE cases
+// pin the tester's SYN seq (uint32 wraparound is the intended SEQUENCE_04
+// semantics: tester_isn == 0xFFFFFFFF ⇒ post-SYN snd_nxt == 0). The
+// TesterAutoRstDrop is scoped to the handshake it protects; a post-handshake UT /
+// state query needs no RST suppression (the connection is ESTABLISHED and idle).
+inline std::optional<std::uint32_t> rawPassiveThreeWayHandshake(
+    const ::tc8::TestConfig &cfg, std::string_view iface,
+    std::uint16_t listen_port, std::vector<std::uint8_t> syn_options,
+    std::uint16_t tester_src_port, std::uint32_t tester_isn,
+    std::chrono::milliseconds capture_timeout) {
+    auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_src_port);
+    if (!snippet.ok()) return std::nullopt;
+
+    TesterAutoRstDrop rst_drop(cfg);
+
+    ::tc8::stimulus::TcpSegmentSpec syn_spec{};
+    syn_spec.src_port = tester_src_port;
+    syn_spec.dst_port = listen_port;
+    syn_spec.seq_num  = tester_isn;
+    syn_spec.flags    = ::tc8::stimulus::kTcpFlagSyn;
+    syn_spec.options  = std::move(syn_options);
+    emitTcpFrame(cfg, iface, cfg.dut.mac, syn_spec);
+
+    const auto syn_ack = snippet.tryCapture(capture_timeout);
+    if (!syn_ack) return std::nullopt;
+
+    // SYN consumes 1 sequence number per RFC 793 §3.3 — the tester's post-SYN
+    // snd_nxt is tester_isn + 1U; ack the DUT ISN + 1 (acceptable third leg).
+    ::tc8::stimulus::TcpSegmentSpec ack_spec{};
+    ack_spec.src_port = tester_src_port;
+    ack_spec.dst_port = listen_port;
+    ack_spec.seq_num  = tester_isn + 1U;
+    ack_spec.ack_num  = syn_ack->seq_num + 1U;
+    ack_spec.flags    = ::tc8::stimulus::kTcpFlagAck;
+    emitTcpFrame(cfg, iface, cfg.dut.mac, ack_spec);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    return syn_ack->seq_num;
+}
+
 // Tester-driven 3-way handshake against a DUT-side passive listener,
 // with full control over the tester's SYN options bytes. Used by §4.8
 // .6.9 TCP_MSS_OPTIONS_01..03 — the spec procedure has the tester
@@ -1707,36 +1758,11 @@ inline RawPassiveHandshakeInfo driveRawPassiveHandshake(
                                      open_req_id, listen_port);
     std::this_thread::sleep_for(kTcpUtRpcWait);
 
-    auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_src_port);
-    if (!snippet.ok()) return info;
-
-    TesterAutoRstDrop rst_drop(cfg);
-
-    ::tc8::stimulus::TcpSegmentSpec syn_spec{};
-    syn_spec.src_port = tester_src_port;
-    syn_spec.dst_port = listen_port;
-    syn_spec.seq_num  = tester_isn;
-    syn_spec.flags    = ::tc8::stimulus::kTcpFlagSyn;
-    syn_spec.options  = std::move(syn_options);
-    emitTcpFrame(cfg, iface, dut_mac, syn_spec);
-
-    const auto syn_ack = snippet.tryCapture(capture_timeout);
-    if (!syn_ack) return info;
-    info.dut_isn = syn_ack->seq_num;
-
-    // SYN consumes 1 sequence number per RFC 793 §3.3 — the tester's
-    // post-SYN snd_nxt is `tester_isn + 1U`. uint32 wraparound is the
-    // intended semantics for §4.8.6.17 SEQUENCE_04 (tester_isn ==
-    // 0xFFFFFFFF ⇒ post-SYN snd_nxt == 0).
-    ::tc8::stimulus::TcpSegmentSpec ack_spec{};
-    ack_spec.src_port = tester_src_port;
-    ack_spec.dst_port = listen_port;
-    ack_spec.seq_num  = tester_isn + 1U;
-    ack_spec.ack_num  = info.dut_isn + 1U;
-    ack_spec.flags    = ::tc8::stimulus::kTcpFlagAck;
-    emitTcpFrame(cfg, iface, dut_mac, ack_spec);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const auto dut_isn = rawPassiveThreeWayHandshake(
+        cfg, iface, listen_port, std::move(syn_options), tester_src_port,
+        tester_isn, capture_timeout);
+    if (!dut_isn) return info;
+    info.dut_isn = *dut_isn;
 
     if (query_req_id != 0U) {
         info.ut_established = queryTcpEstablishedSync(cfg, query_req_id, socket_id);
