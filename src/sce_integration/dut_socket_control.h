@@ -99,6 +99,15 @@ public:
     // would make sendTcp a partial function on the opcode backend).
     virtual bool sendTcpPattern(DutSocket sock, std::uint8_t pattern,
                                 std::uint16_t total_len) = 0;
+    // Receive up to `max_len` bytes the DUT has on `sock`. `trigger` drives the
+    // inbound data (e.g. inject a tester segment): the testability backend ARMS
+    // RECEIVE_AND_FORWARD before invoking trigger so the forwarded bytes are
+    // captured, while the opcode backend invokes trigger then queries
+    // OpReceiveTcpData (its kernel already queued the bytes). Returns what the
+    // DUT received (<= max_len), empty on failure or if nothing arrived within
+    // the backend timeout. The arm-then-trigger shape mirrors acceptTcp.
+    virtual std::vector<std::uint8_t> receiveTcp(DutSocket sock, std::uint16_t max_len,
+                                                 const std::function<void()> &trigger) = 0;
     // Half-close the write direction: the DUT calls shutdown(SHUT_WR) on the
     // socket — the kernel emits FIN (EST -> FIN-WAIT-1) while the read side
     // stays open so a later receive still drains inbound bytes. Distinct from
@@ -235,6 +244,16 @@ public:
                                                 std::vector<std::uint8_t>{pattern},
                                                 timeout_ms_, src_ip_be_)
             .eok();
+    }
+
+    std::vector<std::uint8_t> receiveTcp(DutSocket sock, std::uint16_t max_len,
+                                         const std::function<void()> &trigger) override {
+        // Arm RECEIVE_AND_FORWARD (maxFwd = maxLen, so one Event carries the whole
+        // bulk), drive the inbound data via trigger, return the forwarded payload.
+        return stimulus::testabilityReceiveAndForward(cfg_, sock.id, max_len, max_len, trigger,
+                                                      timeout_ms_, /*event_timeout_ms=*/2000,
+                                                      src_ip_be_)
+            .payload;
     }
 
     bool shutdownTcpWr(DutSocket sock) override {

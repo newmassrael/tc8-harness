@@ -74,6 +74,11 @@ private:
                 resp.push_back(kSocketId);
             } else if (opcode == ut::OpQueryTcpEstablished) {
                 resp.push_back(0x01);  // established
+            } else if (opcode == ut::OpReceiveTcpData) {
+                resp.push_back(0x00);  // receivedLen(u16 BE) = 2
+                resp.push_back(0x02);
+                resp.push_back('R');   // payload "RX"
+                resp.push_back('X');
             }
             ::sendto(fd_, resp.data(), resp.size(), 0, reinterpret_cast<sockaddr *>(&peer),
                      plen);
@@ -159,6 +164,21 @@ TEST(OpcodeTcpControl, ShutdownWrUsesShutdownOpcode) {
     auto ctrl = makeControl(server.port());
     EXPECT_TRUE(ctrl.shutdownTcpWr(sce::DutSocket{MockOpcodeResponder::kSocketId}));
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpShutdownTcpSocketWr));
+}
+
+TEST(OpcodeTcpControl, ReceiveInvokesTriggerThenQueriesReceiveOpcode) {
+    // The opcode backend has no arm: it must invoke the trigger first, then query
+    // OpReceiveTcpData and return the receivedLen-prefixed payload.
+    MockOpcodeResponder server;
+    auto ctrl = makeControl(server.port());
+    bool triggered = false;
+    const auto bytes = ctrl.receiveTcp(sce::DutSocket{MockOpcodeResponder::kSocketId},
+                                       /*max_len=*/16, [&] { triggered = true; });
+    EXPECT_TRUE(triggered);
+    EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpReceiveTcpData));
+    ASSERT_EQ(bytes.size(), 2u);
+    EXPECT_EQ(bytes[0], 'R');
+    EXPECT_EQ(bytes[1], 'X');
 }
 
 TEST(OpcodeTcpControl, NoServerFailsGracefully) {

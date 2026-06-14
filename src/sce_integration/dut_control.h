@@ -188,6 +188,31 @@ public:
         return r && r->status == ut::kStatusOk;
     }
 
+    std::vector<std::uint8_t> receiveTcp(DutSocket sock, std::uint16_t max_len,
+                                         const std::function<void()> &trigger) override {
+        // The opcode UT has no arm: the kernel queues inbound data, so drive the
+        // trigger first, then query OpReceiveTcpData for what was received.
+        constexpr std::uint16_t kRecvTimeoutMs = 2000;
+        if (trigger) {
+            trigger();
+        }
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildReceiveTcpDataRequest(nextReqId(), static_cast<std::uint8_t>(sock.id),
+                                                 max_len, kRecvTimeoutMs),
+            port_, timeout_ms_ + kRecvTimeoutMs, src_ip_be_);
+        if (!r || r->status != ut::kStatusOk || r->data.size() < 2) {
+            return {};
+        }
+        // OpReceiveTcpData response data: receivedLen(u16 BE) + payload.
+        const std::uint16_t received_len =
+            static_cast<std::uint16_t>((r->data[0] << 8) | r->data[1]);
+        const std::size_t avail = r->data.size() - 2;
+        const std::size_t take = received_len < avail ? received_len : avail;
+        return std::vector<std::uint8_t>(
+            r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take));
+    }
+
     bool shutdownTcpWr(DutSocket sock) override {
         // OpShutdownTcpSocketWr (0x08): shutdown(SHUT_WR) — kernel FIN, EST->FW1,
         // read side open (PRS_TPSP §6.10 SHUTDOWN typeId=0x01 counterpart).
