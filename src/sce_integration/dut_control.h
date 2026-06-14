@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <optional>
@@ -151,8 +152,37 @@ public:
     }
 
     bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data,
-                 std::uint16_t /*total_len*/) override {
-        // The opcode SEND_DATA has no totalLen-repeat; send the data as given.
+                 std::uint16_t total_len) override {
+        // The seam's sendTcp contract is "transmit `data`, repeated up to
+        // total_len" (PRS_TPSP §6.10 SEND_DATA, which the testability backend
+        // honours directly). The opcode protocol splits that contract across two
+        // requests:
+        //
+        //  - total_len > data.size(): the repeat path. OpSendTcpData (0x06)
+        //    carries the literal bytes and is capped at kMaxPayload (256 B), so
+        //    a bulk repeat must route to OpSendTcpDataPattern (0x0A) — the DUT
+        //    generates total_len bytes from a single pattern byte, keeping the
+        //    UT request compact. The pattern op repeats ONE byte, so the seam's
+        //    repeat path is contracted to a single-byte template; that is the
+        //    only template whose wire bytes are identical to the testability
+        //    backend's template-repeat (a 1-byte template repeats the same on
+        //    both). seamSendTcpPattern() is the blessed caller of this path.
+        //  - total_len <= data.size(): the literal path. The standard rule
+        //    "total_len < data sends data in full" means the repeat is a no-op,
+        //    so send the data as given (OpSendTcpData). seamSendTcp() pins
+        //    total_len == size and lands here.
+        if (total_len > data.size()) {
+            assert(data.size() == 1 &&
+                   "opcode total_len-repeat requires a single-byte pattern "
+                   "(use seamSendTcpPattern)");
+            const std::uint8_t pattern = data.empty() ? 0U : data[0];
+            const auto r = stimulus::upperTesterRoundTrip(
+                dut_ip_be_,
+                stimulus::buildSendTcpDataPatternRequest(
+                    nextReqId(), static_cast<std::uint8_t>(sock.id), pattern, total_len),
+                port_, timeout_ms_, src_ip_be_);
+            return r && r->status == ut::kStatusOk;
+        }
         const auto r = stimulus::upperTesterRoundTrip(
             dut_ip_be_,
             stimulus::buildSendTcpDataRequest(nextReqId(), static_cast<std::uint8_t>(sock.id),

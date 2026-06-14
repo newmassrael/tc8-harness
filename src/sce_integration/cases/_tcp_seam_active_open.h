@@ -116,6 +116,28 @@ inline bool seamSendTcp(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSocket sock
                         static_cast<std::uint16_t>(payload.size()));
 }
 
+// Bulk / pattern DUT send: make the DUT emit `total_len` bytes formed by
+// repeating a single `pattern` byte. Routes through ITcpControl::sendTcp's
+// total_len-repeat contract (PRS_TPSP §6.10 SEND_DATA) — on the standard
+// testability backend a one-byte template repeated to total_len, on the opcode
+// backend OpSendTcpDataPattern; both put identical bytes on the wire. The bulk
+// generation lives DUT-side so the request stays compact and bypasses the
+// opcode UT's literal-payload cap (kMaxPayload, 256 B). Cases use this for the
+// MSS / segmentation / window-shrink flows that need the DUT's send buffer to
+// overflow its negotiated MSS so the stack segments the payload (NAGLE_03,
+// PROBING_WINDOWS_03, MSS_OPTIONS_09).
+//
+// The tcpControl() deref is contract-guaranteed exactly as in seamSendTcp: a
+// DUT-send case has already driven an OPEN through the seam (kCapTcpControl),
+// and a backend lacking it is conditioning-skipped by the centralised
+// capability gate before stimulus runs. The assert documents that invariant.
+inline bool seamSendTcpPattern(::tc8::sce::IDutControl &dut, ::tc8::sce::DutSocket sock,
+                               std::uint8_t pattern, std::uint16_t total_len) {
+    ::tc8::sce::ITcpControl *tcp = dut.tcpControl();
+    assert(tcp != nullptr && "DUT-send cases require kCapTcpControl");
+    return tcp->sendTcp(sock, std::vector<std::uint8_t>{pattern}, total_len);
+}
+
 inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,
                                           const ::tc8::TestConfig &cfg,
                                           std::uint16_t local_port,
