@@ -806,6 +806,21 @@ inline int sendSendTcpDataPatternRequest(
 // Returns 0 on success, -1 on any syscall failure. Prints errno on
 // failure so smoke-test debug logs show the root cause instead of
 // silent "connect returned non-zero".
+// Encode a seam state-probe result (`ITcpStateProbe::isEstablished`) into the
+// `ut_established` byte the SCXML guards read — the single source of truth for
+// the tristate contract, shared with the opcode `queryTcpEstablishedSync`
+// below:
+//   0x01 — established,
+//   0x00 — not established,
+//   0xFF — query failed / probe returned nullopt (a hard-failure path, same
+//          class as "no SYN+ACK within listen window").
+// Pass std::nullopt when the open itself failed (no socket to probe) so callers
+// collapse the open-failed branch into a single expression.
+inline std::uint8_t utEstablishedByte(std::optional<bool> est) {
+    return static_cast<std::uint8_t>(
+        !est.has_value() ? 0xFFU : (*est ? 0x01U : 0x00U));
+}
+
 // Synchronous UT OpQueryTcpEstablished. Opens a transient UDP socket,
 // sends the query to DUT:30600, waits up to 500 ms for the
 // Confirmation, returns the `established` byte parsed from the

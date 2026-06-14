@@ -108,16 +108,11 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         // Read kernel TCP_INFO state into Captured before SCXML's first
         // dispatch (same synchronous pattern as BASICS_07). tcpStateProbe() is
         // non-null by contract: the capability gate skips this case if the
-        // backend lacks kCapTcpStateProbe. Map the tristate the same way the
-        // prior OpQueryTcpEstablished helper did: query failed -> 0xFF,
-        // established -> 0x01, not established -> 0x00.
-        if (open) {
-            const auto est = dut.tcpStateProbe()->isEstablished(open->socket);
-            c.ut_established = static_cast<std::uint8_t>(
-                !est.has_value() ? 0xFF : (*est ? 0x01 : 0x00));
-        } else {
-            c.ut_established = static_cast<std::uint8_t>(0xFF);
-        }
+        // backend lacks kCapTcpStateProbe. utEstablishedByte owns the
+        // tristate-to-byte encoding.
+        c.ut_established = open
+            ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open->socket))
+            : 0xFFU;
 
         if (open) dut.tcpControl()->closeTcp(open->socket);
     }

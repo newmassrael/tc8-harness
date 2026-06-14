@@ -67,18 +67,13 @@ struct TestCaseTraits<cases::TcpBasics02SM>
 
         auto open = driveSeamPassiveOpen(dut, cfg, kBasicsListenPort);
 
-        if (open.conn) {
-            // tcpStateProbe() is non-null by contract: the capability gate
-            // skipped this case before stimulus if the backend lacked
-            // kCapTcpStateProbe. Map the tristate onto `ut_established` with the
-            // same encoding the prior OpQueryTcpEstablished helper used: query
-            // failed -> 0xFF, established -> 0x01, not established -> 0x00.
-            const auto est = dut.tcpStateProbe()->isEstablished(open.conn->socket);
-            c.ut_established = static_cast<std::uint8_t>(
-                !est.has_value() ? 0xFF : (*est ? 0x01 : 0x00));
-        } else {
-            c.ut_established = static_cast<std::uint8_t>(0xFF);
-        }
+        // tcpStateProbe() is non-null by contract: the capability gate skipped
+        // this case before stimulus if the backend lacked kCapTcpStateProbe.
+        // utEstablishedByte maps the tristate (and a nullopt open) onto the
+        // ut_established byte (SSOT shared with the opcode queryTcpEstablishedSync).
+        c.ut_established = open.conn
+            ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            : 0xFFU;
 
         if (open.tester_fd >= 0) ::close(open.tester_fd);
         if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);

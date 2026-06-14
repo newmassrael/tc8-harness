@@ -160,9 +160,7 @@ inline SeamRawPassiveHandshake driveSeamRawPassiveHandshake(
     // tcpControl() assert.
     ::tc8::sce::ITcpStateProbe *probe = dut.tcpStateProbe();
     assert(probe != nullptr && "driveSeamRawPassiveHandshake requires kCapTcpStateProbe");
-    const auto est = probe->isEstablished(*info.listen);
-    info.ut_established = static_cast<std::uint8_t>(
-        !est.has_value() ? 0xFFU : (*est ? 0x01U : 0x00U));
+    info.ut_established = utEstablishedByte(probe->isEstablished(*info.listen));
     return info;
 }
 

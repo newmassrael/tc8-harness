@@ -75,15 +75,11 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         if (!seq_range.has_value()) return;
 
         // DUT TCP_INFO state read via the seam state probe (opcode-only;
-        // testability is capability-skipped). Tristate -> byte: query failed
-        // -> 0xFF, established -> 0x01, not established -> 0x00.
-        if (open.conn) {
-            const auto est = dut.tcpStateProbe()->isEstablished(open.conn->socket);
-            c.ut_established = static_cast<std::uint8_t>(
-                !est.has_value() ? 0xFF : (*est ? 0x01 : 0x00));
-        } else {
-            c.ut_established = static_cast<std::uint8_t>(0xFF);
-        }
+        // testability is capability-skipped). utEstablishedByte owns the
+        // tristate-to-byte encoding.
+        c.ut_established = open.conn
+            ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            : 0xFFU;
 
         ::tc8::stimulus::TcpSegmentSpec dup_ack{};
         dup_ack.src_port = remote_port;
