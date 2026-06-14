@@ -1,17 +1,17 @@
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -45,16 +45,16 @@ struct TestCaseTraits<cases::TcpCallReceive04SM>
     static constexpr std::uint16_t kSegmentCount    = 4U;
     static constexpr std::uint16_t kPayloadLen      =
         kSegmentSize * kSegmentCount;
-    static constexpr std::uint16_t kUtRecvTimeoutMs = 3000U;
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1Established(c, cfg, iface);
+        runPhase1Established(c, cfg, iface, dut);
 
         // Phases 2 + 3 deferred via scheduleAfterStateEntry. Each
         // phase emits its own active-OPEN handshake, FIN egress, and
@@ -63,18 +63,25 @@ struct TestCaseTraits<cases::TcpCallReceive04SM>
         // phase's listening transitions are armed (otherwise phase 1's
         // 5 s deadlines would consume them or the SCXML would
         // transition past the phase before its events appear).
+        //
+        // cfg / iface are captured by value (the outer stimulus returns
+        // before the lambdas fire); the DUT-control handle is owned by
+        // the CLI for the whole run, so the deferred phases capture a
+        // raw pointer to it (the FP_09 idiom — a reference cannot be
+        // re-seated into the lambda capture list).
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy = cfg;
+        ::tc8::sce::IDutControl*     dut_ptr  = &dut;
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
-            [iface_copy, cfg_copy, &c]() {
-                runPhase2FinWait1(c, cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, &c, dut_ptr]() {
+                runPhase2FinWait1(c, cfg_copy, iface_copy, *dut_ptr);
             });
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_handshake_ack),
-            [iface_copy, cfg_copy, &c]() {
-                runPhase3FinWait2(c, cfg_copy, iface_copy);
+            [iface_copy, cfg_copy, &c, dut_ptr]() {
+                runPhase3FinWait2(c, cfg_copy, iface_copy, *dut_ptr);
             });
     }
 
@@ -136,35 +143,37 @@ private:
 
     static void runPhase1Established(Captured& c,
                                      const ::tc8::TestConfig& cfg,
-                                     std::string_view iface) {
+                                     std::string_view iface,
+                                     ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kPortOffset = 95U;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) {
+            silentlyCloseTesterFd(tester_fd);
+            return;
+        }
         const auto seq = queryTcpSeqRange(tester_fd);
         if (!seq.has_value()) {
             silentlyCloseTesterFd(tester_fd);
             return;
         }
 
-        // EST: ack=rcv_nxt acks the third-leg and any prior data.
-        const auto expected_payload = injectSegments(
-            cfg, iface, remote_port, local_port,
-            seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xC0U);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
-
-        const auto bytes = queryReceivedBytesSync(
-            cfg, /*req_id=*/2, /*socket_id=*/1,
-            kPayloadLen, kUtRecvTimeoutMs);
-        if (bytes.size() == expected_payload.size()
-            && std::equal(bytes.begin(), bytes.end(), expected_payload.begin())) {
+        // Receive in EST: the trigger injects the 4 × 32 B segments (ack=rcv_nxt
+        // acks the third-leg and any prior data); the seam reassembles the
+        // forwarded stream into the buffer the DUT's RECEIVE saw.
+        std::vector<std::uint8_t> expected_payload;
+        const auto received = seamTcpControl(dut).receiveTcp(
+            open.conn->socket, kPayloadLen, [&] {
+                expected_payload = injectSegments(
+                    cfg, iface, remote_port, local_port,
+                    seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xC0U);
+            });
+        if (received && *received == expected_payload) {
             c.ut_received_payload_len_p1 = kPayloadLen;
         }
 
@@ -173,96 +182,85 @@ private:
 
     static void runPhase2FinWait1(Captured& c,
                                   const ::tc8::TestConfig& cfg,
-                                  std::string_view iface) {
+                                  std::string_view iface,
+                                  ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kPortOffset = 96U;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        // shared_ptr<TesterAutoAckDrop> long-life: data ACKs from DUT
-        // during the 4-segment inject must NOT be auto-acked by the
-        // tester kernel into a pure-ACK that would drive DUT FW1→FW2.
-        // The drop scope must outlive both the inject loop and the
-        // SCXML observation window. 60 s headroom is well past the
-        // phase 2 + 3 SCXML deadlines (3 × 5 s = 15 s) plus prelude
-        // wall-time; `scheduler` from the outer stimulus is not
-        // accessible here, so the shared_ptr is captured by the inject
-        // loop's per-segment lambda lifetime + the tester fd leaks
-        // through process exit. Same pattern as TCP_CLOSING_07 modulo
-        // scope-extension mechanism.
-        auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
+        // Suppress the tester kernel's auto-ACK so the DUT data-ACKs emitted
+        // during the 4-segment inject are NOT coalesced into a pure ACK that
+        // would advance the DUT FW1→FW2. The drop scope spans the inject loop
+        // and the seam receive (which blocks until the bytes are drained) — the
+        // critical window — then lifts at function return; the FW1 sibling
+        // TCP_CLOSING_07 holds the same rule via a scheduled keepalive instead.
+        TesterAutoAckDrop ack_drop(cfg);
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/3, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
-        // Snapshot tester snd_nxt / rcv_nxt BEFORE shutdown so the
-        // FIN's seq-number consumption isn't reflected in rcv_nxt.
-        // Mirrors TCP_CLOSING_07's pre-shutdown query: returned
-        // rcv_nxt = ISN_d + 1 (post-handshake, no FIN processed yet)
-        // is exactly DUT's SND.UNA after FIN egress, so it doubles
-        // as the spec-acceptable "doesn't ack FIN" ack value.
+        if (!open.conn) return;
+        // Snapshot tester snd_nxt / rcv_nxt BEFORE shutdown so the FIN's
+        // seq-number consumption isn't reflected in rcv_nxt. The returned
+        // rcv_nxt = ISN_d + 1 (post-handshake, no FIN processed yet) is exactly
+        // the DUT's SND.UNA after FIN egress, so it doubles as the
+        // spec-acceptable "doesn't ack FIN" ack value.
         const auto seq = queryTcpSeqRange(tester_fd);
         if (!seq.has_value()) return;
 
-        // shutdown(WR) — kernel emits FIN, socket transitions EST→FW1.
-        // OpShutdownTcpSocketWr (0x08) keeps the read direction open
-        // so OpReceiveTcpData drains bytes the data segments queue.
-        sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/4, /*socket_id=*/2);
+        auto& tcp = seamTcpControl(dut);
+
+        // shutdown(WR) — DUT emits FIN, socket EST→FW1; the read side stays open
+        // so the seam receive still drains the queued bytes.
+        tcp.shutdownTcpWr(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
-        // FW1: ack = rcv_nxt (= ISN_d + 1 = SND.UNA). Acceptable per
-        // RFC 793 §3.4 (in [snd.una, snd.nxt)) but does NOT ack DUT
-        // FIN — DUT stays in FW1 across the data inject window. Same
-        // non-acking ack technique as TCP_CLOSING_07.
-        const auto expected_payload = injectSegments(
-            cfg, iface, remote_port, local_port,
-            seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xD0U);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
-
-        const auto bytes = queryReceivedBytesSync(
-            cfg, /*req_id=*/5, /*socket_id=*/2,
-            kPayloadLen, kUtRecvTimeoutMs);
-        if (bytes.size() == expected_payload.size()
-            && std::equal(bytes.begin(), bytes.end(), expected_payload.begin())) {
+        // Receive in FW1: ack = rcv_nxt (= ISN_d + 1 = SND.UNA). Acceptable per
+        // RFC 793 §3.4 (in [snd.una, snd.nxt)) but does NOT ack the DUT FIN — the
+        // DUT stays in FW1 across the data inject window.
+        std::vector<std::uint8_t> expected_payload;
+        const auto received = tcp.receiveTcp(
+            open.conn->socket, kPayloadLen, [&] {
+                expected_payload = injectSegments(
+                    cfg, iface, remote_port, local_port,
+                    seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xD0U);
+            });
+        if (received && *received == expected_payload) {
             c.ut_received_payload_len_p2 = kPayloadLen;
         }
 
-        // Tester fd intentionally leaked through case end — closing
-        // would either emit FIN (drives DUT FW1→CLOSING) or
-        // silentlyCloseTesterFd would dispose the kernel socket so
-        // DUT FIN re-tx draws closed-port RST. Same rationale as
-        // TCP_CLOSING_07. ack_drop lifetime extends to the case-end
-        // process exit; AckDrop dtor at exit removes the iptables
-        // rule cleanly.
+        // Tester fd intentionally leaked through case end — closing would either
+        // emit FIN (drives DUT FW1→CLOSING) or silentlyCloseTesterFd would
+        // dispose the kernel socket so a DUT FIN re-tx draws closed-port RST.
+        // Same rationale as TCP_CLOSING_07.
         (void)tester_fd;
         (void)ack_drop;
     }
 
     static void runPhase3FinWait2(Captured& c,
                                   const ::tc8::TestConfig& cfg,
-                                  std::string_view iface) {
+                                  std::string_view iface,
+                                  ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kPortOffset = 97U;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/6, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
+        if (!open.conn) {
+            silentlyCloseTesterFd(tester_fd);
+            return;
+        }
 
-        // shutdown(WR) → DUT FIN → kernel auto-ACK (no AckDrop) →
-        // DUT FW1→FW2. The auto-ACK consumes the FIN sequence number
-        // so tester rcv_nxt advances past ISN_d + 1.
-        sendShutdownTcpSocketWrRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/7, /*socket_id=*/3);
+        auto& tcp = seamTcpControl(dut);
+
+        // shutdown(WR) → DUT FIN → tester kernel auto-ACK (no AckDrop) → DUT
+        // FW1→FW2. The auto-ACK consumes the FIN sequence number so the tester
+        // rcv_nxt advances past ISN_d + 1.
+        tcp.shutdownTcpWr(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         const auto seq = queryTcpSeqRange(tester_fd);
@@ -271,21 +269,18 @@ private:
             return;
         }
 
-        // FW2: ack = rcv_nxt (= ISN_d + 2, post-FIN). Already acks
-        // DUT FIN — DUT.snd.una = rcv_nxt. Subsequent data segments
-        // are accepted regardless of FIN-ack semantics; DUT stays in
-        // FW2 across the inject window.
-        const auto expected_payload = injectSegments(
-            cfg, iface, remote_port, local_port,
-            seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xE0U);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
-
-        const auto bytes = queryReceivedBytesSync(
-            cfg, /*req_id=*/8, /*socket_id=*/3,
-            kPayloadLen, kUtRecvTimeoutMs);
-        if (bytes.size() == expected_payload.size()
-            && std::equal(bytes.begin(), bytes.end(), expected_payload.begin())) {
+        // Receive in FW2: ack = rcv_nxt (= ISN_d + 2, post-FIN) already acks the
+        // DUT FIN — DUT.snd.una = rcv_nxt. The data segments are accepted
+        // regardless of FIN-ack semantics; the DUT stays in FW2 across the
+        // inject window.
+        std::vector<std::uint8_t> expected_payload;
+        const auto received = tcp.receiveTcp(
+            open.conn->socket, kPayloadLen, [&] {
+                expected_payload = injectSegments(
+                    cfg, iface, remote_port, local_port,
+                    seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xE0U);
+            });
+        if (received && *received == expected_payload) {
             c.ut_received_payload_len_p3 = kPayloadLen;
         }
 
