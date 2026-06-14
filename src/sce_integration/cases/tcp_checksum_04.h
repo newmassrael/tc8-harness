@@ -10,6 +10,8 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_pilot_common.h"
@@ -43,6 +45,16 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
     static constexpr bool             kDeprecated = false;
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Tcp;
+
+    // Both ISN cycles drive the DUT into SYN-SENT (no tester listener; the
+    // tester kernel's RST closes each cycle). The testability CONNECT SP
+    // requires the handshake to establish and so cannot hold a socket in
+    // SYN-SENT, while the opcode non-blocking worker can — kCapTcpSynSentOpen
+    // makes the CLI capability gate honestly SKIP this case on a testability
+    // backend (Tier 2 2b#4) instead of failing it. The ISNs are read from
+    // pcap snippets, so no state probe is required.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 
     // Spec Test Procedure (v3.0 p301-p320.txt:216):
     //   1. TESTER: Cause DUT-side application to issue CONNECT — UT
@@ -92,7 +104,8 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -102,14 +115,12 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
             kBasicsActiveRemotePort + kTcpChecksum04LocalOffset);
 
         // ------- Cycle 1 -------
-        // Open snippet BEFORE the UT request fires so libpcap's kernel
-        // ring is armed by the time the DUT emits SYN1.
+        // Open snippet BEFORE the active open so libpcap's kernel ring is
+        // armed by the time the DUT emits SYN1. The seam connect is
+        // synchronous (the SYN is on the wire by the time it returns), so
+        // no post-open RPC settle is needed before the capture.
         auto snippet1 = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, local_port,
-            cfg.ipv4.tester_ip, remote_port);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        auto open1 = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         if (auto syn1 = snippet1.tryCapture(kSnippetCaptureTimeout)) {
             c.cycle1_isn          = syn1->seq_num;
@@ -120,18 +131,12 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         // `tcp_v4_send_reset` against an unbound destination port —
         // this IS spec step 3, the explicit RST,ACK to close cycle 1).
         std::this_thread::sleep_for(kCycleSettle);
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        if (open1) dut.tcpControl()->closeTcp(open1->socket);
         std::this_thread::sleep_for(kCycleSettle);
 
         // ------- Cycle 2 -------
         auto snippet2 = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, local_port,
-            cfg.ipv4.tester_ip, remote_port);
-        std::this_thread::sleep_for(kTcpUtRpcWait);
+        auto open2 = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         if (auto syn2 = snippet2.tryCapture(kSnippetCaptureTimeout)) {
             c.cycle2_isn          = syn2->seq_num;
@@ -139,9 +144,7 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         }
 
         std::this_thread::sleep_for(kCycleSettle);
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/4, /*socket_id=*/2);
+        if (open2) dut.tcpControl()->closeTcp(open2->socket);
     }
 
     static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {
