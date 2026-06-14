@@ -8,7 +8,9 @@
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -42,17 +44,16 @@ struct TestCaseTraits<cases::TcpHeader02SM>
     // RFC 793 §3.9 "ACK with the expected Ack Number".
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 31U;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + 31U;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) {
             return;
         }
