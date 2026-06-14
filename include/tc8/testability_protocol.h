@@ -106,6 +106,12 @@ inline constexpr std::uint8_t kPidConnect = 0x05;          // TCP only
 inline constexpr std::uint8_t kPidConfigureSocket = 0x06;
 inline constexpr std::uint8_t kPidShutdown = 0x07;
 
+// PRS_TPSP §6.10 SHUTDOWN typeId — selects which transfer direction the
+// primitive disallows on the socket (maps to the BSD shutdown(2) `how`).
+inline constexpr std::uint8_t kShutdownRd = 0x00;    // further reception disallowed (SHUT_RD)
+inline constexpr std::uint8_t kShutdownWr = 0x01;    // further transmission disallowed (SHUT_WR)
+inline constexpr std::uint8_t kShutdownRdWr = 0x02;  // transmission and reception (SHUT_RDWR)
+
 // PRS_TPSP §6.8 Result IDs (RID) — carried in the SOME/IP return_code byte.
 inline constexpr std::uint8_t kRidEOk = 0x00;   // performed successfully
 inline constexpr std::uint8_t kRidENok = 0x01;  // general error

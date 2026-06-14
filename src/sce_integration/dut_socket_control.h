@@ -99,6 +99,17 @@ public:
     // would make sendTcp a partial function on the opcode backend).
     virtual bool sendTcpPattern(DutSocket sock, std::uint8_t pattern,
                                 std::uint16_t total_len) = 0;
+    // Half-close the write direction: the DUT calls shutdown(SHUT_WR) on the
+    // socket — the kernel emits FIN (EST -> FIN-WAIT-1) while the read side
+    // stays open so a later receive still drains inbound bytes. Distinct from
+    // closeTcp's full ::close: the socket lives on for reads (the
+    // "CLOSE then RECEIVE" lifecycle of the FIN-WAIT-1/-2 receive cases).
+    // opcode OpShutdownTcpSocketWr, testability
+    // SHUTDOWN typeId=0x01 (PRS_TPSP §6.10). WR-only: the opcode UT exposes no
+    // SHUT_RD/SHUT_RDWR primitive, so a general shutdownTcp(type) would be a
+    // partial function on that backend; the dedicated WR verb stays a total
+    // function on both. Add RD/RDWR verbs if a case ever needs them (YAGNI).
+    virtual bool shutdownTcpWr(DutSocket sock) = 0;
     // Close a TCP socket.
     virtual bool closeTcp(DutSocket sock) = 0;
 };
@@ -223,6 +234,14 @@ public:
         return stimulus::testabilityTcpSendData(cfg_, sock.id, total_len, /*flags=*/0,
                                                 std::vector<std::uint8_t>{pattern},
                                                 timeout_ms_, src_ip_be_)
+            .eok();
+    }
+
+    bool shutdownTcpWr(DutSocket sock) override {
+        // SHUTDOWN typeId=0x01 (further transmission disallowed) — graceful FIN,
+        // read direction left open (PRS_TPSP §6.10).
+        return stimulus::testabilityShutdown(cfg_, testability::kGidTcp, sock.id,
+                                             testability::kShutdownWr, timeout_ms_, src_ip_be_)
             .eok();
     }
 

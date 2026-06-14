@@ -188,6 +188,17 @@ public:
         return r && r->status == ut::kStatusOk;
     }
 
+    bool shutdownTcpWr(DutSocket sock) override {
+        // OpShutdownTcpSocketWr (0x08): shutdown(SHUT_WR) — kernel FIN, EST->FW1,
+        // read side open (PRS_TPSP §6.10 SHUTDOWN typeId=0x01 counterpart).
+        const auto r = stimulus::upperTesterRoundTrip(
+            dut_ip_be_,
+            stimulus::buildShutdownTcpSocketWrRequest(nextReqId(),
+                                                      static_cast<std::uint8_t>(sock.id)),
+            port_, timeout_ms_, src_ip_be_);
+        return r && r->status == ut::kStatusOk;
+    }
+
     bool closeTcp(DutSocket sock) override {
         const auto r = stimulus::upperTesterRoundTrip(
             dut_ip_be_,

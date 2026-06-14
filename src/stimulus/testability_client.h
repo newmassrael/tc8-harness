@@ -124,6 +124,14 @@ TestabilityResponse testabilityCloseSocket(const TestabilityConfig &cfg, std::ui
                                            std::uint16_t socket_id, int timeout_ms = 1000,
                                            std::uint32_t src_ip_be = 0);
 
+// SHUTDOWN (UDP/TCP / PID 0x07): half-close the DUT socket in the direction
+// `type_id` (testability::kShutdownRd/Wr/RdWr) — the fd lives on, unlike
+// CLOSE_SOCKET. `gid` selects the group; the request shape —
+// socketId(uint16) + typeId(uint8) — is identical for both.
+TestabilityResponse testabilityShutdown(const TestabilityConfig &cfg, std::uint8_t gid,
+                                        std::uint16_t socket_id, std::uint8_t type_id,
+                                        int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
 // LISTEN_AND_ACCEPT (TCP / PID 0x04), listen-only: mark `listen_socket_id` (a
 // bound TCP socket) as listening with backlog `max_con` and return the
 // synchronous E_OK Response — WITHOUT awaiting the asynchronous accept Event.

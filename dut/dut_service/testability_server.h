@@ -83,6 +83,9 @@ private:
                                     std::uint16_t service_id, const sockaddr_in &peer);
     // CLOSE_SOCKET — group-agnostic (an fd is an fd): socketId.
     std::uint8_t closeSocket(const std::uint8_t *dat, std::size_t dat_len);
+    // SHUTDOWN — group-agnostic: socketId + typeId. typeId 0x00/0x01/0x02 map
+    // to shutdown(fd, SHUT_RD/SHUT_WR/SHUT_RDWR) (PRS_TPSP §6.10).
+    std::uint8_t shutdownSocket(const std::uint8_t *dat, std::size_t dat_len);
 
     // Accept-thread body: poll `listen_fd` for up to `max_con` incoming
     // connections; per accept, register the new socket and emit the accept Event

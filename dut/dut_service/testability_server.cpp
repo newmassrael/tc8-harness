@@ -196,6 +196,9 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
             case tp::kPidCloseSocket:
                 rid_out = closeSocket(dat, dat_len);
                 return;
+            case tp::kPidShutdown:
+                rid_out = shutdownSocket(dat, dat_len);
+                return;
             default:
                 rid_out = tp::kRidENtf;
                 return;
@@ -219,8 +222,11 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
             case tp::kPidCloseSocket:
                 rid_out = closeSocket(dat, dat_len);
                 return;
+            case tp::kPidShutdown:
+                rid_out = shutdownSocket(dat, dat_len);
+                return;
             default:
-                rid_out = tp::kRidENtf;  // RECEIVE_AND_FORWARD et al. not yet served
+                rid_out = tp::kRidENtf;  // RECEIVE_AND_FORWARD not yet served
                 return;
         }
     }
@@ -475,6 +481,36 @@ std::uint8_t TestabilityServer::closeSocket(const std::uint8_t *dat, std::size_t
     }
     const std::uint16_t socket_id = tp::readU16(dat);
     return eraseSocket(socket_id) ? tp::kRidEOk : tp::kRidEIsd;
+}
+
+std::uint8_t TestabilityServer::shutdownSocket(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 SHUTDOWN request: socketId(uint16) + typeId(uint8). typeId
+    // selects the direction disallowed: 0x00 reception, 0x01 transmission, 0x02
+    // both. Unlike CLOSE_SOCKET the fd lives on (a half-close), so the socket
+    // stays in the table for a later RECEIVE / SEND on the open direction.
+    if (dat_len < 2 + 1) {
+        return tp::kRidEInv;
+    }
+    const std::uint16_t socket_id = tp::readU16(dat);
+    int how = 0;
+    switch (dat[2]) {
+        case tp::kShutdownRd:
+            how = SHUT_RD;
+            break;
+        case tp::kShutdownWr:
+            how = SHUT_WR;
+            break;
+        case tp::kShutdownRdWr:
+            how = SHUT_RDWR;
+            break;
+        default:
+            return tp::kRidEInv;  // unknown typeId
+    }
+    const auto fd = lookupSocket(socket_id);
+    if (!fd) {
+        return tp::kRidEIsd;  // invalid socket id
+    }
+    return ::shutdown(*fd, how) == 0 ? tp::kRidEOk : tp::kRidENok;
 }
 
 std::uint16_t TestabilityServer::registerSocket(int fd) {

@@ -322,6 +322,47 @@ TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenAndSend) {
     ::close(lfd);
 }
 
+// TCP control half-close: shutdownTcpWr makes the DUT shutdown(SHUT_WR), so the
+// kernel emits FIN and the tester's accepted socket reads EOF (recv == 0). The
+// DUT fd lives on (read side open), so a subsequent closeTcp still succeeds —
+// the "CLOSE then RECEIVE" lifecycle §4.8.6.8 TCP_CLOSING_07/_08 depend on.
+TEST_F(TestabilityServerTest, TcpControlSeamShutdownWrEmitsFin) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    sce::ITcpControl *tcp = ctrl.tcpControl();
+    ASSERT_NE(tcp, nullptr);
+
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    la.sin_port = 0;
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(lfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const auto conn = tcp->connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)});
+    ASSERT_TRUE(conn.has_value());
+    const int afd = ::accept(lfd, nullptr, nullptr);
+    ASSERT_GE(afd, 0);
+    ::setsockopt(afd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    EXPECT_TRUE(tcp->shutdownTcpWr(conn->socket));
+    std::uint8_t buf[16];
+    const ssize_t n = ::recv(afd, buf, sizeof(buf), 0);
+    EXPECT_EQ(n, 0) << "DUT did not FIN on shutdownTcpWr (tester saw no EOF)";
+
+    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    ::close(afd);
+    ::close(lfd);
+}
+
 // TCP control active open with an explicit local bind: the DUT's connection
 // must source the bound local port, so the tester observes that exact port on
 // accept(). Guards the connectTcp(peer, BindSpec) path the §4.8 seam pilot

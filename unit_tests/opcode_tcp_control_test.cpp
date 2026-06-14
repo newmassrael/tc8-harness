@@ -152,6 +152,15 @@ TEST(OpcodeTcpControl, SendPatternUsesPatternOpcode) {
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpSendTcpDataPattern));
 }
 
+TEST(OpcodeTcpControl, ShutdownWrUsesShutdownOpcode) {
+    // A write half-close routes to OpShutdownTcpSocketWr (0x08): the DUT FINs but
+    // keeps the read side open, distinct from closeTcp's full ::close.
+    MockOpcodeResponder server;
+    auto ctrl = makeControl(server.port());
+    EXPECT_TRUE(ctrl.shutdownTcpWr(sce::DutSocket{MockOpcodeResponder::kSocketId}));
+    EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpShutdownTcpSocketWr));
+}
+
 TEST(OpcodeTcpControl, NoServerFailsGracefully) {
     // Nothing listening on this loopback port — the round trip times out.
     auto ctrl = sce::OpcodeTcpControl(::htonl(INADDR_LOOPBACK), /*port=*/1, 0, /*timeout_ms=*/150);
