@@ -9,7 +9,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -34,6 +36,17 @@ struct TestCaseTraits<cases::TcpFlagsInvalid06SM>
         "(RFC 793 §3.9 p68 Event Processing). 2 spec iterations "
         "exercise <stp> ∈ {no data, data}";
 
+    // Each phase leaves the DUT's active open in SYN-SENT (no tester listener)
+    // and injects the bare-ACK probe into that state. The testability CONNECT
+    // SP requires the handshake to establish and so cannot hold a socket in
+    // SYN-SENT, while the opcode non-blocking worker can — kCapTcpSynSentOpen
+    // makes the CLI capability gate honestly SKIP this case on a testability
+    // backend (Tier 2 2b#4) instead of failing it. No state probe is needed:
+    // the DUT SYN is observed on pcap and the verdict is the SCXML absence
+    // window.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
+
     static constexpr std::array<std::uint8_t, 4> kProbePayload = {
         0xDEU, 0xADU, 0xBEU, 0xEFU};
 
@@ -54,18 +67,23 @@ struct TestCaseTraits<cases::TcpFlagsInvalid06SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1BareAck(cfg, iface);
+        runPhase1BareAck(dut, cfg, iface);
 
+        // Phase 2 runs in a deferred scheduler callback that outlives this
+        // stimulus frame; capture the DUT control by pointer (CLI-owned, lives
+        // past the callback) per the deferred-lambda idiom.
+        ::tc8::sce::IDutControl* dut_ptr = &dut;
         ::tc8::TestConfig cfg_copy = cfg;
         std::string       iface_str(iface);
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_dut_syn),
-            [cfg_copy, iface_str]() {
-                runPhase2AckWithPayload(cfg_copy, iface_str);
+            [dut_ptr, cfg_copy, iface_str]() {
+                runPhase2AckWithPayload(*dut_ptr, cfg_copy, iface_str);
             });
     }
 
@@ -98,7 +116,8 @@ private:
                                       /*initial_wait=*/std::chrono::milliseconds(0));
     }
 
-    static void runPhase1BareAck(const ::tc8::TestConfig& cfg,
+    static void runPhase1BareAck(::tc8::sce::IDutControl& dut,
+                                 const ::tc8::TestConfig& cfg,
                                  std::string_view iface) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 24U;
@@ -109,9 +128,9 @@ private:
 
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/1, local_port, cfg.ipv4.tester_ip, remote_port);
+        // Seam active OPEN, no tester listener: the SYN stays unanswered so the
+        // DUT remains in SYN-SENT. Handle discarded (no closeTcp).
+        (void)driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
         if (syn.has_value()) {
@@ -119,7 +138,8 @@ private:
         }
     }
 
-    static void runPhase2AckWithPayload(const ::tc8::TestConfig& cfg,
+    static void runPhase2AckWithPayload(::tc8::sce::IDutControl& dut,
+                                        const ::tc8::TestConfig& cfg,
                                         std::string_view iface) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + 25U;
@@ -130,9 +150,9 @@ private:
 
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 
-        sendOpenTcpSocketActiveRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, local_port, cfg.ipv4.tester_ip, remote_port);
+        // Seam active OPEN, no tester listener: the SYN stays unanswered so the
+        // DUT remains in SYN-SENT. Handle discarded (no closeTcp).
+        (void)driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
         if (syn.has_value()) {
