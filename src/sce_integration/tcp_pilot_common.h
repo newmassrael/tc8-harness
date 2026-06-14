@@ -128,6 +128,18 @@ inline constexpr auto kTcpPilotPhaseGap = std::chrono::milliseconds(200);
 // the matcher. 600 ms = 500 ms RFC ceiling + scheduler-jitter margin.
 inline constexpr auto kDelayedAckSettle = std::chrono::milliseconds(600);
 
+// Inter-SEND gap for seam-driven Nagle tests that hold a small segment while a
+// prior one is unacked (tester ACKs suppressed). The seam's synchronous active
+// OPEN returns the instant the connection is established, removing the
+// ~kTcpUtRpcWait slack the opcode-direct open carried; without it the second
+// SEND can land exactly on the first segment's retransmission timeout (Linux
+// TCP_RTO_MIN ~200 ms), and a small segment offered at the RTO boundary escapes
+// Nagle's hold. Spacing the SENDs past TCP_RTO_MIN guarantees the next SEND
+// enqueues after the first segment's first retransmit, keeping the Nagle hold
+// deterministic on both backends. 350 ms = TCP_RTO_MIN (~200 ms) + jitter
+// margin. SSOT for NAGLE_02, NAGLE_03, FLAGS_PROCESSING_10.
+inline constexpr auto kTcpSeamInterSendRtoClearGap = std::chrono::milliseconds(350);
+
 // Seed SEQ value the tester uses on its SYN / flag-stimulus segments.
 // Chosen non-zero so BASICS_04's pass criterion ("DUT's RST SEQ == 0")
 // is structurally distinct from the tester's SEQ — a bug where the

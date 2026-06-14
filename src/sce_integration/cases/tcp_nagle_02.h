@@ -70,13 +70,10 @@ struct TestCaseTraits<cases::TcpNagle02SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         seamSendTcp(dut, open.conn->socket, kFirstPayload);
-        // Gap must clear seg1's RTO (Linux TCP_RTO_MIN ~200 ms) so the
-        // second SEND is enqueued after seg1's first retransmit instead
-        // of racing it — a small SEND landing exactly at the RTO boundary
-        // escapes Nagle. The opcode open's kTcpUtRpcWait slack masked this;
-        // the synchronous seam open removes it, so widen the gap to keep
-        // the Nagle hold deterministic on both backends.
-        std::this_thread::sleep_for(std::chrono::milliseconds(350));
+        // Space the second SEND past seg1's RTO so the small segment is held by
+        // Nagle rather than escaping at the RTO boundary — see
+        // kTcpSeamInterSendRtoClearGap.
+        std::this_thread::sleep_for(kTcpSeamInterSendRtoClearGap);
 
         seamSendTcp(dut, open.conn->socket, kSecondPayload);
 
