@@ -7,10 +7,13 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 #include <unistd.h>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_active_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -54,6 +57,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
@@ -63,11 +67,9 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpProbingWindows04LocalOffset;
 
-        auto listener = driveActiveOpenEstablished(
-            cfg, iface, cfg.dut.mac,
-            /*open_req_id=*/1, local_port, remote_port);
-        const int tester_fd = listener.acceptOne();
-        if (tester_fd < 0) return;
+        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        const int tester_fd = open.listener.acceptOne();
+        if (tester_fd < 0 || !open.conn) return;
 
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) {
@@ -84,10 +86,9 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1,
-            kSeg1Payload.data(),
+        dut.tcpControl()->sendTcp(
+            open.conn->socket,
+            std::vector<std::uint8_t>(kSeg1Payload.begin(), kSeg1Payload.end()),
             static_cast<std::uint16_t>(kSeg1Payload.size()));
         std::this_thread::sleep_for(kPostSendSettle);
 
@@ -106,10 +107,9 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0.
-        sendSendTcpDataRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/3, /*socket_id=*/1,
-            kSeg2Payload.data(),
+        dut.tcpControl()->sendTcp(
+            open.conn->socket,
+            std::vector<std::uint8_t>(kSeg2Payload.begin(), kSeg2Payload.end()),
             static_cast<std::uint16_t>(kSeg2Payload.size()));
 
         // Spec step 7: acknowledge each probe maintaining zero
