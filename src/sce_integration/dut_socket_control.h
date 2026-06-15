@@ -74,6 +74,14 @@ public:
     // inbound connection once the DUT is listening; returns the accepted
     // connection (with the client endpoint when the backend reports it), or
     // nullopt if none arrived.
+    //
+    // Trigger call-count contract: `trigger` is invoked AT MOST ONCE — exactly
+    // once on the path that reaches the accept, and not at all when the bind /
+    // listen / arm setup fails before that point (the nullopt failure paths).
+    // It is never invoked more than once. A trigger may therefore consume
+    // captured state by move (e.g. hand a crafted SYN's options vector to the
+    // handshake without copying). `receiveTcp` shares this contract; every
+    // override must honour it.
     virtual std::optional<DutConnection> acceptTcp(const BindSpec &listen,
                                                    const std::function<void()> &trigger) = 0;
     // Passive open WITHOUT awaiting accept: the DUT binds+listens per `listen`
@@ -107,7 +115,8 @@ public:
     // the DUT received (<= max_len); nullopt when the seam call itself failed
     // (arm / round-trip error or no Event within the timeout), and an empty
     // vector when the DUT genuinely received zero bytes — the same nullopt
-    // failure model as acceptTcp, which the arm-then-trigger control flow mirrors.
+    // failure model and at-most-once `trigger` call-count contract as acceptTcp,
+    // which the arm-then-trigger control flow mirrors.
     virtual std::optional<std::vector<std::uint8_t>> receiveTcp(
         DutSocket sock, std::uint16_t max_len, const std::function<void()> &trigger) = 0;
     // Half-close the write direction: the DUT calls shutdown(SHUT_WR) on the

@@ -149,6 +149,9 @@ inline SeamRawPassiveAccept driveSeamRawPassiveAccept(
     SeamRawPassiveAccept result{};
     std::optional<std::uint32_t> dut_isn;
 
+    // The trigger moves syn_options into the handshake. This is safe because
+    // acceptTcp's contract (ITcpControl, dut_socket_control.h) invokes the
+    // trigger at most once, so the moved-from vector is never read again.
     result.conn = ::tc8::sce::seamTcpControl(dut).acceptTcp(
         ::tc8::sce::BindSpec{/*do_bind=*/true, listen_port, /*local_addr_be=*/0},
         [&] {
