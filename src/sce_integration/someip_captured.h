@@ -273,6 +273,20 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     std::uint8_t sd_ipv4_endpoint_count = 0;
     std::uint8_t sd_ipv4_multicast_count = 0;
 
+    // Returns true when this frame is the DUT's OfferService for
+    // `want_service_id`: an SD message (header service_id == 0xFFFF) whose
+    // first entry is an OfferService (type 0x01) advertising that service.
+    // This is the canonical proof-of-life — only the DUT emits OfferService
+    // for its own service, never the tester (which sends FindService 0x00 /
+    // SubscribeEventgroup 0x06) — so the sound 4-value field-check templates
+    // and SOMEIP_ETS_152 use it as the Phase 1 liveness gate. Single source
+    // of truth for that predicate so the gate cannot drift across templates.
+    bool is_offer_service_for(std::uint16_t want_service_id) const {
+        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+               sd_entries[0].type == 0x01 &&
+               sd_entries[0].service_id == want_service_id;
+    }
+
     // Returns true when at least one parsed option matches `(type, l4)`.
     // Used by OPTIONS_06/13/15 guards that assert "an IPv4 Endpoint
     // Option with L4-Proto = X is present" without committing to a fixed
