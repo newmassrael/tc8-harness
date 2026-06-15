@@ -47,21 +47,19 @@ jobs:
           path: ~/.cargo/bin/mnemosyne-cli
           # Pin to upstream commit so the gate is reproducible. Bump when
           # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
-          key: mnemosyne-cli-${{ runner.os }}-10d26cd3
+          key: mnemosyne-cli-${{ runner.os }}-f71306b7
 
       - name: Install mnemosyne-cli (cache miss only)
         if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        # 10d26cd3 = Round 470 (upstream HEAD). Pin-forward from R447
-        # (2026-06-11, M1 migration): this repo dropped docs/GENERATED.md
-        # + the retired [workspace] docs keys to match the R400 store-only
-        # model, and re-bound the one render-era parent_doc per the R409
-        # canonical (logical label, not file path).
+        # f71306b7 = Round 538 (upstream HEAD). Pin-forward from R470
+        # (10d26cd3): the local CLI advanced to an atomic-store schema
+        # (22) that the R470 pin rejected with
+        # "schema version mismatch: store=22 expected <= 19", so CI
+        # must track the local CLI to validate the same store.
         # Policy: the pin tracks the local CLI, never the reverse.
-        # (Trail: R447 read schema <= 19 after a local MCP store
-        # reserialization; R427 for multiline RFC-citation classification.)
         run: |
           cargo install --git https://github.com/newmassrael/mnemosyne \
-            --rev 10d26cd3 mnemosyne-cli
+            --rev f71306b7 mnemosyne-cli
 
       - name: validate-workspace
         run: mnemosyne-cli validate-workspace
