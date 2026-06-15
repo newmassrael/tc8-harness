@@ -21,7 +21,7 @@
   observable precondition.
 
     Phase 1 (listening_phase1): SD warm-up — OfferService for SERVICE-ID-1.
-            Deadline → error (error_no_offer): the SD stack never reached
+            Deadline → inconclusive (inconclusive_no_offer): the SD stack never reached
             the wire (precondition fault, e.g. heavy-stack startup), not a
             FindService defect.
     Phase 2 (listening_phase2_first_find): observe first FindService on
@@ -62,7 +62,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.is_offer_service_for(expected.service_id)"
                 target="listening_phase2_first_find"/>
-    <transition event="phase1_deadline_exceeded" target="error_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_no_offer"/>
   </state>
 
   <state id="listening_phase2_first_find">
@@ -102,21 +102,21 @@
     </donedata>
   </final>
 
-  <final id="error_no_offer">
+  <final id="inconclusive_no_offer">
     <donedata>
-      <content>{"verdict":"error","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="inconclusive_no_findservice">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_findservice_during_start_phase"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_findservice_during_start_phase","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase4_findservice_in_main_phase">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_findservice_observed_during_main_phase"}</content>
+      <content>{"verdict":"fail","reason":"dut_findservice_observed_during_main_phase","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

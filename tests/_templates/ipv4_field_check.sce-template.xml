@@ -8,13 +8,14 @@
 
     * pass — DUT reply matches {$pass_expr}.
     * {$fail_state} — DUT reply violates the field invariant (observed -> fail).
-    * error_no_dut_ipv4_packet — no DUT-originated IPv4 packet within the
-      listen window. The DUT produced nothing to inspect (unreachable / ICMP
-      path down) so the field property could not be evaluated: a precondition
-      fault, not a field defect. Does not red the conformance gate. There is
-      no liveness signal distinct from the reply itself (the reply is both the
-      proof-of-life and the property carrier), so no inconclusive split
-      applies here — unlike udp_field_check, which has the UT Confirmation.
+    * inconclusive_no_dut_ipv4_packet — no DUT-originated IPv4 packet within
+      the listen window. The DUT produced nothing to inspect (unreachable /
+      ICMP path down) so the field property could not be evaluated: the test
+      purpose was not reached (precondition_unmet) — a non-conclusion, not an
+      observed violation and not a test-system error. Does not red the
+      conformance gate. The reply is both proof-of-life and property carrier,
+      so absence is the only non-pass, non-violation outcome here — unlike
+      udp_field_check, whose UT Confirmation gives a separate liveness split.
 
   Shared body for ipv4_header_01 / ipv4_version_03 / ipv4_ttl_01. Each
   call site supplies the three params below; everything else (context
@@ -63,7 +64,7 @@
     <transition event="ipv4_observed"
                 cond="cpp:captured.src_addr == expected.dut_iface_ip and !({$pass_expr})"
                 target="{$fail_state}"/>
-    <transition event="deadline_exceeded" target="error_no_dut_ipv4_packet"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_dut_ipv4_packet"/>
   </state>
 
   <final id="pass">
@@ -74,13 +75,13 @@
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="error_no_dut_ipv4_packet">
+  <final id="inconclusive_no_dut_ipv4_packet">
     <donedata>
-      <content>{"verdict":"error","reason":"no_dut_ipv4_packet_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ipv4_packet_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </sce:template>

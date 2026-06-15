@@ -15,7 +15,7 @@
       Confirmation (`captured.has_ut_response`, the RPC reply to the
       TriggerSendUdp request) proves the DUT and its UT path are live and
       advances to Phase 2.
-        * deadline -> error (error_no_dut_udp): no DUT-originated UDP at all
+        * deadline -> inconclusive (inconclusive_no_dut_udp): no DUT-originated UDP at all
           (neither egress nor UT Confirmation) — the DUT/UT path did not come
           up, a precondition fault, not a field defect. Does not red the gate.
 
@@ -80,7 +80,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.has_ut_response"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="error_no_dut_udp"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_no_dut_udp"/>
   </state>
 
   <state id="listening_phase2">
@@ -104,19 +104,19 @@
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="error_no_dut_udp">
+  <final id="inconclusive_no_dut_udp">
     <donedata>
-      <content>{"verdict":"error","reason":"no_dut_originated_udp_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_originated_udp_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="inconclusive_no_egress">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_egress_after_ut_confirmation"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_egress_after_ut_confirmation","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

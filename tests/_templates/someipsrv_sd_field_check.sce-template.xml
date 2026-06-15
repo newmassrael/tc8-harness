@@ -15,7 +15,7 @@
       cyclic OfferService for the expected service — a DUT-originated SD
       frame, never tester traffic (FindService 0x00 / Subscribe 0x06) — proves
       the SD stack is up and advances to Phase 2.
-        * deadline -> error (error_no_offer): the DUT never offered the
+        * deadline -> inconclusive (inconclusive_no_offer): the DUT never offered the
           service, i.e. the SD stack did not come up — a precondition fault,
           not a field defect. Does not red the conformance gate.
 
@@ -85,7 +85,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.is_offer_service_for(expected.service_id)"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="error_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_no_offer"/>
   </state>
 
   <state id="listening_phase2">
@@ -109,19 +109,19 @@
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="error_no_offer">
+  <final id="inconclusive_no_offer">
     <donedata>
-      <content>{"verdict":"error","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="inconclusive_no_qualifying_sd">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_qualifying_sd_message_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_qualifying_sd_message_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

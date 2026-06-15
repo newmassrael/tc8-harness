@@ -582,18 +582,21 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
 
     // If the run loop exited without the state machine reaching a final state,
-    // the assertion was never concluded — the budget (-t) elapsed or the run
-    // was interrupted. That is INCONCLUSIVE, not a FAIL: the DUT was not shown
-    // to violate anything (ISO/IEC 9646 / TTCN-3 soundness). This is the single
-    // budget bound for liveness-driven cases (e.g. a long throughput race whose
-    // SCXML keeps running as long as the wire stays live): they need no
-    // arbitrary per-case wall-clock cap — the harness budget is the backstop,
-    // and exceeding it is inconclusive, never a false failure.
+    // the assertion was never concluded. Two distinct causes, two classes
+    // (see docs/verdict_policy.md; ISO/IEC 9646 / TTCN-3):
+    //   - interrupted (SIGINT/SIGTERM): the test system was stopped externally
+    //     and did not run to completion — a test-system condition -> ERROR.
+    //   - harness budget (-t) elapsed: for liveness-driven cases (e.g. a long
+    //     throughput race whose SCXML runs as long as the wire stays live) the
+    //     budget is the deliberate observation bound, so reaching it means the
+    //     purpose could not be decided -> INCONCLUSIVE. Never a false FAIL: the
+    //     DUT was not shown to violate anything.
     ::tc8::sce::Verdict verdict = runner->verdict();
     if (!runner->isDone()) {
-        verdict = ::tc8::sce::Verdict{
-            ::tc8::sce::VerdictClass::Inconclusive,
-            SignalGuard::stopRequested() ? "interrupted" : "harness_budget_exceeded"};
+        verdict = SignalGuard::stopRequested()
+                      ? ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Error, "interrupted"}
+                      : ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive,
+                                            "harness_budget_exceeded"};
     }
     const std::string verdict_str = verdict.str();
     std::printf("verdict  : %s\n", verdict_str.c_str());

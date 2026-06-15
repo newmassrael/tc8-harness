@@ -11,7 +11,7 @@
 
     * pass — DUT-originated Ipv4Frame observed (src_addr ==
       expected.dut_iface_ip).
-    * deadline -> error (error_no_dut_ipv4_packet): no DUT IPv4 packet with
+    * deadline -> inconclusive (inconclusive_no_dut_ipv4_packet): no DUT IPv4 packet with
       the expected source address arrived within the listen window. The DUT
       reply is both liveness and property here (no independent liveness
       signal, as in ipv4_field_check), so absence is a precondition fault —
@@ -49,7 +49,7 @@
     <transition event="ipv4_observed"
                 cond="cpp:captured.src_addr == expected.dut_iface_ip"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="error_no_dut_ipv4_packet"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_dut_ipv4_packet"/>
   </state>
 
   <final id="pass">
@@ -58,9 +58,9 @@
     </donedata>
   </final>
 
-  <final id="error_no_dut_ipv4_packet">
+  <final id="inconclusive_no_dut_ipv4_packet">
     <donedata>
-      <content>{"verdict":"error","reason":"no_dut_ipv4_packet_with_expected_source_address"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ipv4_packet_with_expected_source_address","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </sce:template>

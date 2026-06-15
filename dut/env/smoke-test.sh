@@ -2510,8 +2510,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # VERSION_03, TTL_01): override `ipv4.dut_iface_ip` to a value
         # the DUT never emits. Every pass-guard conjuncts
         # `captured.src_addr == expected.dut_iface_ip` so the pass path
-        # goes out of reach and the case lands on the no-DUT-packet error,
-        # which auto-skips as a sound non-conclusion. Proves the src_addr
+        # goes out of reach and the case lands on the no-DUT-packet
+        # inconclusive, which auto-skips as a sound non-conclusion. Proves the src_addr
         # filter is load-bearing — without it, SOME/IP SD multicast and
         # tester-originated frames would both false-pass.
         "IPv4_HEADER_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
@@ -2521,7 +2521,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # IPv4_VERSION_01 / TTL_05 share ipv4_positive_reply's error
         # reason (same as HEADER_03's timeout string). Also override
         # dut_iface_ip to force the pass path out of reach; the broken
-        # precondition lands on error_no_dut_ipv4_packet (auto-skips).
+        # precondition lands on inconclusive_no_dut_ipv4_packet (auto-skips).
         "IPv4_VERSION_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
         "IPv4_TTL_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
         # IPv4_CHECKSUM_05: overriding dut_iface_ip takes the pass+fail
@@ -2851,8 +2851,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # targets cfg.ipv4.dut_iface_ip; flipping it routes the wire
         # frames past the DUT's IP layer rp_filter (martian dst) so no
         # reassembled receipt reaches the data listener → ut_received=0
-        # → SCXML hits error_no_ut_confirmation via udp_ut_received_check.
-        # The broken precondition is a sound non-conclusion (error), so this
+        # → SCXML hits inconclusive_no_ut_confirmation via udp_ut_received_check.
+        # The broken precondition is a sound non-conclusion (inconclusive), so this
         # row auto-skips (guard not exercised) and is retained as a
         # pass-regression guard, mirroring the udp_field_check precondition
         # negatives above.

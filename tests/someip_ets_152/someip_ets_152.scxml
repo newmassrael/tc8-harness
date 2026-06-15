@@ -18,18 +18,19 @@
                    counter skipped 0).
     fail         — wrap observed but session_id → 0x0000 (the spec MUST was
                    violated): session_id_wrapped_to_zero.
-    inconclusive — the DUT stopped emitting SD mid-burst
-                   (sd_emission_stalled, the progress watchdog) or the
-                   harness budget elapsed before the wrap was reached
-                   (harness_budget_exceeded, reported by the runner). The
-                   DUT was NOT shown to violate anything, so this is not a
-                   FAIL — it does not red the conformance gate.
-    error        — the DUT never offered the service (the SD stack did not
-                   come up): a precondition fault, not a DUT defect.
+    inconclusive — the DUT was not driven to a decidable outcome: it never
+                   offered the service (SD stack did not come up; precondition
+                   not reached), it stopped emitting SD mid-burst
+                   (sd_emission_stalled, the progress watchdog), or the harness
+                   budget elapsed before the wrap (harness_budget_exceeded,
+                   reported by the runner). The DUT was NOT shown to violate
+                   anything, so this is not a FAIL — it does not red the gate.
+    error        — reserved for a test-system fault (the harness could not
+                   drive or observe the IUT); this case authors none.
 
     Phase 1 (listening_phase1): first OfferService observation on the
             configured SERVICE-ID-1. 6 s deadline (BASIC_03 / ETS_086
-            phase-1 envelope); absence → error (precondition not met).
+            phase-1 envelope); absence → inconclusive (precondition not reached).
     Phase 2 (listening_phase2A ↔ listening_phase2B): alternating
             self-target so the dispatch helper's state-change-gated
             `prev_sd_session_id = session_id` snapshot fires on every
@@ -70,7 +71,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.is_offer_service_for(expected.service_id)"
                 target="listening_phase2A"/>
-    <transition event="phase1_deadline_exceeded" target="error_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_no_offer"/>
   </state>
 
   <state id="listening_phase2A">
@@ -119,19 +120,19 @@
 
   <final id="fail_wrap_to_zero">
     <donedata>
-      <content>{"verdict":"fail","reason":"session_id_wrapped_to_zero"}</content>
+      <content>{"verdict":"fail","reason":"session_id_wrapped_to_zero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="inconclusive_sd_stalled">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"sd_emission_stalled"}</content>
+      <content>{"verdict":"inconclusive","reason":"sd_emission_stalled","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="error_no_offer">
+  <final id="inconclusive_no_offer">
     <donedata>
-      <content>{"verdict":"error","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>
