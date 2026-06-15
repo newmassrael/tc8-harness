@@ -25,7 +25,7 @@
   Per-state fail terminals split the chain by phase/sub-edge so
   smoke-test triage identifies the first DUT-egress edge that did
   not fire. Negative smoke flips ipv4.dut_iface_ip → first state's
-  src_ip-conjunct unreachable → fail_p1_no_handshake_ack.
+  src_ip-conjunct unreachable → inconclusive_p1_no_handshake_ack.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
@@ -58,7 +58,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p1_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p1_local_offset})"
                 target="listening_p1_dut_fin"/>
-    <transition event="deadline_p1_handshake" target="fail_p1_no_handshake_ack"/>
+    <transition event="deadline_p1_handshake" target="inconclusive_p1_no_handshake_ack"/>
   </state>
 
   <state id="listening_p1_dut_fin">
@@ -68,7 +68,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p1_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p1_local_offset})"
                 target="listening_p1_tester_fin_ack"/>
-    <transition event="deadline_p1_dut_fin" target="fail_p1_no_dut_fin"/>
+    <transition event="deadline_p1_dut_fin" target="inconclusive_p1_no_dut_fin"/>
   </state>
 
   <state id="listening_p1_tester_fin_ack">
@@ -78,7 +78,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p1_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p1_local_offset})"
                 target="listening_p1_probe_ack"/>
-    <transition event="deadline_p1_tester_fin_ack" target="fail_p1_no_tester_fin_ack"/>
+    <transition event="deadline_p1_tester_fin_ack" target="inconclusive_p1_no_tester_fin_ack"/>
   </state>
 
   <state id="listening_p1_probe_ack">
@@ -88,7 +88,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p1_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p1_local_offset}) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_handshake"/>
-    <transition event="deadline_p1_probe_ack" target="fail_p1_no_probe_ack"/>
+    <transition event="deadline_p1_probe_ack" target="inconclusive_p1_no_probe_ack"/>
   </state>
 
   <state id="listening_p2_handshake">
@@ -98,7 +98,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p2_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p2_local_offset})"
                 target="listening_p2_dut_fin"/>
-    <transition event="deadline_p2_handshake" target="fail_p2_no_handshake_ack"/>
+    <transition event="deadline_p2_handshake" target="inconclusive_p2_no_handshake_ack"/>
   </state>
 
   <state id="listening_p2_dut_fin">
@@ -108,7 +108,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p2_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p2_local_offset})"
                 target="listening_p2_tester_fin_ack"/>
-    <transition event="deadline_p2_dut_fin" target="fail_p2_no_dut_fin"/>
+    <transition event="deadline_p2_dut_fin" target="inconclusive_p2_no_dut_fin"/>
   </state>
 
   <state id="listening_p2_tester_fin_ack">
@@ -118,7 +118,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p2_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p2_local_offset})"
                 target="listening_p2_probe_ack"/>
-    <transition event="deadline_p2_tester_fin_ack" target="fail_p2_no_tester_fin_ack"/>
+    <transition event="deadline_p2_tester_fin_ack" target="inconclusive_p2_no_tester_fin_ack"/>
   </state>
 
   <state id="listening_p2_probe_ack">
@@ -128,7 +128,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p2_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p2_local_offset}) and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
-    <transition event="deadline_p2_probe_ack" target="fail_p2_no_probe_ack"/>
+    <transition event="deadline_p2_probe_ack" target="inconclusive_p2_no_probe_ack"/>
   </state>
 
   <final id="pass">
@@ -137,51 +137,51 @@
     </donedata>
   </final>
 
-  <final id="fail_p1_no_handshake_ack">
+  <final id="inconclusive_p1_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase1","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p1_no_dut_fin">
+  <final id="inconclusive_p1_no_dut_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_fin_phase1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_fin_phase1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p1_no_tester_fin_ack">
+  <final id="inconclusive_p1_no_tester_fin_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_phase1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p1_no_probe_ack">
+  <final id="inconclusive_p1_no_probe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$p1_probe_fail_reason}"}</content>
+      <content>{"verdict":"inconclusive","reason":"{$p1_probe_fail_reason}","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_handshake_ack">
+  <final id="inconclusive_p2_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_dut_fin">
+  <final id="inconclusive_p2_no_dut_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_fin_phase2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_fin_phase2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_tester_fin_ack">
+  <final id="inconclusive_p2_no_tester_fin_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_phase2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_probe_ack">
+  <final id="inconclusive_p2_no_probe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$p2_probe_fail_reason}"}</content>
+      <content>{"verdict":"inconclusive","reason":"{$p2_probe_fail_reason}","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

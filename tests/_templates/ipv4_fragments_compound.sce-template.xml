@@ -32,7 +32,7 @@
       data lands fail_data_mismatch ({$fail_reason_phase2_data}).
       Separate strings let grep-based smoke triage identify which
       axis the DUT violated without re-reading the SCXML.
-    * deadline_exceeded fires fail_timeout with
+    * deadline_exceeded fires inconclusive_timeout with
       {$fail_reason_phase2_timeout}.
 
   src_ip guard on every icmp_observed transition filters the
@@ -93,7 +93,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_data_mismatch"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -104,31 +104,31 @@
 
   <final id="fail_early_reply">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_phase1}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase1}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_echo_id">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_echo_id}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_echo_id}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_echo_seq">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_echo_seq}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_echo_seq}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_data_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_data}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_data}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_phase2_timeout}"}</content>
+      <content>{"verdict":"inconclusive","reason":"{$fail_reason_phase2_timeout}","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

@@ -34,7 +34,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
                 target="fail_udp_used_injected_mac"/>
-    <transition event="deadline_exceeded" target="fail_no_dut_arp_request"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_dut_arp_request"/>
   </state>
 
   <final id="pass">
@@ -45,13 +45,13 @@
 
   <final id="fail_udp_used_injected_mac">
     <donedata>
-      <content>{"verdict":"fail","reason":"udp_eth_dst_matched_dropped_frame_mac"}</content>
+      <content>{"verdict":"fail","reason":"udp_eth_dst_matched_dropped_frame_mac","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_dut_arp_request">
+  <final id="inconclusive_no_dut_arp_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </sce:template>

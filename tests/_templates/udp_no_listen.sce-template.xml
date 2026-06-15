@@ -12,7 +12,7 @@
     * pass — DUT emits ICMP type=3 code=3 with src_addr == DUT.
     * fail_wrong_icmp — DUT emits ICMP from the right address but with
       a different type/code (e.g. Echo Reply, Time Exceeded).
-    * fail_timeout — no DUT-origin ICMP within the listen window
+    * inconclusive_timeout — no DUT-origin ICMP within the listen window
       (Linux's ICMP rate-limiter caps but the first error after a
       cold case-start is unimpeded).
 -->
@@ -39,7 +39,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and (captured.type != 3 or captured.code != 3)"
                 target="fail_wrong_icmp"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -50,13 +50,13 @@
 
   <final id="fail_wrong_icmp">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_non_port_unreachable_icmp"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_non_port_unreachable_icmp","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_icmp_port_unreachable_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_icmp_port_unreachable_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </sce:template>

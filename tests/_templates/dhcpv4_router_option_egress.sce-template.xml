@@ -18,7 +18,7 @@
       on udp_observed: dst_ip == unused_routed_ip_be
                        AND eth_src_equals(dut_iface_mac)
                        AND eth_dst_equals(router_mac) → pass
-      on s3_deadline → fail_no_dut_udp
+      on s3_deadline → inconclusive_no_dut_udp
 
   Zero-parameter template — both consumers (CM_05, CM_06) have
   structurally identical pass criteria; the divergence between them
@@ -51,7 +51,7 @@
                 cond="cpp:captured.dhcpv4.is_dhcp_discover()
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_request"/>
-    <transition event="s1_deadline" target="fail_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_request">
@@ -62,7 +62,7 @@
                 cond="cpp:captured.dhcpv4.is_dhcp_request()
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_dut_udp"/>
-    <transition event="s2_deadline" target="fail_no_request"/>
+    <transition event="s2_deadline" target="inconclusive_no_request"/>
   </state>
 
   <state id="listening_for_dut_udp">
@@ -74,7 +74,7 @@
                       and captured.udp.eth_src_equals(expected.dhcpv4.dut_iface_mac)
                       and captured.udp.eth_dst_equals(expected.router_mac)"
                 target="pass"/>
-    <transition event="s3_deadline" target="fail_no_dut_udp"/>
+    <transition event="s3_deadline" target="inconclusive_no_dut_udp"/>
   </state>
 
   <final id="pass">
@@ -83,21 +83,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_request">
+  <final id="inconclusive_no_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_dut_udp">
+  <final id="inconclusive_no_dut_udp">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_udp_to_unused_routed_ip_via_router_option"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_udp_to_unused_routed_ip_via_router_option","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

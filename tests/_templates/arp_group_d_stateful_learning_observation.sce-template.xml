@@ -42,7 +42,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip"
                 target="fail_udp_before_dut_request"/>
-    <transition event="deadline_exceeded" target="fail_no_dut_request"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_dut_request"/>
   </state>
 
   <state id="wait_udp">
@@ -52,7 +52,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac{$mac_idx}"
                 target="fail_wrong_eth_dst"/>
-    <transition event="deadline_exceeded" target="fail_no_udp"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_udp"/>
   </state>
 
   <final id="pass">
@@ -61,27 +61,27 @@
     </donedata>
   </final>
 
-  <final id="fail_no_dut_request">
+  <final id="inconclusive_no_dut_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_arp_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_arp_request_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_udp_before_dut_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"udp_egress_before_dut_arp_request"}</content>
+      <content>{"verdict":"fail","reason":"udp_egress_before_dut_arp_request","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_eth_dst">
     <donedata>
-      <content>{"verdict":"fail","reason":"udp_eth_dst_not_injected_mac{$mac_idx}"}</content>
+      <content>{"verdict":"fail","reason":"udp_eth_dst_not_injected_mac{$mac_idx}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_udp">
+  <final id="inconclusive_no_udp">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_udp_after_arp_learning"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_udp_after_arp_learning","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

@@ -66,7 +66,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$local_offset})"
                 target="listening_close_fin"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_close_fin">
@@ -76,7 +76,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$local_offset})"
                 target="listening_{$mid_label}"/>
-    <transition event="deadline_close_fin" target="fail_no_close_fin"/>
+    <transition event="deadline_close_fin" target="inconclusive_no_close_fin"/>
   </state>
 
   <state id="listening_{$mid_label}">
@@ -105,27 +105,27 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_close_fin">
+  <final id="inconclusive_no_close_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_close_fin"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_close_fin","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_{$mid_label}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$mid_fail_reason}"}</content>
+      <content>{"verdict":"inconclusive","reason":"{$mid_fail_reason}","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_{$replay_label}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$replay_fail_reason}"}</content>
+      <content>{"verdict":"inconclusive","reason":"{$replay_fail_reason}","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

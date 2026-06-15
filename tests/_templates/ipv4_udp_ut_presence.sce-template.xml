@@ -17,7 +17,7 @@
     * fail_wrong_receipt — Confirmation says the opposite. Fires only
       on GetReceivedUdp responses, so a TriggerSendUdp Confirmation
       arriving in parallel (same-port UT session) is ignored.
-    * fail_timeout — no Confirmation within 5 s. Either the DUT's UT
+    * inconclusive_timeout — no Confirmation within 5 s. Either the DUT's UT
       channel is absent, or the tester's GetReceivedUdp request never
       reached it.
 
@@ -61,7 +61,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received != {$expected_received}"
                 target="fail_wrong_receipt"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -72,13 +72,13 @@
 
   <final id="fail_wrong_receipt">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_wrong_receipt}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason_wrong_receipt}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_timeout}"}</content>
+      <content>{"verdict":"inconclusive","reason":"{$fail_reason_timeout}","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </sce:template>

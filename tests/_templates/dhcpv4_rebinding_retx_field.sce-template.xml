@@ -31,7 +31,7 @@
                         + ({$pass_expr}) → pass
       on dhcp_observed: is_request + chaddr_match + dst_ip_is_broadcast
                         + !({$pass_expr}) → {$fail_state}
-      on s5_deadline → fail_no_second_rebinding_request
+      on s5_deadline → inconclusive_no_second_rebinding_request
 
   Wall budget under retx envelope (kRetransmissionLeaseSeconds = 12 s):
     BOUND at state-3 entry + ~100 ms. T1 = 6 s post-BOUND → first
@@ -69,7 +69,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_first_request"/>
-    <transition event="s1_deadline" target="fail_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_first_request">
@@ -79,7 +79,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_renewing_request"/>
-    <transition event="s2_deadline" target="fail_no_first_request"/>
+    <transition event="s2_deadline" target="inconclusive_no_first_request"/>
   </state>
 
   <state id="listening_for_renewing_request">
@@ -89,7 +89,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
                 target="listening_for_first_rebinding_request"/>
-    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+    <transition event="s3_deadline" target="inconclusive_no_renewing_request"/>
   </state>
 
   <state id="listening_for_first_rebinding_request">
@@ -99,7 +99,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast()"
                 target="listening_for_second_rebinding_request"/>
-    <transition event="s4_deadline" target="fail_no_first_rebinding_request"/>
+    <transition event="s4_deadline" target="inconclusive_no_first_rebinding_request"/>
   </state>
 
   <state id="listening_for_second_rebinding_request">
@@ -112,7 +112,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast() and !({$pass_expr})"
                 target="{$fail_state}"/>
-    <transition event="s5_deadline" target="fail_no_second_rebinding_request"/>
+    <transition event="s5_deadline" target="inconclusive_no_second_rebinding_request"/>
   </state>
 
   <final id="pass">
@@ -121,39 +121,39 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_first_request">
+  <final id="inconclusive_no_first_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_renewing_request">
+  <final id="inconclusive_no_renewing_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_renewing_request_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_first_rebinding_request">
+  <final id="inconclusive_no_first_rebinding_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_rebinding_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_first_rebinding_request_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_second_rebinding_request">
+  <final id="inconclusive_no_second_rebinding_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_second_rebinding_request_within_retx_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_second_rebinding_request_within_retx_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
     </donedata>
   </final>
 </sce:template>

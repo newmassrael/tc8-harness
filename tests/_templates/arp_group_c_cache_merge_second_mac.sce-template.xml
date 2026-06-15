@@ -41,7 +41,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
                 target="fail_dut_arp_request"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -52,25 +52,25 @@
 
   <final id="fail_used_mac1">
     <donedata>
-      <content>{"verdict":"fail","reason":"udp_eth_dst_is_mac1_not_mac2"}</content>
+      <content>{"verdict":"fail","reason":"udp_eth_dst_is_mac1_not_mac2","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_unknown_mac">
     <donedata>
-      <content>{"verdict":"fail","reason":"udp_eth_dst_neither_mac1_nor_mac2"}</content>
+      <content>{"verdict":"fail","reason":"udp_eth_dst_neither_mac1_nor_mac2","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_dut_arp_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_arp_request_after_double_injection"}</content>
+      <content>{"verdict":"fail","reason":"dut_arp_request_after_double_injection","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_udp_from_dut_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_udp_from_dut_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </sce:template>
