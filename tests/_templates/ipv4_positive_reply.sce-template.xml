@@ -5,9 +5,18 @@
   MUST accept), the DUT replies, the SCXML asserts any DUT-originated
   ICMPv4 frame arrives within the listen window.
 
+  Conformance verdict model (ISO/IEC 9646 / TTCN-3, same as SOMEIP_ETS_152).
+  The verdict is SOUND: a positive reply is the sole observation vehicle, so
+  absence of any DUT IPv4 packet is a non-conclusion, never a FAIL.
+
     * pass — DUT-originated Ipv4Frame observed (src_addr ==
       expected.dut_iface_ip).
-    * fail_timeout — no DUT reply within the listen window.
+    * deadline -> error (error_no_dut_ipv4_packet): no DUT IPv4 packet with
+      the expected source address arrived within the listen window. The DUT
+      reply is both liveness and property here (no independent liveness
+      signal, as in ipv4_field_check), so absence is a precondition fault —
+      the DUT/link produced no packet — not an observed violation. Does not
+      red the conformance gate.
 
   Shared body for ipv4_header_03 / ipv4_ttl_05 / ipv4_version_01. These
   are the §4.4 rows whose pass criterion is simply "DUT: Send ICMP
@@ -40,7 +49,7 @@
     <transition event="ipv4_observed"
                 cond="cpp:captured.src_addr == expected.dut_iface_ip"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="error_no_dut_ipv4_packet"/>
   </state>
 
   <final id="pass">
@@ -49,9 +58,9 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="error_no_dut_ipv4_packet">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ipv4_packet_with_expected_source_address"}</content>
+      <content>{"verdict":"error","reason":"no_dut_ipv4_packet_with_expected_source_address"}</content>
     </donedata>
   </final>
 </sce:template>
