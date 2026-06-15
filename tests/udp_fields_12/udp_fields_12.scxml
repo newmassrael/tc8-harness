@@ -23,6 +23,5 @@
        initial="listening">
   <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"
            pass_expr="captured.ut_recv_payload_len == 65507"
-           fail_reason_field="dut_received_udp_with_unexpected_payload_length"
-           fail_reason_timeout="no_ut_confirmation_for_max_length_udp"/>
+           fail_reason_field="dut_received_udp_with_unexpected_payload_length"/>
 </scxml>

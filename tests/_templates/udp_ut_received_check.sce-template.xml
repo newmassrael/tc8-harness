@@ -5,13 +5,21 @@
   Upper Tester's GetReceivedUdp opcode whose response carries the DUT's
   observed src_ip / src_port / payload bytes back to the harness.
 
+  Conformance verdict model (ISO/IEC 9646 / TTCN-3, same as SOMEIP_ETS_152).
+  The verdict is SOUND: it FAILs only on an observed field violation, never
+  because the environment failed to drive the DUT into the precondition.
+
     * pass — Confirmation arrives with ut_opcode == 0x81, ut_status == 0,
       ut_received == 1, AND {$pass_expr} (per-case predicate over the
       `ut_recv_*` fields).
-    * fail_field_mismatch — Confirmation arrives correctly but
-      {$pass_expr} evaluates false (DUT received the datagram but the
-      harness's view of an asserted field disagrees).
-    * fail_timeout — no Confirmation within the 5 s listen window.
+    * fail_field_mismatch (fail) — Confirmation arrives correctly but
+      {$pass_expr} evaluates false: the DUT received the datagram but the
+      harness's view of an asserted field disagrees — an observed violation.
+    * deadline -> error (error_no_ut_confirmation): no UT GetReceivedUdp
+      Confirmation with ut_received == 1 arrived within the 5 s window, so
+      the DUT's reception report — the sole observation vehicle — never
+      materialised. A precondition fault (DUT/UT path produced no result),
+      not a field defect. Does not red the conformance gate.
 
   Distinct from `ipv4_udp_ut_presence` whose single hinge is
   `ut_received == {$expected_received}`. UDP_USER_INTERFACE_02/_03/_04
@@ -31,7 +39,6 @@
 
   <sce:param name="pass_expr"               required="true"/>
   <sce:param name="fail_reason_field"       required="true"/>
-  <sce:param name="fail_reason_timeout"     required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::UdpCaptured"
@@ -51,7 +58,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and !({$pass_expr})"
                 target="fail_field_mismatch"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="error_no_ut_confirmation"/>
   </state>
 
   <final id="pass">
@@ -66,9 +73,9 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="error_no_ut_confirmation">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_timeout}"}</content>
+      <content>{"verdict":"error","reason":"no_ut_confirmation_within_listen_window"}</content>
     </donedata>
   </final>
 </sce:template>

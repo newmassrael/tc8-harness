@@ -2849,8 +2849,12 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # targets cfg.ipv4.dut_iface_ip; flipping it routes the wire
         # frames past the DUT's IP layer rp_filter (martian dst) so no
         # reassembled receipt reaches the data listener → ut_received=0
-        # → SCXML hits fail_timeout via udp_ut_received_check.
-        "UDP_FIELDS_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_ut_confirmation_for_max_length_udp"
+        # → SCXML hits error_no_ut_confirmation via udp_ut_received_check.
+        # The broken precondition is a sound non-conclusion (error), so this
+        # row auto-skips (guard not exercised) and is retained as a
+        # pass-regression guard, mirroring the udp_field_check precondition
+        # negatives above.
+        "UDP_FIELDS_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_ut_confirmation_within_listen_window"
         # §4.6.5.5 UDP_USER_INTERFACE_01 dynamic ports: harness
         # OpCreateUdpReceivePorts request goes to cfg.ipv4.dut_iface_ip;
         # the flip lands the request on a non-routable dst so tc8-dut

@@ -17,6 +17,5 @@
        initial="listening">
   <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"
            pass_expr="captured.ut_recv_payload_len == 8 and captured.ut_recv_payload_first16[0] == 0x10 and captured.ut_recv_payload_first16[1] == 0x20 and captured.ut_recv_payload_first16[2] == 0x30 and captured.ut_recv_payload_first16[3] == 0x40 and captured.ut_recv_payload_first16[4] == 0x50 and captured.ut_recv_payload_first16[5] == 0x60 and captured.ut_recv_payload_first16[6] == 0x70 and captured.ut_recv_payload_first16[7] == 0x80"
-           fail_reason_field="dut_received_udp_with_wrong_payload_bytes"
-           fail_reason_timeout="no_ut_confirmation_for_payload_check"/>
+           fail_reason_field="dut_received_udp_with_wrong_payload_bytes"/>
 </scxml>
