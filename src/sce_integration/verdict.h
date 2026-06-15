@@ -20,23 +20,25 @@ namespace tc8::sce {
 //   - dut/env/smoke-test.sh   (Bash: matches "pass" / "inconclusive|error")
 //   - tools/verdict_drift_audit.py  (Python: VALID_CLASSES)
 // ============================================================================
+// The taxonomy lives in verdict_taxonomy.def — the single source, also parsed
+// by tools/gen_verdict_taxonomy.py to generate the Python (audit) and Bash
+// (smoke gate) mirrors. Roles are a no-op in C++: the runtime reads the class
+// from donedata; role->class is an audit-time concern (docs/verdict_policy.md).
+#define TC8_VERDICT_ROLE(name, cls)
+
 enum class VerdictClass {
-    Pass,          // DUT observed conforming                       -> exit 0
-    Fail,          // DUT observed non-conforming                   -> exit 1
-    Inconclusive,  // asserted condition not exercised in window    -> exit 2
-    Error,         // a precondition / harness step failed          -> exit 3
-    Running,       // sentinel: not in a donedata-bearing final     -> exit 1 (fail-closed)
+#define TC8_VERDICT_CLASS(Enum, name, code) Enum,
+#include "verdict_taxonomy.def"
+#undef TC8_VERDICT_CLASS
 };
 
 // Canonical lowercase name carried in the SCXML donedata `verdict` field and
 // printed on the harness `verdict  :` line.
 constexpr std::string_view verdictClassName(VerdictClass c) {
     switch (c) {
-        case VerdictClass::Pass:         return "pass";
-        case VerdictClass::Fail:         return "fail";
-        case VerdictClass::Inconclusive: return "inconclusive";
-        case VerdictClass::Error:        return "error";
-        case VerdictClass::Running:      return "running";
+#define TC8_VERDICT_CLASS(Enum, name, code) case VerdictClass::Enum: return name;
+#include "verdict_taxonomy.def"
+#undef TC8_VERDICT_CLASS
     }
     return "running";
 }
@@ -45,10 +47,10 @@ constexpr std::string_view verdictClassName(VerdictClass c) {
 // (fail-closed on unknowns) — the donedata audit forbids unknown classes from
 // ever being committed, so this only guards against corruption at runtime.
 constexpr VerdictClass verdictClassFromName(std::string_view name) {
-    if (name == "pass")         return VerdictClass::Pass;
-    if (name == "inconclusive") return VerdictClass::Inconclusive;
-    if (name == "error")        return VerdictClass::Error;
-    if (name == "running")      return VerdictClass::Running;
+#define TC8_VERDICT_CLASS(Enum, name, code) if (n == name) return VerdictClass::Enum;
+    const std::string_view n = name;
+#include "verdict_taxonomy.def"
+#undef TC8_VERDICT_CLASS
     return VerdictClass::Fail;  // "fail" and anything unknown
 }
 
@@ -57,14 +59,14 @@ constexpr VerdictClass verdictClassFromName(std::string_view name) {
 // state that carries no verdict is an authoring defect, not a pass.
 constexpr int verdictExitCode(VerdictClass c) {
     switch (c) {
-        case VerdictClass::Pass:         return 0;
-        case VerdictClass::Inconclusive: return 2;
-        case VerdictClass::Error:        return 3;
-        case VerdictClass::Fail:         return 1;
-        case VerdictClass::Running:      return 1;
+#define TC8_VERDICT_CLASS(Enum, name, code) case VerdictClass::Enum: return code;
+#include "verdict_taxonomy.def"
+#undef TC8_VERDICT_CLASS
     }
     return 1;
 }
+
+#undef TC8_VERDICT_ROLE
 
 // A conformance verdict: a class plus an optional human-readable reason.
 struct Verdict {

@@ -8,6 +8,15 @@ HERE="$(dirname "$0")"
 
 "$HERE/mnemosyne-gate.sh" pre-commit
 
+# Verdict taxonomy generated mirrors (python/bash/doc) must match the single
+# source src/sce_integration/verdict_taxonomy.def (also #included by verdict.h).
+if ! python3 "$HERE/../tools/gen_verdict_taxonomy.py" --check >/dev/null; then
+    echo "pre-commit: verdict taxonomy generated files are STALE — run:" >&2
+    echo "    python3 tools/gen_verdict_taxonomy.py" >&2
+    python3 "$HERE/../tools/gen_verdict_taxonomy.py" --check >&2 || true
+    exit 1
+fi
+
 # Verdict SSOT invariant: every registered case carries a donedata verdict with
 # a canonical conformance class (src/sce_integration/verdict.h). Fast,
 # pure-Python; keeps the single source from rotting between CI runs.

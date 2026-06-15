@@ -68,16 +68,28 @@ violation. Environmental shortfalls never red the gate.
 ## 3. Semantic roles → class (the policy table)
 
 Every non-`pass` `<final>` declares its **role** in donedata. The class is a
-pure function of the role:
+pure function of the role. This mapping is the single source
+`src/sce_integration/verdict_taxonomy.def` and is regenerated into the table
+below by `tools/gen_verdict_taxonomy.py` (CI fails if it drifts):
 
-| role | class | applies to |
-|------|-------|------------|
-| `conformant` | `pass` | required behaviour observed (role optional; `pass` is unambiguous) |
-| `conformant_absence` | `pass` | "must NOT occur" assertion held: window elapsed, no prohibited event |
-| `observed_violation` | `fail` | a captured frame/behaviour violates a MUST requirement |
-| `precondition_unmet` | `inconclusive` | the IUT never reached the testable state — preamble incomplete (no OfferService, no initial ARP probe, no DUT-originated packet, no UT confirmation) |
-| `property_unobserved` | `inconclusive` | the IUT reached the testable state (liveness shown), but the targeted frame/reaction was not observed within the window — **includes a mandated reaction that was not seen** |
-| `test_system_fault` | `error` | the harness could not drive/observe: stimulus send failure, capture/socket failure, SCXML interpreter error, operator interruption |
+<!-- GENERATED:role-table BEGIN (gen_verdict_taxonomy.py) -->
+| role | class |
+|------|-------|
+| `conformant` | `pass` |
+| `conformant_absence` | `pass` |
+| `observed_violation` | `fail` |
+| `precondition_unmet` | `inconclusive` |
+| `property_unobserved` | `inconclusive` |
+| `test_system_fault` | `error` |
+<!-- GENERATED:role-table END -->
+
+Role meanings:
+- **`conformant`** — required behaviour observed (role optional; `pass` is unambiguous).
+- **`conformant_absence`** — "must NOT occur" assertion held: window elapsed, no prohibited event.
+- **`observed_violation`** — a captured frame/behaviour violates a MUST requirement.
+- **`precondition_unmet`** — the IUT never reached the testable state: preamble incomplete (no OfferService, no initial ARP probe, no DUT-originated packet, no UT confirmation).
+- **`property_unobserved`** — the IUT reached the testable state (liveness shown), but the targeted frame/reaction was not observed within the window (**includes a mandated reaction that was not seen**).
+- **`test_system_fault`** — the harness could not drive/observe: stimulus send failure, capture/socket failure, SCXML interpreter error, operator interruption.
 
 The split between `precondition_unmet` and `property_unobserved` is **diagnostic
 only** — both are `inconclusive`. It records *where* the test stalled (before vs

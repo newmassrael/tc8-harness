@@ -42,24 +42,16 @@ TESTS_DIR = REPO / "tests"
 
 SCE_NS = "http://sce.dev/ext"
 
-# The conformance-verdict classification policy — the machine form of
-# docs/verdict_policy.md §3. A non-`pass` <final> declares its semantic `role`
-# in donedata; the verdict class is a pure function of that role, so changing
-# the policy re-derives every class without per-case edits. The four classes
-# themselves mirror `VerdictClass` in src/sce_integration/verdict.h (the C++
-# source); "running" is excluded — it is the runtime-only sentinel for a
-# non-final / no-donedata state and is never authored in donedata.
-ROLE_POLICY = {
-    "conformant":          "pass",          # required behaviour observed
-    "conformant_absence":  "pass",          # "must NOT occur" assertion held
-    "observed_violation":  "fail",          # a captured frame violates a MUST
-    "precondition_unmet":  "inconclusive",  # IUT never reached the testable state
-    "property_unobserved": "inconclusive",  # IUT live, targeted frame/reaction unseen
-    "test_system_fault":   "error",         # the harness could not drive/observe
-}
+# The classification policy (role -> class) and the valid class set are
+# GENERATED from src/sce_integration/verdict_taxonomy.def — the single source,
+# also #included by verdict.h — via tools/gen_verdict_taxonomy.py. See
+# docs/verdict_policy.md §3. CI runs `gen_verdict_taxonomy.py --check`, so this
+# import cannot drift from the C++ taxonomy or the bash smoke gate.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from verdict_taxonomy_gen import ROLE_POLICY, VALID_CLASSES  # noqa: E402
 
-# The classes a donedata verdict may carry — the image of the policy.
-VALID_CLASSES = set(ROLE_POLICY.values())
+# Reasons are lower_snake_case identifiers (D-lite format check).
+_REASON_RE = re.compile(r"^[a-z0-9_]+$")
 
 # A verdict as (class, reason, role); reason/role are "" when absent.
 Verdict = tuple[str, str, str]
@@ -153,7 +145,7 @@ def audit_case(name: str) -> CaseReport:
         rep.findings.append("MISSING_DONEDATA: no <final> carries a donedata verdict")
         return rep
 
-    for state, (cls, _reason, role) in sorted(done.items()):
+    for state, (cls, reason, role) in sorted(done.items()):
         if cls not in VALID_CLASSES:
             rep.findings.append(
                 f"BAD_CLASS: final '{state}' verdict class '{cls}' not in {sorted(VALID_CLASSES)}"
@@ -172,6 +164,12 @@ def audit_case(name: str) -> CaseReport:
                     f"ROLE_CLASS_MISMATCH: final '{state}' role '{role}' "
                     f"requires class '{ROLE_POLICY[role]}', got '{cls}'"
                 )
+        # D-lite: reason strings are lower_snake_case identifiers. Empty (pass)
+        # and unsubstituted template params ({$...}) are exempt.
+        if reason and "{$" not in reason and not _REASON_RE.match(reason):
+            rep.findings.append(
+                f"REASON_FORMAT: final '{state}' reason '{reason}' is not lower_snake_case"
+            )
     return rep
 
 

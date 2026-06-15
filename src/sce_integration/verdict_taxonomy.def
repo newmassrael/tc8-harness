@@ -1,0 +1,29 @@
+// Single source of truth for the TC8 conformance verdict taxonomy + role
+// policy. See docs/verdict_policy.md for the rationale (ISO/IEC 9646 / TTCN-3).
+//
+// X-macro form:
+//   TC8_VERDICT_CLASS(EnumName, "wire-name", exit_code)
+//   TC8_VERDICT_ROLE("role-name", ClassEnumName)
+//
+// Consumed directly (zero-cost, no parsing) by src/sce_integration/verdict.h
+// for the C++ enum + name/exit mappings (roles are a no-op there — the runtime
+// reads the class from donedata; roles are an audit-time concern). Also parsed
+// by tools/gen_verdict_taxonomy.py, which GENERATES the Python (audit) and Bash
+// (smoke gate) mirrors plus the docs/verdict_policy.md role table — so the
+// taxonomy + policy exist in exactly one place and every consumer derives.
+//
+// Gate disposition is DERIVED from the exit code, not stated separately:
+//   0 = success (pass) | 1 = gate-red (fail) | anything else = non-conclusion.
+
+TC8_VERDICT_CLASS(Pass,         "pass",         0)
+TC8_VERDICT_CLASS(Fail,         "fail",         1)
+TC8_VERDICT_CLASS(Inconclusive, "inconclusive", 2)
+TC8_VERDICT_CLASS(Error,        "error",        3)
+TC8_VERDICT_CLASS(Running,      "running",      1)
+
+TC8_VERDICT_ROLE("conformant",          Pass)
+TC8_VERDICT_ROLE("conformant_absence",  Pass)
+TC8_VERDICT_ROLE("observed_violation",  Fail)
+TC8_VERDICT_ROLE("precondition_unmet",  Inconclusive)
+TC8_VERDICT_ROLE("property_unobserved", Inconclusive)
+TC8_VERDICT_ROLE("test_system_fault",   Error)

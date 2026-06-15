@@ -154,11 +154,16 @@ jobs:
         run: ctest --test-dir build --output-on-failure -j4
 
       - name: Verdict donedata SSOT gate
-        # Enforces the single-source verdict invariant: every registered case
-        # carries a donedata verdict (inline or via its sce:template) with a
-        # canonical conformance class. Fails the build on any missing/invalid
-        # donedata, so the SSOT cannot rot. Pure-Python, no spec corpus needed.
-        run: python3 tools/verdict_drift_audit.py
+        # Enforces the single-source verdict invariant in two layers:
+        #  1. the taxonomy + role policy generated mirrors (python/bash/doc) are
+        #     fresh w.r.t. src/sce_integration/verdict_taxonomy.def (the source
+        #     also #included by verdict.h), so C++/python/bash cannot diverge;
+        #  2. every registered case carries a donedata verdict whose class
+        #     matches its declared role under that policy.
+        # Pure-Python, no spec corpus needed.
+        run: |
+          python3 tools/gen_verdict_taxonomy.py --check
+          python3 tools/verdict_drift_audit.py
 
       - name: Re-mine spec inventory and verify it matches checked-in copy
         # Skipped on CI runners that don't have the TC8 spec PDF split
