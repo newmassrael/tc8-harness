@@ -4,7 +4,7 @@
   self-reference trap on the positive _02 case. tc8-dut emits
   Announces via OpStartLLAutoconfBuggy(flavor=AnnounceSenderTargetMismatch):
   the first Announce's sender_proto_ip is driven to the DUT iface IP
-  while target_proto_ip stays at the committed LL, violating RFC 3927
+  while target_proto_ip stays at the committed LL, violating
   RFC 3927 §2.4 (sender_ip == target_ip == announced LL).
 
   Pass = inverted pass_expr matched (sender != target OR target not in
