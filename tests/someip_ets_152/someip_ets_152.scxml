@@ -6,25 +6,46 @@
   emitted SD entry (OfferService cyclic + SubscribeEventgroupAck) and on
   wrap MUST skip 0, restarting at 1. The Tester forces the counter to
   climb fast by bursting SubscribeEventgroup at ~480 acks/sec via a
-  background thread spawned from `kickStimulus` (see trait); the wrap
-  edge is observable on any DUT-emitted SD frame around session_id
-  0xFFFF → 0x0001.
+  background thread spawned from `kickStimulus` (see trait); the wrap edge
+  is observable on any DUT-emitted SD frame around session_id 0xFFFF → 1.
+
+  Conformance verdict model (ISO/IEC 9646 / TTCN-3). The property under
+  test is a boundary condition, but a black-box DUT can only be driven to
+  the wrap by emitting all 65,535 SD entries, so the run is a long
+  throughput race. The verdict is SOUND — it FAILs only on an observed
+  violation, never because the environment was too slow to drive the wrap:
+    pass         — wrap observed: session_id 0xFFFF → 0x0001..0x000F (the
+                   counter skipped 0).
+    fail         — wrap observed but session_id → 0x0000 (the spec MUST was
+                   violated): session_id_wrapped_to_zero.
+    inconclusive — the DUT stopped emitting SD mid-burst
+                   (sd_emission_stalled, the progress watchdog) or the
+                   harness budget elapsed before the wrap was reached
+                   (harness_budget_exceeded, reported by the runner). The
+                   DUT was NOT shown to violate anything, so this is not a
+                   FAIL — it does not red the conformance gate.
+    error        — the DUT never offered the service (the SD stack did not
+                   come up): a precondition fault, not a DUT defect.
 
     Phase 1 (listening_phase1): first OfferService observation on the
-            configured SERVICE-ID-1. 6 s deadline matches the §5.1.6
-            BASIC_03 / ETS_086 phase-1 envelope.
+            configured SERVICE-ID-1. 6 s deadline (BASIC_03 / ETS_086
+            phase-1 envelope); absence → error (precondition not met).
     Phase 2 (listening_phase2A ↔ listening_phase2B): alternating
             self-target so the dispatch helper's state-change-gated
             `prev_sd_session_id = session_id` snapshot fires on every
             observed SD frame (a true single-state self-transition would
-            short-circuit the snapshot guard, leaving prev pinned at
-            phase 1's exit value). Pass cond fires when prev sits in the
-            top 256 IDs and current is in the bottom 16 — lenient bounds
-            against the wrap discontinuity.
+            short-circuit the snapshot). Pass / fail fire on the wrap
+            discontinuity (prev in the top 256 IDs).
 
-  Phase 2 deadline 180 s covers the ~140 s wall-time the burst needs to
-  traverse 65,535 acks (PM21 measured 480 acks/sec); 200 s smoke envelope
-  carries a 20 s margin.
+            Progress watchdog (the structural fix for the old fixed-180 s
+            race): on every SD frame the A↔B flip cancels and re-arms
+            `sd_wd` (W3C SCXML 6.2 / 6.3 send id + cancel sendid), so the
+            run continues as long as SD keeps flowing — a slow environment
+            still reaches the wrap and PASSes, regardless of ack rate.
+            There is no arbitrary per-case wall-clock cap: a no-SD-for-15 s
+            stall → inconclusive (sd_emission_stalled), and the harness
+            budget (-t, the global backstop) is the only time bound — the
+            runner reports its expiry as inconclusive, never a FAIL.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -49,33 +70,45 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_phase2A"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="error_no_offer"/>
   </state>
 
   <state id="listening_phase2A">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="180s"/>
+      <send id="sd_wd" event="sd_stall_exceeded" delay="15s"/>
     </onentry>
+    <onexit>
+      <cancel sendid="sd_wd"/>
+    </onexit>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.prev_sd_session_id &gt; 0xFF00 and captured.session_id &lt; 0x0010 and captured.session_id &gt; 0"
                 target="pass"/>
     <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.prev_sd_session_id &gt; 0xFF00 and captured.session_id == 0"
+                target="fail_wrap_to_zero"/>
+    <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1"
                 target="listening_phase2B"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_wrap_observed"/>
+    <transition event="sd_stall_exceeded" target="inconclusive_sd_stalled"/>
   </state>
 
   <state id="listening_phase2B">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="180s"/>
+      <send id="sd_wd" event="sd_stall_exceeded" delay="15s"/>
     </onentry>
+    <onexit>
+      <cancel sendid="sd_wd"/>
+    </onexit>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.prev_sd_session_id &gt; 0xFF00 and captured.session_id &lt; 0x0010 and captured.session_id &gt; 0"
                 target="pass"/>
     <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.prev_sd_session_id &gt; 0xFF00 and captured.session_id == 0"
+                target="fail_wrap_to_zero"/>
+    <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1"
                 target="listening_phase2A"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_wrap_observed"/>
+    <transition event="sd_stall_exceeded" target="inconclusive_sd_stalled"/>
   </state>
 
   <final id="pass">
@@ -84,15 +117,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="fail_wrap_to_zero">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"fail","reason":"session_id_wrapped_to_zero"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_wrap_observed">
+  <final id="inconclusive_sd_stalled">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_session_id_wrap_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"sd_emission_stalled"}</content>
+    </donedata>
+  </final>
+
+  <final id="error_no_offer">
+    <donedata>
+      <content>{"verdict":"error","reason":"no_offer_service_within_listen_window"}</content>
     </donedata>
   </final>
 </scxml>

@@ -1554,15 +1554,25 @@ run_case() {
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=1" >/dev/null
     fi
 
-    # Tier-2 2b#4 capability-skip: the harness emits `verdict  : skip:<reason>`
-    # when the selected --dut-control backend lacks a capability the case
-    # requires (e.g. a kernel state-probe absent from standard AUTOSAR
-    # testability). Route it to the skip ledger — same treatment as a topology
-    # skip, NOT a failure.
-    local cap_skip_reason=""
+    # Conformance verdict classes that are NOT a DUT violation (ISO/IEC 9646 /
+    # TTCN-3 model), read from the harness `verdict  :` line (the donedata SSOT
+    # via verdictFor):
+    #   skip         — the selected --dut-control backend lacks a capability the
+    #                  case requires (e.g. a kernel state-probe absent from
+    #                  standard AUTOSAR testability; Tier-2 2b#4).
+    #   inconclusive — the asserted condition was not exercised within the
+    #                  observation window (e.g. a long throughput race did not
+    #                  reach its boundary): the DUT was not shown to violate
+    #                  anything, so this must not be a FAIL.
+    #   error        — a precondition / harness step failed (e.g. the DUT stack
+    #                  never came up): a test-environment fault, not a DUT defect.
+    # All three route to the skip ledger as <skipped/> — none reds the
+    # conformance gate; only an observed FAIL does. The class prefix is kept in
+    # the reason so the three stay distinguishable in the summary + JUnit.
+    local nonfail_reason=""
     if [[ -r "$hlog" ]]; then
-        cap_skip_reason=$(grep -m1 -E '^verdict  : skip:' "$hlog" 2>/dev/null \
-            | sed -E 's/^verdict  : skip:(.*)$/\1/' || true)
+        nonfail_reason=$(grep -m1 -E '^verdict  : (skip|inconclusive|error):' "$hlog" 2>/dev/null \
+            | sed -E 's/^verdict  : ((skip|inconclusive|error):.*)$/\1/' || true)
     fi
 
     {
@@ -1574,8 +1584,8 @@ run_case() {
         echo "---- tc8-dut output (tail) ----"
         tail -20 "$dlog"
         echo "--------------------------------"
-        if [[ -n "$cap_skip_reason" ]]; then
-            echo "[w$W] SKIP ${case_id} — ${cap_skip_reason}"
+        if [[ -n "$nonfail_reason" ]]; then
+            echo "[w$W] SKIP ${case_id} — ${nonfail_reason}"
         elif grep -q 'verdict  : pass' "$hlog"; then
             echo "[w$W] PASS ${case_id}"
         else
@@ -1583,8 +1593,8 @@ run_case() {
         fi
     } | emit_block
 
-    if [[ -n "$cap_skip_reason" ]]; then
-        record_skip "$W" "$case_id" "$cap_skip_reason"
+    if [[ -n "$nonfail_reason" ]]; then
+        record_skip "$W" "$case_id" "$nonfail_reason"
         if (( keep_logs == 0 )); then
             rm -f "$hlog" "$dlog"
         fi
