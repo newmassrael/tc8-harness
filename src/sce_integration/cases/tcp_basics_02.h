@@ -70,7 +70,7 @@ struct TestCaseTraits<cases::TcpBasics02SM>
         // tcpStateProbe() is non-null by contract: the capability gate skipped
         // this case before stimulus if the backend lacked kCapTcpStateProbe.
         // utEstablishedByte maps the tristate (and a nullopt open) onto the
-        // ut_established byte (SSOT shared with the opcode queryTcpEstablishedSync).
+        // ut_established byte (utEstablishedByte is the byte-encoding SSOT).
         c.ut_established = open.conn
             ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open.conn->socket))
             : 0xFFU;

@@ -678,86 +678,6 @@ inline constexpr auto kTcpUtRpcWait = std::chrono::milliseconds(100);
 // the magic-number sleep at every active-open prelude.
 inline constexpr auto kTcpActiveHandshakeGrace = std::chrono::milliseconds(50);
 
-// Inline UT request sender. Wraps the opcode-specific builder and the
-// raw-inject path in one line so BASICS traits stay a clean sequence
-// of "open socket, connect, query established, close socket".
-//
-// Passive open only: arms a DUT-side listener (BASICS_01..03, 09, 10's
-// prep stage) per the §4.8.5 `<openTCPSocket(typeOfSocket=passive)>`
-// procedure. The active counterpart is gone — the DUT's active OPEN now
-// runs through the Tier-2 seam (`ITcpControl::connectTcp`,
-// cases/_tcp_seam.h) on whichever backend `--dut-control` selects.
-inline int sendOpenTcpSocketPassiveRequest(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  req_id,
-    std::uint16_t local_port,
-    std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto payload =
-        ::tc8::stimulus::buildOpenTcpSocketPassiveRequest(req_id, local_port);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, payload);
-}
-
-inline int sendCloseTcpSocketRequest(const ::tc8::TestConfig &cfg,
-                                     std::string_view iface,
-                                     const std::array<std::uint8_t, 6> &dut_mac,
-                                     std::uint8_t req_id,
-                                     std::uint8_t socket_id,
-                                     std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto payload = ::tc8::stimulus::buildCloseTcpSocketRequest(req_id, socket_id);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, payload);
-}
-
-inline int sendShutdownTcpSocketWrRequest(const ::tc8::TestConfig &cfg,
-                                           std::string_view iface,
-                                           const std::array<std::uint8_t, 6> &dut_mac,
-                                           std::uint8_t  req_id,
-                                           std::uint8_t  socket_id,
-                                           std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto payload = ::tc8::stimulus::buildShutdownTcpSocketWrRequest(req_id, socket_id);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, payload);
-}
-
-inline int sendQueryTcpEstablishedRequest(const ::tc8::TestConfig &cfg,
-                                          std::string_view iface,
-                                          const std::array<std::uint8_t, 6> &dut_mac,
-                                          std::uint8_t req_id,
-                                          std::uint8_t socket_id,
-                                          std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto payload = ::tc8::stimulus::buildQueryTcpEstablishedRequest(req_id, socket_id);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, payload);
-}
-
-// §4.8.6.9 MSS_OPTIONS_06/_09/_10 driver: ask tc8-dut to allocate
-// `total_len` bytes filled with `pattern` and write them onto the
-// connected fd. Used to drive Linux's TCP segmentation with bulk
-// data — payload count exceeds MTU so the kernel segments per the
-// negotiated send MSS.
-inline int sendSendTcpDataPatternRequest(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint8_t  req_id,
-    std::uint8_t  socket_id,
-    std::uint8_t  pattern,
-    std::uint16_t total_len,
-    std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort) {
-    const auto buf = ::tc8::stimulus::buildSendTcpDataPatternRequest(
-        req_id, socket_id, pattern, total_len);
-    return ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, buf);
-}
-
 // Tester-side `connect()` to the DUT's listener. Uses the tester
 // netns's normal socket layer, so the kernel issues its own SYN
 // (with kernel-chosen SEQ) and completes the 3-way handshake end-
@@ -778,8 +698,7 @@ inline int sendSendTcpDataPatternRequest(
 // silent "connect returned non-zero".
 // Encode a seam state-probe result (`ITcpStateProbe::isEstablished`) into the
 // `ut_established` byte the SCXML guards read — the single source of truth for
-// the tristate contract, shared with the opcode `queryTcpEstablishedSync`
-// below:
+// the tristate contract the SCXML established-guards consume:
 //   0x01 — established,
 //   0x00 — not established,
 //   0xFF — query failed / probe returned nullopt (a hard-failure path, same
@@ -789,59 +708,6 @@ inline int sendSendTcpDataPatternRequest(
 inline std::uint8_t utEstablishedByte(std::optional<bool> est) {
     return static_cast<std::uint8_t>(
         !est.has_value() ? 0xFFU : (*est ? 0x01U : 0x00U));
-}
-
-// Synchronous UT OpQueryTcpEstablished. Opens a transient UDP socket,
-// sends the query to DUT:30600, waits up to 500 ms for the
-// Confirmation, returns the `established` byte parsed from the
-// response body.
-//
-// Returns:
-//   0x01 — established (DUT listener has accepted a connection),
-//   0x00 — not established,
-//   0xFF — any RPC failure (socket, send, recv timeout, malformed
-//          response). BASICS_02 treats 0xFF as a hard-failure path
-//          (same class as "no SYN+ACK within listen window"), so the
-//          tristate is deterministic.
-inline std::uint8_t queryTcpEstablishedSync(const ::tc8::TestConfig &cfg,
-                                            std::uint8_t req_id,
-                                            std::uint8_t socket_id,
-                                            std::chrono::milliseconds timeout =
-                                                std::chrono::milliseconds(500)) {
-    const int fd = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (fd < 0) return 0xFFU;
-    timeval tv{};
-    tv.tv_sec  = static_cast<time_t>(timeout.count() / 1000);
-    tv.tv_usec = static_cast<suseconds_t>((timeout.count() % 1000) * 1000);
-    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-    sockaddr_in remote{};
-    remote.sin_family      = AF_INET;
-    remote.sin_addr.s_addr = cfg.ipv4.dut_iface_ip;
-    remote.sin_port        = htons(::tc8::ut::kPort);
-
-    const auto payload = ::tc8::stimulus::buildQueryTcpEstablishedRequest(
-        req_id, socket_id);
-    if (::sendto(fd, payload.data(), payload.size(), 0,
-                 reinterpret_cast<sockaddr*>(&remote), sizeof(remote))
-        != static_cast<ssize_t>(payload.size())) {
-        ::close(fd);
-        return 0xFFU;
-    }
-
-    std::uint8_t buf[64];
-    sockaddr_in peer{};
-    socklen_t peer_len = sizeof(peer);
-    const ssize_t n = ::recvfrom(fd, buf, sizeof(buf), 0,
-                                  reinterpret_cast<sockaddr*>(&peer), &peer_len);
-    ::close(fd);
-    // Expected: <0x85 (response opcode)> <req_id> <status=0x00> <established:u8>.
-    if (n < 4) return 0xFFU;
-    if (buf[0] != static_cast<std::uint8_t>(::tc8::ut::OpQueryTcpEstablished
-                                            | ::tc8::ut::kResponseBit)) return 0xFFU;
-    if (buf[1] != req_id)                                              return 0xFFU;
-    if (buf[2] != ::tc8::ut::kStatusOk)                                return 0xFFU;
-    return buf[3];
 }
 
 // Kernel-side TCP_INFO probing for the §4.8.6.11 RETRANSMISSION_TO
@@ -1448,28 +1314,15 @@ struct TcpTimeWaitInfo {
     std::uint32_t tester_ack_post_fin = 0;
 };
 
-// Result of `driveRawPassiveHandshake`. `dut_isn` is the DUT-emitted
-// SYN+ACK seq_num parsed from the snippet capture — callers that need
-// to drive the connection further (e.g. an in-window data probe after
-// the handshake) compose tester ACK / data segments off this value.
-// `ut_established` is the OpQueryTcpEstablished response byte (0xFF =
-// not queried, 0x00 = not established, 0x01 = established).
-struct RawPassiveHandshakeInfo {
-    bool          ok               = false;
-    std::uint32_t dut_isn          = 0;
-    std::uint16_t tester_src_port  = 0;
-    std::uint8_t  ut_established   = 0xFFU;
-};
-
 // Backend-agnostic raw 3-way handshake against a DUT already in LISTEN: the SSOT
-// for the tester-side choreography shared by the opcode `driveRawPassiveHandshake`
-// and the seam `driveSeamRawPassiveHandshake` (cases/_tcp_seam_passive_open.h).
+// for the tester-side wire choreography that the seam `driveSeamRawPassiveAccept`
+// (cases/_tcp_seam_passive_open.h) composes — kept a named function so the seq
+// arithmetic lives in exactly one place, separate from the verb's seam
+// LISTEN+ACCEPT orchestration.
 // Open the SYN+ACK snippet, suppress the tester-kernel RST (the DUT SYN+ACK lands
 // on an unbound tester port), raw-inject the tester SYN with caller-controlled
 // options bytes, capture the DUT SYN+ACK, raw-inject the acceptable third-leg
-// ACK, and settle so the kernel's accept queue drains. The DUT LISTEN open and any
-// post-handshake state query are the caller's (backend-specific) — only this
-// middle is shared, so the seq arithmetic lives in exactly one place.
+// ACK, and settle so the kernel's accept queue drains.
 //
 // Returns the DUT ISN (SYN+ACK seq_num) or nullopt if the snippet could not open
 // or the DUT SYN+ACK never arrived. `tester_isn` lets the §4.8.6.17 SEQUENCE cases
@@ -1510,90 +1363,6 @@ inline std::optional<std::uint32_t> rawPassiveThreeWayHandshake(
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     return syn_ack->seq_num;
-}
-
-// Tester-driven 3-way handshake against a DUT-side passive listener,
-// with full control over the tester's SYN options bytes. Used by §4.8
-// .6.9 TCP_MSS_OPTIONS_01..03 — the spec procedure has the tester
-// inject a hand-crafted SYN whose options region carries an MSS value
-// of an illegal length (_01), an unimplemented option kind (_03), or
-// NOP/EOL placeholders (_02), then asserts the DUT either ignores the
-// malformed bytes (_02/_03 complete the handshake; _01 simply does
-// not crash) or otherwise survives without disturbing the rest of
-// the kernel's TCP stack.
-//
-// Mechanism:
-//   1. UT OpOpenTcpSocket(passive, listen_port) — DUT enters LISTEN.
-//   2. Open `TcpFrameSnippet::forDutSynAck` keyed on `tester_src_port`
-//      so the snippet ring buffers the DUT's SYN+ACK before the
-//      tester's third-leg ACK closes the listen window.
-//   3. RAII `TesterAutoRstDrop` — Linux's tester kernel sees the
-//      DUT-emitted SYN+ACK on a 4-tuple where it has no socket and
-//      would otherwise emit an RST that would crash the embryonic
-//      handshake; the iptables OUTPUT drop suppresses that.
-//   4. Raw-inject SYN with `syn_options` bytes pre-encoded per
-//      RFC 793 §3.1 (caller is responsible for option layout —
-//      `buildTcpSegment` pads to a 4-byte boundary and recomputes
-//      Data Offset). seq=kTesterInitialSeq.
-//   5. `tryCapture` the DUT SYN+ACK (timeout `capture_timeout`).
-//      Returns `ok=false` on timeout — the case's SCXML still has the
-//      SYN+ACK in the harness pcap (different libpcap handle), so
-//      cases that rely solely on the SYN+ACK pass guard can ignore
-//      the helper's `ok` and consult `captured.flags` instead.
-//   6. Raw-inject ACK with seq=kTesterInitialSeq+1, ack=dut_isn+1.
-//      DUT TCB transitions SYN-RCVD → ESTABLISHED on receipt.
-//   7. 50 ms settle (mirrors BASICS_02's wait between handshake and
-//      query so the kernel's accept queue drains and accept() yields
-//      a non-zero established flag inside the UT server).
-//   8. Optional UT OpQueryTcpEstablished — only fired when
-//      `query_req_id != 0`. Result lands in `info.ut_established`.
-//
-// Caller is expected to invoke `sendCloseTcpSocketRequest` after the
-// helper returns to tear the DUT-side fd down. The `TesterAutoRstDrop`
-// scope ends when the helper returns, restoring normal RST handling
-// before any post-helper raw-inject probes that need the tester
-// kernel to reflect RST behaviour.
-//
-// PARAMETER-COUNT THRESHOLD (audit 2026-04-27 late, SEQUENCE session):
-// the signature now carries 9 parameters (4 required + 5 with
-// defaults; `tester_isn` was the 9th, added for §4.8.6.17). The next
-// addition MUST refactor the trailing default-bearing params into a
-// `RawPassiveHandshakeOpts` struct to keep call sites readable. The
-// existing 10 call sites use positional + `/*name=*/literal` comments
-// to document binding intent — already at the limit of what positional
-// args remain readable for. Do not add a 10th parameter inline.
-inline RawPassiveHandshakeInfo driveRawPassiveHandshake(
-    const ::tc8::TestConfig &cfg,
-    std::string_view iface,
-    const std::array<std::uint8_t, 6> &dut_mac,
-    std::uint16_t listen_port,
-    std::vector<std::uint8_t> syn_options,
-    std::uint16_t tester_src_port = kBasicsTesterPort,
-    std::uint8_t  open_req_id     = 1,
-    std::uint8_t  query_req_id    = 0,
-    std::uint8_t  socket_id       = 1,
-    std::chrono::milliseconds capture_timeout =
-        std::chrono::milliseconds(2000),
-    std::uint32_t tester_isn      = kTesterInitialSeq) {
-    RawPassiveHandshakeInfo info{};
-    info.tester_src_port = tester_src_port;
-
-    sendOpenTcpSocketPassiveRequest(cfg, iface, dut_mac,
-                                     open_req_id, listen_port);
-    std::this_thread::sleep_for(kTcpUtRpcWait);
-
-    const auto dut_isn = rawPassiveThreeWayHandshake(
-        cfg, iface, listen_port, std::move(syn_options), tester_src_port,
-        tester_isn, capture_timeout);
-    if (!dut_isn) return info;
-    info.dut_isn = *dut_isn;
-
-    if (query_req_id != 0U) {
-        info.ut_established = queryTcpEstablishedSync(cfg, query_req_id, socket_id);
-    }
-
-    info.ok = true;
-    return info;
 }
 
 // ---- Backend-agnostic TIME-WAIT prelude cores ----------------------------
