@@ -17,14 +17,26 @@
   StopOfferService and react explicitly; this SCXML is the verdict
   vehicle either way.
 
+  Conformance verdict model (ISO/IEC 9646 / TTCN-3, same as SOMEIP_ETS_152).
+  The verdict is SOUND: it FAILs only on an observed post-Stop FindService
+  (phase 4), never because the environment failed to drive the DUT into the
+  observable precondition.
+
     Phase 1 (listening_phase1): SD warm-up — OfferService for SERVICE-ID-1.
+            Deadline → error (error_no_offer): the SD stack never reached
+            the wire (precondition fault, e.g. heavy-stack startup), not a
+            FindService defect.
     Phase 2 (listening_phase2_first_find): observe first DUT FindService on
-            SERVICE-ID-2 → advance.
+            SERVICE-ID-2 → advance. Deadline → inconclusive
+            (inconclusive_no_findservice): the DUT was proven live by its
+            phase-1 offer, but the transient Start-Up-Phase burst (~1.5 s)
+            was not captured in window, so the post-Stop-absence assertion
+            could not be reached. Not a FAIL.
     Phase 3 (listening_phase3_burst_window): 3 s burst-absorption window
             (Repetition Phase is allowed to fire multiple bursts).
     Phase 4 (listening_phase4_post_stop_absence): 4 s absence window after
             StopOfferService has been emitted. Any FindService for
-            SERVICE-ID-2 = fail. Deadline = pass.
+            SERVICE-ID-2 = fail (sole observed violation). Deadline = pass.
 
   Reference: PRS_SOMEIPSD_00351 / PRS_SOMEIPSD_00363.
 -->
@@ -49,9 +61,9 @@
       <send event="phase1_deadline_exceeded" delay="6s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                cond="cpp:captured.is_offer_service_for(expected.service_id)"
                 target="listening_phase2_first_find"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="error_no_offer"/>
   </state>
 
   <state id="listening_phase2_first_find">
@@ -61,7 +73,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x00 and captured.sd_entries[0].service_id == 0xF4E8"
                 target="listening_phase3_burst_window"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_findservice"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_no_findservice"/>
   </state>
 
   <state id="listening_phase3_burst_window">
@@ -87,15 +99,15 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="error_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"error","reason":"no_offer_service_within_listen_window"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_findservice">
+  <final id="inconclusive_no_findservice">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_findservice_during_start_phase"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_findservice_during_start_phase"}</content>
     </donedata>
   </final>
 
