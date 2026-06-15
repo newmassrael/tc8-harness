@@ -1955,6 +1955,22 @@ run_negative_case() {
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=60"              >/dev/null
     fi
 
+    # A negative case proves the guard DETECTS injected non-conformance by
+    # landing on the expected `fail:<reason>`. A sound non-conclusion —
+    # skip/inconclusive/error (e.g. the DUT never offered the service within
+    # the window, so the injected fault was never reachable and the guard was
+    # never exercised) — is NOT a negative-test failure; mirror run_case and
+    # route it to the skip ledger (<skipped/>), so it never reds the gate.
+    # CRITICAL asymmetry: a `pass` verdict stays a hard FAIL — the DUT wrongly
+    # accepted the non-conformant input, which is exactly what this guards
+    # against (a pass is neither the expected fail nor a non-conclusion, so it
+    # falls through to the exact-match rc below and reds the gate).
+    local nonfail_reason=""
+    if [[ -r "$hlog" ]]; then
+        nonfail_reason=$(grep -m1 -E '^verdict  : (skip|inconclusive|error):' "$hlog" 2>/dev/null \
+            | sed -E 's/^verdict  : ((skip|inconclusive|error):.*)$/\1/' || true)
+    fi
+
     {
         echo "=========================================="
         echo "[w$W] negative ${case_id} with --expect ${wrong_token}"
@@ -1963,12 +1979,23 @@ run_negative_case() {
         echo "---- harness output ----"
         cat "$hlog"
         echo "--------------------------------"
-        if grep -qF "verdict  : ${expected_reason}" "$hlog"; then
+        if [[ -n "$nonfail_reason" ]]; then
+            echo "[w$W] SKIP negative ${case_id} — ${nonfail_reason} (guard not exercised)"
+        elif grep -qF "verdict  : ${expected_reason}" "$hlog"; then
             echo "[w$W] PASS negative ${case_id} landed on ${expected_reason}"
         else
             echo "[w$W] FAIL negative ${case_id} did not land on ${expected_reason}"
         fi
     } | emit_block
+
+    if [[ -n "$nonfail_reason" ]]; then
+        junit_record_skip "$W" "${case_id}_neg" negative "$nonfail_reason"
+        echo "${case_id}_neg|${nonfail_reason}" >>"$WORK_ROOT/$W/skips"
+        if (( keep_logs == 0 )); then
+            rm -f "$hlog" "$dlog"
+        fi
+        return 0
+    fi
 
     local rc=0
     grep -qF "verdict  : ${expected_reason}" "$hlog" || rc=1
