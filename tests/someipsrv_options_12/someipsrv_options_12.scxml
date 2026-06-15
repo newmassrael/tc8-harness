@@ -11,7 +11,7 @@
        version="1.0"
        name="someipsrv_options_12"
        datamodel="null"
-       initial="listening">
+       initial="listening_phase1">
 
   <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
            presence_gate="captured.sd_ipv4_multicast_count &gt;= 1"

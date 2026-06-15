@@ -1,44 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Unified §5.1.5 SOMEIPSRV SD field-check template — single 3-state shape
-  shared by §5.1.5.5 OPTIONS (options-array field invariants) and §5.1.5.3
-  SD_MESSAGE (entries-array field invariants).
+  Unified §5.1.5 SOMEIPSRV SD field-check template — shared by §5.1.5.5
+  OPTIONS (options-array field invariants) and §5.1.5.3 SD_MESSAGE
+  (entries-array field invariants).
 
-    * pass — first SD frame whose entries[0].type matches the per-case
-             entry-type filter, whose `{$presence_gate}` holds, AND that
-             satisfies `{$pass_expr}`.
-    * {$fail_state} — same prefix gates but the field predicate holds
-             false. Final-state ID is per-case so verdict logs carry a
-             meaningful suffix without an extra reason map.
-    * fail_timeout — no qualifying SD frame within 5 s.
+  Conformance verdict model (ISO/IEC 9646 / TTCN-3, same as SOMEIP_ETS_152).
+  The verdict is SOUND: it FAILs only on an observed field violation, never
+  because the environment failed to drive the DUT into the precondition.
 
-  Three filters apply on every transition (in this order, with `cpp:`
-  short-circuit semantics):
+    Phase 1 (listening_phase1, 6 s deadline) — liveness + early match:
+      A qualifying SD frame (entries[0].type == {$entry_type}, presence gate
+      holds) resolves directly here: pass when `{$pass_expr}` holds, else
+      `{$fail_state}` (an observed field violation). Otherwise the DUT's
+      cyclic OfferService for the expected service — a DUT-originated SD
+      frame, never tester traffic (FindService 0x00 / Subscribe 0x06) — proves
+      the SD stack is up and advances to Phase 2.
+        * deadline -> error (error_no_offer): the DUT never offered the
+          service, i.e. the SD stack did not come up — a precondition fault,
+          not a field defect. Does not red the conformance gate.
+
+    Phase 2 (listening_phase2, 5 s deadline) — liveness confirmed:
+      Same qualifying pass / `{$fail_state}` branches as Phase 1.
+        * deadline -> inconclusive (inconclusive_no_qualifying_sd): the DUT
+          was proven live by its OfferService, but no SD frame matching this
+          case's entry-type / presence gate arrived, so the field property
+          could not be evaluated. The DUT was NOT shown to violate anything.
+
+  Three filters apply on every qualifying transition (in this order, with
+  `cpp:` short-circuit semantics):
     1. `captured.sd_entry_count &gt;= 1` — silently drops SD payloads
-       truncated short of the entries block; protects the entries[0]
-       index access that follows.
+       truncated short of the entries block; protects the entries[0] index
+       access that follows.
     2. `captured.sd_entries[0].type == {$entry_type}` — narrows to the
-       per-case entry-type window. Smoke-test runs on an active tc8-dut,
-       so cyclic OfferService (0x01), echoed FindService (0x00), and
-       tester-emitted Subscribe (0x06, seen via pcap) all arrive; only
-       the configured entry-type window is admitted.
-    3. `{$presence_gate}` — per-case extra precondition. OPTIONS cases
-       supply `captured.sd_option_count &gt;= 1` so a SD payload truncated
-       short of the options block doesn't drive a misleading fail.
-       SD_MESSAGE cases that need no extra gate pass `true`.
+       per-case entry-type window. Smoke-test runs on an active tc8-dut, so
+       cyclic OfferService (0x01), echoed FindService (0x00), and
+       tester-emitted Subscribe (0x06, seen via pcap) all arrive; only the
+       configured entry-type window is admitted.
+    3. `{$presence_gate}` — per-case extra precondition. OPTIONS cases supply
+       `captured.sd_option_count &gt;= 1` so a SD payload truncated short of
+       the options block doesn't drive a misleading fail. SD_MESSAGE cases
+       that need no extra gate pass `true`.
 
-  The presence gate ANDs into BOTH the pass and fail branches so frames
-  that don't apply (e.g. an SD frame with no options block, for an
-  OPTIONS case) silently fall through to the next event rather than
-  triggering a false fail.
+  The presence gate ANDs into BOTH qualifying branches so frames that don't
+  apply (e.g. an SD frame with no options block, for an OPTIONS case) fall
+  through to the liveness transition rather than triggering a false fail.
 
   Consumers point `pass_expr` at any cond fragment that reads
-  `captured.sd_entries[i].FIELD` or `captured.sd_options[i].FIELD`
-  against `expected.FIELD` literals or values configured via the harness
-  expect CLI key. Helper accessors live in `tc8::SomeIpCaptured`
-  (sd_first_option_with_l4 / sd_has_option_with_l4 /
-  sd_ipv4_endpoint_count). Constants live in `tc8::sd_option_type::*`,
-  `tc8::sd_l4_proto::*` and `tc8::sd_test_unknown::*`.
+  `captured.sd_entries[i].FIELD` or `captured.sd_options[i].FIELD` against
+  `expected.FIELD` literals or values configured via the harness expect CLI
+  key. Helper accessors live in `tc8::SomeIpCaptured`
+  (sd_first_option_with_l4 / sd_has_option_with_l4 / sd_ipv4_endpoint_count).
+  Constants live in `tc8::sd_option_type::*`, `tc8::sd_l4_proto::*` and
+  `tc8::sd_test_unknown::*`.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
@@ -59,9 +72,9 @@
                cpp:type="tc8::SomeIpExpected"
                cpp:include="sce_integration/someip_expected.h"/>
 
-  <state id="listening">
+  <state id="listening_phase1">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == {$entry_type} and ({$presence_gate}) and ({$pass_expr})"
@@ -69,7 +82,23 @@
     <transition event="someip_notification"
                 cond="cpp:captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == {$entry_type} and ({$presence_gate}) and !({$pass_expr})"
                 target="{$fail_state}"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="error_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == {$entry_type} and ({$presence_gate}) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == {$entry_type} and ({$presence_gate}) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_no_qualifying_sd"/>
   </state>
 
   <final id="pass">
@@ -84,9 +113,15 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="error_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_qualifying_sd_message_within_listen_window"}</content>
+      <content>{"verdict":"error","reason":"no_offer_service_within_listen_window"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_qualifying_sd">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_qualifying_sd_message_within_listen_window"}</content>
     </donedata>
   </final>
 </sce:template>

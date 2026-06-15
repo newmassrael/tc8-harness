@@ -18,7 +18,7 @@
        version="1.0"
        name="someipsrv_options_03"
        datamodel="null"
-       initial="listening">
+       initial="listening_phase1">
 
   <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
            presence_gate="captured.sd_option_count &gt;= 1"
