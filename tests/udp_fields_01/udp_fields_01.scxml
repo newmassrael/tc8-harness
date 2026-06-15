@@ -18,7 +18,7 @@
        version="1.0"
        name="udp_fields_01"
        datamodel="null"
-       initial="listening">
+       initial="listening_phase1">
   <sce:use template="../_templates/udp_field_check.sce-template.xml"
            pass_expr="captured.src_port == 20001"
            fail_state="fail_wrong_src_port"
