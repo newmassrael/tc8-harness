@@ -13,8 +13,8 @@
 
   Pass criterion: DUT emits a data segment after receiving an
   advertised window with the MSB set — i.e. the DUT honours
-  0x8000..0xFFFF as a positive 16-bit unsigned window (RFC 793
-  RFC 793 §3.1) rather than misinterpreting the high bit as a sign and
+  0x8000..0xFFFF as a positive 16-bit unsigned window
+  (RFC 793 §3.1) rather than misinterpreting the high bit as a sign and
   refusing to send (negative usable window).
 
   Spec interpretation note (handshake variant):

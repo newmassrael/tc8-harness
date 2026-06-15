@@ -18,8 +18,8 @@
   is per-phase and probes cannot cross-contaminate. Per phase the
   observation chain is:
     1. handshake third-leg ACK (DUT-emitted pure ACK)
-    2. probe-elicited ACK (DUT-emitted pure ACK with rcv_nxt — RFC
-       793 RFC 793 §3.9 challenge-ACK semantics; the DUT's OTW-SEQ
+    2. probe-elicited ACK (DUT-emitted pure ACK with rcv_nxt —
+       RFC 793 §3.9 challenge-ACK semantics; the DUT's OTW-SEQ
        path schedules an ACK carrying the next expected SEQ)
 
   Per-phase fail terminals split the chain by case so smoke-test

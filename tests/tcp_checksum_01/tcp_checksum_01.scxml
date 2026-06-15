@@ -2,7 +2,7 @@
 <!--
   TC8 §4.8.6.2 TCP_CHECKSUM_01: Receiver TCP MUST check the checksum
   in any incoming segment and MUST acknowledge in case of no error.
-  Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST), RFC 793
+  Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST),
   RFC 793 §3.1 p16 Header.
 
   v3.0 Test Procedure (p301-p320.txt:128):

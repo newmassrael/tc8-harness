@@ -53,7 +53,7 @@
 
   SCXML shape — single state with a `<send delay="0ms"/>`-raised
   evaluation event, multiple cond-keyed transitions; first matching
-  transition wins per W3C SCXML RFC 793 §3.13. Transitions are ordered fail-
+  transition wins per W3C SCXML §3.13. Transitions are ordered fail-
   first (handshake → query validity → retransmit-count thresholds →
   numeric rto growth) so the most-proximal cause short-circuits to
   its specific verdict before falling through to pass. delay=0ms is

@@ -2,8 +2,8 @@
 <!--
   TC8 §4.8.6.2 TCP_CHECKSUM_02: Receiver TCP MUST check the checksum
   in any incoming segment and MUST NOT acknowledge in case of an
-  error. Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST), RFC
-  793 RFC 793 §3.1 p16 Header.
+  error. Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST),
+  RFC 793 §3.1 p16 Header.
 
   v3.0 Test Procedure (p301-p320.txt:161):
     1. TESTER: Cause DUT to move on to ESTABLISHED state at <wnp>.

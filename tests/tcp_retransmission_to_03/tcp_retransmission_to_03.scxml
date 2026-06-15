@@ -48,9 +48,9 @@
     5. **Phase 1 snapshot**: a kernel-state read of the DUT socket's
        TCP info. Pass criteria: tcpi_retransmits >= 1 (proves the
        retx fired) AND tcpi_rto >= 350 ms (proves doubling).
-    6. Raw-inject Karn-excluded ACK acknowledging seg1's 8 B. RFC
-       6298 RFC 793 §3 forbids the RTT estimator from sampling this round-
-       trip; §5.3 forbids resetting the retransmit timer.
+    6. Raw-inject Karn-excluded ACK acknowledging seg1's 8 B.
+       RFC 6298 §3 forbids the RTT estimator from sampling this
+       round-trip; §5.3 forbids resetting the retransmit timer.
     7. Tester causes a SEND of seg2 (8 B) → the DUT arms the new
        retransmit timer with its *current* RTO value. A Karn-correct
        DUT preserves the doubled value; a Karn-violating DUT collapses
@@ -62,7 +62,7 @@
 
   SCXML shape — single state with a `<send delay="0ms"/>`-raised
   evaluation event, multiple cond-keyed transitions; first matching
-  transition wins per W3C SCXML RFC 793 §3.13. Transitions are ordered fail-
+  transition wins per W3C SCXML §3.13. Transitions are ordered fail-
   first (handshake → query validity → numeric thresholds) so the
   most-proximal cause short-circuits to its specific verdict before
   falling through to pass. delay=0ms is the minimal scheduler tick

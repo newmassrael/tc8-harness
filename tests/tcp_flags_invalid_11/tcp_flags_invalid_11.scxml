@@ -18,7 +18,7 @@
   phase the SCXML walks three DUT-origin observations:
     1. handshake third-leg ACK (DUT pure ACK)
     2. close-elicited auto-ACK (DUT pure ACK acknowledging tester FIN)
-    3. probe-elicited empty ACK (DUT pure ACK with rcv_nxt — RFC 793
+    3. probe-elicited empty ACK (DUT pure ACK with rcv_nxt —
        RFC 793 §3.9 challenge-ACK semantics)
 
   Distinct port quads (kBasicsActiveLocalPort+N /

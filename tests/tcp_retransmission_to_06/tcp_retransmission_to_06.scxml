@@ -51,7 +51,7 @@
 
   SCXML shape — single state with a `<send delay="0ms"/>`-raised
   evaluation event, multiple cond-keyed transitions; first matching
-  transition wins per W3C SCXML RFC 793 §3.13. Mirrors the _03/_04 evaluate
+  transition wins per W3C SCXML §3.13. Mirrors the _03/_04 evaluate
   pattern exactly. delay=0ms is the minimal scheduler tick required to
   flush the stimulus-mutated `captured` into the cond evaluator's view.
 

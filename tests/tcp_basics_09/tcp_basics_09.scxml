@@ -4,7 +4,7 @@
   ACK of its own FIN the DUT's TCP MUST move to CLOSED. Verification
   per spec is observational: a subsequent non-RST segment to the now-
   closed port must elicit a RST from the DUT — the RFC 793 §3.9 p65
-  CLOSED-state response, identical to BASICS_04. Derived from RFC 793
+  CLOSED-state response, identical to BASICS_04. Derived from
   RFC 793 §3.2 p23 Terminology.
 
   v3.0 Test Procedure (p281-p300.txt:654):

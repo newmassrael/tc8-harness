@@ -2,7 +2,7 @@
 <!--
   TC8 §4.8.6.4 TCP_CALL_RECEIVE_04: For RECEIVE call in ESTABLISHED /
   FIN-WAIT-1 / FIN-WAIT-2 state, TCP MUST reassemble queued incoming
-  segments and return them to the application. Derived from RFC 793
+  segments and return them to the application. Derived from
   RFC 793 §3.9 p58 Event Processing (MUST).
 
   v3.0 Test Procedure (p322):

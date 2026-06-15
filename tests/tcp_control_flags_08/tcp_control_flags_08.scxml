@@ -29,8 +29,8 @@
     3. Raw-inject SYN with seq=kTcpControlFlags08Seq1 from
        kTcpControlFlags08TesterSrcPort.
     4. After ~500 ms (DUT SYN,ACK observed by SCXML), raw-inject
-       SYN+RST with seq=kTcpControlFlags08Seq1+1. The DUT's RFC 5961
-       RFC 793 §3.2 RST handling on the SYN-RECEIVED 4-tuple matches
+       SYN+RST with seq=kTcpControlFlags08Seq1+1. The DUT's
+       RFC 5961 §3.2 RST handling on the SYN-RECEIVED 4-tuple matches
        when seq == rcv.nxt — the DUT closes the embryonic connection
        and its passive listener returns to LISTEN.
     5. After ~300 ms, raw-inject SYN with seq=kTcpControlFlags08Seq2

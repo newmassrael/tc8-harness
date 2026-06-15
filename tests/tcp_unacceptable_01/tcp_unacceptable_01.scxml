@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.8.6.3 TCP_UNACCEPTABLE_01: TCP MUST return to LISTEN state on
-  receiving an acceptable RST in SYN-RCVD state. Derived from RFC 793
+  receiving an acceptable RST in SYN-RCVD state. Derived from
   RFC 793 §3.4 p33 Establishing a connection (MUST).
 
   v3.0 Test Procedure (p301-p320.txt:261):

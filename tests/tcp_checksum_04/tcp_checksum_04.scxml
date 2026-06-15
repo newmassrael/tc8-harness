@@ -40,7 +40,7 @@
     on the cycle-1 SYN itself. Evaluating the two captured ISN
     snapshots (this file) sidesteps that race entirely.
 
-  Verdict ladder (first-match wins per W3C SCXML RFC 793 §3.13, fail-first):
+  Verdict ladder (first-match wins per W3C SCXML §3.13, fail-first):
     1. `cycle1_isn_captured == false` → `fail_no_cycle1_isn`
        (snippet timed out before SYN1 hit the wire — likely UT RPC
        failure or a negative-flip path where dut_iface_ip is
