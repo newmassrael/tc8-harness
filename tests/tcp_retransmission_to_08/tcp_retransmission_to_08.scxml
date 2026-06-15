@@ -4,10 +4,10 @@
   upper bound of 2*MSL of RTO for data segments. Derived from
   RFC 1122 §4.2.3.1 p96 Retransmission Timeout Calculation (SHOULD).
 
-  Linux 6.5 caps RTO at TCP_RTO_MAX = HZ * 120 = 120 s in
-  net/ipv4/tcp.h, twice the spec's 2*MSL = 60 s (Linux MSL = 30 s,
-  TCP_TIMEWAIT_LEN/2). The kernel's RTO doubles past 60 s before
-  plateauing at 120 s; on a Linux DUT this case is expected to fail.
+  Linux 6.5 caps RTO at 120 s (TCP_RTO_MAX), twice the spec's
+  2*MSL = 60 s (Linux MSL = 30 s). The DUT's RTO doubles past 60 s
+  before plateauing at 120 s; on a Linux DUT this case is expected
+  to fail.
   A strict-RFC DUT honouring the 2*MSL ceiling would pass.
 
   Verdict ladder (single kernel-state (TCP_INFO) snapshot off the DUT
