@@ -32,16 +32,6 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
         "without crashing (RFC 1122 §4.2.2.5 p85). Iterations: ilen=0 "
         "and ilen=5.";
 
-    // The verify phase confirms the DUT reached ESTABLISHED via the
-    // kCapTcpStateProbe sub-interface (kernel socket-state query) — a
-    // capability the opcode UT has but the standard AUTOSAR testability
-    // protocol does not. Declaring it makes the CLI capability gate
-    // honestly SKIP this case on a testability backend (Tier 2 2b#4)
-    // rather than fail it. kCapTcpControl covers the LISTEN opens of all
-    // three phases.
-    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
-
     // Inject one malformed SYN against a fresh DUT-side passive
     // listener: LISTEN via the seam, raw-inject the SYN (TesterAutoRstDrop
     // suppresses any RST the tester kernel would emit if the DUT
@@ -72,7 +62,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
         // going to hang or crash, it does so well within this window.
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        dut.tcpControl()->closeTcp(*listen);
+        ::tc8::sce::seamTcpControl(dut).closeTcp(*listen);
     }
 
     static void stimulus(Captured& c,
@@ -104,18 +94,23 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
             std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});
 
         // Verify phase: well-formed MSS=1460 SYN. If either iteration
-        // crashed the DUT, the seam handshake here times out and the
-        // SCXML listen window expires on no_dut_syn_ack.
+        // crashed the DUT, the seam handshake here times out and the SCXML
+        // listen window expires on no_dut_syn_ack. acceptTcp's confirmed
+        // accept is the both-backend "reached ESTABLISHED" verdict — a
+        // completed verify handshake proves the malformed SYNs did not wedge
+        // the DUT's TCP stack, so this runs on either backend.
         const std::vector<std::uint8_t> verify_options{
             0x02U, 0x04U, 0x05U, 0xB4U};  // MSS = 0x05B4 = 1460
 
-        const auto info = driveSeamRawPassiveHandshake(
+        auto verify = driveSeamRawPassiveAccept(
             dut, cfg, iface,
             kTcpMssOptionsListenPort01v,
             verify_options,
             kTcpMssOptionsTesterSrcPort01v);
-        c.ut_established = info.ut_established;
-        if (info.listen) dut.tcpControl()->closeTcp(*info.listen);
+        c.ut_established = verify.conn ? 0x01U : 0x00U;
+        if (verify.conn) {
+            ::tc8::sce::seamTcpControl(dut).closeTcp(verify.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {

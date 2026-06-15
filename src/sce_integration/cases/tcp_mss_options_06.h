@@ -7,7 +7,10 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_mss_options_06_sm.h"
@@ -31,17 +34,13 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
         "(RFC 1122 §4.2.2.6 p85). Iterations: Mv=200 (smaller), "
         "Mv=2000 (larger).";
 
-    // Drive one iteration: open passive listener, drive raw-passive
-    // handshake with caller-supplied MSS option, bulk-send via UT
-    // OpSendTcpDataPattern, close. The outer RstDrop scope (in
-    // stimulus()) keeps tester-kernel RSTs suppressed throughout.
-    static void runPhase(const ::tc8::TestConfig &cfg,
+    // Drive one iteration: seam raw-passive ACCEPT with caller-supplied
+    // MSS option, bulk-send via the seam sendTcpPattern, close. The outer
+    // RstDrop scope (in stimulus()) keeps tester-kernel RSTs suppressed
+    // throughout. Backend-agnostic — runs on opcode or testability.
+    static void runPhase(::tc8::sce::IDutControl& dut,
+                         const ::tc8::TestConfig &cfg,
                          std::string_view iface,
-                         const std::array<std::uint8_t, 6> &dut_mac,
-                         std::uint8_t  open_req_id,
-                         std::uint8_t  send_req_id,
-                         std::uint8_t  close_req_id,
-                         std::uint8_t  socket_id,
                          std::uint16_t listen_port,
                          std::uint16_t tester_src_port,
                          std::uint16_t advertised_mss) {
@@ -52,31 +51,25 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
             static_cast<std::uint8_t>((advertised_mss >> 8) & 0xFFU),
             static_cast<std::uint8_t>(advertised_mss & 0xFFU)};
 
-        const auto info = driveRawPassiveHandshake(
-            cfg, iface, dut_mac,
-            listen_port, syn_options,
-            tester_src_port,
-            open_req_id,
-            /*query_req_id=*/0,
-            socket_id);
-        (void)info;
+        auto open = driveSeamRawPassiveAccept(
+            dut, cfg, iface, listen_port, syn_options, tester_src_port);
+        if (!open.conn) return;
 
         // 4000 B > 2 × 1460 (max DUT MSS) ensures Linux always
         // segments the write into at least 2 chunks, even at iter 2's
         // 1460-byte clamp. First segment carries min(Mv, DUT_MSS).
-        sendSendTcpDataPatternRequest(
-            cfg, iface, dut_mac,
-            send_req_id, socket_id,
-            /*pattern=*/0xA5U, /*total_len=*/4000U);
+        seamSendTcpPattern(dut, open.conn->socket, /*pattern=*/0xA5U,
+                           /*total_len=*/4000U);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        sendCloseTcpSocketRequest(cfg, iface, dut_mac, close_req_id, socket_id);
+        ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
         std::this_thread::sleep_for(kTcpUtRpcWait);
     }
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -85,18 +78,14 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
 
         // Phase 1: Mv = 200 (< DUT MSS=1460). First DUT data segment
         // size = 200.
-        runPhase(cfg, iface, cfg.dut.mac,
-                 /*open_req_id=*/1, /*send_req_id=*/2, /*close_req_id=*/3,
-                 /*socket_id=*/1,
+        runPhase(dut, cfg, iface,
                  kTcpMssOptionsListenPort06a,
                  kTcpMssOptionsTesterSrcPort06a,
                  /*advertised_mss=*/200U);
 
         // Phase 2: Mv = 2000 (> DUT MSS). First DUT segment clamped
         // to DUT MSS = 1460.
-        runPhase(cfg, iface, cfg.dut.mac,
-                 /*open_req_id=*/4, /*send_req_id=*/5, /*close_req_id=*/6,
-                 /*socket_id=*/2,
+        runPhase(dut, cfg, iface,
                  kTcpMssOptionsListenPort06b,
                  kTcpMssOptionsTesterSrcPort06b,
                  /*advertised_mss=*/2000U);

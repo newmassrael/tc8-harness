@@ -7,7 +7,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_mss_options_03_sm.h"
@@ -41,26 +43,27 @@ struct TestCaseTraits<cases::TcpMssOptions03SM>
     //   5. Tester verifies DUT EST via UT OpQueryTcpEstablished.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // RFC 4727 kind 253 with 2-byte payload, length=4, padded to 4.
         const std::vector<std::uint8_t> syn_options{0xFDU, 0x04U, 0xAAU, 0xBBU};
 
-        const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.dut.mac,
+        // acceptTcp confirms the handshake completed despite the
+        // unimplemented option — a confirmed accept is the both-backend
+        // "reached ESTABLISHED" verdict (see MSS_OPTIONS_02).
+        auto open = driveSeamRawPassiveAccept(
+            dut, cfg, iface,
             kTcpMssOptionsListenPort03,
             syn_options,
-            kTcpMssOptionsTesterSrcPort03,
-            /*open_req_id=*/1,
-            /*query_req_id=*/3,
-            /*socket_id=*/1);
-        c.ut_established = info.ut_established;
+            kTcpMssOptionsTesterSrcPort03);
+        c.ut_established = open.conn ? 0x01U : 0x00U;
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) {
+            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {

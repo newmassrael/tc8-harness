@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -106,54 +105,66 @@ inline std::optional<::tc8::sce::DutSocket> driveSeamListen(::tc8::sce::IDutCont
     return handle;
 }
 
-// Result of driveSeamRawPassiveHandshake. `listen` is the DUT LISTEN handle the
-// caller closes (closeTcp); `ut_established` is the kCapTcpStateProbe verdict
-// byte (0xFF = query failed / handshake never landed, 0x00 = not established,
-// 0x01 = established) — same encoding the opcode OpQueryTcpEstablished helper
-// used.
-struct SeamRawPassiveHandshake {
-    std::optional<::tc8::sce::DutSocket> listen;
-    std::uint8_t                         ut_established = 0xFFU;
+// Result of driveSeamRawPassiveAccept. `conn` is the ACCEPTED DUT connection —
+// the handle a case drives sendTcp / sendTcpPattern / closeTcp on after the
+// handshake, or nullopt if the DUT never reached ESTABLISHED (no SYN+ACK, or the
+// accept never confirmed). The seam abstracts the backend's accepted-socket
+// model: the opcode UT promotes the LISTEN socket id in place to the accepted
+// connection, while the testability LISTEN_AND_ACCEPT Event reports a distinct
+// accepted-child socket id (the listening socket is closed inside acceptTcp).
+// `dut_isn` is the DUT SYN+ACK seq_num the caller composes post-handshake tester
+// segments off (ACKNOWLEDGEMENT_03, SEQUENCE_05); it is valid whenever `conn` is
+// present (the accept only confirms after the handshake captured the SYN+ACK), so
+// `conn.has_value()` is the single success predicate — no separate `ok` flag.
+struct SeamRawPassiveAccept {
+    std::optional<::tc8::sce::DutConnection> conn;
+    std::uint32_t                            dut_isn = 0;
 };
 
-// Seam counterpart of driveRawPassiveHandshake (tcp_pilot_common.h): open a DUT
-// LISTEN via the listen-only seam verb, raw-inject a tester SYN whose options
-// bytes the caller fully controls, complete the 3-way handshake, then confirm
-// the DUT reached ESTABLISHED via the kCapTcpStateProbe sub-interface. Used by
-// the MSS_OPTIONS verify phases (a hand-crafted SYN that must not
-// disturb the kernel's TCP stack, proven by a clean follow-up handshake).
+// Raw passive ACCEPT for cases that must operate on the ESTABLISHED connection
+// after a caller-crafted passive handshake: open a DUT LISTEN, raw-inject a
+// tester SYN whose options bytes the caller fully controls, complete the 3-way
+// handshake, and hand back the ACCEPTED DUT connection.
 //
-// Because the established check reads kernel socket state — opcode-only — a
-// case using this MUST declare kRequiredCapabilities |= kCapTcpStateProbe so
-// the CLI gate SKIPs it on a testability backend (Tier 2 2b#4); the
-// tcpStateProbe() deref is then contract-guaranteed. The caller closes the
-// returned listen handle once it has read ut_established. A nullopt `listen` or
-// a missing DUT SYN+ACK leaves ut_established at 0xFF.
-inline SeamRawPassiveHandshake driveSeamRawPassiveHandshake(
+// The whole open routes through ITcpControl::acceptTcp, so the accept
+// confirmation IS the both-backend "reached ESTABLISHED" verdict (opcode: an
+// OpQueryTcpEstablished poll on the accepted fd; testability: the
+// LISTEN_AND_ACCEPT Event) — no state-probe capability is required, so the case
+// runs and PASSes on whichever backend `--dut-control` selects. The crafted SYN
+// is the acceptTcp `trigger` body: the real client whose handshake the DUT's
+// SYN+ACK completes, exactly as connectToDutTcp is for driveSeamPassiveOpen.
+//
+// `tester_isn` pins the tester's SYN seq (default kTesterInitialSeq; the
+// SEQUENCE cases override it — e.g. 0xFFFFFFFF for the modulo-32
+// wraparound). The tester-side 3-way choreography is the shared SSOT
+// rawPassiveThreeWayHandshake (tcp_pilot_common.h); only the seam LISTEN+ACCEPT
+// open lives here. A nullopt `conn` (no DUT SYN+ACK, or the accept never
+// confirmed) is the caller's failure / teardown gate.
+inline SeamRawPassiveAccept driveSeamRawPassiveAccept(
     ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
     std::string_view iface, std::uint16_t listen_port,
     std::vector<std::uint8_t> syn_options, std::uint16_t tester_src_port,
+    std::uint32_t tester_isn = kTesterInitialSeq,
     std::chrono::milliseconds capture_timeout = std::chrono::milliseconds(2000)) {
-    SeamRawPassiveHandshake info{};
-    info.listen = driveSeamListen(dut, listen_port);
-    if (!info.listen) return info;
+    SeamRawPassiveAccept result{};
+    std::optional<std::uint32_t> dut_isn;
 
-    // Shared backend-agnostic choreography (SSOT = rawPassiveThreeWayHandshake in
-    // tcp_pilot_common.h): only the LISTEN open above and the state probe below
-    // differ from the opcode driveRawPassiveHandshake.
-    const auto dut_isn = rawPassiveThreeWayHandshake(
-        cfg, iface, listen_port, std::move(syn_options), tester_src_port,
-        kTesterInitialSeq, capture_timeout);
-    if (!dut_isn) return info;
+    result.conn = ::tc8::sce::seamTcpControl(dut).acceptTcp(
+        ::tc8::sce::BindSpec{/*do_bind=*/true, listen_port, /*local_addr_be=*/0},
+        [&] {
+            dut_isn = rawPassiveThreeWayHandshake(
+                cfg, iface, listen_port, std::move(syn_options), tester_src_port,
+                tester_isn, capture_timeout);
+        });
 
-    // tcpStateProbe() is non-null by contract: the capability gate skipped this
-    // case before stimulus if the backend lacked kCapTcpStateProbe (header note
-    // above). The assert documents the contract, matching driveSeamListen's
-    // tcpControl() assert.
-    ::tc8::sce::ITcpStateProbe *probe = dut.tcpStateProbe();
-    assert(probe != nullptr && "driveSeamRawPassiveHandshake requires kCapTcpStateProbe");
-    info.ut_established = utEstablishedByte(probe->isEstablished(*info.listen));
-    return info;
+    if (dut_isn) result.dut_isn = *dut_isn;
+    if (!result.conn) {
+        std::fprintf(stderr,
+                     "tcp-pilot: seam raw-passive ACCEPT failed (acceptTcp "
+                     "listen=%u, backend=%s)\n",
+                     listen_port, dut.backendName());
+    }
+    return result;
 }
 
 }  // namespace tc8::sce::tcp

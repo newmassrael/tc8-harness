@@ -8,7 +8,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -37,23 +39,17 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.dut.mac,
+        const auto open = driveSeamRawPassiveAccept(
+            dut, cfg, iface,
             kTcpAck03ListenPort,
             std::vector<std::uint8_t>{},
-            kTcpAck03TesterSrcPort,
-            /*open_req_id=*/1,
-            /*query_req_id=*/0,
-            /*socket_id=*/1);
-        if (!info.ok) {
-            sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                       /*req_id=*/2, /*socket_id=*/1);
-            return;
-        }
+            kTcpAck03TesterSrcPort);
+        if (!open.conn) return;  // no accepted connection ⇒ no DUT to ack/close
 
         const std::uint32_t injected_seq = kTesterInitialSeq + 1U;
         const std::uint32_t payload_len  =
@@ -64,7 +60,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
         data.src_port = kTcpAck03TesterSrcPort;
         data.dst_port = kTcpAck03ListenPort;
         data.seq_num  = injected_seq;
-        data.ack_num  = info.dut_isn + 1U;
+        data.ack_num  = open.dut_isn + 1U;
         data.flags    = ::tc8::stimulus::kTcpFlagPsh
                       | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
@@ -80,8 +76,9 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
         // pure data ACK is on the wire before teardown; a quickack DUT
         // (Linux) has already ACKed and is unaffected by the extra wait.
         std::this_thread::sleep_for(kDelayedAckSettle);
-        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                   /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) {
+            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {

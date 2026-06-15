@@ -7,7 +7,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_sequence_01_sm.h"
@@ -32,23 +34,26 @@ struct TestCaseTraits<cases::TcpSequence01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        driveRawPassiveHandshake(
-            cfg, iface, cfg.dut.mac,
+        // Seam raw-passive ACCEPT: DUT LISTEN, tester injects a SYN with
+        // ISN = kTesterInitialSeq, the 3-way completes, and the accepted
+        // connection comes back. The pass guard is purely the DUT SYN+ACK
+        // ack_num (== tester_isn + 1), captured by the SCXML during the
+        // handshake — so this runs and PASSes on either backend.
+        auto open = driveSeamRawPassiveAccept(
+            dut, cfg, iface,
             kTcpSequence01ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence01TesterSrcPort,
-            /*open_req_id=*/1,
-            /*query_req_id=*/0,
-            /*socket_id=*/1,
-            /*capture_timeout=*/std::chrono::milliseconds(2000),
             /*tester_isn=*/kTesterInitialSeq);
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                   /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) {
+            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {

@@ -8,7 +8,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -40,7 +42,8 @@ struct TestCaseTraits<cases::TcpSequence05SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -48,27 +51,19 @@ struct TestCaseTraits<cases::TcpSequence05SM>
         // socket, so any post-handshake DUT-origin ACK landing on
         // (tester_src_port, listen_port) would draw an auto-RST from
         // the tester kernel — tearing the DUT's ESTABLISHED state down
-        // mid-segment-stream. driveRawPassiveHandshake's internal
-        // TesterAutoRstDrop scope is bounded to the handshake, so the
-        // SEQUENCE_05 trait holds an outer-scope drop covering all
-        // three data segments + their cumulative ACKs.
+        // mid-segment-stream. The seam ACCEPT's internal TesterAutoRstDrop
+        // scope is bounded to the handshake, so the SEQUENCE_05 trait holds
+        // an outer-scope drop covering all three data segments + their
+        // cumulative ACKs.
         TesterAutoRstDrop rst_drop(cfg);
 
-        const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.dut.mac,
+        const auto open = driveSeamRawPassiveAccept(
+            dut, cfg, iface,
             kTcpSequence05ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence05TesterSrcPort,
-            /*open_req_id=*/1,
-            /*query_req_id=*/0,
-            /*socket_id=*/1,
-            /*capture_timeout=*/std::chrono::milliseconds(2000),
             /*tester_isn=*/kTesterInitialSeq);
-        if (!info.ok) {
-            sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                       /*req_id=*/2, /*socket_id=*/1);
-            return;
-        }
+        if (!open.conn) return;  // no accepted connection ⇒ no DUT to ack/close
 
         // Three 4 B segments spaced past the RFC 1122 §4.2.3.2
         // delayed-ACK ceiling (kDelayedAckSettle, 600 ms). The spec
@@ -89,7 +84,7 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             data.src_port = kTcpSequence05TesterSrcPort;
             data.dst_port = kTcpSequence05ListenPort;
             data.seq_num  = seg_seq;
-            data.ack_num  = info.dut_isn + 1U;
+            data.ack_num  = open.dut_isn + 1U;
             data.flags    = ::tc8::stimulus::kTcpFlagPsh
                           | ::tc8::stimulus::kTcpFlagAck;
             data.payload.assign(kSegPayload.begin(), kSegPayload.end());
@@ -99,8 +94,9 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             std::this_thread::sleep_for(kDelayedAckSettle);
         }
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                   /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) {
+            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {

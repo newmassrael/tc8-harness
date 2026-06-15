@@ -7,7 +7,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_mss_options_02_sm.h"
@@ -38,13 +40,18 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
     //   4. Tester raw-injects ACK closing the handshake.
     //   5. Tester verifies DUT EST via UT OpQueryTcpEstablished.
     //
-    // The handshake runs entirely inside `driveRawPassiveHandshake`
-    // and the EST query result is written into c.ut_established
-    // before TestRunner::start() arms the listen window — same
-    // synchronous pattern BASICS_02 uses with connectToDutTcp.
+    // The handshake runs entirely inside `driveSeamRawPassiveAccept`,
+    // which routes the LISTEN+ACCEPT through ITcpControl::acceptTcp. A
+    // confirmed accept IS the "reached ESTABLISHED" verdict on either
+    // backend (opcode: an OpQueryTcpEstablished poll; testability: the
+    // LISTEN_AND_ACCEPT Event), so this case now PASSes on both — no
+    // kCapTcpStateProbe asymmetry. c.ut_established is written before
+    // TestRunner::start() arms the listen window, the same synchronous
+    // pattern BASICS_02 uses with connectToDutTcp.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -53,19 +60,16 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
         // Data Offset = (20 + 4) / 4 = 6.
         const std::vector<std::uint8_t> syn_options{0x01U, 0x01U, 0x01U, 0x00U};
 
-        const auto info = driveRawPassiveHandshake(
-            cfg, iface, cfg.dut.mac,
+        auto open = driveSeamRawPassiveAccept(
+            dut, cfg, iface,
             kTcpMssOptionsListenPort02,
             syn_options,
-            kTcpMssOptionsTesterSrcPort02,
-            /*open_req_id=*/1,
-            /*query_req_id=*/3,
-            /*socket_id=*/1);
-        c.ut_established = info.ut_established;
+            kTcpMssOptionsTesterSrcPort02);
+        c.ut_established = open.conn ? 0x01U : 0x00U;
 
-        sendCloseTcpSocketRequest(
-            cfg, iface, cfg.dut.mac,
-            /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) {
+            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {

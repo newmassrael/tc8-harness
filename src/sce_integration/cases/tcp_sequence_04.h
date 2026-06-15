@@ -7,7 +7,9 @@
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
 #include "tcp_sequence_04_sm.h"
@@ -33,23 +35,25 @@ struct TestCaseTraits<cases::TcpSequence04SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        driveRawPassiveHandshake(
-            cfg, iface, cfg.dut.mac,
+        // Tester SYN ISN = SeqMaxVal (0xFFFFFFFF); the DUT SYN+ACK ack_num
+        // must wrap modulo-32 to 0, which the SCXML asserts during the
+        // handshake. rawPassiveThreeWayHandshake's third-leg ACK seq is
+        // tester_isn + 1 == 0, exercising the same wraparound on the tester side.
+        auto open = driveSeamRawPassiveAccept(
+            dut, cfg, iface,
             kTcpSequence04ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence04TesterSrcPort,
-            /*open_req_id=*/1,
-            /*query_req_id=*/0,
-            /*socket_id=*/1,
-            /*capture_timeout=*/std::chrono::milliseconds(2000),
             /*tester_isn=*/0xFFFFFFFFU);
 
-        sendCloseTcpSocketRequest(cfg, iface, cfg.dut.mac,
-                                   /*req_id=*/2, /*socket_id=*/1);
+        if (open.conn) {
+            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+        }
     }
 
     static std::string_view verdictFor(State s) {
