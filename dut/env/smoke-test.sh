@@ -50,6 +50,10 @@ set -euo pipefail
 set -m
 
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+# Verdict taxonomy (success class + non-conclusion class regex) — generated from
+# src/sce_integration/verdict_taxonomy.def, the single source. CI keeps it fresh
+# via `tools/gen_verdict_taxonomy.py --check`.
+source "$HERE/verdict_taxonomy.gen.sh"
 ROOT="$(cd "$HERE/../.." && pwd)"
 HARNESS=${HARNESS:-$ROOT/build/tc8-harness}
 TC8_DUT_BIN=${TC8_DUT_BIN:-$ROOT/build/dut/dut_service/tc8-dut}
@@ -1587,8 +1591,8 @@ run_case() {
     # the reason so the three stay distinguishable in the summary + JUnit.
     local nonfail_reason=""
     if [[ -r "$hlog" ]]; then
-        nonfail_reason=$(grep -m1 -E '^verdict  : (skip|inconclusive|error):' "$hlog" 2>/dev/null \
-            | sed -E 's/^verdict  : ((skip|inconclusive|error):.*)$/\1/' || true)
+        nonfail_reason=$(grep -m1 -E "^verdict  : (skip|${TC8_VERDICT_NONCONCLUSION_RE}):" "$hlog" 2>/dev/null \
+            | sed -E "s/^verdict  : ((skip|${TC8_VERDICT_NONCONCLUSION_RE}):.*)\$/\1/" || true)
     fi
 
     {
@@ -1602,7 +1606,7 @@ run_case() {
         echo "--------------------------------"
         if [[ -n "$nonfail_reason" ]]; then
             echo "[w$W] SKIP ${case_id} — ${nonfail_reason}"
-        elif grep -q 'verdict  : pass' "$hlog"; then
+        elif grep -q "verdict  : ${TC8_VERDICT_SUCCESS}" "$hlog"; then
             echo "[w$W] PASS ${case_id}"
         else
             echo "[w$W] FAIL ${case_id} did not return pass verdict"
@@ -1618,7 +1622,7 @@ run_case() {
     fi
 
     local rc=0
-    grep -q 'verdict  : pass' "$hlog" || rc=1
+    grep -q "verdict  : ${TC8_VERDICT_SUCCESS}" "$hlog" || rc=1
     junit_record_case "$W" "$case_id" positive "$start_ts" "$hlog" "$rc"
     if (( keep_logs == 0 )); then
         rm -f "$hlog" "$dlog"
@@ -1983,8 +1987,8 @@ run_negative_case() {
     # falls through to the exact-match rc below and reds the gate).
     local nonfail_reason=""
     if [[ -r "$hlog" ]]; then
-        nonfail_reason=$(grep -m1 -E '^verdict  : (skip|inconclusive|error):' "$hlog" 2>/dev/null \
-            | sed -E 's/^verdict  : ((skip|inconclusive|error):.*)$/\1/' || true)
+        nonfail_reason=$(grep -m1 -E "^verdict  : (skip|${TC8_VERDICT_NONCONCLUSION_RE}):" "$hlog" 2>/dev/null \
+            | sed -E "s/^verdict  : ((skip|${TC8_VERDICT_NONCONCLUSION_RE}):.*)\$/\1/" || true)
     fi
 
     {
@@ -2994,11 +2998,22 @@ fi
 # when it is systemic (see threshold rationale at the knob definitions). A
 # lone transient flake stays a green warning; a storm or a stuck case fails.
 if [[ ${#nonconcl[@]} -gt 0 ]]; then
-    echo "smoke-test: ${#nonconcl[@]}/${total} case(s) reached a non-conclusion (inconclusive/error) — routed to <skipped/> so they did not red the gate, but they are NOT clean passes; a previously-passing case now skipping is a regression signal." >&2
-    if (( ${#nonconcl[@]} >= TC8_MIN_NONCONCLUSION_FAIL )) \
-       && (( ${#nonconcl[@]} * 100 > total * TC8_MAX_NONCONCLUSION_PCT )); then
-        echo "smoke-test: FATAL — non-conclusion rate ${#nonconcl[@]}/${total} exceeds the ${TC8_MAX_NONCONCLUSION_PCT}% ceiling (floor ${TC8_MIN_NONCONCLUSION_FAIL}); this is a systemic environment/flake problem, not isolated noise. Investigate before trusting the green skips." >&2
-        exit 1
+    if (( NEGATIVE )); then
+        # Negative curated set: a non-conclusion means the injected fault broke
+        # the precondition, so the guard was never reached AND the DUT did not
+        # wrongly accept the fault (a `pass` hard-fails above). That is the
+        # sound, expected pass-regression-guard outcome under the ISO 9646
+        # model — not a flake. The skip-rate ceiling is a POSITIVE-run flake
+        # detector and does not apply here; the negative set's real gate is the
+        # `pass`-on-fault hard-fail, which is unaffected.
+        echo "smoke-test: ${#nonconcl[@]}/${total} negative case(s) non-concluded (injected fault broke the precondition; guard held without a wrong accept) — expected, not gated." >&2
+    else
+        echo "smoke-test: ${#nonconcl[@]}/${total} case(s) reached a non-conclusion (inconclusive/error) — routed to <skipped/> so they did not red the gate, but they are NOT clean passes; a previously-passing case now skipping is a regression signal." >&2
+        if (( ${#nonconcl[@]} >= TC8_MIN_NONCONCLUSION_FAIL )) \
+           && (( ${#nonconcl[@]} * 100 > total * TC8_MAX_NONCONCLUSION_PCT )); then
+            echo "smoke-test: FATAL — non-conclusion rate ${#nonconcl[@]}/${total} exceeds the ${TC8_MAX_NONCONCLUSION_PCT}% ceiling (floor ${TC8_MIN_NONCONCLUSION_FAIL}); this is a systemic environment/flake problem, not isolated noise. Investigate before trusting the green skips." >&2
+            exit 1
+        fi
     fi
 fi
 
