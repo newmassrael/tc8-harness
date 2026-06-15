@@ -9,20 +9,19 @@
     2. TESTER: Send a segment with an unacceptable ACK number.
     3. DUT:    Send a RST.
 
-  Mechanism (raw-inject SYN + pcap-snippet ISN_d learning + ACK with
-  bad ack number):
-    a. UT OpOpenTcpSocket(Passive, dut_port=12345) arms the listener.
-    b. Stimulus opens TcpFrameSnippet on iface, BPF-filtered to the
-       DUT-emitted SYN+ACK. The snippet handle is created BEFORE the
-       upstream SYN inject so the SYN+ACK is buffered in pcap's
+  Mechanism (raw-inject SYN + observe DUT ISN (ISN_d) + ACK with bad
+  ack number):
+    a. Passive LISTEN on dut_port=12345 arms the listener.
+    b. A BPF-filtered capture of the DUT-emitted SYN+ACK is armed
+       BEFORE the SYN inject so the SYN+ACK is buffered in pcap's
        kernel ring regardless of stimulus scheduling.
     c. tester raw-inject SYN(src=49152, seq=ISN_t)        → DUT SYN+ACK.
-    d. snippet.tryCapture(500 ms)                         → ISN_d.
+    d. the SYN+ACK is captured within 500 ms                → ISN_d.
     e. tester raw-inject ACK(src=49152, ack=ISN_d + LARGE_OFFSET).
        The ACK acknowledges a byte the DUT has not sent — RFC 793
-       RFC 793 §3.4 p35 marks this "unacceptable" and Linux's
-       `tcp_check_req` reaches `tcp_v4_send_reset` for the response.
-    f. UT close.
+       RFC 793 §3.4 p35 marks this "unacceptable", and the DUT
+       responds with a RST.
+    f. close.
 
   Pass guard structure — single-state listen window observing a
   DUT-origin RST on the port quad (12345 ↔ 49152). The earlier DUT

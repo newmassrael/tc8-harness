@@ -17,33 +17,31 @@
     8. DUT:    Send the latter data segment.
 
   Mechanism:
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+132,
-       kBasicsActiveRemotePort+132). Tester accept() pulls the
-       connection off the listen queue.
-    2. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt; rcv_nxt at this point equals DUT_ISN + 1
-       (= the spec-conformant seq_num of the 1st DUT data segment).
-       Captured.expected_ack_num is reused here as a "1st seg seq"
-       marker for the SCXML guards: a retransmit of seg 1 carries
-       seq == expected_ack_num and must not trigger Nagle violation;
-       a fresh seg 2 carries seq != expected_ack_num (advanced by
-       the seg 1 length).
-    3. TesterAutoAckDrop installs an iptables OUTPUT rule that
-       discards every tester-kernel pure ACK toward the DUT. Linux's
-       auto-ACK to the 1st data segment is therefore suppressed —
-       DUT sees its 1st seg as unacknowledged and Nagle becomes
-       active for the 2nd send.
-    4. UT OpSendTcpData(10 B). DUT writes 10 bytes; first segment
-       leaves the wire (matches state 1 transition).
-    5. UT OpSendTcpData(10 B) again. DUT MUST buffer (Nagle): no 2nd
-       segment until our injected ACK lands.
-    6. ~3.2 s stimulus sleep covers the SCXML absence window. Linux
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
+       (kBasicsActiveLocalPort+132, kBasicsActiveRemotePort+132);
+       the tester accepts the connection.
+    2. Snapshot the post-handshake tester snd_nxt / rcv_nxt; rcv_nxt
+       at this point equals DUT_ISN + 1 (= the spec-conformant
+       seq_num of the 1st DUT data segment). Captured.expected_ack_num
+       is reused here as a "1st seg seq" marker for the SCXML guards:
+       a retransmit of seg 1 carries seq == expected_ack_num and must
+       not trigger Nagle violation; a fresh seg 2 carries seq !=
+       expected_ack_num (advanced by the seg 1 length).
+    3. The tester withholds its kernel's pure ACKs toward the DUT, so
+       the 1st data segment is left unacknowledged — the DUT sees its
+       1st seg as outstanding and Nagle becomes active for the 2nd
+       send.
+    4. Tester causes a 10 B SEND. The DUT writes 10 bytes; the first
+       segment leaves the wire (matches state 1 transition).
+    5. Tester causes a 10 B SEND again. The DUT MUST buffer (Nagle):
+       no 2nd segment until the injected ACK lands.
+    6. A ~3.2 s settle covers the SCXML absence window. The DUT
        retransmits the 1st seg at RTO ~1 s, ~3 s — these carry
        seq == expected_ack_num and are absorbed by the absence guard.
-    7. Raw-inject pure ACK with seq=snd_nxt, ack=rcv_nxt+10. The ACK
-       takes the AF_PACKET path and bypasses the OUTPUT iptables
-       rule. DUT processes it, releases the 2nd buffered segment,
-       which lands on pcap.
+    7. The tester injects a pure ACK with seq=snd_nxt, ack=rcv_nxt+10
+       directly on the wire (bypassing the withheld tester-kernel
+       ACK path). The DUT processes it, releases the 2nd buffered
+       segment, which lands on pcap.
 
   Three-state SCXML chain:
     * listening_first_data — observe the 1st DUT data segment on

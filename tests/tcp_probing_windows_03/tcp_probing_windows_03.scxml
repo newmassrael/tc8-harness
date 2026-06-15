@@ -25,24 +25,23 @@
 
   Mechanism (active-OPEN handshake + 3 MSS-fill SENDs + window-shrink
   ACK + 4th SEND absence guard):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+149,
-       kBasicsActiveRemotePort+149).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt. Captured `expected_ack_num` is preloaded
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
+       (kBasicsActiveLocalPort+149, kBasicsActiveRemotePort+149).
+    2. Accept the kernel-completed tester connection off the listen
+       queue.
+    3. Snapshot the post-handshake tester snd_nxt / rcv_nxt.
+       Captured `expected_ack_num` is preloaded
        with seg2_seq (= S+MSS); `expected_ack_num_phase2` with
        seg3_seq (= S+2*MSS). The seg4 boundary is seg3_seq + MSS
        (= S+3*MSS); a DUT data segment with seq_num greater than
        expected_ack_num_phase2 is the spec's prohibited "send past
        negative usable window".
-    4. TesterAutoAckDrop suppresses tester-kernel auto-ACKs so the
-       harness retains full control over ACK injection.
-    5. UT OpSendTcpData(socket_id=1, payload=MSS B) — DUT emits
-       seg1 at seq=S.
+    4. The tester withholds its kernel's auto-ACKs so the harness
+       retains full control over ACK injection.
+    5. Tester causes an MSS-sized SEND — DUT emits seg1 at seq=S.
     6. Settle ~150 ms; raw-inject ACK at S+MSS with full window
        (0xFFFF). DUT advances snd_una to S+MSS.
-    7. UT OpSendTcpData(MSS B) twice — DUT emits seg2 at seq=S+MSS
+    7. Tester causes two MSS-sized SENDs — DUT emits seg2 at seq=S+MSS
        and seg3 at seq=S+2*MSS (each is full MSS so Nagle's small-
        segment hold does not apply).
     8. Settle ~150 ms; raw-inject ACK at S+2*MSS (acks seg2 only)
@@ -50,9 +49,9 @@
        snd_wnd=0; snd_nxt is still at S+3*MSS (seg3 outstanding).
        Usable window = snd_una + snd_wnd - snd_nxt
                      = (S+2*MSS) + 0 - (S+3*MSS) = -MSS. Negative.
-    9. UT OpSendTcpData(MSS B) — DUT must NOT emit seg4 (any
+    9. Tester causes an MSS-sized SEND — DUT must NOT emit seg4 (any
        segment with seq >= S+3*MSS = beyond seg3's range) because
-       usable window is negative. Linux enters persist mode and
+       usable window is negative. The DUT enters persist mode and
        emits 0-byte zero-window probes (which carry no payload —
        payload_len == 0 → not a data segment).
 

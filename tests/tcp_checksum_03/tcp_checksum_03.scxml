@@ -8,19 +8,17 @@
   v3.0 Test Procedure (p301-p320.txt:194):
     1. TESTER: Cause DUT to move on to ESTABLISHED state.
     2. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for a data segment — UT OpSendTcpData.
+               request for a data segment.
     3. DUT:    Send the data segment.
     4. TESTER: Verify that correct checksum is present in the
                incoming segment.
 
-  Mechanism (active-OPEN handshake + UT OpSendTcpData):
+  Mechanism (active-OPEN handshake + DUT data send):
     1. Tester opens auxiliary listener on kBasicsActiveRemotePort and
-       drives DUT active OPEN via UT OpOpenTcpSocket(Active). Linux's
-       TCP stack on both sides completes the 3-way handshake; both
-       endpoints are now in ESTABLISHED.
-    2. Tester issues UT OpSendTcpData carrying a small fixed payload.
-       tc8-dut writes the bytes to the connected fd via ::send(),
-       Linux frames them into one outbound DATA segment.
+       drives the DUT through an active OPEN. The 3-way handshake
+       completes; both endpoints are now in ESTABLISHED.
+    2. Tester causes the DUT to send a small fixed payload; the DUT
+       emits it as one outbound DATA segment.
     3. SCXML observes the DUT-emitted DATA segment via tcp_observed
        and asserts the pseudo-header checksum is RFC-correct through
        captured.tcp_checksum_valid().

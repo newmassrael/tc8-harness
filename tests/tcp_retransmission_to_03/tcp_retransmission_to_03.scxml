@@ -29,37 +29,36 @@
     retx2's wall delta) was deterministic at workers=1 but flaked
     under workers=4 parallel load — pcap's SOFTIRQ delivery raced
     the SCXML's deadline guards. Replacing the wire-timing assertions
-    with two synchronous OpQueryTcpInfo (0x13) reads off the DUT's
-    connected fd makes the verdict a function of kernel state, not
+    with two synchronous kernel-state (TCP_INFO) reads off the DUT's
+    connected socket makes the verdict a function of kernel state, not
     pcap delivery latency. Stimulus phases:
 
-    1. Active-OPEN handshake on +156 port quad; `queryTcpSeqRange`
-       snapshots tester snd_nxt / rcv_nxt for the Karn ACK.
-    2. `TesterAutoAckDrop` suppresses tester-kernel auto-ACKs so
-       seg1's RTO timer fires without tester interference. RACK and
-       TLP are disabled in dut_ns (mirrors RETRANSMISSION_TO_04 via
-       the smoke-test sysctl override) so `tcp_retransmit_timer`
-       follows the canonical out_reset_timer doubling path.
-    3. UT SEND seg1 → DUT data segment 1 (8 B).
-    4. Sleep 700 ms — Linux fires retx1 at TCP_RTO_MIN ≈ 200 ms,
-       doubles `icsk_rto` to ≈ 400 ms; retx2 may also fire at
+    1. Active-OPEN handshake on +156 port quad; snapshot tester
+       snd_nxt / rcv_nxt for the Karn ACK.
+    2. The tester withholds its kernel's auto-ACKs so seg1's RTO
+       timer fires without tester interference. RACK and TLP are
+       disabled in dut_ns (mirrors RETRANSMISSION_TO_04 via the
+       smoke-test sysctl override) so the DUT's retransmit timer
+       follows the canonical RTO-doubling path.
+    3. Tester causes a SEND → DUT data segment 1 (8 B).
+    4. Sleep 700 ms — the DUT fires retx1 at TCP_RTO_MIN ≈ 200 ms,
+       doubling its RTO to ≈ 400 ms; retx2 may also fire at
        +400 ms (doubling further to ≈ 800 ms) and either is
        acceptable.
-    5. **Phase 1 snapshot**: `OpQueryTcpInfo` reads the DUT fd's
-       `struct tcp_info`. Pass criteria: `tcpi_retransmits >= 1`
-       (proves the kernel-side retx fired) AND `tcpi_rto >= 350 ms`
-       (proves doubling).
+    5. **Phase 1 snapshot**: a kernel-state read of the DUT socket's
+       TCP info. Pass criteria: tcpi_retransmits >= 1 (proves the
+       retx fired) AND tcpi_rto >= 350 ms (proves doubling).
     6. Raw-inject Karn-excluded ACK acknowledging seg1's 8 B. RFC
        6298 RFC 793 §3 forbids the RTT estimator from sampling this round-
        trip; §5.3 forbids resetting the retransmit timer.
-    7. UT SEND seg2 (8 B) → Linux's `tcp_event_new_data_sent` →
-       `tcp_rearm_rto` arms the new timer with the *current*
-       `icsk_rto` value. A Karn-correct DUT preserves the doubled
-       value; a Karn-violating DUT collapses to TCP_RTO_MIN baseline.
+    7. Tester causes a SEND of seg2 (8 B) → the DUT arms the new
+       retransmit timer with its *current* RTO value. A Karn-correct
+       DUT preserves the doubled value; a Karn-violating DUT collapses
+       to the TCP_RTO_MIN baseline.
     8. Sleep 150 ms — schedule-noise headroom; the timer arming is
        sub-millisecond.
-    9. **Phase 2 snapshot**: `OpQueryTcpInfo` reads `tcpi_rto`.
-       Pass criterion: `tcpi_rto >= 350 ms` (Karn preserved).
+    9. **Phase 2 snapshot**: a kernel-state read of tcpi_rto. Pass
+       criterion: tcpi_rto >= 350 ms (Karn preserved).
 
   SCXML shape — single state with a `<send delay="0ms"/>`-raised
   evaluation event, multiple cond-keyed transitions; first matching
@@ -73,8 +72,8 @@
   enum-less initial state would have no firing edge at all.
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active-OPEN
-  handshake fail at `driveActiveOpenEstablished`; the stimulus
-  returns early without setting `ut_handshake_completed`, so the
+  handshake fail; the stimulus returns early without setting
+  `ut_handshake_completed`, so the
   SCXML's first cond fires and verdicts as
   `fail:dut_handshake_did_not_complete`. (The earlier indirect
   `phase1_tcp_info_query_failed` route misattributed the cause —

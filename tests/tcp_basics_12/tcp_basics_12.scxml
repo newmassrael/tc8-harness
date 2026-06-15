@@ -12,13 +12,13 @@
     4. DUT:    Send a RST segment (DUT in CLOSED state)
 
   Prelude mechanism — see tcp_basics_14 SCXML preamble for the
-  full CLOSING-path walkthrough (driveCloseToTimeWaitClosing
-  with TesterAutoAckDrop scoped inside, raw-inject FIN+ACK pair
-  driving DUT FW1 → CLOSING → TIME-WAIT, TCP_REPAIR-silent close
-  on tester fd). After TIME-WAIT entry the trait waits
-  kTimeWaitFullWait (72 s) before raw-injecting the replay FIN —
-  Linux's TIME-WAIT timer has fired by then and the closed-port
-  RST falls out of `tcp_v4_send_reset` per RFC 793 §3.4.
+  full CLOSING-path walkthrough: with the tester withholding its
+  kernel's auto-ACKs, an injected FIN+ACK pair drives the DUT
+  FW1 → CLOSING → TIME-WAIT, and the tester silently closes its
+  own side without emitting a FIN. After TIME-WAIT entry the tester
+  waits kTimeWaitFullWait (72 s) before injecting the replay FIN —
+  Linux's TIME-WAIT timer has fired by then, so the DUT emits the
+  closed-port RST per RFC 793 §3.4.
 
   See tests/_templates/tcp_time_wait_4state.sce-template.xml for
   the shared 4-state observation chain (incl. the COUPLING NOTE

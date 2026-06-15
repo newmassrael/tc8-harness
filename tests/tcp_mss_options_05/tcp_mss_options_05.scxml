@@ -15,21 +15,21 @@
   (more than). Both encoded as a 2-phase compound on distinct port
   quads.
 
-  Mechanism per phase:
-    - TesterAutoRstDrop scoped — tester kernel would otherwise emit RST
-      against the DUT's pure SYN to a port with no socket.
-    - TcpFrameSnippet learns DUT's ISN_d from the active-OPEN SYN.
-    - Raw-inject SYN+ACK with seq=tester_isn, ack=ISN_d+1, options
-      carrying the malformed MSS bytes.
-    - Linux's `tcp_parse_options` silently skips bad-length MSS
-      options and proceeds with the rest of the SYN+ACK; DUT TCB
-      transitions SYN-SENT → ESTABLISHED and emits the third-leg
-      pure ACK.
+  Observable interaction per phase:
+    - The tester suppresses its own automatic RST that would
+      otherwise answer the DUT's pure SYN arriving at a tester port
+      with no listening socket.
+    - The DUT's ISN_d is learned from the active-OPEN SYN it emits.
+    - The tester sends SYN+ACK with seq=tester_isn, ack=ISN_d+1, and
+      options carrying the malformed MSS bytes.
+    - A conformant DUT skips the bad-length MSS option, proceeds with
+      the rest of the SYN+ACK, transitions SYN-SENT → ESTABLISHED,
+      and emits the third-leg pure ACK.
 
-  Pass guard: observe DUT-emitted pure ACK on each phase's 4-tuple.
-  Survive-only assertion — the third-leg ACK is the cardinal evidence
-  the DUT processed the malformed SYN+ACK without crashing or dropping
-  the connection.
+  Pass guard: observe the DUT-emitted pure ACK on each phase's
+  4-tuple. Survive-only assertion — the third-leg ACK is the cardinal
+  evidence the DUT processed the malformed SYN+ACK without crashing
+  or dropping the connection.
 
   Per-phase fail_timeout terminals mirror the BASICS_04/05 split-fail
   diagnostic granularity: a stuck-at phase-1 fault is distinguishable

@@ -8,12 +8,13 @@
     2. TESTER: Send a TCP packet with Reserved field set to zero.
     3. DUT:    Send an ACK with the expected Ack Number.
 
-  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
-  inject in-window data with reserved_override=0 + observe DUT pure
-  ACK with ack_num = injected_seq + payload_len. Reserved=0 is the
-  RFC 793 default; this case pins the explicit assertion that DUT
-  accepts the canonical zero-reserved shape (HEADER_06 covers the
-  ignore-on-non-zero corollary).
+  Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
+  snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with
+  Reserved field set to 0; then observe a DUT pure ACK with ack_num =
+  injected_seq + payload_len. Reserved=0 is the RFC 793 default; this
+  case pins the explicit assertion that the DUT accepts the canonical
+  zero-reserved shape (HEADER_06 covers the ignore-on-non-zero
+  corollary).
 
   Two-state SCXML chain:
     * listening_handshake_ack — handshake third-leg observation.

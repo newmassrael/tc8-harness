@@ -15,22 +15,26 @@
   Iterations: <wst> ∈ {ESTABLISHED, FIN-WAIT-1, FIN-WAIT-2}.
 
   Mechanism (3 phases × distinct port quads):
-    * Phase 1 EST (+95): driveActiveOpenEstablished → 4 × 32 B inject
-      → 128 B UT recv → match → captured.ut_received_payload_len_p1=128.
-    * Phase 2 FW1 (+96): TesterAutoAckDrop → UT shutdown(WR) → DUT FIN
-      → 4 × 32 B inject with non-acking ack (= rcv_nxt-1 = SND.UNA, in
-      [snd.una, snd.nxt) acceptable, doesn't ack DUT FIN) → 128 B UT
-      recv → match → ut_received_payload_len_p2=128.
-    * Phase 3 FW2 (+97): UT shutdown(WR) → kernel auto-ACK drives
-      DUT FW1→FW2 (NO AckDrop) → 4 × 32 B inject (ack=rcv_nxt already
-      acks DUT FIN) → 128 B UT recv → match →
+    * Phase 1 EST (+95): drive the DUT through an active OPEN to
+      ESTABLISHED → inject 4 × 32 B → DUT application RECEIVE drains
+      128 B → match → captured.ut_received_payload_len_p1=128.
+    * Phase 2 FW1 (+96): with the tester auto-ACK withheld, the DUT
+      application half-closes its write side → DUT FIN → inject
+      4 × 32 B with a non-acking ack (= rcv_nxt-1 = SND.UNA, in
+      [snd.una, snd.nxt) acceptable, doesn't ack the DUT FIN) → DUT
+      application RECEIVE drains 128 B → match →
+      ut_received_payload_len_p2=128.
+    * Phase 3 FW2 (+97): the DUT application half-closes its write
+      side → tester auto-ACK drives DUT FW1→FW2 (auto-ACK NOT
+      withheld here) → inject 4 × 32 B (ack=rcv_nxt already acks the
+      DUT FIN) → DUT application RECEIVE drains 128 B → match →
       ut_received_payload_len_p3=128.
 
-  Phase 1 stimulus runs INLINE in the main stimulus body. Phases 2 + 3
-  are deferred via scheduleAfterStateEntry to the matching SCXML
-  observation state so the per-phase wire events arrive AFTER SCXML
-  has armed the corresponding listening transitions. Mirrors
-  TCP_FLAGS_PROCESSING_02 / IPv4_FRAGMENTS_01..04 phasing.
+  Phase 1 stimulus runs INLINE; phases 2 + 3 are deferred to the
+  matching SCXML observation state so the per-phase wire events
+  arrive AFTER SCXML has armed the corresponding listening
+  transitions. Mirrors TCP_FLAGS_PROCESSING_02 /
+  IPv4_FRAGMENTS_01..04 phasing.
 
   SCXML chain (8 listening states + 8 fail terminals + pass):
     p1_handshake_ack → p1_complete →

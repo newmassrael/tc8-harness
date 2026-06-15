@@ -10,15 +10,16 @@
     3. TESTER: Send an ACK.
     4. TESTER: Verify DUT moves to ESTABLISHED.
 
-  Mechanism (§4.8.5 Upper Tester + tester-side connect + UT query):
-    1. Tester UT OpOpenTcpSocket(12345).
-    2. Tester connect(DUT:12345) — kernel handshake completes.
-    3. Tester UT OpQueryTcpEstablished(socket_id=1) synchronously —
-       tc8-dut's acceptor thread has accept()'d by now and flipped
-       the `established` flag. Response byte is captured into
-       `captured.ut_established` BEFORE start() arms the listen
-       timer, so the first TcpFrame event (the DUT SYN,ACK sitting
-       in the pcap kernel buffer) already sees the populated value.
+  Mechanism (DUT passive LISTEN + tester active connect + DUT
+  ESTABLISHED-state read, per TC8 §4.8.5 Upper Tester):
+    1. The DUT application is brought to LISTEN on port 12345.
+    2. The tester opens an active connection toward DUT:12345 — the
+       kernel handshake completes.
+    3. A kernel-state read of the DUT's accepted connection
+       (state-probe capability) confirms it has reached ESTABLISHED.
+       The result is recorded into `captured.ut_established` before
+       the listen window opens, so the first observed DUT SYN,ACK
+       already sees the populated value.
 
   Pass guard (both conjuncts on one tcp_observed edge):
     * captured.src_ip   == expected.dut_iface_ip

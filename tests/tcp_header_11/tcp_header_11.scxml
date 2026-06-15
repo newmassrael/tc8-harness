@@ -15,16 +15,16 @@
   (kBasicsActiveLocalPort+38, kBasicsActiveRemotePort+38) — this
   serves the negative-flip handle (state 1 observes DUT
   handshake third-leg ACK; src_ip flip makes it unreachable).
-  Then raw-inject SYN with IP dst = 224.0.0.1 (all-hosts
+  Then inject a SYN with IP dst = 224.0.0.1 (all-hosts
   multicast) + L2 dst = 01:00:5E:00:00:01 (RFC 1112 multicast
   MAC) targeting kBasicsActiveLocalPort+38 + 3 s absence of any
   DUT segment on the EST 4-tuple.
 
-  Linux 6.5 dispatch: eth_type_trans classifies frames with the
-  01:00:5E/24 multicast L2 dst as PACKET_MULTICAST. tcp_v4_rcv's
-  first guard `if (skb->pkt_type != PACKET_HOST) goto discard_it`
-  silently drops; the segment never reaches the connected EST
-  socket or the listening kernel state. See
+  Observed DUT behaviour: a frame whose L2 dst is a multicast MAC
+  is classified as non-host-addressed and the DUT silently drops
+  the SYN before it reaches the connected EST socket; the segment
+  elicits no DUT egress. On a Linux DUT this is the same
+  non-host-address gate that suppresses ICMP error replies. See
   reference_icmp_packet_host_gate.md TCP section.
 
   Two-state SCXML chain:
@@ -33,8 +33,8 @@
       conjunct unreachable on ipv4.dut_iface_ip=10.99.99.99.
     * listening_absence — 3 s window for any DUT pure ACK on the
       EST 4-tuple. The multicast SYN cannot trigger any DUT
-      egress on the EST quad (PACKET_HOST gate fires first), so
-      pass on deadline_absence.
+      egress on the EST quad (the non-host-address gate drops it
+      first), so pass on deadline_absence.
 
   Port-quad — kBasicsActiveLocalPort + 38 / +38.
 -->

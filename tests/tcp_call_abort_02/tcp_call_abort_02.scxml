@@ -10,22 +10,22 @@
     3. DUT:    Send a RST control message
     4. TESTER: Verify that the DUT moves on to CLOSED state
 
-  Mechanism (active-OPEN handshake → UT abort → DUT RST → verify-probe
-  ACK on killed 4-tuple → DUT closed-port RST as wire-observable proof
-  of CLOSED):
-    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
-      + 90, kBasicsActiveRemotePort + 90); accept tester fd.
-    * UT abort: sendAbortTcpSocketRequest invokes tc8-dut's
-      abortTcpSocket → SO_LINGER {1,0} + ::close → kernel emits RST
-      and disposes the socket synchronously per socket(7) LINGER
-      semantics. Erases the socket_id from tcp_listeners_.
-    * Tester fd disposed via silentlyCloseTesterFd (TCP_REPAIR +
-      close, no FIN egress) so the post-prelude verify-probe is the
-      only stimulus on the 4-tuple.
-    * Verify probe: raw-inject ACK on the killed 4-tuple after the
-      DUT RST observation; DUT-side socket is gone, Linux's
-      tcp_v4_send_reset emits a closed-port RST. Same pattern as
-      §4.8.6.7 FLAGS_PROCESSING_02 phase 2 + §4.8.6.8 TCP_CLOSING_03.
+  Mechanism (active-OPEN handshake → DUT application ABORT → DUT RST
+  → verify-probe ACK on killed 4-tuple → DUT closed-port RST as
+  wire-observable proof of CLOSED):
+    * Prelude: drive the DUT through an active OPEN to ESTABLISHED on
+      (kBasicsActiveLocalPort + 90, kBasicsActiveRemotePort + 90);
+      accept the kernel-completed tester connection.
+    * The DUT application issues ABORT — SO_LINGER {1,0} on CLOSE so
+      the DUT emits a RST and disposes the socket synchronously per
+      socket(7) LINGER semantics.
+    * The tester releases its side of the 4-tuple without emitting a
+      FIN, so the post-prelude verify-probe is the only stimulus on
+      the 4-tuple.
+    * Verify probe: inject an ACK on the killed 4-tuple after the
+      DUT RST observation; the DUT-side socket is gone, so the DUT
+      emits a closed-port RST. Same pattern as §4.8.6.7
+      FLAGS_PROCESSING_02 phase 2 + §4.8.6.8 TCP_CLOSING_03.
 
   SCXML chain (3 listening states + 3 fail terminals + pass):
     handshake_ack → dut_rst (DUT ABORT-RST observation) →

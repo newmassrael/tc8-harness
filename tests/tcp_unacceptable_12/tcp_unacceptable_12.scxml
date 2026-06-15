@@ -10,52 +10,49 @@
     * CASE 1: data segment with out-of-window SEQ.
     * CASE 2: data segment with an unacceptable ACK number.
 
-  Per-phase prelude (function-scoped TesterAutoAckDrop covers both
-  phases; pure-ACK iptables suppression keeps DUT pinned in
-  LAST-ACK long enough for the corrupt-segment probe to elicit the
-  spec-asserted DUT challenge ACK):
+  Per-phase prelude (the tester suppresses its pure ACKs across both
+  phases, keeping the DUT pinned in LAST-ACK long enough for the
+  corrupt-segment probe to elicit the spec-asserted DUT challenge
+  ACK):
     1. Active-OPEN handshake → ESTABLISHED (DUT third-leg ACK).
-    2. Tester shutdown(SHUT_WR) → tester FIN+ACK → DUT auto-ACK
+    2. Tester write-side half-close → tester FIN+ACK → DUT auto-ACK
        observed → DUT CLOSE-WAIT.
-    3. UT OpCloseTcpSocket → DUT FIN+ACK observed; tester pure ACK
-       to DUT FIN suppressed by ack_drop → DUT LAST-ACK.
-    4. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt.
-    5. Raw-inject CASE-distinct corrupt segment.
-    6. silentlyCloseTesterFd (TCP_REPAIR + close, no FIN).
+    3. The DUT issues a CLOSE → DUT FIN+ACK observed; the tester
+       pure ACK to the DUT FIN is suppressed → DUT LAST-ACK.
+    4. Snapshot tester snd_nxt / rcv_nxt.
+    5. Inject CASE-distinct corrupt segment.
+    6. The tester drops its socket without emitting a FIN.
 
   Per phase the SCXML walks four DUT-origin observations:
     1. handshake third-leg ACK (DUT pure ACK)
     2. tester-FIN-elicited DUT auto-ACK (DUT pure ACK; CLOSE-WAIT)
-    3. UT-close-elicited DUT FIN+ACK (DUT enters LAST-ACK)
+    3. close-elicited DUT FIN+ACK (DUT enters LAST-ACK)
     4. probe-elicited DUT empty ACK to corrupt segment
 
   ## Linux behaviour (CASE 2 observable in LAST-ACK)
 
-  Both phases pass on a Linux DUT. Per Linux 6.5 net/ipv4/tcp_input.c
-  line 6562-6568, LAST-ACK dispatches via tcp_rcv_state_process with
-  FLAG_NO_CHALLENGE_ACK; when tcp_ack returns !acceptable for
-  `after(ack, snd_nxt)`, the caller explicitly fires
-  tcp_send_challenge_ack(sk) for any non-SYN_RECV state. LAST-ACK
-  joins FIN-WAIT-1 (UNACCEPTABLE_09), CLOSING (UNACCEPTABLE_11), and
-  CLOSE-WAIT (UNACCEPTABLE_14) in honouring CASE 2.
+  Both phases pass on a Linux DUT. In LAST-ACK, when the incoming
+  ACK is past snd_nxt, Linux fires a challenge ACK rather than
+  dropping the segment. LAST-ACK joins FIN-WAIT-1 (UNACCEPTABLE_09),
+  CLOSING (UNACCEPTABLE_11), and CLOSE-WAIT (UNACCEPTABLE_14) in
+  honouring CASE 2.
 
   This contradicts an earlier extrapolation that grouped LAST-ACK
   with ESTABLISHED (UNACCEPTABLE_04) and FIN-WAIT-2 (UNACCEPTABLE_10)
-  as silent-drop. EST genuinely silent-drops via
-  `tcp_rcv_established` slow_path discarding the segment; FW2
-  orphaned mini-socket emits RST via `tcp_timewait_state_process`
-  FW2 substate. LAST-ACK takes the third path — challenge ACK via
-  the tcp_rcv_state_process branch — confirmed empirically with the
+  as silent-drop. EST genuinely silent-drops, discarding the
+  segment; the FW2 orphaned mini-socket emits an RST via its
+  TIME-WAIT substate. LAST-ACK takes the third path — challenge ACK
+  via the receive state machine — confirmed empirically with the
   pcap kernel ring upgrade (commit c8caa79).
 
   Phase 1 (CASE 1 OTW SEQ): seq = snd_nxt + kOutOfWindowSeqOffset;
   ack = rcv_nxt - 1 (acceptable but does NOT acknowledge DUT FIN).
-  Linux's tcp_validate_incoming OTW SEQ check fires before tcp_ack —
-  challenge ACK observed.
+  Linux's out-of-window SEQ check fires before the ACK-validity
+  check — challenge ACK observed.
 
   Phase 2 (CASE 2 unacceptable ACK): seq = snd_nxt (in-window);
-  ack = rcv_nxt - 1 + kUnacceptableAckOffset (after(ack, snd_nxt)).
-  tcp_rcv_state_process challenge-ACK path — empty ACK observed.
+  ack = rcv_nxt - 1 + kUnacceptableAckOffset (past snd_nxt).
+  Receive-state-machine challenge-ACK path — empty ACK observed.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

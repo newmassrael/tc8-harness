@@ -9,14 +9,16 @@
     2. TESTER: Send a FIN,ACK.
     3. DUT:    Send ACK.
 
-  Mechanism (§4.8.5 Upper Tester + tester-side connect + shutdown):
-    1. Tester UT OpOpenTcpSocket(12345).
-    2. Tester connect(DUT:12345) — 3-way handshake completes.
-    3. Tester shutdown(SHUT_WR) — kernel emits FIN,ACK without closing
-       the fd (so the read side can still absorb the DUT's subsequent
-       FIN,ACK without RST-ing).
-    4. DUT kernel sends a bare-ACK in the ESTABLISHED → CLOSE-WAIT
-       transition. Observed via pcap.
+  Mechanism (DUT passive LISTEN + tester active connect + tester
+  half-close, per TC8 §4.8.5 Upper Tester):
+    1. The DUT application is brought to LISTEN on port 12345.
+    2. The tester opens an active connection toward DUT:12345 — the
+       3-way handshake completes.
+    3. The tester half-closes its write side — the tester kernel
+       emits FIN,ACK while keeping its read side open (so it can
+       still absorb the DUT's subsequent FIN,ACK without RST-ing).
+    4. The DUT sends a bare ACK in the ESTABLISHED → CLOSE-WAIT
+       transition, observed on the wire.
 
   Two DUT-origin segments pass the src_ip / src_port conjunct during
   the stimulus:

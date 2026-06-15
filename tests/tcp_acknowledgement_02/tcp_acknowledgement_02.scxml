@@ -13,19 +13,17 @@
     4. TESTER: Send an ACK with a payload (piggybacked).
     5. DUT:    Sends an ACK with the expected Ack Number.
 
-  Mechanism (active-OPEN handshake + UT-driven DUT data + raw-inject
+  Mechanism (active OPEN to ESTABLISHED + DUT data send + injected
   piggyback ACK+data):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+130,
-       kBasicsActiveRemotePort+130).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. UT OpSendTcpData(socket_id=1, payload=4 B). DUT writes the
-       bytes onto the connected fd; the tester kernel auto-ACKs and
-       advances rcv_nxt by 4.
-    4. Settle for tester kernel auto-ACK (150 ms grace), then
-       queryTcpSeqRange snapshots the post-data tester snd_nxt /
-       rcv_nxt.
-    5. Tester raw-injects PSH+ACK with seq=snd_nxt, ack=rcv_nxt
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
+       (kBasicsActiveLocalPort+130, kBasicsActiveRemotePort+130);
+       accept the kernel-completed tester connection.
+    2. Tester causes the DUT to SEND a 4 B payload; the DUT emits it
+       as one outbound DATA segment and the tester kernel auto-ACKs,
+       advancing rcv_nxt by 4.
+    3. Settle for the tester kernel auto-ACK (150 ms grace), then
+       snapshot the post-data tester snd_nxt / rcv_nxt.
+    4. Tester injects PSH+ACK with seq=snd_nxt, ack=rcv_nxt
        (acknowledges DUT data, satisfying piggyback semantics) and
        a 4 B payload. DUT receives the in-window data segment and
        replies pure ACK with ack_num = snd_nxt + 4.

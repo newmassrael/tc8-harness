@@ -10,16 +10,16 @@
     3. DUT:    Do not send any response
     4. TESTER: Verify that the DUT remains in SYN-SENT state
 
-  Mechanism (active-OPEN to unbound tester port + ISN_d learn +
-  spec-asserted bare RST + 3 s absence window):
-    a. TesterAutoRstDrop suppresses tester-kernel auto-RST so the
-       DUT-emitted SYN to the unbound tester port does not provoke
-       a kernel RST that would race-kill DUT's SYN-SENT before the
-       bare-RST inject lands.
-    b. UT OpOpenTcpSocket(Active) on (kBasicsActiveLocalPort,
+  Observable protocol exchange (active OPEN to an unbound tester
+  port + ISN_d learn + spec-asserted bare RST + 3 s absence window):
+    a. The tester suppresses its kernel auto-RST so the DUT-emitted
+       SYN to the unbound tester port does not provoke a RST that
+       would race-kill the DUT's SYN-SENT before the bare-RST inject
+       lands.
+    b. DUT performs an active OPEN on (kBasicsActiveLocalPort,
        kBasicsActiveRemotePort) — DUT issues SYN, enters SYN-SENT.
-    c. TcpFrameSnippet captures DUT-emitted pure SYN to learn ISN_d.
-    d. tester raw-injects pure RST (no ACK flag) with seq=ISN_d + 1.
+    c. The DUT-emitted pure SYN is observed to learn ISN_d.
+    d. tester injects pure RST (no ACK flag) with seq=ISN_d + 1.
        The seq is set to the value DUT would consider in-window so
        the segment is plausible at the IP layer; without the ACK
        flag, RFC 793 §3.9 p67 mandates DUT MUST drop the segment
@@ -31,20 +31,20 @@
        retransmits are tolerated (SYN bit set, matches neither
        absence-fail predicate).
 
-  ## Linux 6.5 dispatch path
+  ## DUT dispatch behaviour
 
-  `tcp_rcv_synsent_state_process` (net/ipv4/tcp_input.c) checks
-  `if (!th->ack)` before reaching the RST branch. A bare RST falls
-  through to the segment-drop path without invoking
-  `tcp_send_active_reset` or `tcp_done` — the SYN-SENT TCB is
+  In SYN-SENT the DUT checks for the ACK flag before reaching the
+  RST branch. A bare RST falls through to the segment-drop path
+  without resetting the connection — the SYN-SENT control block is
   preserved, SYN retransmit cadence continues. RFC 793 §3.9 p67
   conformant.
 
-  RstDrop scope = stimulus body only. After dtor fires, subsequent
-  SYN retransmits draw tester-kernel RST+ACK with ack=ISN_d+1
-  (acceptable), which Linux processes per RFC 793 §3.9 → CLOSED
-  silently. Same closed-via-tester-RST tail as FLAGS_INVALID_03 —
-  not part of the spec assertion but harmless to the absence guard.
+  The auto-RST suppression covers the spec-asserted exchange only.
+  Afterward, subsequent SYN retransmits draw a tester RST+ACK with
+  ack=ISN_d+1 (acceptable), which the DUT processes per RFC 793 §3.9
+  → CLOSED silently. Same closed-via-tester-RST tail as
+  FLAGS_INVALID_03 — not part of the spec assertion but harmless to
+  the absence guard.
 
   ## Port-quad selection — kBasicsActiveLocalPort + 21 / +21
 

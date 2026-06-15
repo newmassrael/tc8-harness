@@ -9,15 +9,14 @@
     2. TESTER: Send a SYN to DUT at <wnp>.
     3. DUT: Send SYN,ACK.
 
-  Mechanism (§4.8.5 Upper Tester + tester-side connect):
-    1. Tester waits 1500 ms for tc8-dut UT server to bind port 30600.
-    2. Tester emits UT OpOpenTcpSocket(local_port=12345) → tc8-dut
-       creates a SOCK_STREAM, bind/listen on 12345, spawns acceptor.
-    3. Tester sleeps 100 ms for bind+listen+acceptor to be ready.
-    4. Tester calls connect(DUT:12345). The tester kernel emits SYN
-       (src_port=ephemeral, dst_port=12345); the DUT kernel replies
-       SYN,ACK; the tester kernel completes the handshake with ACK.
-    5. Tester captures the DUT's SYN,ACK via pcap; SCXML observes
+  Mechanism (DUT passive LISTEN + tester active connect, per TC8
+  §4.8.5 Upper Tester):
+    1. The DUT application is brought to LISTEN on port 12345.
+    2. The tester opens an active connection toward DUT:12345. The
+       tester kernel emits SYN (src_port=ephemeral, dst_port=12345);
+       the DUT replies SYN,ACK; the tester kernel completes the
+       handshake with ACK.
+    3. The tester observes the DUT's SYN,ACK; SCXML observes
        captured.src_port == 12345 AND SYN AND ACK flags set.
 
   Pass guard conjuncts:

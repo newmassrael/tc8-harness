@@ -13,21 +13,21 @@
     4. TESTER: Send ACK.
     5. TESTER: Verify DUT in ESTABLISHED state.
 
-  Mechanism (driveSeamRawPassiveAccept):
-    - UT OpOpenTcpSocket(passive, kTcpMssOptionsListenPort02).
-    - TesterAutoRstDrop scoped — Linux's tester kernel would
-      otherwise emit RST against the DUT-emitted SYN+ACK on a
-      4-tuple where it has no socket.
-    - Raw-inject SYN with options bytes [0x01 0x01 0x01 0x00]
-      (three NOP + one EOL — RFC 793 §3.1 kind=1 / kind=0). The
-      4-byte options region keeps Data Offset = 6 with no extra
-      padding from the builder.
-    - TcpFrameSnippet learns DUT ISN_d from the SYN+ACK reply.
-    - Raw-inject ACK with seq=tester_isn+1, ack=ISN_d+1; DUT TCB
-      transitions SYN-RCVD → ESTABLISHED.
-    - 50 ms settle + UT OpQueryTcpEstablished writes the boolean
-      into captured.ut_established BEFORE SCE start() arms the
-      listen window (TestRunner runs stimulus before start()).
+  Mechanism (passive LISTEN+ACCEPT):
+    - Bring the DUT to LISTEN on kTcpMssOptionsListenPort02.
+    - The tester's auto-RST is suppressed for the case — its kernel
+      would otherwise emit a RST against the DUT-emitted SYN+ACK on
+      a 4-tuple where it has no socket.
+    - Send a SYN with options bytes [0x01 0x01 0x01 0x00] (three
+      NOP + one EOL — RFC 793 §3.1 kind=1 / kind=0). The 4-byte
+      options region keeps Data Offset = 6 with no extra padding.
+    - Learn DUT ISN_d from the SYN+ACK reply.
+    - Send the third-leg ACK with seq=tester_isn+1, ack=ISN_d+1; the
+      DUT transitions SYN-RCVD to ESTABLISHED.
+    - After a 50 ms settle, a state-probe read records whether the
+      DUT reached ESTABLISHED into captured.ut_established BEFORE the
+      listen window arms (the stimulus runs to completion before the
+      SCXML observation phase begins).
 
   Pass guard (one tcp_observed edge):
     * captured.src_ip   == expected.dut_iface_ip   — DUT-origin
@@ -37,9 +37,9 @@
     * (captured.flags & SYN) != 0 AND (captured.flags & ACK) != 0
     * captured.ut_established == 0x01
 
-  fail_not_established: SYN,ACK observed but UT reports not-
-  established (the third-leg ACK was dropped, the DUT failed to
-  accept(), or the kernel rejected the handshake mid-flight).
+  fail_not_established: SYN,ACK observed but the state probe reports
+  not-established (the third-leg ACK was dropped, the DUT did not
+  complete the ACCEPT, or the handshake was rejected mid-flight).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

@@ -14,19 +14,17 @@
                sent the number of ACKs received is at least half of
                that number.
 
-  Mechanism (active-OPEN handshake + 10× raw-inject MSS-sized
-  PSH+ACK + 5-ACK consume chain):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+147,
-       kBasicsActiveRemotePort+147).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt.
-    4. Tester raw-injects 10 consecutive 1460 B PSH+ACKs at S,
+  Mechanism (active OPEN to ESTABLISHED + 10 MSS-sized PSH+ACKs +
+  5-ACK consume chain):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+147,
+       kBasicsActiveRemotePort+147); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection.
+    3. Snapshot the post-handshake tester snd_nxt / rcv_nxt.
+    4. The tester sends 10 consecutive 1460 B PSH+ACKs at S,
        S+1460, S+2920, ... S+13140. 5 ms inter-segment pacing keeps
-       each kernel ACK on the wire in arrival order without pcap
+       each DUT ACK on the wire in arrival order without pcap
        dispatch coalescing them into a single snapshot.
-    5. DUT acknowledges either:
+    5. The DUT acknowledges either:
          * quickack mode (post-handshake `pingpong=0`): 1 ACK per
            segment = 10 ACKs;
          * non-quickack: cumulative ACK every other segment per

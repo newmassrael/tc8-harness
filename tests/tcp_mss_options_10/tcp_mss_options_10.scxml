@@ -10,22 +10,21 @@
     2. DUT:    Send SYN,ACK.
     3. TESTER: Send ACK.
     4. TESTER: Cause DUT-side application to issue a SEND request with
-               size > 536 bytes — UT OpSendTcpDataPattern.
+               size > 536 bytes.
     5. DUT:    Send data segment(s).
     6. TESTER: Verify the first received data segment has 536 bytes.
 
   Mechanism:
-    - UT OpenTcpPassive(13020) → DUT LISTEN.
-    - driveSeamRawPassiveAccept with empty SYN options. Linux's
-      `tcp_options_received.mss_clamp` defaults to 536 when the
-      received SYN carries no MSS option (net/ipv4/tcp_input.c
-      `tcp_init_metrics`); subsequent ::send() segments at 536 B.
-    - UT OpSendTcpDataPattern(socket_id=1, pattern=0xAA, total_len=
-      1024). 1024 > 536 ensures DUT segments at least once.
-    - Outer TesterAutoRstDrop scope keeps tester-kernel RSTs against
-      the orphaned 4-tuple suppressed for the duration of the data
-      flow; pcap still sees the DUT-emitted segments before any RST
-      could disrupt the connection.
+    - Bring the DUT to LISTEN on port 13020.
+    - Complete a passive ACCEPT with empty SYN options. With no MSS
+      option in the received SYN, the DUT's send segment size
+      defaults to 536 B (RFC 1122 §4.2.2.6); subsequent SENDs
+      segment at 536 B.
+    - Tester causes a SEND of 1024 bytes (pattern 0xAA). 1024 > 536
+      ensures the DUT segments at least once.
+    - The tester's auto-RST against the orphaned 4-tuple stays
+      suppressed for the data flow; pcap still sees the DUT-emitted
+      segments before any RST could disrupt the connection.
 
   Pass guard: tcp_observed where `is_dut_data_segment(...)` matches
   on the case's 4-tuple AND `payload_len == 536`. A DUT-emitted data

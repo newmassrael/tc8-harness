@@ -10,16 +10,17 @@
                Number = <SEQ>.
     3. DUT:    Discards the TCP packet and sends no ACK back.
 
-  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
-  inject in-window data with force_zero_tcp_checksum + 3 s absence
+  Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
+  snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with
+  the TCP Checksum field forced to zero; then observe a 3 s absence
   of any DUT pure ACK on the EST 4-tuple.
 
-  Linux 6.5 dispatch: tcp_v4_rcv → tcp_checksum_complete computes
-  the pseudo-header sum and compares against the segment's checksum
-  field. With force_zero set, the field is 0x0000 while the actual
-  computed sum is non-zero (any plausible payload + headers); the
-  comparison fails and tcp_inq_hint discards. The EST socket sees
-  no segment, no DUT ACK fires.
+  Observable dispatch: the DUT recomputes the pseudo-header sum and
+  compares it against the segment's checksum field. With the field
+  forced to 0x0000 while the actual computed sum is non-zero (any
+  plausible payload + headers), the comparison fails and the DUT
+  discards the segment. The EST socket sees no segment, no DUT ACK
+  fires.
 
   Two-state SCXML chain: handshake_ack observation gates 3 s
   absence; negative-flip lands on no_handshake_ack.

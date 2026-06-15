@@ -13,18 +13,18 @@
     * CASE 5: flag set = Data segment
 
   Per-phase prelude (== UNACCEPTABLE_12 lifted to five port quads):
-    1. Active-OPEN handshake → ESTABLISHED (DUT third-leg ACK).
-    2. Tester shutdown(SHUT_WR) → tester FIN → DUT auto-ACK
-       (observed) → DUT CLOSE-WAIT.
-    3. TesterAutoAckDrop installed function-scoped — iptables
-       OUTPUT drops tester-kernel pure ACK toward DUT for the
-       entire stimulus, preventing the auto-ACK to DUT FIN from
-       advancing DUT past LAST-ACK on EVERY phase.
-    4. UT OpCloseTcpSocket → DUT FIN+ACK (observed) → DUT LAST-ACK.
-    5. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt.
-    6. Raw-inject CASE-distinct OTW probe with ack_num = rcv_nxt - 1
-       (acceptable but does NOT acknowledge DUT FIN, keeping DUT
-       pinned in LAST-ACK).
+    1. Active OPEN handshake → ESTABLISHED (DUT third-leg ACK).
+    2. Tester half-closes (tester FIN) → DUT auto-ACK (observed) →
+       DUT CLOSE-WAIT.
+    3. The tester withholds its pure ACK toward the DUT for the
+       entire exchange, preventing the auto-ACK to the DUT FIN from
+       advancing the DUT past LAST-ACK on EVERY phase.
+    4. The DUT application CLOSEs → DUT FIN+ACK (observed) → DUT
+       LAST-ACK.
+    5. Snapshot tester snd_nxt / rcv_nxt.
+    6. tester injects a CASE-distinct OTW probe with ack_num =
+       rcv_nxt - 1 (acceptable but does NOT acknowledge DUT FIN,
+       keeping DUT pinned in LAST-ACK).
     7. DUT empty ACK to OTW probe (RFC 793 §3.9 challenge ACK).
 
   Per phase the SCXML walks four DUT-origin observations:

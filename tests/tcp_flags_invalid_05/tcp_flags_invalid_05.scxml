@@ -12,43 +12,39 @@
   Per phase the stimulus drives DUT into SYN-SENT via active-OPEN to
   an unbound tester port (kBasicsActiveLocalPort + N ↔
   kBasicsActiveRemotePort + N for N in 0..1) so each phase's CLOSED
-  transition is observed on its own 4-tuple. ISN_d is learned via
-  TcpFrameSnippet on the DUT-emitted pure SYN; the injected RST
-  carries ack=ISN_d+1, the only acceptable ACK in SYN-SENT
-  (SND.UNA = ISN_d, SND.NXT = ISN_d + 1, RFC 793 §3.4).
+  transition is observed on its own 4-tuple. ISN_d is learned from
+  the DUT-emitted pure SYN; the injected RST carries ack=ISN_d+1,
+  the only acceptable ACK in SYN-SENT (SND.UNA = ISN_d,
+  SND.NXT = ISN_d + 1, RFC 793 §3.4).
 
   Pass is observed indirectly via absence: a DUT that correctly
   transitioned to CLOSED on RST+acceptable-ACK will NOT retransmit
-  its SYN — Linux's `tcp_done(sk)` cancels the SYN retransmit timer
-  the moment the kernel processes the spec-injected RST. The 3 s
-  absence window catches the non-conformant case where DUT either
-  ignored the RST (continued SYN retx at ~1 s cadence) or treated
-  the SYN+ACK fragment as a connection completion and emitted an
-  ACK (pure ACK on the 4-tuple from the DUT side).
+  its SYN — the DUT cancels its SYN retransmit the moment it
+  processes the spec-injected RST and moves to CLOSED. The 3 s
+  absence window catches the non-conformant case where the DUT
+  either ignored the RST (continued SYN retx at ~1 s cadence) or
+  treated the SYN+ACK fragment as a connection completion and
+  emitted an ACK (pure ACK on the 4-tuple from the DUT side).
 
-  ## Phase phasing — scheduleAfterStateEntry
+  ## Phase phasing
 
-  Phase 1 fires synchronously in the stimulus body (its first
-  observation state is SCXML's initial state, so events queued
-  during kickStimulus drain into SCXML at start). Phase 2 schedules
-  via `IStimulusScheduler::scheduleAfterStateEntry` so its stimulus
-  only runs when SCXML lands in `listening_p2_dut_syn`. Required
-  because phase 1's 3 s absence is wall-clock; a synchronous all-
-  phases-up-front stimulus would queue phase 2's DUT SYN into pcap
-  before SCXML reaches phase 2's first state, then SCXML would walk
-  phase 1's absence (3 s) and find phase 2's queue empty by the time
-  it advances. Same shape as FLAGS_INVALID_15 phases 2..8 (see
-  commit 88acd4b phasing notes).
+  Phase 1 is exercised synchronously (its first observation state is
+  SCXML's initial state, so events queued during the stimulus drain
+  into SCXML at start). Phase 2 is armed only once the SCXML lands in
+  `listening_p2_dut_syn`. Required because phase 1's 3 s absence is
+  wall-clock; a synchronous all-phases-up-front stimulus would queue
+  phase 2's DUT SYN before SCXML reaches phase 2's first state, then
+  SCXML would walk phase 1's absence (3 s) and find phase 2's queue
+  empty by the time it advances. Same shape as FLAGS_INVALID_15
+  phases 2..8 (see commit 88acd4b phasing notes).
 
-  ## Linux 6.5 dispatch path
+  ## Observed CLOSED transition
 
-  `tcp_rcv_synsent_state_process` (net/ipv4/tcp_input.c) accepts the
-  ACK (in [SND.UNA, SND.NXT] = {ISN_d + 1}), then enters the
-  `if (th->rst)` branch (line 6373), calls `tcp_done(sk)` (line
-  6398) which transitions the socket to CLOSED, cancels the SYN
-  retransmit timer, and reports ECONNRESET to the application.
-  RFC 793 §3.9 p67 conformant. CASE 1's SYN bit is harmless because
-  the RST branch fires before SYN processing.
+  The DUT accepts the ACK (in [SND.UNA, SND.NXT] = {ISN_d + 1}),
+  then honours the RST: it transitions the connection to CLOSED,
+  cancels its SYN retransmit, and reports the reset to the
+  application. RFC 793 §3.9 p67 conformant. CASE 1's SYN bit is
+  harmless because the RST is processed before any SYN handling.
 
   ## Per-phase fail terminals
 

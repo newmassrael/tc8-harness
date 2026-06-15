@@ -14,11 +14,11 @@
 
   Per-phase prelude (== UNACCEPTABLE_10 single-iter generalised to
   five port quads):
-    1. Active-OPEN handshake → ESTABLISHED (DUT third-leg ACK).
-    2. UT OpCloseTcpSocket → DUT FIN+ACK (DUT FW1).
-    3. Tester-kernel auto-ACK to DUT FIN → DUT FW2 (no DUT egress).
-    4. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt.
-    5. Raw-inject CASE-distinct OTW probe.
+    1. Active OPEN handshake → ESTABLISHED (DUT third-leg ACK).
+    2. The DUT application CLOSEs → DUT FIN+ACK (DUT FW1).
+    3. Tester auto-ACK to DUT FIN → DUT FW2 (no DUT egress).
+    4. Snapshot tester snd_nxt / rcv_nxt.
+    5. tester injects a CASE-distinct OTW probe.
     6. DUT empty ACK to OTW probe (RFC 793 §3.9 challenge ACK).
 
   Per phase the SCXML walks three DUT-origin observations:
@@ -26,12 +26,11 @@
     2. close-elicited DUT FIN+ACK
     3. probe-elicited empty ACK
 
-  Linux's tcp_validate_incoming OTW SEQ branch fires before FW2's
-  abort-on-data RST short-circuit (UNACCEPTABLE_10 SCXML preamble
-  documents the same kernel ordering for CASE 5 = data); CASE 4
-  (FIN) carries an ACK flag with rcv_nxt so the segment survives
-  Linux's tcp_v4_rcv early-drop and reaches the OTW path — same
-  convention as FLAGS_INVALID_08 / _11.
+  The DUT's OTW SEQ branch fires before FW2's abort-on-data RST
+  short-circuit (UNACCEPTABLE_10 SCXML preamble documents the same
+  ordering for CASE 5 = data); CASE 4 (FIN) carries an ACK flag with
+  rcv_nxt so the segment survives the DUT's early-drop and reaches
+  the OTW path — same convention as FLAGS_INVALID_08 / _11.
 
   Negative smoke (ipv4.dut_iface_ip flip): pass guard's
   src_ip-conjunct fails on phase 1's listening_p1_handshake → first

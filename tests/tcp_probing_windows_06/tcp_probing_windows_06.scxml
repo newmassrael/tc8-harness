@@ -16,21 +16,21 @@
     7. TESTER: Verify that the delays between successive probes
                increases continually.
 
-  Mechanism (active-OPEN handshake + small SEND + zero-window ACK +
-  second SEND + observe 3 successive probes — no per-probe ACK):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+152,
-       kBasicsActiveRemotePort+152).
-    2. Tester listener.acceptOne(); queryTcpSeqRange snapshots the
+  Mechanism (active OPEN to ESTABLISHED + small SEND + zero-window
+  ACK + second SEND + observe 3 successive probes — no per-probe ACK):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+152,
+       kBasicsActiveRemotePort+152); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection and snapshots the
        post-handshake tester snd_nxt / rcv_nxt.
-    3. TesterAutoAckDrop suppresses tester-kernel auto-ACKs.
-    4. UT OpSendTcpData(N B) → DUT seg1.
-    5. Settle ~150 ms; raw-inject ACK at seg1_seq+N with `window=0`.
-    6. UT OpSendTcpData(M B) — bytes queue behind snd_wnd=0.
-    7. Linux's persist path emits zero-window probes via
-       `tcp_send_probe0` at exponentially-doubled intervals because
-       no probe is ACKed (each probe-fire increments
-       `icsk_backoff`). Inter-probe intervals: RTO0, 2*RTO0, 4*RTO0
-       (TCP_RTO_MIN=200 ms baseline).
+    3. The tester withholds its kernel's auto-ACKs.
+    4. A data SEND of N B → DUT seg1.
+    5. Settle ~150 ms; the tester sends an ACK at seg1_seq+N with
+       `window=0`.
+    6. A second data SEND of M B — bytes queue behind snd_wnd=0.
+    7. The DUT's persist path emits zero-window probes at
+       exponentially-doubled intervals because no probe is ACKed
+       (each probe-fire increments the backoff). Inter-probe
+       intervals: RTO0, 2*RTO0, 4*RTO0 (TCP_RTO_MIN=200 ms baseline).
 
     Spec-strict verification of "delays increases continually" is
     enforced via `frame_delta_us()` on the captured context (the
@@ -39,12 +39,11 @@
     300000` (rejects ≤ 200 ms linear once probe1 has anchored the
     initial probe RTO at Linux's TCP_RTO_MIN baseline); probe3
     guards on `frame_delta_us > 600000` (rejects ≤ 400 ms linear
-    after probe2 ≥ 300 ms). Linux's `tcp_send_probe0` path
-    increments `icsk_backoff` and doubles `icsk_rto` on every probe
-    fire — yielding 200 / 400 / 800 ms inter-frame deltas — so the
-    canonical Linux behaviour comfortably clears every gate while a
-    DUT with constant-interval probe timing fails the strict bounds
-    starting at probe2.
+    after probe2 ≥ 300 ms). The Linux persist path doubles its RTO
+    on every probe fire — yielding 200 / 400 / 800 ms inter-frame
+    deltas — so the canonical Linux behaviour comfortably clears
+    every gate while a DUT with constant-interval probe timing fails
+    the strict bounds starting at probe2.
 
     Captured.expected_ack_num is preloaded with `snd_una_post_ack -
     1`; all 3 probe-listening states gate on

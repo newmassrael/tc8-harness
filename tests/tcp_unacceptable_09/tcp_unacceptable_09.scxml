@@ -10,11 +10,12 @@
     * CASE 1: data segment with out-of-window SEQ.
     * CASE 2: data segment with unacceptable ACK number.
 
-  Mechanism per phase: active-OPEN handshake → ESTABLISHED → tester
-  installs iptables OUTPUT pure-ACK drop (TesterAutoAckDrop) → UT
-  OpCloseTcpSocket drives DUT into FIN-WAIT-1 (tester kernel auto-
-  ACK to DUT FIN is suppressed, preventing collapse to FIN-WAIT-2)
-  → query tester SEQ/ACK → raw-inject corrupt segment per CASE:
+  Observable protocol interaction per phase: active-OPEN handshake
+  → ESTABLISHED → the tester suppresses its kernel's pure ACKs to
+  the DUT → the DUT issues a CLOSE, driving it into FIN-WAIT-1 (the
+  tester kernel auto-ACK to the DUT FIN is suppressed, preventing
+  collapse to FIN-WAIT-2) → snapshot tester SEQ/ACK → inject corrupt
+  segment per CASE:
     * CASE 1 (OTW SEQ): seq_num = snd_nxt + kOutOfWindowSeqOffset,
                         ack_num = rcv_nxt - 1 (acceptable ACK that
                         does NOT acknowledge DUT FIN; preserves
@@ -28,15 +29,15 @@
   Three DUT-origin observations per phase reach the SCXML on
   tcp_observed:
     1. handshake third-leg ACK (pure ACK, ack = ISN_t + 1)
-    2. close-elicited DUT FIN+ACK (FIN flag set; UT close drove
-       DUT into FIN-WAIT-1)
+    2. close-elicited DUT FIN+ACK (FIN flag set; the DUT CLOSE drove
+       it into FIN-WAIT-1)
     3. data-elicited empty ACK to corrupt segment (the spec-
        asserted edge)
 
   Per-phase port quads identical to UNACCEPTABLE_14 (49500/23456
   vs 49501/23457) — same active-OPEN scaffold; the only stimulus
-  delta is "UT close" replacing "tester shutdown(SHUT_WR)" plus
-  TesterAutoAckDrop covering the phase.
+  delta is a DUT CLOSE replacing a tester write-side half-close plus
+  suppression of the tester's pure ACKs across the phase.
 
   Per-state fail terminals split between the three sub-edges so
   smoke-test triage identifies which edge the DUT failed to emit.

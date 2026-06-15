@@ -12,16 +12,17 @@
     5. DUT:    Sends no RST and ends the connection correctly when
                requested.
 
-  Mechanism:
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+131,
-       kBasicsActiveRemotePort+131). Tester accept() pulls the
-       connection off the listen queue.
-    2. UT OpSendTcpData(socket_id=1, payload=4 B). DUT writes data;
-       tester kernel auto-ACKs with a pure ACK (Length=0) — the
-       spec-prescribed step 4 stimulus.
-    3. Stimulus sleep ~3 s while SCXML watches for any DUT RST.
-    4. UT OpCloseTcpSocket. DUT emits FIN+ACK; observe to confirm
-       clean close.
+  Mechanism (active OPEN to ESTABLISHED + DUT data send + pure ACK +
+  clean CLOSE):
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
+       (kBasicsActiveLocalPort+131, kBasicsActiveRemotePort+131);
+       accept the kernel-completed tester connection.
+    2. Tester causes the DUT to SEND a 4 B payload; the DUT emits the
+       DATA segment and the tester kernel auto-ACKs with a pure ACK
+       (Length=0) — the spec-prescribed step 4 stimulus.
+    3. ~3 s exposure window while SCXML watches for any DUT RST.
+    4. The DUT application issues CLOSE; the DUT emits FIN+ACK,
+       observed to confirm a clean close.
 
   Two-state SCXML chain:
     * listening_handshake_ack — observe DUT 3rd-leg pure ACK on the

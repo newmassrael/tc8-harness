@@ -12,16 +12,16 @@
     3. DUT:    Do not send any response
     4. TESTER: Verify that the DUT remains in SYN-SENT state
 
-  Mechanism (active-OPEN to unbound tester port + ISN_d learn +
-  spec-asserted ACK+RST + 3 s absence window):
-    a. TesterAutoRstDrop suppresses tester-kernel auto-RST so the
-       DUT-emitted SYN to the unbound tester port does not provoke
-       a kernel RST that would race-kill DUT's SYN-SENT before the
-       ACK+RST inject lands.
-    b. UT OpOpenTcpSocket(Active) on (kBasicsActiveLocalPort,
+  Observable protocol exchange (active OPEN to an unbound tester
+  port + ISN_d learn + spec-asserted ACK+RST + 3 s absence window):
+    a. The tester suppresses its kernel auto-RST so the DUT-emitted
+       SYN to the unbound tester port does not provoke a RST that
+       would race-kill the DUT's SYN-SENT before the ACK+RST inject
+       lands.
+    b. DUT performs an active OPEN on (kBasicsActiveLocalPort,
        kBasicsActiveRemotePort) — DUT issues SYN, enters SYN-SENT.
-    c. TcpFrameSnippet captures DUT-emitted pure SYN to learn ISN_d.
-    d. tester raw-injects ACK+RST with seq=kTesterInitialSeq and
+    c. The DUT-emitted pure SYN is observed to learn ISN_d.
+    d. tester injects ACK+RST with seq=kTesterInitialSeq and
        ack=ISN_d + kUnacceptableAckOffset (NOT in [SND.UNA, SND.NXT]
        = {ISN_d + 1}, so unacceptable per RFC 793 §3.4).
     e. SCXML phase 1 (listening_dut_syn) confirms DUT-side SYN-SENT
@@ -35,39 +35,36 @@
            connection request and emitted its own RST.
          * DUT-emitted pure ACK: DUT issued a challenge-ACK
            response, also a violation of the strict "ignore" mandate.
-       DUT SYN retransmits (Linux ~1 s cadence) are tolerated — the
-       SYN bit is set, so they match neither is_pure_dut_ack nor
+       DUT SYN retransmits (~1 s cadence) are tolerated — the SYN
+       bit is set, so they match neither is_pure_dut_ack nor
        is_dut_rst. DUT remaining in SYN-SENT throughout the absence
        is the spec's expected steady state.
 
-  ## Linux 6.5 dispatch path
+  ## DUT dispatch behaviour
 
-  `tcp_rcv_synsent_state_process` (net/ipv4/tcp_input.c) checks the
-  ACK first (line 6336). For an ACK that is not in the open
-  half-window, the kernel falls through to the `if (th->rst)` branch
-  (line 6373) which discards the segment WITHOUT emitting any
-  response (no challenge-ACK path at this state — RFC 793 §3.9 p66
-  conformant). DUT remains in SYN-SENT and SYN retransmit cadence
-  continues normally.
+  In SYN-SENT the DUT checks the ACK first. For an ACK that is not
+  in the open half-window, the DUT reaches the RST branch which
+  discards the segment WITHOUT emitting any response (no challenge-
+  ACK path at this state — RFC 793 §3.9 p66 conformant). DUT remains
+  in SYN-SENT and SYN retransmit cadence continues normally.
 
-  RstDrop scope = stimulus body only. Subsequent SYN retransmits
-  after the dtor fires would draw tester-kernel RST+ACK with
-  ack=ISN_d+1 (acceptable), which Linux processes as RFC 793 §3.9
+  The auto-RST suppression covers the spec-asserted exchange only.
+  Subsequent SYN retransmits afterward draw a tester RST+ACK with
+  ack=ISN_d+1 (acceptable), which the DUT processes as RFC 793 §3.9
   RST+acceptable-ACK → CLOSED. DUT silently transitions; no
   DUT-emitted RST or pure ACK results, so the absence guard remains
-  satisfied. The closed-via-tester-RST path is not part of the spec
+  satisfied. The closed-via-tester-RST tail is not part of the spec
   assertion — the assertion fires on the spec-injected ACK+RST,
-  which the absence window catches the response (or lack thereof) of.
+  whose response (or lack thereof) the absence window catches.
 
   ## Port-quad selection — kBasicsActiveLocalPort + 20 / +20
 
   Cluster regression on a single worker netns shares state across
-  cases. FLAGS_INVALID_15's phases use offsets +0..+6, and Linux
-  retains tester-side TCP state on those tuples (TIME-WAIT, half-
-  orphan listeners) for tens of seconds after 15 finishes. A
-  fresh 03 active-OPEN to (+0) on the same worker draws a stray
-  ACK from the leftover state, which Linux's
-  tcp_rcv_synsent_state_process answers with RFC 793 §3.4
+  cases. FLAGS_INVALID_15's phases use offsets +0..+6, and tester-
+  side TCP state lingers on those tuples (TIME-WAIT, half-orphan
+  listeners) for tens of seconds after 15 finishes. A fresh 03
+  active OPEN to (+0) on the same worker draws a stray ACK from the
+  leftover state, which the SYN-SENT DUT answers with RFC 793 §3.4
   RST(seq=incoming.ack), false-firing the absence guard. Choosing
   +20 (well clear of 15's +0..+6 range) eliminates the cross-case
   contamination — see reference_active_open_port_quad_collision.md

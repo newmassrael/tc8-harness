@@ -12,18 +12,18 @@
     4. TESTER: Send a FIN after 2*MSL + 20%
     5. DUT:    Send a RST segment (DUT in CLOSED state)
 
-  Mechanism: tcp_pilot_common::driveTcpToTimeWaitFw2 chains
-  active-OPEN handshake → UT close (DUT FIN) → tester kernel
-  auto-ACK (DUT FW1 → FW2) → tester shutdown(WR) (tester FIN+ACK)
-  → DUT pure ACK (DUT FW2 → TIME-WAIT). After SCXML reaches
-  Listening_replay_rst the trait registers a wall-time scheduler
-  callback (kTimeWaitFullWait = 72 s) which raw-injects a fresh
-  FIN onto the (kBasicsActiveRemotePort, kBasicsActiveLocalPort)
-  4-tuple. By that point Linux's TIME-WAIT timer
-  (TCP_TIMEWAIT_LEN = 60 * HZ) has fired, the kernel-side socket
-  is gone, and the FIN reaches `tcp_v4_rcv` with no matching
-  socket — `tcp_v4_send_reset` emits the closed-port RST per RFC
-  793 RFC 793 §3.4.
+  Mechanism (drive DUT to TIME-WAIT via FIN-WAIT-2, then replay a
+  FIN after 2*MSL):
+    * Active OPEN to ESTABLISHED → DUT application CLOSE (DUT FIN)
+      → tester auto-ACK (DUT FW1 → FW2) → tester half-close
+      (tester FIN+ACK) → DUT pure ACK (DUT FW2 → TIME-WAIT).
+    * Once SCXML reaches listening_replay_rst, after a wall-time
+      wait (kTimeWaitFullWait = 72 s) the tester injects a fresh
+      FIN onto the (kBasicsActiveRemotePort, kBasicsActiveLocalPort)
+      4-tuple. By that point Linux's TIME-WAIT timer
+      (TCP_TIMEWAIT_LEN = 60 * HZ) has fired and the DUT's socket is
+      gone, so the FIN arrives with no matching socket and the DUT
+      emits the closed-port RST per RFC 793 §3.4.
 
   See tests/_templates/tcp_time_wait_4state.sce-template.xml for
   the shared 4-state observation chain (incl. the COUPLING NOTE

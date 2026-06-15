@@ -5,20 +5,21 @@
   Derived from RFC 793 §3.2 p23 Terminology.
 
   v3.0 Test Procedure (p281-p300.txt:587):
-    1. TESTER: Cause DUT to move on to SYN-SENT — UT
-               OpOpenTcpSocket(Active) initiates the connect().
-    2. TESTER: Send a SYN,ACK — falls out of the tester-side kernel
-               listener's accept-path automatically.
-    3. DUT:    Send ACK — observed on pcap.
-    4. TESTER: Verify DUT ESTABLISHED — UT OpQueryTcpEstablished
-               reads `tcp_info.tcpi_state` off the active fd.
+    1. TESTER: Cause DUT to move on to SYN-SENT — the DUT application
+               issues an active OPEN, emitting the first-leg SYN.
+    2. TESTER: Send a SYN,ACK — the tester kernel listener's
+               accept-path answers the DUT SYN automatically.
+    3. DUT:    Send ACK — observed on the wire.
+    4. TESTER: Verify DUT ESTABLISHED — a kernel-state read of the
+               DUT's connection (state-probe capability) confirms it
+               has reached ESTABLISHED.
 
   Pass guard (one tcp_observed edge — the third-leg ACK):
     * src/dst/ports — DUT-origin segment to tester listener
     * (flags & SYN) == 0 — distinguishes from the first-leg SYN
     * (flags & FIN) == 0 — distinguishes from later close-FIN+ACK
     * (flags & RST) == 0 — would reject from incoming SYN,ACK if the
-                           DUT's connect() failed and emitted a RST
+                           DUT's active OPEN failed and emitted a RST
                            instead of an ACK; conservative carve-out
     * (flags & ACK) != 0 — spec-mandated ACK control bit
     * captured.ut_established == 0x01 — ESTABLISHED reached

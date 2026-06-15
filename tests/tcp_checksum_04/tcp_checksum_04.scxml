@@ -17,36 +17,28 @@
     5. DUT:    Send SYN.
     6. TESTER: Verify SYN2.seq != SYN1.seq.
 
-  Mechanism (stimulus-driven verdict via synchronous TcpFrameSnippet
-  captures, dispatch=no-op):
-    Stimulus drives two consecutive UT OpOpenTcpSocket(Active) cycles
-    on the SAME 4-tuple. Cycle 1's SYN is aborted by the tester-
-    kernel auto-RST against an unbound destination port (Linux
-    `tcp_v4_send_reset` emits RST+ACK ack=ISN_d+1, an acceptable RST
+  Mechanism (verdict computed from captured ISN snapshots):
+    The DUT is driven through two consecutive active OPENs on the
+    SAME 4-tuple. Cycle 1's SYN is aborted by a RST+ACK against an
+    unbound destination port (RST+ACK ack=ISN_d+1, an acceptable RST
     for a SYN-SENT socket per RFC 793 §3.9 — this IS spec step 3).
-    The DUT-side socket then closes, the local port is released
-    (SO_REUSEADDR on the `openTcpActive` path), and cycle 2 binds the
-    same local port for the second active-OPEN.
+    The DUT-side socket then closes, the local port is released, and
+    cycle 2 reuses the same local port for the second active OPEN.
 
-    Two `TcpFrameSnippet::forDutSyn(local_port)` private libpcap
-    handles capture each cycle's SYN seq directly. Stimulus populates
-    `captured.cycle1_isn`, `captured.cycle2_isn`, and the matching
-    `*_captured` sentinel bools, then returns. Wire-driven dispatch is
-    a no-op (`Traits::dispatch` returns immediately) — the verdict
-    falls out of the captured fields alone, so pcap-buffered SYN
-    frames flushed through the runner's main pipeline after stimulus
-    completes never disturb the SCXML's evaluation.
+    Each cycle's SYN seq is captured directly off the wire into
+    `captured.cycle1_isn` / `captured.cycle2_isn` with the matching
+    `*_captured` sentinel bools. The verdict falls out of these
+    captured fields alone, so any SYN frames replayed through the
+    main observation pipeline after the captures complete never
+    disturb the SCXML's evaluation.
 
-    The earlier wire-driven SCXML guard ("transition on tcp_observed
-    SYN with `prior_isn != 0 ∧ seq != prior_isn`") raced
-    deterministically against TestRunner's stimulus-first lifecycle:
-    `kickStimulus` blocks until stimulus completes, populating
-    `prior_isn = SYN1.seq` BEFORE `start()` arms SCXML deadlines. The
-    pcap source buffers SYN1 during stimulus; when SCXML begins
-    consuming events post-`start`, the buffered SYN1 dispatches with
-    `prior_isn` already populated — `seq == prior_isn` triggers
-    `fail_isn_unchanged` on the cycle-1 SYN itself. The
-    evaluate-pattern (this file) sidesteps that race entirely.
+    An earlier wire-driven SCXML guard ("transition on tcp_observed
+    SYN with `prior_isn != 0 ∧ seq != prior_isn`") raced against the
+    stimulus-first lifecycle: the cycle-1 SYN is buffered and the
+    prior-ISN reference is already populated by the time SCXML begins
+    consuming events, so `seq == prior_isn` fires `fail_isn_unchanged`
+    on the cycle-1 SYN itself. Evaluating the two captured ISN
+    snapshots (this file) sidesteps that race entirely.
 
   Verdict ladder (first-match wins per W3C SCXML RFC 793 §3.13, fail-first):
     1. `cycle1_isn_captured == false` → `fail_no_cycle1_isn`
@@ -59,10 +51,10 @@
        (RFC 1122 §4.2.2.9 violation — DUT reused the prior ISN).
     4. fall-through → `pass`.
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the
-  `forDutSyn` BPF filter (`src host <dut_iface_ip>`) unreachable on
-  every observed SYN; both snippets time out and the verdict lands
-  on `fail_no_cycle1_isn`. (The earliest-fail-first ordering means
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the SYN capture
+  filter (`src host <dut_iface_ip>`) unreachable on every observed
+  SYN; both captures time out and the verdict lands on
+  `fail_no_cycle1_isn`. (The earliest-fail-first ordering means
   cycle 2's matching failure is masked by cycle 1's, which is fine
   — the failure surface is uniformly "no DUT SYN observable from
   this case's vantage".)

@@ -9,21 +9,20 @@
     * CASE 1: data segment with out-of-window SEQ number.
     * CASE 2: data segment with an unacceptable ACK number.
 
-  Per-phase prelude (function-scoped TesterAutoAckDrop covers both
-  phases; pure-ACK iptables suppression keeps DUT pinned in
-  FIN-WAIT-1 long enough for the tester FIN+ACK injection to drive
-  it into CLOSING):
+  Per-phase prelude (the tester suppresses its pure ACKs across both
+  phases, keeping the DUT pinned in FIN-WAIT-1 long enough for the
+  tester FIN+ACK injection to drive it into CLOSING):
     1. Active-OPEN handshake → ESTABLISHED (DUT third-leg ACK).
-    2. driveCloseToClosing — UT close (DUT FIN+ACK observed) →
-       queryTcpSeqRange → raw-inject tester FIN+ACK with non-acking
-       ack (rcv_nxt - 1) → DUT FW1 → CLOSING with DUT pure ACK
+    2. The DUT issues a CLOSE (DUT FIN+ACK observed) → snapshot
+       tester SEQ range → inject tester FIN+ACK with non-acking
+       ack (rcv_nxt - 1) → DUT FW1 → CLOSING with a DUT pure ACK
        observation.
-    3. Raw-inject CASE-distinct corrupt segment.
-    4. silentlyCloseTesterFd (TCP_REPAIR + close).
+    3. Inject CASE-distinct corrupt segment.
+    4. The tester drops its socket without emitting a FIN.
 
   Per phase the SCXML walks four DUT-origin observations:
     1. handshake third-leg ACK (DUT pure ACK)
-    2. UT-close-elicited DUT FIN+ACK
+    2. close-elicited DUT FIN+ACK
     3. CLOSING-transition DUT pure ACK
     4. probe-elicited DUT empty ACK (Phase 1 only — see deviation)
 
@@ -40,16 +39,15 @@
   This contradicts the prior single-iter rationale, which
   extrapolated from sibling Linux deviations in ESTABLISHED
   (UNACCEPTABLE_04), FIN-WAIT-2 (UNACCEPTABLE_10), and LAST-ACK
-  (UNACCEPTABLE_12). Those deviations are real (Linux's tcp_ack
-  short-circuits for `after(ack, snd_nxt)` in those paths), but
-  the CLOSING handler in tcp_rcv_state_process takes a different
-  branch — likely the data-with-in-window-SEQ path that emits a
-  dup-ACK independent of the segment's ACK validity. Empirical
-  evidence > extrapolation.
+  (UNACCEPTABLE_12). Those deviations are real (Linux drops the
+  segment when the ACK is past snd_nxt in those paths), but the
+  CLOSING handler takes a different branch — likely the
+  data-with-in-window-SEQ path that emits a dup-ACK independent of
+  the segment's ACK validity. Empirical evidence > extrapolation.
 
-  Phase 1 (CASE 1 OTW SEQ): Linux's tcp_validate_incoming sends
-  a challenge ACK for OTW SEQ regardless of state, before tcp_ack
-  runs.
+  Phase 1 (CASE 1 OTW SEQ): Linux sends a challenge ACK for an
+  out-of-window SEQ regardless of state, before the ACK-validity
+  check runs.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

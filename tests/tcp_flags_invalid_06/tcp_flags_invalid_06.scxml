@@ -15,33 +15,31 @@
   an unbound tester port (kBasicsActiveLocalPort + N ↔
   kBasicsActiveRemotePort + N for N in 0..1) so each phase's
   "remains in SYN-SENT" hold is per-phase and the absence guards
-  cannot cross-contaminate. ISN_d is learned via TcpFrameSnippet on
-  the DUT-emitted pure SYN; the injected probe carries
-  ack=ISN_d+1 (acceptable per RFC 793 §3.4).
+  cannot cross-contaminate. ISN_d is learned from the DUT-emitted
+  pure SYN; the injected probe carries ack=ISN_d+1 (acceptable per
+  RFC 793 §3.4).
 
   Pass criterion (per spec step 4): "DUT does not send a SYN, ACK
   and remains in SYN-SENT state". Operationally: the absence guard
   catches DUT-emitted RST or pure ACK on the 4-tuple. DUT SYN
-  retransmits (Linux ~1 s cadence) are tolerated — the spec
-  explicitly allows the DUT to remain in SYN-SENT, which on Linux
-  means the SYN retransmit timer is not cancelled.
+  retransmits (~1 s cadence) are tolerated — the spec explicitly
+  allows the DUT to remain in SYN-SENT, so it keeps retransmitting
+  its SYN.
 
-  ## Phase phasing — scheduleAfterStateEntry
+  ## Phase phasing
 
-  Same shape as FLAGS_INVALID_05 / _15. Phase 1 fires synchronously;
-  phase 2 schedules via
-  `scheduleAfterStateEntry(Listening_p2_dut_syn)` so its DUT SYN is
-  not queued behind phase 1's wall-clock absence.
+  Same shape as FLAGS_INVALID_05 / _15. Phase 1 is exercised
+  synchronously; phase 2 is armed only once the SCXML lands in
+  `listening_p2_dut_syn` so its DUT SYN is not queued behind phase
+  1's wall-clock absence.
 
-  ## Linux 6.5 dispatch path
+  ## Observed discard
 
-  `tcp_rcv_synsent_state_process` (net/ipv4/tcp_input.c) accepts the
-  ACK, finds `!th->rst` so skips the connection-reset branch, then
-  reaches `if (th->syn)` (line ~6432). For a segment with neither
-  SYN nor RST, the function falls through to the discard path
-  without invoking `tcp_send_active_reset`, `tcp_done`, or
-  `tcp_send_challenge_ack`. CASE 2's payload is dropped along with
-  the segment because Linux only buffers data after SYN-RCVD/EST is
+  The DUT accepts the ACK, finds no RST so skips the connection-reset
+  path, then finds no SYN either. For a segment with neither SYN nor
+  RST, the DUT discards it without emitting an RST, an active reset,
+  or a challenge-ACK. CASE 2's payload is dropped along with the
+  segment because the DUT only buffers data once the connection is
   established. SYN retransmit cadence continues. RFC 793 §3.9 p68
   conformant.
 

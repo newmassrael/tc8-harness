@@ -12,17 +12,17 @@
 
   Mechanism (raw-inject SYN + out-of-window RST + absence-of-DUT-RST
   observation):
-    a. UT OpOpenTcpSocket(Passive, dut_port=12345) arms the listener.
+    a. Passive LISTEN on dut_port=12345 arms the listener.
     b. tester raw-inject SYN(src=49152, seq=ISN_t)        → DUT SYN+ACK.
     c. tester raw-inject RST(src=49152, seq=ISN_t+1+OTW)  — out-of-window.
     d. SCXML waits 3 s for any DUT-origin RST.
-    e. UT close.
+    e. close.
 
   Step (c)'s OTW SEQ violates RFC 793 §3.9 p70's RCV.NXT-relative
-  acceptability test. Linux's `tcp_check_req` checks the RST against
-  the embryonic socket's expected next-byte (= ISN_t + 1) and discards
-  the segment when the SEQ is far outside that window. The DUT's
-  syn-recv state is preserved.
+  acceptability test. The DUT checks the RST against the embryonic
+  connection's expected next-byte (= ISN_t + 1) and discards the
+  segment when the SEQ is far outside that window. The DUT's syn-recv
+  state is preserved.
 
   Pass guard structure — two listening states walked in sequence:
     listening_first_synack — match DUT-origin SYN+ACK on the first

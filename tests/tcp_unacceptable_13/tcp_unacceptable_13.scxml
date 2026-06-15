@@ -9,11 +9,10 @@
     * CASE 1: data segment with out-of-window SEQ number.
     * CASE 2: data segment with unacceptable ACK number.
 
-  Each phase reuses driveTcpToTimeWaitFw2 to drive DUT into
-  TIME-WAIT, then raw-injects a corrupt data segment from the
-  tester's TIME-WAIT-ed quad. DUT's tcp_timewait_state_process
-  responds with an empty ACK in either CASE; the connection
-  remains in TIME-WAIT.
+  Each phase drives the DUT into TIME-WAIT, then injects a corrupt
+  data segment from the tester's TIME-WAIT-ed quad. The DUT's
+  TIME-WAIT processing responds with an empty ACK in either CASE;
+  the connection remains in TIME-WAIT.
 
   See tests/_templates/tcp_time_wait_dual_phase_otw_probe.sce-template.xml
   for the shared 8-state observation chain. Per-case thin-shell

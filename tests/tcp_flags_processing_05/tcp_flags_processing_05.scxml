@@ -13,16 +13,16 @@
 
   "DUT goes to LISTEN" is asserted indirectly: after the spec-
   prescribed inject, the tester sends a fresh SYN from a DIFFERENT
-  source port. If the DUT-side LISTEN socket survived, Linux's
-  tcp_v4_rcv routes the new SYN to LISTEN, creates a fresh
-  req_sock, and emits SYN+ACK on the new 4-tuple. The verify-SYN+ACK
+  source port. If the DUT-side LISTEN socket survived, the DUT takes
+  the LISTEN-arrival path for the new SYN, opens a fresh half-open
+  connection, and emits SYN+ACK on the new 4-tuple. The verify-SYN+ACK
   observation on (listen_port, verify_tester_port) confirms the
   LISTEN socket is alive — irrespective of whether the SYN-RCVD
   instance for the original 4-tuple reverted to LISTEN per spec or
-  was destroyed and replaced (Linux's tcp_check_req treats a same-
-  ISN duplicate SYN as a SYN+ACK retx and a different-ISN SYN as
-  req_sock replacement; SYN+ACK with valid ack may complete the
-  handshake to ESTABLISHED). The LISTEN survival is the testable
+  was destroyed and replaced (a Linux DUT treats a same-ISN duplicate
+  SYN as a SYN+ACK retx and a different-ISN SYN as a replacement of
+  the half-open connection; a SYN+ACK with a valid ack may complete
+  the handshake to ESTABLISHED). The LISTEN survival is the testable
   invariant, not the precise instance disposition.
 
   Per-phase port quads:
@@ -41,8 +41,8 @@
     Phase 2: prelude_synack → verify_synack
                                             → pass
 
-  Phase 1 fires synchronously in stimulus body. Phase 2 schedules
-  via scheduleAfterStateEntry on Listening_p2_prelude_synack.
+  Phase 1 fires synchronously with the stimulus. Phase 2 is scheduled
+  on entry to listening_p2_prelude_synack.
 
   Negative IP-flip path: phase 1 src_ip-conjunct unreachable on
   the initial state, lands on fail_p1_no_prelude_synack at the 5 s

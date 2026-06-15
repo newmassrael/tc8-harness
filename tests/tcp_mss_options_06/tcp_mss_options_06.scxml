@@ -24,15 +24,14 @@
              expected first segment payload_len = 1460.
 
   Mechanism per phase:
-    - UT OpOpenTcpSocket(passive, listen_port_phaseN) — socket_id N.
-    - driveSeamRawPassiveAccept with SYN options [02 04 hi lo]
-      encoding kind=2 length=4 MSS=Mv — Linux sets the connection's
-      tp->rx_opt.mss_clamp accordingly.
-    - UT OpSendTcpDataPattern(socket_id=N, pattern, total_len=4000)
-      — bulk write through tc8-dut's accepted_fd; Linux's TCP
-      stack segments the payload at min(advertised, DUT_MSS).
-    - Outer TesterAutoRstDrop scope keeps tester-kernel RSTs
-      against the orphaned 4-tuple suppressed during the data flow.
+    - Bring the DUT to LISTEN on listen_port_phaseN.
+    - Complete a passive ACCEPT with SYN options [02 04 hi lo]
+      encoding kind=2 length=4 MSS=Mv — the DUT clamps the
+      connection's send segment size to Mv accordingly.
+    - Tester causes a SEND of 4000 bytes; the DUT's TCP stack
+      segments the payload at min(advertised, DUT_MSS).
+    - The tester's auto-RST against the orphaned 4-tuple stays
+      suppressed during the data flow.
 
   Pass guard: per-phase tcp_observed where the DUT-emitted data
   segment's payload_len equals the expected min(Mv, DUT_MSS). Non-

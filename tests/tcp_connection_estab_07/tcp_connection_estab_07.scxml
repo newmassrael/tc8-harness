@@ -10,12 +10,12 @@
     3. DUT:    Sends an ACK packet.
     4. DUT:    Sends a FIN packet and moves to CLOSED state.
 
-  Mechanism:
-    UT OpOpenTcpSocket(passive, 13179) brings DUT to LISTEN. Tester
-    kernel connect() completes the 3-way handshake. Tester
-    shutdown(SHUT_WR) on the connected fd emits FIN; DUT auto-ACKs
-    (CLOSE-WAIT). UT OpCloseTcpSocket then drives tc8-dut's close()
-    which emits the DUT-side FIN (LAST-ACK).
+  Observable interactions:
+    A passive LISTEN is opened on 13179, bringing the DUT to LISTEN.
+    The tester completes the 3-way handshake. The tester then
+    half-closes its write side, emitting a FIN; the DUT auto-ACKs
+    (CLOSE-WAIT). The DUT application then issues a CLOSE, which emits
+    the DUT-side FIN (LAST-ACK).
 
   Pass chain: 2-state SCXML.
     listen_dut_ack: pure ACK on the listen 4-tuple (ACK only).

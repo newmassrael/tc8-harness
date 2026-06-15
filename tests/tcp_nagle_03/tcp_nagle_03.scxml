@@ -16,20 +16,18 @@
     8. DUT:    Send the aggregate data segment.
 
   Mechanism (active-OPEN +133 quad + Nagle MSS-aggregate release):
-    1. driveActiveOpenEstablished. queryTcpSeqRange snapshots
+    1. Drive the DUT through an active OPEN to ESTABLISHED. Snapshot
        rcv_nxt = DUT_ISN + 1; captured.expected_ack_num = first
        seg seq for retransmit-vs-aggregate disambiguation.
-    2. shared_ptr<TesterAutoAckDrop> suppresses tester-kernel pure
-       ACKs to the DUT for the case lifetime (kept alive past
-       stimulus return via lambda capture in scheduled action).
-    3. UT OpSendTcpData(10 B). DUT writes seg 1; pcap captures it.
-    4. UT OpSendTcpData(10 B). Nagle holds: outstanding unacked +
-       payload < MSS → buffered.
-    5. UT OpSendTcpDataPattern(MSS - 10 = 1450 B). The cumulative
-       buffered (10 + 1450 = 1460 B = MSS) trips Linux's Nagle
-       full-segment exception in tcp_nagle_check; tcp_write_xmit
-       emits one MSS segment containing the aggregate of seg 2 +
-       seg 3.
+    2. The tester withholds its kernel's pure ACKs to the DUT for the
+       case lifetime, so the DUT keeps the data outstanding.
+    3. Tester causes a 10 B SEND. DUT emits seg 1; pcap captures it.
+    4. Tester causes another 10 B SEND. Nagle holds: outstanding
+       unacked + payload < MSS → buffered.
+    5. Tester causes a (MSS - 10 = 1450 B) SEND. The cumulative
+       buffered (10 + 1450 = 1460 B = MSS) trips Nagle's full-segment
+       exception; the DUT emits one MSS segment containing the
+       aggregate of seg 2 + seg 3.
     6. The aggregate carries seq = first_seg_seq + 10 (advanced past
        seg 1) and payload_len = MSS (1460 on a 1500 B veth MTU).
 

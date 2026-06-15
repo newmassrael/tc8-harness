@@ -15,39 +15,39 @@
                interval is increasing at a fast (at least more than
                linear) rate.
 
-  Mechanism (kernel-side TCP_INFO observation, three snapshots):
+  Mechanism (kernel-state TCP_INFO observation, three snapshots):
     The earlier pcap-timing chain (observe seg1, retx1, retx2, retx3
     inter-frame deltas in a 4-state SCXML) was deterministic at
     workers=1 but flaked under workers=4 parallel load — pcap's
     SOFTIRQ delivery raced the per-state deadline guards on the
     second / third retransmit observation. Replacing the wire-timing
-    assertions with three synchronous OpQueryTcpInfo (0x13) reads off
-    the DUT's connected fd makes the verdict a function of kernel
-    state, not pcap delivery latency. Stimulus phases:
+    assertions with three synchronous kernel-state (TCP_INFO) reads
+    off the DUT's connected socket makes the verdict a function of
+    kernel state, not pcap delivery latency. Stimulus phases:
 
-    1. Active-OPEN handshake on +200 port quad; `queryTcpSeqRange`
-       snapshots tester snd_nxt / rcv_nxt for 4-tuple-clean prelude.
-    2. `TesterAutoAckDrop` (RAII over the full stimulus body)
-       suppresses tester-kernel auto-ACKs so seg1's RTO timer fires
-       three times without tester interference. RACK and TLP are
-       disabled in dut_ns (mirrors RETRANSMISSION_TO_03/_05/_06 via
-       the smoke-test sysctl override) so `tcp_retransmit_timer`
-       follows the canonical out_reset_timer doubling path.
-    3. UT SEND seg1 → DUT data segment 1 (8 B). Linux's data-RTO
+    1. Active OPEN handshake on +200 port quad; snapshot tester
+       snd_nxt / rcv_nxt for 4-tuple-clean prelude.
+    2. The tester withholds its kernel's auto-ACKs (for the full
+       stimulus body) so seg1's RTO timer fires three times without
+       tester interference. RACK and TLP are disabled in dut_ns
+       (mirrors RETRANSMISSION_TO_03/_05/_06 via the smoke-test
+       sysctl override) so the DUT's retransmit timer follows the
+       canonical RTO-doubling path.
+    3. A data SEND → DUT data segment 1 (8 B). Linux's data-RTO
        sequence on a fresh local-veth ESTABLISHED socket: retx 1 at
-       ~200 ms post-seg1 (icsk_rto: 200 → 400 ms), retx 2 at +400 ms
+       ~200 ms post-seg1 (RTO: 200 → 400 ms), retx 2 at +400 ms
        (400 → 800 ms), retx 3 at +800 ms (800 → 1600 ms).
     4. **Phase 1 snapshot** (post-retx 1): polled at 50 ms cadence
        until `tcpi_retransmits >= 1`; deadline 2 s. Pass criterion:
-       `tcpi_rto >= 350 ms` (proves the kernel doubled icsk_rto from
+       `tcpi_rto >= 350 ms` (proves the DUT doubled its RTO from
        the 200 ms baseline).
     5. **Phase 2 snapshot** (post-retx 2): polled until
        `tcpi_retransmits >= 2`; deadline 3 s. Pass criterion:
-       `tcpi_rto > p1.tcpi_rto` (proves the kernel doubled again).
+       `tcpi_rto > p1.tcpi_rto` (proves the DUT doubled again).
        A constant-RTO DUT would leave p2.rto == p1.rto.
     6. **Phase 3 snapshot** (post-retx 3): polled until
        `tcpi_retransmits >= 3`; deadline 5 s. Pass criterion:
-       `tcpi_rto > p2.tcpi_rto` (proves the kernel doubled a third
+       `tcpi_rto > p2.tcpi_rto` (proves the DUT doubled a third
        time). Three observations of strict growth across the cluster
        pin the "more than linear" RFC 1122 §4.2.3.1 MUST.
 
@@ -63,11 +63,10 @@
   into Event enum members and an enum-less initial state would have
   no firing edge at all.
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active-OPEN
-  handshake fail at `driveActiveOpenEstablished`; the stimulus
-  returns early without setting `ut_handshake_completed`, so the
-  SCXML's first cond fires and verdicts as
-  `fail:dut_handshake_did_not_complete`.
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active OPEN
+  handshake fail; the stimulus returns early without setting
+  `ut_handshake_completed`, so the SCXML's first cond fires and
+  verdicts as `fail:dut_handshake_did_not_complete`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

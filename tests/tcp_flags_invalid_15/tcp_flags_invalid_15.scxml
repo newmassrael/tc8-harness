@@ -29,46 +29,40 @@
   AckDrop pins DUT (FW1 / LA) or tester ACKs are otherwise absent —
   retransmits are not pure ACKs and not RSTs.
 
-  ## Linux 6.5 RFC 5961 RST(OTW) behaviour
+  ## RFC 5961 RST(OTW) behaviour and the Linux TW-substate deviation
 
-  Two distinct Linux dispatch paths govern the spec assertion:
+  Two distinct DUT dispatch paths govern the spec assertion:
 
-  * Full-socket states (SYN-RCVD via tcp_check_req, EST via
-    tcp_rcv_established slow_path, FW1 / CW / CLOSING / LA via
-    tcp_rcv_state_process → tcp_validate_incoming) — RFC 5961 §3.2
-    challenge-ACK fires only when the RST's seq is WITHIN the
-    receive window. For seq way out of window (our +16 MB offset
-    is far beyond any plausible window-scale ceiling), Linux
-    silently discards. Spec assertion reachable.
+  * Full-socket states (SYN-RCVD, EST, FW1 / CW / CLOSING / LA) —
+    RFC 5961 §3.2 challenge-ACK fires only when the RST's seq is
+    WITHIN the receive window. For seq way out of window (our +16 MB
+    offset is far beyond any plausible window-scale ceiling), the
+    DUT silently discards. Spec assertion reachable.
 
-  * tcp_time_wait substates (FW2 orphan, TIME-WAIT) — Linux
-    `net/ipv4/tcp_minisocks.c::tcp_timewait_state_process` calls
-    `tcp_timewait_check_oow_rate_limit` for ANY out-of-window
-    segment (RST included), which emits a rate-limited empty ACK
-    per RFC 5961's broader "anything OOW gets challenge-ACK"
-    interpretation. This is a Linux deviation from RFC 793 §3.9's
-    strict "ignore" mandate, but is RFC 5961-conformant. Phases 4
-    (FW2) and 8 (TW) absence guards are narrowed to "DUT-emitted
-    RST only" to acknowledge this deviation while still catching
-    the more egregious RST-mishandling violations (a non-conformant
-    DUT that treats OTW RST as termination would emit RST during
-    socket teardown).
+  * TIME-WAIT substates (FW2 orphan, TIME-WAIT) — Linux emits a
+    rate-limited empty ACK for ANY out-of-window segment (RST
+    included) per RFC 5961's broader "anything OOW gets
+    challenge-ACK" interpretation. This is a Linux deviation from
+    RFC 793 §3.9's strict "ignore" mandate, but is RFC 5961-
+    conformant. Phases 4 (FW2) and 8 (TW) absence guards are
+    narrowed to "DUT-emitted RST only" to acknowledge this deviation
+    while still catching the more egregious RST-mishandling
+    violations (a non-conformant DUT that treats OTW RST as
+    termination would emit RST during socket teardown).
 
   Per-phase observation chain — each phase walks its own DUT-egress
   prelude to prove the target state was reached, then enters a 3 s
   absence window. Absence transition target = next phase's first
   observation state (or pass for phase 8).
 
-  ## Stimulus phasing — scheduleAfterStateEntry
+  ## Stimulus phasing
 
-  Phase 1 fires synchronously in the stimulus body (its first
-  observation state is SCXML's initial state, so events queued
-  during kickStimulus drain into SCXML at start). Phases 2..8
-  schedule via `IStimulusScheduler::scheduleAfterStateEntry` so
-  each phase's stimulus only runs when SCXML lands in the
-  corresponding listening_pN_handshake_ack state. Required because
-  the prior phase's 3 s absence is wall-clock; a synchronous
-  all-phases-up-front stimulus would queue all events into pcap
+  Phase 1 is exercised synchronously (its first observation state is
+  SCXML's initial state, so events queued during the stimulus drain
+  into SCXML at start). Phases 2..8 are each armed only once the
+  SCXML lands in the corresponding listening_pN_handshake_ack state.
+  Required because the prior phase's 3 s absence is wall-clock; a
+  synchronous all-phases-up-front stimulus would queue all events
   before SCXML reaches state pN, then SCXML would walk the prior
   absence and find the queue empty (FLAGS_INVALID_01-style
   multi-phase absence pattern, see commit 0733339 phasing notes).

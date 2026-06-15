@@ -14,17 +14,16 @@
   Pass criterion: step 4 (DUT ACKs the within-2*MSL FIN replay,
   proving TIME-WAIT survived).
 
-  Prelude mechanism (tcp_pilot_common::driveCloseToTimeWaitClosing
-  with TesterAutoAckDrop scoped inside): UT close drives DUT into
-  FIN-WAIT-1 with the tester kernel's pure-ACK auto-reply blocked
-  by iptables; tester then raw-injects FIN+ACK whose ack number
-  intentionally does NOT cover DUT FIN — DUT in FIN-WAIT-1 receives
-  a non-acking FIN and per RFC 793 §3.9 enters CLOSING (DUT also
-  emits a pure ACK acknowledging tester FIN). Tester then raw-
-  injects a second segment, an ACK that DOES ack DUT FIN, advancing
-  DUT silently CLOSING → TIME-WAIT. The helper TCP_REPAIR-closes
-  the tester accepted fd to free the 4-tuple without emitting a
-  second tester FIN.
+  Prelude mechanism (CLOSING-path drive to TIME-WAIT): the DUT
+  application issues CLOSE, driving the DUT into FIN-WAIT-1 with the
+  tester's pure-ACK auto-reply withheld; the tester then injects a
+  FIN+ACK whose ack number intentionally does NOT cover the DUT FIN
+  — the DUT in FIN-WAIT-1 receives a non-acking FIN and per RFC 793
+  §3.9 enters CLOSING (the DUT also emits a pure ACK acknowledging
+  the tester FIN). The tester then injects a second segment, an ACK
+  that DOES ack the DUT FIN, advancing the DUT silently CLOSING →
+  TIME-WAIT. The tester releases its side of the 4-tuple without
+  emitting a second tester FIN.
 
   See tests/_templates/tcp_time_wait_4state.sce-template.xml for
   the shared 4-state observation chain. Per-case thin-shell binds

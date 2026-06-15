@@ -13,24 +13,18 @@
       (after snd_nxt).
 
   Linux DUT deviation — CASE 2 is silent-dropped:
-    * CASE 1 OTW SEQ → Linux's `tcp_validate_incoming` reaches the
-      `out_of_window` path and schedules an ACK
-      (`inet_csk_schedule_ack`); the empty ACK is observable on
-      pcap as the spec mandates.
-    * CASE 2 bad ACK in ESTABLISHED → Linux's `tcp_rcv_established`
-      slow_path step5 (Linux 6.5 net/ipv4/tcp_input.c:6026-6031)
-      calls `tcp_ack`, which returns -1 for `after(ack, snd_nxt)`
-      (line 3819-3820: -SKB_DROP_REASON_TCP_ACK_UNSENT_DATA), and
-      the caller follows `goto discard` WITHOUT invoking
-      `tcp_send_challenge_ack`. ESTABLISHED is the only state on
-      Linux that genuinely silent-drops CASE 2 — the FW2 path
-      emits an RST (UNACCEPTABLE_10's mini-socket substate) and
-      every other non-EST state (FW1, CLOSING, LA, CW) takes the
-      `tcp_rcv_state_process` branch which explicitly fires
-      `tcp_send_challenge_ack(sk)` as the spec mandates. See
-      reference_unacc_ack_dispatch memory for the full source
-      trace + dispatch table.
-      Linux DUT therefore lands `fail_no_dut_ack_to_unacc_ack`
+    * CASE 1 OTW SEQ → Linux's out-of-window SEQ check schedules an
+      empty ACK; observable on the wire as the spec mandates.
+    * CASE 2 bad ACK in ESTABLISHED → Linux 6.5 rejects the
+      unsent-data ACK (ack after SND.NXT) and silently discards the
+      segment WITHOUT emitting a challenge-ACK. ESTABLISHED is the
+      only state on Linux that genuinely silent-drops CASE 2 — the
+      FW2 path emits an RST (UNACCEPTABLE_10's mini-socket substate)
+      and every other non-EST state (FW1, CLOSING, LA, CW) emits a
+      challenge-ACK as the spec mandates. See
+      reference_unacc_ack_dispatch memory for the full dispatch
+      table.
+      A Linux DUT therefore lands `fail_no_dut_ack_to_unacc_ack`
       and is excluded from CI green via grep filter in
       .github/workflows/smoke-test.yml. A strict-RFC DUT lands
       pass without filter.

@@ -10,23 +10,24 @@
     3. DUT:    Do not send any response
     4. TESTER: Verify that the DUT is in CLOSED state
 
-  Mechanism (active-OPEN handshake → in-window RST with payload →
-  verify-probe ACK on killed 4-tuple → DUT RST as wire-observable
-  proof of CLOSED):
-    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
-      + 71, kBasicsActiveRemotePort + 71); accept tester fd, snapshot
-      tester snd_nxt / rcv_nxt via queryTcpSeqRange.
-    * Spec inject: raw-injected RST+ACK with seq=snd_nxt (in-window
-      per RFC 793 §3.4) AND a non-empty payload (16 bytes). Linux's
-      tcp_validate_incoming → tcp_reset(sk, skb) silently disposes
-      the socket; payload bytes are not delivered, no response is
-      emitted (RFC 793 §3.4 conformant).
-    * Verify probe: pure ACK on the same 4-tuple after a 100 ms
-      settle — the DUT-side socket is gone, so Linux's
-      tcp_v4_send_reset emits a closed-port RST. The DUT-emitted RST
-      is wire-observable proof that CLOSED was reached, sidestepping
-      Linux-internal tcp_close timing minutiae. Same pattern as
-      FLAGS_PROCESSING_02 phase 2 (EST RST→CLOSED, 0-byte RST).
+  Observable interactions (active OPEN to ESTABLISHED → in-window RST
+  with payload → verify-probe ACK on killed 4-tuple → DUT RST as
+  wire-observable proof of CLOSED):
+    * Prelude: drive the DUT through an active OPEN to ESTABLISHED on
+      (kBasicsActiveLocalPort + 71, kBasicsActiveRemotePort + 71);
+      accept the kernel-completed tester connection; snapshot tester
+      snd_nxt / rcv_nxt.
+    * Spec inject: the tester raw-injects an RST+ACK with seq=snd_nxt
+      (in-window per RFC 793 §3.4) AND a non-empty payload (16 bytes).
+      A conformant DUT silently disposes the socket; payload bytes
+      are not delivered and no response is emitted (RFC 793 §3.4
+      conformant).
+    * Verify probe: the tester sends a pure ACK on the same 4-tuple
+      after a 100 ms settle — the DUT-side socket is gone, so the DUT
+      emits a closed-port RST. The DUT-emitted RST is wire-observable
+      proof that CLOSED was reached, sidestepping DUT-internal close
+      timing minutiae. Same pattern as FLAGS_PROCESSING_02 phase 2
+      (EST RST→CLOSED, 0-byte RST).
 
   SCXML chain (3 listening states + 3 fail terminals + pass):
     handshake_ack → spec_silence (3 s absence after RST inject) →
@@ -36,9 +37,8 @@
   verify-probe ACK guards against any DUT response to the RST itself
   (which the spec forbids). Transitions to verify_rst on deadline,
   fails on any DUT segment on the 4-tuple. The verify-probe ACK is
-  not raised on the SCXML side — stimulus injects it on entry to
-  verify_rst via scheduleAfterStateEntry to avoid timing it by wall
-  clock.
+  injected by the tester on entry to verify_rst (state-entry observer)
+  rather than timed by wall clock.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
   unreachable, lands on fail_no_handshake_ack at the 5 s deadline +

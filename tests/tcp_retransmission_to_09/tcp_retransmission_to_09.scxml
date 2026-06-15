@@ -11,15 +11,15 @@
   inside any reasonable budget because the kernel's RTO_MAX exceeds
   the spec's 2*MSL.
 
-  Verdict ladder (kernel TCP_INFO snapshot, evaluate-pattern,
-  dispatch=no-op):
+  Verdict ladder (single kernel-state (TCP_INFO) snapshot,
+  evaluate-pattern):
     1. `not ut_handshake_completed`        → fail_handshake_did_not_complete
-       (UT OpOpenTcpSocket round-trip failed; on the negative
+       (the DUT never initiated the active OPEN; on the negative
         IP-flip path the harness never reaches the DUT.)
     2. `not ut_tcpi_p1_valid`              → fail_query_failed
     3. `ut_tcpi_p1_retransmits == 0`       → fail_no_retx
-       (SYN retransmits never fired — TesterAutoRstDrop probably
-        leaked or the DUT exited SYN-SENT for another reason.)
+       (SYN retransmits never fired — the tester's auto-RST suppression
+        probably leaked or the DUT exited SYN-SENT for another reason.)
     4. `rto_us > 63_000_000`               → fail_rto_above_2msl_cap
        (Linux RTO_MAX path, 120 s — exceeds spec's 60 s)
     5. `rto_us < 57_000_000`               → fail_rto_below_2msl_cap

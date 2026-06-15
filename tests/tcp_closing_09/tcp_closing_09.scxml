@@ -14,25 +14,25 @@
     6. TESTER: Check that DUT sent proper data
     7. TESTER: Check that DUT remains in CLOSE_WAIT state
 
-  Mechanism (active-OPEN handshake → tester shutdown(WR) → DUT pure
-  ACK / CW entry → UT sendTcpData → DUT data segment → 3 s remain-in-
-  CW absence):
-    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
-      + 72, kBasicsActiveRemotePort + 72); accept tester fd.
-    * Tester FIN: shutdown(tester_fd, SHUT_WR) emits the kernel-side
-      FIN+ACK; DUT in EST processes per tcp_data_queue's FIN handler,
-      enters CLOSE-WAIT, emits pure ACK acknowledging the FIN. SCXML
-      observes the pure ACK on listening_fin_ack.
-    * UT sendTcpData with kPayloadLen bytes triggers DUT app's
-      send(); kernel emits PSH+ACK with payload. SCXML observes the
-      data segment on listening_dut_data, conjuncted on
-      `payload_len == kPayloadLen` so a stray pure ACK doesn't false-
-      transition.
+  Observable interactions (active OPEN to ESTABLISHED → tester FIN →
+  DUT pure ACK / CW entry → DUT data segment → 3 s remain-in-CW
+  absence):
+    * Prelude: drive the DUT through an active OPEN to ESTABLISHED on
+      (kBasicsActiveLocalPort + 72, kBasicsActiveRemotePort + 72);
+      accept the kernel-completed tester connection.
+    * Tester FIN: the tester half-closes its write side, emitting a
+      FIN+ACK; the DUT in EST processes the FIN, enters CLOSE-WAIT,
+      and emits a pure ACK acknowledging the FIN. SCXML observes the
+      pure ACK on listening_fin_ack.
+    * The DUT application sends kPayloadLen bytes; the DUT emits a
+      PSH+ACK with payload. SCXML observes the data segment on
+      listening_dut_data, conjuncted on `payload_len == kPayloadLen`
+      so a stray pure ACK doesn't false-transition.
     * Remain-in-CW: 3 s absence window after the data segment,
-      forbidding any further DUT FIN or RST. Tester kernel's auto-
-      ACK to the data does not match (DUT emits, tester receives).
-      DUT remaining in CW for the full 3 s is the spec's expected
-      steady state.
+      forbidding any further DUT FIN or RST. The tester kernel's
+      auto-ACK to the data does not match (DUT emits, tester
+      receives). DUT remaining in CW for the full 3 s is the spec's
+      expected steady state.
 
   SCXML chain (4 listening states + 4 fail terminals + pass):
     handshake_ack → fin_ack → dut_data → remain_in_cw → pass
@@ -40,7 +40,7 @@
   Pass criteria mapping:
     * #3 (DUT ACK for FIN) = listening_fin_ack pure-ACK observation.
     * #6 (proper data)     = listening_dut_data payload_len match
-                             (16 bytes from UT sendTcpData).
+                             (16 bytes from the DUT data SEND).
     * #7 (remain in CW)    = listening_remain_in_cw 3 s absence
                              with FIN/RST as fail predicate.
 

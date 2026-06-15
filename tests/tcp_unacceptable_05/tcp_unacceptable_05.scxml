@@ -13,9 +13,9 @@
   with no prior SYN-RCVD context. RFC 793 §3.4 p36 specifies LISTEN
   responds with RST when the incoming segment carries an ACK
   acknowledging something that was never sent — which any ACK is in
-  LISTEN, since LISTEN has emitted no data. Both iterations resolve
-  through the same kernel path (`tcp_v4_rcv` → `tcp_v4_send_reset`)
-  but spec literalism mandates each is exercised in turn.
+  LISTEN, since LISTEN has emitted no data. In both iterations the
+  DUT emits an RST in response, but spec literalism mandates each is
+  exercised in turn.
 
   Each phase uses a DISTINCT DUT listener port (12345 / 12346) to
   isolate cross-phase state — phase 1's RST emission cannot

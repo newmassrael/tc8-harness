@@ -14,30 +14,33 @@
     6. TESTER: Check that DUT receives proper data
     7. TESTER: Check that DUT remains in FIN-WAIT-2 state
 
-  Mechanism (active-OPEN handshake → UT shutdown(WR) → tester kernel
-  ACK drives DUT to FW2 → raw inject 16 B data → DUT data ACK → UT
-  receive → byte-match → 3 s remain-in-FW2 absence):
-    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
-      + 74, kBasicsActiveRemotePort + 74); accept tester fd;
-      snapshot tester snd_nxt / rcv_nxt via queryTcpSeqRange BEFORE
-      shutdown so the captured rcv_nxt = ISN_d + 1 (pre-FIN).
-    * UT shutdown(WR) → DUT FIN+ACK egress. NO AckDrop iptables —
-      tester kernel's auto-ACK is wanted here so DUT transitions
+  Observable interactions (active OPEN to ESTABLISHED → DUT close-WR
+  → tester ACK drives DUT to FW2 → raw inject 16 B data → DUT data
+  ACK → RECEIVE → byte-match → 3 s remain-in-FW2 absence):
+    * Prelude: drive the DUT through an active OPEN to ESTABLISHED on
+      (kBasicsActiveLocalPort + 74, kBasicsActiveRemotePort + 74);
+      accept the kernel-completed tester connection; snapshot tester
+      snd_nxt / rcv_nxt BEFORE the DUT close so the captured rcv_nxt
+      = ISN_d + 1 (pre-FIN).
+    * The DUT half-closes (write side) → DUT FIN+ACK egress. The
+      tester kernel's auto-ACK is wanted here so the DUT transitions
       FW1 → FW2.
-    * Raw inject PSH+ACK with seq=ISN_t+1 (in-window), ack=ISN_d+2
-      (acks DUT FIN — kernel already acked it; this is a benign
-      duplicate ACK), and 16-byte payload. DUT in FW2 processes
-      data, emits pure ACK with seq=ISN_d+2 and ack=ISN_t+1+16.
-    * UT OpReceiveTcpData drains the kernel-queued data; stimulus
-      compares bytes and writes captured.ut_received_payload_len.
+    * The tester raw-injects PSH+ACK with seq=ISN_t+1 (in-window),
+      ack=ISN_d+2 (acks the DUT FIN — already acked; this is a benign
+      duplicate ACK), and 16-byte payload. The DUT in FW2 processes
+      the data and emits a pure ACK with seq=ISN_d+2 and
+      ack=ISN_t+1+16.
+    * The DUT RECEIVE call drains the queued data; the received bytes
+      are compared against the injected payload and
+      captured.ut_received_payload_len is set on a match.
       captured.expected_ack_num = ISN_t+17 for the data-ACK guard.
 
   SCXML chain (4 listening states + 4 fail terminals + pass):
     handshake_ack → dut_fin → dut_data_ack → remain_in_fw2 → pass
 
   Pass criteria mapping:
-    * #3 (RECEIVE issued)     = UT round-trip implicit; if tc8-dut
-                                 hadn't issued recv() the kernel
+    * #3 (RECEIVE issued)     = implicit in the RECEIVE; if the DUT
+                                 had not issued a RECEIVE its stack
                                  still ACKs the data (FW2 path) but
                                  the bytes return empty → ut_received
                                  _payload_len stays at the sentinel →

@@ -9,18 +9,18 @@
                active OPEN call.
     2. DUT:    Send a SYN.
 
-  Mechanism (§4.8.5 Upper Tester active-open + tester auxiliary
-  listener):
-    1. Tester UT OpOpenTcpSocket(Active, dut_local_port=49500,
-       remote=tester_ip:23456). tc8-dut binds (iface_ip, 49500),
-       calls connect() to the tester endpoint on a worker thread.
-    2. Tester `TesterTcpListener` is up on port 23456 so the DUT's
-       SYN reaches a real listener and the kernel completes the
-       handshake (rather than tester-kernel responding RST under
-       `tcp_v4_send_reset`). The auxiliary listener exists for the
-       benefit of the kernel's handshake plumbing — the spec
-       assertion is on the DUT-emitted SYN, not on whether the
-       tester accepts.
+  Mechanism (DUT active OPEN + tester auxiliary listener, per TC8
+  §4.8.5 Upper Tester):
+    1. The DUT application issues an active OPEN bound to
+       (iface_ip, kBasicsActiveLocalPort=49500) toward the tester
+       endpoint (tester_ip, kBasicsActiveRemotePort=23456); the DUT
+       emits a SYN.
+    2. The tester keeps an auxiliary listener up on port 23456 so the
+       DUT's SYN reaches a real listener and the handshake completes
+       (rather than the tester kernel answering with a closed-port
+       RST). The auxiliary listener exists only for the benefit of
+       the kernel's handshake plumbing — the spec assertion is on the
+       DUT-emitted SYN, not on whether the tester accepts.
     3. SCXML observes the DUT-emitted SYN on tcp_observed (BPF
        filter scopes to tcp).
 

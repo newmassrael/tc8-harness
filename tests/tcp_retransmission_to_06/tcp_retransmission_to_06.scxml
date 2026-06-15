@@ -12,43 +12,42 @@
     5. TESTER: Verify that the DUT used a timeout according to the
                referenced RFC.
 
-  Mechanism (kernel-side TCP_INFO observation, single snapshot before
-  retx fires):
+  Mechanism (kernel-state observation, single snapshot before retx
+  fires):
     The earlier pcap-timing approach (observe inter-frame delta between
     first SYN and retx 1) was deterministic at workers=1 but flaked
     under workers=4 parallel load — pcap's SOFTIRQ delivery raced the
     SCXML's 2.5 s deadline guard on the retx-observation phase.
     Replacing the wire-timing assertion with one synchronous
-    OpQueryTcpInfo (0x13) read off the DUT's connect-side fd (set by
-    openTcpActive BEFORE the connector worker is spawned —
-    upper_tester_server.cpp:1199, so the fd is queryable while in
-    TCP_SYN_SENT) makes the verdict a function of kernel state, not
-    pcap delivery latency. Stimulus phases:
+    kernel-state (TCP_INFO) read off the DUT's active-OPEN socket
+    (readable while the connection is still in TCP_SYN_SENT) makes the
+    verdict a function of kernel state, not pcap delivery latency.
+    Stimulus phases:
 
-    1. Active OPEN to a tester-side port with no listener; tester-
-       kernel auto-RST is silently swallowed by `TesterAutoRstDrop` so
-       the DUT stays in TCP_SYN_SENT and the retransmit timer remains
-       armed at TCP_TIMEOUT_INIT (= 1 s on Linux 6.x).
-    2. **Phase 1 snapshot** (captured BEFORE retx 1 fires): poll
-       OpQueryTcpInfo at 50 ms cadence until the kernel reports state
+    1. Active OPEN to a tester-side port with no listener; the tester
+       withholds its kernel's auto-RST so the DUT stays in TCP_SYN_SENT
+       and the retransmit timer remains armed at the initial RTO
+       (= 1 s on Linux 6.x).
+    2. **Phase 1 snapshot** (captured BEFORE retx 1 fires): poll the
+       kernel-state read at 50 ms cadence until the DUT reports state
        == TCP_SYN_SENT AND retransmits == 0. The first valid snapshot
        satisfying both is the initial-RTO observation — `tcpi_rto`
        reflects the value the kernel will use for the upcoming retx,
        i.e. RFC 6298 §2.1's initial RTO.
 
   Pass criteria (single state, fail-first cond chain):
-    * ut_handshake_completed       — proves the DUT opened the socket
-      and the connector worker called connect() (set when the polling
-      loop first observes state == TCP_SYN_SENT). Doubles as the
-      negative-flip detector: ipv4.dut_iface_ip=10.99.99.99 → UT RPC
-      never reaches DUT → snap.valid stays false → flag stays false.
-    * ut_tcpi_p1_valid             — RPC round-trip succeeded.
-    * ut_tcpi_p1_state == 2 (TCP_SYN_SENT) — kernel armed the SYN.
+    * ut_handshake_completed       — proves the DUT initiated the active
+      OPEN (set when the polling loop first observes state ==
+      TCP_SYN_SENT). Doubles as the negative-flip detector:
+      ipv4.dut_iface_ip=10.99.99.99 → the read never reaches the DUT →
+      snapshot stays invalid → flag stays false.
+    * ut_tcpi_p1_valid             — kernel-state read succeeded.
+    * ut_tcpi_p1_state == 2 (TCP_SYN_SENT) — DUT armed the SYN.
     * ut_tcpi_p1_retransmits == 0  — snapshot caught the initial-RTO
-      window before retx 1 doubled icsk_rto.
+      window before retx 1 doubled the retransmit timeout.
     * ut_tcpi_p1_rto_us in [800000, 1500000] — RFC 6298 §2.1's "RTO
       SHOULD be set to 1 second" with tolerance for Linux's HZ
-      quantisation and worker-thread scheduling jitter.
+      quantisation and scheduling jitter.
 
   SCXML shape — single state with a `<send delay="0ms"/>`-raised
   evaluation event, multiple cond-keyed transitions; first matching
@@ -56,10 +55,10 @@
   pattern exactly. delay=0ms is the minimal scheduler tick required to
   flush the stimulus-mutated `captured` into the cond evaluator's view.
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the UT RPC
-  request unreachable; queryTcpInfoSync returns valid=false on every
-  poll, ut_handshake_completed stays false, and the SCXML's first
-  cond verdicts as `fail:dut_handshake_did_not_complete`.
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the kernel-state
+  read unreachable; it returns invalid on every poll,
+  ut_handshake_completed stays false, and the SCXML's first cond
+  verdicts as `fail:dut_handshake_did_not_complete`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

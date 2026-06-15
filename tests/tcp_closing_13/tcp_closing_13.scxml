@@ -9,22 +9,19 @@
     2. DUT:    Do not send any response
     3. TESTER: Verify that the DUT remains in CLOSED state
 
-  Mechanism (no DUT-side socket):
+  Observable interaction (no DUT-side socket on the 4-tuple):
     * The 4-tuple is (kBasicsTesterPort + 80, kBasicsClosedPort) —
       kBasicsClosedPort (54321) is the well-known unbound DUT port,
       tester source +80 is reserved for the §4.8.6.8 closed-port
       cluster (well clear of FP_08 phase 2's +71 and FP_05/_02's
-      +72..+76). Tester raw-injects a single RST segment with
-      kTesterInitialSeq.
-    * Linux dispatch: net/ipv4/tcp_ipv4.c::tcp_v4_rcv looks up the
-      4-tuple via __inet_lookup_skb, finds no socket, falls into
-      `no_tcp_socket:` which checks `if (th->rst) goto discard_it`.
-      No segment is emitted in response — RFC 793 §3.9 conformant.
+      +72..+76). The tester injects a single RST segment.
+    * The DUT has no socket on this 4-tuple; an RST arriving at a
+      CLOSED port is ignored and no segment is emitted in response —
+      RFC 793 §3.9 conformant.
     * SCXML opens a 3 s absence window on the reverse 4-tuple
       (DUT→tester). Any DUT segment matching the 4-tuple — RST,
-      ACK, anything — fails the case. Default-7 s case timeout
-      easily covers kTcpUtBootWait (1.5 s) + 0 s stimulus + 3 s
-      window.
+      ACK, anything — fails the case. The case timeout easily covers
+      the testability-agent boot wait + 0 s stimulus + 3 s window.
 
   Negative IP-flip path: src_ip-conjunct on the absence guard
   becomes unreachable. Spec-conformant DUT silence drives the

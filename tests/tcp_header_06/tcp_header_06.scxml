@@ -9,12 +9,13 @@
     2. TESTER: Send a TCP packet with Reserved field different from zero.
     3. DUT:    Send an ACK with the expected Ack Number.
 
-  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
-  inject in-window data with reserved_override=0xF (all 4 reserved
-  bits set) + observe DUT pure ACK with the expected ack_num. Linux's
-  tcp_v4_rcv does not validate the Reserved field — Wireshark renders
-  it as "Reserved: NS, ECN, ECN, ECN" but the kernel accepts the
-  segment regardless.
+  Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
+  snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with
+  the Reserved field set to 0xF (all 4 reserved bits set); then
+  observe a DUT pure ACK with the expected ack_num. A conformant DUT
+  does not validate the Reserved field — a dissector may render it as
+  "Reserved: NS, ECN, ECN, ECN" but the DUT accepts the segment
+  regardless.
 
   Two-state SCXML chain:
     * listening_handshake_ack — handshake third-leg observation.

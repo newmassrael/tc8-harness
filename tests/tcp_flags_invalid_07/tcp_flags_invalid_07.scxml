@@ -12,14 +12,14 @@
     * CASE 4: flag set = FIN
     * CASE 5: flag set = Data segment
 
-  Per phase the stimulus drives DUT into SYN-RCVD via passive open +
-  raw-injected SYN (port quad = listen_port+N ↔ tester_port+N for
+  Per phase the stimulus drives DUT into SYN-RCVD via a passive open +
+  an injected SYN (port quad = listen_port+N ↔ tester_port+N for
   N in 0..4) so the spec-targeted "remains in SYN-RCVD" hold is
   per-phase and probes cannot cross-contaminate. ISN_d is learned
-  via TcpFrameSnippet on the DUT-emitted SYN+ACK so the probe's
+  from the DUT-emitted SYN+ACK so the probe's
   ack_num = ISN_d + 1 (acceptable per RFC 793 §3.4) — the OTW SEQ
-  is the only "bad" attribute, isolating Linux's `tcp_check_req`
-  challenge-ACK path. Each phase is observed via a single listening
+  is the only "bad" attribute, isolating the DUT's challenge-ACK
+  response in SYN-RCVD. Each phase is observed via a single listening
   state matching the DUT-emitted pure ACK on its port quad — the
   earlier SYN+ACK from the same phase carries SYN bit set and is
   filtered out of `is_pure_dut_ack`.
@@ -29,13 +29,14 @@
   acknowledge — useful for documenting Linux deviations
   case-by-case as we have done for FLAGS_INVALID_12 / UNACCEPTABLE
   CASE 2 silent-drop patterns. CASE 4 = FIN+ACK (not bare FIN):
-  Linux's tcp_v4_rcv drops bare FIN before reaching tcp_check_req's
-  OTW-SEQ branch, mirroring the 08~13 cluster convention. CASE 2
-  (SYN+ACK) is the empirical-risk case in this state: Linux's
-  tcp_check_req has a special handling path for SYN+ACK arriving on
-  a request_sock; if this case's probe_ack times out empirically,
-  the case will be reduced to 4 phases (CASE 1/3/4/5) with this
-  preamble updated to document the deviation.
+  the Linux DUT silently drops a bare FIN before it reaches the
+  OTW-SEQ challenge-ACK branch, mirroring the 08~13 cluster
+  convention. CASE 2 (SYN+ACK) is the empirical-risk case in this
+  state: a Linux DUT handles a SYN+ACK arriving on a half-open
+  connection along a special path; if this case's probe_ack times
+  out empirically, the case will be reduced to 4 phases
+  (CASE 1/3/4/5) with this preamble updated to document the
+  deviation.
 
   Negative smoke (ipv4.dut_iface_ip flip): pass guard's
   `captured.src_ip == expected.dut_iface_ip` becomes unreachable on

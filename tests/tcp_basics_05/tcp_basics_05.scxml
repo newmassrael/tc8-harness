@@ -10,20 +10,19 @@
     1. CASE: flag set = SYN,ACK
     2. CASE: flag set = ACK (bare)
 
-  Both iterations resolve through the `tcp_v4_send_reset` ACK-bearing
-  branch (`rep.th.seq = th->ack_seq`) but the spec mandates each is
-  exercised in turn. The traits inject the two stimuli sequentially
-  with a 200 ms inter-phase gap (`kTcpPilotPhaseGap`); pcap captures
-  the four wire frames (2 × tester probe + 2 × DUT RST) in order, and
-  this SCXML walks two listening states one DUT-RST observation at a
-  time.
+  In both iterations the DUT emits an RST whose SEQ field echoes the
+  incoming segment's ACK number, but the spec mandates each is
+  exercised in turn. The two stimuli are injected sequentially with a
+  200 ms inter-phase gap; the four wire frames (2 × tester probe +
+  2 × DUT RST) are observed in order, and this SCXML walks two
+  listening states one DUT-RST observation at a time.
 
-  Per-phase ACK literals are deliberately distinct
-  (kTesterPilotAckPhaseSynAck = 0xC0FFEE00, kTesterPilotAckPhaseAck =
-  0xDEADBEEF) so a buggy DUT that emits a single RST whose SEQ matches
-  one but not the other false-fails the OTHER phase rather than
-  silently masquerading. Same SEQ across phases would make a stuck-at
-  bug invisible.
+  The tester probe's ACK number per phase is deliberately distinct
+  (0xC0FFEE00 for the SYN,ACK phase, 0xDEADBEEF for the bare-ACK
+  phase) so a buggy DUT that emits a single RST whose SEQ matches one
+  but not the other false-fails the OTHER phase rather than silently
+  masquerading. Same SEQ across phases would make a stuck-at bug
+  invisible.
 
   Pass guard conjuncts (per-phase `expected_seq` differs):
     * captured.src_ip   == expected.dut_iface_ip       — DUT-origin

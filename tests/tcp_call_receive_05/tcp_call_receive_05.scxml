@@ -13,23 +13,24 @@
     5. TESTER: Verify that the DUT returns the data to the receiving
                application
 
-  Mechanism (active-OPEN handshake → raw-injected PSH+FIN+ACK with
-  payload → DUT enters CW + acks data+FIN → UT recv drains the bytes
+  Mechanism (active-OPEN handshake → injected PSH+FIN+ACK with
+  payload → DUT enters CW + acks data+FIN → RECEIVE drains the bytes
   → 3 s remain-in-CW absence proves the application's RECEIVE call
   obtained the data without disturbing the FSM):
-    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
-      + 94, kBasicsActiveRemotePort + 94); accept tester fd, snapshot
-      tester snd_nxt / rcv_nxt via queryTcpSeqRange.
+    * Prelude: drive the DUT through an active OPEN to ESTABLISHED on
+      (kBasicsActiveLocalPort + 94, kBasicsActiveRemotePort + 94);
+      accept the kernel-completed tester connection, snapshot tester
+      snd_nxt / rcv_nxt.
     * Spec inject: PSH+FIN+ACK with seq=snd_nxt, ack=rcv_nxt, 16 B
-      payload. Linux's tcp_data_queue accepts data, tcp_fin transitions
-      EST→CW, kernel emits pure ACK with ack=ISN_t+1+16+1 (data+FIN).
-    * UT OpReceiveTcpData drains the queued bytes; stimulus byte-
-      compares and writes captured.ut_received_payload_len = 16U on
-      match. captured.expected_ack_num pre-set to snd_nxt+17.
-    * Tester fd disposed via silentlyCloseTesterFd so DUT's
-      challenge-ack candidates land on a closed kernel socket; the
-      auxiliary tester listener stays alive only for the lifetime of
-      the stimulus body.
+      payload. The DUT accepts the data, transitions EST→CW, and
+      emits a pure ACK with ack=ISN_t+1+16+1 (data+FIN).
+    * The DUT application RECEIVE drains the queued bytes; the
+      received bytes are byte-compared against the injected payload
+      and captured.ut_received_payload_len is set to 16U on a match.
+      captured.expected_ack_num is pre-set to snd_nxt+17.
+    * The tester releases its side of the 4-tuple so the DUT's
+      challenge-ack candidates land on a closed socket; the auxiliary
+      tester listener stays alive only for the stimulus body.
 
   SCXML chain (4 listening states + 4 fail terminals + pass):
     handshake_ack → dut_data_ack → remain_in_cw (3 s absence of

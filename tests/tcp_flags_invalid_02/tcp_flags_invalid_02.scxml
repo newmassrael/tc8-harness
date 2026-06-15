@@ -11,17 +11,16 @@
     3. DUT:    Send a RST whose SEQ equals incoming SEG.ACK.
     4. TESTER: Verify DUT remains in LISTEN.
 
-  Mechanism (passive listen + raw-inject SYN+ACK + DUT-RST seq
-  observation + LISTEN-survival post-probe):
-    a. UT OpOpenTcpSocket(Passive, dut_port=kBasicsListenPort)
-       arms the listener.
-    b. tester raw-inject SYN+ACK(src=kBasicsTesterPort,
+  Observable protocol exchange (passive LISTEN + injected SYN+ACK +
+  DUT-RST seq observation + LISTEN-survival post-probe):
+    a. DUT enters passive LISTEN on kBasicsListenPort.
+    b. tester injects SYN+ACK(src=kBasicsTesterPort,
        seq=kTesterInitialSeq, ack=kFlagsInvalid02ProbeAck) — the
        spec-asserted invalid segment.
     c. SCXML phase 1 (listening_for_rst) waits 5 s for a DUT-emitted
        RST on the listen-port quad whose SEQ equals
        kFlagsInvalid02ProbeAck (the spec-mandated SEG.ACK echo).
-    d. tester raw-inject SYN(src=kBasicsTesterPort + 1) — a normal
+    d. tester injects SYN(src=kBasicsTesterPort + 1) — a normal
        handshake-opening probe on a fresh tester source port.
     e. SCXML phase 2 (listening_phase2_synack) waits 5 s for the
        DUT's SYN+ACK on (kBasicsListenPort, kBasicsTesterPort + 1).
@@ -30,36 +29,30 @@
        1's SYN+ACK out of LISTEN would have either advanced state or
        torn the listener down, and would not respond to a fresh SYN
        on a new tester quad with a SYN+ACK.
-    f. UT close.
+    f. The tester closes the connection.
 
-  Both phases' DUT replies are captured during synchronous stimulus
-  and queued into the pcap buffer before TestRunner::start() arms
-  the SCXML. The poll loop then drains them in arrival order:
-  phase 1's RST first (matches listening_for_rst's pass guard,
-  transitions to listening_phase2_synack), then phase 2's SYN+ACK
-  (matches the new state's pass guard). No detached-thread phasing
-  needed — the spec-asserted observation in phase 1 is a positive
-  RST emission, not an absence window, so the queue ordering carries
-  the test through both phases without wall-time-coupled waits.
+  Both phases' DUT replies are observed in arrival order: phase 1's
+  RST first (matches listening_for_rst's pass guard, transitions to
+  listening_phase2_synack), then phase 2's SYN+ACK (matches the new
+  state's pass guard). No wall-time-coupled phasing is needed — the
+  spec-asserted observation in phase 1 is a positive RST emission,
+  not an absence window, so the arrival ordering carries the test
+  through both phases.
 
   Distinct tester source ports per phase isolate the two pass
-  observations: phase 1's SYN-RCVD never actually spawns (Linux
-  routes SYN+ACK→LISTEN through tcp_v4_send_reset before any child-
-  socket allocation), but the dst_port discrimination in the phase-2
-  guard would still hold against any retransmits if a buggy DUT
-  emitted them.
+  observations: phase 1's SYN-RCVD never actually spawns (the DUT
+  emits the RST in LISTEN before allocating any child socket), but
+  the dst_port discrimination in the phase-2 guard would still hold
+  against any retransmits if a buggy DUT emitted them.
 
-  Linux behaviour reference — net/ipv4/tcp_input.c
-  tcp_rcv_state_process(TCP_LISTEN): `if (th->ack) return 1;`
-  causes tcp_v4_rcv to fall into tcp_v4_send_reset, which emits
-  RST(seq=incoming.ack, ack=incoming.seq+seg.len). Linux conforms
-  to RFC 793 §3.9 p65 here. The SYN bit on the incoming segment
-  does not gate the RST path — tcp_rcv_state_process branches on
-  ACK first, so SYN+ACK and bare ACK reach the same code. After
-  tcp_v4_send_reset returns, the LISTEN socket's state is
-  unchanged: that invariant is what phase 2's positive SYN+ACK
-  observation now verifies on the wire instead of trusting it
-  implicitly.
+  DUT behaviour: a segment carrying ACK in LISTEN elicits
+  RST(seq=incoming.ack, ack=incoming.seq+seg.len), conforming to
+  RFC 793 §3.9 p65. The SYN bit on the incoming segment does not
+  gate the RST path — the DUT branches on ACK first, so SYN+ACK and
+  bare ACK reach the same RST response. After the RST is emitted the
+  LISTEN socket's state is unchanged: that invariant is what phase
+  2's positive SYN+ACK observation now verifies on the wire instead
+  of trusting it implicitly.
 
   Pass guard discriminates on `(flags & RST) != 0` AND `seq_num ==
   kFlagsInvalid02ProbeAck`. Splitting the wrong-seq fail from

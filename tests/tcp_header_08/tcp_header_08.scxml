@@ -9,17 +9,15 @@
     2. TESTER: Send a TCP packet with Data Offset value greater than 5.
     3. DUT:    Discards the TCP packet.
 
-  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
-  inject in-window data with data_offset_override=15 (the maximum
-  4-bit encoding = 60 B header) but only ~24 B of actual segment
-  bytes + 3 s absence of any DUT pure ACK on the EST 4-tuple.
+  Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
+  snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with
+  Data Offset set to 15 (the maximum 4-bit encoding = 60 B header)
+  but only ~24 B of actual segment bytes; then observe a 3 s absence
+  of any DUT pure ACK on the EST 4-tuple.
 
-  Linux 6.5 dispatch: tcp_v4_rcv (net/ipv4/tcp_ipv4.c) calls
-    if (!pskb_may_pull(skb, th->doff * 4))
-        goto discard_it;
-  pskb_may_pull returns 0 when the announced header length exceeds
-  the actual frame payload bytes; the segment is dropped before
-  socket lookup, no DUT ACK fires.
+  Observable dispatch: the announced header length (60 B) exceeds the
+  actual frame payload bytes, so the segment is malformed; the DUT
+  drops it before connection lookup and no DUT ACK fires.
 
   Two-state SCXML chain: handshake_ack observation gates entry
   into 3 s absence; negative-flip lands on no_handshake_ack.

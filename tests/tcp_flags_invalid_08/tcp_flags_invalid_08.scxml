@@ -19,18 +19,16 @@
   observation chain is:
     1. handshake third-leg ACK (DUT-emitted pure ACK)
     2. probe-elicited ACK (DUT-emitted pure ACK with rcv_nxt — RFC
-       793 RFC 793 §3.9 challenge-ACK semantics; Linux's
-       tcp_validate_incoming OTW path schedules ack via
-       inet_csk_schedule_ack)
+       793 RFC 793 §3.9 challenge-ACK semantics; the DUT's OTW-SEQ
+       path schedules an ACK carrying the next expected SEQ)
 
   Per-phase fail terminals split the chain by case so smoke-test
   triage identifies exactly which CASE flag set the DUT failed to
   acknowledge — useful for documenting Linux deviations
   case-by-case as we have done for UNACCEPTABLE CASE 2 silent-drop
-  patterns. CASE 2 (SYN+ACK) is the empirical-risk case: Linux's
-  tcp_v4_rcv routes SYN+ACK arrivals on a connected socket through
-  inet_lookup_skb and (if a request socket is matched) tcp_check_req,
-  which short-circuits without emitting challenge ACK. If this
+  patterns. CASE 2 (SYN+ACK) is the empirical-risk case: a Linux DUT
+  may route a SYN+ACK arriving on a connected socket along a path
+  that short-circuits without emitting a challenge ACK. If this
   case's probe_ack times out empirically, the case will be reduced
   to 4 phases (CASE 1/3/4/5) with this preamble updated to document
   the deviation — same pattern as UNACCEPTABLE_04/10/11/12 and

@@ -11,30 +11,29 @@
     4. TESTER: Wait 1.5*MSL time
     5. TESTER: Verify DUT remains in TIME-WAIT state
 
-  Mechanism:
-    * Prelude: tcp_pilot_common::driveTcpToTimeWaitFw2 (active-OPEN
-      handshake → UT close → tester kernel auto-ACK → tester
-      shutdown(WR) FIN → DUT pure ACK → DUT TIME-WAIT) on a unique
+  Observable protocol exchange:
+    * Prelude: drive the DUT to TIME-WAIT via FW2 (active OPEN
+      handshake → DUT application CLOSE → tester auto-ACK → tester
+      half-close FIN → DUT pure ACK → DUT TIME-WAIT) on a unique
       port quad (kBasicsActiveLocalPort + 51, kBasicsActiveRemotePort
       + 51) chosen to dodge the §4.8 TIME-WAIT cluster's existing
       reservations (BASICS_11/12/13/14, UNACC_13, FLAGS_INVALID_14
       use the default +0 quad).
-    * Step 2 = first replay FIN (raw-inject, scheduled on entry to
+    * Step 2 = first replay FIN (tester-injected on entry to
       listening_first_replay_ack).
     * Step 3 = DUT pure ACK observation (listening_first_replay_ack).
-    * Step 4 = wall-time 45 s wait. Linux's TCP_TIMEWAIT_LEN = 60 s
-      (= 2*MSL → MSL = 30 s); spec's 1.5*MSL = 45 s. Scheduled via
-      scheduler.schedule(45 s) on entry to listening_second_replay_ack.
-      The first replay FIN restarted DUT's TW timer per RFC 793 §3.9,
+    * Step 4 = wall-time 45 s wait. The DUT's TIME-WAIT budget is
+      60 s (= 2*MSL → MSL = 30 s); spec's 1.5*MSL = 45 s. The wait
+      is scheduled on entry to listening_second_replay_ack. The
+      first replay FIN restarted the DUT's TW timer per RFC 793 §3.9,
       so at t = 45 s post-restart the timer (60 s budget) is still
       live.
     * Step 5 = second replay FIN at t + 45 s. If TW survived, DUT
       emits another pure ACK matching listening_second_replay_ack;
       if TW expired, the (kBasicsActiveRemotePort + 51,
-      kBasicsActiveLocalPort + 51) 4-tuple no longer matches a kernel
-      socket and Linux's tcp_v4_send_reset emits closed-port RST,
-      missing the pure-ACK pass guard and landing on
-      fail_no_second_replay_ack.
+      kBasicsActiveLocalPort + 51) 4-tuple no longer matches a DUT
+      socket and the DUT emits a closed-port RST, missing the
+      pure-ACK pass guard and landing on fail_no_second_replay_ack.
 
   SCXML chain (5 listening states + 5 fail terminals + pass):
     handshake_ack → dut_fin → tester_fin_ack →

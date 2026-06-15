@@ -10,13 +10,12 @@
     2. CASE: flag set = FIN
     3. CASE: flag set = Data segment (no ACK, no RST; payload bytes)
 
-  All three iterations land on the same RFC 793 §3.9 rule and resolve
-  through the same kernel path (`tcp_v4_rcv` → `tcp_v4_send_reset`),
-  but spec literalism mandates each is exercised in turn. The traits
-  inject the three stimuli sequentially with a 200 ms inter-phase gap
-  (`kTcpPilotPhaseGap`); pcap captures the resulting six wire frames
-  (3 × tester probe + 3 × DUT RST) in order, and this SCXML walks
-  three listening states one DUT-RST observation at a time.
+  All three iterations land on the same RFC 793 §3.9 rule and the DUT
+  emits an RST in response to each, but spec literalism mandates each
+  is exercised in turn. The three stimuli are injected sequentially
+  with a 200 ms inter-phase gap; the resulting six wire frames
+  (3 × tester probe + 3 × DUT RST) are observed in order, and this
+  SCXML walks three listening states one DUT-RST observation at a time.
 
   Pass guard conjuncts (identical across all three phases):
     * captured.src_ip   == expected.dut_iface_ip    — DUT-origin frame
@@ -40,7 +39,7 @@
   one terminal across all 3 phases) symmetrises the failure surface
   with fail_timeout and matches BASICS_05's per-phase
   fail_wrong_seq_<phase> shape — the three iterations exercise three
-  distinct kernel arrival paths (SYN, FIN, Data), so a wrong-seq fault
+  distinct incoming flag sets (SYN, FIN, Data), so a wrong-seq fault
   in phase 2 is not interchangeable with one in phase 1 for root-cause
   diagnosis even though both violate the same seq=0 assertion.
 

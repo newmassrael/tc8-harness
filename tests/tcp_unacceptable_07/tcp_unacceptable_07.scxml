@@ -5,17 +5,16 @@
   p35 Establishing a Connection (MUST).
 
   v3.0 Test Procedure (p301-p320.txt:473):
-    1. TESTER: Cause DUT LISTEN via UT OpOpenTcpSocket(Passive).
+    1. TESTER: Cause DUT LISTEN via passive LISTEN.
     2. TESTER: Send a SYN,ACK.
     3. DUT:    Send a RST.
 
   Mechanism: a passive-listener DUT receives a SYN,ACK that
   potentially corresponds to an old SYN it never sent. RFC 793 §3.4
-  p35 specifies that LISTEN-state TCP responds with RST. Linux's
-  `tcp_v4_do_rcv` reaches the LISTEN-arrival path
-  (`tcp_v4_send_reset`) for any segment carrying ACK without prior
-  SYN-RCVD context, emitting RST with SEQ derived from the incoming
-  ACK number (RFC 793 §3.4 p35).
+  p35 specifies that LISTEN-state TCP responds with RST. The DUT
+  takes the LISTEN-arrival path for any segment carrying ACK without
+  prior SYN-RCVD context, emitting RST with SEQ derived from the
+  incoming ACK number (RFC 793 §3.4 p35).
 
   Pass guard: single-state listen window observing a DUT-origin RST
   on the (12345, 49152) port quad. The mismatched-tester-port

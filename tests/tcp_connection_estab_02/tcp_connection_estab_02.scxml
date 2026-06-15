@@ -10,12 +10,12 @@
     3. DUT:    Opens 3 TCP passive sockets and sends 3 SYN,ACK
                corresponding to the received SYNs.
 
-  Mechanism:
-    Three independent UT OpOpenTcpSocket(passive) requests on
-    13173/13174/13175 (tc8-dut binds three listeners). For each leg,
+  Observable interactions:
+    Three independent passive LISTENs are opened on
+    13173/13174/13175 (the DUT binds three listeners). For each leg,
     a raw-inject SYN(seq=kTesterInitialSeq) lands at its listener
-    from a distinct tester source port (+173/+174/+175).
-    TesterAutoRstDrop covers the three legs concurrently.
+    from a distinct tester source port (+173/+174/+175). The tester
+    withholds its kernel auto-RSTs across the three legs concurrently.
 
   Pass chain: 3 sequential listening states, one per leg. SCXML
   guards on (src_port == listen_portN, dst_port == tester_src_portN,

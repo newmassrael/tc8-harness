@@ -23,17 +23,18 @@
 
   Mechanism per phase mirrors MSS_OPTIONS_06's passive variant but
   flips the handshake direction:
-    - TesterAutoRstDrop scoped over the whole stimulus.
-    - UT OpOpenTcpSocket(active, local, remote) — DUT issues SYN.
-    - TcpFrameSnippet learns DUT's ISN_d.
-    - Raw-inject SYN+ACK seq=tester_isn, ack=ISN_d+1, options
-      [02 04 hi lo] encoding kind=2 length=4 MSS=Mv.
-    - DUT processes the SYN+ACK, emits third-leg ACK, reaches
-      ESTABLISHED. tc8-dut's connect() unblocks; accepted_fd is set.
-    - UT OpSendTcpDataPattern(socket_id, pattern, 4000) bulk-writes
-      4000 B; Linux segments at min(Mv, DUT_MSS).
-    - 200 ms grace lets the first segment land on pcap before the
-      teardown UT close.
+    - The tester's auto-RST is suppressed over the whole stimulus.
+    - An active OPEN is requested on the DUT side — the DUT issues
+      a SYN.
+    - Learn the DUT's ISN_d from that SYN.
+    - Send SYN+ACK seq=tester_isn, ack=ISN_d+1, options [02 04 hi lo]
+      encoding kind=2 length=4 MSS=Mv.
+    - The DUT processes the SYN+ACK, emits the third-leg ACK, and
+      reaches ESTABLISHED; its active OPEN completes.
+    - Tester causes a SEND of 4000 bytes; the DUT segments at
+      min(Mv, DUT_MSS).
+    - A 200 ms grace lets the first segment land on pcap before the
+      teardown close.
 
   Pass guard: per-phase tcp_observed where the DUT-emitted data
   segment's payload_len matches the expected min(Mv, DUT_MSS) on the

@@ -10,13 +10,12 @@
     2. TESTER: Send 3 TCP segments with SYN from 3 different ports.
     3. DUT:    Sends 3 SYN,ACK responses to each sending port.
 
-  Mechanism:
-    UT OpOpenTcpSocket(passive, 13170) brings DUT to LISTEN. Three
-    raw-inject SYNs land at the listener from
-    (kBasicsTesterPort + 170/171/172) at 50 ms intervals.
-    TesterAutoRstDrop suppresses the kernel auto-RSTs the unbound
-    tester source ports would otherwise emit on the DUT-emitted
-    SYN+ACKs.
+  Observable interactions:
+    A passive LISTEN is opened on 13170, bringing the DUT to LISTEN.
+    Three raw-inject SYNs land at the listener from
+    (kBasicsTesterPort + 170/171/172) at 50 ms intervals. The tester
+    withholds the kernel auto-RSTs that the unbound tester source
+    ports would otherwise emit on the DUT-emitted SYN+ACKs.
 
   Pass chain: 3 sequential listening states. Each guards on (src_port
   == 13170, dst_port == kBasicsTesterPort + N, SYN+ACK bits,

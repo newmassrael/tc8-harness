@@ -9,17 +9,17 @@
     2. TESTER: Send a TCP packet with URG being set to DUT.
     3. DUT:    Sends an ACK with the expected Ack Number.
 
-  Mechanism (active-OPEN handshake + raw-inject URG segment):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+140,
-       kBasicsActiveRemotePort+140).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt.
-    4. Tester raw-injects URG+PSH+ACK with seq=snd_nxt, ack=rcv_nxt
-       (in-window), urgent_pointer=payload_len, and a 4 B payload.
-       DUT receives the segment; per RFC 793 §3.9 it replies with a
-       pure ACK whose ack_num covers the payload bytes.
+  Observable interactions (active OPEN to ESTABLISHED + raw-inject URG
+  segment):
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
+       (kBasicsActiveLocalPort+140, kBasicsActiveRemotePort+140).
+    2. Accept the kernel-completed tester connection off the listen
+       queue.
+    3. Snapshot the post-handshake tester snd_nxt / rcv_nxt.
+    4. The tester raw-injects URG+PSH+ACK with seq=snd_nxt,
+       ack=rcv_nxt (in-window), urgent_pointer=payload_len, and a 4 B
+       payload. The DUT receives the segment; per RFC 793 §3.9 it
+       replies with a pure ACK whose ack_num covers the payload bytes.
 
   Two-state SCXML chain:
     * listening_handshake_ack — observe the DUT-emitted handshake

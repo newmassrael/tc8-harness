@@ -12,18 +12,18 @@
                listener port, expect a new DUT SYN+ACK.
 
   Mechanism (raw-inject SYN/RST/SYN sequence on a passive listener):
-    a. UT OpOpenTcpSocket(Passive, dut_port=12345) arms the listener.
+    a. Passive LISTEN on dut_port=12345 arms the listener.
     b. tester raw-inject SYN(src=49152, seq=ISN_t)         → DUT SYN+ACK.
     c. tester raw-inject RST(src=49152, seq=ISN_t+1)       → no DUT segment.
     d. tester raw-inject SYN(src=49153, seq=ISN_t2)        → fresh DUT SYN+ACK.
-    e. UT close.
+    e. close.
 
   Step (c)'s RST is "acceptable" because the SEQ is in-window: the
   DUT's receive window after sending its SYN+ACK starts at ISN_t+1
   (the next byte the tester would send), which is exactly what the
-  tester injects. Linux's `tcp_check_req` validates the SEQ against
-  the embryonic request socket and frees the connection state on
-  match — the listener LISTEN itself is preserved.
+  tester injects. The DUT validates the SEQ against the embryonic
+  connection and frees that connection state on match — the listener
+  LISTEN itself is preserved.
 
   Pass guard structure — two listening states walked in sequence:
     listening_first_synack — match DUT-origin SYN+ACK on the first

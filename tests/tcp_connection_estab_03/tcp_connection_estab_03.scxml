@@ -11,19 +11,19 @@
     3. TESTER: Sends 3 TCP segments with SYN+ACK to each socket.
     4. DUT:    Sends 3 TCP segments with ACK from each socket.
 
-  Mechanism:
-    Three independent UT OpOpenTcpSocket(active) on
+  Observable interactions:
+    Three independent active OPENs on
     (kBasicsActiveLocalPort + 176/177/178) ↔ (kBasicsActiveRemotePort
-    + 176/177/178). Each leg has a real tester listener so the kernel
-    completes the handshake automatically. Pass guard observes the
-    DUT's handshake third-leg ACK on each leg.
+    + 176/177/178). Each leg has a tester listener so the connection
+    completes the handshake automatically. The pass guard observes
+    the DUT's handshake third-leg ACK on each leg.
 
   Pass chain: 3 sequential listening states. The third-leg ACK has
   ACK set, SYN/FIN/RST clear, payload_len == 0 — the
   `is_pure_dut_ack` member predicate on captured. Ordering is by
   SCXML state progression; on the wire the three handshakes complete
-  in the order the DUT emits its SYNs (tc8-dut openTcpActive spawns
-  worker threads serially, with `kTcpUtRpcWait` between RPCs).
+  in the order the DUT emits its SYNs (the DUT opens the three active
+  connections serially).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

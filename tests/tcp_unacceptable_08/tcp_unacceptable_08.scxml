@@ -10,29 +10,29 @@
     * Phase 1 (CASE 1): flag set = SYN,ACK with unacceptable ACK.
     * Phase 2 (CASE 2): flag set = ACK only with unacceptable ACK.
 
-  Mechanism (per phase, mirrored on FLAGS_INVALID_05's 2-phase
-  pattern):
-    a. TesterAutoRstDrop suppresses tester-kernel auto-RST so the
-       DUT's outbound SYN does not provoke a tester-kernel RST that
-       would knock DUT out of syn-sent before the bad-ACK inject.
-    b. UT OpOpenTcpSocket(Active) — DUT binds + connect() → SYN
-       emitted, DUT in syn-sent. With no tester listener bound, the
-       SYN goes nowhere and DUT retransmits per Linux's
-       tcp_syn_retries cadence (~1 s); the spec assertion fires
-       well before retransmit timing matters.
-    c. TcpFrameSnippet captures the DUT-emitted SYN to learn ISN_d.
-    d. tester raw-injects (CASE 1: SYN+ACK / CASE 2: ACK) with
-       ack_num = ISN_d + LARGE_OFFSET. Per RFC 793 §3.4 p36 syn-sent
+  Observable protocol interaction (per phase, mirrored on
+  FLAGS_INVALID_05's 2-phase pattern):
+    a. The tester suppresses its kernel's auto-RST so the DUT's
+       outbound SYN does not provoke a tester-kernel RST that would
+       knock the DUT out of SYN-SENT before the bad-ACK injection.
+    b. The DUT issues an active OPEN — SYN emitted, DUT in SYN-SENT.
+       With no tester endpoint listening, the SYN goes nowhere and
+       the DUT retransmits per Linux's tcp_syn_retries cadence
+       (~1 s); the spec assertion fires well before retransmit
+       timing matters.
+    c. The DUT-emitted SYN is observed to learn ISN_d.
+    d. The tester injects (CASE 1: SYN+ACK / CASE 2: ACK) with
+       ack_num = ISN_d + LARGE_OFFSET. Per RFC 793 §3.4 p36 SYN-SENT
        responds RST(seq = incoming.ack).
-    e. SCXML observes DUT RST on the per-phase active port quad.
-    f. UT close — best-effort.
+    e. SCXML observes the DUT RST on the per-phase active port quad.
+    f. The DUT closes the socket — best-effort.
 
-  Phase 2 fires via scheduleAfterStateEntry on Listening_p2_dut_rst
+  Phase 2's active OPEN is initiated on entry to listening_p2_dut_rst
   so its DUT SYN is not queued behind phase 1's wall-clock absence.
-  Each phase uses a distinct local/remote port pair and socket_id
-  (mirror of FLAGS_INVALID_05). If tc8-dut's UT close-path races
-  the lingering syn-sent retransmit on phase 2 (audit-flagged
-  TEST-DESIGN concern), the case lands fail_p2_no_dut_rst on Linux
+  Each phase uses a distinct local/remote port pair and connection
+  identity (mirror of FLAGS_INVALID_05). If the DUT's close path
+  races the lingering SYN-SENT retransmit on phase 2 (audit-flagged
+  TEST-DESIGN concern), the case lands fail_p2_no_dut_rst on a Linux
   DUT and is excluded from CI green via grep filter in
   .github/workflows/smoke-test.yml.
 -->

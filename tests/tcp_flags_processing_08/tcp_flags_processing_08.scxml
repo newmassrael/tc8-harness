@@ -12,24 +12,22 @@
   Per-phase port quads (cluster collision dodge — see
   reference_active_open_port_quad_collision.md):
     * Phase 1: (kBasicsClosedPort, kBasicsTesterPort) — bare FIN
-      raw-injected to an unbound DUT port → Linux's tcp_v4_rcv finds
-      no socket → tcp_v4_send_reset emits RST(seq=0) per RFC 793 §3.9.
-      Same wire shape as BASICS_04 phase 2.
+      injected to an unbound DUT port → the DUT finds no socket →
+      emits RST(seq=0) per RFC 793 §3.9. Same wire shape as
+      BASICS_04 phase 2.
     * Phase 2: (kBasicsListenPort + 14, kBasicsTesterPort + 71) —
-      UT OpOpenTcpSocket(passive, kBasicsListenPort + 14) drives DUT
-      into LISTEN; tester raw-inject bare FIN. Linux's
-      tcp_rcv_state_process LISTEN handler returns 0 (drop) for
-      non-SYN segments → DUT silent. 3 s absence guard catches any
+      DUT enters passive LISTEN on kBasicsListenPort + 14; tester
+      injects a bare FIN. The DUT's LISTEN handler drops non-SYN
+      segments → DUT silent. 3 s absence guard catches any
       DUT-emitted segment on the 4-tuple.
     * Phase 3: (kBasicsActiveLocalPort + 52, kBasicsActiveRemotePort
-      + 52) — UT OpOpenTcpSocket(active) to an unbound tester port
-      drives DUT to SYN-SENT; TesterAutoRstDrop suppresses tester
-      kernel's auto-RST that would otherwise race-kill DUT's
-      SYN-SENT before the bare FIN arrives. Tester raw-inject bare
-      FIN (no ACK — Linux's tcp_rcv_synsent_state_process discards
-      non-ACK non-SYN non-RST silently). Absence guard tolerates
-      DUT SYN retransmits (RFC 793-mandated SYN-SENT timer behaviour
-      unrelated to the spec-targeted FIN response).
+      + 52) — DUT performs an active OPEN to an unbound tester port,
+      reaching SYN-SENT; the tester suppresses its kernel auto-RST
+      that would otherwise race-kill the DUT's SYN-SENT before the
+      bare FIN arrives. Tester injects a bare FIN (no ACK — the DUT
+      discards non-ACK non-SYN non-RST in SYN-SENT silently). Absence
+      guard tolerates DUT SYN retransmits (RFC 793-mandated SYN-SENT
+      timer behaviour unrelated to the spec-targeted FIN response).
 
   SCXML observation chain:
     listening_p1_dut_rst (5 s, trigger DUT RST seq=0 on closed port)

@@ -26,20 +26,18 @@
     intermediate ACKs (which carry the seg1-only ack_num) so the
     transition only fires on the cumulative ACK.
 
-  Mechanism (active-OPEN handshake + 2× raw-inject small PSH+ACK):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+146,
-       kBasicsActiveRemotePort+146).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt.
-    4. Tester raw-injects two consecutive PSH+ACKs at S = snd_nxt
+  Mechanism (active OPEN to ESTABLISHED + two small PSH+ACKs):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+146,
+       kBasicsActiveRemotePort+146); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection.
+    3. Snapshot the post-handshake tester snd_nxt / rcv_nxt.
+    4. The tester sends two consecutive PSH+ACKs at S = snd_nxt
        and S + 100, each carrying a 100 B payload. 100 B is small
        enough to keep both segments well below MSS (so the spec's
        "consecutively without any delay" intent is preserved at the
        wire layer — no inter-segment pacing) and large enough to
        exercise the cumulative-ACK code path.
-    5. DUT acknowledges:
+    5. The DUT acknowledges:
          SEG0 -> pure ACK with ack_num == S + 100   (intermediate),
          SEG1 -> pure ACK with ack_num == S + 200   (cumulative).
        In quickack mode both ACKs fire immediately; in pingpong mode

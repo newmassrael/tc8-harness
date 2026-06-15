@@ -9,17 +9,15 @@
     2. TESTER: Send a TCP packet with Data Offset value less than 5.
     3. DUT:    Discards the TCP packet.
 
-  Mechanism: Active-OPEN to ESTABLISHED + queryTcpSeqRange + raw-
-  inject in-window data with data_offset_override=4 + 3 s absence
-  of any DUT pure ACK on the EST 4-tuple.
+  Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
+  snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with
+  Data Offset set to 4 (below the RFC 793 §3.1 minimum of 5); then
+  observe a 3 s absence of any DUT pure ACK on the EST 4-tuple.
 
-  Linux 6.5 dispatch path: tcp_v4_rcv (net/ipv4/tcp_ipv4.c) checks
-    if (th->doff < sizeof(struct tcphdr) / 4)
-        goto bad_packet;
-  with `bad_packet` incrementing TCP_MIB_INERRS and dropping the
-  segment without involving the connected socket. The EST socket
-  receives no signal and emits no ACK; the kernel does not generate
-  a RST either (bad_packet is silent).
+  Observable dispatch: a Data Offset below the 20 B minimum makes the
+  segment malformed, so the DUT drops it before involving the
+  connected socket. The EST socket sees no signal and emits no ACK;
+  the DUT also generates no RST (the drop is silent).
 
   Two-state SCXML chain:
     * listening_handshake_ack — handshake third-leg ACK observation

@@ -10,13 +10,12 @@
     2. DUT:    Send a SYN.
     3. TESTER: Verify that received SYN contains MSS option.
 
-  Mechanism: same active-OPEN scaffold as TCP_BASICS_06 — UT
-  OpOpenTcpSocket(Active) drives tc8-dut connect() so DUT emits a
-  pure SYN on the wire. Pass guard adds `captured.mss > 0` to assert
-  the kind=2 MSS option was parsed from the segment's TCP options.
-  Linux always advertises the receive MSS in the initial SYN
-  (`tcp_v4_init_sock` → TCPOPT_MSS unconditional) so the assertion is
-  deterministic on a conformant DUT.
+  Mechanism: same active-OPEN scaffold as TCP_BASICS_06 — an active
+  OPEN is requested on the DUT side so the DUT emits a pure SYN on
+  the wire. Pass guard adds `captured.mss > 0` to assert the kind=2
+  MSS option was parsed from the segment's TCP options. A conformant
+  DUT advertises its receive MSS in the initial SYN unconditionally,
+  so the assertion is deterministic.
 
   Port quad uses kBasicsActiveLocalPort + 40 / kBasicsActiveRemotePort
   + 40 — first slot in the §4.8.6.9 MSS_OPTIONS reservation block

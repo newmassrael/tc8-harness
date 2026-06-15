@@ -16,30 +16,30 @@
   Iterations: <wst> ∈ {CLOSING, LAST-ACK, TIME-WAIT}.
 
   Mechanism (3 phases × distinct port quads):
-    * Phase 1 CLOSING (+91): driveCloseToClosing helper drives DUT
-      EST→FW1→CLOSING (caller-managed TesterAutoAckDrop). UT abort
-      → DUT RST egress (tcp_disconnect path).
-    * Phase 2 LAST-ACK (+92): TesterAutoAckDrop installed before
-      handshake → tester shutdown(WR) → DUT EST→CW (DUT acks tester
-      FIN). UT shutdownTcpSocketWr → DUT CW→LAST-ACK (DUT FIN egress;
-      AckDrop blocks tester auto-ACK so DUT stays in LAST-ACK). UT
-      abort → DUT RST.
-    * Phase 3 TIME-WAIT (+93): UT shutdownTcpSocketWr → DUT FIN →
-      tester auto-ACK → DUT FW1→FW2. Tester shutdown(WR) → tester
-      FIN → DUT FW2→TIME-WAIT (DUT pure ACK). UT abort on the TW
-      socket. Linux's TIME-WAIT bucket may not emit RST on close,
-      so verify-probe ACK is the wire-observable pass criterion.
+    * Phase 1 CLOSING (+91): drive the DUT EST→FW1→CLOSING (tester
+      auto-ACK withheld). DUT application ABORT → DUT RST egress.
+    * Phase 2 LAST-ACK (+92): with the tester auto-ACK withheld from
+      before the handshake → tester half-close → DUT EST→CW (DUT
+      acks tester FIN). The DUT application half-closes its write side
+      → DUT CW→LAST-ACK (DUT FIN egress; with the tester auto-ACK
+      withheld the DUT stays in LAST-ACK). DUT application ABORT →
+      DUT RST.
+    * Phase 3 TIME-WAIT (+93): the DUT application half-closes its
+      write side → DUT FIN → tester auto-ACK → DUT FW1→FW2. Tester
+      half-close → tester FIN → DUT FW2→TIME-WAIT (DUT pure ACK).
+      DUT application ABORT on the TIME-WAIT socket. Linux's
+      TIME-WAIT bucket may not emit RST on close, so the verify-probe
+      ACK is the wire-observable pass criterion.
 
-  Each phase ends with a verify-probe ACK on the killed 4-tuple (raw
-  inject scheduled on entry to listening_pN_verify_rst). The DUT-side
-  socket is gone, Linux's tcp_v4_send_reset emits a closed-port RST —
-  uniformly satisfies "DUT moves to CLOSED" across all three iters,
-  including TIME-WAIT where abort itself is silent.
+  Each phase ends with a verify-probe ACK injected on the killed
+  4-tuple as listening_pN_verify_rst is entered. The DUT-side socket
+  is gone, so the DUT emits a closed-port RST — uniformly satisfies
+  "DUT moves to CLOSED" across all three iters, including TIME-WAIT
+  where ABORT itself is silent.
 
-  Phase 1 stimulus runs INLINE in main stimulus body. Phases 2/3 are
-  deferred via scheduleAfterStateEntry to the matching pN_handshake_ack
-  state so the per-phase wire events arrive while the phase's
-  listening transitions are armed.
+  Phase 1 stimulus runs INLINE; phases 2/3 are deferred to the
+  matching pN_handshake_ack state so the per-phase wire events arrive
+  while the phase's listening transitions are armed.
 
   SCXML chain (9 listening states + 3 fail terminals + pass):
     p1_handshake_ack → p1_settle (5 s absorb prelude+abort egress) →

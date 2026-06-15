@@ -9,9 +9,9 @@
     2. TESTER: Send a SYN with the Sequence Number equal to 0.
     3. DUT:    Sends an SYN,ACK with an ACK Number equal to 1.
 
-  Mechanism: same shape as SEQUENCE_01 with `tester_isn = 0U`. The
-  driveSeamRawPassiveAccept helper carries the override. The SCXML
-  guard expects `captured.ack_num == 1U`.
+  Mechanism: same shape as SEQUENCE_01 — a passive LISTEN + raw-
+  injected SYN handshake — but the injected SYN carries
+  `tester_isn = 0U`. The SCXML guard expects `captured.ack_num == 1U`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

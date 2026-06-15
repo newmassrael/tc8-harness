@@ -19,23 +19,24 @@
   Pass criteria: steps 3 and 6 — two distinct SYN,ACK observations
   with the matching expected ack_num values.
 
-  Mechanism (passive listener + raw-inject probes):
-    1. UT OpOpenTcpSocket(passive, listen_port=kTcpControlFlags08
-       ListenPort) — DUT enters LISTEN.
-    2. RAII TesterAutoRstDrop installs an iptables OUTPUT-chain RST
-       drop so the tester kernel does not auto-RST the DUT-emitted
-       SYN,ACK before the test stimulus crafts its follow-up.
+  Observable interactions (passive LISTEN + raw-inject probes):
+    1. A passive LISTEN is opened on
+       listen_port=kTcpControlFlags08ListenPort — the DUT enters
+       LISTEN.
+    2. The tester withholds its kernel auto-RST so it does not
+       auto-RST the DUT-emitted SYN,ACK before the test stimulus
+       crafts its follow-up.
     3. Raw-inject SYN with seq=kTcpControlFlags08Seq1 from
        kTcpControlFlags08TesterSrcPort.
     4. After ~500 ms (DUT SYN,ACK observed by SCXML), raw-inject
-       SYN+RST with seq=kTcpControlFlags08Seq1+1. Linux's RFC 5961
-       RFC 793 §3.2 RST handling on the SYN-RECEIVED 4-tuple matches when
-       seq == rcv.nxt — DUT closes the embryonic connection and
-       its passive listener returns to LISTEN.
+       SYN+RST with seq=kTcpControlFlags08Seq1+1. The DUT's RFC 5961
+       RFC 793 §3.2 RST handling on the SYN-RECEIVED 4-tuple matches
+       when seq == rcv.nxt — the DUT closes the embryonic connection
+       and its passive listener returns to LISTEN.
     5. After ~300 ms, raw-inject SYN with seq=kTcpControlFlags08Seq2
-       on the same 4-tuple. DUT (back in LISTEN) replies SYN,ACK
+       on the same 4-tuple. The DUT (back in LISTEN) replies SYN,ACK
        with ack=kTcpControlFlags08Seq2+1.
-    6. UT OpCloseTcpSocket cleans up the listener.
+    6. The passive LISTEN is then closed.
 
   Two-state SCXML chain:
     * listening_first_syn_ack — observe DUT SYN,ACK on

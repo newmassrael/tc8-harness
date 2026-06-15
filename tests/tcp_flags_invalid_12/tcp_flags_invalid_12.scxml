@@ -12,39 +12,38 @@
     * CASE 4: flag set = FIN
     * CASE 5: flag set = Data segment
 
-  Per-phase prelude (function-scoped TesterAutoAckDrop covers all
-  five phases — pure-ACK iptables suppression keeps DUT pinned in
-  FIN-WAIT-1 long enough for the tester FIN+ACK injection to drive
-  it into CLOSING):
-    1. Active-OPEN handshake → ESTABLISHED (DUT third-leg ACK).
-    2. Tester accept() pulls connected fd off listener queue.
-    3. driveCloseToClosing — UT close (DUT FIN+ACK observed; tester
-       kernel auto-ACK suppressed by ack_drop) → queryTcpSeqRange
-       snapshots tester snd_nxt / rcv_nxt (kernel-tracked, includes
-       consumed DUT FIN) → raw-inject tester FIN+ACK with seq =
-       snd_nxt and ack = rcv_nxt - 1 (acceptable per RFC 793 §3.4
-       in [snd.una, snd.nxt] but does NOT acknowledge DUT FIN) →
-       DUT FW1 → CLOSING with DUT pure ACK observation.
-    4. Raw-inject CASE-distinct OTW probe with seq =
+  Per-phase prelude (the tester withholds its pure ACK across all
+  five phases, keeping the DUT pinned in FIN-WAIT-1 long enough for
+  the tester FIN+ACK injection to drive it into CLOSING):
+    1. Active OPEN handshake → ESTABLISHED (DUT third-leg ACK).
+    2. The tester accepts the connection.
+    3. Close-to-CLOSING drive — DUT application CLOSE (DUT FIN+ACK
+       observed; tester pure ACK withheld) → snapshot tester snd_nxt
+       / rcv_nxt (includes the consumed DUT FIN) → tester injects
+       FIN+ACK with seq = snd_nxt and ack = rcv_nxt - 1 (acceptable
+       per RFC 793 §3.4 in [snd.una, snd.nxt] but does NOT
+       acknowledge DUT FIN) → DUT FW1 → CLOSING with DUT pure ACK
+       observation.
+    4. tester injects a CASE-distinct OTW probe with seq =
        tester_seq_post_fin + kOutOfWindowSeqOffset and ack =
        tester_ack_post_fin - 1U (CASE 2..5; CASE 1 SYN-only carries
-       ack=0). Linux's tcp_validate_incoming OTW SEQ branch fires
-       before tcp_ack — challenge ACK observed.
-    5. silentlyCloseTesterFd (TCP_REPAIR + close, no tester FIN
-       emitted, frees the 4-tuple cleanly between phases).
+       ack=0). The DUT's OTW SEQ branch fires before its ACK
+       processing — challenge ACK observed.
+    5. The tester closes its endpoint silently (no tester FIN
+       emitted), freeing the 4-tuple cleanly between phases.
 
   Per phase the SCXML walks four DUT-origin observations:
     1. handshake third-leg ACK (DUT pure ACK)
-    2. UT-close-elicited DUT FIN+ACK
+    2. close-elicited DUT FIN+ACK
     3. CLOSING-transition DUT pure ACK (response to non-acking
        tester FIN+ACK)
     4. probe-elicited DUT empty ACK (challenge ACK per RFC 793 §3.9)
 
-  CASE 4 (FIN) carries an ACK flag with rcv_nxt - 1 — Linux drops
-  bare-FIN segments before reaching tcp_validate_incoming's OTW SEQ
-  branch (verified empirically in 08), so carrying ACK keeps the
-  segment past the early-drop. Same convention as
-  FLAGS_INVALID_08 / _09 / _10 / _11 / _13.
+  CASE 4 (FIN) carries an ACK flag with rcv_nxt - 1 — the DUT drops
+  bare-FIN segments before reaching its OTW SEQ branch (verified
+  empirically in 08), so carrying ACK keeps the segment past the
+  early-drop. Same convention as FLAGS_INVALID_08 / _09 / _10 / _11
+  / _13.
 
   Negative smoke (ipv4.dut_iface_ip flip): pass guard's src_ip-
   conjunct fails on phase 1's listening_p1_handshake_ack → first

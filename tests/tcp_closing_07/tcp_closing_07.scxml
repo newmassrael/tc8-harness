@@ -16,28 +16,27 @@
     8. TESTER: Check that DUT receives proper data
     9. TESTER: Check that DUT remains in FIN-WAIT-1 state
 
-  Mechanism (active-OPEN handshake → AckDrop → UT close → DUT FIN
-  with no peer-ACK → raw-injected data with non-acking ack → DUT
-  data ACK → UT receive → byte-match → 3 s remain-in-FW1):
-    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
-      + 73, kBasicsActiveRemotePort + 73); accept tester fd; snapshot
-      tester snd_nxt / rcv_nxt via queryTcpSeqRange.
-    * AckDrop iptables (held alive past stimulus end via
-      scheduler.schedule(120s) lambda capture) suppresses tester
-      kernel's auto-ACK to DUT FIN, keeping DUT in FW1 across the
-      stimulus and SCXML observation phases.
-    * UT close → DUT FIN+ACK egress; tester kernel's auto-ACK
-      dropped → DUT stays in FW1.
+  Mechanism (active OPEN to ESTABLISHED → withheld peer FIN-ACK → DUT
+  FIN with no peer-ACK → raw-injected non-acking data → DUT data ACK →
+  RECEIVE drains bytes → byte-match → 3 s remain-in-FW1):
+    * Prelude: drive the DUT through an active OPEN to ESTABLISHED on
+      (kBasicsActiveLocalPort + 73, kBasicsActiveRemotePort + 73);
+      accept the tester connection; snapshot tester snd_nxt / rcv_nxt.
+    * The tester withholds its kernel's auto-ACK to the DUT's FIN,
+      keeping the DUT in FW1 across the stimulus and SCXML observation
+      phases.
+    * DUT application CLOSE → DUT FIN+ACK egress; with the peer ACK
+      withheld the DUT stays in FW1.
     * Raw inject PSH+ACK with seq=ISN_t+1 (in-window data),
       ack=ISN_d+1 (= SND.UNA, doesn't advance, doesn't ack FIN), and
-      16-byte payload. DUT in FW1 processes data (tcp_data_queue),
-      emits pure ACK with seq=ISN_d+2 (post-FIN snd_nxt) and
+      16-byte payload. DUT in FW1 processes the data and emits a pure
+      ACK with seq=ISN_d+2 (post-FIN snd_nxt) and
       ack=ISN_t+1+16=ISN_t+17.
-    * UT OpReceiveTcpData drains the kernel-queued data; stimulus
-      compares bytes against the injected payload and writes
-      captured.ut_received_payload_len = 16U on a match (sentinel
-      0xFFFFU otherwise). captured.expected_ack_num is set to
-      ISN_t+17 so SCXML's listening_dut_data_ack can check the ACK
+    * The DUT RECEIVE call drains the queued data; the received bytes
+      are compared against the injected payload and
+      captured.ut_received_payload_len is set to 16U on a match
+      (sentinel 0xFFFFU otherwise). captured.expected_ack_num is set
+      to ISN_t+17 so SCXML's listening_dut_data_ack can check the ACK
       number is the expected one.
 
   SCXML chain (4 listening states + 4 fail terminals + pass):
@@ -45,9 +44,9 @@
 
   Pass criteria mapping:
     * #3 (DUT FIN)            = listening_dut_fin observation.
-    * #5 (RECEIVE call issued)= UT round-trip implicit; if tc8-dut
-                                 hadn't issued recv() the kernel
-                                 still ACKs but no bytes returned →
+    * #5 (RECEIVE call issued)= implicit in the RECEIVE; if the DUT
+                                 had not issued a RECEIVE its stack
+                                 still ACKs but no bytes surface →
                                  ut_received_payload_len stays at the
                                  sentinel and the deadline transition
                                  lands on fail_no_proper_data.

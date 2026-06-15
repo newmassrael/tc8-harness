@@ -10,8 +10,8 @@
   plateauing at 120 s; on a Linux DUT this case is expected to fail.
   A strict-RFC DUT honouring the 2*MSL ceiling would pass.
 
-  Verdict ladder (kernel TCP_INFO snapshot computed by stimulus,
-  evaluate-pattern SCXML, dispatch=no-op):
+  Verdict ladder (single kernel-state (TCP_INFO) snapshot off the DUT
+  socket, evaluate-pattern SCXML):
     1. `not ut_handshake_completed`        → fail_handshake_did_not_complete
     2. `not ut_tcpi_p1_valid`              → fail_query_failed
     3. `ut_tcpi_p1_retransmits == 0`       → fail_no_retx
@@ -30,7 +30,7 @@
   Reaching the 120 s plateau requires ~200 s wall-time and would
   hit the case envelope cap before observing it.
 
-  Negative IP-flip: `driveActiveOpenEstablished` fails when
+  Negative IP-flip: the active OPEN to ESTABLISHED fails when
   dut_iface_ip is mis-pointed; stimulus returns early without
   setting `ut_handshake_completed`, so the SCXML's first cond fires
   and verdicts as `fail:dut_handshake_did_not_complete`.

@@ -12,11 +12,10 @@
     * CASE 4: flag set = FIN
     * CASE 5: flag set = Data segment
 
-  Per-phase prelude drives DUT into CLOSE-WAIT via tester
-  shutdown(SHUT_WR) — Linux DUT auto-ACKs the tester FIN and
-  transitions ESTABLISHED → CLOSE-WAIT — same shape as
-  UNACCEPTABLE_14. Per phase the SCXML walks three DUT-origin
-  observations:
+  Per-phase prelude drives DUT into CLOSE-WAIT by the tester sending
+  a FIN — the Linux DUT auto-ACKs the tester FIN and transitions
+  ESTABLISHED → CLOSE-WAIT — same shape as UNACCEPTABLE_14. Per
+  phase the SCXML walks three DUT-origin observations:
     1. handshake third-leg ACK (DUT pure ACK)
     2. close-elicited auto-ACK (DUT pure ACK acknowledging tester FIN)
     3. probe-elicited empty ACK (DUT pure ACK with rcv_nxt — RFC 793
@@ -25,9 +24,9 @@
   Distinct port quads (kBasicsActiveLocalPort+N /
   kBasicsActiveRemotePort+N for N in 0..4) keep per-phase
   observations isolated. CASE 4 (FIN) carries an ACK flag with
-  rcv_nxt — Linux's tcp_v4_rcv silent-drops bare-FIN segments before
+  rcv_nxt — the Linux DUT silently drops bare-FIN segments before
   reaching the OTW SEQ branch (verified empirically in 08), so
-  carrying ACK keeps the segment past the early-drop and reaches
+  carrying ACK keeps the segment past the early drop and reaches
   the spec-targeted challenge ACK. Same convention as
   TCP_FLAGS_INVALID_08.
 

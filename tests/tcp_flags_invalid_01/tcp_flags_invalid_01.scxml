@@ -10,14 +10,14 @@
     3. DUT:    Send no response.
     4. TESTER: Verify DUT remains in LISTEN.
 
-  Mechanism (passive listen + handshake-baseline + spec-asserted
-  SYN+RST + 3 s absence window + LISTEN-survival post-probe):
-    a. UT OpOpenTcpSocket(Passive, dut_port=kBasicsListenPort)
-       arms the listener.
-    b. tester raw-inject SYN(src=kBasicsTesterPort)            → DUT SYN+ACK.
+  Observable protocol exchange (passive LISTEN + handshake-baseline
+  + spec-asserted SYN+RST + 3 s absence window + LISTEN-survival
+  post-probe):
+    a. DUT enters passive LISTEN on kBasicsListenPort.
+    b. tester injects SYN(src=kBasicsTesterPort)            → DUT SYN+ACK.
        The handshake-baseline observation proves "DUT in LISTEN"
        at the start of the spec-tested step.
-    c. tester raw-inject SYN+RST(src=kBasicsTesterPort + 1)    — the
+    c. tester injects SYN+RST(src=kBasicsTesterPort + 1)    — the
        spec-asserted invalid segment.
     d. SCXML phase 2 (listening_absence) waits 3 s for any DUT-
        origin response on phase 2's 4-tuple. Absence proves
@@ -25,35 +25,30 @@
        (treating the SYN portion of SYN+RST as a connection request)
        or emit a RST (mis-handling the RST). Either lands on
        fail_unexpected_response_to_syn_rst.
-    e. tester raw-inject SYN(src=kBasicsTesterPort + 2)        — the
+    e. tester injects SYN(src=kBasicsTesterPort + 2)        — the
        LISTEN-survival post-probe, sent on a fresh tester source
-       port from an `IStimulusScheduler` observer that fires the
-       moment SCXML transitions into `listening_phase3_synack`
-       (i.e. after this state's `deadline_absence` timer has
-       transitioned the SM).
+       port the moment SCXML transitions into
+       `listening_phase3_synack` (i.e. after this state's
+       `deadline_absence` timer has advanced the SM).
     f. SCXML phase 3 (listening_phase3_synack) waits 5 s for the
        DUT's SYN+ACK on (kBasicsListenPort, kBasicsTesterPort + 2).
        Observing it directly proves spec step 4 ("Verify DUT remains
        in LISTEN") on the wire: a DUT that mis-handled SYN+RST by
        tearing down the LISTEN socket would not respond to the
        phase-3 SYN with a SYN+ACK, landing on fail_p3_no_synack.
-    g. UT close (queued alongside phase 3, fires from the same
-       state-entry observer).
+    g. The tester closes the connection.
 
-  Phase-3 phasing — `kickStimulus` runs synchronously and pcap
-  events captured during it are buffered until TestRunner::start()
-  arms the SCXML; the poll loop then drains them in arrival order.
-  If phase 3 were sent synchronously in the same stimulus block,
-  its DUT SYN+ACK would land in the queue alongside phase 1's and
-  be drained while SCXML was still in `listening_absence` (whose
-  guard keys on dst_port == kBasicsTesterPort + 1, not + 2),
-  silently consumed, and never observed by phase 3's state. Hence
-  the state-entry-driven phasing — same shape as §4.4.4.6
-  FRAGMENTS_02 (compound absence + positive).
+  Phase-3 ordering: the DUT replies elicited before the SCXML arms
+  are buffered and drained in arrival order. The phase-3 SYN is
+  withheld until the SM actually enters `listening_phase3_synack` so
+  its DUT SYN+ACK is not drained early while the SM is still in
+  `listening_absence` (whose guard keys on dst_port ==
+  kBasicsTesterPort + 1, not + 2) and silently consumed. Same shape
+  as §4.4.4.6 FRAGMENTS_02 (compound absence + positive).
 
   Distinct tester source ports per phase isolate phase-1's SYN-RCVD
   4-tuple from phase 2's absence guard AND phase 3's pass guard:
-  Linux's syn-recv socket on (kBasicsTesterPort, kBasicsListenPort)
+  the DUT's syn-recv socket on (kBasicsTesterPort, kBasicsListenPort)
   retransmits SYN+ACK at ~1 s intervals, all carrying
   dst_port=kBasicsTesterPort. Those retransmits do not match either
   the phase-2 (dst_port == kBasicsTesterPort + 1) or phase-3
@@ -63,13 +58,10 @@
   phase 3 (SYN+ACK on the wrong quad satisfying the LISTEN-survival
   observation).
 
-  Linux behaviour reference — net/ipv4/tcp_input.c
-  tcp_rcv_state_process(TCP_LISTEN): `if (th->rst) goto discard;`
-  fires before the SYN-processing branch, so SYN+RST is silently
-  dropped at the LISTEN socket without spawning a SYN-RCVD child.
-  Linux therefore conforms to RFC 793 §3.9 p65 here, and the
-  phase-3 SYN+ACK observation is the wire-level positive evidence
-  that the LISTEN socket survived the SYN+RST.
+  DUT behaviour: a SYN+RST is silently dropped at the LISTEN socket
+  without spawning a SYN-RCVD child, conforming to RFC 793 §3.9 p65.
+  The phase-3 SYN+ACK observation is the wire-level positive
+  evidence that the LISTEN socket survived the SYN+RST.
 
   Per-state fail terminals (fail_timeout_first_synack /
   fail_unexpected_response_to_syn_rst / fail_p3_no_synack).
@@ -107,13 +99,11 @@
     <!--
       Absence window: 3 s of silence on (kBasicsListenPort,
       kBasicsTesterPort + 1) is the spec-asserted "ignore" evidence.
-      The phase-3 stimulus is registered by the trait as a
-      state-entry observer on `listening_phase3_synack` (see
-      `IStimulusScheduler::scheduleAfterStateEntry` in
-      src/sce_integration/test_runner.h), so it fires the moment
-      the SCXML transitions out of this state via deadline_absence
-      — no wall-time duplication between the SCXML deadline here
-      and the C++ stimulus side.
+      The phase-3 stimulus is driven as a state-entry observer on
+      `listening_phase3_synack`, so it fires the moment the SCXML
+      transitions out of this state via deadline_absence — no
+      wall-time duplication between the SCXML deadline here and the
+      stimulus side.
     -->
     <onentry>
       <send event="deadline_absence" delay="3s"/>

@@ -9,13 +9,13 @@
     2. TESTER: Send a data packet.
     3. DUT:    Sends an ACK packet with the expected Ack Number.
 
-  Mechanism (active-OPEN handshake + raw-inject in-window data):
-    1. driveActiveOpenEstablished drives DUT into ESTABLISHED on
+  Mechanism (active-OPEN handshake + injected in-window data):
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
        (kBasicsActiveLocalPort+31, kBasicsActiveRemotePort+31).
-    2. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt.
-    3. Tester raw-injects PSH+ACK with seq=snd_nxt, ack=rcv_nxt, and
-       a 4 B payload — a well-formed in-window data segment.
-    4. Linux's tcp_rcv_established slow path schedules an ACK with
+    2. Snapshot tester snd_nxt / rcv_nxt.
+    3. Tester injects PSH+ACK with seq=snd_nxt, ack=rcv_nxt, and a
+       4 B payload — a well-formed in-window data segment.
+    4. The DUT receiving the in-window data schedules an ACK with
        rcv_nxt advanced by the payload length; the DUT-emitted ACK
        lands on the wire and SCXML verifies ack_num matches the
        expected (snd_nxt + payload_len).

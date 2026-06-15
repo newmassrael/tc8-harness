@@ -10,16 +10,18 @@
     2. TESTER: Send a data segment with correct checksum.
     3. DUT:    Send ACK.
 
-  Mechanism (active-OPEN handshake + tester kernel ::send DATA):
-    1. Tester arms auxiliary listener and drives DUT active OPEN via
-       UT OpOpenTcpSocket(Active). Linux completes the 3-way handshake
-       end-to-end on both sides.
-    2. Tester accept()'s the queued connection so it owns a userland
-       fd to drive the DATA segment.
-    3. Tester writes a small payload via ::send(); the kernel emits
-       one DATA+ACK segment with a correct RFC 793 §3.1 checksum.
-    4. DUT receives the segment, validates checksum (passes), emits
-       an ACK acknowledging the byte range — the spec-asserted ACK.
+  Mechanism (active-OPEN handshake + tester-sent correct-checksum
+  DATA):
+    1. Tester arms an auxiliary listener and drives the DUT through
+       an active OPEN; the 3-way handshake completes end-to-end on
+       both sides.
+    2. Accept the kernel-completed tester connection so the tester
+       owns the connection that drives the DATA segment.
+    3. The tester SENDs a small payload; its kernel emits one
+       DATA+ACK segment with a correct RFC 793 §3.1 checksum.
+    4. The DUT receives the segment, validates the checksum (passes),
+       and emits an ACK acknowledging the byte range — the
+       spec-asserted ACK.
 
   Two DUT-origin pure-ACK segments cross the listen window (same
   conjuncts on both):

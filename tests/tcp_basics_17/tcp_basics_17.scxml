@@ -5,8 +5,7 @@
   Attempts (MUST).
 
   v3.0 Test Procedure (p303):
-    1. TESTER: Cause DUT to issue active OPEN — UT
-               OpOpenTcpSocket(Active).
+    1. TESTER: Cause DUT to issue active OPEN.
     2. DUT:    Send a SYN.
     3. TESTER: Send a SYN simultaneously.
     4. DUT:    Send SYN,ACK in reply.
@@ -15,20 +14,21 @@
     7. TESTER: Verify DUT moves on to ESTABLISHED state.
 
   Mechanism (single iteration):
-    - TesterAutoRstDrop scoped — tester kernel has no socket on the
-      4-tuple, so any inbound SYN/SYN+ACK from the DUT would normally
-      elicit RST.
-    - TcpFrameSnippet learns DUT's ISN_d from the active-OPEN SYN.
-    - Raw-inject SYN (no ACK, no other flags) src=remote_port,
-      dst=local_port, seq=tester_isn. Linux's
-      `tcp_rcv_synsent_state_process` recognises the SYN-only segment
-      against a SYN-SENT socket and triggers the RFC 793 §3.4
-      simultaneous-OPEN path — DUT transitions SYN-SENT → SYN-RCVD
-      and emits SYN+ACK with seq=ISN_d, ack=tester_isn+1.
-    - Raw-inject ACK with seq=tester_isn+1, ack=ISN_d+1. DUT TCB
-      transitions SYN-RCVD → ESTABLISHED.
-    - tc8-dut's connect() unblocks; accepted_fd is set; UT
-      OpQueryTcpEstablished returns 0x01.
+    - The tester has no socket bound on the 4-tuple, so any inbound
+      SYN/SYN+ACK from the DUT would normally elicit a RST; that
+      auto-RST is withheld for the case lifetime.
+    - The DUT is driven through an active OPEN; the tester learns the
+      DUT's ISN_d from the active-OPEN SYN.
+    - The tester injects a SYN (no ACK, no other flags) src=remote
+      port, dst=local port, seq=tester_isn. Against the DUT's
+      SYN-SENT socket this SYN-only segment triggers the RFC 793 §3.4
+      simultaneous-OPEN path — the DUT transitions SYN-SENT →
+      SYN-RCVD and emits SYN+ACK with seq=ISN_d, ack=tester_isn+1.
+    - The tester injects an ACK with seq=tester_isn+1, ack=ISN_d+1.
+      The DUT transitions SYN-RCVD → ESTABLISHED.
+    - The DUT's active OPEN completes; a state-probe capability
+      reports the connection as ESTABLISHED (captured.ut_established
+      == 0x01).
 
   Pass guard: tcp_observed where DUT-emitted SYN+ACK matches the
   4-tuple AND ut_established == 0x01. The SYN+ACK is the structurally

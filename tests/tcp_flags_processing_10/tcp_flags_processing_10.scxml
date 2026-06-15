@@ -19,32 +19,32 @@
     7. DUT:    Send the pending data segment piggybacking the
                acknowledgement within 0.5 sec.
 
-  Mechanism (Nagle hold + raw-inject piggyback ACK+payload):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+144,
-       kBasicsActiveRemotePort+144).
-    2. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt; rcv_nxt at this point equals DUT_ISN + 1
-       (= seq of the 1st DUT data segment).
-       captured.expected_ack_num is reused as the 1st-seg-seq marker
-       so retransmits of seg 1 (seq == expected_ack_num) are absorbed
-       by the absence guard while a fresh seg 2 (seq != ...) trips it.
-    3. TesterAutoAckDrop installs an OUTPUT iptables rule that drops
-       every tester-kernel pure ACK toward the DUT. The 1st DUT data
-       segment therefore stays "outstanding unacked" — Linux Nagle
-       holds the 2nd small SEND because (unacked < MSS) AND (new send
-       < MSS).
-    4. UT OpSendTcpData(4 B). DUT writes 4 bytes; seg1 leaves the
-       wire (matches state 1 transition).
-    5. UT OpSendTcpData(4 B) again. DUT MUST buffer (Nagle).
+  Mechanism (Nagle hold + injected piggyback ACK+payload):
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
+       (kBasicsActiveLocalPort+144, kBasicsActiveRemotePort+144).
+    2. Snapshot the post-handshake tester snd_nxt / rcv_nxt; rcv_nxt
+       at this point equals DUT_ISN + 1 (= seq of the 1st DUT data
+       segment). captured.expected_ack_num is reused as the
+       1st-seg-seq marker so retransmits of seg 1 (seq ==
+       expected_ack_num) are absorbed by the absence guard while a
+       fresh seg 2 (seq != ...) trips it.
+    3. The tester withholds its kernel's pure ACKs toward the DUT,
+       so the 1st DUT data segment stays outstanding unacked — the
+       DUT's Nagle holds the 2nd small SEND because (unacked < MSS)
+       AND (new send < MSS).
+    4. Tester causes a 4 B SEND. The DUT writes 4 bytes; seg1 leaves
+       the wire (matches state 1 transition).
+    5. Tester causes a 4 B SEND again. The DUT MUST buffer (Nagle).
     6. captured.expected_ack_num_phase2 = injected_seq + 4 — the
        cumulative ack the DUT's piggyback MUST carry to acknowledge
        the tester-injected payload.
-    7. scheduleAfterStateEntry(Listening_piggyback): tester raw-injects
-       a single PSH+ACK with seq=tester_snd_nxt, ack=first_seg_seq+4
-       (acks DUT's seg 1 — opens the window) AND payload=4 B (the
-       tester's data segment to be piggyback-acked). Inject defers
-       until SCXML enters phase 3 so the absence guard in phase 2
-       can drain DUT seg 1 retransmits without seeing a fresh seg 2.
+    7. As the SCXML enters listening_piggyback, the tester injects a
+       single PSH+ACK with seq=tester_snd_nxt, ack=first_seg_seq+4
+       (acks the DUT's seg 1, opening the window) AND payload=4 B
+       (the tester's data segment to be piggyback-acked). The inject
+       defers until SCXML reaches phase 3 so the phase 2 absence
+       guard can drain DUT seg 1 retransmits without seeing a fresh
+       seg 2.
 
   Three-state SCXML chain:
     * listening_first_data — observe the 1st DUT data segment on the
@@ -54,7 +54,7 @@
       A retransmit of seg 1 (seq == expected_ack_num) is absorbed.
       A fresh seg 2 (seq != expected_ack_num) lands on
       fail_dut_sent_second_segment_before_ack. Deadline advances to
-      state 3, where scheduleAfterStateEntry fires the inject.
+      state 3, where the piggyback inject fires.
     * listening_piggyback — observe a DUT data segment with payload
       AND seq != expected_ack_num (= the buffered seg 2, released
       after our injected piggyback) AND ack_num ==

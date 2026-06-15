@@ -15,22 +15,25 @@
       2. CASE: ilen = 5 (more than actual)
 
   Mechanism: 3-phase compound stimulus, single observation phase:
-    Phase A (ilen=0): UT OpenTcpPassive listen_port_a + raw-inject
-                     SYN with options [0x02 0x00 0x01 0x01] (kind=2,
-                     length=0, NOP×2 padding to 4 B). UT close.
-    Phase B (ilen=5): UT OpenTcpPassive listen_port_b + raw-inject
-                     SYN with options [0x02 0x05 0xAA 0xBB 0xCC NOP×3]
-                     (kind=2, length=5 — three data bytes, illegal —
-                     NOP padding to 8 B). UT close.
-    Phase V (verify): driveSeamRawPassiveAccept on listen_port_v with
-                     well-formed options (single MSS=1460
-                     [0x02 0x04 0x05 0xB4]) + UT OpQueryTcpEstablished.
+    Phase A (ilen=0): bring the DUT to LISTEN on listen_port_a, then
+                     send a SYN with options [0x02 0x00 0x01 0x01]
+                     (kind=2, length=0, NOP×2 padding to 4 B). Close.
+    Phase B (ilen=5): bring the DUT to LISTEN on listen_port_b, then
+                     send a SYN with options
+                     [0x02 0x05 0xAA 0xBB 0xCC NOP×3] (kind=2,
+                     length=5 — three data bytes, illegal — NOP
+                     padding to 8 B). Close.
+    Phase V (verify): bring the DUT to LISTEN on listen_port_v and
+                     complete a passive ACCEPT with well-formed
+                     options (single MSS=1460 [0x02 0x04 0x05 0xB4]),
+                     then a state-probe read of whether the
+                     connection reached ESTABLISHED.
 
   Pass guard (single tcp_observed edge): DUT-emitted SYN+ACK on the
   verification port quad with captured.ut_established == 0x01. If
   either malformed-iter SYN crashed the DUT, the verify-phase
-  handshake fails — UT RPC times out, no SYN+ACK arrives, and the
-  SCXML deadline expires on `no_dut_syn_ack_within_listen_window`.
+  handshake fails — no SYN+ACK arrives, and the SCXML deadline
+  expires on `no_dut_syn_ack_within_listen_window`.
 
   Both malformed iterations are exercised before the single
   verification, since "DUT not crashed" is a global state assertion;

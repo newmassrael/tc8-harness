@@ -19,32 +19,31 @@
                ESTABLISHED state, as long as the tester acknowledges
                each of them at every reception.
 
-  Mechanism (active-OPEN handshake + small SEND + zero-window ACK +
-  second SEND + 3-probe consume chain with per-probe ACK injection):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+151,
-       kBasicsActiveRemotePort+151).
-    2. Tester listener.acceptOne(); queryTcpSeqRange snapshots the
+  Mechanism (active OPEN to ESTABLISHED + small SEND + zero-window
+  ACK + second SEND + 3-probe consume chain with per-probe ACK):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+151,
+       kBasicsActiveRemotePort+151); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection and snapshots the
        post-handshake tester snd_nxt / rcv_nxt.
-    3. TesterAutoAckDrop suppresses tester-kernel auto-ACKs so the
-       harness retains full control over ACK injection.
-    4. UT OpSendTcpData(N B) → DUT seg1.
-    5. Settle ~150 ms; raw-inject ACK at seg1_seq+N with `window=0`.
-       DUT advances snd_una, sets snd_wnd=0, persist timer arms.
-    6. UT OpSendTcpData(M B) — bytes queue behind snd_wnd=0; the
+    3. The tester withholds its kernel's auto-ACKs so the harness
+       retains full control over ACK injection.
+    4. A data SEND of N B → DUT seg1.
+    5. Settle ~150 ms; the tester sends an ACK at seg1_seq+N with
+       `window=0`. The DUT advances snd_una, sets snd_wnd=0, persist
+       timer arms.
+    6. A second data SEND of M B — bytes queue behind snd_wnd=0; the
        socket is now in persist state.
-    7. Linux's persist path emits zero-window probes via
-       `tcp_send_probe0` → `tcp_xmit_probe_skb(sk, 0)`. Each probe
+    7. The DUT's persist path emits zero-window probes. Each probe
        is a 0-byte ACK at seq = snd_una - 1. snd_una never advances
        (no data is acked), so all probes share the same seq.
 
-    Observer-driven loop: each transition into Listening_probe2 /
-    Listening_probe3 fires a `scheduleAfterStateEntry` lambda that
-    raw-injects another ACK with `window=0` (same ack_num,
-    snd_una_post_ack). Linux's `tcp_ack_probe` sees window still 0
-    → reschedules the next probe with current `icsk_backoff`
-    (inter-probe interval doubles each round; the backoff is NOT
-    reset because the ACK does not advance snd_una). The DUT keeps
-    probing at exponentially-increasing intervals.
+    Observer-driven loop: each transition into listening_probe2 /
+    listening_probe3 injects another ACK with `window=0` (same
+    ack_num, snd_una_post_ack). The DUT sees the window still 0 →
+    reschedules the next probe with its current backoff (inter-probe
+    interval doubles each round; the backoff is NOT reset because the
+    ACK does not advance snd_una). The DUT keeps probing at
+    exponentially-increasing intervals.
 
   Captured.expected_ack_num is preloaded with `snd_una_post_ack - 1`.
   All 3 SCXML probe-listening states gate on `is_zero_window_probe(
@@ -58,8 +57,8 @@
 
   Four-state SCXML chain:
     * listening_seg1     — observe seg1 (DUT data segment).
-    * listening_probe1   — 4 s deadline; probe 1 fires after Linux's
-      first persist RTO (typically 200 ms..1 s on local veth).
+    * listening_probe1   — 4 s deadline; probe 1 fires after the
+      DUT's first persist RTO (typically 200 ms..1 s on local veth).
     * listening_probe2   — 4 s deadline; probe 2 fires after the
       doubled inter-probe interval (~400 ms..2 s).
     * listening_probe3   — 4 s deadline; probe 3 fires after the

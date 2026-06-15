@@ -10,18 +10,15 @@
     * CASE 3: <wst> = LAST-ACK
     * CASE 4: <wst> = TIME-WAIT
 
-  ## Linux 6.5 URG-only dispatch (silent across all 4 states)
+  ## URG-only is silently ignored across all 4 states
 
-  Bare URG (no ACK flag) is silently dropped by tcp_validate_incoming
-  for all full-socket states — the early `if (!th->ack) goto discard;`
-  check in `tcp_validate_incoming` (net/ipv4/tcp_input.c) fires
-  before any state-specific handling. For tcp_timewait_state_process,
-  URG-only with no PAWS option falls through the
-  `(th->ack && (end_seq != rcv_nxt))` short-circuit → no rate-limit
-  challenge-ACK; falls through RST/SYN handling → TCP_TW_SUCCESS
-  (silent drop). All 4 phases expected to be silent — no Linux
-  deviation from spec, unlike OTW SEQ in tw-substate
-  (FLAGS_INVALID_15 phases 4 / 8).
+  A bare URG segment (no ACK flag) is silently dropped: an incoming
+  segment with no ACK is discarded before any state-specific
+  handling, and in the TIME-WAIT substate a URG-only segment with no
+  PAWS option draws neither a rate-limited challenge-ACK nor an
+  RST/SYN reaction. All 4 phases are therefore expected to be silent
+  — no platform deviation from the spec here, unlike OTW SEQ in the
+  TIME-WAIT substate (FLAGS_INVALID_15 phases 4 / 8).
 
   Per-phase port quads (cluster collision dodge — see
   reference_active_open_port_quad_collision.md):
@@ -30,14 +27,14 @@
     * Phase 3 LA:      (+55)
     * Phase 4 TW:      (+56)
 
-  Phase 1 is the SCXML's initial state and runs synchronously in the
-  stimulus body. Phases 2..4 schedule via scheduleAfterStateEntry on
-  their respective handshake_ack states (same multi-phase-absence
-  pattern as FLAGS_INVALID_15).
+  Phase 1 is the SCXML's initial state and is exercised synchronously.
+  Phases 2..4 are each armed only once the SCXML reaches their
+  respective handshake_ack state (same multi-phase-absence pattern as
+  FLAGS_INVALID_15).
 
   Per-phase absence guard: 3 s wall, fail on DUT RST or DUT pure ACK
-  on the phase 4-tuple. DUT FIN+ACK retransmits (Linux's natural
-  retx of own FIN in CLOSING / LA per the retransmit timer) are
+  on the phase 4-tuple. DUT FIN+ACK retransmits (the DUT's natural
+  retx of its own FIN in CLOSING / LA per the retransmit timer) are
   tolerated — they are not "responses to URG" and are spec-
   conformant retx behaviour.
 

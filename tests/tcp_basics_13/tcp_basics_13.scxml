@@ -14,11 +14,11 @@
   Pass criterion: step 5 (DUT ACKs the within-2*MSL FIN replay,
   proving TIME-WAIT survived).
 
-  Mechanism: tcp_pilot_common::driveTcpToTimeWaitFw2 chains
-  active-OPEN handshake → UT close (DUT FIN) → tester kernel
-  auto-ACK (DUT FW1 → FW2) → tester shutdown(WR) (tester FIN+ACK)
-  → DUT pure ACK (DUT FW2 → TIME-WAIT). Replay FIN raw-injected
-  via state-entry observer on Listening_replay_ack.
+  Mechanism (FW2-path drive to TIME-WAIT): active-OPEN handshake →
+  the DUT application issues CLOSE (DUT FIN) → tester auto-ACK
+  (DUT FW1 → FW2) → tester half-close (tester FIN+ACK) → DUT pure
+  ACK (DUT FW2 → TIME-WAIT). The within-2*MSL replay FIN is then
+  injected while listening_replay_ack is armed.
 
   See tests/_templates/tcp_time_wait_4state.sce-template.xml for
   the shared 4-state observation chain. Per-case thin-shell binds

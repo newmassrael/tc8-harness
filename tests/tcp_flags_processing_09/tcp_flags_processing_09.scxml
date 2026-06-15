@@ -12,45 +12,47 @@
     * CASE 3: <wst> = LAST-ACK;    <Ack number> = invalid (not
                                                   acking DUT FIN)
 
-  ## Linux 6.5 dispatch
+  ## Observable dispatch
 
-  Phase 1 CW: dup FIN+ACK with valid ack (= DUT.snd_nxt). DUT
-  in CW received original tester FIN, ack'd it, advanced rcv_nxt.
-  The dup FIN's seq < rcv_nxt → tcp_validate_incoming SEQ check
-  is "old data" → drop or quick-ack. The "valid" ACK matches
-  DUT.snd_nxt (DUT hasn't sent any FIN yet because UT did not
-  call close), so tcp_ack just consumes a dup ACK silently. State
-  stays CW. DUT may emit a dup-ACK retransmit but does not emit
-  FIN (CW→LA only on UT close, which we don't call).
+  Phase 1 CW: a duplicate FIN+ACK arrives carrying a valid ack
+  (= DUT.snd_nxt). The DUT in CW had already received the original
+  tester FIN, ACK'd it, and advanced rcv_nxt; the duplicate FIN's
+  seq is below rcv_nxt, so it is "old data" the DUT drops or
+  quick-ACKs. The valid ACK matches DUT.snd_nxt (the DUT has sent
+  no FIN of its own, since no CLOSE was issued), so it is consumed
+  as a duplicate ACK. State stays CW. The DUT may emit a dup-ACK
+  but does not emit a FIN (CW to LA happens only on a DUT-side
+  CLOSE, which this case does not issue).
 
-  Phase 2 CLOSING: dup FIN+ACK with INVALID ack (= rcv_nxt - 1
-  via driveCloseToClosing's info.tester_ack_post_fin - 1). DUT in
-  CLOSING awaits ack of own FIN. Invalid ack → tcp_rcv_state_process
-  invokes tcp_send_challenge_ack per RFC 5961. DUT may emit pure
-  ACK (challenge) but state stays CLOSING (CLOSING→TW transition
-  needs valid ack). DUT may also retransmit its own FIN per its
-  retransmit timer — also tolerated.
+  Phase 2 CLOSING: a duplicate FIN+ACK arrives carrying an INVALID
+  ack (one short of the value that would acknowledge the DUT's own
+  FIN). The DUT in CLOSING is awaiting the ACK of its own FIN; an
+  invalid ack draws a challenge ACK per RFC 5961. The DUT may emit
+  a pure ACK (the challenge) but state stays CLOSING (CLOSING to
+  TIME-WAIT needs a valid ack). The DUT may also retransmit its
+  own FIN on its retransmit timer, which is tolerated.
 
-  Phase 3 LA: dup FIN+ACK with INVALID ack (= seq_range->rcv_nxt
-  - 1). Same dispatch as phase 2 CLOSING: challenge ACK + state
-  stays LA. DUT FIN retx per its retransmit timer is tolerated.
+  Phase 3 LA: a duplicate FIN+ACK arrives carrying an INVALID ack
+  (one short of acknowledging the DUT's FIN). Same observable
+  dispatch as phase 2 CLOSING: challenge ACK, state stays LA. A
+  DUT FIN retransmit on its retransmit timer is tolerated.
 
   ## Per-phase absence guard polarity
 
-    * Phase 1 CW (3 s): fail on DUT FIN+ACK or DUT RST. CW→LA
-      would emit FIN; CW→CLOSED would emit RST. Pure ACK retx
+    * Phase 1 CW (3 s): fail on DUT FIN+ACK or DUT RST. CW to LA
+      would emit FIN; CW to CLOSED would emit RST. Pure ACK retx
       tolerated.
-    * Phase 2 CLOSING (3 s): fail on DUT RST. DUT FIN+ACK retx
-      tolerated (Linux retx of own FIN, unrelated to dup-FIN
-      response). DUT pure ACK (challenge) tolerated.
+    * Phase 2 CLOSING (3 s): fail on DUT RST. A DUT FIN+ACK retx
+      is tolerated (retransmit of its own FIN, unrelated to the
+      dup-FIN response). A DUT pure ACK (challenge) is tolerated.
     * Phase 3 LA (3 s): fail on DUT RST. DUT FIN+ACK retx
       tolerated. DUT pure ACK (challenge) tolerated.
 
   ## Stimulus phasing
 
-  Phase 1 fires synchronously in stimulus body. Phases 2..3
-  schedule via scheduleAfterStateEntry (multi-phase-absence
-  pattern, FLAGS_INVALID_15-style).
+  Phase 1's stimulus runs first; phases 2 and 3 are sequenced as
+  the SCXML enters each phase's first state (the multi-phase-
+  absence pattern, FLAGS_INVALID_15-style).
 
   Per-phase port quads (cluster collision dodge):
     * Phase 1 CW:      (kBasicsActiveLocalPort + 57, +57)

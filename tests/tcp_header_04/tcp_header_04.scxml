@@ -10,20 +10,20 @@
                to <SEQ1>.
     3. DUT:    Discards the TCP packet (and optionally sends a RST).
 
-  Mechanism: Active-OPEN to ESTABLISHED on
-  (kBasicsActiveLocalPort+32, kBasicsActiveRemotePort+32) +
-  queryTcpSeqRange + raw-inject PSH+ACK with src_port=PORT2 (= the
-  primary remote port + 100, well clear of any §4.8 listener) and
-  in-window seq/ack against the EST connection's snd_nxt/rcv_nxt +
-  3 s absence of any DUT pure ACK on the EST 4-tuple.
+  Mechanism: drive the DUT through an active OPEN to ESTABLISHED on
+  (kBasicsActiveLocalPort+32, kBasicsActiveRemotePort+32); snapshot
+  tester snd_nxt / rcv_nxt; raw-inject PSH+ACK with src_port=PORT2
+  (= the primary remote port + 100, well clear of any §4.8 listener)
+  and in-window seq/ack against the EST connection's snd_nxt/rcv_nxt;
+  then observe a 3 s absence of any DUT pure ACK on the EST 4-tuple.
 
-  Linux 6.5 dispatch: tcp_v4_rcv looks up (peer_ip, PORT2, dut_ip,
-  PORT_LOCAL_DUT) — no socket matches, the path falls into
-  tcp_v4_send_reset which emits RST on the (dut_ip:PORT_LOCAL_DUT,
-  peer_ip:PORT2) wrong-port-quad. The EST socket on PORT1 receives
-  no signal and emits no ACK. The spec's "and optionally a RST" is
-  satisfied on a different 4-tuple, structurally orthogonal to the
-  EST flow's absence guard.
+  Observable dispatch: the injected segment's 4-tuple (peer_ip:PORT2,
+  dut_ip:PORT_LOCAL_DUT) matches no connection, so the DUT does not
+  deliver it to the EST socket on PORT1. The DUT may emit a RST on the
+  wrong-port quad (dut_ip:PORT_LOCAL_DUT, peer_ip:PORT2). The EST
+  socket on PORT1 sees no signal and emits no ACK. The spec's "and
+  optionally a RST" is satisfied on a different 4-tuple, structurally
+  orthogonal to the EST flow's absence guard.
 
   Two-state SCXML chain:
     * listening_handshake_ack — handshake third-leg ACK on the EST

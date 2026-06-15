@@ -10,27 +10,26 @@
     2. TESTER: Send a data segment with incorrect checksum.
     3. DUT:    Do not send ACK.
 
-  Mechanism (active-OPEN handshake + raw-inject incorrect-checksum
+  Mechanism (active-OPEN handshake + injected incorrect-checksum
   DATA, absence-pass):
-    1. Tester arms auxiliary listener, drives DUT active OPEN via UT
-       OpOpenTcpSocket(Active). Linux completes the 3-way handshake.
-    2. Tester accept()'s, then queries the connected fd's snd_nxt /
-       rcv_nxt via TCP_REPAIR mode + TCP_QUEUE_SEQ. Without these
-       in-window SEQ/ACK values, an out-of-window raw segment would
-       be dropped by the DUT for window violation, not checksum —
-       the absence pass would be a false positive.
-    3. Tester crafts a TCP DATA segment with the learned SEQ/ACK,
-       small payload, and `corrupt_tcp_checksum = true` flipping the
-       low bit post-compute. Inject via AF_PACKET SOCK_RAW.
-    4. DUT's `tcp_v4_rcv` validates the pseudo-header checksum,
-       discards the segment, emits NO ACK.
-    5. Tester does NOT close the connection in stimulus — a close-
-       driven FIN exchange would generate DUT-origin pure-ACK segs
-       that match the absence-fail guard's flag profile and
-       false-fail the case. Connection cleanup is deferred to
-       process exit.
-    6. SCXML's listen window expires without observing the post-DATA
-       ACK — `deadline_exceeded` lands on `pass`.
+    1. Tester arms an auxiliary listener and drives the DUT through
+       an active OPEN; the 3-way handshake completes.
+    2. Accept the kernel-completed tester connection, then snapshot
+       tester snd_nxt / rcv_nxt. Without these in-window SEQ/ACK
+       values, an out-of-window segment would be dropped by the DUT
+       for window violation, not checksum — the absence pass would be
+       a false positive.
+    3. The tester crafts a TCP DATA segment with the snapshotted
+       SEQ/ACK, a small payload, and a deliberately corrupted
+       checksum (low bit flipped post-compute), and injects it.
+    4. The DUT validates the pseudo-header checksum, discards the
+       segment, and emits NO ACK.
+    5. The tester does NOT close the connection in the stimulus — a
+       close-driven FIN exchange would generate DUT-origin pure-ACK
+       segments that match the absence-fail guard's flag profile and
+       false-fail the case. Connection cleanup is deferred.
+    6. The listen window expires without observing the post-DATA ACK
+       — `deadline_exceeded` lands on `pass`.
 
   Absence-pass shape — the verdict polarity is INVERTED relative to
   most cases: deadline_exceeded → pass, observation → fail. This is

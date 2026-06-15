@@ -6,7 +6,7 @@
   RFC 793 §3.4 p34 Establishing a Connection (MUST).
 
   v3.0 Test Procedure (p301-p320.txt:440):
-    1. TESTER: Cause DUT ESTABLISHED via UT OpOpenTcpSocket(Active).
+    1. TESTER: Cause DUT ESTABLISHED via active OPEN.
     2. TESTER: Send SYN with SEQ outside the receive window.
     3. DUT:    Send ACK indicating next expected SEQ number.
 
@@ -14,8 +14,7 @@
   raw-injects an OTW-SEQ SYN. RFC 793 §3.9 p70 specifies that
   unacceptable segments (out-of-window SEQ) elicit "only an empty
   acknowledgment segment" — a pure ACK echoing rcv_nxt unchanged.
-  Linux's `tcp_data_queue` / `tcp_validate_incoming` discards the
-  segment after sending the duplicate-ACK reply.
+  The DUT discards the segment after sending the duplicate-ACK reply.
 
   Pass guard structure — two listening states walked in sequence:
     listening_handshake_ack — consume the handshake third-leg ACK

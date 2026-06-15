@@ -11,12 +11,14 @@
                OPEN call.
     2. DUT:    Send a SYN with an MSS different from the default 536.
 
-  Mechanism: same active-OPEN scaffold as MSS_OPTIONS_11 with a
-  stricter pass guard (captured.mss != 536). The veth interface
-  inherits the default Ethernet MTU 1500 → MSS 1460, so the prereq
-  is structurally satisfied without any setup-netns adjustment. A
-  spec-conformant Linux DUT advertises MSS = 1460 on its receive
-  side via `tcp_v4_init_sock`, satisfying the assertion.
+  Observable interaction: the tester causes the DUT to issue an
+  active OPEN and observes the DUT's pure SYN, asserting its MSS
+  option advertises a value other than the default 536. With the
+  link's default Ethernet MTU 1500 the DUT's receive MSS is 1460
+  (1500 minus 20 B IP + 20 B TCP headers), so the prerequisite that
+  the receive MSS differs from 536 is structurally satisfied without
+  any per-test link adjustment. A spec-conformant DUT advertises
+  this non-default receive MSS in its SYN, satisfying the assertion.
 
   Port quad uses kBasicsActiveLocalPort + 41 / kBasicsActiveRemotePort
   + 41 — second slot in the §4.8.6.9 MSS_OPTIONS reservation block,

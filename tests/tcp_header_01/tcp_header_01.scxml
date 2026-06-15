@@ -5,16 +5,15 @@
 
   v3.0 Test Procedure (p385):
     1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send <generateTCPSegment> request — UT OpSendTcpData.
+    2. TESTER: Send <generateTCPSegment> request.
     3. DUT:    Sends a data segment containing valid header values.
 
-  Mechanism (active-OPEN handshake + UT OpSendTcpData):
+  Mechanism (active-OPEN handshake + DUT data send):
     1. Tester opens auxiliary listener on kBasicsActiveRemotePort+30
-       and drives DUT active OPEN via UT OpOpenTcpSocket(Active).
-       Linux completes the 3-way handshake; DUT enters ESTABLISHED.
-    2. Tester issues UT OpSendTcpData carrying a small fixed payload.
-       tc8-dut writes the bytes via ::send(); Linux frames them into
-       one outbound DATA segment.
+       and drives the DUT through an active OPEN. The 3-way handshake
+       completes; DUT enters ESTABLISHED.
+    2. Tester causes the DUT to send a small fixed payload; the DUT
+       emits it as one outbound DATA segment.
     3. SCXML observes the DUT-emitted DATA segment and asserts the
        header is well-formed: data_offset >= 5 (RFC 793 §3.1 minimum
        header is 20 B = 5 words), checksum is RFC 793 §3.1 valid, and

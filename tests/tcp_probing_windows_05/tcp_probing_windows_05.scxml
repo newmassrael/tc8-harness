@@ -17,32 +17,29 @@
     7. TESTER: Verify that the probe has been sent by the DUT after
                waiting for at least the retransmission timeout.
 
-  Mechanism (active-OPEN handshake + small SEND + zero-window ACK +
-  second SEND + probe observation):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+150,
-       kBasicsActiveRemotePort+150).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt. seg1_seq
-       (= rcv_nxt) is the seq Linux will assign to the first DUT
-       data segment.
-    4. TesterAutoAckDrop suppresses tester-kernel auto-ACKs so the
-       harness retains full control over ACK injection (otherwise a
+  Mechanism (active OPEN to ESTABLISHED + small SEND + zero-window
+  ACK + second SEND + probe observation):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+150,
+       kBasicsActiveRemotePort+150); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection.
+    3. Snapshot tester snd_nxt / rcv_nxt. seg1_seq (= rcv_nxt) is
+       the seq the DUT will assign to its first data segment.
+    4. The tester withholds its kernel's auto-ACKs so the harness
+       retains full control over ACK injection (otherwise a
        full-window kernel ACK to seg1 would race ahead of the
        harness's window=0 ACK and the DUT would never enter persist
        mode).
-    5. UT OpSendTcpData(socket_id=1, payload=N B) — DUT emits seg1.
-    6. Settle ~150 ms; raw-inject ACK at seg1_seq+N with `window=0`.
-       DUT advances snd_una to seg1_seq+N, sets snd_wnd=0, and
-       starts the persist timer.
-    7. UT OpSendTcpData(socket_id=1, payload=M B) — Linux enqueues
-       M bytes; snd_wnd=0 prevents transmission. Probe-fire await.
+    5. A data SEND of N B — DUT emits seg1.
+    6. Settle ~150 ms; the tester sends an ACK at seg1_seq+N with
+       `window=0`. The DUT advances snd_una to seg1_seq+N, sets
+       snd_wnd=0, and starts the persist timer.
+    7. A second data SEND of M B — the DUT enqueues M bytes;
+       snd_wnd=0 prevents transmission. Probe-fire await.
     8. After the first persist RTO the DUT emits a zero-window probe.
-       Linux's `tcp_send_probe0` → `tcp_xmit_probe_skb(sk, 0)` sends a
-       0-byte ACK at seq = snd_una - 1 (~200 ms..1 s); lwIP's persist
-       path sends a 1-byte new-data segment at seq = snd_una (~1.2 s
-       measured). `is_zero_window_probe` accepts either RFC 1122
-       §4.2.2.17 shape.
+       The Linux persist path sends a 0-byte ACK at seq = snd_una - 1
+       (~200 ms..1 s); lwIP's persist path sends a 1-byte new-data
+       segment at seq = snd_una (~1.2 s measured). `is_zero_window_probe`
+       accepts either RFC 1122 §4.2.2.17 shape.
 
     Captured.expected_ack_num is preloaded with snd_una_post_ack - 1.
     The probe matcher keys on that seq (Linux 0-byte form) or

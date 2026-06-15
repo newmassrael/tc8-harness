@@ -9,25 +9,26 @@
     2. TESTER: Cause DUT side application to issue a CLOSE call
     3. DUT:    Send a FIN
 
-  Mechanism (active-OPEN handshake → UT close → observe DUT FIN):
-    * Prelude: driveActiveOpenEstablished on (kBasicsActiveLocalPort
-      + 70, kBasicsActiveRemotePort + 70). DUT-emitted third-leg
-      pure ACK lands on listening_handshake_ack proving DUT in EST.
-      Port quad +70 reserves the §4.8.6.8 active-OPEN block (clear
-      of FP cluster's +50..+63).
-    * UT OpCloseTcpSocket on socket_id=1; DUT's tcp_close path
-      enqueues a FIN+ACK on the connection. The tester kernel sees
-      the DUT FIN and would normally auto-ACK it (entering FW2
-      → TW), but no further state observation is needed — the spec
-      assertion is "DUT sent a FIN", which lands on
-      listening_dut_fin → pass.
+  Observable interactions (active OPEN to ESTABLISHED → application
+  CLOSE → observe DUT FIN):
+    * Prelude: drive the DUT through an active OPEN to ESTABLISHED on
+      (kBasicsActiveLocalPort + 70, kBasicsActiveRemotePort + 70).
+      The DUT-emitted third-leg pure ACK lands on
+      listening_handshake_ack, proving the DUT is in EST. Port quad
+      +70 reserves the §4.8.6.8 active-OPEN block (clear of FP
+      cluster's +50..+63).
+    * The DUT application issues a CLOSE; the DUT enqueues a FIN+ACK
+      on the connection. The tester kernel sees the DUT FIN and would
+      normally auto-ACK it (entering FW2 → TW), but no further state
+      observation is needed — the spec assertion is "DUT sent a FIN",
+      which lands on listening_dut_fin → pass.
 
   SCXML chain (2 listening states + 2 fail terminals + pass):
     handshake_ack → dut_fin → pass
 
-  Total positive envelope ≈ kTcpUtBootWait (1.5 s) + handshake
-  (~50 ms) + UT close RPC + DUT FIN observation. Default-7 s case
-  timeout fits comfortably.
+  Total positive envelope ≈ DUT boot wait + handshake (~50 ms) +
+  CLOSE request + DUT FIN observation. Default-7 s case timeout fits
+  comfortably.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
   becomes unreachable, lands on fail_no_handshake_ack at the 5 s

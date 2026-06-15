@@ -14,30 +14,28 @@
                interval is increasing at a fast (at least more than
                linear) rate.
 
-  Mechanism (kernel-side TCP_INFO observation, three snapshots):
+  Mechanism (kernel-state TCP_INFO observation, three snapshots):
     The earlier pcap-timing chain (observe SYN, retx1, retx2, retx3
     inter-frame deltas in a 4-state SCXML) was deterministic at
     workers=1 but flaked under workers=4 parallel load — pcap's
     SOFTIRQ delivery raced the per-state deadline guards. Replacing
-    the wire-timing assertions with three synchronous OpQueryTcpInfo
-    (0x13) reads off the DUT's connect-side fd (set by openTcpActive
-    BEFORE the connector worker is spawned —
-    upper_tester_server.cpp:1199, so the fd is queryable while in
-    TCP_SYN_SENT) makes the verdict a function of kernel state, not
-    pcap delivery latency. Stimulus phases:
+    the wire-timing assertions with three synchronous kernel-state
+    (TCP_INFO) reads off the DUT's connect-side socket (which is
+    queryable while in TCP_SYN_SENT) makes the verdict a function of
+    kernel state, not pcap delivery latency. Stimulus phases:
 
-    1. Active OPEN to a tester-side port with no listener;
-       `TesterAutoRstDrop` swallows the tester-kernel's auto-RST so
-       the DUT stays in TCP_SYN_SENT and the retransmit timer doubles
-       on every fire per RFC 6298 §5 step 5.5. dut_ns sysctl
+    1. Active OPEN to a tester-side port with no listener; the tester
+       swallows its kernel's auto-RST so the DUT stays in
+       TCP_SYN_SENT and the retransmit timer doubles on every fire
+       per RFC 6298 §5 step 5.5. dut_ns sysctl
        `tcp_syn_linear_timeouts=0` disables Linux's "first 4 retries
        use linear RTO" deviation so doubling kicks in on retx 1.
        Expected sequence on Linux 6.x: initial RTO ≈ 1 s, retx 1 at
-       +1 s (icsk_rto: 1 s → 2 s), retx 2 at +2 s (2 s → 4 s), retx 3
+       +1 s (RTO: 1 s → 2 s), retx 2 at +2 s (2 s → 4 s), retx 3
        at +4 s (4 s → 8 s). Total to retx 3 ≈ 7 s wall-clock.
     2. **Phase 1 snapshot** (post-retx 1): poll at 50 ms cadence
        until `tcpi_retransmits >= 1`; deadline 2 s. Pass criterion:
-       `tcpi_rto >= 1500000` us (proves the kernel doubled icsk_rto
+       `tcpi_rto >= 1500000` us (proves the DUT doubled its RTO
        from the 1 s initial RTO — a non-doubling DUT would still
        report ~1 s).
     3. **Phase 2 snapshot** (post-retx 2): poll until
@@ -58,8 +56,8 @@
   verdict before falling through to pass. Mirrors _04's evaluate
   pattern exactly, adjusted for SYN-side RTO baselines.
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the UT RPC
-  request unreachable; queryTcpInfoSync returns valid=false on every
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the DUT
+  unreachable; the kernel-state read returns valid=false on every
   poll in the SYN-SENT probe loop, ut_handshake_completed stays
   false, and the SCXML's first cond verdicts as
   `fail:dut_handshake_did_not_complete`.

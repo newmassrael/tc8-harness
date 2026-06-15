@@ -12,36 +12,34 @@
                (subtracting the average round-trip-time) is less than
                0.5 sec.
 
-  Mechanism (active-OPEN handshake + 1× raw-inject MSS-sized PSH+ACK):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+145,
-       kBasicsActiveRemotePort+145).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt.
-    4. Tester raw-injects ONE full-sized PSH+ACK at S = snd_nxt with
+  Mechanism (active OPEN to ESTABLISHED + one MSS-sized PSH+ACK):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+145,
+       kBasicsActiveRemotePort+145); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection.
+    3. Snapshot the post-handshake tester snd_nxt / rcv_nxt.
+    4. The tester sends ONE full-sized PSH+ACK at S = snd_nxt with a
        1460-byte payload (fits exactly in veth's 1500 B MTU after
        IP/TCP header overhead — `Ethernet 14 + IP 20 + TCP 20 +
        payload 1460 = 1514` but `MTU 1500` measures the L3 payload
        only, so `IP 20 + TCP 20 + payload 1460 = 1500` ✓).
-    5. DUT's quickack mode (post-handshake `pingpong=0`) drives an
+    5. The DUT's quickack mode (post-handshake `pingpong=0`) drives an
        immediate pure ACK with `ack_num == S + 1460`.
 
   Two DUT-origin pure-ACK segments cross the listen window (same
   conjuncts on both):
-    * handshake third-leg ACK — emitted by DUT immediately after
-      receiving the tester kernel's SYN+ACK.
-    * data-elicited ACK       — emitted by DUT after processing the
+    * handshake third-leg ACK — emitted by the DUT immediately after
+      receiving the tester's SYN+ACK.
+    * data-elicited ACK       — emitted by the DUT after processing the
       tester's MSS-sized DATA segment (acks the byte range).
 
   Two-state SCXML chain consumes the handshake ACK first
   (listening_handshake_ack) and only passes on the DATA-elicited
   ACK satisfying `ack_num == captured.expected_ack_num`. The
-  `expected_ack_num` field is populated by the stimulus from the
-  TCP_REPAIR snapshot — same idiom as OUT_OF_ORDER_03 / NAGLE_02.
+  `expected_ack_num` field is populated from the post-handshake
+  sequence snapshot — same idiom as OUT_OF_ORDER_03 / NAGLE_02.
 
   Timing: phase 2 deadline is 500 ms strict per spec MUST. The
-  harness floor is localhost veth RTT (< 1 ms) + Linux's quickack
+  harness floor is localhost veth RTT (< 1 ms) + the DUT's quickack
   emission (< 1 ms) + pcap dispatch (~10 ms) — well under the
   spec's 500 ms ceiling.
 

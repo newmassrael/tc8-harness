@@ -27,14 +27,14 @@
     pre-gap ack_num are tolerated implicitly because they fail the
     phase-2 ack_num equality and stay queued.
 
-  Mechanism (active-OPEN handshake + 4× raw-inject data segments):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+143,
-       kBasicsActiveRemotePort+143).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt (S = snd_nxt).
-    4. Tester raw-injects in order:
+  Mechanism (active OPEN to ESTABLISHED + four out-of-order data
+  segments):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+143,
+       kBasicsActiveRemotePort+143); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection.
+    3. Snapshot the post-handshake tester snd_nxt / rcv_nxt
+       (S = snd_nxt).
+    4. The tester sends in order:
          SEG0     at S          (4 B payload "A0..A3"),
          SEG_GAP1 at S + 8      (4 B payload "C0..C3"),
          SEG_GAP2 at S + 12     (4 B payload "C4..C7"),
@@ -42,7 +42,7 @@
        The 4-byte gap [S+4, S+8) keeps SEG_GAP1 / SEG_GAP2 OOO until
        SEG_FILL closes it. Each segment carries flags = ACK + PSH
        and ack = rcv_nxt (in-window).
-    5. DUT acknowledges:
+    5. The DUT acknowledges:
          SEG0     -> pure ACK with ack_num == S + 4   (phase 1),
          SEG_GAP1 -> dup-ACK    with ack_num == S + 4 (SACK),
          SEG_GAP2 -> dup-ACK    with ack_num == S + 4 (SACK),

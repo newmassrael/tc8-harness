@@ -19,36 +19,31 @@
 
   Spec interpretation note (handshake variant):
     Spec step 1 says "Cause the DUT to move on to SYN-RCVD state" —
-    the canonical setup for SYN-RCVD is passive listen + tester
-    raw-inject SYN. The MSB-set window then rides on the tester's
-    third-leg ACK. The §4.8 active-OPEN cluster relies on the
-    kernel-tester's connect() handshake which puts kernel-chosen
-    window values on the third-leg ACK (uncontrollable from
-    stimulus). The harness uses the §4.8 active-OPEN port-quad
+    the canonical setup for SYN-RCVD is passive LISTEN + tester
+    SYN. The MSB-set window then rides on the tester's third-leg
+    ACK. The §4.8 active-OPEN cluster relies on the tester's active
+    OPEN handshake which puts uncontrollable window values on the
+    third-leg ACK. The harness uses the §4.8 active-OPEN port-quad
     pattern (consistent with FLAGS_PROCESSING / OUT_OF_ORDER /
-    URGENT_PTR siblings) and substitutes a post-handshake raw-
-    inject 1-byte data segment with `window=0x8000` to drive the
-    same RFC 793 §3.1 receive-side `tcp_ack_update_window` code
-    path. Linux processes the new data byte → `ack_seq` advances
-    → `snd_wl1` advances → `tp->snd_wnd = 0x8000`. The DUT's
+    URGENT_PTR siblings) and substitutes a post-handshake 1-byte
+    data segment with `window=0x8000` to drive the same RFC 793 §3.1
+    receive-side window-update code path. The DUT processes the new
+    data byte → ack_seq advances → snd_wnd = 0x8000. The DUT's
     advertised view of the tester's send window is now MSB-set;
-    the subsequent UT OpSendTcpData drives the DUT-side
-    application send, and the DUT must emit a data segment (within
-    `snd_wnd = 0x8000`).
+    the subsequent SEND drives the DUT-side application send, and
+    the DUT must emit a data segment (within `snd_wnd = 0x8000`).
 
-  Mechanism (active-OPEN handshake + window-update + UT SEND):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+148,
-       kBasicsActiveRemotePort+148).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots tester snd_nxt / rcv_nxt.
-    4. Tester raw-injects 1-byte PSH+ACK at S = snd_nxt with
+  Mechanism (active OPEN to ESTABLISHED + window-update + SEND):
+    1. Active OPEN handshake on (kBasicsActiveLocalPort+148,
+       kBasicsActiveRemotePort+148); the DUT enters ESTABLISHED.
+    2. The tester accepts the completed connection.
+    3. Snapshot tester snd_nxt / rcv_nxt.
+    4. The tester sends a 1-byte PSH+ACK at S = snd_nxt with
        `window=0x8000` (MSB set, treated as unsigned 32768).
     5. Brief settle so the DUT processes the byte and updates its
-       view of the tester's send window before the UT SEND.
-    6. UT OpSendTcpData(socket_id=1, payload=4 B) — tc8-dut writes
-       to its connected fd; the kernel emits a PSH+ACK with the
-       4 B payload.
+       view of the tester's send window before the SEND.
+    6. A data SEND of a 4 B payload drives the DUT-side application;
+       the DUT emits a PSH+ACK with the 4 B payload.
 
   Two-state SCXML chain:
     * listening_handshake_ack — observe the DUT-emitted handshake

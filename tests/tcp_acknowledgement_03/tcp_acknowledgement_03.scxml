@@ -9,15 +9,17 @@
     2. TESTER: Send a TCP packet (with payload).
     3. DUT:    Sends an ACK with the expected Ack Number.
 
-  Mechanism (passive-OPEN handshake + raw-inject in-window data):
-    1. UT OpOpenTcpSocket(passive, kTcpAck03ListenPort=13030).
-    2. driveSeamRawPassiveAccept (no MSS option) drives the DUT into
-       ESTABLISHED on (kTcpAck03ListenPort, kTcpAck03TesterSrcPort).
-       Handshake consumes 1 SEQ on each side.
-    3. Tester raw-injects PSH+ACK with seq=kTesterInitialSeq+1,
-       ack=info.dut_isn+1, and a 4 B payload.
-    4. Linux's tcp_rcv_established (delayed-ACK path or piggyback) emits
-       an ACK whose ack_num = kTesterInitialSeq + 1 + payload_len.
+  Mechanism (passive LISTEN + injected handshake + injected in-window
+  data):
+    1. The DUT application issues a passive LISTEN on
+       kTcpAck03ListenPort=13030.
+    2. Tester drives the DUT into ESTABLISHED on (kTcpAck03ListenPort,
+       kTcpAck03TesterSrcPort) via an injected three-way handshake
+       with no MSS option. The handshake consumes 1 SEQ on each side.
+    3. Tester injects PSH+ACK with seq=kTesterInitialSeq+1,
+       ack=dut_isn+1, and a 4 B payload.
+    4. The DUT (delayed-ACK path or piggyback) emits an ACK whose
+       ack_num = kTesterInitialSeq + 1 + payload_len.
 
   Pass guard: pure DUT ACK on the case 4-tuple with
   captured.ack_num == captured.expected_ack_num. The stimulus populates

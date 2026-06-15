@@ -16,30 +16,29 @@
                the size of the incoming data segment.
     5. DUT:    Return the RECEIVE call putting only the urgent data.
 
-  Mechanism (active-OPEN handshake + raw-inject URG segment + UT
-  OpReceiveTcpDataOob):
-    1. driveActiveOpenEstablished on (kBasicsActiveLocalPort+142,
-       kBasicsActiveRemotePort+142).
-    2. Tester listener.acceptOne() pulls the kernel-completed
-       connection off the listen queue.
-    3. queryTcpSeqRange snapshots the post-handshake tester
-       snd_nxt / rcv_nxt.
+  Mechanism (active-OPEN handshake + raw-inject URG segment +
+  out-of-band RECEIVE):
+    1. Drive the DUT through an active OPEN to ESTABLISHED on
+       (kBasicsActiveLocalPort+142, kBasicsActiveRemotePort+142).
+    2. Accept the kernel-completed tester connection off the listen
+       queue.
+    3. Snapshot the post-handshake tester snd_nxt / rcv_nxt.
     4. Tester raw-injects URG+PSH+ACK with seq=snd_nxt, ack=rcv_nxt
        (in-window), urgent_pointer=3, and a 6 B payload "ABCDEF".
        Linux's BSD interpretation (sysctl_tcp_stdurg=0 default)
        places one urgent byte at urg_seq = seq + ptr - 1 = seq + 2,
        which is payload offset 2 ('C'). The remaining 5 bytes
        ("ABDEF" in normal-stream order, with 'C' lifted into the
-       OOB queue) sit on the receive queue for normal recv().
-    5. UT OpReceiveTcpDataOob(socket=1, expected_len=6, timeout=2000)
-       — tc8-dut calls recv(fd, buf, 6, MSG_OOB) and returns the
-       single urgent byte. Tester verifies received_len == 1 and
-       byte == 'C', then sets captured.ut_received_payload_len = 1.
-       The "buffer of size 6" satisfies spec step 4's "size equal
-       to the size of the incoming data segment"; the spec step 5
-       assertion is that the call returns only the 1 urgent byte
-       despite the 6 B buffer.
-    6. UT OpCloseTcpSocket cleans up the connection.
+       out-of-band queue) sit on the receive queue for a normal
+       RECEIVE.
+    5. The DUT issues an out-of-band RECEIVE (recv-OOB capability,
+       buffer size 6) and returns the single urgent byte. The
+       received byte is verified to be exactly 'C' (length 1), and
+       captured.ut_received_payload_len is set to 1. The "buffer of
+       size 6" satisfies spec step 4's "size equal to the size of the
+       incoming data segment"; spec step 5's assertion is that the
+       call returns only the 1 urgent byte despite the 6 B buffer.
+    6. The connection is then closed.
 
   Two-state SCXML chain:
     * listening_handshake_ack — observe DUT third-leg pure ACK on

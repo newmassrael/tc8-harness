@@ -10,13 +10,12 @@
     3. DUT:    Sends an ACK with an ACK Number equal to <ISN>+1.
 
   Mechanism:
-    UT OpOpenTcpSocket(active, +161 quad). DUT enters SYN-SENT and
-    emits SYN. TesterAutoRstDrop suppresses the tester kernel's
-    auto-RST against the unbound listener port. TcpFrameSnippet::
-    forDutSyn captures DUT's SYN to learn ISN_d. Tester raw-injects
-    SYN,ACK with seq=tester_isn, ack=ISN_d+1. DUT processes and emits
-    pure ACK with ack_num == tester_isn + 1 transitioning to
-    ESTABLISHED.
+    Active OPEN on the +161 quad. The DUT enters SYN-SENT and emits
+    SYN. The tester withholds its kernel's auto-RST against the unbound
+    listener port. The DUT's SYN is observed to learn its ISN (ISN_d).
+    The tester raw-injects SYN,ACK with seq=tester_isn, ack=ISN_d+1.
+    The DUT processes it and emits a pure ACK with ack_num ==
+    tester_isn + 1, transitioning to ESTABLISHED.
 
   Pass guard observes the DUT pure ACK on the +161 active-OPEN tuple
   (src_ip == dut_iface_ip, src_port == kBasicsActiveLocalPort + 161,

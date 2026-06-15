@@ -14,24 +14,23 @@
 
   ## Wire-observable "DUT moved to CLOSED"
 
-  Per phase: drive DUT to target state, raw-inject in-window RST,
-  then send a verify-probe ACK on the SAME 4-tuple. If DUT
+  Per phase: drive DUT to target state, inject an in-window RST,
+  then send a verify-probe ACK on the SAME 4-tuple. If the DUT
   honoured the spec and killed the socket:
     * Phase 1 (was SYN-RCVD): the LISTEN socket survives but the
-      req_sock is gone. The verify ACK routes to LISTEN; Linux's
-      tcp_rcv_state_process LISTEN case returns 1 for any ACK
-      (no SYN), the caller invokes tcp_v4_send_reset → DUT RST
-      observed.
+      half-open connection entry is gone. The verify ACK routes to
+      LISTEN, which has no matching connection for a bare ACK and
+      answers with an RST → DUT RST observed.
     * Phases 2..5: full-socket states have no socket on the
-      4-tuple after RST. Linux's tcp_v4_rcv reaches `no_tcp_socket`
-      → tcp_v4_send_reset → DUT RST observed.
+      4-tuple after RST, so the verify ACK reaches a closed port
+      and the DUT answers with an RST → DUT RST observed.
 
   In both paths the DUT-emitted RST is the wire-observable proof
-  that the spec-targeted state's socket entry was destroyed by the
-  RST. If the DUT FAILED to honour the RST (still in target state),
-  the verify ACK would be processed differently (e.g. SYN-RCVD
-  consumes the third-leg ACK silently → no DUT response), causing
-  fail_pN_no_verify_rst at the 5 s deadline.
+  that the spec-targeted state's connection entry was destroyed by
+  the RST. If the DUT FAILED to honour the RST (still in target
+  state), the verify ACK would be processed differently (e.g.
+  SYN-RCVD consumes the third-leg ACK silently → no DUT response),
+  causing fail_pN_no_verify_rst at the 5 s deadline.
 
   Per-phase port quads (cluster collision dodge):
     * Phase 1 SYN-RCVD: listen +12, tester +76 (passive)
@@ -40,9 +39,9 @@
     * Phase 4 FW2:      +62
     * Phase 5 CW:       +63
 
-  Phase 1 fires synchronously in stimulus body. Phases 2..5
-  schedule via scheduleAfterStateEntry (multi-phase wall-time
-  absence pattern).
+  Phase 1 is exercised synchronously. Phases 2..5 are each armed
+  only once the SCXML reaches the corresponding phase (multi-phase
+  wall-time absence pattern).
 
   ## SCXML chain (5 phases, 12 listening states)
 
