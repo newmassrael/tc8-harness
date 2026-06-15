@@ -1,0 +1,12 @@
+[package]
+name = "verdict_migrate"
+version = "0.1.0"
+edition = "2021"
+description = "One-time migration: classify each SCXML <final> by its inbound transition and apply docs/verdict_policy.md roles. std-only, fail-loud, no silent skips."
+
+[[bin]]
+name = "verdict_migrate"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 1
