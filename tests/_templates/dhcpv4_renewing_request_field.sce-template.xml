@@ -13,7 +13,7 @@
     listening_for_renewing_request (ACK injected on entry, s3_deadline 8 s)
       on dhcp_observed: is_request + chaddr_match + pass_expr → pass
       on dhcp_observed: is_request + chaddr_match + !pass_expr → {$fail_state}
-      on s3_deadline → fail_no_renewing_request
+      on s3_deadline → inconclusive_no_renewing_request
 
   The SELECTING REQUEST (carrying Option 50 + 54) consumes the state
   2 → state 3 transition (no pass_expr) before the ACK hits state 3's
@@ -62,7 +62,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_first_request"/>
-    <transition event="s1_deadline" target="fail_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_first_request">
@@ -72,7 +72,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_renewing_request"/>
-    <transition event="s2_deadline" target="fail_no_first_request"/>
+    <transition event="s2_deadline" target="inconclusive_no_first_request"/>
   </state>
 
   <state id="listening_for_renewing_request">
@@ -85,7 +85,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and !({$pass_expr})"
                 target="{$fail_state}"/>
-    <transition event="s3_deadline" target="fail_no_renewing_request"/>
+    <transition event="s3_deadline" target="inconclusive_no_renewing_request"/>
   </state>
 
   <final id="pass">
@@ -94,27 +94,27 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_first_request">
+  <final id="inconclusive_no_first_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_renewing_request">
+  <final id="inconclusive_no_renewing_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_renewing_request_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
     </donedata>
   </final>
 </sce:template>
