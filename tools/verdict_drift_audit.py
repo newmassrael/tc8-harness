@@ -42,14 +42,27 @@ TESTS_DIR = REPO / "tests"
 
 SCE_NS = "http://sce.dev/ext"
 
-# The canonical conformance classes a donedata verdict may carry. This MIRRORS
-# `VerdictClass` in src/sce_integration/verdict.h (the C++ single source of
-# truth); "running" is intentionally excluded — it is the runtime-only sentinel
-# for a non-final / no-donedata state and is never authored in donedata.
-VALID_CLASSES = {"pass", "fail", "inconclusive", "error"}
+# The conformance-verdict classification policy — the machine form of
+# docs/verdict_policy.md §3. A non-`pass` <final> declares its semantic `role`
+# in donedata; the verdict class is a pure function of that role, so changing
+# the policy re-derives every class without per-case edits. The four classes
+# themselves mirror `VerdictClass` in src/sce_integration/verdict.h (the C++
+# source); "running" is excluded — it is the runtime-only sentinel for a
+# non-final / no-donedata state and is never authored in donedata.
+ROLE_POLICY = {
+    "conformant":          "pass",          # required behaviour observed
+    "conformant_absence":  "pass",          # "must NOT occur" assertion held
+    "observed_violation":  "fail",          # a captured frame violates a MUST
+    "precondition_unmet":  "inconclusive",  # IUT never reached the testable state
+    "property_unobserved": "inconclusive",  # IUT live, targeted frame/reaction unseen
+    "test_system_fault":   "error",         # the harness could not drive/observe
+}
 
-# A verdict as (class, reason); reason is "" when absent.
-Verdict = tuple[str, str]
+# The classes a donedata verdict may carry — the image of the policy.
+VALID_CLASSES = set(ROLE_POLICY.values())
+
+# A verdict as (class, reason, role); reason/role are "" when absent.
+Verdict = tuple[str, str, str]
 
 
 @dataclass
@@ -94,7 +107,11 @@ def _finals_from_root(root: ET.Element, bindings: dict[str, str]) -> dict[str, V
                     continue
                 if obj.get("verdict") is None:
                     continue
-                out[fid.lower()] = (str(obj["verdict"]), str(obj.get("reason", "")))
+                out[fid.lower()] = (
+                    str(obj["verdict"]),
+                    str(obj.get("reason", "")),
+                    str(obj.get("role", "")),
+                )
     return out
 
 
@@ -136,11 +153,25 @@ def audit_case(name: str) -> CaseReport:
         rep.findings.append("MISSING_DONEDATA: no <final> carries a donedata verdict")
         return rep
 
-    for state, (cls, _reason) in sorted(done.items()):
+    for state, (cls, _reason, role) in sorted(done.items()):
         if cls not in VALID_CLASSES:
             rep.findings.append(
                 f"BAD_CLASS: final '{state}' verdict class '{cls}' not in {sorted(VALID_CLASSES)}"
             )
+        # Policy enforcement: when a final declares a role, its class MUST be
+        # that role's image under ROLE_POLICY (docs/verdict_policy.md §3).
+        # Roleless finals are validity-checked only (back-compat during the
+        # role rollout; the final rollout makes role mandatory for non-pass).
+        if role:
+            if role not in ROLE_POLICY:
+                rep.findings.append(
+                    f"BAD_ROLE: final '{state}' role '{role}' not in {sorted(ROLE_POLICY)}"
+                )
+            elif ROLE_POLICY[role] != cls:
+                rep.findings.append(
+                    f"ROLE_CLASS_MISMATCH: final '{state}' role '{role}' "
+                    f"requires class '{ROLE_POLICY[role]}', got '{cls}'"
+                )
     return rep
 
 
