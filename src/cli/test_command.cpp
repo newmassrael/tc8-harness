@@ -26,6 +26,7 @@
 #include "sce_integration/dut_control_factory.h"
 #include "sce_integration/spec_inventory.h"
 #include "sce_integration/test_config.h"
+#include "sce_integration/verdict.h"
 
 namespace tc8::cli {
 
@@ -588,12 +589,14 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // SCXML keeps running as long as the wire stays live): they need no
     // arbitrary per-case wall-clock cap — the harness budget is the backstop,
     // and exceeding it is inconclusive, never a false failure.
-    std::string verdict = runner->verdict();
+    ::tc8::sce::Verdict verdict = runner->verdict();
     if (!runner->isDone()) {
-        verdict = SignalGuard::stopRequested() ? "inconclusive:interrupted"
-                                               : "inconclusive:harness_budget_exceeded";
+        verdict = ::tc8::sce::Verdict{
+            ::tc8::sce::VerdictClass::Inconclusive,
+            SignalGuard::stopRequested() ? "interrupted" : "harness_budget_exceeded"};
     }
-    std::printf("verdict  : %.*s\n", static_cast<int>(verdict.size()), verdict.data());
+    const std::string verdict_str = verdict.str();
+    std::printf("verdict  : %s\n", verdict_str.c_str());
     if (dumper != nullptr) {
         pcap_dump_close(dumper);
     }
@@ -625,22 +628,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         }
     }
 
-    // Conformance verdict classes (ISO/IEC 9646 / TTCN-3 model): the donedata
-    // verdict prefix selects the process exit class so the smoke harness and CI
-    // can tell a real DUT FAIL apart from a run that did not conclude. The
-    // verdict string is "<class>" or "<class>:<reason>", flattened by the
-    // runner from the SCXML `<final>`'s donedata (W3C SCXML 5.5). pass=0,
-    // inconclusive=2 (the asserted condition was not exercised within the
-    // window — not a DUT defect), error=3 (a precondition / harness step
-    // failed). Anything else, including "fail", is a real conformance failure
-    // → 1 (fail-closed on unknowns).
-    const auto colon = verdict.find(':');
-    const auto cls =
-        verdict.substr(0, colon == std::string::npos ? verdict.size() : colon);
-    if (cls == "pass") return 0;
-    if (cls == "inconclusive") return 2;
-    if (cls == "error") return 3;
-    return 1;
+    // Process exit class (ISO/IEC 9646 / TTCN-3 model) so the smoke harness
+    // and CI can tell a real DUT FAIL apart from a run that did not conclude.
+    // The class->code mapping is the single one defined in verdict.h.
+    return verdict.exitCode();
 }
 
 }  // namespace tc8::cli

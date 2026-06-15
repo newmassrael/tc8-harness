@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 # pre-commit — Mnemosyne gate (validate-workspace + validate-code-refs via
-# mnemosyne-gate.sh). Versioned in .githooks/; activate once per clone:
+# mnemosyne-gate.sh) followed by the verdict donedata SSOT gate. Versioned in
+# .githooks/; activate once per clone:
 #     git config core.hooksPath .githooks   (or ./scripts/install-hooks.sh)
-exec "$(dirname "$0")/mnemosyne-gate.sh" pre-commit
+set -euo pipefail
+HERE="$(dirname "$0")"
+
+"$HERE/mnemosyne-gate.sh" pre-commit
+
+# Verdict SSOT invariant: every registered case carries a donedata verdict with
+# a canonical conformance class (src/sce_integration/verdict.h). Fast,
+# pure-Python; keeps the single source from rotting between CI runs.
+if ! python3 "$HERE/../tools/verdict_drift_audit.py" --summary >/dev/null; then
+    echo "pre-commit: verdict donedata SSOT gate FAILED — details:" >&2
+    python3 "$HERE/../tools/verdict_drift_audit.py" >&2
+    exit 1
+fi

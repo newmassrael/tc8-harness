@@ -1,42 +1,29 @@
 #!/usr/bin/env python3
-"""Audit agreement between a case's two verdict encodings.
+"""Enforce the conformance-verdict SSOT invariant.
 
-The conformance verdict for each TC8 case is currently declared in two
-places (debt B, project_conformance_verdict_model):
+Since the donedata-SSOT migration, each TC8 case declares its verdict exactly
+once: in the SCXML `<final>`'s `<donedata><content>{"verdict":..,"reason":..}`
+(or, for a template-based case, in the shared `.sce-template.xml` it binds via
+`<sce:use>`). The generated SM stashes it and the runner reads it back
+(`tc8::sce::verdictFromDonedata`, src/sce_integration/verdict.h). There is no
+second declaration — the legacy per-case `verdictFor(State)` switch was retired.
 
-  1. C++ trait  : `TestCaseTraits<SM>::verdictFor(State)` in
-                  src/sce_integration/cases/<case>.h — a switch from the
-                  generated State enum to "<class>" or "<class>:<reason>".
-  2. SCXML spec : `<final id="..."><donedata><content>{"verdict":..,
-                  "reason":..}</content>` in tests/<case>/<case>.scxml.
+This tool guards that single source. For every registered case it checks:
 
-Encoding (1) is the live source today (test_runner.h calls verdictFor);
-encoding (2) is currently dead. The migration makes the SCXML donedata the
-single source of truth (W3C SCXML 5.5) and retires verdictFor. For that to
-be sound, the two encodings must agree wherever both exist, and every case
-must eventually carry donedata covering all its final states.
+  MISSING_DONEDATA  no `<final>` carries a donedata verdict (the runner would
+                    fall back to the "running" sentinel = fail-closed)
+  BAD_CLASS         a donedata verdict class is not one of the canonical
+                    conformance classes (pass / fail / inconclusive / error)
+  NO_SCXML          the case header exists but its .scxml does not
+  UNPARSED          the .scxml is not well-formed XML
 
-This tool reports, per case:
+Exit status is non-zero if any finding is present, so it can gate CI and the
+pre-commit hook. Run with --summary for counts only.
 
-  MISSING_DONEDATA  case has verdictFor but the .scxml has no donedata
-                    (must be authored before donedata can become SSOT)
-  DRIFT             a final state's verdict differs between the two
-  FINAL_NO_VERDICT  .scxml final has donedata but verdictFor lacks the state
-  VERDICT_NO_FINAL  verdictFor names a (non-default) state with no matching
-                    .scxml final id (possible rename / stale entry)
-  UNPARSED          verdictFor body could not be parsed (manual review)
-
-Exit status is non-zero if any DRIFT / UNPARSED / FINAL_NO_VERDICT /
-VERDICT_NO_FINAL is found (these block a sound migration); MISSING_DONEDATA
-alone does not fail the run (it is the expected pre-migration backlog) unless
---strict is passed.
-
-Normalisation: the generated State enum capitalises the first letter of the
-SCXML state id (`fail_wrap_to_zero` -> `State::Fail_wrap_to_zero`), so the
-join key is the lowercased enum name == the final id. verdictFor's
-`"<class>:<reason>"` maps to donedata `{"verdict":class,"reason":reason}`;
-a bare `"<class>"` maps to `{"verdict":class}` with no reason. The default
-arm (`return "running"`) is the non-final sentinel and is excluded.
+Template resolution: a `<sce:use template=...>` case declares its finals once
+in a shared template and binds per-case `{$fail_state}` / `{$fail_reason}` via
+attributes; the audit substitutes them exactly as codegen does, so it sees the
+same donedata the runner reads at runtime.
 """
 
 from __future__ import annotations
@@ -49,11 +36,17 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SCE_NS = "http://sce.dev/ext"
-
 REPO = Path(__file__).resolve().parent.parent
 CASES_DIR = REPO / "src" / "sce_integration" / "cases"
 TESTS_DIR = REPO / "tests"
+
+SCE_NS = "http://sce.dev/ext"
+
+# The canonical conformance classes a donedata verdict may carry. This MIRRORS
+# `VerdictClass` in src/sce_integration/verdict.h (the C++ single source of
+# truth); "running" is intentionally excluded — it is the runtime-only sentinel
+# for a non-final / no-donedata state and is never authored in donedata.
+VALID_CLASSES = {"pass", "fail", "inconclusive", "error"}
 
 # A verdict as (class, reason); reason is "" when absent.
 Verdict = tuple[str, str]
@@ -63,68 +56,11 @@ Verdict = tuple[str, str]
 class CaseReport:
     name: str
     findings: list[str] = field(default_factory=list)
-    has_scxml: bool = True
-    has_donedata: bool = False
 
 
-def _verdict_from_trait_literal(lit: str) -> Verdict:
-    """`"fail:reason"` -> ("fail", "reason"); `"pass"` -> ("pass", "")."""
-    cls, _, reason = lit.partition(":")
-    return cls, reason
-
-
-def parse_verdict_for(header_text: str) -> dict[str, Verdict] | None:
-    """Map lowercased State name -> verdict from a verdictFor switch.
-
-    Returns None if the verdictFor body can't be located/parsed. Handles
-    case-fallthrough (several `case State::X:` sharing one return).
-    """
-    m = re.search(r"verdictFor\s*\(", header_text)
-    if not m:
-        return None
-    # Find the function body: first '{' after the signature, matched to its '}'.
-    brace_start = header_text.find("{", m.end())
-    if brace_start < 0:
-        return None
-    depth = 0
-    i = brace_start
-    while i < len(header_text):
-        c = header_text[i]
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    if depth != 0:
-        return None
-    body = header_text[brace_start : i + 1]
-
-    # Token stream of `case State::Name:`, `default:`, and `return "...";`,
-    # in source order, so fallthrough assigns a return to all pending labels.
-    token_re = re.compile(
-        r'case\s+State::(?P<state>\w+)\s*:'
-        r'|(?P<default>default\s*:)'
-        r'|return\s+"(?P<ret>[^"]*)"\s*;'
-    )
-    mapping: dict[str, Verdict] = {}
-    pending: list[str] = []  # state names awaiting a return (None == default)
-    saw_default_pending = False
-    for tok in token_re.finditer(body):
-        if tok.group("state"):
-            pending.append(tok.group("state"))
-        elif tok.group("default"):
-            saw_default_pending = True
-        elif tok.group("ret") is not None:
-            ret = tok.group("ret")
-            for st in pending:
-                if ret != "running":  # "running" is the non-final sentinel
-                    mapping[st.lower()] = _verdict_from_trait_literal(ret)
-            pending.clear()
-            saw_default_pending = False
-    return mapping
-
+# --------------------------------------------------------------------------
+# donedata extraction (inline + sce:template)
+# --------------------------------------------------------------------------
 
 _PARAM_RE = re.compile(r"\{\$(\w+)\}")
 
@@ -138,9 +74,8 @@ def _subst(text: str, bindings: dict[str, str]) -> str:
 
 
 def _finals_from_root(root: ET.Element, bindings: dict[str, str]) -> dict[str, Verdict]:
-    """Walk an SCXML / sce:template root, applying `{$param}` bindings, and
-    return {final id (lowercased) -> verdict} for every top-level `<final>`
-    carrying a `<donedata><content>` JSON object."""
+    """Map final id (lowercased) -> verdict for every top-level `<final>`
+    carrying a `<donedata><content>` JSON object, applying `{$param}` bindings."""
     out: dict[str, Verdict] = {}
     for fin in root.iter():
         if _local(fin.tag) != "final":
@@ -164,14 +99,6 @@ def _finals_from_root(root: ET.Element, bindings: dict[str, str]) -> dict[str, V
 
 
 def extract_donedata(scxml_path: Path) -> dict[str, Verdict]:
-    """Donedata for a case, resolving an `<sce:use template=...>` reference.
-
-    Template-based cases (ARP Group C/D, the SOMEIPSRV/IPv4/DHCPv4 field-check
-    families, …) declare their finals once in a shared `.sce-template.xml`
-    and bind the per-case `{$fail_state}` / `{$fail_reason}` via `<sce:use>`
-    attributes — codegen substitutes them into the generated SM's stashed
-    donedata. The audit mirrors that substitution so it sees the same
-    donedata the runner will read at runtime."""
     root = ET.parse(scxml_path).getroot()
     out = _finals_from_root(root, {})  # inline finals (direct cases)
     for el in root.iter():
@@ -188,25 +115,15 @@ def extract_donedata(scxml_path: Path) -> dict[str, Verdict]:
     return out
 
 
-# The ISO/IEC 9646 / TTCN-3 verdict classes a donedata may legitimately carry.
-VALID_CLASSES = {"pass", "fail", "inconclusive", "error"}
+# --------------------------------------------------------------------------
+# audit
+# --------------------------------------------------------------------------
 
 
 def audit_case(name: str) -> CaseReport:
     rep = CaseReport(name=name)
-    header = (CASES_DIR / f"{name}.h").read_text(encoding="utf-8", errors="replace")
-    # verdictFor was retired by the donedata-SSOT migration. When a header no
-    # longer declares one, run the donedata-validity invariant only; when one
-    # is present (a transitional or out-of-tree case), also drift-compare.
-    has_verdict_for = "verdictFor" in header
-    trait = parse_verdict_for(header) if has_verdict_for else {}
-    if has_verdict_for and trait is None:
-        rep.findings.append("UNPARSED: verdictFor body not parseable")
-        trait = {}
-
     scxml_path = TESTS_DIR / name / f"{name}.scxml"
     if not scxml_path.is_file():
-        rep.has_scxml = False
         rep.findings.append("NO_SCXML")
         return rep
     try:
@@ -214,46 +131,24 @@ def audit_case(name: str) -> CaseReport:
     except ET.ParseError as exc:
         rep.findings.append(f"UNPARSED: .scxml not parseable as XML ({exc})")
         return rep
-    rep.has_donedata = bool(done)
 
     if not done:
         rep.findings.append("MISSING_DONEDATA: no <final> carries a donedata verdict")
         return rep
 
-    # Always-on invariant: every donedata verdict is a valid conformance class.
     for state, (cls, _reason) in sorted(done.items()):
         if cls not in VALID_CLASSES:
             rep.findings.append(
                 f"BAD_CLASS: final '{state}' verdict class '{cls}' not in {sorted(VALID_CLASSES)}"
             )
-
-    # Transitional drift compare — only while a verdictFor still exists.
-    if has_verdict_for:
-        for state, dv in sorted(done.items()):
-            tv = trait.get(state)
-            if tv is None:
-                rep.findings.append(
-                    f"FINAL_NO_VERDICT: final '{state}' donedata={dv} but verdictFor"
-                    f" has no matching State"
-                )
-            elif tv != dv:
-                rep.findings.append(
-                    f"DRIFT: state '{state}' verdictFor={tv} != donedata={dv}"
-                )
-        for state, tv in sorted(trait.items()):
-            if state not in done:
-                rep.findings.append(
-                    f"VERDICT_NO_FINAL: verdictFor State '{state}'={tv} has no .scxml"
-                    f" final id"
-                )
     return rep
 
 
 def all_case_names() -> list[str]:
     """Registered cases only. A shared helper header (e.g.
     dhcpv4_router_option_egress_common.h, included by CM_05/_06) carries no
-    `TC8_REGISTER_CASE` and is not a case, so it is excluded — the macro is
-    the authoritative registration signal."""
+    `TC8_REGISTER_CASE` and is not a case, so it is excluded — the macro is the
+    authoritative registration signal."""
     names = []
     for h in sorted(CASES_DIR.glob("*.h")):
         if h.name.startswith("_"):
@@ -265,46 +160,32 @@ def all_case_names() -> list[str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("cases", nargs="*", help="case names to audit (default: all)")
-    ap.add_argument("--strict", action="store_true",
-                    help="also fail the run on MISSING_DONEDATA")
-    ap.add_argument("--summary", action="store_true",
-                    help="print only per-finding-type counts")
+    ap.add_argument("--summary", action="store_true", help="print only per-finding-type counts")
     args = ap.parse_args()
 
-    names = args.cases or all_case_names()
-    reports = [audit_case(n) for n in names]
+    reports = [audit_case(n) for n in (args.cases or all_case_names())]
 
     counts: dict[str, int] = {}
-    blocking = 0
-    missing = 0
     for rep in reports:
         for f in rep.findings:
             kind = f.split(":")[0].split()[0]
             counts[kind] = counts.get(kind, 0) + 1
-            if kind == "MISSING_DONEDATA":
-                missing += 1
-            elif kind in ("DRIFT", "UNPARSED", "FINAL_NO_VERDICT", "VERDICT_NO_FINAL",
-                          "NO_SCXML", "BAD_CLASS"):
-                blocking += 1
-
-    if not args.summary:
-        for rep in reports:
-            for f in rep.findings:
+            if not args.summary:
                 print(f"{rep.name}: {f}")
 
+    clean = sum(1 for r in reports if not r.findings)
     print("=" * 60)
     print(f"cases audited: {len(reports)}")
     for kind in sorted(counts):
         print(f"  {kind}: {counts[kind]}")
-    clean = sum(1 for r in reports if not r.findings)
-    print(f"  CLEAN (donedata present, no drift): {clean}")
+    print(f"  CLEAN (donedata present, valid class): {clean}")
     print("=" * 60)
 
-    fail = blocking > 0 or (args.strict and missing > 0)
-    return 1 if fail else 0
+    return 1 if any(r.findings for r in reports) else 0
 
 
 if __name__ == "__main__":

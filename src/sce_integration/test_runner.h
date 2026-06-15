@@ -13,6 +13,7 @@
 #include "captured_trace.h"
 #include "test_case_traits.h"
 #include "test_config.h"
+#include "verdict.h"
 
 namespace tc8::sce {
 
@@ -170,13 +171,11 @@ public:
 
     virtual bool isDone() const = 0;
 
-    // Conformance verdict in the harness's flat "<class>[:<reason>]" form
-    // (e.g. "pass", "fail:session_id_wrapped_to_zero"). Sourced from the
-    // SCXML `<final>`'s `<donedata>` (W3C SCXML 5.5) — see
-    // `TestRunner::verdict`. Returns by value (the underlying donedata is a
-    // runtime std::string, not a static literal); the "running" sentinel is
-    // returned when the SM is not in a donedata-bearing final state.
-    virtual std::string verdict() const = 0;
+    // Conformance verdict (class + reason), sourced from the SCXML
+    // `<final>`'s `<donedata>` (W3C SCXML 5.5) — see `TestRunner::verdict`.
+    // The `Running` sentinel is returned when the SM is not in a
+    // donedata-bearing final state. See `verdict.h` for the taxonomy.
+    virtual Verdict verdict() const = 0;
 
     // Evidence Export (Option 3 SSOT): the CLI dispatch callback calls
     // ``setNextPcapFrameIdx`` with the saved-pcap frame index right
@@ -195,77 +194,6 @@ public:
     // transitions before its deadline.
     virtual std::string dumpTraceJson() const = 0;
 };
-
-// Extract the value of a top-level string field `key` from the flat JSON
-// object `json`, or an empty string when absent. Deliberately minimal: the
-// donedata it parses is machine-emitted by the SCE codegen with the fixed
-// shape {"verdict":"<class>"[,"reason":"<reason>"]}, where both values are
-// plain identifiers (never escaped), so this avoids pulling a full JSON
-// parser into every case translation unit (mirrors spec_inventory's
-// hand-rolled approach and dodges the nlohmann find_package gap on this
-// header). A backslash still escapes the following byte, for safety.
-inline std::string jsonStringField(std::string_view json, std::string_view key) {
-    std::string needle;
-    needle.reserve(key.size() + 2);
-    needle.push_back('"');
-    needle.append(key);
-    needle.push_back('"');
-    const auto kpos = json.find(needle);
-    if (kpos == std::string_view::npos) return {};
-    auto i = json.find(':', kpos + needle.size());
-    if (i == std::string_view::npos) return {};
-    ++i;
-    while (i < json.size() && (json[i] == ' ' || json[i] == '\t')) ++i;
-    if (i >= json.size() || json[i] != '"') return {};
-    ++i;  // skip opening quote
-    std::string out;
-    while (i < json.size() && json[i] != '"') {
-        if (json[i] == '\\' && i + 1 < json.size()) ++i;
-        out.push_back(json[i]);
-        ++i;
-    }
-    return out;
-}
-
-// Decode one layer of JSON string encoding. W3C SCXML 5.5 treats an inline
-// `<content>` literal as a *string* value, so the SCE codegen's
-// `emitContentLiteral` round-trips the authored `{"verdict":...}` object
-// through `ScriptValue{string}` → `scriptValueToJsonString`, and the engine
-// stashes it quoted-and-escaped (`"{\"verdict\":\"fail\",...}"`). Strip that
-// wrapper to recover the inner object. A value that is already a bare object
-// (leading `{`) — e.g. a future `<param>`-based donedata — is returned
-// unchanged, so both shapes parse.
-inline std::string jsonUnquote(std::string_view s) {
-    std::size_t b = 0;
-    while (b < s.size() && (s[b] == ' ' || s[b] == '\t' || s[b] == '\n' || s[b] == '\r')) ++b;
-    if (b >= s.size() || s[b] != '"') return std::string(s);
-    std::string out;
-    for (std::size_t i = b + 1; i < s.size() && s[i] != '"'; ++i) {
-        if (s[i] == '\\' && i + 1 < s.size()) {
-            switch (s[++i]) {
-                case 'n': out.push_back('\n'); break;
-                case 't': out.push_back('\t'); break;
-                case 'r': out.push_back('\r'); break;
-                default:  out.push_back(s[i]); break;  // \" \\ \/ → literal
-            }
-        } else {
-            out.push_back(s[i]);
-        }
-    }
-    return out;
-}
-
-// Flatten a stashed donedata payload to the harness verdict form: "<class>"
-// when no reason, "<class>:<reason>" otherwise, and the "running" sentinel
-// when there is no verdict (empty donedata == not in a donedata-bearing
-// final). Decodes the W3C string-content wrapper first (see `jsonUnquote`).
-inline std::string verdictFromDonedata(std::string_view donedata) {
-    const std::string obj = jsonUnquote(donedata);
-    const std::string cls = jsonStringField(obj, "verdict");
-    if (cls.empty()) return "running";
-    const std::string reason = jsonStringField(obj, "reason");
-    return reason.empty() ? cls : cls + ":" + reason;
-}
 
 // Drives an AOT-compiled SCXML state machine for a single TC8 test case.
 //
@@ -450,13 +378,13 @@ public:
         return StateMachine::PolicyType::isFinalState(finalState());
     }
 
-    std::string verdict() const override {
+    Verdict verdict() const override {
         // Verdict SSOT (W3C SCXML 5.5): read back the donedata the generated
         // SM stashed on entry to its `<final>` state (the `<donedata>` authored
-        // in the case .scxml, or substituted from its sce:template) and flatten
-        // it to "<class>[:<reason>]". This is the single declaration of the
-        // verdict — the legacy per-case `verdictFor` switch is retired. Empty
-        // donedata (non-final, or a final with no donedata) yields "running".
+        // in the case .scxml, or substituted from its sce:template). This is
+        // the single declaration of the verdict — the legacy per-case
+        // `verdictFor` switch is retired. Empty donedata (non-final, or a
+        // final with no donedata) yields the `Running` sentinel.
         return verdictFromDonedata(sm_.donedataAtFinal());
     }
 

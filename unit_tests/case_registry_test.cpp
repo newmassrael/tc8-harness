@@ -30,8 +30,8 @@ public:
         return true;
     }
 
-    std::string verdict() const override {
-        return "pass";
+    ::tc8::sce::Verdict verdict() const override {
+        return ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Pass, {}};
     }
 
     void setNextPcapFrameIdx(int /*idx*/) override {}
@@ -215,7 +215,7 @@ TEST(CaseRegistry, FactoryProducesFreshRunner) {
     ASSERT_NE(a.get(), nullptr);
     ASSERT_NE(b.get(), nullptr);
     EXPECT_NE(a.get(), b.get());  // distinct instances
-    EXPECT_EQ(a->verdict(), "pass");
+    EXPECT_EQ(a->verdict().str(), "pass");
 }
 
 TEST(CaseRegistryDeathTest, DuplicateIdAborts) {

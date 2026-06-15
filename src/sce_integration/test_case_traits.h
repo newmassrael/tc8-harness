@@ -64,9 +64,10 @@ class IDutControl;
 //   The conformance verdict is NOT a trait member: it is declared once in
 //   the case .scxml `<final>`'s `<donedata>` (or its sce:template),
 //   stashed by the generated SM, and read back by `TestRunner::verdict`
-//   (W3C SCXML 5.5). `tools/verdict_drift_audit.py` guards that every
-//   final carries a well-formed verdict. (A legacy `verdictFor(State)`
-//   switch was the source before the donedata SSOT migration.)
+//   as a `tc8::sce::Verdict` (W3C SCXML 5.5; taxonomy in verdict.h). The
+//   single source is enforced by `tools/verdict_drift_audit.py`, wired
+//   into CI (build-test.yml) and the pre-commit hook. (A legacy
+//   `verdictFor(State)` switch was the source before the SSOT migration.)
 //
 //   Optional stimulus hook — receives the captured context by reference so
 //   it can seed fields alongside the packet emit, the TestConfig so it can
