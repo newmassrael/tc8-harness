@@ -95,15 +95,6 @@ struct TestCaseTraits<cases::TcpSequence02SM>
 
         if (open) dut.tcpControl()->closeTcp(open->socket);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:               return "pass";
-            case State::Fail_wrong_ack_num: return "fail:dut_ack_num_does_not_acknowledge_tester_isn";
-            case State::Fail_timeout:       return "fail:no_dut_ack_to_synack_within_listen_window";
-            default:                        return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

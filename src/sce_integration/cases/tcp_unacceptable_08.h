@@ -95,15 +95,6 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_p1_no_dut_rst:  return "fail:no_dut_rst_phase1_synack_with_unacceptable_ack";
-            case State::Fail_p2_no_dut_rst:  return "fail:no_dut_rst_phase2_ack_with_unacceptable_ack";
-            default:                         return "running";
-        }
-    }
-
 private:
     static void runPhaseSynSentRst(::tc8::sce::IDutControl& dut,
                                    const ::tc8::TestConfig& cfg,

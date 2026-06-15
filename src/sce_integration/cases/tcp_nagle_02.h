@@ -100,16 +100,6 @@ struct TestCaseTraits<cases::TcpNagle02SM>
             });
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_no_first_data:                         return "fail:no_dut_first_data_segment";
-            case State::Fail_dut_sent_second_segment_before_ack:    return "fail:dut_sent_second_segment_before_ack_nagle_violation";
-            case State::Fail_no_second_data:                        return "fail:no_dut_second_data_segment_after_ack";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -40,15 +40,6 @@ struct TestCaseTraits<cases::Rpc04SM> : SomeIpAnyBase<cases::Rpc04SM> {
         target.payload = {0x42};
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                           return "pass";
-            case State::Fail_phase1_no_offer:           return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_response_observed:  return "fail:dut_responded_to_fire_and_forget_request";
-            default:                                    return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

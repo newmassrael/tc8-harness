@@ -105,15 +105,6 @@ struct TestCaseTraits<cases::TcpOutOfOrder05SM>
         }
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                            return "pass";
-            case State::Fail_no_handshake_ack:           return "fail:no_dut_handshake_ack";
-            case State::Fail_insufficient_dut_acks:      return "fail:dut_emitted_fewer_than_5_acks_for_10_full_sized_segments";
-            default:                                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

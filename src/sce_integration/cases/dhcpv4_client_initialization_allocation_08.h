@@ -48,23 +48,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation08SM>
             scheduler, static_cast<int>(State::Listening_for_arp_probe),
             iface, c.dhcpv4, /*message_type=*/5);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_arp_probe_shape_mismatch:
-                return "fail:dut_arp_probe_field_mismatch";
-            case State::Fail_no_arp_probe:
-                return "fail:no_dut_arp_probe_after_bound";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

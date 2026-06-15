@@ -54,14 +54,6 @@ struct TestCaseTraits<cases::TcpClosing13SM>
         emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_unexpected_response:   return "fail:dut_emitted_response_to_rst_in_closed";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

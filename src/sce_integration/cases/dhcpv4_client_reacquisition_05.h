@@ -36,25 +36,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition05SM>
         ::tc8::sce::dhcpv4::scheduleRetxLeaseEnvelopeReplies<SM>(
             scheduler, iface, c);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_first_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_no_renewing_request:
-                return "fail:no_dut_renewing_request_within_listen_window";
-            case State::Fail_no_second_renewing_request:
-                return "fail:no_dut_second_renewing_request_within_retx_window";
-            case State::Fail_renewing_retx_interval_out_of_bounds:
-                return "fail:dut_renewing_retx_interval_out_of_bounds";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

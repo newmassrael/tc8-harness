@@ -91,16 +91,6 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
             dut.tcpControl()->closeTcp(*handle);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_timeout_leg1:   return "fail:no_dut_synack_for_leg1";
-            case State::Fail_timeout_leg2:   return "fail:no_dut_synack_for_leg2";
-            case State::Fail_timeout_leg3:   return "fail:no_dut_synack_for_leg3";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

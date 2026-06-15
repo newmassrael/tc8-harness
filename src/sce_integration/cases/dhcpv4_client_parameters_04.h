@@ -42,21 +42,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientParameters04SM>
             scheduler, static_cast<int>(State::Listening_for_request),
             iface, c, /*message_type=*/2);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_request_param_request_mismatch:
-                return "fail:dut_dhcp_request_option55_mismatch_discover";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

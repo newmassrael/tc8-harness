@@ -41,19 +41,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict08SM>
             /*opcode1=*/0x0001,  // ARP Request
             /*opcode2=*/0x0002); // ARP Reply
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_claim_observed:
-                return "fail:dut_did_not_announce_committed_link_local_address";
-            case State::Fail_no_reprobe:
-                return "fail:dut_did_not_reprobe_after_conflicting_arp";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

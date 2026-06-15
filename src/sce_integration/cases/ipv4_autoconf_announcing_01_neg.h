@@ -38,19 +38,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing01NegSM>
             cfg, iface, cfg.dut.mac,
             ::tc8::ut::kFlavorAnnounceEthDstUnicast);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_compliant_emit:
-                return "fail:dut_emitted_compliant_announce_despite_eth_dst_unicast_flavor";
-            case State::Fail_no_announce_after_probes:
-                return "fail:no_arp_announce_after_probes";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

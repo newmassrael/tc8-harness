@@ -106,15 +106,6 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         dut.tcpControl()->closeTcp(*listen);
         (void)rst_drop;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                            return "pass";
-            case State::Fail_no_first_syn_ack:           return "fail:no_dut_syn_ack_to_first_syn";
-            case State::Fail_no_second_syn_ack:          return "fail:no_dut_syn_ack_after_old_duplicate_recovery";
-            default:                                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

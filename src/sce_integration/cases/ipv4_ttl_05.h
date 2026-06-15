@@ -34,14 +34,6 @@ struct TestCaseTraits<cases::Ipv4Ttl05SM>
         ov.ttl = std::uint8_t{0};
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:         return "pass";
-            case State::Fail_timeout: return "fail:no_dut_ipv4_packet_with_expected_source_address";
-            default:                  return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

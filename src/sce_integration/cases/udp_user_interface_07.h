@@ -52,15 +52,6 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
             ::tc8::sce::udp::kUdpPilotInitialWait,
             /*dut_src_ip_override_be=*/::tc8::sce::udp::kDutAliasIp4Be);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_wrong_src_ip_or_port:  return "fail:dut_emitted_udp_with_wrong_user_interface_src_ip";
-            case State::Fail_timeout:               return "fail:no_dut_originated_udp_within_listen_window";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -41,15 +41,6 @@ struct TestCaseTraits<cases::SomeipEts074SM> : SomeIpAnyBase<cases::SomeipEts074
         target.interface_version = 0xFF;  // ets.fidl version.major == 1
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                                 return "pass";
-            case State::Fail_phase1_no_offer:                                 return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_accepted_wrong_iface_version:         return "fail:dut_returned_ok_response_for_wrong_interface_version";
-            default:                                                          return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

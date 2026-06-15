@@ -47,15 +47,6 @@ struct TestCaseTraits<cases::SomeipEts099SM> : SomeIpAnyBase<cases::SomeipEts099
         target.payload      = {0x00};        // delay byte = 0 — start immediately.
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_phase1_no_offer:              return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_findservice:        return "fail:no_dut_findservice_for_service_id_2_within_listen_window";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

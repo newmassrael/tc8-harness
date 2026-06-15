@@ -90,16 +90,6 @@ struct TestCaseTraits<cases::TcpNagle03SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                                   return "pass";
-            case State::Fail_no_first_data:                                     return "fail:no_dut_first_data_segment";
-            case State::Fail_dut_released_small_segment_before_aggregate:       return "fail:dut_released_small_segment_before_aggregate_nagle_violation";
-            case State::Fail_no_aggregate:                                      return "fail:no_dut_aggregate_segment_after_mss_fill";
-            default:                                                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -152,18 +152,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_syn_in_syn_recv";
-            case State::Fail_p2_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_synack_in_syn_recv";
-            case State::Fail_p3_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_ack_in_syn_recv";
-            case State::Fail_p4_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_fin_in_syn_recv";
-            case State::Fail_p5_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_data_in_syn_recv";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

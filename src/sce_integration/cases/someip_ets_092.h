@@ -40,15 +40,6 @@ struct TestCaseTraits<cases::SomeipEts092SM> : SomeIpAnyBase<cases::SomeipEts092
         subscribe.ttl = 0;  // StopSubscribeEventgroup per SD §4.2
         ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                          return "pass";
-            case State::Fail_phase1_no_offer_with_endpoint:            return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
-            case State::Fail_phase2_dut_responded_to_ttl_zero:         return "fail:dut_emitted_subscribe_response_for_ttl_zero_request";
-            default:                                                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

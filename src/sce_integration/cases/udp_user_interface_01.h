@@ -38,15 +38,6 @@ struct TestCaseTraits<cases::UdpUserInterface01SM>
             ::tc8::ut::kTesterSrcPort,
             cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                    return "pass";
-            case State::Fail_wrong_port_count:   return "fail:dut_did_not_create_requested_receive_port_count";
-            case State::Fail_timeout:            return "fail:no_ut_confirmation_for_create_udp_receive_ports";
-            default:                             return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

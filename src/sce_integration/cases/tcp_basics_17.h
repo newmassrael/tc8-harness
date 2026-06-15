@@ -116,15 +116,6 @@ struct TestCaseTraits<cases::TcpBasics17SM>
 
         if (open) dut.tcpControl()->closeTcp(open->socket);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                   return "pass";
-            case State::Fail_not_established:   return "fail:dut_did_not_reach_established_after_simultaneous_open";
-            case State::Fail_timeout:           return "fail:no_dut_synack_to_simultaneous_syn";
-            default:                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

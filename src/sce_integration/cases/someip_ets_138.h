@@ -51,15 +51,6 @@ struct TestCaseTraits<cases::SomeipEts138SM> : SomeIpAnyBase<cases::SomeipEts138
         params.options_len_override = 40U;
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                            return "pass";
-            case State::Fail_phase1_no_offer:                            return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_nacked_oversized_options_len:    return "fail:dut_nacked_on_oversized_options_array_length";
-            default:                                                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

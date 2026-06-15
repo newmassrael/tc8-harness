@@ -126,23 +126,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid08SM>
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase1";
-            case State::Fail_p1_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_syn_in_established";
-            case State::Fail_p2_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase2";
-            case State::Fail_p2_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_synack_in_established";
-            case State::Fail_p3_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase3";
-            case State::Fail_p3_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_ack_in_established";
-            case State::Fail_p4_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase4";
-            case State::Fail_p4_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_fin_in_established";
-            case State::Fail_p5_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase5";
-            case State::Fail_p5_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_data_in_established";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

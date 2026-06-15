@@ -36,16 +36,6 @@ struct TestCaseTraits<cases::Icmpv4Type09SM>
                          std::string_view iface) {
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                 return "pass";
-            case State::Fail_echo_id:         return "fail:echo_id_mismatch";
-            case State::Fail_echo_seq:        return "fail:echo_seq_mismatch";
-            case State::Fail_timeout:         return "fail:no_echo_reply_within_listen_window";
-            default:                          return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

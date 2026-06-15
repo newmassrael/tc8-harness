@@ -65,17 +65,6 @@ struct TestCaseTraits<cases::Ipv4Reassembly04SM>
             iface, cfg, cfg.arp.dut_iface_mac, ip_id,
             /*offset=*/3, /*MF=*/false, /*ttl=*/64, frag3_payload);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_echo_id:        return "fail:echo_id_mismatch_after_unordered_reassembly";
-            case State::Fail_echo_seq:       return "fail:echo_seq_mismatch_after_unordered_reassembly";
-            case State::Fail_data_mismatch:  return "fail:reassembled_echo_data_mismatch_unordered";
-            case State::Fail_timeout:        return "fail:no_echo_reply_after_unordered_reassembly";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

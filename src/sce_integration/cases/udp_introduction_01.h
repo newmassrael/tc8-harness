@@ -40,15 +40,6 @@ struct TestCaseTraits<cases::UdpIntroduction01SM>
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
             cfg, iface, cases::kIntro01DirectedBroadcastBe, cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_receipt:  return "fail:dut_received_directed_broadcast_udp";
-            case State::Fail_timeout:        return "fail:no_ut_confirmation_for_directed_broadcast_deny";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

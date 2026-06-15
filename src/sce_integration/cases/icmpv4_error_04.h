@@ -59,14 +59,6 @@ struct TestCaseTraits<cases::Icmpv4Error04SM>
                              ::tc8::stimulus::kIcmpv4TimestampOptionMalformed.end());
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:             return "pass";
-            case State::Fail_dut_replied: return "fail:dut_sent_parameter_problem_to_broadcast";
-            default:                      return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

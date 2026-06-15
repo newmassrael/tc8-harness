@@ -38,15 +38,6 @@ struct TestCaseTraits<cases::UdpFields03SM>
             ::tc8::sce::udp::kUdpDefaultData.size(),
             /*src_port=*/0);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_receipt:  return "fail:dut_did_not_receive_zero_source_port_udp";
-            case State::Fail_timeout:        return "fail:no_ut_confirmation_for_zero_source_port";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

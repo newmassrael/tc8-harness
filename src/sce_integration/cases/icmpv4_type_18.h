@@ -59,15 +59,6 @@ struct TestCaseTraits<cases::Icmpv4Type18SM>
         ov.dst_mac     = cfg.arp.dut_iface_mac;
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:           return "pass";
-            case State::Fail_wrong_code: return "fail:dut_icmp_code_not_protocol_unreachable";
-            case State::Fail_timeout:   return "fail:no_dest_unreachable_within_listen_window";
-            default:                    return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

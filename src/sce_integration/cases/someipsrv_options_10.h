@@ -33,15 +33,6 @@ struct TestCaseTraits<cases::Options10SM>
         subscribe.eventgroup_id = 0x0008;
         ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:           return "pass";
-            case State::Fail_reserved1: return "fail:ipv4_multicast_first_reserved_nonzero";
-            case State::Fail_timeout:   return "fail:no_qualifying_sd_message_within_listen_window";
-            default:                    return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

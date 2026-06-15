@@ -41,15 +41,6 @@ struct TestCaseTraits<cases::UdpFields15SM>
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_receipt:  return "fail:dut_received_udp_with_invalid_checksum";
-            case State::Fail_timeout:        return "fail:no_ut_confirmation_for_invalid_checksum_discard";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

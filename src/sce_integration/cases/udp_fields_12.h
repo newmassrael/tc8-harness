@@ -74,15 +74,6 @@ struct TestCaseTraits<cases::UdpFields12SM>
             /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
             /*dut_mac=*/cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                  return "pass";
-            case State::Fail_field_mismatch:   return "fail:dut_received_udp_with_unexpected_payload_length";
-            case State::Fail_timeout:          return "fail:no_ut_confirmation_for_max_length_udp";
-            default:                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

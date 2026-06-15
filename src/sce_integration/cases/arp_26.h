@@ -31,17 +31,6 @@ struct TestCaseTraits<cases::Arp26SM>
         spec.proto_type = 0x0800;  // ARP_PROTOCOL_IP
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_no_reply:
-            return "fail:no_arp_reply_within_listen_window";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -43,15 +43,6 @@ struct TestCaseTraits<cases::SomeipEts174SM> : SomeIpAnyBase<cases::SomeipEts174
         params.option_type_override = std::uint8_t{0x77};
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer:                  return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_acked_unknown_type:    return "fail:dut_acked_unknown_option_type";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

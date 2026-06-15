@@ -54,15 +54,6 @@ struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128
         target_b.minor_version = 0xFFFFFFFFU;
         ::tc8::stimulus::emitFindServiceBoot(iface, target_b, timing_b);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_phase1_no_offer:       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_offer:       return "fail:no_offer_service_phase2_within_listen_window";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

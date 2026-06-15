@@ -38,19 +38,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection09SM>
         ::tc8::sce::linklocal::emitStartLLAutoconfRfcDefaults(
             cfg, iface, cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_probes:
-                return "fail:no_arp_probe_after_ll_start";
-            case State::Fail_too_few_probes:
-                return "fail:fewer_than_3_arp_probes_within_deadline";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

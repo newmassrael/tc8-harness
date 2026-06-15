@@ -52,21 +52,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfLinklocalPackets04SM>
             cfg, iface,
             ::tc8::sce::linklocal::kArbitraryReservedLinkLocalIpBe);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_claim_observed:
-                return "fail:dut_did_not_announce_committed_link_local_address";
-            case State::Fail_only_one_announce:
-                return "fail:fewer_than_2_arp_announces_within_deadline";
-            case State::Fail_responded_to_arbitrary:
-                return "fail:dut_emitted_arp_reply_for_arbitrary_link_local_target";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -26,15 +26,6 @@ struct TestCaseTraits<cases::Format14SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.14";
     static constexpr std::string_view kDescription =
         "Type 1 entry Service ID shall carry the configured SERVICE-ID-1";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:            return "pass";
-            case State::Fail_service_id: return "fail:entry_service_id_mismatch";
-            case State::Fail_timeout:    return "fail:no_notification_within_listen_window";
-            default:                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

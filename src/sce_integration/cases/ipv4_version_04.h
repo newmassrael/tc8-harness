@@ -34,14 +34,6 @@ struct TestCaseTraits<cases::Ipv4Version04SM>
         ov.version = std::uint8_t{6};  // wire Version != 4, IHL stays 5
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_despite_non_version_4";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

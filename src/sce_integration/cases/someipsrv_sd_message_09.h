@@ -69,18 +69,6 @@ struct TestCaseTraits<cases::SdMessage09SM>
         ::tc8::stimulus::emitSubscribeEventgroupBoot(
             iface, subscribe, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer_with_endpoint:    return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
-            case State::Fail_phase2_subscribe_nacked:          return "fail:subscribe_eventgroup_nacked_ttl_zero";
-            case State::Fail_phase2_no_subscribe_ack:          return "fail:no_subscribe_ack_within_listen_window";
-            case State::Fail_phase3_no_notification:           return "fail:no_notification_within_listen_window";
-            case State::Fail_phase3_src_port_mismatch:         return "fail:notification_src_port_does_not_match_offer_endpoint_port";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

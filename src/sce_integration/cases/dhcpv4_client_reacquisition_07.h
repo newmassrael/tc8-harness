@@ -41,25 +41,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition07SM>
         ::tc8::sce::dhcpv4::scheduleRenewingFastEnvelopeReplies<SM>(
             scheduler, iface, c);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_first_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_no_renewing_request:
-                return "fail:no_dut_renewing_request_within_listen_window";
-            case State::Fail_no_lease_release:
-                return "fail:no_dut_lease_release_discover_after_lease_end";
-            case State::Fail_dut_kept_released_ip:
-                return "fail:dut_kept_released_ip_after_lease_expiry";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

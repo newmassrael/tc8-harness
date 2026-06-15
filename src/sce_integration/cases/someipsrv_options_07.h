@@ -24,15 +24,6 @@ struct TestCaseTraits<cases::Options07SM>
     static constexpr std::string_view kSpecSection = "5.1.5.5.7";
     static constexpr std::string_view kDescription =
         "Port Number field of the IPv4 Endpoint Option shall carry the service UDP port";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:         return "pass";
-            case State::Fail_port:    return "fail:ipv4_endpoint_udp_port_mismatch";
-            case State::Fail_timeout: return "fail:no_qualifying_sd_message_within_listen_window";
-            default:                  return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

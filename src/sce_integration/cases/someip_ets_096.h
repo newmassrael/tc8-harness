@@ -39,16 +39,6 @@ struct TestCaseTraits<cases::SomeipEts096SM> : SomeIpAnyBase<cases::SomeipEts096
         subscribe.eventgroup_id = 0x0002;
         ::tc8::stimulus::emitSubscribeEventgroupBootTcpOption(iface, subscribe, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                                   return "pass";
-            case State::Fail_phase1_no_offer_with_endpoint:                     return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
-            case State::Fail_phase2_dut_acked_tcp_subscribe_without_connection: return "fail:dut_acked_tcp_subscribe_without_pre_established_connection";
-            case State::Fail_phase2_no_subscribe_response:                      return "fail:no_subscribe_response_within_listen_window";
-            default:                                                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

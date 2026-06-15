@@ -87,17 +87,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid06SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_dut_syn:         return "fail:no_dut_syn_phase1_bare_ack";
-            case State::Fail_p1_unexpected_response:return "fail:dut_emitted_response_to_bare_ack_with_acceptable_ack";
-            case State::Fail_p2_no_dut_syn:         return "fail:no_dut_syn_phase2_ack_with_payload";
-            case State::Fail_p2_unexpected_response:return "fail:dut_emitted_response_to_ack_with_payload_acceptable_ack";
-            default:                                return "running";
-        }
-    }
-
 private:
     static void emitAck(const ::tc8::TestConfig& cfg,
                         std::string_view iface,

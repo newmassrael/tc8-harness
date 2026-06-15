@@ -43,21 +43,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages06SM>
             /*sname_payload=*/{},
             /*file_payload=*/cases::router_option_egress::buildOption3RouterPayload());
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_no_dut_udp:
-                return "fail:no_dut_udp_to_unused_routed_ip_via_router_option";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

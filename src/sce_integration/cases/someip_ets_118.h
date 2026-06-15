@@ -51,14 +51,6 @@ struct TestCaseTraits<cases::SomeipEts118SM> : SomeIpAnyBase<cases::SomeipEts118
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_phase1_no_offer:       return "fail:no_offer_service_within_listen_window";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

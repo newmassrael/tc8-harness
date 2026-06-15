@@ -34,14 +34,6 @@ struct TestCaseTraits<cases::Ipv4Header02SM>
         ov.ihl = std::uint8_t{4};  // < 5 words → header-length < 20 bytes
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_despite_ihl_lt_5";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

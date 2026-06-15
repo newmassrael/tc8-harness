@@ -87,17 +87,6 @@ struct TestCaseTraits<cases::TcpClosing09SM>
         // out of CW).
         silentlyCloseTesterFd(tester_fd);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_no_dut_fin_ack:        return "fail:no_dut_ack_to_tester_fin_in_est";
-            case State::Fail_no_dut_data:           return "fail:no_dut_data_segment_in_close_wait";
-            case State::Fail_dut_left_cw:           return "fail:dut_emitted_fin_or_rst_in_close_wait";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

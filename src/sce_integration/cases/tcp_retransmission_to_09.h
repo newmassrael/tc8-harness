@@ -171,18 +171,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         // Verdict computed from kernel TCP_INFO snapshot — wire frames
         // not consulted.
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_handshake_did_not_complete:   return "fail:dut_active_open_did_not_initiate";
-            case State::Fail_query_failed:                 return "fail:tcp_info_query_failed";
-            case State::Fail_no_retx:                      return "fail:no_syn_retransmits_observed_in_kernel";
-            case State::Fail_rto_above_2msl_cap:           return "fail:rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s";
-            case State::Fail_rto_below_2msl_cap:           return "fail:rto_below_2_msl_did_not_plateau_within_observation_budget";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

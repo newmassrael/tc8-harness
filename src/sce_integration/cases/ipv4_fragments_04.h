@@ -50,18 +50,6 @@ struct TestCaseTraits<cases::Ipv4Fragments04SM>
             static_cast<int>(State::Listening_phase2),
             iface, cfg, cfg.arp.dut_iface_mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_early_reply:  return "fail:dut_reassembled_mismatched_protocol_fragments";
-            case State::Fail_echo_id:      return "fail:echo_id_mismatch_after_protocol_retry";
-            case State::Fail_echo_seq:     return "fail:echo_seq_mismatch_after_protocol_retry";
-            case State::Fail_data_mismatch: return "fail:reassembled_echo_data_mismatch_protocol_case";
-            case State::Fail_timeout:      return "fail:no_echo_reply_after_matched_protocol_retry";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

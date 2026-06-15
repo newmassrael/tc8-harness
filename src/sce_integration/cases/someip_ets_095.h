@@ -44,17 +44,6 @@ struct TestCaseTraits<cases::SomeipEts095SM> : SomeIpAnyBase<cases::SomeipEts095
         subscribe.ttl = 3;
         ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                          return "pass";
-            case State::Fail_phase1_no_offer_with_endpoint:            return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
-            case State::Fail_phase2_subscribe_nacked:                  return "fail:subscribe_eventgroup_nacked_ttl_zero";
-            case State::Fail_phase2_no_subscribe_ack:                  return "fail:no_subscribe_ack_within_listen_window";
-            case State::Fail_phase3_event_after_ttl_expiry:            return "fail:dut_emitted_event_after_subscription_ttl_expired";
-            default:                                                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -64,18 +64,6 @@ struct TestCaseTraits<cases::Ipv4Reassembly10SM>
             /*inter_frag_wait=*/std::chrono::milliseconds{3000},
             /*post_send_wait=*/std::chrono::milliseconds{200});
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                          return "pass";
-            case State::Fail_phase_a_echo_id:          return "fail:echo_id_mismatch_phase_a_within_timer";
-            case State::Fail_phase_a_echo_seq:         return "fail:echo_seq_mismatch_phase_a_within_timer";
-            case State::Fail_phase_a_data_mismatch:    return "fail:reassembled_echo_data_mismatch_phase_a";
-            case State::Fail_phase_a_no_reply:         return "fail:no_echo_reply_phase_a_within_timer";
-            case State::Fail_phase_b_replied:          return "fail:dut_replied_phase_b_after_timer_expired";
-            default:                                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

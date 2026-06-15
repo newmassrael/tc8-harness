@@ -46,19 +46,6 @@ struct TestCaseTraits<cases::Rpc01SM> : SomeIpAnyBase<cases::Rpc01SM> {
                                                 ::tc8::stimulus::MethodRequestTiming{},
                                                 dest);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_phase1_no_offer:
-                return "fail:no_offer_service_for_service_id_2_within_listen_window";
-            case State::Fail_phase2_no_response:
-                return "fail:no_response_for_service_id_2_method_within_listen_window";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

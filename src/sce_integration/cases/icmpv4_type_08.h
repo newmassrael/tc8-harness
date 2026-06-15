@@ -39,15 +39,6 @@ struct TestCaseTraits<cases::Icmpv4Type08SM>
         ov.payload_len  = static_cast<std::uint32_t>(::tc8::kIcmpv4EchoPayloadType08.size());
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                    return "pass";
-            case State::Fail_payload_mismatch:   return "fail:echo_payload_not_returned_verbatim";
-            case State::Fail_timeout:            return "fail:no_echo_reply_within_listen_window";
-            default:                             return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

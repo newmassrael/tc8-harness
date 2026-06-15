@@ -26,15 +26,6 @@ struct TestCaseTraits<cases::Format07SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.7";
     static constexpr std::string_view kDescription =
         "SD Reboot Flag shall be '1' after reboot";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:             return "pass";
-            case State::Fail_reboot_flag: return "fail:reboot_flag_not_set";
-            case State::Fail_timeout:     return "fail:no_notification_within_listen_window";
-            default:                      return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

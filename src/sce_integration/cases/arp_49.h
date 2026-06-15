@@ -102,25 +102,6 @@ struct TestCaseTraits<cases::Arp49SM>
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_udp1_wrong_eth_dst:
-            return "fail:first_udp_eth_dst_not_learned_mac";
-        case State::Fail_udp2_wrong_eth_dst:
-            return "fail:second_udp_eth_dst_not_learned_mac";
-        case State::Fail_no_udp1:
-            return "fail:no_first_udp_after_cache_learning";
-        case State::Fail_no_udp2:
-            return "fail:no_second_udp_in_busy_window";
-        case State::Fail_no_arp_request_after_timeout:
-            return "fail:no_dut_arp_request_after_cache_timeout";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

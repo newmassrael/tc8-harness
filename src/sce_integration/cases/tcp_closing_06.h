@@ -60,15 +60,6 @@ struct TestCaseTraits<cases::TcpClosing06SM>
         dut.tcpControl()->closeTcp(open.conn->socket);
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_no_dut_fin:            return "fail:no_dut_close_fin";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

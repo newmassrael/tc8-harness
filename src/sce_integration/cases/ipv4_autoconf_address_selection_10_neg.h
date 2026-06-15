@@ -35,21 +35,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection10NegSM>
         ::tc8::sce::linklocal::emitStartLLAutoconfFastCadence(
             cfg, iface, cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_probes:
-                return "fail:no_arp_probe_after_ll_start";
-            case State::Fail_too_few_probes:
-                return "fail:fewer_than_2_arp_probes_within_deadline";
-            case State::Fail_compliant_cadence:
-                return "fail:dut_emitted_compliant_cadence_despite_100ms_probe_min_max";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -26,15 +26,6 @@ struct TestCaseTraits<cases::Format11SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.11";
     static constexpr std::string_view kDescription =
         "Type 1 entry type 0x01, entries array multiple of 16 bytes";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:             return "pass";
-            case State::Fail_entry_shape: return "fail:entry_type_or_length_unexpected";
-            case State::Fail_timeout:     return "fail:no_notification_within_listen_window";
-            default:                      return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -96,22 +96,6 @@ struct TestCaseTraits<cases::SomeipEts094SM> : SomeIpAnyBase<cases::SomeipEts094
                 ::tc8::stimulus::sendSdMulticast(datagram, iface_copy);
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer_with_endpoint:         return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
-            case State::Fail_phase2_subscribe_nacked:               return "fail:subscribe_eventgroup_nacked_ttl_zero";
-            case State::Fail_phase2_no_subscribe_ack:               return "fail:no_subscribe_ack_within_listen_window";
-            case State::Fail_phase3_no_event_post_subscribe:        return "fail:no_test_event_uint8_post_subscribe_within_listen_window";
-            case State::Fail_phase4_no_event_post_first_find:       return "fail:no_test_event_uint8_post_first_findservice_within_listen_window";
-            // listening_phase4_settle / listening_phase4_observe have no
-            // failure exits — the only egress paths land on phase5_drain
-            // (success) or fall through to phase4 deadline-fail.
-            case State::Fail_phase6_event_post_reboot:              return "fail:test_event_uint8_observed_after_simulated_reboot";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

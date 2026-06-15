@@ -30,16 +30,6 @@ struct TestCaseTraits<cases::SdBehavior02SM>
     static constexpr std::string_view kSpecSection = "5.1.5.4.2";
     static constexpr std::string_view kDescription =
         "Main Phase OfferService cyclic gap == cyclic_offer_delay ± tolerance";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                      return "pass";
-            case State::Fail_phase2_no_first_main_offer:           return "fail:no_first_main_phase_offer_within_listen_window";
-            case State::Fail_phase3_no_second_main_offer:          return "fail:no_second_main_phase_offer_within_listen_window";
-            case State::Fail_phase3_cyclic_out_of_tolerance:       return "fail:cyclic_offer_gap_not_within_cyclic_offer_delay_tolerance";
-            default:                                               return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

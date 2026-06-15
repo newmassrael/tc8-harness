@@ -94,19 +94,6 @@ struct TestCaseTraits<cases::TcpBasics04SM>
             /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_wrong_seq_syn:         return "fail:dut_rst_seq_not_zero_after_syn";
-            case State::Fail_wrong_seq_fin:         return "fail:dut_rst_seq_not_zero_after_fin";
-            case State::Fail_wrong_seq_data:        return "fail:dut_rst_seq_not_zero_after_data";
-            case State::Fail_timeout_syn:           return "fail:no_dut_rst_after_syn";
-            case State::Fail_timeout_fin:           return "fail:no_dut_rst_after_fin";
-            case State::Fail_timeout_data:          return "fail:no_dut_rst_after_data";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

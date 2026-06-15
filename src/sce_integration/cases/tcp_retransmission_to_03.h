@@ -225,19 +225,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         // delay="0ms"/>` raise in `<onentry>` of the initial state,
         // which the SCE scheduler dispatches into the next macrostep.
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_handshake_did_not_complete:   return "fail:dut_handshake_did_not_complete";
-            case State::Fail_phase1_query_failed:          return "fail:phase1_tcp_info_query_failed";
-            case State::Fail_phase2_query_failed:          return "fail:phase2_tcp_info_query_failed";
-            case State::Fail_no_phase1_retx:               return "fail:no_phase1_retransmit_observed_in_kernel";
-            case State::Fail_initial_rto_not_doubled:      return "fail:phase1_rto_below_doubled_baseline";
-            case State::Fail_doubling_not_preserved:       return "fail:phase2_rto_not_doubled_karns_violation";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

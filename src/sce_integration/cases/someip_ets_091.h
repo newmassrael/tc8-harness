@@ -40,16 +40,6 @@ struct TestCaseTraits<cases::SomeipEts091SM> : SomeIpAnyBase<cases::SomeipEts091
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                            return "pass";
-            case State::Fail_phase1_no_offer_with_endpoint:              return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
-            case State::Fail_phase2_session_id_did_not_increment:        return "fail:offer_service_session_id_did_not_increment";
-            case State::Fail_phase2_no_second_offer:                     return "fail:no_second_offer_service_within_listen_window";
-            default:                                                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

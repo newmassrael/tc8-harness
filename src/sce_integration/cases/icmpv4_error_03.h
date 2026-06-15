@@ -85,14 +85,6 @@ struct TestCaseTraits<cases::Icmpv4Error03SM>
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.end());
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, f1);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:             return "pass";
-            case State::Fail_dut_replied: return "fail:dut_sent_parameter_problem_to_fragmented_sequence";
-            default:                      return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

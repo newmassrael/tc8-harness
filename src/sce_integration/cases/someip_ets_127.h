@@ -39,14 +39,6 @@ struct TestCaseTraits<cases::SomeipEts127SM> : SomeIpAnyBase<cases::SomeipEts127
         timing.total_emits     = 10;
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{}, timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                return "pass";
-            case State::Fail_phase1_no_offer:                return "fail:no_offer_service_within_listen_window";
-            default:                                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

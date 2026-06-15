@@ -98,16 +98,6 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_timeout_seg1:   return "fail:no_dut_ack_for_seg1";
-            case State::Fail_timeout_seg2:   return "fail:no_dut_ack_for_seg2";
-            case State::Fail_timeout_seg3:   return "fail:no_dut_ack_for_seg3";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

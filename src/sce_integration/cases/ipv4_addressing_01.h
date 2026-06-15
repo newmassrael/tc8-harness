@@ -63,15 +63,6 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::udp::dispatchUdpFrame<SM>(c, sm, ev);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_receipt:  return "fail:dut_did_not_receive_limited_broadcast";
-            case State::Fail_timeout:        return "fail:no_ut_confirmation_for_limited_broadcast";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

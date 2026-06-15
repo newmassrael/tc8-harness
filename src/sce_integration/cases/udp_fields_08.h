@@ -37,15 +37,6 @@ struct TestCaseTraits<cases::UdpFields08SM>
             /*payload=*/nullptr, /*payload_len=*/0,
             ::tc8::sce::udp::kDataPeerPort, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_receipt:  return "fail:dut_received_truncated_sub_8_byte_udp";
-            case State::Fail_timeout:        return "fail:no_ut_confirmation_for_truncated_udp_discard";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

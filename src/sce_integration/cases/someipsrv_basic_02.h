@@ -41,16 +41,6 @@ struct TestCaseTraits<cases::Basic02SM> : SomeIpSdOnlyBase<cases::Basic02SM> {
         target.instance_id = 0xFFFF;
         ::tc8::stimulus::emitFindServiceBoot(iface, target, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                  return "pass";
-            case State::Fail_instance_zero:    return "fail:offer_instance_id_is_reserved_zero";
-            case State::Fail_instance_all:     return "fail:offer_instance_id_is_reserved_all";
-            case State::Fail_timeout:          return "fail:no_offer_service_within_listen_window";
-            default:                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

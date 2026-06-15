@@ -49,29 +49,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12SM>
             /*retx_cap_ms=*/3200U,
             /*retx_jitter_ms=*/100U);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_discover_2:
-                return "fail:no_dut_dhcp_discover_2";
-            case State::Fail_no_discover_3:
-                return "fail:no_dut_dhcp_discover_3";
-            case State::Fail_no_discover_4:
-                return "fail:no_dut_dhcp_discover_4";
-            case State::Fail_no_discover_5:
-                return "fail:no_dut_dhcp_discover_5";
-            case State::Fail_no_discover_6:
-                return "fail:no_dut_dhcp_discover_6";
-            case State::Fail_cap_exceeded:
-                return "fail:dut_retx_interval_exceeds_cap";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

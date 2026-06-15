@@ -95,15 +95,6 @@ struct TestCaseTraits<cases::TcpOutOfOrder02SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_no_handshake_ack:                      return "fail:no_dut_handshake_ack";
-            case State::Fail_no_cumulative_ack_within_500ms:        return "fail:dut_did_not_emit_cumulative_ack_for_two_segments_within_500ms";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

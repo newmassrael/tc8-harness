@@ -59,25 +59,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating08SM>
             iface, cfg.dut.mac,
             ::tc8::sce::dhcpv4::kDefaultOfferedIpBe);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_no_arp_probe:
-                return "fail:no_dut_arp_probe_after_bound";
-            case State::Fail_no_decline:
-                return "fail:no_dut_dhcp_decline_after_arp_conflict";
-            case State::Fail_no_second_discover_in_window:
-                return "fail:no_dut_dhcp_discover_within_decline_to_discover_window";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -65,15 +65,6 @@ struct TestCaseTraits<cases::TcpConnectionEstab07SM>
 
         if (open.tester_fd >= 0) ::close(open.tester_fd);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:               return "pass";
-            case State::Fail_timeout_ack:   return "fail:no_dut_ack_to_tester_fin";
-            case State::Fail_timeout_fin:   return "fail:no_dut_fin_after_close";
-            default:                        return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

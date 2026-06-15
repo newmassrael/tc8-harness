@@ -42,15 +42,6 @@ struct TestCaseTraits<cases::UdpDatagramLength01SM>
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_receipt:  return "fail:dut_received_udp_with_length_smaller_than_actual";
-            case State::Fail_timeout:        return "fail:no_ut_confirmation_for_length_short_discard";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

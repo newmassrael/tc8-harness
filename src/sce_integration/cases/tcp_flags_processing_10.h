@@ -108,17 +108,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
             });
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_no_first_data:                         return "fail:no_dut_first_data_segment";
-            case State::Fail_dut_sent_second_segment_before_ack:    return "fail:dut_sent_second_segment_before_piggyback_inject";
-            case State::Fail_no_piggyback:                          return "fail:no_dut_piggyback_segment_within_500ms";
-            case State::Fail_wrong_piggyback_ack:                   return "fail:dut_piggyback_ack_num_does_not_acknowledge_tester_payload";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

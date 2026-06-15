@@ -101,15 +101,6 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         seamTcpControl(dut).closeTcp(open.conn->socket);
         silentlyCloseTesterFd(tester_fd);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_no_handshake_ack:             return "fail:no_dut_handshake_ack";
-            case State::Fail_no_proper_urgent_data:        return "fail:dut_did_not_isolate_urgent_data";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -118,20 +118,6 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
             ::close(sock);
         }).detach();
     }
-
-    static std::string_view verdictFor(State s) {
-        // Conformance verdict classes (ISO/IEC 9646 / TTCN-3). Only an
-        // observed wrap-to-zero is a FAIL; "the wrap was not reached" and "SD
-        // stalled" are inconclusive (the DUT was not shown to violate the
-        // spec), and "no offer" is an unmet precondition (error), not a defect.
-        switch (s) {
-            case State::Pass:                     return "pass";
-            case State::Fail_wrap_to_zero:        return "fail:session_id_wrapped_to_zero";
-            case State::Inconclusive_sd_stalled:  return "inconclusive:sd_emission_stalled";
-            case State::Error_no_offer:           return "error:no_offer_service_within_listen_window";
-            default:                              return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

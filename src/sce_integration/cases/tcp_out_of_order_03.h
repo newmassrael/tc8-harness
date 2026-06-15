@@ -120,16 +120,6 @@ struct TestCaseTraits<cases::TcpOutOfOrder03SM>
                      kInterSegmentWait);
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                            return "pass";
-            case State::Fail_no_handshake_ack:           return "fail:no_dut_handshake_ack";
-            case State::Fail_no_initial_ack:             return "fail:no_dut_ack_to_initial_data_segment";
-            case State::Fail_no_final_cumulative_ack:    return "fail:dut_did_not_emit_cumulative_ack_after_gap_fill";
-            default:                                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

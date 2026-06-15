@@ -51,15 +51,6 @@ struct TestCaseTraits<cases::SomeipEts004SM> : SomeIpAnyBase<cases::SomeipEts004
         timing.retry_interval = std::chrono::milliseconds(50);
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                return "pass";
-            case State::Fail_phase1_no_offer:                return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_burst_response_missing:  return "fail:dut_did_not_respond_to_every_request_in_burst";
-            default:                                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

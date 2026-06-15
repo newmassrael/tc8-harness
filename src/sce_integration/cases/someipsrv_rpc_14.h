@@ -52,21 +52,6 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
         late.pre_emit_wait = std::chrono::milliseconds{800};
         ::tc8::stimulus::emitMethodRequestAfter(iface, req2, late, dest2);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_phase1_no_offer:
-                return "fail:no_two_entry_offer_with_distinct_udp_ports_within_listen_window";
-            case State::Fail_phase2_no_response_from_instance_1:
-                return "fail:no_response_from_instance_1_udp_port_30502";
-            case State::Fail_phase3_no_response_from_instance_2:
-                return "fail:no_response_from_instance_2_udp_port_30504";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

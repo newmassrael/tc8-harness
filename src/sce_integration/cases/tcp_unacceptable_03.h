@@ -111,14 +111,6 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
 
         dut.tcpControl()->closeTcp(*listen);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:           return "pass";
-            case State::Fail_timeout:   return "fail:no_dut_rst_to_unacceptable_ack_in_syn_recv";
-            default:                    return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

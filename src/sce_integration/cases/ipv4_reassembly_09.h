@@ -48,14 +48,6 @@ struct TestCaseTraits<cases::Ipv4Reassembly09SM>
             /*ttl=*/64,
             body);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_to_single_mf1_fragment";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

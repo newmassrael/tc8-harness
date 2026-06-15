@@ -68,23 +68,6 @@ struct TestCaseTraits<cases::Arp39SM>
         spec.target_ip_be = cfg.dut.ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_no_dut_request:
-            return "fail:no_dut_arp_request_within_listen_window";
-        case State::Fail_udp_before_dut_request:
-            return "fail:udp_egress_before_dut_arp_request";
-        case State::Fail_wrong_eth_dst:
-            return "fail:udp_eth_dst_not_injected_mac2";
-        case State::Fail_no_udp:
-            return "fail:no_udp_after_arp_learning";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

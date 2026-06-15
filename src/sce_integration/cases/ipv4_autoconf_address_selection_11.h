@@ -44,19 +44,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection11SM>
             scheduler, static_cast<int>(State::Await_repick),
             iface, ::tc8::sce::linklocal::ConflictArpVariant::Request, c);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_initial_probe:
-                return "fail:no_arp_probe_after_ll_start";
-            case State::Fail_no_repick:
-                return "fail:dut_did_not_repick_after_conflict_arp";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

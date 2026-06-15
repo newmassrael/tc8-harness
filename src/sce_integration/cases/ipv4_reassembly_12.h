@@ -66,17 +66,6 @@ struct TestCaseTraits<cases::Ipv4Reassembly12SM>
             /*inter_frag_wait=*/std::chrono::milliseconds{1000},
             /*post_send_wait=*/std::chrono::milliseconds{0});
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_echo_id:        return "fail:echo_id_mismatch_after_low_ttl_reassembly";
-            case State::Fail_echo_seq:       return "fail:echo_seq_mismatch_after_low_ttl_reassembly";
-            case State::Fail_data_mismatch:  return "fail:reassembled_echo_data_mismatch_low_ttl";
-            case State::Fail_timeout:        return "fail:no_echo_reply_after_low_ttl_reassembly";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

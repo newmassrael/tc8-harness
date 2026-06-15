@@ -39,19 +39,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation04SM>
             scheduler, static_cast<int>(State::Listening_for_no_request),
             iface, c, /*message_type=*/2, mismatched);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_unexpected_request:
-                return "fail:dut_dhcp_request_after_mismatched_xid_offer";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

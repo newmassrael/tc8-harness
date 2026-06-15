@@ -26,15 +26,6 @@ struct TestCaseTraits<cases::Format05SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.5";
     static constexpr std::string_view kDescription =
         "Message Type shall be statically set to 0x02 (NOTIFICATION)";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_message_type: return "fail:message_type_not_0x02";
-            case State::Fail_timeout:      return "fail:no_notification_within_listen_window";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

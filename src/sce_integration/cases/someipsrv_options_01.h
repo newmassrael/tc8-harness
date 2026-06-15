@@ -24,15 +24,6 @@ struct TestCaseTraits<cases::Options01SM>
     static constexpr std::string_view kSpecSection = "5.1.5.5.1";
     static constexpr std::string_view kDescription =
         "Length field of the IPv4 Endpoint Option shall be 0x0009";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:        return "pass";
-            case State::Fail_length: return "fail:ipv4_endpoint_length_not_0009";
-            case State::Fail_timeout:return "fail:no_qualifying_sd_message_within_listen_window";
-            default:                 return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

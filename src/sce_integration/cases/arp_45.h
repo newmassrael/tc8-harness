@@ -48,23 +48,6 @@ struct TestCaseTraits<cases::Arp45SM>
         spec2.target_ip_be = cfg.dut.ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec2);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_wrong_target_hw_1:
-            return "fail:first_response_target_hw_not_mac1";
-        case State::Fail_wrong_target_hw_2:
-            return "fail:second_response_target_hw_not_mac2";
-        case State::Fail_no_response_1:
-            return "fail:no_first_response_within_listen_window";
-        case State::Fail_no_response_2:
-            return "fail:no_second_response_within_listen_window";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

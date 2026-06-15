@@ -78,15 +78,6 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
             dut.tcpControl()->closeTcp(open.conn->socket);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_bad_checksum:   return "fail:dut_emitted_segment_with_invalid_checksum";
-            case State::Fail_timeout:        return "fail:no_dut_data_segment_within_listen_window";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

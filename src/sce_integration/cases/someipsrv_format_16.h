@@ -27,15 +27,6 @@ struct TestCaseTraits<cases::Format16SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.16";
     static constexpr std::string_view kDescription =
         "Type 1 entry Major Version shall carry the configured SERVICE-ID-1-MAJ-VER";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:               return "pass";
-            case State::Fail_major_version: return "fail:entry_major_version_mismatch";
-            case State::Fail_timeout:       return "fail:no_notification_within_listen_window";
-            default:                        return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

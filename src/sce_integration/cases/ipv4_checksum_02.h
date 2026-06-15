@@ -33,14 +33,6 @@ struct TestCaseTraits<cases::Ipv4Checksum02SM>
         ov.corrupt_ip_checksum = true;
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_despite_invalid_header_checksum";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

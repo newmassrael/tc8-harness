@@ -61,23 +61,6 @@ struct TestCaseTraits<cases::Arp33SM>
 
         emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_used_mac1:
-            return "fail:udp_eth_dst_is_mac1_not_mac2";
-        case State::Fail_unknown_mac:
-            return "fail:udp_eth_dst_neither_mac1_nor_mac2";
-        case State::Fail_dut_arp_request:
-            return "fail:dut_arp_request_after_double_injection";
-        case State::Fail_timeout:
-            return "fail:no_udp_from_dut_within_listen_window";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

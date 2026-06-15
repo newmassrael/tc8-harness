@@ -74,15 +74,6 @@ struct TestCaseTraits<cases::UdpIntroduction03SM> {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::icmpv4::dispatchAnyIcmpFrame<SM>(c, sm, ev);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_wrong_icmp:   return "fail:dut_emitted_non_port_unreachable_icmp";
-            case State::Fail_timeout:      return "fail:no_dut_icmp_port_unreachable_within_listen_window";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

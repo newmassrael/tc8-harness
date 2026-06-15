@@ -43,15 +43,6 @@ struct TestCaseTraits<cases::UdpFields07SM>
             ::tc8::ut::kTesterSrcPort,
             cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_length:   return "fail:dut_emitted_zero_data_udp_with_length_not_8";
-            case State::Fail_timeout:        return "fail:no_dut_originated_udp_within_listen_window";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

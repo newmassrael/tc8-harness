@@ -34,19 +34,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing05SM>
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(
             cfg, iface, cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_announces:
-                return "fail:no_arp_announce_after_probes";
-            case State::Fail_only_one_announce:
-                return "fail:fewer_than_2_arp_announces_within_deadline";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

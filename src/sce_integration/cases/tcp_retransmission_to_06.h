@@ -171,18 +171,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
         // not consulted. SM advances on the `<send event="evaluate"
         // delay="0ms"/>` raise in the initial state's onentry.
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_handshake_did_not_complete:   return "fail:dut_handshake_did_not_complete";
-            case State::Fail_phase1_query_failed:          return "fail:phase1_tcp_info_query_failed";
-            case State::Fail_socket_not_syn_sent:          return "fail:socket_state_not_syn_sent";
-            case State::Fail_initial_window_missed:        return "fail:initial_rto_window_missed_retransmit_already_fired";
-            case State::Fail_initial_rto_out_of_window:    return "fail:initial_rto_out_of_rfc6298_window";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

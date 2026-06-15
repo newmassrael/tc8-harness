@@ -60,7 +60,13 @@ class IDutControl;
 //     static void dispatch(Captured& captured,
 //                          StateMachine& sm,
 //                          const ::tc8::CapturedEvent& ev);
-//     static std::string_view verdictFor(typename StateMachine::PolicyType::State);
+//
+//   The conformance verdict is NOT a trait member: it is declared once in
+//   the case .scxml `<final>`'s `<donedata>` (or its sce:template),
+//   stashed by the generated SM, and read back by `TestRunner::verdict`
+//   (W3C SCXML 5.5). `tools/verdict_drift_audit.py` guards that every
+//   final carries a well-formed verdict. (A legacy `verdictFor(State)`
+//   switch was the source before the donedata SSOT migration.)
 //
 //   Optional stimulus hook — receives the captured context by reference so
 //   it can seed fields alongside the packet emit, the TestConfig so it can

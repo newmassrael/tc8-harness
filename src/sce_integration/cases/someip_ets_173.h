@@ -82,16 +82,6 @@ struct TestCaseTraits<cases::SomeipEts173SM> : SomeIpAnyBase<cases::SomeipEts173
         sub2.extra_options.push_back({/*type=*/0x04, /*body=*/tcp_body, /*reserved=*/0});
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub2);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_first_ack:                   return "fail:no_first_subscribe_ack_within_listen_window";
-            case State::Fail_phase3_no_second_ack:                  return "fail:no_second_subscribe_ack_within_listen_window";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -32,17 +32,6 @@ struct TestCaseTraits<cases::Arp16SM>
         // target_hw stays at default kEthZero — the §4.2.4.2 ARP_16 variant.
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_no_reply:
-            return "fail:no_arp_reply_within_listen_window";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

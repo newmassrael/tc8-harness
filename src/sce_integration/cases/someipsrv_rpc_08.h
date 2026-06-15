@@ -58,15 +58,6 @@ struct TestCaseTraits<cases::Rpc08SM> : SomeIpAnyBase<cases::Rpc08SM> {
         timing.pre_emit_wait = std::chrono::milliseconds{200};
         ::tc8::stimulus::emitMethodRequestAfter(iface, t2, timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_phase1_no_offer:       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_error_observed: return "fail:dut_returned_error_for_request_already_carrying_error";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -45,15 +45,6 @@ struct TestCaseTraits<cases::Format25SM>
         ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe,
                                                      cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_major_version:  return "fail:entry_major_version_mismatch";
-            case State::Fail_timeout:        return "fail:no_ack_within_listen_window";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

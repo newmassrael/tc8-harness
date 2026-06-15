@@ -154,16 +154,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
                 dut_ptr->tcpControl()->closeTcp(listen_handle);
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_timeout_first_synack:             return "fail:no_dut_synack_to_first_tester_syn";
-            case State::Fail_unexpected_response_to_syn_rst:   return "fail:dut_emitted_response_after_syn_rst_in_listen";
-            case State::Fail_p3_no_synack:                     return "fail:listen_socket_did_not_survive_syn_rst";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

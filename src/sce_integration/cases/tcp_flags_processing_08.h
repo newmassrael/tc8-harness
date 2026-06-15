@@ -153,18 +153,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
                              /*initial_wait=*/std::chrono::milliseconds(0));
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                           return "pass";
-            case State::Fail_p1_no_dut_rst:             return "fail:no_dut_rst_to_fin_in_closed";
-            case State::Fail_p1_wrong_seq:              return "fail:dut_rst_seq_not_zero_after_fin_in_closed";
-            case State::Fail_p2_unexpected_response:    return "fail:dut_emitted_response_to_fin_in_listen";
-            case State::Fail_p3_no_dut_syn:             return "fail:no_dut_syn_to_active_open_phase3";
-            case State::Fail_p3_unexpected_response:    return "fail:dut_emitted_response_to_fin_in_syn_sent";
-            default:                                    return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -91,15 +91,6 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
 
         dut.tcpControl()->closeTcp(*listen2);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                  return "pass";
-            case State::Fail_timeout_phase1:   return "fail:no_dut_rst_to_listen_synack";
-            case State::Fail_timeout_phase2:   return "fail:no_dut_rst_to_listen_naked_ack";
-            default:                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

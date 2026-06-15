@@ -71,15 +71,6 @@ struct TestCaseTraits<cases::SdBehavior03SM>
             ::tc8::stimulus::sendSdUnicast(bytes, iface_owned, dut_ip_be);
         });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_offer_not_multicast:              return "fail:offer_dst_ip_not_multicast_after_unicast_find";
-            case State::Fail_no_offer_after_unicast_find:      return "fail:no_offer_within_listen_window_after_unicast_find";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -90,21 +90,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
                     /*apply_initial_wait=*/false);
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_d0_discover:
-                return "fail:no_dut_dhcp_discover_on_diface_0";
-            case State::Fail_no_d1_discover:
-                return "fail:no_dut_dhcp_discover_on_diface_1";
-            case State::Fail_chaddr_collision:
-                return "fail:diface_0_and_diface_1_share_same_chaddr";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -58,15 +58,6 @@ struct TestCaseTraits<cases::SomeipEts104SM> : SomeIpAnyBase<cases::SomeipEts104
         get_last.method_id = 0x003D;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get_last);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_get_last_response:           return "fail:no_get_last_value_udp_multicast_response";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

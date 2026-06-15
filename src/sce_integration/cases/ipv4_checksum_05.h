@@ -33,15 +33,6 @@ struct TestCaseTraits<cases::Ipv4Checksum05SM>
         // the reply's own checksum via captured.header_checksum_valid().
         ::tc8::sce::ipv4::emitStimulus(cfg, iface);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:          return "pass";
-            case State::Fail_checksum: return "fail:dut_reply_header_checksum_invalid";
-            case State::Fail_timeout:  return "fail:no_dut_ipv4_packet_within_listen_window";
-            default:                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

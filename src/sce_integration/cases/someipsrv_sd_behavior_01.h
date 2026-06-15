@@ -35,17 +35,6 @@ struct TestCaseTraits<cases::SdBehavior01SM>
     static constexpr std::string_view kSpecSection = "5.1.5.4.1";
     static constexpr std::string_view kDescription =
         "Repetition Phase OfferService delay doubles between consecutive emits";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                    return "pass";
-            case State::Fail_phase1_no_offer1:                   return "fail:no_first_offer_within_listen_window";
-            case State::Fail_phase2_no_offer2:                   return "fail:no_second_offer_within_listen_window";
-            case State::Fail_phase3_no_offer3:                   return "fail:no_third_offer_within_listen_window";
-            case State::Fail_phase3_gap_out_of_tolerance:        return "fail:repetition_phase_gap_not_within_2x_rep_base_delay_tolerance";
-            default:                                             return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

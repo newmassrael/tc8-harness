@@ -46,15 +46,6 @@ struct TestCaseTraits<cases::Format13SM>
         sm.raiseExternal(Event::Someip_notification);
         sm.step();
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:            return "pass";
-            case State::Fail_num_opt1:   return "fail:entry_number_of_opt1_zero";
-            case State::Fail_timeout:    return "fail:no_notification_within_listen_window";
-            default:                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

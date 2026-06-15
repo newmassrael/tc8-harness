@@ -144,15 +144,6 @@ struct TestCaseTraits<cases::SomeipEts137SM> : SomeIpAnyBase<cases::SomeipEts137
         constexpr std::uint32_t kDutIpBe = 0x020010ACu;
         ::tc8::stimulus::sendSdUnicast(d, iface, kDutIpBe);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_acked_misaligned_options:   return "fail:dut_acked_misaligned_two_option_subscribe";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

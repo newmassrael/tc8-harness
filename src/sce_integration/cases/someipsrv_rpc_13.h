@@ -33,19 +33,6 @@ struct TestCaseTraits<cases::Rpc13SM> : SomeIpSdOnlyBase<cases::Rpc13SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_distinct_udp_ports:
-                return "fail:two_services_advertise_distinct_udp_ports_not_shared";
-            case State::Fail_timeout:
-                return "fail:no_qualifying_offer_service_within_listen_window";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

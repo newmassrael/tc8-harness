@@ -25,15 +25,6 @@ struct TestCaseTraits<cases::Format08SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.8";
     static constexpr std::string_view kDescription =
         "SD Unicast Flag shall be '1'";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_unicast_flag: return "fail:unicast_flag_not_set";
-            case State::Fail_timeout:      return "fail:no_notification_within_listen_window";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

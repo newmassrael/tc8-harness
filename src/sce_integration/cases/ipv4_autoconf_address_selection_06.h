@@ -34,19 +34,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection06SM>
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(
             cfg, iface, cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_sender_proto_ip_nonzero:
-                return "fail:probe_sender_ip_not_0_0_0_0";
-            case State::Fail_timeout:
-                return "fail:no_arp_probe_after_ll_start";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

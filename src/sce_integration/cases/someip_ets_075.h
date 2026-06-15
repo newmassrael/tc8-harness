@@ -42,15 +42,6 @@ struct TestCaseTraits<cases::SomeipEts075SM> : SomeIpAnyBase<cases::SomeipEts075
         target.message_type = 0x07;  // Reserved per SOME/IP §4.7.4
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                                return "pass";
-            case State::Fail_phase1_no_offer:                                return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_accepted_wrong_msg_type:             return "fail:dut_returned_ok_response_for_wrong_message_type";
-            default:                                                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

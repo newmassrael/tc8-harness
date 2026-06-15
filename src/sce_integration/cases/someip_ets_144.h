@@ -51,15 +51,6 @@ struct TestCaseTraits<cases::SomeipEts144SM> : SomeIpAnyBase<cases::SomeipEts144
         params.option_reserved1_override = std::uint8_t{0xFF};
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                            return "pass";
-            case State::Fail_phase1_no_offer:            return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_nacked_reserved: return "fail:dut_nacked_subscribe_for_reserved_endpoint_option_bytes";
-            default:                                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

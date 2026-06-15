@@ -43,16 +43,6 @@ struct TestCaseTraits<cases::Rpc19SM> : SomeIpAnyBase<cases::Rpc19SM> {
         target.session_id = 0x1234;
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_phase1_no_offer:              return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_request_id_mismatch:   return "fail:error_message_did_not_echo_request_id";
-            case State::Fail_phase2_no_error:              return "fail:no_error_message_within_listen_window";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

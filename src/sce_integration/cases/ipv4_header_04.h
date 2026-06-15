@@ -40,14 +40,6 @@ struct TestCaseTraits<cases::Ipv4Header04SM>
         ov.dst_ip = cases::kIpv4Header04WrongDstBe;
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_despite_non_local_dst_ip";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

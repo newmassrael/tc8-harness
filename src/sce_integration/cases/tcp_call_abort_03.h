@@ -95,19 +95,6 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
                             kPortOffsetTimeWait);
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase1_closing";
-            case State::Fail_p1_no_close:           return "fail:dut_did_not_close_after_abort_in_closing";
-            case State::Fail_p2_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase2_last_ack";
-            case State::Fail_p2_no_close:           return "fail:dut_did_not_close_after_abort_in_last_ack";
-            case State::Fail_p3_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase3_time_wait";
-            case State::Fail_p3_no_close:           return "fail:dut_did_not_close_after_abort_in_time_wait";
-            default:                                return "running";
-        }
-    }
-
 private:
     static void scheduleVerifyProbe(
         IStimulusScheduler& scheduler,

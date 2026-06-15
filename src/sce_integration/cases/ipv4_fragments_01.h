@@ -50,17 +50,6 @@ struct TestCaseTraits<cases::Ipv4Fragments01SM>
         ::tc8::sce::ipv4::fragments::emitFragmentPair(
             iface, cfg, cfg.arp.dut_iface_mac, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                 return "pass";
-            case State::Fail_echo_id:         return "fail:echo_id_mismatch";
-            case State::Fail_echo_seq:        return "fail:echo_seq_mismatch";
-            case State::Fail_data_mismatch:   return "fail:reassembled_echo_data_mismatch";
-            case State::Fail_timeout:         return "fail:no_echo_reply_after_reassembly";
-            default:                          return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

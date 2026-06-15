@@ -81,17 +81,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                           return "pass";
-            case State::Fail_p1_no_prelude_synack:      return "fail:no_dut_synack_to_prelude_syn_phase1";
-            case State::Fail_p1_no_verify_synack:       return "fail:no_dut_synack_to_verify_syn_after_in_window_syn";
-            case State::Fail_p2_no_prelude_synack:      return "fail:no_dut_synack_to_prelude_syn_phase2";
-            case State::Fail_p2_no_verify_synack:       return "fail:no_dut_synack_to_verify_syn_after_in_window_synack";
-            default:                                    return "running";
-        }
-    }
-
 private:
     static void emitTesterSyn(const ::tc8::TestConfig& cfg,
                               std::string_view iface,

@@ -125,15 +125,6 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
             (void)tester_fd;
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack_within_listen_window";
-            case State::Fail_unexpected_ack:        return "fail:dut_acked_corrupt_checksum_data";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

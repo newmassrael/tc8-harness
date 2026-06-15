@@ -90,17 +90,6 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
                  kTcpMssOptionsTesterSrcPort06b,
                  /*advertised_mss=*/2000U);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_wrong_size_phase1:     return "fail:phase1_segment_size_not_advertised_mss_200";
-            case State::Fail_wrong_size_phase2:     return "fail:phase2_segment_size_not_dut_mss_1460";
-            case State::Fail_timeout_phase1:        return "fail:no_dut_data_segment_phase1_mv200";
-            case State::Fail_timeout_phase2:        return "fail:no_dut_data_segment_phase2_mv2000";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

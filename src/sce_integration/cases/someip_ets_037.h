@@ -93,16 +93,6 @@ struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037
         ::tc8::stimulus::getTcpPeerStateAndClose(fd, &tcp_state);
         c.tcp_peer_state = tcp_state;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                          return "pass";
-            case State::Fail_phase1_no_offer:          return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_response:       return "fail:no_method_response_on_reliable_endpoint_within_listen_window";
-            case State::Fail_phase3_dut_emitted_fin:   return "fail:dut_tore_down_tcp_reliable_connection_on_reset_interface";
-            default:                                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

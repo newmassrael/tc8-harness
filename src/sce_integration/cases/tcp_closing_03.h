@@ -109,16 +109,6 @@ struct TestCaseTraits<cases::TcpClosing03SM>
                     /*initial_wait=*/std::chrono::milliseconds(0));
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                          return "pass";
-            case State::Fail_no_handshake_ack:         return "fail:no_dut_handshake_ack";
-            case State::Fail_dut_response_to_rst:      return "fail:dut_emitted_response_to_rst_with_data_in_est";
-            case State::Fail_no_verify_rst:            return "fail:dut_did_not_emit_rst_after_rst_with_data_in_est";
-            default:                                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -98,15 +98,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_dut_syn:            return "fail:no_dut_syn_to_active_open";
-            case State::Fail_unexpected_response:   return "fail:dut_emitted_response_to_ack_rst_with_unacceptable_ack";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

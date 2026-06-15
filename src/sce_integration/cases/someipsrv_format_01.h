@@ -26,15 +26,6 @@ struct TestCaseTraits<cases::Format01SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.1";
     static constexpr std::string_view kDescription =
         "Client ID shall be set statically to 0x0000";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:           return "pass";
-            case State::Fail_client_id: return "fail:client_id_nonzero";
-            case State::Fail_timeout:   return "fail:no_notification_within_listen_window";
-            default:                    return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -86,16 +86,6 @@ struct TestCaseTraits<cases::TcpControlFlags05SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_no_urg_ack:            return "fail:no_dut_ack_to_urg_segment";
-            case State::Fail_wrong_ack_num:         return "fail:dut_ack_num_does_not_acknowledge_urg_payload";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

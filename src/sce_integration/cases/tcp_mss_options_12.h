@@ -55,14 +55,6 @@ struct TestCaseTraits<cases::TcpMssOptions12SM>
 
         dut.tcpControl()->closeTcp(open.conn->socket);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:          return "pass";
-            case State::Fail_timeout:  return "fail:no_dut_syn_with_non_default_mss";
-            default:                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

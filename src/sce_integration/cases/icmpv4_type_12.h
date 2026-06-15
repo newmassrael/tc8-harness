@@ -41,16 +41,6 @@ struct TestCaseTraits<cases::Icmpv4Type12SM>
         ov.timestamp_originate = ::tc8::stimulus::kIcmpTimestampOriginate;
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:               return "pass";
-            case State::Fail_id_mismatch:   return "fail:timestamp_reply_identifier_not_echoed";
-            case State::Fail_seq_mismatch:  return "fail:timestamp_reply_sequence_not_echoed";
-            case State::Fail_timeout:       return "fail:no_timestamp_reply_within_listen_window";
-            default:                        return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

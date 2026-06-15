@@ -82,17 +82,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid05SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_dut_syn:         return "fail:no_dut_syn_phase1_syn_ack_rst";
-            case State::Fail_p1_dut_continued:      return "fail:dut_did_not_close_on_syn_ack_rst_with_acceptable_ack";
-            case State::Fail_p2_no_dut_syn:         return "fail:no_dut_syn_phase2_ack_rst";
-            case State::Fail_p2_dut_continued:      return "fail:dut_did_not_close_on_ack_rst_with_acceptable_ack";
-            default:                                return "running";
-        }
-    }
-
 private:
     static void emitRstWithFlags(const ::tc8::TestConfig& cfg,
                                  std::string_view iface,

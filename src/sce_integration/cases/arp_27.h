@@ -31,17 +31,6 @@ struct TestCaseTraits<cases::Arp27SM>
         spec.proto_type = 0xFFFF;  // ARP_PROTOCOL_UNKNOWN
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_unexpected_reply:
-            return "fail:dut_replied_to_malformed_request";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

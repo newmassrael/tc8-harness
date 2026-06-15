@@ -37,14 +37,6 @@ struct TestCaseTraits<cases::Ipv4Header09SM>
         ov.total_length = std::uint16_t{48};
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_despite_tot_len_gt_actual";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

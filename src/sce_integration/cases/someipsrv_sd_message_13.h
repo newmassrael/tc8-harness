@@ -45,15 +45,6 @@ struct TestCaseTraits<cases::SdMessage13SM>
         subscribe.ttl = 0xFFFFFF;
         ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:            return "pass";
-            case State::Fail_ack_field:  return "fail:subscribe_ack_field_mismatch";
-            case State::Fail_timeout:    return "fail:no_qualifying_sd_message_within_listen_window";
-            default:                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

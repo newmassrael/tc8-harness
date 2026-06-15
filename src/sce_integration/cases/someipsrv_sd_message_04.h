@@ -27,15 +27,6 @@ struct TestCaseTraits<cases::SdMessage04SM>
     static constexpr std::string_view kSpecSection = "5.1.5.3.4";
     static constexpr std::string_view kDescription =
         "OfferService entry Major Version shall carry SdServerServiceMajorVersion";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_major_version:  return "fail:offer_entry_major_version_mismatch";
-            case State::Fail_timeout:        return "fail:no_qualifying_sd_message_within_listen_window";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

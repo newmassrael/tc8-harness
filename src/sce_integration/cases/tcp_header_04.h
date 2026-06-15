@@ -73,15 +73,6 @@ struct TestCaseTraits<cases::TcpHeader04SM>
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_unexpected_ack:        return "fail:dut_acked_segment_with_wrong_source_port";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

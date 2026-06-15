@@ -71,15 +71,6 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
             ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                   return "pass";
-            case State::Fail_not_established:   return "fail:dut_did_not_reach_established";
-            case State::Fail_timeout:           return "fail:no_dut_syn_ack_within_listen_window";
-            default:                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -36,25 +36,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition04SM>
         ::tc8::sce::dhcpv4::scheduleRebindingFastEnvelopeReplies<SM>(
             scheduler, iface, c);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_first_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_no_renewing_request:
-                return "fail:no_dut_renewing_request_after_ack";
-            case State::Fail_no_rebinding_request:
-                return "fail:no_dut_rebinding_request_within_listen_window";
-            case State::Fail_rebinding_request_t2_out_of_bounds:
-                return "fail:dut_rebinding_request_t2_interval_out_of_bounds";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

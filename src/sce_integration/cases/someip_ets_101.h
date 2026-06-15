@@ -58,16 +58,6 @@ struct TestCaseTraits<cases::SomeipEts101SM> : SomeIpAnyBase<cases::SomeipEts101
         ::tc8::stimulus::emitOfferServiceMulticast(iface, stop,
                                                    std::chrono::milliseconds(500));
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                              return "pass";
-            case State::Fail_phase1_no_offer:                              return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_findservice:                        return "fail:no_dut_findservice_during_start_phase";
-            case State::Fail_phase4_findservice_after_stop_offer:          return "fail:dut_findservice_after_stop_offer_service";
-            default:                                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -45,21 +45,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict11SM>
             scheduler, static_cast<int>(State::Listening_post_claim),
             cfg, iface, c);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_claim_observed:
-                return "fail:dut_did_not_announce_committed_link_local_address";
-            case State::Fail_no_responder_reply:
-                return "fail:dut_did_not_emit_arp_reply_for_claim_address";
-            case State::Fail_reply_wrong_fields:
-                return "fail:dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

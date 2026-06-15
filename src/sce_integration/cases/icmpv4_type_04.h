@@ -73,14 +73,6 @@ struct TestCaseTraits<cases::Icmpv4Type04SM>
         ov.post_send_wait = std::chrono::milliseconds{4000};
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:             return "pass";
-            case State::Fail_dut_replied: return "fail:dut_sent_time_exceeded_for_missing_fragment_zero";
-            default:                      return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

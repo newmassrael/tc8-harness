@@ -48,15 +48,6 @@ struct TestCaseTraits<cases::SomeipEts178SM> : SomeIpAnyBase<cases::SomeipEts178
         params.method_id_override = std::uint16_t{0x0042};
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                   return "pass";
-            case State::Fail_phase1_no_offer:                   return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_acked_wrong_msgid:      return "fail:dut_acked_wrong_method_id";
-            default:                                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

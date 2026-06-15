@@ -60,14 +60,6 @@ struct TestCaseTraits<cases::Ipv4Reassembly07SM>
             /*ttl=*/64,
             frag2_payload);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_with_internal_gap";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

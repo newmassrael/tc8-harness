@@ -167,16 +167,6 @@ struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081
                     iface_copy, offer2, std::chrono::milliseconds(0));
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_first_subscribe:             return "fail:no_dut_subscribe_with_tcp_option_within_listen_window";
-            case State::Fail_phase3_no_renewed_handshake:           return "fail:dut_did_not_renew_tcp_connection_after_simulated_server_reboot";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

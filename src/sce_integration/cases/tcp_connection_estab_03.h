@@ -69,16 +69,6 @@ struct TestCaseTraits<cases::TcpConnectionEstab03SM>
         if (open2.conn) dut.tcpControl()->closeTcp(open2.conn->socket);
         if (open3.conn) dut.tcpControl()->closeTcp(open3.conn->socket);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_timeout_leg1:   return "fail:no_dut_handshake_ack_for_leg1";
-            case State::Fail_timeout_leg2:   return "fail:no_dut_handshake_ack_for_leg2";
-            case State::Fail_timeout_leg3:   return "fail:no_dut_handshake_ack_for_leg3";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

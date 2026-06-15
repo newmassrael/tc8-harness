@@ -148,38 +148,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                return "pass";
-            case State::Fail_p1_no_dut_synack:               return "fail:no_dut_synack_phase1_syn_rcvd";
-            case State::Fail_p1_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_syn_rcvd";
-            case State::Fail_p2_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase2_est";
-            case State::Fail_p2_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_est";
-            case State::Fail_p3_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase3_fw1";
-            case State::Fail_p3_no_dut_fin:                  return "fail:no_dut_fin_phase3_fw1";
-            case State::Fail_p3_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_fw1";
-            case State::Fail_p4_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase4_fw2";
-            case State::Fail_p4_no_dut_fin:                  return "fail:no_dut_fin_phase4_fw2";
-            case State::Fail_p4_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_fw2";
-            case State::Fail_p5_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase5_cw";
-            case State::Fail_p5_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase5_cw";
-            case State::Fail_p5_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_cw";
-            case State::Fail_p6_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase6_closing";
-            case State::Fail_p6_no_dut_fin:                  return "fail:no_dut_fin_phase6_closing";
-            case State::Fail_p6_no_closing_ack:              return "fail:no_dut_closing_ack_phase6_closing";
-            case State::Fail_p6_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_closing";
-            case State::Fail_p7_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase7_la";
-            case State::Fail_p7_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase7_la";
-            case State::Fail_p7_no_dut_fin:                  return "fail:no_dut_fin_phase7_la";
-            case State::Fail_p7_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_la";
-            case State::Fail_p8_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase8_tw";
-            case State::Fail_p8_no_dut_fin:                  return "fail:no_dut_fin_phase8_tw";
-            case State::Fail_p8_no_tw_ack:                   return "fail:no_dut_tw_ack_phase8_tw";
-            case State::Fail_p8_unexpected_response:         return "fail:dut_emitted_response_to_otw_rst_in_tw";
-            default:                                         return "running";
-        }
-    }
-
 private:
     static void emitOtwRst(const ::tc8::TestConfig& cfg,
                            std::string_view iface,

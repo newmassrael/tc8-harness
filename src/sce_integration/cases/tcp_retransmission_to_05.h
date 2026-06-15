@@ -233,23 +233,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         // not consulted. SM advances on the `<send event="evaluate"
         // delay="0ms"/>` raise in the initial state's onentry.
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_handshake_did_not_complete:   return "fail:dut_handshake_did_not_complete";
-            case State::Fail_phase1_query_failed:          return "fail:phase1_tcp_info_query_failed";
-            case State::Fail_phase2_query_failed:          return "fail:phase2_tcp_info_query_failed";
-            case State::Fail_phase3_query_failed:          return "fail:phase3_tcp_info_query_failed";
-            case State::Fail_no_syn_retx_1:                return "fail:no_dut_syn_retransmit_1";
-            case State::Fail_no_syn_retx_2:                return "fail:no_dut_syn_retransmit_2";
-            case State::Fail_no_syn_retx_3:                return "fail:no_dut_syn_retransmit_3";
-            case State::Fail_initial_rto_not_doubled:      return "fail:phase1_rto_below_doubled_baseline";
-            case State::Fail_retx2_not_doubled:            return "fail:phase2_rto_not_greater_than_phase1";
-            case State::Fail_retx3_not_doubled:            return "fail:phase3_rto_not_greater_than_phase2";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

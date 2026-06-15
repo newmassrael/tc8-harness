@@ -38,14 +38,6 @@ struct TestCaseTraits<cases::Icmpv4Type10SM>
         ov.corrupt_icmp_checksum = true;
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_to_bad_checksum";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

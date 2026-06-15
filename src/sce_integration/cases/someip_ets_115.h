@@ -47,15 +47,6 @@ struct TestCaseTraits<cases::SomeipEts115SM> : SomeIpAnyBase<cases::SomeipEts115
         params.num_options_first_override = std::uint8_t{2};
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer:                  return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_acked_overcount:       return "fail:dut_acked_overcount_option_refs";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

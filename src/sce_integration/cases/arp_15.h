@@ -29,15 +29,6 @@ struct TestCaseTraits<cases::Arp15SM>
                          std::string_view iface) {
         emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:            return "pass";
-            case State::Fail_target_ip:  return "fail:target_proto_ip_not_tester";
-            case State::Fail_timeout:    return "fail:no_arp_request_within_listen_window";
-            default:                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

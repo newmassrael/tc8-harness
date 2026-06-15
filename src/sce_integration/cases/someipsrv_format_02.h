@@ -25,15 +25,6 @@ struct TestCaseTraits<cases::Format02SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.2";
     static constexpr std::string_view kDescription =
         "After SD init, Session ID shall be 0x0001";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:            return "pass";
-            case State::Fail_session_id: return "fail:session_id_not_0x0001";
-            case State::Fail_timeout:    return "fail:no_notification_within_listen_window";
-            default:                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

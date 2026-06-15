@@ -26,15 +26,6 @@ struct TestCaseTraits<cases::Format09SM>
     static constexpr std::string_view kSpecSection = "5.1.5.1.9";
     static constexpr std::string_view kDescription =
         "SD undefined flag bits (mask 0x3F) shall be '0'";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                     return "pass";
-            case State::Fail_undefined_flag_bits: return "fail:undefined_flag_bits_nonzero";
-            case State::Fail_timeout:             return "fail:no_notification_within_listen_window";
-            default:                              return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

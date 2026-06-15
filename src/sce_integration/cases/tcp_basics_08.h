@@ -122,15 +122,6 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                   return "pass";
-            case State::Fail_timeout_phase1:    return "fail:no_dut_fin_from_established";
-            case State::Fail_timeout_phase2:    return "fail:no_dut_fin_from_close_wait";
-            default:                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

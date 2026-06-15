@@ -94,24 +94,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing09SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                return "pass";
-            case State::Fail_p1_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase1_cw";
-            case State::Fail_p1_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase1_cw";
-            case State::Fail_p1_unexpected_state_change:     return "fail:dut_state_changed_after_dup_fin_ack_in_cw";
-            case State::Fail_p2_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase2_closing";
-            case State::Fail_p2_no_dut_fin:                  return "fail:no_dut_fin_phase2_closing";
-            case State::Fail_p2_no_closing_ack:              return "fail:no_dut_closing_ack_phase2_closing";
-            case State::Fail_p2_unexpected_state_change:     return "fail:dut_emitted_rst_after_dup_fin_ack_in_closing";
-            case State::Fail_p3_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase3_la";
-            case State::Fail_p3_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase3_la";
-            case State::Fail_p3_no_dut_fin:                  return "fail:no_dut_fin_phase3_la";
-            case State::Fail_p3_unexpected_state_change:     return "fail:dut_emitted_rst_after_dup_fin_ack_in_la";
-            default:                                         return "running";
-        }
-    }
-
 private:
     static void emitDupFinAck(const ::tc8::TestConfig& cfg,
                               std::string_view iface,

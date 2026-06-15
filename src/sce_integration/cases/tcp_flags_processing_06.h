@@ -140,18 +140,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
                     });
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                           return "pass";
-            case State::Fail_no_handshake_ack:          return "fail:no_dut_handshake_ack";
-            case State::Fail_no_dut_fin:                return "fail:no_dut_close_fin";
-            case State::Fail_no_tester_fin_ack:         return "fail:no_dut_ack_to_tester_fin";
-            case State::Fail_no_first_replay_ack:       return "fail:no_dut_ack_to_first_replay_fin_in_time_wait";
-            case State::Fail_no_second_replay_ack:      return "fail:no_dut_ack_to_second_replay_fin_after_1_5_msl";
-            default:                                    return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

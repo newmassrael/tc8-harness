@@ -125,15 +125,6 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
                  kTcpMssOptions05Phase2LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                   return "pass";
-            case State::Fail_timeout_phase1:    return "fail:no_dut_ack_to_synack_with_ilen0_mss";
-            case State::Fail_timeout_phase2:    return "fail:no_dut_ack_to_synack_with_ilen5_mss";
-            default:                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

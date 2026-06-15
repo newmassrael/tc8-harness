@@ -122,21 +122,6 @@ struct TestCaseTraits<cases::SdMessage02SM>
                 ::tc8::stimulus::emitFindServiceBoot(iface_owned, find_inst2, timing);
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_phase1_no_two_entry_offer:
-                return "fail:no_two_entry_offer_for_findservice_any_within_listen_window";
-            case State::Fail_phase2_no_offer_for_instance_1:
-                return "fail:no_single_entry_offer_for_extracted_instance_1_within_listen_window";
-            case State::Fail_phase3_no_offer_for_instance_2:
-                return "fail:no_single_entry_offer_for_extracted_instance_2_within_listen_window";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

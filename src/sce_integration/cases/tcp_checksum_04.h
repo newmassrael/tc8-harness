@@ -155,16 +155,6 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         // `<onentry>` of the initial state, which the SCE scheduler
         // dispatches into the next macrostep.
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_cycle1_isn:         return "fail:cycle1_syn_capture_timeout";
-            case State::Fail_no_cycle2_isn:         return "fail:cycle2_syn_capture_timeout";
-            case State::Fail_isn_unchanged:         return "fail:dut_reused_prior_isn_across_active_opens";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -52,16 +52,6 @@ struct TestCaseTraits<cases::Onwire04SM> : SomeIpAnyBase<cases::Onwire04SM> {
         retx_timing.pre_emit_wait = std::chrono::milliseconds(800);
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, retx_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer:                  return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_first_response:         return "fail:no_first_response_within_listen_window";
-            case State::Fail_phase3_no_second_response:        return "fail:dut_silently_dropped_second_request_with_reused_request_id";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

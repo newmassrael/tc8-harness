@@ -155,33 +155,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase1";
-            case State::Fail_p1_no_close_fin:       return "fail:no_dut_close_fin_phase1";
-            case State::Fail_p1_no_closing_ack:     return "fail:no_dut_ack_in_closing_transition_phase1";
-            case State::Fail_p1_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_syn_in_closing";
-            case State::Fail_p2_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase2";
-            case State::Fail_p2_no_close_fin:       return "fail:no_dut_close_fin_phase2";
-            case State::Fail_p2_no_closing_ack:     return "fail:no_dut_ack_in_closing_transition_phase2";
-            case State::Fail_p2_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_synack_in_closing";
-            case State::Fail_p3_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase3";
-            case State::Fail_p3_no_close_fin:       return "fail:no_dut_close_fin_phase3";
-            case State::Fail_p3_no_closing_ack:     return "fail:no_dut_ack_in_closing_transition_phase3";
-            case State::Fail_p3_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_ack_in_closing";
-            case State::Fail_p4_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase4";
-            case State::Fail_p4_no_close_fin:       return "fail:no_dut_close_fin_phase4";
-            case State::Fail_p4_no_closing_ack:     return "fail:no_dut_ack_in_closing_transition_phase4";
-            case State::Fail_p4_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_fin_in_closing";
-            case State::Fail_p5_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase5";
-            case State::Fail_p5_no_close_fin:       return "fail:no_dut_close_fin_phase5";
-            case State::Fail_p5_no_closing_ack:     return "fail:no_dut_ack_in_closing_transition_phase5";
-            case State::Fail_p5_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_data_in_closing";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

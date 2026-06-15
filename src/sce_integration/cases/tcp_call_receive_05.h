@@ -115,18 +115,6 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
         // 4-tuple.
         silentlyCloseTesterFd(tester_fd);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_no_dut_data_ack:       return "fail:no_dut_ack_to_received_fin_data_in_cw";
-            case State::Fail_dut_rst_in_cw:         return "fail:dut_emitted_rst_in_cw";
-            case State::Fail_dut_fin_in_cw:         return "fail:dut_emitted_fin_in_cw_without_close";
-            case State::Fail_no_proper_data:        return "fail:dut_did_not_receive_proper_data_in_cw";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

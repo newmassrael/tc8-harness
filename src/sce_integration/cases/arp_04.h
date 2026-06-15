@@ -33,21 +33,6 @@ struct TestCaseTraits<cases::Arp04SM>
                                              ::tc8::stimulus::ArpLearningVariant::Request);
         emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_dut_did_arp_request:
-            return "fail:dut_arp_request_after_cache_populated";
-        case State::Fail_wrong_eth_dst:
-            return "fail:udp_eth_dst_not_tester_mac";
-        case State::Fail_timeout:
-            return "fail:no_udp_from_dut_within_listen_window";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

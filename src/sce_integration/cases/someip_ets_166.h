@@ -65,17 +65,6 @@ struct TestCaseTraits<cases::SomeipEts166SM> : SomeIpAnyBase<cases::SomeipEts166
         get2.method_id = 0x0040;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get2);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                     return "pass";
-            case State::Fail_phase1_no_offer:                     return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_initial_get:               return "fail:no_initial_get_field_response";
-            case State::Fail_phase3_no_set_response:              return "fail:no_set_field_response";
-            case State::Fail_phase4_no_post_set_get:              return "fail:no_post_set_get_field_response";
-            default:                                              return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -84,20 +84,6 @@ struct TestCaseTraits<cases::SomeipEts093SM> : SomeIpAnyBase<cases::SomeipEts093
             static_cast<int>(State::Listening_phase4_reboot_ack),
             [emit_pair]() { emit_pair(0x0001); });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_subscribe_nacked:               return "fail:first_subscribe_eventgroup_nacked_ttl_zero";
-            case State::Fail_phase2_no_first_ack:                   return "fail:no_first_subscribe_eventgroup_ack_within_listen_window";
-            case State::Fail_phase3_subscribe_nacked:               return "fail:second_subscribe_eventgroup_nacked_ttl_zero";
-            case State::Fail_phase3_no_second_ack:                  return "fail:no_second_subscribe_eventgroup_ack_within_listen_window";
-            case State::Fail_phase4_reboot_subscribe_nacked:        return "fail:reboot_subscribe_eventgroup_nacked_ttl_zero";
-            case State::Fail_phase4_no_reboot_ack:                  return "fail:no_reboot_subscribe_eventgroup_ack_within_listen_window";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

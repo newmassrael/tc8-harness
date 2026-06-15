@@ -48,15 +48,6 @@ struct TestCaseTraits<cases::SomeipEts058SM> : SomeIpAnyBase<cases::SomeipEts058
         target.length_override = 0x00010000u;
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer:                  return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_accepted_malformed:    return "fail:dut_returned_ok_response_for_oversized_length_field";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

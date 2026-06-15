@@ -37,17 +37,6 @@ struct TestCaseTraits<cases::Arp42SM>
         spec.target_hw = cfg.dut.mac;  // addressed to DUT
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_unexpected_reply:
-            return "fail:dut_replied_to_response";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

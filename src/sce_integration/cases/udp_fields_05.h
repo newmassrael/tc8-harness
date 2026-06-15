@@ -66,15 +66,6 @@ struct TestCaseTraits<cases::UdpFields05SM>
                     /*req_id=*/2);
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_phase1_no_host1_receipt:      return "fail:no_ut_confirmation_for_host1_receipt";
-            case State::Fail_phase2_no_host2_receipt:      return "fail:no_ut_confirmation_for_host2_receipt";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

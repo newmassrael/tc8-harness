@@ -74,15 +74,6 @@ struct TestCaseTraits<cases::UdpFields04SM>
                     /*initial_wait=*/std::chrono::milliseconds(0));
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_phase1_no_host1_egress:       return "fail:no_dut_originated_udp_to_host1_within_listen_window";
-            case State::Fail_phase2_no_host2_egress:       return "fail:no_dut_originated_udp_to_host2_within_listen_window";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

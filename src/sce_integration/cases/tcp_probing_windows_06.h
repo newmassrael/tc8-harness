@@ -118,19 +118,6 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
 
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_no_seg1:                               return "fail:no_dut_first_data_segment";
-            case State::Fail_no_probe1:                             return "fail:no_dut_zero_window_probe_1";
-            case State::Fail_no_probe2:                             return "fail:no_dut_zero_window_probe_2";
-            case State::Fail_no_probe3:                             return "fail:no_dut_zero_window_probe_3";
-            case State::Fail_probe2_not_doubled:                    return "fail:probe2_delta_not_greater_than_initial_probe_rto";
-            case State::Fail_probe3_not_doubled:                    return "fail:probe3_delta_not_greater_than_probe2_lower_bound";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

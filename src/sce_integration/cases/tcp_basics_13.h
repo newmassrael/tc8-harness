@@ -97,17 +97,6 @@ struct TestCaseTraits<cases::TcpBasics13SM>
                              /*initial_wait=*/std::chrono::milliseconds(0));
             });
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_no_close_fin:          return "fail:no_dut_close_fin";
-            case State::Fail_no_tester_fin_ack:     return "fail:no_dut_ack_to_tester_fin";
-            case State::Fail_no_replay_ack:         return "fail:no_dut_ack_to_replay_fin_in_time_wait";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

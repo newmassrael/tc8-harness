@@ -40,16 +40,6 @@ struct TestCaseTraits<cases::Onwire03SM> : SomeIpAnyBase<cases::Onwire03SM> {
         target.payload = {0x42};
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer:                  return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_request_id_not_echoed:     return "fail:response_request_id_did_not_echo_request";
-            case State::Fail_phase2_no_response:               return "fail:no_response_within_listen_window";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

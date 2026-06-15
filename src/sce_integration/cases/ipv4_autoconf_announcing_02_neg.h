@@ -38,19 +38,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing02NegSM>
             cfg, iface, cfg.dut.mac,
             ::tc8::ut::kFlavorAnnounceSenderTargetMismatch);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_compliant_emit:
-                return "fail:dut_emitted_compliant_announce_despite_sender_target_mismatch_flavor";
-            case State::Fail_no_announce_after_probes:
-                return "fail:no_arp_announce_after_probes";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

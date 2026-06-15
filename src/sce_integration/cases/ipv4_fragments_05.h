@@ -75,15 +75,6 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::udp::dispatchUdpFrame<SM>(c, sm, ev);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_fragmented:   return "fail:dut_emitted_udp_with_nonzero_fragment_fields";
-            case State::Fail_timeout:      return "fail:no_dut_originated_udp_within_listen_window";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

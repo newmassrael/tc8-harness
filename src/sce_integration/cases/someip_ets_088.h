@@ -57,15 +57,6 @@ struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088
         ::tc8::stimulus::emitMultiSubscribeEventgroup(iface, entries,
                                                      std::chrono::milliseconds(500));
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                   return "pass";
-            case State::Fail_phase1_no_offer_with_endpoint:     return "fail:no_offer_service_with_ipv4_endpoint_within_listen_window";
-            case State::Fail_phase2_no_three_acks:              return "fail:no_bundled_subscribe_ack_for_eg_0x02_0x05_0x06";
-            default:                                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

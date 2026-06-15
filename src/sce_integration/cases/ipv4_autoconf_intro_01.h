@@ -88,21 +88,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01SM> {
                          const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::dispatchArpAndDhcpv4Frame<SM>(c, sm, ev);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_request:
-                return "fail:no_dut_dhcp_request_after_offer";
-            case State::Fail_dut_emitted_ll_probe:
-                return "fail:dut_emitted_link_local_arp_probe_despite_routable_lease";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

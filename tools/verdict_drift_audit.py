@@ -188,11 +188,19 @@ def extract_donedata(scxml_path: Path) -> dict[str, Verdict]:
     return out
 
 
+# The ISO/IEC 9646 / TTCN-3 verdict classes a donedata may legitimately carry.
+VALID_CLASSES = {"pass", "fail", "inconclusive", "error"}
+
+
 def audit_case(name: str) -> CaseReport:
     rep = CaseReport(name=name)
     header = (CASES_DIR / f"{name}.h").read_text(encoding="utf-8", errors="replace")
-    trait = parse_verdict_for(header)
-    if trait is None:
+    # verdictFor was retired by the donedata-SSOT migration. When a header no
+    # longer declares one, run the donedata-validity invariant only; when one
+    # is present (a transitional or out-of-tree case), also drift-compare.
+    has_verdict_for = "verdictFor" in header
+    trait = parse_verdict_for(header) if has_verdict_for else {}
+    if has_verdict_for and trait is None:
         rep.findings.append("UNPARSED: verdictFor body not parseable")
         trait = {}
 
@@ -209,29 +217,35 @@ def audit_case(name: str) -> CaseReport:
     rep.has_donedata = bool(done)
 
     if not done:
-        rep.findings.append(
-            f"MISSING_DONEDATA: verdictFor has {len(trait)} final-state verdict(s),"
-            f" .scxml has none"
-        )
+        rep.findings.append("MISSING_DONEDATA: no <final> carries a donedata verdict")
         return rep
 
-    for state, dv in sorted(done.items()):
-        tv = trait.get(state)
-        if tv is None:
+    # Always-on invariant: every donedata verdict is a valid conformance class.
+    for state, (cls, _reason) in sorted(done.items()):
+        if cls not in VALID_CLASSES:
             rep.findings.append(
-                f"FINAL_NO_VERDICT: final '{state}' donedata={dv} but verdictFor"
-                f" has no matching State"
+                f"BAD_CLASS: final '{state}' verdict class '{cls}' not in {sorted(VALID_CLASSES)}"
             )
-        elif tv != dv:
-            rep.findings.append(
-                f"DRIFT: state '{state}' verdictFor={tv} != donedata={dv}"
-            )
-    for state, tv in sorted(trait.items()):
-        if state not in done:
-            rep.findings.append(
-                f"VERDICT_NO_FINAL: verdictFor State '{state}'={tv} has no .scxml"
-                f" final id"
-            )
+
+    # Transitional drift compare — only while a verdictFor still exists.
+    if has_verdict_for:
+        for state, dv in sorted(done.items()):
+            tv = trait.get(state)
+            if tv is None:
+                rep.findings.append(
+                    f"FINAL_NO_VERDICT: final '{state}' donedata={dv} but verdictFor"
+                    f" has no matching State"
+                )
+            elif tv != dv:
+                rep.findings.append(
+                    f"DRIFT: state '{state}' verdictFor={tv} != donedata={dv}"
+                )
+        for state, tv in sorted(trait.items()):
+            if state not in done:
+                rep.findings.append(
+                    f"VERDICT_NO_FINAL: verdictFor State '{state}'={tv} has no .scxml"
+                    f" final id"
+                )
     return rep
 
 
@@ -272,7 +286,8 @@ def main() -> int:
             counts[kind] = counts.get(kind, 0) + 1
             if kind == "MISSING_DONEDATA":
                 missing += 1
-            elif kind in ("DRIFT", "UNPARSED", "FINAL_NO_VERDICT", "VERDICT_NO_FINAL", "NO_SCXML"):
+            elif kind in ("DRIFT", "UNPARSED", "FINAL_NO_VERDICT", "VERDICT_NO_FINAL",
+                          "NO_SCXML", "BAD_CLASS"):
                 blocking += 1
 
     if not args.summary:

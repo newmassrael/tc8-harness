@@ -43,16 +43,6 @@ struct TestCaseTraits<cases::SomeipEts005SM> : SomeIpAnyBase<cases::SomeipEts005
         target.payload = {0x12, 0x34, 0x56};
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                          return "pass";
-            case State::Fail_phase1_no_offer:          return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_payload_mismatch:  return "fail:check_byte_order_response_did_not_match_expected_uint32_sum";
-            case State::Fail_phase2_no_response:       return "fail:no_method_response_within_listen_window";
-            default:                                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -96,16 +96,6 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
         step3_timing.pre_emit_wait = std::chrono::milliseconds(0);
         ::tc8::stimulus::emitMethodRequestAfter(iface, step3, step3_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer:                  return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_valid_echo:             return "fail:dut_did_not_echo_valid_first_request";
-            case State::Fail_phase3_dut_accepted_malformed:    return "fail:dut_returned_ok_response_for_truncated_inner_string_length";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

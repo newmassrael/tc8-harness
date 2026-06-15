@@ -53,19 +53,6 @@ struct TestCaseTraits<cases::Arp38SM>
         ::tc8::stimulus::emitArpFromTester(iface, spec);
         emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_udp_used_injected_mac:
-            return "fail:udp_eth_dst_matched_dropped_frame_mac";
-        case State::Fail_no_dut_arp_request:
-            return "fail:no_arp_request_within_listen_window";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

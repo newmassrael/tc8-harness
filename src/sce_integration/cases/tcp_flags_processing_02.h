@@ -103,26 +103,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing02SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_p1_no_prelude_synack:         return "fail:no_dut_synack_phase1_syn_rcvd";
-            case State::Fail_p1_no_verify_rst:             return "fail:dut_did_not_emit_rst_after_rst_in_syn_rcvd";
-            case State::Fail_p2_no_handshake_ack:          return "fail:no_dut_handshake_ack_phase2_est";
-            case State::Fail_p2_no_verify_rst:             return "fail:dut_did_not_emit_rst_after_rst_in_est";
-            case State::Fail_p3_no_handshake_ack:          return "fail:no_dut_handshake_ack_phase3_fw1";
-            case State::Fail_p3_no_dut_fin:                return "fail:no_dut_fin_phase3_fw1";
-            case State::Fail_p3_no_verify_rst:             return "fail:dut_did_not_emit_rst_after_rst_in_fw1";
-            case State::Fail_p4_no_handshake_ack:          return "fail:no_dut_handshake_ack_phase4_fw2";
-            case State::Fail_p4_no_dut_fin:                return "fail:no_dut_fin_phase4_fw2";
-            case State::Fail_p4_no_verify_rst:             return "fail:dut_did_not_emit_rst_after_rst_in_fw2";
-            case State::Fail_p5_no_handshake_ack:          return "fail:no_dut_handshake_ack_phase5_cw";
-            case State::Fail_p5_no_close_wait_ack:         return "fail:no_dut_close_wait_ack_phase5_cw";
-            case State::Fail_p5_no_verify_rst:             return "fail:dut_did_not_emit_rst_after_rst_in_cw";
-            default:                                       return "running";
-        }
-    }
-
 private:
     // Spec-prescribed RST inject (RST+ACK with in-window seq).
     static void emitRst(const ::tc8::TestConfig& cfg,

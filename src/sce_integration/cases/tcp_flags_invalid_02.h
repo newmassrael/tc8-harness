@@ -102,16 +102,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
 
         dut.tcpControl()->closeTcp(*listen);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:               return "pass";
-            case State::Fail_wrong_seq:     return "fail:dut_rst_seq_not_seg_ack_in_listen";
-            case State::Fail_timeout:       return "fail:no_dut_rst_to_syn_ack_in_listen";
-            case State::Fail_p2_no_synack:  return "fail:listen_socket_did_not_survive_rst_emission";
-            default:                        return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

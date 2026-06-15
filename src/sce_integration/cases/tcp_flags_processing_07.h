@@ -115,28 +115,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                return "pass";
-            case State::Fail_p1_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase1_cw";
-            case State::Fail_p1_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase1_cw";
-            case State::Fail_p1_unexpected_response:         return "fail:dut_emitted_response_to_urg_only_in_cw";
-            case State::Fail_p2_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase2_closing";
-            case State::Fail_p2_no_dut_fin:                  return "fail:no_dut_fin_phase2_closing";
-            case State::Fail_p2_no_closing_ack:              return "fail:no_dut_closing_ack_phase2_closing";
-            case State::Fail_p2_unexpected_response:         return "fail:dut_emitted_response_to_urg_only_in_closing";
-            case State::Fail_p3_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase3_la";
-            case State::Fail_p3_no_close_wait_ack:           return "fail:no_dut_close_wait_ack_phase3_la";
-            case State::Fail_p3_no_dut_fin:                  return "fail:no_dut_fin_phase3_la";
-            case State::Fail_p3_unexpected_response:         return "fail:dut_emitted_response_to_urg_only_in_la";
-            case State::Fail_p4_no_handshake_ack:            return "fail:no_dut_handshake_ack_phase4_tw";
-            case State::Fail_p4_no_dut_fin:                  return "fail:no_dut_fin_phase4_tw";
-            case State::Fail_p4_no_tester_fin_ack:           return "fail:no_dut_tester_fin_ack_phase4_tw";
-            case State::Fail_p4_unexpected_response:         return "fail:dut_emitted_response_to_urg_only_in_tw";
-            default:                                         return "running";
-        }
-    }
-
 private:
     // URG-only segment with caller-supplied seq (the kernel-view of
     // tester's next-byte = DUT's rcv_nxt = in-window).

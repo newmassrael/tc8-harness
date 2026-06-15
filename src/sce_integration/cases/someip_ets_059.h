@@ -49,16 +49,6 @@ struct TestCaseTraits<cases::SomeipEts059SM> : SomeIpAnyBase<cases::SomeipEts059
         target.interface_version = 0xFF;    // Wrong version — DUT declares 0x01.
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                   return "pass";
-            case State::Fail_phase1_no_offer:                   return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_responded_to_fire_forget:
-                                                                return "fail:dut_emitted_response_to_wrong_interface_version_fire_forget";
-            default:                                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

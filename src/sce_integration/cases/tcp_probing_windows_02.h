@@ -104,15 +104,6 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
 
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                            return "pass";
-            case State::Fail_no_handshake_ack:           return "fail:no_dut_handshake_ack";
-            case State::Fail_no_dut_data_segment:        return "fail:dut_did_not_send_data_after_msb_set_window_advertisement";
-            default:                                     return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

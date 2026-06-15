@@ -30,19 +30,6 @@ struct TestCaseTraits<cases::Arp46SM>
         spec.target_ip_be = cfg.dut.ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_hw_type_not_eth:
-            return "fail:reply_hw_type_not_ethernet";
-        case State::Fail_no_reply:
-            return "fail:no_arp_reply_within_listen_window";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

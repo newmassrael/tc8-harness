@@ -39,15 +39,6 @@ struct TestCaseTraits<cases::Rpc05SM> : SomeIpAnyBase<cases::Rpc05SM> {
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_phase1_no_offer:       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_error_observed: return "fail:dut_returned_error_for_fire_and_forget_unknown_method";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

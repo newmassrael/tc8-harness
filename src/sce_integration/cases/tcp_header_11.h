@@ -82,15 +82,6 @@ struct TestCaseTraits<cases::TcpHeader11SM>
         timing.initial_wait = std::chrono::milliseconds(0);
         ::tc8::stimulus::emitIpv4Frame(iface, ip_spec, tcp_bytes, timing);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_unexpected_ack:        return "fail:dut_acked_multicast_syn";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

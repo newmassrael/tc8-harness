@@ -51,16 +51,6 @@ struct TestCaseTraits<cases::SomeipEts100SM> : SomeIpAnyBase<cases::SomeipEts100
         target.payload      = {0x00};        // delay = 0
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                      return "pass";
-            case State::Fail_phase1_no_offer:                      return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_findservice:                return "fail:no_dut_findservice_during_start_phase";
-            case State::Fail_phase4_findservice_in_main_phase:     return "fail:dut_findservice_observed_during_main_phase";
-            default:                                               return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

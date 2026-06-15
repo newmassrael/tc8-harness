@@ -37,19 +37,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating06SM>
             /*retry_count=*/2,
             /*retry_interval_ms=*/1000);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_first_discover:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            case State::Fail_no_resend:
-                return "fail:no_dut_dhcp_discover_retransmission";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

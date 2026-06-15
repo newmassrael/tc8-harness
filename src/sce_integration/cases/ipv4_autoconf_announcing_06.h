@@ -35,21 +35,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing06SM>
         ::tc8::sce::linklocal::emitStartLLAutoconfRfcDefaults(
             cfg, iface, cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_announces:
-                return "fail:no_arp_announce_after_probes";
-            case State::Fail_only_one_announce:
-                return "fail:fewer_than_2_arp_announces_within_deadline";
-            case State::Fail_interval_out_of_range:
-                return "fail:announce_interval_outside_rfc3927_bounds_with_50ms_tolerance";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

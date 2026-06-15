@@ -48,14 +48,6 @@ struct TestCaseTraits<cases::Icmpv4Type16SM>
         ov.icmp_code = std::uint8_t{0};
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_sent_information_reply";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

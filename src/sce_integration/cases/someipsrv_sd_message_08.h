@@ -27,15 +27,6 @@ struct TestCaseTraits<cases::SdMessage08SM>
     static constexpr std::string_view kSpecSection = "5.1.5.3.8";
     static constexpr std::string_view kDescription =
         "OfferService shall carry at least one IPv4 Endpoint Option";
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                  return "pass";
-            case State::Fail_endpoint_count:   return "fail:offer_carries_no_ipv4_endpoint_option";
-            case State::Fail_timeout:          return "fail:no_qualifying_sd_message_within_listen_window";
-            default:                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -52,15 +52,6 @@ struct TestCaseTraits<cases::SomeipEts064SM> : SomeIpAnyBase<cases::SomeipEts064
         // [6..7] = 00 00 (UTF-16 null terminator), [8..62] = 0
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                  return "pass";
-            case State::Fail_phase1_no_offer:                  return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_accepted_malformed:    return "fail:dut_returned_ok_response_for_undersized_utf16_fixed";
-            default:                                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

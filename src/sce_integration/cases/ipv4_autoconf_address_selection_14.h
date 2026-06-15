@@ -68,23 +68,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection14SM> {
         ::tc8::sce::linklocal::dispatchArpFrameWithRepeatedConflictEmit<SM>(
             c, sm, ev, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_no_initial_probe:
-                return "fail:no_arp_probe_after_ll_start";
-            case State::Fail_conflicts_incomplete:
-                return "fail:dut_did_not_re_probe_through_max_conflicts";
-            case State::Fail_cycle_repeat:
-                return "fail:dut_re_probed_with_stale_link_local_address";
-            case State::Fail_emitted_during_silence:
-                return "fail:dut_emitted_arp_during_rate_limit_silence";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

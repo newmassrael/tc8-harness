@@ -44,15 +44,6 @@ struct TestCaseTraits<cases::SomeipEts143SM> : SomeIpAnyBase<cases::SomeipEts143
         params.session_id = 0x0001;
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_acked_unknown_service:      return "fail:dut_acked_subscribe_for_unknown_service_id";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

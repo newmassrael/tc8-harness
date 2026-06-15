@@ -35,17 +35,6 @@ struct TestCaseTraits<cases::Arp37SM>
         spec.target_ip_be = 0x6363630Au;
         ::tc8::stimulus::emitArpFromTester(iface, spec);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-        case State::Pass:
-            return "pass";
-        case State::Fail_unexpected_reply:
-            return "fail:dut_replied_to_foreign_target_ip";
-        default:
-            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -94,15 +94,6 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
 
         if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack_within_listen_window";
-            case State::Fail_no_data_ack:           return "fail:no_dut_ack_to_correct_checksum_data";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -35,15 +35,6 @@ struct TestCaseTraits<cases::UdpMessageFormat02SM>
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                return "pass";
-            case State::Fail_wrong_receipt:  return "fail:dut_did_not_accept_well_formed_udp";
-            case State::Fail_timeout:        return "fail:no_ut_confirmation_for_well_formed_udp_accept";
-            default:                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

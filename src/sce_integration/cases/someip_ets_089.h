@@ -55,16 +55,6 @@ struct TestCaseTraits<cases::SomeipEts089SM> : SomeIpAnyBase<cases::SomeipEts089
                                 0x00, 0x00, 0x07, 0xD0};
         ::tc8::stimulus::emitMethodRequestAfter(iface, suspend);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_stop_offer:                  return "fail:no_stop_offer_service_within_listen_window";
-            case State::Fail_phase3_no_resume_offer:                return "fail:no_resume_offer_service_within_listen_window";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

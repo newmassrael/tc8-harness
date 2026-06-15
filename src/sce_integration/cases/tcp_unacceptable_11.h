@@ -143,21 +143,6 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase1";
-            case State::Fail_p1_no_close_fin:       return "fail:no_dut_close_fin_phase1";
-            case State::Fail_p1_no_closing_ack:     return "fail:no_dut_ack_in_closing_transition_phase1";
-            case State::Fail_p1_no_probe_ack:       return "fail:no_dut_ack_to_otw_seq_in_closing";
-            case State::Fail_p2_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase2";
-            case State::Fail_p2_no_close_fin:       return "fail:no_dut_close_fin_phase2";
-            case State::Fail_p2_no_closing_ack:     return "fail:no_dut_ack_in_closing_transition_phase2";
-            case State::Fail_p2_no_probe_ack:       return "fail:no_dut_ack_to_unacceptable_ack_in_closing";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -41,23 +41,6 @@ struct TestCaseTraits<cases::Rpc02SM> : SomeIpAnyBase<cases::Rpc02SM> {
         sub.eventgroup_id = ::tc8::someipsrv_si2::kEventGroupId;
         ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, sub);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_phase1_no_offer:
-                return "fail:no_offer_service_for_service_id_2_within_listen_window";
-            case State::Fail_phase2_subscribe_nacked:
-                return "fail:subscribe_eventgroup_nacked_ttl_zero";
-            case State::Fail_phase2_no_subscribe_ack:
-                return "fail:no_subscribe_ack_within_listen_window";
-            case State::Fail_phase3_no_notification:
-                return "fail:no_notification_for_service_id_2_within_listen_window";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

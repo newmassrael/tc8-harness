@@ -136,18 +136,6 @@ struct TestCaseTraits<cases::TcpClosing07SM>
         // discards, keeping DUT in FW1.
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_no_handshake_ack:      return "fail:no_dut_handshake_ack";
-            case State::Fail_no_dut_fin:            return "fail:no_dut_close_fin";
-            case State::Fail_no_dut_data_ack:       return "fail:no_dut_ack_to_received_data_in_fw1";
-            case State::Fail_dut_rst_in_fw1:        return "fail:dut_emitted_rst_in_fw1";
-            case State::Fail_no_proper_data:        return "fail:dut_did_not_receive_proper_data_in_fw1";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

@@ -114,15 +114,6 @@ struct TestCaseTraits<cases::TcpBasics09SM>
                         /*ack_num=*/0U);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                   return "pass";
-            case State::Fail_timeout_fin:       return "fail:no_dut_fin_into_last_ack";
-            case State::Fail_timeout_rst:       return "fail:no_dut_rst_from_closed";
-            default:                            return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

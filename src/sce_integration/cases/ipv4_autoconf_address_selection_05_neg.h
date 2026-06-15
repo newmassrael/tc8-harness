@@ -38,19 +38,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection05NegSM>
             cfg, iface, cfg.dut.mac,
             ::tc8::ut::kFlavorSenderHwWrong);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_compliant_emit:
-                return "fail:dut_emitted_compliant_probe_despite_sender_hw_wrong_flavor";
-            case State::Fail_timeout:
-                return "fail:no_arp_probe_after_ll_start";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

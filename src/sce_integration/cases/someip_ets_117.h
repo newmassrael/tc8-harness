@@ -63,15 +63,6 @@ struct TestCaseTraits<cases::SomeipEts117SM> : SomeIpAnyBase<cases::SomeipEts117
         params.extra_options.push_back({/*type=*/0x04, /*body=*/std::move(ipv4_body), /*reserved=*/0});
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                     return "pass";
-            case State::Fail_phase1_no_offer:                     return "fail:no_offer_service_within_listen_window";
-            case State::Fail_dut_acked_malformed_subscribe:       return "fail:dut_acked_malformed_subscribe";
-            default:                                              return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

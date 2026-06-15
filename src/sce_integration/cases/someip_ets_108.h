@@ -59,16 +59,6 @@ struct TestCaseTraits<cases::SomeipEts108SM> : SomeIpAnyBase<cases::SomeipEts108
         stop.session_id = 0x0002;
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, stop);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                       return "pass";
-            case State::Fail_phase1_no_offer:                       return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_no_subscribe_ack:               return "fail:no_subscribe_ack_within_listen_window";
-            case State::Fail_phase4_event_after_stop:               return "fail:dut_broadcast_event_after_stop_subscribe";
-            default:                                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

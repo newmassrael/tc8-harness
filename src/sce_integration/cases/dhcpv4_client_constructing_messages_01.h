@@ -33,19 +33,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages01SM>
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(
             cfg, iface, cfg.dut.mac);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:
-                return "pass";
-            case State::Fail_last_option_not_end:
-                return "fail:dut_dhcp_discover_last_option_not_end";
-            case State::Fail_timeout:
-                return "fail:no_dut_dhcp_discover_within_listen_window";
-            default:
-                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

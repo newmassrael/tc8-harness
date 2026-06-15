@@ -75,15 +75,6 @@ struct TestCaseTraits<cases::SomeipEts068SM> : SomeIpAnyBase<cases::SomeipEts068
                                                      dest,
                                                      std::chrono::milliseconds(800));
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                              return "pass";
-            case State::Fail_phase1_no_offer:              return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_response_missing:      return "fail:dut_did_not_respond_to_every_message_in_tcp_bundle";
-            default:                                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

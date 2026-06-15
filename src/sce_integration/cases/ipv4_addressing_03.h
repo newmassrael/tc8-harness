@@ -41,14 +41,6 @@ struct TestCaseTraits<cases::Ipv4Addressing03SM>
         ov.dst_ip = cases::kIpv4LoopbackBe;
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:              return "pass";
-            case State::Fail_dut_replied:  return "fail:dut_replied_despite_loopback_dst";
-            default:                       return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

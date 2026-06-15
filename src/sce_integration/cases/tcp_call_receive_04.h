@@ -85,21 +85,6 @@ struct TestCaseTraits<cases::TcpCallReceive04SM>
             });
     }
 
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_p1_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase1_est";
-            case State::Fail_p1_no_proper_data:     return "fail:dut_did_not_receive_proper_data_phase1_est";
-            case State::Fail_p2_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase2_fw1";
-            case State::Fail_p2_no_dut_fin:         return "fail:no_dut_fin_phase2_fw1";
-            case State::Fail_p2_no_proper_data:     return "fail:dut_did_not_receive_proper_data_phase2_fw1";
-            case State::Fail_p3_no_handshake_ack:   return "fail:no_dut_handshake_ack_phase3_fw2";
-            case State::Fail_p3_no_dut_fin:         return "fail:no_dut_fin_phase3_fw2";
-            case State::Fail_p3_no_proper_data:     return "fail:dut_did_not_receive_proper_data_phase3_fw2";
-            default:                                return "running";
-        }
-    }
-
 private:
     // Inject N consecutive small data segments with seq advancing by
     // kSegmentSize per iteration. `ack_value` stays constant per phase

@@ -119,16 +119,6 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
 
         (void)tester_fd;
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                          return "pass";
-            case State::Fail_no_handshake_ack:         return "fail:no_dut_handshake_ack_within_listen_window";
-            case State::Fail_no_otw_seq_ack:           return "fail:no_dut_ack_to_otw_seq_data";
-            case State::Fail_no_dut_ack_to_unacc_ack:  return "fail:no_dut_ack_to_unacc_ack_data";
-            default:                                   return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

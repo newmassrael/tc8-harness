@@ -35,15 +35,6 @@ struct TestCaseTraits<cases::UdpUserInterface02SM>
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                  return "pass";
-            case State::Fail_field_mismatch:   return "fail:dut_received_udp_with_wrong_payload_bytes";
-            case State::Fail_timeout:          return "fail:no_ut_confirmation_for_payload_check";
-            default:                           return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

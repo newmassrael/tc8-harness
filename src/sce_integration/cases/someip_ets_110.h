@@ -49,15 +49,6 @@ struct TestCaseTraits<cases::SomeipEts110SM> : SomeIpAnyBase<cases::SomeipEts110
         params.tester_endpoint.l4proto = 0x11;  // UDP
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                                return "pass";
-            case State::Fail_phase1_no_offer:                return "fail:no_offer_service_within_listen_window";
-            case State::Fail_phase2_dut_acked_invalid_ip:    return "fail:dut_acked_invalid_ipv4_endpoint";
-            default:                                         return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce

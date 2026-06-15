@@ -81,16 +81,6 @@ struct TestCaseTraits<cases::Ipv4Header05SM> {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::icmpv4::dispatchAnyIcmpFrame<SM>(c, sm, ev);
     }
-
-    static std::string_view verdictFor(State s) {
-        switch (s) {
-            case State::Pass:                       return "pass";
-            case State::Fail_payload_truncated:     return "fail:dut_truncated_576_byte_datagram_data";
-            case State::Fail_payload_mismatch:      return "fail:dut_echoed_576_byte_data_with_wrong_bytes";
-            case State::Fail_timeout:               return "fail:no_echo_reply_for_576_byte_datagram";
-            default:                                return "running";
-        }
-    }
 };
 
 }  // namespace tc8::sce
