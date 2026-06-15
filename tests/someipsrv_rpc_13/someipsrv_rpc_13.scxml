@@ -38,7 +38,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 2 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[1].type == 0x01 and ((captured.sd_entries[0].service_id == 0xF4E7 and captured.sd_entries[1].service_id == ::tc8::someipsrv_si2::kServiceId) or (captured.sd_entries[0].service_id == ::tc8::someipsrv_si2::kServiceId and captured.sd_entries[1].service_id == 0xF4E7)) and captured.sd_distinct_endpoint_ports_for_l4(::tc8::sd_l4_proto::kUdp) &gt;= 2"
                 target="fail_distinct_udp_ports"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -49,13 +49,13 @@
 
   <final id="fail_distinct_udp_ports">
     <donedata>
-      <content>{"verdict":"fail","reason":"two_services_advertise_distinct_udp_ports_not_shared"}</content>
+      <content>{"verdict":"fail","reason":"two_services_advertise_distinct_udp_ports_not_shared","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_qualifying_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_qualifying_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

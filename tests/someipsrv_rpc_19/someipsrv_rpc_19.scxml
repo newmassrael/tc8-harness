@@ -38,7 +38,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
   <state id="listening_phase2">
@@ -51,7 +51,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.message_type == 0x81 and captured.service_id == expected.service_id and (captured.client_id != 0xCAFE or captured.session_id != 0x1234)"
                 target="fail_phase2_request_id_mismatch"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_error"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_error"/>
   </state>
 
   <final id="pass">
@@ -60,21 +60,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="inconclusive_phase1_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_request_id_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"error_message_did_not_echo_request_id"}</content>
+      <content>{"verdict":"fail","reason":"error_message_did_not_echo_request_id","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_error">
+  <final id="inconclusive_phase2_no_error">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_error_message_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_error_message_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

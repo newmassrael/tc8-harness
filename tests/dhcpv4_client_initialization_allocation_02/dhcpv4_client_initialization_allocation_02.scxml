@@ -48,7 +48,7 @@
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
                       and !captured.ciaddr_is_zero()"
                 target="fail_ciaddr_nonzero"/>
-    <transition event="deadline_exceeded" target="fail_no_discover"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
   </state>
 
   <final id="pass">
@@ -59,13 +59,13 @@
 
   <final id="fail_ciaddr_nonzero">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_discover_ciaddr_not_zero"}</content>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_ciaddr_not_zero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

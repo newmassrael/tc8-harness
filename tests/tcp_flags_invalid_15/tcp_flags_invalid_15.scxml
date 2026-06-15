@@ -89,7 +89,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_p1_absence"/>
-    <transition event="deadline_p1_dut_synack" target="fail_p1_no_dut_synack"/>
+    <transition event="deadline_p1_dut_synack" target="inconclusive_p1_no_dut_synack"/>
   </state>
   <state id="listening_p1_absence">
     <onentry><send event="deadline_p1_absence" delay="3s"/></onentry>
@@ -105,7 +105,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
                 target="listening_p2_absence"/>
-    <transition event="deadline_p2_handshake_ack" target="fail_p2_no_handshake_ack"/>
+    <transition event="deadline_p2_handshake_ack" target="inconclusive_p2_no_handshake_ack"/>
   </state>
   <state id="listening_p2_absence">
     <onentry><send event="deadline_p2_absence" delay="3s"/></onentry>
@@ -121,14 +121,14 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
                 target="listening_p3_dut_fin"/>
-    <transition event="deadline_p3_handshake_ack" target="fail_p3_no_handshake_ack"/>
+    <transition event="deadline_p3_handshake_ack" target="inconclusive_p3_no_handshake_ack"/>
   </state>
   <state id="listening_p3_dut_fin">
     <onentry><send event="deadline_p3_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
                 target="listening_p3_absence"/>
-    <transition event="deadline_p3_dut_fin" target="fail_p3_no_dut_fin"/>
+    <transition event="deadline_p3_dut_fin" target="inconclusive_p3_no_dut_fin"/>
   </state>
   <state id="listening_p3_absence">
     <onentry><send event="deadline_p3_absence" delay="3s"/></onentry>
@@ -144,14 +144,14 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U)"
                 target="listening_p4_dut_fin"/>
-    <transition event="deadline_p4_handshake_ack" target="fail_p4_no_handshake_ack"/>
+    <transition event="deadline_p4_handshake_ack" target="inconclusive_p4_no_handshake_ack"/>
   </state>
   <state id="listening_p4_dut_fin">
     <onentry><send event="deadline_p4_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U)"
                 target="listening_p4_absence"/>
-    <transition event="deadline_p4_dut_fin" target="fail_p4_no_dut_fin"/>
+    <transition event="deadline_p4_dut_fin" target="inconclusive_p4_no_dut_fin"/>
   </state>
   <state id="listening_p4_absence">
     <!-- Phase 4 absence guard restored to the strict spec shape:
@@ -175,14 +175,14 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 3U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 3U)"
                 target="listening_p5_close_wait_ack"/>
-    <transition event="deadline_p5_handshake_ack" target="fail_p5_no_handshake_ack"/>
+    <transition event="deadline_p5_handshake_ack" target="inconclusive_p5_no_handshake_ack"/>
   </state>
   <state id="listening_p5_close_wait_ack">
     <onentry><send event="deadline_p5_close_wait_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 3U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 3U)"
                 target="listening_p5_absence"/>
-    <transition event="deadline_p5_close_wait_ack" target="fail_p5_no_close_wait_ack"/>
+    <transition event="deadline_p5_close_wait_ack" target="inconclusive_p5_no_close_wait_ack"/>
   </state>
   <state id="listening_p5_absence">
     <onentry><send event="deadline_p5_absence" delay="3s"/></onentry>
@@ -198,21 +198,21 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U)"
                 target="listening_p6_dut_fin"/>
-    <transition event="deadline_p6_handshake_ack" target="fail_p6_no_handshake_ack"/>
+    <transition event="deadline_p6_handshake_ack" target="inconclusive_p6_no_handshake_ack"/>
   </state>
   <state id="listening_p6_dut_fin">
     <onentry><send event="deadline_p6_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U)"
                 target="listening_p6_closing_ack"/>
-    <transition event="deadline_p6_dut_fin" target="fail_p6_no_dut_fin"/>
+    <transition event="deadline_p6_dut_fin" target="inconclusive_p6_no_dut_fin"/>
   </state>
   <state id="listening_p6_closing_ack">
     <onentry><send event="deadline_p6_closing_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U)"
                 target="listening_p6_absence"/>
-    <transition event="deadline_p6_closing_ack" target="fail_p6_no_closing_ack"/>
+    <transition event="deadline_p6_closing_ack" target="inconclusive_p6_no_closing_ack"/>
   </state>
   <state id="listening_p6_absence">
     <onentry><send event="deadline_p6_absence" delay="3s"/></onentry>
@@ -228,21 +228,21 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U)"
                 target="listening_p7_close_wait_ack"/>
-    <transition event="deadline_p7_handshake_ack" target="fail_p7_no_handshake_ack"/>
+    <transition event="deadline_p7_handshake_ack" target="inconclusive_p7_no_handshake_ack"/>
   </state>
   <state id="listening_p7_close_wait_ack">
     <onentry><send event="deadline_p7_close_wait_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U)"
                 target="listening_p7_dut_fin"/>
-    <transition event="deadline_p7_close_wait_ack" target="fail_p7_no_close_wait_ack"/>
+    <transition event="deadline_p7_close_wait_ack" target="inconclusive_p7_no_close_wait_ack"/>
   </state>
   <state id="listening_p7_dut_fin">
     <onentry><send event="deadline_p7_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U)"
                 target="listening_p7_absence"/>
-    <transition event="deadline_p7_dut_fin" target="fail_p7_no_dut_fin"/>
+    <transition event="deadline_p7_dut_fin" target="inconclusive_p7_no_dut_fin"/>
   </state>
   <state id="listening_p7_absence">
     <onentry><send event="deadline_p7_absence" delay="3s"/></onentry>
@@ -258,21 +258,21 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
                 target="listening_p8_dut_fin"/>
-    <transition event="deadline_p8_handshake_ack" target="fail_p8_no_handshake_ack"/>
+    <transition event="deadline_p8_handshake_ack" target="inconclusive_p8_no_handshake_ack"/>
   </state>
   <state id="listening_p8_dut_fin">
     <onentry><send event="deadline_p8_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
                 target="listening_p8_tw_ack"/>
-    <transition event="deadline_p8_dut_fin" target="fail_p8_no_dut_fin"/>
+    <transition event="deadline_p8_dut_fin" target="inconclusive_p8_no_dut_fin"/>
   </state>
   <state id="listening_p8_tw_ack">
     <onentry><send event="deadline_p8_tw_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
                 target="listening_p8_absence"/>
-    <transition event="deadline_p8_tw_ack" target="fail_p8_no_tw_ack"/>
+    <transition event="deadline_p8_tw_ack" target="inconclusive_p8_no_tw_ack"/>
   </state>
   <state id="listening_p8_absence">
     <!-- Phase 8 absence guard restored to the strict spec shape:
@@ -293,36 +293,36 @@
 
   <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
 
-  <final id="fail_p1_no_dut_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_phase1_syn_rcvd"}</content></donedata></final>
-  <final id="fail_p1_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_syn_rcvd"}</content></donedata></final>
+  <final id="inconclusive_p1_no_dut_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_phase1_syn_rcvd","role":"precondition_unmet"}</content></donedata></final>
+  <final id="fail_p1_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_syn_rcvd","role":"observed_violation"}</content></donedata></final>
 
-  <final id="fail_p2_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2_est"}</content></donedata></final>
-  <final id="fail_p2_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_est"}</content></donedata></final>
+  <final id="inconclusive_p2_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase2_est","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p2_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_est","role":"observed_violation"}</content></donedata></final>
 
-  <final id="fail_p3_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase3_fw1"}</content></donedata></final>
-  <final id="fail_p3_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase3_fw1"}</content></donedata></final>
-  <final id="fail_p3_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_fw1"}</content></donedata></final>
+  <final id="inconclusive_p3_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase3_fw1","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p3_no_dut_fin"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase3_fw1","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p3_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_fw1","role":"observed_violation"}</content></donedata></final>
 
-  <final id="fail_p4_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase4_fw2"}</content></donedata></final>
-  <final id="fail_p4_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase4_fw2"}</content></donedata></final>
-  <final id="fail_p4_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_fw2"}</content></donedata></final>
+  <final id="inconclusive_p4_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase4_fw2","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p4_no_dut_fin"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase4_fw2","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p4_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_fw2","role":"observed_violation"}</content></donedata></final>
 
-  <final id="fail_p5_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase5_cw"}</content></donedata></final>
-  <final id="fail_p5_no_close_wait_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_close_wait_ack_phase5_cw"}</content></donedata></final>
-  <final id="fail_p5_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_cw"}</content></donedata></final>
+  <final id="inconclusive_p5_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase5_cw","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p5_no_close_wait_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_wait_ack_phase5_cw","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p5_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_cw","role":"observed_violation"}</content></donedata></final>
 
-  <final id="fail_p6_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase6_closing"}</content></donedata></final>
-  <final id="fail_p6_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase6_closing"}</content></donedata></final>
-  <final id="fail_p6_no_closing_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_closing_ack_phase6_closing"}</content></donedata></final>
-  <final id="fail_p6_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_closing"}</content></donedata></final>
+  <final id="inconclusive_p6_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase6_closing","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p6_no_dut_fin"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase6_closing","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p6_no_closing_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_closing_ack_phase6_closing","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p6_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_closing","role":"observed_violation"}</content></donedata></final>
 
-  <final id="fail_p7_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase7_la"}</content></donedata></final>
-  <final id="fail_p7_no_close_wait_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_close_wait_ack_phase7_la"}</content></donedata></final>
-  <final id="fail_p7_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase7_la"}</content></donedata></final>
-  <final id="fail_p7_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_la"}</content></donedata></final>
+  <final id="inconclusive_p7_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase7_la","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p7_no_close_wait_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_wait_ack_phase7_la","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p7_no_dut_fin"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase7_la","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p7_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_la","role":"observed_violation"}</content></donedata></final>
 
-  <final id="fail_p8_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase8_tw"}</content></donedata></final>
-  <final id="fail_p8_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase8_tw"}</content></donedata></final>
-  <final id="fail_p8_no_tw_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_tw_ack_phase8_tw"}</content></donedata></final>
-  <final id="fail_p8_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_tw"}</content></donedata></final>
+  <final id="inconclusive_p8_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase8_tw","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p8_no_dut_fin"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase8_tw","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p8_no_tw_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_tw_ack_phase8_tw","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p8_unexpected_response"><donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_otw_rst_in_tw","role":"observed_violation"}</content></donedata></final>
 </scxml>

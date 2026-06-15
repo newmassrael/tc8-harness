@@ -40,7 +40,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 2 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[1].type == 0x01 and captured.sd_entries[0].instance_id != captured.sd_entries[1].instance_id and captured.sd_distinct_endpoint_ports_for_l4(::tc8::sd_l4_proto::kTcp) &gt;= 2"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
   <state id="listening_phase2">
@@ -50,7 +50,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.method_id == 0x000A and captured.src_port == 30501"
                 target="listening_phase3"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response_from_instance_1"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response_from_instance_1"/>
   </state>
 
   <state id="listening_phase3">
@@ -60,7 +60,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.method_id == 0x000A and captured.src_port == 30503"
                 target="pass"/>
-    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_response_from_instance_2"/>
+    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_response_from_instance_2"/>
   </state>
 
   <final id="pass">
@@ -69,21 +69,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="inconclusive_phase1_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_two_entry_offer_with_distinct_tcp_ports_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_two_entry_offer_with_distinct_tcp_ports_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_response_from_instance_1">
+  <final id="inconclusive_phase2_no_response_from_instance_1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_response_from_instance_1_tcp_port_30501"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_response_from_instance_1_tcp_port_30501","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase3_no_response_from_instance_2">
+  <final id="inconclusive_phase3_no_response_from_instance_2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_response_from_instance_2_tcp_port_30503"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_response_from_instance_2_tcp_port_30503","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

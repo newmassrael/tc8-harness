@@ -32,7 +32,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].eventgroup_id != expected.eventgroup_id"
                 target="fail_eventgroup_id"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -43,13 +43,13 @@
 
   <final id="fail_eventgroup_id">
     <donedata>
-      <content>{"verdict":"fail","reason":"entry_eventgroup_id_mismatch"}</content>
+      <content>{"verdict":"fail","reason":"entry_eventgroup_id_mismatch","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_ack_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_ack_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

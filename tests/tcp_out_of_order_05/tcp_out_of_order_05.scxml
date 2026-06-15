@@ -39,7 +39,7 @@
   are not needed because each phase consumes ONE ACK and the
   underlying SCE event queue dispatches in arrival order). Falling
   short of 5 ACKs deadlines in the corresponding `listening_ack_N`
-  phase and lands on `fail_insufficient_dut_acks`.
+  phase and lands on `inconclusive_insufficient_dut_acks`.
 
   Per-phase deadlines: 5 s phase 1 (handshake), 1 s each subsequent
   ACK consume. Total budget = 5 + 5*1 = 10 s SCXML, comfortably
@@ -48,7 +48,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands
-  on fail_no_handshake_ack via the 5 s phase-1 deadline.
+  on inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -73,7 +73,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
                 target="listening_ack_1"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_ack_1">
@@ -83,7 +83,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
                 target="listening_ack_2"/>
-    <transition event="deadline_ack_1" target="fail_insufficient_dut_acks"/>
+    <transition event="deadline_ack_1" target="inconclusive_insufficient_dut_acks"/>
   </state>
 
   <state id="listening_ack_2">
@@ -93,7 +93,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
                 target="listening_ack_3"/>
-    <transition event="deadline_ack_2" target="fail_insufficient_dut_acks"/>
+    <transition event="deadline_ack_2" target="inconclusive_insufficient_dut_acks"/>
   </state>
 
   <state id="listening_ack_3">
@@ -103,7 +103,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
                 target="listening_ack_4"/>
-    <transition event="deadline_ack_3" target="fail_insufficient_dut_acks"/>
+    <transition event="deadline_ack_3" target="inconclusive_insufficient_dut_acks"/>
   </state>
 
   <state id="listening_ack_4">
@@ -113,7 +113,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
                 target="listening_ack_5"/>
-    <transition event="deadline_ack_4" target="fail_insufficient_dut_acks"/>
+    <transition event="deadline_ack_4" target="inconclusive_insufficient_dut_acks"/>
   </state>
 
   <state id="listening_ack_5">
@@ -123,7 +123,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder05LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_ack_5" target="fail_insufficient_dut_acks"/>
+    <transition event="deadline_ack_5" target="inconclusive_insufficient_dut_acks"/>
   </state>
 
   <final id="pass">
@@ -132,15 +132,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_insufficient_dut_acks">
+  <final id="inconclusive_insufficient_dut_acks">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_fewer_than_5_acks_for_10_full_sized_segments"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_emitted_fewer_than_5_acks_for_10_full_sized_segments","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

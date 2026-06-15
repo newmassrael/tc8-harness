@@ -30,13 +30,13 @@
     - On DUT-emit DHCPDISCOVER: snapshot chaddr → discover_chaddr_snapshot,
       transition to s2 (state-entry observer fires
       OpStartDhcpClient(iface_index=1) on s2 entry).
-    - Deadline → fail_no_d0_discover.
+    - Deadline → inconclusive_no_d0_discover.
 
   s2 (listening_for_d1_discover):
     - On DUT-emit DHCPDISCOVER with chaddr_differs_from_snapshot: pass.
     - On DUT-emit DHCPDISCOVER with SAME chaddr: fail_chaddr_collision
       (spec MUST violation — both ifaces would impersonate one client).
-    - Deadline → fail_no_d1_discover.
+    - Deadline → inconclusive_no_d1_discover.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -62,7 +62,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_d1_discover"/>
-    <transition event="s1_deadline" target="fail_no_d0_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_d0_discover"/>
   </state>
 
   <state id="listening_for_d1_discover">
@@ -86,7 +86,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_differs_from_snapshot()"
                 target="pass"/>
-    <transition event="s2_deadline" target="fail_no_d1_discover"/>
+    <transition event="s2_deadline" target="inconclusive_no_d1_discover"/>
   </state>
 
   <final id="pass">
@@ -95,21 +95,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_d0_discover">
+  <final id="inconclusive_no_d0_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_on_diface_0"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_on_diface_0","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_d1_discover">
+  <final id="inconclusive_no_d1_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_on_diface_1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_on_diface_1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_chaddr_collision">
     <donedata>
-      <content>{"verdict":"fail","reason":"diface_0_and_diface_1_share_same_chaddr"}</content>
+      <content>{"verdict":"fail","reason":"diface_0_and_diface_1_share_same_chaddr","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

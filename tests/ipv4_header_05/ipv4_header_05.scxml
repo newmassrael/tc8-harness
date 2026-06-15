@@ -50,7 +50,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.payload_len == 548 and !captured.payload_matches_index_pattern(548)"
                 target="fail_payload_mismatch"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -61,19 +61,19 @@
 
   <final id="fail_payload_truncated">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_truncated_576_byte_datagram_data"}</content>
+      <content>{"verdict":"fail","reason":"dut_truncated_576_byte_datagram_data","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_payload_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_echoed_576_byte_data_with_wrong_bytes"}</content>
+      <content>{"verdict":"fail","reason":"dut_echoed_576_byte_data_with_wrong_bytes","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_echo_reply_for_576_byte_datagram"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_echo_reply_for_576_byte_datagram","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

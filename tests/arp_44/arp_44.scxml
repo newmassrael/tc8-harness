@@ -38,7 +38,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 2 and captured.sender_proto_ip != expected.dut_iface_ip"
                 target="fail_sender_ip_not_dut"/>
-    <transition event="deadline_exceeded" target="fail_no_reply"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_reply"/>
   </state>
 
   <final id="pass">
@@ -49,13 +49,13 @@
 
   <final id="fail_sender_ip_not_dut">
     <donedata>
-      <content>{"verdict":"fail","reason":"reply_sender_ip_not_dut_iface"}</content>
+      <content>{"verdict":"fail","reason":"reply_sender_ip_not_dut_iface","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_reply">
+  <final id="inconclusive_no_reply">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_reply_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

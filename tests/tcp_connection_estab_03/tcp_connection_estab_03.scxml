@@ -48,7 +48,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset1, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset1)"
                 target="listen_leg2"/>
-    <transition event="deadline_exceeded" target="fail_timeout_leg1"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_leg1"/>
   </state>
 
   <state id="listen_leg2">
@@ -58,7 +58,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset2, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset2)"
                 target="listen_leg3"/>
-    <transition event="deadline_exceeded_2" target="fail_timeout_leg2"/>
+    <transition event="deadline_exceeded_2" target="inconclusive_timeout_leg2"/>
   </state>
 
   <state id="listen_leg3">
@@ -68,7 +68,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset3, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset3)"
                 target="pass"/>
-    <transition event="deadline_exceeded_3" target="fail_timeout_leg3"/>
+    <transition event="deadline_exceeded_3" target="inconclusive_timeout_leg3"/>
   </state>
 
   <final id="pass">
@@ -77,21 +77,21 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_leg1">
+  <final id="inconclusive_timeout_leg1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_for_leg1","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_leg2">
+  <final id="inconclusive_timeout_leg2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_for_leg2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_leg3">
+  <final id="inconclusive_timeout_leg3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg3"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_for_leg3","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

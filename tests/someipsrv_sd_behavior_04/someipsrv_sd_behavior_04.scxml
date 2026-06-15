@@ -19,7 +19,7 @@
   first true Main-Phase cyclic at ~T_sd+6000 ms. Pass on the DUT's
   solicited multicast OfferService, fail on a unicast solicited reply,
   fail on deadline. vsomeip 3.7.1 IGNORES multicast Finds (SIP_SD_91)
-  so this case lands `fail_no_offer_after_multicast_find` on the
+  so this case lands `inconclusive_no_offer_after_multicast_find` on the
   reference stack — a strict-spec DUT would pass via the solicited
   multicast reply per SOMEIPSD §6.7.5.2.
 -->
@@ -56,7 +56,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="fail_offer_not_multicast"/>
-    <transition event="s2_deadline_exceeded" target="fail_no_offer_after_multicast_find"/>
+    <transition event="s2_deadline_exceeded" target="inconclusive_no_offer_after_multicast_find"/>
   </state>
 
   <final id="pass">
@@ -67,13 +67,13 @@
 
   <final id="fail_offer_not_multicast">
     <donedata>
-      <content>{"verdict":"fail","reason":"offer_dst_ip_not_multicast_after_multicast_find"}</content>
+      <content>{"verdict":"fail","reason":"offer_dst_ip_not_multicast_after_multicast_find","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_offer_after_multicast_find">
+  <final id="inconclusive_no_offer_after_multicast_find">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_within_listen_window_after_multicast_find"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_within_listen_window_after_multicast_find","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

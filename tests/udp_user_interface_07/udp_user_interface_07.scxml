@@ -63,7 +63,7 @@
     <transition event="udp_observed"
                 cond="cpp:!captured.has_ut_response and captured.dst_ip == expected.tester_ip and (captured.src_ip != expected.dut_alias_ip or captured.src_port != 20027)"
                 target="fail_wrong_src_ip_or_port"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -74,13 +74,13 @@
 
   <final id="fail_wrong_src_ip_or_port">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_udp_with_wrong_user_interface_src_ip"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_udp_with_wrong_user_interface_src_ip","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_originated_udp_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_originated_udp_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

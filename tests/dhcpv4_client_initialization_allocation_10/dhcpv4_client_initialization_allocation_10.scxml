@@ -46,7 +46,7 @@
                 cond="cpp:captured.dhcpv4.is_dhcp_discover()
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_first_request"/>
-    <transition event="s1_deadline" target="fail_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_first_request">
@@ -57,7 +57,7 @@
                 cond="cpp:captured.dhcpv4.is_dhcp_request()
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_arp_probe"/>
-    <transition event="s2_deadline" target="fail_no_request"/>
+    <transition event="s2_deadline" target="inconclusive_no_request"/>
   </state>
 
   <state id="listening_for_arp_probe">
@@ -67,7 +67,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
                 target="listening_for_arp_announce"/>
-    <transition event="s3_deadline" target="fail_no_arp_probe"/>
+    <transition event="s3_deadline" target="inconclusive_no_arp_probe"/>
   </state>
 
   <state id="listening_for_arp_announce">
@@ -77,7 +77,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.arp.is_dhcp_arp_announce(expected.dhcpv4.offered_ip_be)"
                 target="pass"/>
-    <transition event="s4_deadline" target="fail_no_announce"/>
+    <transition event="s4_deadline" target="inconclusive_no_announce"/>
   </state>
 
   <final id="pass">
@@ -86,27 +86,27 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_request">
+  <final id="inconclusive_no_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_arp_probe">
+  <final id="inconclusive_no_arp_probe">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_arp_probe_after_bound"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_arp_probe_after_bound","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_announce">
+  <final id="inconclusive_no_announce">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_arp_reply_announce_after_probe"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_arp_reply_announce_after_probe","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

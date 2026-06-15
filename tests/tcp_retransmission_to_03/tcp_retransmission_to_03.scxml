@@ -129,37 +129,37 @@
 
   <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase1_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed"}</content>
+      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed"}</content>
+      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_phase1_retx">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_phase1_retransmit_observed_in_kernel"}</content>
+      <content>{"verdict":"fail","reason":"no_phase1_retransmit_observed_in_kernel","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_initial_rto_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline"}</content>
+      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_doubling_not_preserved">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase2_rto_not_doubled_karns_violation"}</content>
+      <content>{"verdict":"fail","reason":"phase2_rto_not_doubled_karns_violation","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

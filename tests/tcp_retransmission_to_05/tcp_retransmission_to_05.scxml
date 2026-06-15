@@ -123,61 +123,61 @@
 
   <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase1_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed"}</content>
+      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed"}</content>
+      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase3_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase3_tcp_info_query_failed"}</content>
+      <content>{"verdict":"fail","reason":"phase3_tcp_info_query_failed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_syn_retx_1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_1"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_1","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_syn_retx_2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_2"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_2","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_syn_retx_3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_3"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_syn_retransmit_3","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_initial_rto_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline"}</content>
+      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_retx2_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase2_rto_not_greater_than_phase1"}</content>
+      <content>{"verdict":"fail","reason":"phase2_rto_not_greater_than_phase1","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_retx3_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase3_rto_not_greater_than_phase2"}</content>
+      <content>{"verdict":"fail","reason":"phase3_rto_not_greater_than_phase2","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

@@ -16,7 +16,7 @@
     * fail_wrong_code — DUT replies type=3 but code is not 2 (would
       indicate the DUT mis-classified the error; meaningful enough
       to surface separately from "no reply at all").
-    * fail_timeout — no DUT-origin type=3 reply within the window.
+    * inconclusive_timeout — no DUT-origin type=3 reply within the window.
 
   Dispatch narrows to type=3 in icmpv4_pilot_common::dispatchIcmpFrame,
   so the tester's own outbound frame (which carries a well-formed ICMP
@@ -58,7 +58,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 3 and captured.code != 2 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_wrong_code"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -69,13 +69,13 @@
 
   <final id="fail_wrong_code">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_icmp_code_not_protocol_unreachable"}</content>
+      <content>{"verdict":"fail","reason":"dut_icmp_code_not_protocol_unreachable","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dest_unreachable_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dest_unreachable_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

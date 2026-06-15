@@ -31,7 +31,7 @@
 
   Negative smoke (ipv4.dut_iface_ip flip): the src_ip conjunct becomes
   unreachable so the listening state's deadline_exceeded transition
-  fires → fail_timeout. Same shape as CHECKSUM_03's negative arm.
+  fires → inconclusive_timeout. Same shape as CHECKSUM_03's negative arm.
 
   Port-quad selection — kBasicsActiveLocalPort + 30 / +30: clear of
   15's +0..+6 and 03..06's +20..+25 active-OPEN cluster, leaves the
@@ -63,7 +63,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 30U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 30U and captured.payload_len &gt; 0 and (captured.data_offset &lt; 5 or not captured.tcp_checksum_valid())"
                 target="fail_bad_header"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -74,13 +74,13 @@
 
   <final id="fail_bad_header">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_segment_with_invalid_header"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_segment_with_invalid_header","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_data_segment_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_data_segment_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

@@ -31,7 +31,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands on
-  fail_no_handshake_ack via the 5 s phase-1 deadline.
+  inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -56,7 +56,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset)"
                 target="listening_urg_ack"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_urg_ack">
@@ -69,7 +69,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpControlFlags05LocalOffset) and captured.ack_num != captured.expected_ack_num"
                 target="fail_wrong_ack_num"/>
-    <transition event="deadline_urg_ack" target="fail_no_urg_ack"/>
+    <transition event="deadline_urg_ack" target="inconclusive_no_urg_ack"/>
   </state>
 
   <final id="pass">
@@ -78,21 +78,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_urg_ack">
+  <final id="inconclusive_no_urg_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_urg_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_urg_segment","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_ack_num">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_urg_payload"}</content>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_urg_payload","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

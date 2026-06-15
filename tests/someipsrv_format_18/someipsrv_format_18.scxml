@@ -32,7 +32,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].minor_version != expected.minor_version"
                 target="fail_minor_version"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -43,13 +43,13 @@
 
   <final id="fail_minor_version">
     <donedata>
-      <content>{"verdict":"fail","reason":"entry_minor_version_mismatch"}</content>
+      <content>{"verdict":"fail","reason":"entry_minor_version_mismatch","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

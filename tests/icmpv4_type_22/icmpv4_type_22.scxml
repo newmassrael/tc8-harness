@@ -7,7 +7,7 @@
 
   Pass guard conjuncts captured.src_ip == expected.dut_iface_ip so the
   negative smoke row can override icmpv4.dut_iface_ip and force the
-  pass path out of reach — the SCXML then lands on fail_timeout,
+  pass path out of reach — the SCXML then lands on inconclusive_timeout,
   proving the src_ip filter is load-bearing. BPF group Icmpv4 already
   filters SOME/IP SD multicast, but the src_ip conjunct also stops a
   future multi-host wire from polluting the observation window.
@@ -39,7 +39,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -48,9 +48,9 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_echo_reply_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_echo_reply_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

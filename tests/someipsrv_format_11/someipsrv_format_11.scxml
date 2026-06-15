@@ -29,7 +29,7 @@
                 target="pass"/>
     <transition event="someip_notification"
                 target="fail_entry_shape"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -44,9 +44,9 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

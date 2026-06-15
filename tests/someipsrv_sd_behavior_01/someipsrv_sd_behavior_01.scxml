@@ -53,7 +53,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_offer2"/>
-    <transition event="s1_deadline_exceeded" target="fail_phase1_no_offer1"/>
+    <transition event="s1_deadline_exceeded" target="inconclusive_phase1_no_offer1"/>
   </state>
 
   <state id="listening_offer2">
@@ -63,7 +63,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_offer3"/>
-    <transition event="s2_deadline_exceeded" target="fail_phase2_no_offer2"/>
+    <transition event="s2_deadline_exceeded" target="inconclusive_phase2_no_offer2"/>
   </state>
 
   <state id="listening_offer3">
@@ -76,7 +76,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="fail_phase3_gap_out_of_tolerance"/>
-    <transition event="s3_deadline_exceeded" target="fail_phase3_no_offer3"/>
+    <transition event="s3_deadline_exceeded" target="inconclusive_phase3_no_offer3"/>
   </state>
 
   <final id="pass">
@@ -85,27 +85,27 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer1">
+  <final id="inconclusive_phase1_no_offer1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_first_offer_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_first_offer_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_offer2">
+  <final id="inconclusive_phase2_no_offer2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_second_offer_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_second_offer_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase3_no_offer3">
+  <final id="inconclusive_phase3_no_offer3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_third_offer_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_third_offer_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase3_gap_out_of_tolerance">
     <donedata>
-      <content>{"verdict":"fail","reason":"repetition_phase_gap_not_within_2x_rep_base_delay_tolerance"}</content>
+      <content>{"verdict":"fail","reason":"repetition_phase_gap_not_within_2x_rep_base_delay_tolerance","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

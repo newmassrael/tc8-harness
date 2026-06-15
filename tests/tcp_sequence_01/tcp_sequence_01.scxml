@@ -48,7 +48,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpSequence01ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpSequence01TesterSrcPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num != ::tc8::sce::tcp::kTesterInitialSeq + 1U"
                 target="fail_wrong_ack_num"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -59,13 +59,13 @@
 
   <final id="fail_wrong_ack_num">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_synack_ack_num_does_not_acknowledge_tester_isn"}</content>
+      <content>{"verdict":"fail","reason":"dut_synack_ack_num_does_not_acknowledge_tester_isn","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_ack_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_ack_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

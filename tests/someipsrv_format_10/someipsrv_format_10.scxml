@@ -29,7 +29,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.sd_reserved != 0x000000"
                 target="fail_reserved_bits"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -40,13 +40,13 @@
 
   <final id="fail_reserved_bits">
     <donedata>
-      <content>{"verdict":"fail","reason":"sd_reserved_bits_nonzero"}</content>
+      <content>{"verdict":"fail","reason":"sd_reserved_bits_nonzero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

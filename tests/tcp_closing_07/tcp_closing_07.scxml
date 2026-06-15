@@ -49,7 +49,7 @@
                                  still ACKs but no bytes surface →
                                  ut_received_payload_len stays at the
                                  sentinel and the deadline transition
-                                 lands on fail_no_proper_data.
+                                 lands on inconclusive_no_proper_data.
     * #7 (ACK of received data) = listening_dut_data_ack pure-ACK
                                   with ack_num == expected_ack_num.
     * #8 (proper data)        = listening_remain_in_fw1's deadline
@@ -61,7 +61,7 @@
                                  expected FW1 behaviour and tolerated.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
-  unreachable, lands on fail_no_handshake_ack at the 5 s deadline +
+  unreachable, lands on inconclusive_no_handshake_ack at the 5 s deadline +
   ~2 s prelude wall-time ≈ 8 s.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -85,7 +85,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 73U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 73U)"
                 target="listening_dut_fin"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_dut_fin">
@@ -93,7 +93,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 73U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 73U)"
                 target="listening_dut_data_ack"/>
-    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
+    <transition event="deadline_dut_fin" target="inconclusive_no_dut_fin"/>
   </state>
 
   <state id="listening_dut_data_ack">
@@ -101,7 +101,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 73U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 73U) and captured.ack_num == captured.expected_ack_num"
                 target="listening_remain_in_fw1"/>
-    <transition event="deadline_dut_data_ack" target="fail_no_dut_data_ack"/>
+    <transition event="deadline_dut_data_ack" target="inconclusive_no_dut_data_ack"/>
   </state>
 
   <state id="listening_remain_in_fw1">
@@ -112,30 +112,30 @@
     <transition event="deadline_remain_in_fw1"
                 cond="cpp:captured.ut_received_payload_len == 16U"
                 target="pass"/>
-    <transition event="deadline_remain_in_fw1" target="fail_no_proper_data"/>
+    <transition event="deadline_remain_in_fw1" target="inconclusive_no_proper_data"/>
   </state>
 
   <final id="pass">
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="fail_no_dut_fin">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_close_fin"}</content></donedata>
+  <final id="inconclusive_no_dut_fin">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_fin","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_no_dut_data_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_received_data_in_fw1"}</content></donedata>
+  <final id="inconclusive_no_dut_data_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_received_data_in_fw1","role":"property_unobserved"}</content></donedata>
   </final>
 
   <final id="fail_dut_rst_in_fw1">
-    <donedata><content>{"verdict":"fail","reason":"dut_emitted_rst_in_fw1"}</content></donedata>
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_rst_in_fw1","role":"observed_violation"}</content></donedata>
   </final>
 
-  <final id="fail_no_proper_data">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_receive_proper_data_in_fw1"}</content></donedata>
+  <final id="inconclusive_no_proper_data">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_receive_proper_data_in_fw1","role":"property_unobserved"}</content></donedata>
   </final>
 </scxml>

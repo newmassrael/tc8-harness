@@ -50,7 +50,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_second_discover"/>
-    <transition event="deadline_exceeded" target="fail_no_first_discover"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_first_discover"/>
   </state>
 
   <state id="listening_for_second_discover">
@@ -60,7 +60,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_no_resend"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_resend"/>
   </state>
 
   <final id="pass">
@@ -69,15 +69,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_first_discover">
+  <final id="inconclusive_no_first_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_resend">
+  <final id="inconclusive_no_resend">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_retransmission"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_retransmission","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

@@ -46,7 +46,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the SYN,ACK
   src_ip conjunct unreachable on phase 1; case lands on
-  fail_no_first_syn_ack via the 5 s phase-1 deadline.
+  inconclusive_no_first_syn_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -71,7 +71,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpControlFlags08TesterSrcPort and (captured.flags &amp; 0x12U) == 0x12U and (captured.flags &amp; 0x05U) == 0x00U and captured.ack_num == ::tc8::sce::tcp::kTcpControlFlags08Seq1 + 1U"
                 target="listening_second_syn_ack"/>
-    <transition event="deadline_first_syn_ack" target="fail_no_first_syn_ack"/>
+    <transition event="deadline_first_syn_ack" target="inconclusive_no_first_syn_ack"/>
   </state>
 
   <state id="listening_second_syn_ack">
@@ -81,7 +81,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpControlFlags08ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpControlFlags08TesterSrcPort and (captured.flags &amp; 0x12U) == 0x12U and (captured.flags &amp; 0x05U) == 0x00U and captured.ack_num == ::tc8::sce::tcp::kTcpControlFlags08Seq2 + 1U"
                 target="pass"/>
-    <transition event="deadline_second_syn_ack" target="fail_no_second_syn_ack"/>
+    <transition event="deadline_second_syn_ack" target="inconclusive_no_second_syn_ack"/>
   </state>
 
   <final id="pass">
@@ -90,15 +90,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_first_syn_ack">
+  <final id="inconclusive_no_first_syn_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_ack_to_first_syn"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_ack_to_first_syn","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_second_syn_ack">
+  <final id="inconclusive_no_second_syn_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_ack_after_old_duplicate_recovery"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_ack_after_old_duplicate_recovery","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

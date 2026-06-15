@@ -41,7 +41,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count &gt;= 1"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_with_endpoint"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer_with_endpoint"/>
   </state>
 
   <state id="listening_phase2">
@@ -54,7 +54,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.session_id &lt;= captured.prev_sd_session_id"
                 target="fail_phase2_session_id_did_not_increment"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_second_offer"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_second_offer"/>
   </state>
 
   <final id="pass">
@@ -63,21 +63,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer_with_endpoint">
+  <final id="inconclusive_phase1_no_offer_with_endpoint">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_session_id_did_not_increment">
     <donedata>
-      <content>{"verdict":"fail","reason":"offer_service_session_id_did_not_increment"}</content>
+      <content>{"verdict":"fail","reason":"offer_service_session_id_did_not_increment","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_second_offer">
+  <final id="inconclusive_phase2_no_second_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_second_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_second_offer_service_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

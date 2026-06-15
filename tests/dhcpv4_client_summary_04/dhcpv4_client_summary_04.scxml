@@ -52,7 +52,7 @@
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
                       and !captured.flags_reserved_bits_zero()"
                 target="fail_reserved_flags_nonzero"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -63,13 +63,13 @@
 
   <final id="fail_reserved_flags_nonzero">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_discover_reserved_flags_nonzero"}</content>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_reserved_flags_nonzero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

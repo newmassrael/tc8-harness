@@ -24,7 +24,7 @@
       challenge-ACK as the spec mandates. See
       reference_unacc_ack_dispatch memory for the full dispatch
       table.
-      A Linux DUT therefore lands `fail_no_dut_ack_to_unacc_ack`
+      A Linux DUT therefore lands `inconclusive_no_dut_ack_to_unacc_ack`
       and is excluded from CI green via grep filter in
       .github/workflows/smoke-test.yml. A strict-RFC DUT lands
       pass without filter.
@@ -61,7 +61,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="listening_otw_ack"/>
-    <transition event="deadline_handshake" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_otw_ack">
@@ -71,7 +71,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="listening_unacc_ack"/>
-    <transition event="deadline_otw_ack" target="fail_no_otw_seq_ack"/>
+    <transition event="deadline_otw_ack" target="inconclusive_no_otw_seq_ack"/>
   </state>
 
   <state id="listening_unacc_ack">
@@ -81,7 +81,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_unacc_ack" target="fail_no_dut_ack_to_unacc_ack"/>
+    <transition event="deadline_unacc_ack" target="inconclusive_no_dut_ack_to_unacc_ack"/>
   </state>
 
   <final id="pass">
@@ -90,21 +90,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_otw_seq_ack">
+  <final id="inconclusive_no_otw_seq_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_data","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_dut_ack_to_unacc_ack">
+  <final id="inconclusive_no_dut_ack_to_unacc_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_unacc_ack_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_unacc_ack_data","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

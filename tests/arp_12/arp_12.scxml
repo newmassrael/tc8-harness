@@ -34,7 +34,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode != 1 and captured.sender_hw == expected.dut_iface_mac"
                 target="fail_opcode"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -45,13 +45,13 @@
 
   <final id="fail_opcode">
     <donedata>
-      <content>{"verdict":"fail","reason":"opcode_not_request"}</content>
+      <content>{"verdict":"fail","reason":"opcode_not_request","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

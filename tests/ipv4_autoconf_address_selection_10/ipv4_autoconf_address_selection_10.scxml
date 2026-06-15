@@ -47,7 +47,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="seen_1"/>
-    <transition event="deadline_exceeded" target="fail_no_probes"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_probes"/>
   </state>
 
   <state id="seen_1">
@@ -57,7 +57,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="fail_interval_out_of_range"/>
-    <transition event="deadline_exceeded" target="fail_too_few_probes"/>
+    <transition event="deadline_exceeded" target="inconclusive_too_few_probes"/>
   </state>
 
   <state id="seen_2">
@@ -67,7 +67,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="fail_interval_out_of_range"/>
-    <transition event="deadline_exceeded" target="fail_too_few_probes"/>
+    <transition event="deadline_exceeded" target="inconclusive_too_few_probes"/>
   </state>
 
   <final id="pass">
@@ -76,21 +76,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_probes">
+  <final id="inconclusive_no_probes">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_probe_after_ll_start","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_too_few_probes">
+  <final id="inconclusive_too_few_probes">
     <donedata>
-      <content>{"verdict":"fail","reason":"fewer_than_3_arp_probes_within_deadline"}</content>
+      <content>{"verdict":"inconclusive","reason":"fewer_than_3_arp_probes_within_deadline","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_interval_out_of_range">
     <donedata>
-      <content>{"verdict":"fail","reason":"probe_interval_outside_rfc3927_bounds_with_50ms_tolerance"}</content>
+      <content>{"verdict":"fail","reason":"probe_interval_outside_rfc3927_bounds_with_50ms_tolerance","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

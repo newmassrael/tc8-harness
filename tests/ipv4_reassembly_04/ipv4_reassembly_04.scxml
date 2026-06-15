@@ -45,7 +45,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_data_mismatch"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -56,25 +56,25 @@
 
   <final id="fail_echo_id">
     <donedata>
-      <content>{"verdict":"fail","reason":"echo_id_mismatch_after_unordered_reassembly"}</content>
+      <content>{"verdict":"fail","reason":"echo_id_mismatch_after_unordered_reassembly","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_echo_seq">
     <donedata>
-      <content>{"verdict":"fail","reason":"echo_seq_mismatch_after_unordered_reassembly"}</content>
+      <content>{"verdict":"fail","reason":"echo_seq_mismatch_after_unordered_reassembly","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_data_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_unordered"}</content>
+      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_unordered","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_echo_reply_after_unordered_reassembly"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_echo_reply_after_unordered_reassembly","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

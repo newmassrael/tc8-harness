@@ -42,7 +42,7 @@
   Per-state fail terminals split between the three sub-edges so
   smoke-test triage identifies which edge the DUT failed to emit.
   Negative smoke flips ipv4.dut_iface_ip → first state's
-  src_ip-conjunct unreachable → fail_p1_no_handshake_ack.
+  src_ip-conjunct unreachable → inconclusive_p1_no_handshake_ack.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -67,7 +67,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable09Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable09Phase1LocalOffset)"
                 target="listening_p1_dut_fin"/>
-    <transition event="deadline_p1_handshake" target="fail_p1_no_handshake_ack"/>
+    <transition event="deadline_p1_handshake" target="inconclusive_p1_no_handshake_ack"/>
   </state>
 
   <state id="listening_p1_dut_fin">
@@ -77,7 +77,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable09Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable09Phase1LocalOffset)"
                 target="listening_p1_data_ack"/>
-    <transition event="deadline_p1_dut_fin" target="fail_p1_no_dut_fin"/>
+    <transition event="deadline_p1_dut_fin" target="inconclusive_p1_no_dut_fin"/>
   </state>
 
   <state id="listening_p1_data_ack">
@@ -87,7 +87,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable09Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable09Phase1LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_handshake"/>
-    <transition event="deadline_p1_data_ack" target="fail_p1_no_data_ack"/>
+    <transition event="deadline_p1_data_ack" target="inconclusive_p1_no_data_ack"/>
   </state>
 
   <state id="listening_p2_handshake">
@@ -97,7 +97,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable09Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable09Phase2LocalOffset)"
                 target="listening_p2_dut_fin"/>
-    <transition event="deadline_p2_handshake" target="fail_p2_no_handshake_ack"/>
+    <transition event="deadline_p2_handshake" target="inconclusive_p2_no_handshake_ack"/>
   </state>
 
   <state id="listening_p2_dut_fin">
@@ -107,7 +107,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable09Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable09Phase2LocalOffset)"
                 target="listening_p2_data_ack"/>
-    <transition event="deadline_p2_dut_fin" target="fail_p2_no_dut_fin"/>
+    <transition event="deadline_p2_dut_fin" target="inconclusive_p2_no_dut_fin"/>
   </state>
 
   <state id="listening_p2_data_ack">
@@ -117,7 +117,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable09Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable09Phase2LocalOffset) and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
-    <transition event="deadline_p2_data_ack" target="fail_p2_no_data_ack"/>
+    <transition event="deadline_p2_data_ack" target="inconclusive_p2_no_data_ack"/>
   </state>
 
   <final id="pass">
@@ -126,39 +126,39 @@
     </donedata>
   </final>
 
-  <final id="fail_p1_no_handshake_ack">
+  <final id="inconclusive_p1_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase1","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p1_no_dut_fin">
+  <final id="inconclusive_p1_no_dut_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_fin_phase1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_fin_phase1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p1_no_data_ack">
+  <final id="inconclusive_p1_no_data_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_finwait1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_finwait1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_handshake_ack">
+  <final id="inconclusive_p2_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_dut_fin">
+  <final id="inconclusive_p2_no_dut_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_fin_phase2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_fin_phase2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_data_ack">
+  <final id="inconclusive_p2_no_data_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_unacceptable_ack_finwait1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_unacceptable_ack_finwait1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

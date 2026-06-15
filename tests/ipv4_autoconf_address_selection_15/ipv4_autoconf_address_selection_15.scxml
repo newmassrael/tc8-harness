@@ -68,7 +68,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="cycle"/>
-    <transition event="deadline_exceeded" target="fail_no_initial_probe"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_initial_probe"/>
   </state>
 
   <state id="cycle">
@@ -79,7 +79,7 @@
                 cond="cpp:captured.is_arp_probe()"
                 target="fail_cycle_repeat"/>
     <transition event="conflicts_complete" target="silence_watch_1"/>
-    <transition event="deadline_exceeded" target="fail_conflicts_incomplete"/>
+    <transition event="deadline_exceeded" target="inconclusive_conflicts_incomplete"/>
   </state>
 
   <state id="silence_watch_1">
@@ -100,7 +100,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="fail_post_silence_repeat"/>
-    <transition event="deadline_exceeded" target="fail_no_post_silence_probe"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_post_silence_probe"/>
   </state>
 
   <state id="silence_watch_2">
@@ -120,21 +120,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_initial_probe">
+  <final id="inconclusive_no_initial_probe">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_probe_after_ll_start","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_conflicts_incomplete">
+  <final id="inconclusive_conflicts_incomplete">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_re_probe_through_max_conflicts"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_re_probe_through_max_conflicts","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_cycle_repeat">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_re_probed_with_stale_link_local_address"}</content>
+      <content>{"verdict":"fail","reason":"dut_re_probed_with_stale_link_local_address","role":"observed_violation"}</content>
     </donedata>
   </final>
 
@@ -144,15 +144,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_post_silence_probe">
+  <final id="inconclusive_no_post_silence_probe">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_emit_arp_after_rate_limit_recovery"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_emit_arp_after_rate_limit_recovery","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_post_silence_repeat">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_post_silence_probe_targets_previous_ll"}</content>
+      <content>{"verdict":"fail","reason":"dut_post_silence_probe_targets_previous_ll","role":"observed_violation"}</content>
     </donedata>
   </final>
 

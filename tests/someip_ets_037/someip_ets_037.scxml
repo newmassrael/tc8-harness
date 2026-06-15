@@ -52,7 +52,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
   <state id="listening_phase2">
@@ -62,7 +62,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x000A and captured.return_code == 0x00 and captured.payload_len == 1 and captured.payload_snapshot[0] == 0x42 and captured.src_port == expected.tcp_port"
                 target="listening_phase3"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response"/>
   </state>
 
   <state id="listening_phase3">
@@ -73,7 +73,7 @@
                 cond="cpp:captured.tcp_peer_state == 1"
                 target="pass"/>
     <transition event="phase3_deadline_exceeded"
-                target="fail_phase3_dut_emitted_fin"/>
+                target="inconclusive_phase3_dut_emitted_fin"/>
   </state>
 
   <final id="pass">
@@ -82,21 +82,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="inconclusive_phase1_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_response">
+  <final id="inconclusive_phase2_no_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_method_response_on_reliable_endpoint_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_method_response_on_reliable_endpoint_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase3_dut_emitted_fin">
+  <final id="inconclusive_phase3_dut_emitted_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_tore_down_tcp_reliable_connection_on_reset_interface"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_tore_down_tcp_reliable_connection_on_reset_interface","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

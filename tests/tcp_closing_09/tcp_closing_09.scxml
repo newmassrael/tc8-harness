@@ -45,7 +45,7 @@
                              with FIN/RST as fail predicate.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
-  unreachable, lands on fail_no_handshake_ack at the 5 s deadline +
+  unreachable, lands on inconclusive_no_handshake_ack at the 5 s deadline +
   ~2 s prelude wall-time ≈ 8 s.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -69,7 +69,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 72U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 72U)"
                 target="listening_fin_ack"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_fin_ack">
@@ -77,7 +77,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 72U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 72U)"
                 target="listening_dut_data"/>
-    <transition event="deadline_fin_ack" target="fail_no_dut_fin_ack"/>
+    <transition event="deadline_fin_ack" target="inconclusive_no_dut_fin_ack"/>
   </state>
 
   <state id="listening_dut_data">
@@ -85,7 +85,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 72U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 72U and captured.payload_len == 16U and (captured.flags &amp; 0x04U) == 0U and (captured.flags &amp; 0x01U) == 0U"
                 target="listening_remain_in_cw"/>
-    <transition event="deadline_dut_data" target="fail_no_dut_data"/>
+    <transition event="deadline_dut_data" target="inconclusive_no_dut_data"/>
   </state>
 
   <state id="listening_remain_in_cw">
@@ -100,19 +100,19 @@
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="fail_no_dut_fin_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_in_est"}</content></donedata>
+  <final id="inconclusive_no_dut_fin_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_in_est","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_no_dut_data">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_data_segment_in_close_wait"}</content></donedata>
+  <final id="inconclusive_no_dut_data">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_data_segment_in_close_wait","role":"property_unobserved"}</content></donedata>
   </final>
 
   <final id="fail_dut_left_cw">
-    <donedata><content>{"verdict":"fail","reason":"dut_emitted_fin_or_rst_in_close_wait"}</content></donedata>
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_fin_or_rst_in_close_wait","role":"observed_violation"}</content></donedata>
   </final>
 </scxml>

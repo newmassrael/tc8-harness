@@ -13,7 +13,7 @@
              return_code 0x00, payload_len &gt; 0, and the first
              payload byte == 0x42. Fail (payload_mismatch) catches
              Responses that arrived with the wrong echoed value;
-             fail_phase2_no_response catches the no-response timeout.
+             inconclusive_phase2_no_response catches the no-response timeout.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -38,7 +38,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
   <state id="listening_phase2">
@@ -51,7 +51,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0042 and (captured.payload_len == 0 or captured.payload_snapshot[0] != 0x42)"
                 target="fail_phase2_payload_mismatch"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response"/>
   </state>
 
   <final id="pass">
@@ -60,21 +60,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="inconclusive_phase1_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_payload_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"setter_response_payload_did_not_echo_set_value"}</content>
+      <content>{"verdict":"fail","reason":"setter_response_payload_did_not_echo_set_value","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_response">
+  <final id="inconclusive_phase2_no_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_setter_response_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_setter_response_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

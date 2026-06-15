@@ -31,7 +31,7 @@
 
   Negative flip (smoke-test negative arm): ipv4.dut_iface_ip=10.99.99.99
   makes captured.is_pure_dut_ack(...)'s src_ip conjunct unreachable, so
-  the case lands on fail_no_data_ack via the 5 s deadline.
+  the case lands on inconclusive_no_data_ack via the 5 s deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -59,7 +59,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpAck03ListenPort, ::tc8::sce::tcp::kTcpAck03TesterSrcPort) and captured.ack_num != captured.expected_ack_num"
                 target="fail_wrong_ack_num"/>
-    <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+    <transition event="deadline_data_ack" target="inconclusive_no_data_ack"/>
   </state>
 
   <final id="pass">
@@ -68,15 +68,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_data_ack">
+  <final id="inconclusive_no_data_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_data","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_ack_num">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload"}</content>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

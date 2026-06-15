@@ -44,7 +44,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
   <state id="listening_phase2">
@@ -54,7 +54,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80"
                 target="listening_phase3"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_initial_get"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_initial_get"/>
   </state>
 
   <state id="listening_phase3">
@@ -64,7 +64,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0042 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0xAA"
                 target="listening_phase4"/>
-    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_set_response"/>
+    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_set_response"/>
   </state>
 
   <state id="listening_phase4">
@@ -77,7 +77,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0xAA"
                 target="fail_phase4_field_unchanged"/>
-    <transition event="phase4_deadline_exceeded" target="fail_phase4_no_post_reset_get"/>
+    <transition event="phase4_deadline_exceeded" target="inconclusive_phase4_no_post_reset_get"/>
   </state>
 
   <final id="pass">
@@ -86,33 +86,33 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="inconclusive_phase1_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_initial_get">
+  <final id="inconclusive_phase2_no_initial_get">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_initial_get_field_response"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_initial_get_field_response","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase3_no_set_response">
+  <final id="inconclusive_phase3_no_set_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_set_field_response_with_payload_aa"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_set_field_response_with_payload_aa","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase4_no_post_reset_get">
+  <final id="inconclusive_phase4_no_post_reset_get">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_post_reset_get_field_response"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_post_reset_get_field_response","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase4_field_unchanged">
     <donedata>
-      <content>{"verdict":"fail","reason":"post_reset_get_field_still_returns_aa"}</content>
+      <content>{"verdict":"fail","reason":"post_reset_get_field_still_returns_aa","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

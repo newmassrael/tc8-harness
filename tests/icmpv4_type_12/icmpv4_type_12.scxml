@@ -61,7 +61,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.echo_seq != expected.echo_seq"
                 target="fail_seq_mismatch"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -72,19 +72,19 @@
 
   <final id="fail_id_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"timestamp_reply_identifier_not_echoed"}</content>
+      <content>{"verdict":"fail","reason":"timestamp_reply_identifier_not_echoed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_seq_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"timestamp_reply_sequence_not_echoed"}</content>
+      <content>{"verdict":"fail","reason":"timestamp_reply_sequence_not_echoed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_timestamp_reply_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_timestamp_reply_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

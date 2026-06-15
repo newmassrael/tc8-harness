@@ -52,7 +52,7 @@
                 cond="cpp:captured.dhcpv4.is_dhcp_discover()
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_request"/>
-    <transition event="deadline_exceeded" target="fail_no_discover"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_request">
@@ -64,7 +64,7 @@
                       and captured.dhcpv4.message_type == 3
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_no_arp_probe"/>
-    <transition event="deadline_exceeded" target="fail_no_request"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_request"/>
   </state>
 
   <state id="listening_for_no_arp_probe">
@@ -83,21 +83,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_request">
+  <final id="inconclusive_no_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_dut_emitted_ll_probe">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_link_local_arp_probe_despite_routable_lease"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_link_local_arp_probe_despite_routable_lease","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

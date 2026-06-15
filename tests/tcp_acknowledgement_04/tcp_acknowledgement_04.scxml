@@ -36,7 +36,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands on
-  fail_no_handshake_ack via the 5 s phase-1 deadline.
+  inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -61,7 +61,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpAck04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpAck04LocalOffset)"
                 target="listening_close_path"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_close_path">
@@ -74,7 +74,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpAck04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpAck04LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_close_path" target="fail_no_dut_fin"/>
+    <transition event="deadline_close_path" target="inconclusive_no_dut_fin"/>
   </state>
 
   <final id="pass">
@@ -83,21 +83,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_dut_rst_after_pure_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_rst_after_pure_ack"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_rst_after_pure_ack","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_dut_fin">
+  <final id="inconclusive_no_dut_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_fin_after_close_request"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_fin_after_close_request","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

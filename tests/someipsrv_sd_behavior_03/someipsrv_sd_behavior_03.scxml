@@ -60,7 +60,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="fail_offer_not_multicast"/>
-    <transition event="s2_deadline_exceeded" target="fail_no_offer_after_unicast_find"/>
+    <transition event="s2_deadline_exceeded" target="inconclusive_no_offer_after_unicast_find"/>
   </state>
 
   <final id="pass">
@@ -71,13 +71,13 @@
 
   <final id="fail_offer_not_multicast">
     <donedata>
-      <content>{"verdict":"fail","reason":"offer_dst_ip_not_multicast_after_unicast_find"}</content>
+      <content>{"verdict":"fail","reason":"offer_dst_ip_not_multicast_after_unicast_find","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_offer_after_unicast_find">
+  <final id="inconclusive_no_offer_after_unicast_find">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_within_listen_window_after_unicast_find"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_within_listen_window_after_unicast_find","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

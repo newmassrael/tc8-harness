@@ -63,7 +63,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
-  on fail_no_seg1 via the 5 s phase-1 deadline.
+  on inconclusive_no_seg1 via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -88,7 +88,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset)"
                 target="listening_probe1"/>
-    <transition event="deadline_seg1" target="fail_no_seg1"/>
+    <transition event="deadline_seg1" target="inconclusive_no_seg1"/>
   </state>
 
   <state id="listening_probe1">
@@ -98,7 +98,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset)"
                 target="listening_probe2"/>
-    <transition event="deadline_probe1" target="fail_no_probe1"/>
+    <transition event="deadline_probe1" target="inconclusive_no_probe1"/>
   </state>
 
   <state id="listening_probe2">
@@ -111,7 +111,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.frame_delta_us() &lt;= 300000"
                 target="fail_probe2_not_doubled"/>
-    <transition event="deadline_probe2" target="fail_no_probe2"/>
+    <transition event="deadline_probe2" target="inconclusive_no_probe2"/>
   </state>
 
   <state id="listening_probe3">
@@ -129,7 +129,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows06LocalOffset) and captured.frame_delta_us() &lt;= 600000"
                 target="fail_probe3_not_doubled"/>
-    <transition event="deadline_probe3" target="fail_no_probe3"/>
+    <transition event="deadline_probe3" target="inconclusive_no_probe3"/>
   </state>
 
   <final id="pass">
@@ -138,39 +138,39 @@
     </donedata>
   </final>
 
-  <final id="fail_no_seg1">
+  <final id="inconclusive_no_seg1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_first_data_segment","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_probe1">
+  <final id="inconclusive_no_probe1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_zero_window_probe_1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_probe2">
+  <final id="inconclusive_no_probe2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_zero_window_probe_2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_probe3">
+  <final id="inconclusive_no_probe3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_3"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_zero_window_probe_3","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_probe2_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"probe2_delta_not_greater_than_initial_probe_rto"}</content>
+      <content>{"verdict":"fail","reason":"probe2_delta_not_greater_than_initial_probe_rto","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_probe3_not_doubled">
     <donedata>
-      <content>{"verdict":"fail","reason":"probe3_delta_not_greater_than_probe2_lower_bound"}</content>
+      <content>{"verdict":"fail","reason":"probe3_delta_not_greater_than_probe2_lower_bound","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

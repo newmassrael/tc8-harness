@@ -65,7 +65,7 @@
 
   <final id="fail_unexpected_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_response_to_rst_in_closed"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_rst_in_closed","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

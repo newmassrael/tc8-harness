@@ -31,7 +31,7 @@
     listening_phase2_ack — match DUT-origin RST on
         (src_port=12346, dst_port=49152). Pass on observation.
 
-  Per-phase fail terminals (fail_timeout_phase1 / fail_timeout_phase2)
+  Per-phase fail terminals (inconclusive_timeout_phase1 / inconclusive_timeout_phase2)
   let smoke-test triage which iteration the DUT failed.
 
   Phase deadlines: 5 s × 2 = 10 s upper bound. Stimulus wall-time
@@ -61,7 +61,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
                 target="listening_phase2_ack"/>
-    <transition event="deadline_phase1" target="fail_timeout_phase1"/>
+    <transition event="deadline_phase1" target="inconclusive_timeout_phase1"/>
   </state>
 
   <state id="listening_phase2_ack">
@@ -71,7 +71,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 1U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
-    <transition event="deadline_phase2" target="fail_timeout_phase2"/>
+    <transition event="deadline_phase2" target="inconclusive_timeout_phase2"/>
   </state>
 
   <final id="pass">
@@ -80,15 +80,15 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_phase1">
+  <final id="inconclusive_timeout_phase1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_synack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_to_listen_synack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_phase2">
+  <final id="inconclusive_timeout_phase2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_naked_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_to_listen_naked_ack","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

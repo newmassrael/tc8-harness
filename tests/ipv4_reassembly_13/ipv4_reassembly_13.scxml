@@ -15,7 +15,7 @@
     detection. When frag 2 (offset=16, length=8) arrives while the
     bucket already has frag 1 (offset=16, length=24), ip_frag_queue
     increments IPSTATS_MIB_REASMFAILS and calls inet_frag_kill(qp).
-    No reassembly, no Echo Reply → fail_timeout
+    No reassembly, no Echo Reply → inconclusive_timeout
     (no_echo_reply_after_overlap_reassembly).
     See `reference_linux_ip_reassembly_deviations.md` for the kernel
     trace.
@@ -60,7 +60,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0"
                 target="fail_data_mismatch"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -71,25 +71,25 @@
 
   <final id="fail_echo_id">
     <donedata>
-      <content>{"verdict":"fail","reason":"echo_id_mismatch_after_overlap_reassembly"}</content>
+      <content>{"verdict":"fail","reason":"echo_id_mismatch_after_overlap_reassembly","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_echo_seq">
     <donedata>
-      <content>{"verdict":"fail","reason":"echo_seq_mismatch_after_overlap_reassembly"}</content>
+      <content>{"verdict":"fail","reason":"echo_seq_mismatch_after_overlap_reassembly","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_data_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_overlap"}</content>
+      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_overlap","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_echo_reply_after_overlap_reassembly"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_echo_reply_after_overlap_reassembly","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

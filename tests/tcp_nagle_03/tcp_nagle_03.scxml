@@ -42,11 +42,11 @@
           (a small seg 2 leaked before the aggregate).
         - retransmits of seg 1 (seq == expected_ack_num) are
           absorbed by the second clause's seq mismatch requirement.
-        - deadline → fail_no_aggregate.
+        - deadline → inconclusive_no_aggregate.
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case
-  lands on fail_no_first_data via the 5 s phase-1 deadline.
+  lands on inconclusive_no_first_data via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -71,7 +71,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle03LocalOffset)"
                 target="absence_or_aggregate"/>
-    <transition event="deadline_first_data" target="fail_no_first_data"/>
+    <transition event="deadline_first_data" target="inconclusive_no_first_data"/>
   </state>
 
   <state id="absence_or_aggregate">
@@ -84,7 +84,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle03LocalOffset) and captured.seq_num != captured.expected_ack_num and captured.payload_len &lt;= 100U"
                 target="fail_dut_released_small_segment_before_aggregate"/>
-    <transition event="deadline_aggregate" target="fail_no_aggregate"/>
+    <transition event="deadline_aggregate" target="inconclusive_no_aggregate"/>
   </state>
 
   <final id="pass">
@@ -93,21 +93,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_first_data">
+  <final id="inconclusive_no_first_data">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_first_data_segment","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_dut_released_small_segment_before_aggregate">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_released_small_segment_before_aggregate_nagle_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_released_small_segment_before_aggregate_nagle_violation","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_aggregate">
+  <final id="inconclusive_no_aggregate">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_aggregate_segment_after_mss_fill"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_aggregate_segment_after_mss_fill","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

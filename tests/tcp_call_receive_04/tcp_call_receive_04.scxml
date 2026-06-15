@@ -49,7 +49,7 @@
   the data ACK is implicit in "UT recv returned the bytes".
 
   Negative IP-flip path: src_ip-conjunct on listening_p1_handshake_ack
-  unreachable → fail_p1_no_handshake_ack.
+  unreachable → inconclusive_p1_no_handshake_ack.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -72,7 +72,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 95U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 95U)"
                 target="listening_p1_complete"/>
-    <transition event="deadline_p1_handshake_ack" target="fail_p1_no_handshake_ack"/>
+    <transition event="deadline_p1_handshake_ack" target="inconclusive_p1_no_handshake_ack"/>
   </state>
 
   <state id="listening_p1_complete">
@@ -80,7 +80,7 @@
     <transition event="deadline_p1_complete"
                 cond="cpp:captured.ut_received_payload_len_p1 == 128U"
                 target="listening_p2_handshake_ack"/>
-    <transition event="deadline_p1_complete" target="fail_p1_no_proper_data"/>
+    <transition event="deadline_p1_complete" target="inconclusive_p1_no_proper_data"/>
   </state>
 
   <state id="listening_p2_handshake_ack">
@@ -88,7 +88,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 96U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 96U)"
                 target="listening_p2_dut_fin"/>
-    <transition event="deadline_p2_handshake_ack" target="fail_p2_no_handshake_ack"/>
+    <transition event="deadline_p2_handshake_ack" target="inconclusive_p2_no_handshake_ack"/>
   </state>
 
   <state id="listening_p2_dut_fin">
@@ -96,7 +96,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 96U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 96U)"
                 target="listening_p2_complete"/>
-    <transition event="deadline_p2_dut_fin" target="fail_p2_no_dut_fin"/>
+    <transition event="deadline_p2_dut_fin" target="inconclusive_p2_no_dut_fin"/>
   </state>
 
   <state id="listening_p2_complete">
@@ -104,7 +104,7 @@
     <transition event="deadline_p2_complete"
                 cond="cpp:captured.ut_received_payload_len_p2 == 128U"
                 target="listening_p3_handshake_ack"/>
-    <transition event="deadline_p2_complete" target="fail_p2_no_proper_data"/>
+    <transition event="deadline_p2_complete" target="inconclusive_p2_no_proper_data"/>
   </state>
 
   <state id="listening_p3_handshake_ack">
@@ -112,7 +112,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 97U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 97U)"
                 target="listening_p3_dut_fin"/>
-    <transition event="deadline_p3_handshake_ack" target="fail_p3_no_handshake_ack"/>
+    <transition event="deadline_p3_handshake_ack" target="inconclusive_p3_no_handshake_ack"/>
   </state>
 
   <state id="listening_p3_dut_fin">
@@ -120,7 +120,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 97U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 97U)"
                 target="listening_p3_complete"/>
-    <transition event="deadline_p3_dut_fin" target="fail_p3_no_dut_fin"/>
+    <transition event="deadline_p3_dut_fin" target="inconclusive_p3_no_dut_fin"/>
   </state>
 
   <state id="listening_p3_complete">
@@ -128,42 +128,42 @@
     <transition event="deadline_p3_complete"
                 cond="cpp:captured.ut_received_payload_len_p3 == 128U"
                 target="pass"/>
-    <transition event="deadline_p3_complete" target="fail_p3_no_proper_data"/>
+    <transition event="deadline_p3_complete" target="inconclusive_p3_no_proper_data"/>
   </state>
 
   <final id="pass">
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_p1_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1_est"}</content></donedata>
+  <final id="inconclusive_p1_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase1_est","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="fail_p1_no_proper_data">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_receive_proper_data_phase1_est"}</content></donedata>
+  <final id="inconclusive_p1_no_proper_data">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_receive_proper_data_phase1_est","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p2_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2_fw1"}</content></donedata>
+  <final id="inconclusive_p2_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase2_fw1","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p2_no_dut_fin">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase2_fw1"}</content></donedata>
+  <final id="inconclusive_p2_no_dut_fin">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase2_fw1","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p2_no_proper_data">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_receive_proper_data_phase2_fw1"}</content></donedata>
+  <final id="inconclusive_p2_no_proper_data">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_receive_proper_data_phase2_fw1","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p3_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase3_fw2"}</content></donedata>
+  <final id="inconclusive_p3_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase3_fw2","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p3_no_dut_fin">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase3_fw2"}</content></donedata>
+  <final id="inconclusive_p3_no_dut_fin">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase3_fw2","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p3_no_proper_data">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_receive_proper_data_phase3_fw2"}</content></donedata>
+  <final id="inconclusive_p3_no_proper_data">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_receive_proper_data_phase3_fw2","role":"property_unobserved"}</content></donedata>
   </final>
 </scxml>

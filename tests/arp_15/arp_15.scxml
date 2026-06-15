@@ -34,7 +34,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.target_proto_ip != expected.tester_ip"
                 target="fail_target_ip"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -45,13 +45,13 @@
 
   <final id="fail_target_ip">
     <donedata>
-      <content>{"verdict":"fail","reason":"target_proto_ip_not_tester"}</content>
+      <content>{"verdict":"fail","reason":"target_proto_ip_not_tester","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

@@ -45,7 +45,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpConnEstab01TesterSrcPort1 and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
                 target="listen_leg2"/>
-    <transition event="deadline_exceeded" target="fail_timeout_leg1"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_leg1"/>
   </state>
 
   <state id="listen_leg2">
@@ -55,7 +55,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpConnEstab01TesterSrcPort2 and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
                 target="listen_leg3"/>
-    <transition event="deadline_exceeded_2" target="fail_timeout_leg2"/>
+    <transition event="deadline_exceeded_2" target="inconclusive_timeout_leg2"/>
   </state>
 
   <state id="listen_leg3">
@@ -65,7 +65,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpConnEstab01ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpConnEstab01TesterSrcPort3 and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
                 target="pass"/>
-    <transition event="deadline_exceeded_3" target="fail_timeout_leg3"/>
+    <transition event="deadline_exceeded_3" target="inconclusive_timeout_leg3"/>
   </state>
 
   <final id="pass">
@@ -74,21 +74,21 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_leg1">
+  <final id="inconclusive_timeout_leg1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_synack_for_leg1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_synack_for_leg1","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_leg2">
+  <final id="inconclusive_timeout_leg2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_synack_for_leg2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_synack_for_leg2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_leg3">
+  <final id="inconclusive_timeout_leg3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_synack_for_leg3"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_synack_for_leg3","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

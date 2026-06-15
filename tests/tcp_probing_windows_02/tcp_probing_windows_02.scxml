@@ -55,7 +55,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the
   is_pure_dut_ack(...) src_ip conjunct unreachable; case lands on
-  fail_no_handshake_ack via the 5 s phase-1 deadline.
+  inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -80,7 +80,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset)"
                 target="listening_dut_data_segment"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_dut_data_segment">
@@ -90,7 +90,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows02LocalOffset) and captured.payload_len &gt; 0U"
                 target="pass"/>
-    <transition event="deadline_dut_data_segment" target="fail_no_dut_data_segment"/>
+    <transition event="deadline_dut_data_segment" target="inconclusive_no_dut_data_segment"/>
   </state>
 
   <final id="pass">
@@ -99,15 +99,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_dut_data_segment">
+  <final id="inconclusive_no_dut_data_segment">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_send_data_after_msb_set_window_advertisement"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_send_data_after_msb_set_window_advertisement","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

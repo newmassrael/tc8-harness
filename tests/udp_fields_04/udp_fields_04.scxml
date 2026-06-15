@@ -47,7 +47,7 @@
     <transition event="udp_observed"
                 cond="cpp:!captured.has_ut_response and captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.dst_port == 20000"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline" target="fail_phase1_no_host1_egress"/>
+    <transition event="phase1_deadline" target="inconclusive_phase1_no_host1_egress"/>
   </state>
 
   <state id="listening_phase2">
@@ -57,7 +57,7 @@
     <transition event="udp_observed"
                 cond="cpp:!captured.has_ut_response and captured.src_ip == expected.dut_iface_ip and captured.dst_ip == 0x030010AC and captured.dst_port == 20000"
                 target="pass"/>
-    <transition event="phase2_deadline" target="fail_phase2_no_host2_egress"/>
+    <transition event="phase2_deadline" target="inconclusive_phase2_no_host2_egress"/>
   </state>
 
   <final id="pass">
@@ -66,15 +66,15 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_host1_egress">
+  <final id="inconclusive_phase1_no_host1_egress">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_originated_udp_to_host1_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_originated_udp_to_host1_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_host2_egress">
+  <final id="inconclusive_phase2_no_host2_egress">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_originated_udp_to_host2_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_originated_udp_to_host2_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

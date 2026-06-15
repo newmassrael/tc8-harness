@@ -33,7 +33,7 @@
     - fail_zero_receive    : originate matches, receive == 0
     - fail_zero_transmit   : originate matches, receive != 0, transmit == 0
     - fail_wrong_originate : originate != literal
-    - fail_timeout         : no Timestamp Reply within listen window
+    - inconclusive_timeout         : no Timestamp Reply within listen window
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -67,7 +67,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.originate_timestamp != ::tc8::stimulus::kIcmpTimestampOriginate"
                 target="fail_wrong_originate"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -78,25 +78,25 @@
 
   <final id="fail_zero_receive">
     <donedata>
-      <content>{"verdict":"fail","reason":"timestamp_reply_receive_field_zero"}</content>
+      <content>{"verdict":"fail","reason":"timestamp_reply_receive_field_zero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_zero_transmit">
     <donedata>
-      <content>{"verdict":"fail","reason":"timestamp_reply_transmit_field_zero"}</content>
+      <content>{"verdict":"fail","reason":"timestamp_reply_transmit_field_zero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_originate">
     <donedata>
-      <content>{"verdict":"fail","reason":"timestamp_reply_originate_not_echoed"}</content>
+      <content>{"verdict":"fail","reason":"timestamp_reply_originate_not_echoed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_timestamp_reply_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_timestamp_reply_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

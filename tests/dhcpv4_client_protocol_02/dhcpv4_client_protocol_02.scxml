@@ -52,7 +52,7 @@
                       and captured.magic_cookie_valid
                       and !captured.has_message_type_option()"
                 target="fail_message_type_option_absent"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -63,13 +63,13 @@
 
   <final id="fail_message_type_option_absent">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_discover_missing_message_type_option"}</content>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_missing_message_type_option","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

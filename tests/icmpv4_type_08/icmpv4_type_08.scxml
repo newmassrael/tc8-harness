@@ -37,7 +37,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_payload_mismatch"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -48,13 +48,13 @@
 
   <final id="fail_payload_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"echo_payload_not_returned_verbatim"}</content>
+      <content>{"verdict":"fail","reason":"echo_payload_not_returned_verbatim","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_echo_reply_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_echo_reply_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

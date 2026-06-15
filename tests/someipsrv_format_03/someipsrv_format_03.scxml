@@ -28,7 +28,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.protocol_version != 0x01"
                 target="fail_protocol_version"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -39,13 +39,13 @@
 
   <final id="fail_protocol_version">
     <donedata>
-      <content>{"verdict":"fail","reason":"protocol_version_not_0x01"}</content>
+      <content>{"verdict":"fail","reason":"protocol_version_not_0x01","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

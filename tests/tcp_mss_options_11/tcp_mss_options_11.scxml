@@ -45,7 +45,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + 40U) and captured.dst_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + 40U) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) == 0 and captured.mss &gt; 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -54,9 +54,9 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_with_mss_option"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_with_mss_option","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

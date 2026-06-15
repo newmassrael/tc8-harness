@@ -71,7 +71,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
-  on fail_no_seg1 via the 5 s phase-1 deadline.
+  on inconclusive_no_seg1 via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -96,7 +96,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset)"
                 target="listening_seg2"/>
-    <transition event="deadline_seg1" target="fail_no_seg1"/>
+    <transition event="deadline_seg1" target="inconclusive_no_seg1"/>
   </state>
 
   <state id="listening_seg2">
@@ -106,7 +106,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset) and captured.seq_num == captured.expected_ack_num"
                 target="listening_seg3"/>
-    <transition event="deadline_seg2" target="fail_no_seg2"/>
+    <transition event="deadline_seg2" target="inconclusive_no_seg2"/>
   </state>
 
   <state id="listening_seg3">
@@ -116,7 +116,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows03LocalOffset) and captured.seq_num == captured.expected_ack_num_phase2"
                 target="absence_no_seg4"/>
-    <transition event="deadline_seg3" target="fail_no_seg3"/>
+    <transition event="deadline_seg3" target="inconclusive_no_seg3"/>
   </state>
 
   <state id="absence_no_seg4">
@@ -135,27 +135,27 @@
     </donedata>
   </final>
 
-  <final id="fail_no_seg1">
+  <final id="inconclusive_no_seg1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_first_data_segment","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_seg2">
+  <final id="inconclusive_no_seg2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_second_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_second_data_segment","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_seg3">
+  <final id="inconclusive_no_seg3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_third_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_third_data_segment","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_dut_sent_past_shrunk_window">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_sent_segment_past_shrunk_window_negative_usable_window_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_sent_segment_past_shrunk_window_negative_usable_window_violation","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

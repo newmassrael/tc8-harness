@@ -42,7 +42,7 @@
   silence assertion.
 
   Negative IP-flip path: phase 1 src_ip-conjunct unreachable, lands
-  on fail_p1_no_dut_rst at the 5 s deadline.
+  on inconclusive_p1_no_dut_rst at the 5 s deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -68,7 +68,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
                 target="fail_p1_wrong_seq"/>
-    <transition event="deadline_p1_dut_rst" target="fail_p1_no_dut_rst"/>
+    <transition event="deadline_p1_dut_rst" target="inconclusive_p1_no_dut_rst"/>
   </state>
 
   <state id="listening_p2_silence">
@@ -84,7 +84,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
                 target="listening_p3_silence"/>
-    <transition event="deadline_p3_dut_syn" target="fail_p3_no_dut_syn"/>
+    <transition event="deadline_p3_dut_syn" target="inconclusive_p3_no_dut_syn"/>
   </state>
 
   <state id="listening_p3_silence">
@@ -99,23 +99,23 @@
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_p1_no_dut_rst">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_rst_to_fin_in_closed"}</content></donedata>
+  <final id="inconclusive_p1_no_dut_rst">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_rst_to_fin_in_closed","role":"precondition_unmet"}</content></donedata>
   </final>
 
   <final id="fail_p1_wrong_seq">
-    <donedata><content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_fin_in_closed"}</content></donedata>
+    <donedata><content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_fin_in_closed","role":"observed_violation"}</content></donedata>
   </final>
 
   <final id="fail_p2_unexpected_response">
-    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_fin_in_listen"}</content></donedata>
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_fin_in_listen","role":"observed_violation"}</content></donedata>
   </final>
 
-  <final id="fail_p3_no_dut_syn">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_syn_to_active_open_phase3"}</content></donedata>
+  <final id="inconclusive_p3_no_dut_syn">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_syn_to_active_open_phase3","role":"property_unobserved"}</content></donedata>
   </final>
 
   <final id="fail_p3_unexpected_response">
-    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_fin_in_syn_sent"}</content></donedata>
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_fin_in_syn_sent","role":"observed_violation"}</content></donedata>
   </final>
 </scxml>

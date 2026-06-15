@@ -25,7 +25,7 @@
       the active-OPEN port quad. Negative-flip handle: the
       `captured.src_ip == expected.dut_iface_ip` conjunct becomes
       unreachable on ipv4.dut_iface_ip=10.99.99.99, so the negative
-      smoke lands on fail_no_handshake_ack.
+      smoke lands on inconclusive_no_handshake_ack.
     * listening_data_ack — observe DUT pure ACK acknowledging the
       raw-injected payload. Pass guard checks ack_num against the
       expected value populated into TcpExpected.expected_ack_num
@@ -58,7 +58,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U)"
                 target="listening_data_ack"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_data_ack">
@@ -71,7 +71,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U) and captured.ack_num != captured.expected_ack_num"
                 target="fail_wrong_ack_num"/>
-    <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+    <transition event="deadline_data_ack" target="inconclusive_no_data_ack"/>
   </state>
 
   <final id="pass">
@@ -80,21 +80,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_data_ack">
+  <final id="inconclusive_no_data_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_valid_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_valid_data","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_ack_num">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload"}</content>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

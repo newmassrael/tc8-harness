@@ -54,7 +54,7 @@
 
   <final id="fail_unexpected_arp_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_arp_request_after_cache_populated"}</content>
+      <content>{"verdict":"fail","reason":"dut_arp_request_after_cache_populated","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

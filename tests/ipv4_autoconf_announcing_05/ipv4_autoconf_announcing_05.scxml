@@ -46,14 +46,14 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and captured.sender_proto_ip != 0"
                 target="seen_announce_1"/>
-    <transition event="deadline_exceeded" target="fail_no_announces"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_announces"/>
   </state>
 
   <state id="seen_announce_1">
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and captured.sender_proto_ip != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_only_one_announce"/>
+    <transition event="deadline_exceeded" target="inconclusive_only_one_announce"/>
   </state>
 
   <final id="pass">
@@ -62,15 +62,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_announces">
+  <final id="inconclusive_no_announces">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_announce_after_probes"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_announce_after_probes","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_only_one_announce">
+  <final id="inconclusive_only_one_announce">
     <donedata>
-      <content>{"verdict":"fail","reason":"fewer_than_2_arp_announces_within_deadline"}</content>
+      <content>{"verdict":"inconclusive","reason":"fewer_than_2_arp_announces_within_deadline","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

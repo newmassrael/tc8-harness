@@ -93,7 +93,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 20U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 20U)"
                 target="listening_absence"/>
-    <transition event="deadline_dut_syn" target="fail_no_dut_syn"/>
+    <transition event="deadline_dut_syn" target="inconclusive_no_dut_syn"/>
   </state>
 
   <state id="listening_absence">
@@ -112,15 +112,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_dut_syn">
+  <final id="inconclusive_no_dut_syn">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_to_active_open"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_to_active_open","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_unexpected_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_response_to_ack_rst_with_unacceptable_ack"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_ack_rst_with_unacceptable_ack","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

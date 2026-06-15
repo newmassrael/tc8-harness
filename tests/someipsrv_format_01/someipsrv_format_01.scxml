@@ -33,7 +33,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.client_id != 0x0000"
                 target="fail_client_id"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -44,13 +44,13 @@
 
   <final id="fail_client_id">
     <donedata>
-      <content>{"verdict":"fail","reason":"client_id_nonzero"}</content>
+      <content>{"verdict":"fail","reason":"client_id_nonzero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

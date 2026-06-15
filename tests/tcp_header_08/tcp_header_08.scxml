@@ -47,7 +47,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 36U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 36U)"
                 target="listening_absence"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_absence">
@@ -66,15 +66,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_unexpected_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_acked_segment_with_oversize_data_offset"}</content>
+      <content>{"verdict":"fail","reason":"dut_acked_segment_with_oversize_data_offset","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

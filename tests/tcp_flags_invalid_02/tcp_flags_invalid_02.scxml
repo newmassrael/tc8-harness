@@ -56,11 +56,11 @@
 
   Pass guard discriminates on `(flags & RST) != 0` AND `seq_num ==
   kFlagsInvalid02ProbeAck`. Splitting the wrong-seq fail from
-  fail_timeout keeps the diagnostic granular: a DUT that emits
+  inconclusive_timeout keeps the diagnostic granular: a DUT that emits
   RST but mirrors tester SEQ instead of tester ACK lands on
   fail_wrong_seq, while a DUT that stays silent lands on
-  fail_timeout. Negative smoke flips ipv4.dut_iface_ip → src_ip-
-  conjunct unreachable on every transition → fail_timeout (phase 1
+  inconclusive_timeout. Negative smoke flips ipv4.dut_iface_ip → src_ip-
+  conjunct unreachable on every transition → inconclusive_timeout (phase 1
   trips first; phase 2 is never reached).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -89,7 +89,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != ::tc8::sce::tcp::kFlagsInvalid02ProbeAck"
                 target="fail_wrong_seq"/>
-    <transition event="deadline" target="fail_timeout"/>
+    <transition event="deadline" target="inconclusive_timeout"/>
   </state>
 
   <state id="listening_phase2_synack">
@@ -99,7 +99,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == (::tc8::sce::tcp::kBasicsTesterPort + 1U) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_p2" target="fail_p2_no_synack"/>
+    <transition event="deadline_p2" target="inconclusive_p2_no_synack"/>
   </state>
 
   <final id="pass">
@@ -110,19 +110,19 @@
 
   <final id="fail_wrong_seq">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_rst_seq_not_seg_ack_in_listen"}</content>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_seg_ack_in_listen","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_to_syn_ack_in_listen"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_to_syn_ack_in_listen","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_synack">
+  <final id="inconclusive_p2_no_synack">
     <donedata>
-      <content>{"verdict":"fail","reason":"listen_socket_did_not_survive_rst_emission"}</content>
+      <content>{"verdict":"inconclusive","reason":"listen_socket_did_not_survive_rst_emission","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

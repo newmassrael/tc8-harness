@@ -41,7 +41,7 @@
   Negative smoke (ipv4.dut_iface_ip flip): pass guard's
   `captured.src_ip == expected.dut_iface_ip` becomes unreachable on
   phase 1's listening state, so the negative path lands on
-  fail_p1_no_probe_ack with the harness watchdog cap absorbing the
+  inconclusive_p1_no_probe_ack with the harness watchdog cap absorbing the
   5 s SCXML deadline + ~2 s passive-open + raw-inject stimulus.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -67,7 +67,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort, ::tc8::sce::tcp::kBasicsTesterPort) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_probe_ack"/>
-    <transition event="deadline_p1_probe_ack" target="fail_p1_no_probe_ack"/>
+    <transition event="deadline_p1_probe_ack" target="inconclusive_p1_no_probe_ack"/>
   </state>
 
   <state id="listening_p2_probe_ack">
@@ -77,7 +77,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 1U, ::tc8::sce::tcp::kBasicsTesterPort + 1U) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p3_probe_ack"/>
-    <transition event="deadline_p2_probe_ack" target="fail_p2_no_probe_ack"/>
+    <transition event="deadline_p2_probe_ack" target="inconclusive_p2_no_probe_ack"/>
   </state>
 
   <state id="listening_p3_probe_ack">
@@ -87,7 +87,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 2U, ::tc8::sce::tcp::kBasicsTesterPort + 2U) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p4_probe_ack"/>
-    <transition event="deadline_p3_probe_ack" target="fail_p3_no_probe_ack"/>
+    <transition event="deadline_p3_probe_ack" target="inconclusive_p3_no_probe_ack"/>
   </state>
 
   <state id="listening_p4_probe_ack">
@@ -97,7 +97,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 3U, ::tc8::sce::tcp::kBasicsTesterPort + 3U) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p5_probe_ack"/>
-    <transition event="deadline_p4_probe_ack" target="fail_p4_no_probe_ack"/>
+    <transition event="deadline_p4_probe_ack" target="inconclusive_p4_no_probe_ack"/>
   </state>
 
   <state id="listening_p5_probe_ack">
@@ -107,7 +107,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 4U, ::tc8::sce::tcp::kBasicsTesterPort + 4U) and captured.ack_num == captured.expected_ack_num"
                 target="pass"/>
-    <transition event="deadline_p5_probe_ack" target="fail_p5_no_probe_ack"/>
+    <transition event="deadline_p5_probe_ack" target="inconclusive_p5_no_probe_ack"/>
   </state>
 
   <final id="pass">
@@ -116,33 +116,33 @@
     </donedata>
   </final>
 
-  <final id="fail_p1_no_probe_ack">
+  <final id="inconclusive_p1_no_probe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_syn_in_syn_recv"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_syn_in_syn_recv","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_probe_ack">
+  <final id="inconclusive_p2_no_probe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_synack_in_syn_recv"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_synack_in_syn_recv","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p3_no_probe_ack">
+  <final id="inconclusive_p3_no_probe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_ack_in_syn_recv"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_ack_in_syn_recv","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p4_no_probe_ack">
+  <final id="inconclusive_p4_no_probe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_fin_in_syn_recv"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_fin_in_syn_recv","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p5_no_probe_ack">
+  <final id="inconclusive_p5_no_probe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_data_in_syn_recv"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_data_in_syn_recv","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

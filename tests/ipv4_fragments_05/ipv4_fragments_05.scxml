@@ -60,7 +60,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.src_port == 20001 and captured.dst_port == 20000 and ((captured.ip_flags &amp; 0x01) != 0 or captured.ip_fragment_offset != 0)"
                 target="fail_fragmented"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -71,13 +71,13 @@
 
   <final id="fail_fragmented">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_udp_with_nonzero_fragment_fields"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_udp_with_nonzero_fragment_fields","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_originated_udp_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_originated_udp_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

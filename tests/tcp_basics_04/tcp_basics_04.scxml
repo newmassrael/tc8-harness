@@ -77,7 +77,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
                 target="fail_wrong_seq_syn"/>
-    <transition event="deadline_exceeded" target="fail_timeout_syn"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_syn"/>
   </state>
 
   <state id="listening_fin">
@@ -90,7 +90,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
                 target="fail_wrong_seq_fin"/>
-    <transition event="deadline_exceeded" target="fail_timeout_fin"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_fin"/>
   </state>
 
   <state id="listening_data">
@@ -103,7 +103,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
                 target="fail_wrong_seq_data"/>
-    <transition event="deadline_exceeded" target="fail_timeout_data"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_data"/>
   </state>
 
   <final id="pass">
@@ -114,37 +114,37 @@
 
   <final id="fail_wrong_seq_syn">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_syn"}</content>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_syn","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_seq_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_fin"}</content>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_fin","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_seq_data">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_data"}</content>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_data","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_syn">
+  <final id="inconclusive_timeout_syn">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_after_syn"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_after_syn","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_fin">
+  <final id="inconclusive_timeout_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_after_fin"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_after_fin","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_data">
+  <final id="inconclusive_timeout_data">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_after_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_after_data","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

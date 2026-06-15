@@ -45,7 +45,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands
-  on fail_no_handshake_ack via the 5 s phase-1 deadline.
+  on inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -70,7 +70,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset)"
                 target="listening_data_ack"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_data_ack">
@@ -80,7 +80,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="pass"/>
-    <transition event="deadline_data_ack" target="fail_no_data_ack_within_500ms"/>
+    <transition event="deadline_data_ack" target="inconclusive_no_data_ack_within_500ms"/>
   </state>
 
   <final id="pass">
@@ -89,15 +89,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_data_ack_within_500ms">
+  <final id="inconclusive_no_data_ack_within_500ms">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_ack_full_sized_segment_within_500ms"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_ack_full_sized_segment_within_500ms","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

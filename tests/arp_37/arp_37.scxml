@@ -39,7 +39,7 @@
 
   <final id="fail_unexpected_reply">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_replied_to_foreign_target_ip"}</content>
+      <content>{"verdict":"fail","reason":"dut_replied_to_foreign_target_ip","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

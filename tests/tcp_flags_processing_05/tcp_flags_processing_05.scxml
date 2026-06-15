@@ -45,7 +45,7 @@
   on entry to listening_p2_prelude_synack.
 
   Negative IP-flip path: phase 1 src_ip-conjunct unreachable on
-  the initial state, lands on fail_p1_no_prelude_synack at the 5 s
+  the initial state, lands on inconclusive_p1_no_prelude_synack at the 5 s
   deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -70,14 +70,14 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 10U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 72U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_p1_verify_synack"/>
-    <transition event="deadline_p1_prelude_synack" target="fail_p1_no_prelude_synack"/>
+    <transition event="deadline_p1_prelude_synack" target="inconclusive_p1_no_prelude_synack"/>
   </state>
   <state id="listening_p1_verify_synack">
     <onentry><send event="deadline_p1_verify_synack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 10U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 73U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_p2_prelude_synack"/>
-    <transition event="deadline_p1_verify_synack" target="fail_p1_no_verify_synack"/>
+    <transition event="deadline_p1_verify_synack" target="inconclusive_p1_no_verify_synack"/>
   </state>
 
   <!-- Phase 2: SYN+ACK in window. listen +11, prelude tester +74, verify tester +75 -->
@@ -86,20 +86,20 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 74U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_p2_verify_synack"/>
-    <transition event="deadline_p2_prelude_synack" target="fail_p2_no_prelude_synack"/>
+    <transition event="deadline_p2_prelude_synack" target="inconclusive_p2_no_prelude_synack"/>
   </state>
   <state id="listening_p2_verify_synack">
     <onentry><send event="deadline_p2_verify_synack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 75U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_p2_verify_synack" target="fail_p2_no_verify_synack"/>
+    <transition event="deadline_p2_verify_synack" target="inconclusive_p2_no_verify_synack"/>
   </state>
 
   <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
 
-  <final id="fail_p1_no_prelude_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_prelude_syn_phase1"}</content></donedata></final>
-  <final id="fail_p1_no_verify_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_verify_syn_after_in_window_syn"}</content></donedata></final>
-  <final id="fail_p2_no_prelude_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_prelude_syn_phase2"}</content></donedata></final>
-  <final id="fail_p2_no_verify_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_verify_syn_after_in_window_synack"}</content></donedata></final>
+  <final id="inconclusive_p1_no_prelude_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_prelude_syn_phase1","role":"precondition_unmet"}</content></donedata></final>
+  <final id="inconclusive_p1_no_verify_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_verify_syn_after_in_window_syn","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p2_no_prelude_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_prelude_syn_phase2","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p2_no_verify_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_verify_syn_after_in_window_synack","role":"property_unobserved"}</content></donedata></final>
 </scxml>

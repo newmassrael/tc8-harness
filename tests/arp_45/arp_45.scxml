@@ -37,7 +37,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw != expected.tester_mac"
                 target="fail_wrong_target_hw_1"/>
-    <transition event="deadline_exceeded" target="fail_no_response_1"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_response_1"/>
   </state>
 
   <state id="wait_resp_2">
@@ -47,7 +47,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw != expected.tester_mac2"
                 target="fail_wrong_target_hw_2"/>
-    <transition event="deadline_exceeded" target="fail_no_response_2"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_response_2"/>
   </state>
 
   <final id="pass">
@@ -58,25 +58,25 @@
 
   <final id="fail_wrong_target_hw_1">
     <donedata>
-      <content>{"verdict":"fail","reason":"first_response_target_hw_not_mac1"}</content>
+      <content>{"verdict":"fail","reason":"first_response_target_hw_not_mac1","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_target_hw_2">
     <donedata>
-      <content>{"verdict":"fail","reason":"second_response_target_hw_not_mac2"}</content>
+      <content>{"verdict":"fail","reason":"second_response_target_hw_not_mac2","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_response_1">
+  <final id="inconclusive_no_response_1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_first_response_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_first_response_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_response_2">
+  <final id="inconclusive_no_response_2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_second_response_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_second_response_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

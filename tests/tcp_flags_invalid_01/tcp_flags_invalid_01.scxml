@@ -35,7 +35,7 @@
        Observing it directly proves spec step 4 ("Verify DUT remains
        in LISTEN") on the wire: a DUT that mis-handled SYN+RST by
        tearing down the LISTEN socket would not respond to the
-       phase-3 SYN with a SYN+ACK, landing on fail_p3_no_synack.
+       phase-3 SYN with a SYN+ACK, landing on inconclusive_p3_no_synack.
     g. The tester closes the connection.
 
   Phase-3 ordering: the DUT replies elicited before the SCXML arms
@@ -63,10 +63,10 @@
   The phase-3 SYN+ACK observation is the wire-level positive
   evidence that the LISTEN socket survived the SYN+RST.
 
-  Per-state fail terminals (fail_timeout_first_synack /
-  fail_unexpected_response_to_syn_rst / fail_p3_no_synack).
+  Per-state fail terminals (inconclusive_timeout_first_synack /
+  fail_unexpected_response_to_syn_rst / inconclusive_p3_no_synack).
   Negative smoke flips `ipv4.dut_iface_ip=10.99.99.99` → phase-1's
-  src_ip-conjunct unreachable → fail_timeout_first_synack (phase 2
+  src_ip-conjunct unreachable → inconclusive_timeout_first_synack (phase 2
   and 3 are never reached on the negative path).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -92,7 +92,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_absence"/>
-    <transition event="deadline_first" target="fail_timeout_first_synack"/>
+    <transition event="deadline_first" target="inconclusive_timeout_first_synack"/>
   </state>
 
   <state id="listening_absence">
@@ -121,7 +121,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == (::tc8::sce::tcp::kBasicsTesterPort + 2U) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_p3" target="fail_p3_no_synack"/>
+    <transition event="deadline_p3" target="inconclusive_p3_no_synack"/>
   </state>
 
   <final id="pass">
@@ -130,21 +130,21 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_first_synack">
+  <final id="inconclusive_timeout_first_synack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_synack_to_first_tester_syn"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_synack_to_first_tester_syn","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_unexpected_response_to_syn_rst">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_response_after_syn_rst_in_listen"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_after_syn_rst_in_listen","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p3_no_synack">
+  <final id="inconclusive_p3_no_synack">
     <donedata>
-      <content>{"verdict":"fail","reason":"listen_socket_did_not_survive_syn_rst"}</content>
+      <content>{"verdict":"inconclusive","reason":"listen_socket_did_not_survive_syn_rst","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

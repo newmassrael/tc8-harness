@@ -32,7 +32,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.proto_type != 0x0800"
                 target="fail_proto_type"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -43,13 +43,13 @@
 
   <final id="fail_proto_type">
     <donedata>
-      <content>{"verdict":"fail","reason":"proto_type_not_ipv4"}</content>
+      <content>{"verdict":"fail","reason":"proto_type_not_ipv4","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_request_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

@@ -108,19 +108,19 @@
 
   <final id="fail_no_cycle1_isn">
     <donedata>
-      <content>{"verdict":"fail","reason":"cycle1_syn_capture_timeout"}</content>
+      <content>{"verdict":"fail","reason":"cycle1_syn_capture_timeout","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_cycle2_isn">
     <donedata>
-      <content>{"verdict":"fail","reason":"cycle2_syn_capture_timeout"}</content>
+      <content>{"verdict":"fail","reason":"cycle2_syn_capture_timeout","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_isn_unchanged">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_reused_prior_isn_across_active_opens"}</content>
+      <content>{"verdict":"fail","reason":"dut_reused_prior_isn_across_active_opens","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

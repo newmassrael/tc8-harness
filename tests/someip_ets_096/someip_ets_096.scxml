@@ -40,7 +40,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count &gt;= 1"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_with_endpoint"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer_with_endpoint"/>
   </state>
 
   <state id="listening_phase2">
@@ -53,7 +53,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].eventgroup_id == 0x0002 and captured.sd_entries[0].ttl &gt; 0"
                 target="fail_phase2_dut_acked_tcp_subscribe_without_connection"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe_response"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_subscribe_response"/>
   </state>
 
   <final id="pass">
@@ -62,21 +62,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer_with_endpoint">
+  <final id="inconclusive_phase1_no_offer_with_endpoint">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_dut_acked_tcp_subscribe_without_connection">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_acked_tcp_subscribe_without_pre_established_connection"}</content>
+      <content>{"verdict":"fail","reason":"dut_acked_tcp_subscribe_without_pre_established_connection","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_subscribe_response">
+  <final id="inconclusive_phase2_no_subscribe_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_subscribe_response_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_subscribe_response_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

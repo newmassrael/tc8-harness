@@ -62,7 +62,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands on
-  fail_no_handshake_ack via the 5 s phase-1 deadline.
+  inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -87,7 +87,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder03LocalOffset)"
                 target="listening_initial_ack"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_initial_ack">
@@ -97,7 +97,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder03LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="listening_final_cumulative_ack"/>
-    <transition event="deadline_initial_ack" target="fail_no_initial_ack"/>
+    <transition event="deadline_initial_ack" target="inconclusive_no_initial_ack"/>
   </state>
 
   <state id="listening_final_cumulative_ack">
@@ -107,7 +107,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder03LocalOffset) and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
-    <transition event="deadline_final_ack" target="fail_no_final_cumulative_ack"/>
+    <transition event="deadline_final_ack" target="inconclusive_no_final_cumulative_ack"/>
   </state>
 
   <final id="pass">
@@ -116,21 +116,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_initial_ack">
+  <final id="inconclusive_no_initial_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_initial_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_initial_data_segment","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_final_cumulative_ack">
+  <final id="inconclusive_no_final_cumulative_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_emit_cumulative_ack_after_gap_fill"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_emit_cumulative_ack_after_gap_fill","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

@@ -75,28 +75,28 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset)"
                 target="listening_p1_close_wait_ack"/>
-    <transition event="deadline_p1_handshake_ack" target="fail_p1_no_handshake_ack"/>
+    <transition event="deadline_p1_handshake_ack" target="inconclusive_p1_no_handshake_ack"/>
   </state>
   <state id="listening_p1_close_wait_ack">
     <onentry><send event="deadline_p1_close_wait_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset)"
                 target="listening_p1_dut_fin"/>
-    <transition event="deadline_p1_close_wait_ack" target="fail_p1_no_close_wait_ack"/>
+    <transition event="deadline_p1_close_wait_ack" target="inconclusive_p1_no_close_wait_ack"/>
   </state>
   <state id="listening_p1_dut_fin">
     <onentry><send event="deadline_p1_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset)"
                 target="listening_p1_probe_ack"/>
-    <transition event="deadline_p1_dut_fin" target="fail_p1_no_dut_fin"/>
+    <transition event="deadline_p1_dut_fin" target="inconclusive_p1_no_dut_fin"/>
   </state>
   <state id="listening_p1_probe_ack">
     <onentry><send event="deadline_p1_probe_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase1LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_handshake_ack"/>
-    <transition event="deadline_p1_probe_ack" target="fail_p1_no_probe_ack"/>
+    <transition event="deadline_p1_probe_ack" target="inconclusive_p1_no_probe_ack"/>
   </state>
 
   <state id="listening_p2_handshake_ack">
@@ -104,39 +104,39 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset)"
                 target="listening_p2_close_wait_ack"/>
-    <transition event="deadline_p2_handshake_ack" target="fail_p2_no_handshake_ack"/>
+    <transition event="deadline_p2_handshake_ack" target="inconclusive_p2_no_handshake_ack"/>
   </state>
   <state id="listening_p2_close_wait_ack">
     <onentry><send event="deadline_p2_close_wait_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset)"
                 target="listening_p2_dut_fin"/>
-    <transition event="deadline_p2_close_wait_ack" target="fail_p2_no_close_wait_ack"/>
+    <transition event="deadline_p2_close_wait_ack" target="inconclusive_p2_no_close_wait_ack"/>
   </state>
   <state id="listening_p2_dut_fin">
     <onentry><send event="deadline_p2_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset)"
                 target="listening_p2_probe_ack"/>
-    <transition event="deadline_p2_dut_fin" target="fail_p2_no_dut_fin"/>
+    <transition event="deadline_p2_dut_fin" target="inconclusive_p2_no_dut_fin"/>
   </state>
   <state id="listening_p2_probe_ack">
     <onentry><send event="deadline_p2_probe_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable12Phase2LocalOffset) and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
-    <transition event="deadline_p2_probe_ack" target="fail_p2_no_probe_ack"/>
+    <transition event="deadline_p2_probe_ack" target="inconclusive_p2_no_probe_ack"/>
   </state>
 
   <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
 
-  <final id="fail_p1_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1"}</content></donedata></final>
-  <final id="fail_p1_no_close_wait_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_close_wait_ack_phase1"}</content></donedata></final>
-  <final id="fail_p1_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase1"}</content></donedata></final>
-  <final id="fail_p1_no_probe_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_in_last_ack"}</content></donedata></final>
+  <final id="inconclusive_p1_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase1","role":"precondition_unmet"}</content></donedata></final>
+  <final id="inconclusive_p1_no_close_wait_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_wait_ack_phase1","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p1_no_dut_fin"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase1","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p1_no_probe_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_in_last_ack","role":"property_unobserved"}</content></donedata></final>
 
-  <final id="fail_p2_no_handshake_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2"}</content></donedata></final>
-  <final id="fail_p2_no_close_wait_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_close_wait_ack_phase2"}</content></donedata></final>
-  <final id="fail_p2_no_dut_fin"><donedata><content>{"verdict":"fail","reason":"no_dut_fin_phase2"}</content></donedata></final>
-  <final id="fail_p2_no_probe_ack"><donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_unacceptable_ack_in_last_ack"}</content></donedata></final>
+  <final id="inconclusive_p2_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase2","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p2_no_close_wait_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_wait_ack_phase2","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p2_no_dut_fin"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin_phase2","role":"property_unobserved"}</content></donedata></final>
+  <final id="inconclusive_p2_no_probe_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_unacceptable_ack_in_last_ack","role":"property_unobserved"}</content></donedata></final>
 </scxml>

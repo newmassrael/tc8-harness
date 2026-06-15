@@ -59,7 +59,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_phase_a_data_mismatch"/>
-    <transition event="phase_a_deadline" target="fail_phase_a_no_reply"/>
+    <transition event="phase_a_deadline" target="inconclusive_phase_a_no_reply"/>
   </state>
 
   <state id="listening_phase_b">
@@ -80,31 +80,31 @@
 
   <final id="fail_phase_a_echo_id">
     <donedata>
-      <content>{"verdict":"fail","reason":"echo_id_mismatch_phase_a_within_timer"}</content>
+      <content>{"verdict":"fail","reason":"echo_id_mismatch_phase_a_within_timer","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase_a_echo_seq">
     <donedata>
-      <content>{"verdict":"fail","reason":"echo_seq_mismatch_phase_a_within_timer"}</content>
+      <content>{"verdict":"fail","reason":"echo_seq_mismatch_phase_a_within_timer","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase_a_data_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_phase_a"}</content>
+      <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_phase_a","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase_a_no_reply">
+  <final id="inconclusive_phase_a_no_reply">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_echo_reply_phase_a_within_timer"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_echo_reply_phase_a_within_timer","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase_b_replied">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_replied_phase_b_after_timer_expired"}</content>
+      <content>{"verdict":"fail","reason":"dut_replied_phase_b_after_timer_expired","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

@@ -35,7 +35,7 @@
     immediately; a delayed-ACK stack (lwIP) holds the ACK up to the
     RFC 1122 §4.2.3.2 ceiling (≤500 ms) and would legally coalesce
     segments arriving inside that window into one cumulative ACK —
-    landing the SCXML chain at fail_timeout_seg2/seg3 for a test-design
+    landing the SCXML chain at inconclusive_timeout_seg2/seg3 for a test-design
     reason, not a conformance gap (verified 2026-06-11: at the former
     100 ms spacing the lwIP fixture coalesced seg 2+3 into a single
     ack=+13). Spacing the segments by kDelayedAckSettle lets the
@@ -68,7 +68,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 5U"
                 target="listen_seg2_ack"/>
-    <transition event="deadline_exceeded" target="fail_timeout_seg1"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_seg1"/>
   </state>
 
   <state id="listen_seg2_ack">
@@ -78,7 +78,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 9U"
                 target="listen_seg3_ack"/>
-    <transition event="deadline_exceeded_2" target="fail_timeout_seg2"/>
+    <transition event="deadline_exceeded_2" target="inconclusive_timeout_seg2"/>
   </state>
 
   <state id="listen_seg3_ack">
@@ -88,7 +88,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 13U"
                 target="pass"/>
-    <transition event="deadline_exceeded_3" target="fail_timeout_seg3"/>
+    <transition event="deadline_exceeded_3" target="inconclusive_timeout_seg3"/>
   </state>
 
   <final id="pass">
@@ -97,21 +97,21 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_seg1">
+  <final id="inconclusive_timeout_seg1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_for_seg1","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_seg2">
+  <final id="inconclusive_timeout_seg2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_for_seg2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_seg3">
+  <final id="inconclusive_timeout_seg3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg3"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_for_seg3","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

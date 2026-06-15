@@ -54,7 +54,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_d2"/>
-    <transition event="s1_deadline" target="fail_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_d2">
@@ -71,7 +71,7 @@
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
                       and not captured.frame_delta_within_us(3000000, 5000000)"
                 target="fail_first_interval_out_of_range"/>
-    <transition event="s2_deadline" target="fail_no_discover_2"/>
+    <transition event="s2_deadline" target="inconclusive_no_discover_2"/>
   </state>
 
   <state id="listening_for_d3">
@@ -88,7 +88,7 @@
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
                       and not captured.frame_delta_within_us(7000000, 9000000)"
                 target="fail_second_interval_out_of_range"/>
-    <transition event="s3_deadline" target="fail_no_discover_3"/>
+    <transition event="s3_deadline" target="inconclusive_no_discover_3"/>
   </state>
 
   <final id="pass">
@@ -97,33 +97,33 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover_2">
+  <final id="inconclusive_no_discover_2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover_3">
+  <final id="inconclusive_no_discover_3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_3"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_3","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_first_interval_out_of_range">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_first_retx_interval_out_of_range"}</content>
+      <content>{"verdict":"fail","reason":"dut_first_retx_interval_out_of_range","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_second_interval_out_of_range">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_second_retx_interval_out_of_range"}</content>
+      <content>{"verdict":"fail","reason":"dut_second_retx_interval_out_of_range","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

@@ -53,7 +53,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands on
-  fail_no_handshake_ack via the 5 s phase-1 deadline.
+  inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -78,7 +78,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUrgentPtr04LocalOffset)"
                 target="listening_oob_check"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_oob_check">
@@ -88,7 +88,7 @@
     <transition event="deadline_oob_check"
                 cond="cpp:captured.ut_received_payload_len == 1U"
                 target="pass"/>
-    <transition event="deadline_oob_check" target="fail_no_proper_urgent_data"/>
+    <transition event="deadline_oob_check" target="inconclusive_no_proper_urgent_data"/>
   </state>
 
   <final id="pass">
@@ -97,15 +97,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_proper_urgent_data">
+  <final id="inconclusive_no_proper_urgent_data">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_isolate_urgent_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_isolate_urgent_data","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

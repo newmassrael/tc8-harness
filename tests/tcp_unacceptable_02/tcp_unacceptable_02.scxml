@@ -42,10 +42,10 @@
   window, so 3 s is a tight-but-sufficient absence proof without
   expanding the per-case wall-time budget.
 
-  Per-state fail terminals (fail_timeout_first_synack /
+  Per-state fail terminals (inconclusive_timeout_first_synack /
   fail_unexpected_rst). Negative smoke flips
   `ipv4.dut_iface_ip=10.99.99.99` → src_ip-conjunct unreachable in
-  state 1 → fail_timeout_first_synack.
+  state 1 → inconclusive_timeout_first_synack.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -70,7 +70,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_absence"/>
-    <transition event="deadline_first" target="fail_timeout_first_synack"/>
+    <transition event="deadline_first" target="inconclusive_timeout_first_synack"/>
   </state>
 
   <state id="listening_absence">
@@ -89,15 +89,15 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_first_synack">
+  <final id="inconclusive_timeout_first_synack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_synack_to_first_tester_syn"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_synack_to_first_tester_syn","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_unexpected_rst">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_rst_after_unacceptable_rst"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_rst_after_unacceptable_rst","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

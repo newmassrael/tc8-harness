@@ -58,7 +58,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
-  on fail_no_seg1 via the 5 s phase-1 deadline.
+  on inconclusive_no_seg1 via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -83,7 +83,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset)"
                 target="listening_probe"/>
-    <transition event="deadline_seg1" target="fail_no_seg1"/>
+    <transition event="deadline_seg1" target="inconclusive_no_seg1"/>
   </state>
 
   <state id="listening_probe">
@@ -93,7 +93,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_probe" target="fail_no_zero_window_probe"/>
+    <transition event="deadline_probe" target="inconclusive_no_zero_window_probe"/>
   </state>
 
   <final id="pass">
@@ -102,15 +102,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_seg1">
+  <final id="inconclusive_no_seg1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_first_data_segment","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_zero_window_probe">
+  <final id="inconclusive_no_zero_window_probe">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_zero_window_probe_within_rto_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_zero_window_probe_within_rto_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

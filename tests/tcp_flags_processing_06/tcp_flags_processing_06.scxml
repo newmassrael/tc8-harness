@@ -33,7 +33,7 @@
       if TW expired, the (kBasicsActiveRemotePort + 51,
       kBasicsActiveLocalPort + 51) 4-tuple no longer matches a DUT
       socket and the DUT emits a closed-port RST, missing the
-      pure-ACK pass guard and landing on fail_no_second_replay_ack.
+      pure-ACK pass guard and landing on inconclusive_no_second_replay_ack.
 
   SCXML chain (5 listening states + 5 fail terminals + pass):
     handshake_ack → dut_fin → tester_fin_ack →
@@ -46,7 +46,7 @@
   CASE_TIMEOUT_SEC=60.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
-  unreachable, lands on fail_no_handshake_ack at the 5 s deadline
+  unreachable, lands on inconclusive_no_handshake_ack at the 5 s deadline
   + ~3 s prelude wall-time ≈ 10 s.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -70,7 +70,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
                 target="listening_dut_fin"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_dut_fin">
@@ -78,7 +78,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
                 target="listening_tester_fin_ack"/>
-    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
+    <transition event="deadline_dut_fin" target="inconclusive_no_dut_fin"/>
   </state>
 
   <state id="listening_tester_fin_ack">
@@ -86,7 +86,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
                 target="listening_first_replay_ack"/>
-    <transition event="deadline_tester_fin_ack" target="fail_no_tester_fin_ack"/>
+    <transition event="deadline_tester_fin_ack" target="inconclusive_no_tester_fin_ack"/>
   </state>
 
   <state id="listening_first_replay_ack">
@@ -94,7 +94,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
                 target="listening_second_replay_ack"/>
-    <transition event="deadline_first_replay_ack" target="fail_no_first_replay_ack"/>
+    <transition event="deadline_first_replay_ack" target="inconclusive_no_first_replay_ack"/>
   </state>
 
   <state id="listening_second_replay_ack">
@@ -102,30 +102,30 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 51U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 51U)"
                 target="pass"/>
-    <transition event="deadline_second_replay_ack" target="fail_no_second_replay_ack"/>
+    <transition event="deadline_second_replay_ack" target="inconclusive_no_second_replay_ack"/>
   </state>
 
   <final id="pass">
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="fail_no_dut_fin">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_close_fin"}</content></donedata>
+  <final id="inconclusive_no_dut_fin">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_fin","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_no_tester_fin_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin"}</content></donedata>
+  <final id="inconclusive_no_tester_fin_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_no_first_replay_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_first_replay_fin_in_time_wait"}</content></donedata>
+  <final id="inconclusive_no_first_replay_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_first_replay_fin_in_time_wait","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_no_second_replay_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_second_replay_fin_after_1_5_msl"}</content></donedata>
+  <final id="inconclusive_no_second_replay_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_second_replay_fin_after_1_5_msl","role":"property_unobserved"}</content></donedata>
   </final>
 </scxml>

@@ -76,7 +76,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 24U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 24U)"
                 target="listening_p1_absence"/>
-    <transition event="deadline_p1_dut_syn" target="fail_p1_no_dut_syn"/>
+    <transition event="deadline_p1_dut_syn" target="inconclusive_p1_no_dut_syn"/>
   </state>
 
   <state id="listening_p1_absence">
@@ -98,7 +98,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 25U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 25U)"
                 target="listening_p2_absence"/>
-    <transition event="deadline_p2_dut_syn" target="fail_p2_no_dut_syn"/>
+    <transition event="deadline_p2_dut_syn" target="inconclusive_p2_no_dut_syn"/>
   </state>
 
   <state id="listening_p2_absence">
@@ -117,25 +117,25 @@
     </donedata>
   </final>
 
-  <final id="fail_p1_no_dut_syn">
+  <final id="inconclusive_p1_no_dut_syn">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_phase1_bare_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_phase1_bare_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
   <final id="fail_p1_unexpected_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_response_to_bare_ack_with_acceptable_ack"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_bare_ack_with_acceptable_ack","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_dut_syn">
+  <final id="inconclusive_p2_no_dut_syn">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_phase2_ack_with_payload"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_phase2_ack_with_payload","role":"property_unobserved"}</content>
     </donedata>
   </final>
   <final id="fail_p2_unexpected_response">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_response_to_ack_with_payload_acceptable_ack"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_ack_with_payload_acceptable_ack","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

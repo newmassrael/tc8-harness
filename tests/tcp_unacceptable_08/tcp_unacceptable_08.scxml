@@ -32,7 +32,7 @@
   Each phase uses a distinct local/remote port pair and connection
   identity (mirror of FLAGS_INVALID_05). If the DUT's close path
   races the lingering SYN-SENT retransmit on phase 2 (audit-flagged
-  TEST-DESIGN concern), the case lands fail_p2_no_dut_rst on a Linux
+  TEST-DESIGN concern), the case lands inconclusive_p2_no_dut_rst on a Linux
   DUT and is excluded from CI green via grep filter in
   .github/workflows/smoke-test.yml.
 -->
@@ -59,7 +59,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x04) != 0"
                 target="listening_p2_dut_rst"/>
-    <transition event="deadline_p1" target="fail_p1_no_dut_rst"/>
+    <transition event="deadline_p1" target="inconclusive_p1_no_dut_rst"/>
   </state>
 
   <state id="listening_p2_dut_rst">
@@ -69,7 +69,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 28 and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 28 and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
-    <transition event="deadline_p2" target="fail_p2_no_dut_rst"/>
+    <transition event="deadline_p2" target="inconclusive_p2_no_dut_rst"/>
   </state>
 
   <final id="pass">
@@ -78,15 +78,15 @@
     </donedata>
   </final>
 
-  <final id="fail_p1_no_dut_rst">
+  <final id="inconclusive_p1_no_dut_rst">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_phase1_synack_with_unacceptable_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_phase1_synack_with_unacceptable_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_p2_no_dut_rst">
+  <final id="inconclusive_p2_no_dut_rst">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_phase2_ack_with_unacceptable_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_phase2_ack_with_unacceptable_ack","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

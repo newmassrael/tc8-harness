@@ -66,7 +66,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset)) and captured.payload_len != 200U"
                 target="fail_wrong_size_phase1"/>
-    <transition event="deadline_exceeded" target="fail_timeout_phase1"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_phase1"/>
   </state>
 
   <state id="listening_phase2">
@@ -79,7 +79,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase2LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase2LocalOffset)) and captured.payload_len != 1460U"
                 target="fail_wrong_size_phase2"/>
-    <transition event="deadline_exceeded" target="fail_timeout_phase2"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_phase2"/>
   </state>
 
   <final id="pass">
@@ -90,25 +90,25 @@
 
   <final id="fail_wrong_size_phase1">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase1_segment_size_not_advertised_mss_200"}</content>
+      <content>{"verdict":"fail","reason":"phase1_segment_size_not_advertised_mss_200","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_size_phase2">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase2_segment_size_not_dut_mss_1460"}</content>
+      <content>{"verdict":"fail","reason":"phase2_segment_size_not_dut_mss_1460","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_phase1">
+  <final id="inconclusive_timeout_phase1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_data_segment_phase1_mv200"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_data_segment_phase1_mv200","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_phase2">
+  <final id="inconclusive_timeout_phase2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_data_segment_phase2_mv2000"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_data_segment_phase2_mv2000","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

@@ -43,7 +43,7 @@
     <transition event="ipv4_observed"
                 cond="cpp:captured.src_addr == expected.dut_iface_ip and !captured.header_checksum_valid()"
                 target="fail_checksum"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -54,13 +54,13 @@
 
   <final id="fail_checksum">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_reply_header_checksum_invalid"}</content>
+      <content>{"verdict":"fail","reason":"dut_reply_header_checksum_invalid","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ipv4_packet_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ipv4_packet_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

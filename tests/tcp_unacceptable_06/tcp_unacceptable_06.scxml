@@ -52,7 +52,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable06LocalOffset)"
                 target="listening_data_ack"/>
-    <transition event="deadline_handshake" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_data_ack">
@@ -62,7 +62,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable06LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="pass"/>
-    <transition event="deadline_data_ack" target="fail_no_otw_syn_ack"/>
+    <transition event="deadline_data_ack" target="inconclusive_no_otw_syn_ack"/>
   </state>
 
   <final id="pass">
@@ -71,15 +71,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_otw_syn_ack">
+  <final id="inconclusive_no_otw_syn_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_syn"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_syn","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

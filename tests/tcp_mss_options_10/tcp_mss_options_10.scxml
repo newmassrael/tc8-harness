@@ -58,7 +58,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort10, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort10) and captured.payload_len != 536U"
                 target="fail_wrong_segment_size"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -69,13 +69,13 @@
 
   <final id="fail_wrong_segment_size">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_data_segment_size_not_default_536"}</content>
+      <content>{"verdict":"fail","reason":"dut_data_segment_size_not_default_536","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_data_segment_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_data_segment_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

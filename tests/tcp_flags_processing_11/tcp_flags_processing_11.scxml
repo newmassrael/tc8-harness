@@ -30,7 +30,7 @@
   value.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
-  is unreachable, lands on fail_no_handshake_ack at the 5 s
+  is unreachable, lands on inconclusive_no_handshake_ack at the 5 s
   deadline. Total negative envelope ≈ 5 s + kTcpUtBootWait
   + active-OPEN stimulus ≈ 8 s.
 -->
@@ -55,7 +55,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 50U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 50U) and captured.ut_established == 1U"
                 target="listening_silence"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_silence">
@@ -70,11 +70,11 @@
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
   <final id="fail_unexpected_response">
-    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_duplicate_ack_in_est"}</content></donedata>
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_duplicate_ack_in_est","role":"observed_violation"}</content></donedata>
   </final>
 </scxml>

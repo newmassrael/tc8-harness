@@ -63,7 +63,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and (captured.flags &amp; 0x01) != 0"
                 target="listening_p1_ack"/>
-    <transition event="deadline_exceeded" target="fail_timeout_p1_fin"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_p1_fin"/>
   </state>
 
   <state id="listening_p1_ack">
@@ -73,7 +73,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_p2_fin"/>
-    <transition event="deadline_exceeded" target="fail_timeout_p1_ack"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_p1_ack"/>
   </state>
 
   <state id="listening_p2_fin">
@@ -83,7 +83,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) != 0"
                 target="listening_p2_ack"/>
-    <transition event="deadline_exceeded" target="fail_timeout_p2_fin"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_p2_fin"/>
   </state>
 
   <state id="listening_p2_ack">
@@ -93,7 +93,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout_p2_ack"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_p2_ack"/>
   </state>
 
   <final id="pass">
@@ -102,27 +102,27 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_p1_fin">
+  <final id="inconclusive_timeout_p1_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_close_fin_phase1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_close_fin_phase1","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_p1_ack">
+  <final id="inconclusive_timeout_p1_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase1"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_phase1","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_p2_fin">
+  <final id="inconclusive_timeout_p2_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_close_fin_phase2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_close_fin_phase2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_p2_ack">
+  <final id="inconclusive_timeout_p2_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_phase2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

@@ -24,7 +24,7 @@
     * pass — DUT replies type=12 AND pointer == 22 AND src_ip==DUT.
     * fail_wrong_pointer — DUT replies type=12 from DUT with pointer
       != 22 (Linux DUT lands here at pointer == 20).
-    * fail_timeout — no DUT-origin type=12 reply within the window.
+    * inconclusive_timeout — no DUT-origin type=12 reply within the window.
 
   Dispatch narrows to type=12 in icmpv4_pilot_common::dispatchIcmpFrame,
   so the tester's own outbound Echo-shape frame (type=8 on the wire
@@ -66,7 +66,7 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 12 and captured.icmp_pointer != 22 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_wrong_pointer"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -77,13 +77,13 @@
 
   <final id="fail_wrong_pointer">
     <donedata>
-      <content>{"verdict":"fail","reason":"parameter_problem_pointer_not_22"}</content>
+      <content>{"verdict":"fail","reason":"parameter_problem_pointer_not_22","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_parameter_problem_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_parameter_problem_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

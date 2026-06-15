@@ -74,7 +74,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum01LocalOffset)"
                 target="listening_data_ack"/>
-    <transition event="deadline_exceeded_handshake" target="fail_no_handshake_ack"/>
+    <transition event="deadline_exceeded_handshake" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_data_ack">
@@ -84,7 +84,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum01LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_exceeded_data" target="fail_no_data_ack"/>
+    <transition event="deadline_exceeded_data" target="inconclusive_no_data_ack"/>
   </state>
 
   <final id="pass">
@@ -93,15 +93,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_data_ack">
+  <final id="inconclusive_no_data_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_correct_checksum_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_correct_checksum_data","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

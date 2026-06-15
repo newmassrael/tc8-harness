@@ -28,9 +28,9 @@
   SYN+ACK from step (c) does not match (flag profile lacks RST), so
   the SCXML does not need a separate consumer for it.
 
-  Per-state fail terminal (fail_timeout). Negative smoke flips
+  Per-state fail terminal (inconclusive_timeout). Negative smoke flips
   `ipv4.dut_iface_ip=10.99.99.99` → src_ip-conjunct unreachable →
-  fail_timeout.
+  inconclusive_timeout.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -55,7 +55,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -64,9 +64,9 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_to_unacceptable_ack_in_syn_recv"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_to_unacceptable_ack_in_syn_recv","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

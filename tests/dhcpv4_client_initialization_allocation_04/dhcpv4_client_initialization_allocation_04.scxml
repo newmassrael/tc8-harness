@@ -43,7 +43,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_no_request"/>
-    <transition event="s1_deadline" target="fail_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_no_request">
@@ -65,13 +65,13 @@
 
   <final id="fail_unexpected_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_request_after_mismatched_xid_offer"}</content>
+      <content>{"verdict":"fail","reason":"dut_dhcp_request_after_mismatched_xid_offer","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

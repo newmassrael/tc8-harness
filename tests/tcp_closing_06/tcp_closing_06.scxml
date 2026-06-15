@@ -31,7 +31,7 @@
   comfortably.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
-  becomes unreachable, lands on fail_no_handshake_ack at the 5 s
+  becomes unreachable, lands on inconclusive_no_handshake_ack at the 5 s
   deadline + ~2 s prelude wall-time ≈ 8 s.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -55,7 +55,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 70U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 70U)"
                 target="listening_dut_fin"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_dut_fin">
@@ -63,18 +63,18 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 70U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 70U)"
                 target="pass"/>
-    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
+    <transition event="deadline_dut_fin" target="inconclusive_no_dut_fin"/>
   </state>
 
   <final id="pass">
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="fail_no_dut_fin">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_close_fin"}</content></donedata>
+  <final id="inconclusive_no_dut_fin">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_fin","role":"property_unobserved"}</content></donedata>
   </final>
 </scxml>

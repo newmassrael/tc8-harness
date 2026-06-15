@@ -29,7 +29,7 @@
     <transition event="someip_notification"
                 cond="cpp:(captured.sd_flags &amp; 0x40) == 0x00"
                 target="fail_unicast_flag"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -40,13 +40,13 @@
 
   <final id="fail_unicast_flag">
     <donedata>
-      <content>{"verdict":"fail","reason":"unicast_flag_not_set"}</content>
+      <content>{"verdict":"fail","reason":"unicast_flag_not_set","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

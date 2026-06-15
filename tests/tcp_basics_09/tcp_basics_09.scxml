@@ -58,7 +58,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics09LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics09LocalOffset) and (captured.flags &amp; 0x01) != 0"
                 target="listening_rst"/>
-    <transition event="deadline_exceeded" target="fail_timeout_fin"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_fin"/>
   </state>
 
   <state id="listening_rst">
@@ -68,7 +68,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics09LocalOffset) and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout_rst"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_rst"/>
   </state>
 
   <final id="pass">
@@ -77,15 +77,15 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_fin">
+  <final id="inconclusive_timeout_fin">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_fin_into_last_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_fin_into_last_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_rst">
+  <final id="inconclusive_timeout_rst">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_from_closed"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_from_closed","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

@@ -44,7 +44,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_request"/>
-    <transition event="deadline_exceeded" target="fail_no_discover"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_request">
@@ -55,7 +55,7 @@
                 cond="cpp:captured.is_dhcp_request()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_no_request"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_request"/>
   </state>
 
   <final id="pass">
@@ -64,15 +64,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_request">
+  <final id="inconclusive_no_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_padded_offer"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_padded_offer","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

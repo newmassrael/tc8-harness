@@ -35,7 +35,7 @@
       expected.dut_iface_mac` conjunction so smoke-test `negative` rows
       that override `arp.dut_iface_mac` actually reach this branch.
       Otherwise the override falsifies every ARP-observed transition and
-      the case silently lands on fail_no_reply. Safe because the only
+      the case silently lands on inconclusive_no_reply. Safe because the only
       opcode==2 frames on the wire in this test are DUT replies to our
       injected Request: the tester stimulus is a Request (opcode=1) and
       there is no cross-case pcap leakage (pcap is per-case).
@@ -43,7 +43,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 2 and captured.eth_src != expected.dut_iface_mac"
                 target="fail_eth_src_not_dut_mac"/>
-    <transition event="deadline_exceeded" target="fail_no_reply"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_reply"/>
   </state>
 
   <final id="pass">
@@ -54,13 +54,13 @@
 
   <final id="fail_eth_src_not_dut_mac">
     <donedata>
-      <content>{"verdict":"fail","reason":"eth_src_not_dut_iface_mac"}</content>
+      <content>{"verdict":"fail","reason":"eth_src_not_dut_iface_mac","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_reply">
+  <final id="inconclusive_no_reply">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_reply_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

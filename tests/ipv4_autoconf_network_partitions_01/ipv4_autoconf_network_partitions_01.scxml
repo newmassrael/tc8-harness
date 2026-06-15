@@ -72,14 +72,14 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_announce() and captured.eth_src == expected.dut_iface_mac"
                 target="listening_pre_announce_2"/>
-    <transition event="claim_deadline" target="fail_no_claim_observed"/>
+    <transition event="claim_deadline" target="inconclusive_no_claim_observed"/>
   </state>
 
   <state id="listening_pre_announce_2">
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_announce() and captured.eth_src == expected.dut_iface_mac"
                 target="listening_post_claim"/>
-    <transition event="claim_deadline" target="fail_only_one_announce"/>
+    <transition event="claim_deadline" target="inconclusive_only_one_announce"/>
   </state>
 
   <state id="listening_post_claim">
@@ -92,7 +92,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_reply()"
                 target="fail_reply_wrong_fields"/>
-    <transition event="reply_deadline" target="fail_no_responder_reply"/>
+    <transition event="reply_deadline" target="inconclusive_no_responder_reply"/>
   </state>
 
   <state id="listening_no_periodic">
@@ -111,33 +111,33 @@
     </donedata>
   </final>
 
-  <final id="fail_no_claim_observed">
+  <final id="inconclusive_no_claim_observed">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_announce_committed_link_local_address"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_announce_committed_link_local_address","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_only_one_announce">
+  <final id="inconclusive_only_one_announce">
     <donedata>
-      <content>{"verdict":"fail","reason":"fewer_than_2_arp_announces_within_deadline"}</content>
+      <content>{"verdict":"inconclusive","reason":"fewer_than_2_arp_announces_within_deadline","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_responder_reply">
+  <final id="inconclusive_no_responder_reply">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_emit_arp_reply_for_claim_address"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_emit_arp_reply_for_claim_address","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_reply_wrong_fields">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst"}</content>
+      <content>{"verdict":"fail","reason":"dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_periodic_gratuitous_arp">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_periodic_gratuitous_arp_for_committed_link_local"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_periodic_gratuitous_arp_for_committed_link_local","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

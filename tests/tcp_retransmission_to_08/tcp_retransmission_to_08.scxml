@@ -81,31 +81,31 @@
 
   <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete"}</content>
+      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"tcp_info_query_failed"}</content>
+      <content>{"verdict":"fail","reason":"tcp_info_query_failed","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_retx">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_retransmits_observed_in_kernel"}</content>
+      <content>{"verdict":"fail","reason":"no_retransmits_observed_in_kernel","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_rto_above_2msl_cap">
     <donedata>
-      <content>{"verdict":"fail","reason":"rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s"}</content>
+      <content>{"verdict":"fail","reason":"rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_rto_below_2msl_cap">
     <donedata>
-      <content>{"verdict":"fail","reason":"rto_below_2_msl_did_not_plateau_within_observation_budget"}</content>
+      <content>{"verdict":"fail","reason":"rto_below_2_msl_did_not_plateau_within_observation_budget","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

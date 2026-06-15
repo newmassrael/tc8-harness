@@ -66,7 +66,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0xC0FFEE00U"
                 target="fail_wrong_seq_synack"/>
-    <transition event="deadline_exceeded" target="fail_timeout_synack"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_synack"/>
   </state>
 
   <state id="listening_ack">
@@ -79,7 +79,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0xDEADBEEFU"
                 target="fail_wrong_seq_ack"/>
-    <transition event="deadline_exceeded" target="fail_timeout_ack"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_ack"/>
   </state>
 
   <final id="pass">
@@ -90,25 +90,25 @@
 
   <final id="fail_wrong_seq_synack">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_rst_seq_not_synack_ack_literal"}</content>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_synack_ack_literal","role":"observed_violation"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_seq_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_rst_seq_not_ack_phase_ack_literal"}</content>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_ack_phase_ack_literal","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_synack">
+  <final id="inconclusive_timeout_synack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_after_synack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_after_synack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_ack">
+  <final id="inconclusive_timeout_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_rst_after_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_after_ack","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

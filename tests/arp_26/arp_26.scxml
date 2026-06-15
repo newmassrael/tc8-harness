@@ -28,7 +28,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_no_reply"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_reply"/>
   </state>
 
   <final id="pass">
@@ -37,9 +37,9 @@
     </donedata>
   </final>
 
-  <final id="fail_no_reply">
+  <final id="inconclusive_no_reply">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_reply_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

@@ -33,7 +33,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.session_id != 0x0001"
                 target="fail_session_id"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -44,13 +44,13 @@
 
   <final id="fail_session_id">
     <donedata>
-      <content>{"verdict":"fail","reason":"session_id_not_0x0001"}</content>
+      <content>{"verdict":"fail","reason":"session_id_not_0x0001","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

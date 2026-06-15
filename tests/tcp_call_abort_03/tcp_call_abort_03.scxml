@@ -49,7 +49,7 @@
     p3_handshake_ack → p3_settle → p3_verify_rst → pass
 
   Negative IP-flip path: src_ip-conjunct on listening_p1_handshake_ack
-  unreachable → fail_p1_no_handshake_ack.
+  unreachable → inconclusive_p1_no_handshake_ack.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -72,7 +72,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 91U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 91U)"
                 target="listening_p1_settle"/>
-    <transition event="deadline_p1_handshake_ack" target="fail_p1_no_handshake_ack"/>
+    <transition event="deadline_p1_handshake_ack" target="inconclusive_p1_no_handshake_ack"/>
   </state>
 
   <state id="listening_p1_settle">
@@ -85,7 +85,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 91U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 91U)"
                 target="listening_p2_handshake_ack"/>
-    <transition event="deadline_p1_verify_rst" target="fail_p1_no_close"/>
+    <transition event="deadline_p1_verify_rst" target="inconclusive_p1_no_close"/>
   </state>
 
   <state id="listening_p2_handshake_ack">
@@ -93,7 +93,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 92U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 92U)"
                 target="listening_p2_settle"/>
-    <transition event="deadline_p2_handshake_ack" target="fail_p2_no_handshake_ack"/>
+    <transition event="deadline_p2_handshake_ack" target="inconclusive_p2_no_handshake_ack"/>
   </state>
 
   <state id="listening_p2_settle">
@@ -106,7 +106,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 92U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 92U)"
                 target="listening_p3_handshake_ack"/>
-    <transition event="deadline_p2_verify_rst" target="fail_p2_no_close"/>
+    <transition event="deadline_p2_verify_rst" target="inconclusive_p2_no_close"/>
   </state>
 
   <state id="listening_p3_handshake_ack">
@@ -114,7 +114,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 93U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 93U)"
                 target="listening_p3_settle"/>
-    <transition event="deadline_p3_handshake_ack" target="fail_p3_no_handshake_ack"/>
+    <transition event="deadline_p3_handshake_ack" target="inconclusive_p3_no_handshake_ack"/>
   </state>
 
   <state id="listening_p3_settle">
@@ -127,34 +127,34 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 93U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 93U)"
                 target="pass"/>
-    <transition event="deadline_p3_verify_rst" target="fail_p3_no_close"/>
+    <transition event="deadline_p3_verify_rst" target="inconclusive_p3_no_close"/>
   </state>
 
   <final id="pass">
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_p1_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase1_closing"}</content></donedata>
+  <final id="inconclusive_p1_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase1_closing","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="fail_p1_no_close">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_closing"}</content></donedata>
+  <final id="inconclusive_p1_no_close">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_closing","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p2_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase2_last_ack"}</content></donedata>
+  <final id="inconclusive_p2_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase2_last_ack","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p2_no_close">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_last_ack"}</content></donedata>
+  <final id="inconclusive_p2_no_close">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_last_ack","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p3_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack_phase3_time_wait"}</content></donedata>
+  <final id="inconclusive_p3_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase3_time_wait","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_p3_no_close">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_time_wait"}</content></donedata>
+  <final id="inconclusive_p3_no_close">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_time_wait","role":"property_unobserved"}</content></donedata>
   </final>
 </scxml>

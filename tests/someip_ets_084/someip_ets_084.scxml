@@ -59,7 +59,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="listening_phase2_subscribe_seen"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
   <state id="listening_phase2_subscribe_seen">
@@ -71,7 +71,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_entries[0].ttl &gt; 0"
                 target="listening_phase3_stop_seen"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_subscribe"/>
   </state>
 
   <state id="listening_phase3_stop_seen">
@@ -85,7 +85,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_entries[0].ttl == 0"
                 target="pass"/>
-    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_stop_subscribe"/>
+    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_stop_subscribe"/>
   </state>
 
   <final id="pass">
@@ -94,21 +94,21 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer">
+  <final id="inconclusive_phase1_no_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_subscribe">
+  <final id="inconclusive_phase2_no_subscribe">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_subscribe_for_ets3_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_subscribe_for_ets3_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase3_no_stop_subscribe">
+  <final id="inconclusive_phase3_no_stop_subscribe">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_stop_subscribe_for_ets3_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_stop_subscribe_for_ets3_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

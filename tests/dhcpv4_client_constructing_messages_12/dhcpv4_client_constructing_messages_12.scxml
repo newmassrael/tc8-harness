@@ -55,7 +55,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_d2"/>
-    <transition event="s1_deadline" target="fail_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_d2">
@@ -66,7 +66,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_d3"/>
-    <transition event="s2_deadline" target="fail_no_discover_2"/>
+    <transition event="s2_deadline" target="inconclusive_no_discover_2"/>
   </state>
 
   <state id="listening_for_d3">
@@ -77,7 +77,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_d4"/>
-    <transition event="s3_deadline" target="fail_no_discover_3"/>
+    <transition event="s3_deadline" target="inconclusive_no_discover_3"/>
   </state>
 
   <state id="listening_for_d4">
@@ -88,7 +88,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_d5"/>
-    <transition event="s4_deadline" target="fail_no_discover_4"/>
+    <transition event="s4_deadline" target="inconclusive_no_discover_4"/>
   </state>
 
   <state id="listening_for_d5">
@@ -99,7 +99,7 @@
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_d6"/>
-    <transition event="s5_deadline" target="fail_no_discover_5"/>
+    <transition event="s5_deadline" target="inconclusive_no_discover_5"/>
   </state>
 
   <state id="listening_for_d6">
@@ -116,7 +116,7 @@
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
                       and not captured.frame_delta_within_us(0, 4200000)"
                 target="fail_cap_exceeded"/>
-    <transition event="s6_deadline" target="fail_no_discover_6"/>
+    <transition event="s6_deadline" target="inconclusive_no_discover_6"/>
   </state>
 
   <final id="pass">
@@ -125,45 +125,45 @@
     </donedata>
   </final>
 
-  <final id="fail_no_discover">
+  <final id="inconclusive_no_discover">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover_2">
+  <final id="inconclusive_no_discover_2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_2"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_2","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover_3">
+  <final id="inconclusive_no_discover_3">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_3"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_3","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover_4">
+  <final id="inconclusive_no_discover_4">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_4"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_4","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover_5">
+  <final id="inconclusive_no_discover_5">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_5"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_5","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_discover_6">
+  <final id="inconclusive_no_discover_6">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_6"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_6","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_cap_exceeded">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_retx_interval_exceeds_cap"}</content>
+      <content>{"verdict":"fail","reason":"dut_retx_interval_exceeds_cap","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

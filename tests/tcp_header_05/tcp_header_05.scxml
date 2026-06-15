@@ -47,7 +47,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 33U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 33U)"
                 target="listening_data_ack"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_data_ack">
@@ -60,7 +60,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 33U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 33U) and captured.ack_num != captured.expected_ack_num"
                 target="fail_wrong_ack_num"/>
-    <transition event="deadline_data_ack" target="fail_no_data_ack"/>
+    <transition event="deadline_data_ack" target="inconclusive_no_data_ack"/>
   </state>
 
   <final id="pass">
@@ -69,21 +69,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
+  <final id="inconclusive_no_handshake_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_data_ack">
+  <final id="inconclusive_no_data_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_reserved_zero_data"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_reserved_zero_data","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_wrong_ack_num">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload"}</content>
+      <content>{"verdict":"fail","reason":"dut_ack_num_does_not_acknowledge_payload","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

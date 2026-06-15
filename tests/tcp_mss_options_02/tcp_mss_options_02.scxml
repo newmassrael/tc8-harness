@@ -67,7 +67,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpMssOptionsListenPort02 and captured.dst_port == ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort02 and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ut_established == 0x00"
                 target="fail_not_established"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
   <final id="pass">
@@ -78,13 +78,13 @@
 
   <final id="fail_not_established">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_reach_established"}</content>
+      <content>{"verdict":"fail","reason":"dut_did_not_reach_established","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_syn_ack_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_ack_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </scxml>

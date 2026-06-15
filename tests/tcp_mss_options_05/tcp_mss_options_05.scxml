@@ -58,7 +58,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions05Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions05Phase1LocalOffset))"
                 target="listening_phase2"/>
-    <transition event="deadline_exceeded" target="fail_timeout_phase1"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_phase1"/>
   </state>
 
   <state id="listening_phase2">
@@ -68,7 +68,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions05Phase2LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions05Phase2LocalOffset))"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_timeout_phase2"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout_phase2"/>
   </state>
 
   <final id="pass">
@@ -77,15 +77,15 @@
     </donedata>
   </final>
 
-  <final id="fail_timeout_phase1">
+  <final id="inconclusive_timeout_phase1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_synack_with_ilen0_mss"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_synack_with_ilen0_mss","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout_phase2">
+  <final id="inconclusive_timeout_phase2">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_ack_to_synack_with_ilen5_mss"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_synack_with_ilen5_mss","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

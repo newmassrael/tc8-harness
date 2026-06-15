@@ -47,7 +47,7 @@
 
   <final id="fail_unexpected_arp_request">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_arp_request_after_gratuitous_learning"}</content>
+      <content>{"verdict":"fail","reason":"dut_arp_request_after_gratuitous_learning","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

@@ -58,7 +58,7 @@
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
-  on fail_no_first_data via the 5 s phase-1 deadline.
+  on inconclusive_no_first_data via the 5 s phase-1 deadline.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -83,7 +83,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle02LocalOffset)"
                 target="absence_no_second_data"/>
-    <transition event="deadline_first_data" target="fail_no_first_data"/>
+    <transition event="deadline_first_data" target="inconclusive_no_first_data"/>
   </state>
 
   <state id="absence_no_second_data">
@@ -103,7 +103,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpNagle02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpNagle02LocalOffset) and captured.seq_num != captured.expected_ack_num"
                 target="pass"/>
-    <transition event="deadline_second_data" target="fail_no_second_data"/>
+    <transition event="deadline_second_data" target="inconclusive_no_second_data"/>
   </state>
 
   <final id="pass">
@@ -112,21 +112,21 @@
     </donedata>
   </final>
 
-  <final id="fail_no_first_data">
+  <final id="inconclusive_no_first_data">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_first_data_segment"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_first_data_segment","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_dut_sent_second_segment_before_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_sent_second_segment_before_ack_nagle_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_sent_second_segment_before_ack_nagle_violation","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_second_data">
+  <final id="inconclusive_no_second_data">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_second_data_segment_after_ack"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_second_data_segment_after_ack","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

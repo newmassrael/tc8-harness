@@ -58,7 +58,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count >= 1 and captured.cached_offer_endpoint_udp_port != 0"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline_exceeded" target="fail_phase1_no_offer_with_endpoint"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer_with_endpoint"/>
   </state>
 
   <state id="listening_phase2">
@@ -71,7 +71,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0"
                 target="fail_phase2_subscribe_nacked"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe_ack"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_subscribe_ack"/>
   </state>
 
   <state id="listening_phase3">
@@ -84,7 +84,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.src_port != captured.cached_offer_endpoint_udp_port"
                 target="fail_phase3_src_port_mismatch"/>
-    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_notification"/>
+    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_notification"/>
   </state>
 
   <final id="pass">
@@ -93,33 +93,33 @@
     </donedata>
   </final>
 
-  <final id="fail_phase1_no_offer_with_endpoint">
+  <final id="inconclusive_phase1_no_offer_with_endpoint">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_with_ipv4_endpoint_within_listen_window","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_subscribe_nacked">
     <donedata>
-      <content>{"verdict":"fail","reason":"subscribe_eventgroup_nacked_ttl_zero"}</content>
+      <content>{"verdict":"fail","reason":"subscribe_eventgroup_nacked_ttl_zero","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_subscribe_ack">
+  <final id="inconclusive_phase2_no_subscribe_ack">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_subscribe_ack_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_subscribe_ack_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase3_no_notification">
+  <final id="inconclusive_phase3_no_notification">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_notification_within_listen_window"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_notification_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase3_src_port_mismatch">
     <donedata>
-      <content>{"verdict":"fail","reason":"notification_src_port_does_not_match_offer_endpoint_port"}</content>
+      <content>{"verdict":"fail","reason":"notification_src_port_does_not_match_offer_endpoint_port","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

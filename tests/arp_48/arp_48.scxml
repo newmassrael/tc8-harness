@@ -49,14 +49,14 @@
     <transition event="udp_observed"
                 cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac"
                 target="fail_udp1_wrong_eth_dst"/>
-    <transition event="deadline_exceeded" target="fail_no_udp1"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_udp1"/>
   </state>
 
   <state id="wait_arp_request">
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.sender_proto_ip == expected.dut_iface_ip and captured.target_proto_ip == expected.tester_ip"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_no_arp_request_after_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_arp_request_after_timeout"/>
   </state>
 
   <final id="pass">
@@ -67,19 +67,19 @@
 
   <final id="fail_udp1_wrong_eth_dst">
     <donedata>
-      <content>{"verdict":"fail","reason":"first_udp_eth_dst_not_learned_mac"}</content>
+      <content>{"verdict":"fail","reason":"first_udp_eth_dst_not_learned_mac","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_udp1">
+  <final id="inconclusive_no_udp1">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_first_udp_after_cache_learning"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_first_udp_after_cache_learning","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_arp_request_after_timeout">
+  <final id="inconclusive_no_arp_request_after_timeout">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_arp_request_after_cache_timeout"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_arp_request_after_cache_timeout","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

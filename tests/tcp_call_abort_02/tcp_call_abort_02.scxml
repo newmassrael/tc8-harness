@@ -37,7 +37,7 @@
                                 DUT closed-port RST after probe.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
-  unreachable, lands on fail_no_handshake_ack at the 5 s deadline +
+  unreachable, lands on inconclusive_no_handshake_ack at the 5 s deadline +
   ~2 s prelude wall-time ≈ 8 s.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -61,7 +61,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 90U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 90U)"
                 target="listening_dut_rst"/>
-    <transition event="deadline_handshake_ack" target="fail_no_handshake_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
 
   <state id="listening_dut_rst">
@@ -69,7 +69,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 90U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 90U)"
                 target="listening_verify_rst"/>
-    <transition event="deadline_dut_rst" target="fail_no_dut_rst"/>
+    <transition event="deadline_dut_rst" target="inconclusive_no_dut_rst"/>
   </state>
 
   <state id="listening_verify_rst">
@@ -77,22 +77,22 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 90U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 90U)"
                 target="pass"/>
-    <transition event="deadline_verify_rst" target="fail_no_verify_rst"/>
+    <transition event="deadline_verify_rst" target="inconclusive_no_verify_rst"/>
   </state>
 
   <final id="pass">
     <donedata><content>{"verdict":"pass"}</content></donedata>
   </final>
 
-  <final id="fail_no_handshake_ack">
-    <donedata><content>{"verdict":"fail","reason":"no_dut_handshake_ack"}</content></donedata>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="fail_no_dut_rst">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_emit_rst_after_abort_in_est"}</content></donedata>
+  <final id="inconclusive_no_dut_rst">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_emit_rst_after_abort_in_est","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="fail_no_verify_rst">
-    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_est"}</content></donedata>
+  <final id="inconclusive_no_verify_rst">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_est","role":"property_unobserved"}</content></donedata>
   </final>
 </scxml>
