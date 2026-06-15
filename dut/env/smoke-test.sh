@@ -268,6 +268,22 @@ done
 [[ "$WORKERS" =~ ^[1-9][0-9]*$ ]] \
     || { echo "smoke-test: --workers must be a positive integer, got '$WORKERS'" >&2; exit 1; }
 
+# Non-conclusion safety net (env-tunable). The 4-value verdict model routes an
+# inconclusive/error verdict to <skipped/> so a transient flake no longer reds
+# the conformance gate (ISO/IEC 9646). The cost is that a genuine regression
+# can now hide as a green skip. The summary below fails the run only when
+# non-conclusions are BOTH numerous (>= _MIN_NONCONCLUSION_FAIL) AND exceed
+# _MAX_NONCONCLUSION_PCT of the scheduled set, so a single transient flake
+# stays a green warning while a systemic cluster (flake storm or a case stuck
+# never-concluding) reds the gate and is investigated before the green skips
+# are trusted.
+TC8_MAX_NONCONCLUSION_PCT=${TC8_MAX_NONCONCLUSION_PCT:-5}
+TC8_MIN_NONCONCLUSION_FAIL=${TC8_MIN_NONCONCLUSION_FAIL:-3}
+[[ "$TC8_MAX_NONCONCLUSION_PCT" =~ ^[0-9]+$ ]] \
+    || { echo "smoke-test: TC8_MAX_NONCONCLUSION_PCT must be a non-negative integer, got '$TC8_MAX_NONCONCLUSION_PCT'" >&2; exit 1; }
+[[ "$TC8_MIN_NONCONCLUSION_FAIL" =~ ^[0-9]+$ ]] \
+    || { echo "smoke-test: TC8_MIN_NONCONCLUSION_FAIL must be a non-negative integer, got '$TC8_MIN_NONCONCLUSION_FAIL'" >&2; exit 1; }
+
 if [[ $# -eq 0 ]]; then
     CASES=("SOMEIPSRV_FORMAT_01")
 else
@@ -2946,13 +2962,40 @@ fi
 
 echo "=========================================="
 echo "smoke-test summary [topology=$TOPOLOGY]: ${total} case(s), ${#fails[@]} failure(s), ${#skips[@]} skipped across ${WORKERS} worker(s)"
+
+# Partition skips into two kinds (the reason carries the verdict class, set by
+# run_case / run_negative_case):
+#   deterministic — capability gap (`skip:` prefix) or topology limit
+#                   (free-form reason): identical every run, expected.
+#   non-conclusion — `inconclusive:` / `error:` prefix: a case that would
+#                   normally conclude (pass) did not this run. Sound to skip,
+#                   but NOT a clean pass and the prime regression-masking risk.
+# Both must never scroll out of sight, so list every skip with its kind.
+nonconcl=()
 if [[ ${#skips[@]} -gt 0 ]]; then
-    # Skips are not failures, but they must never scroll out of sight:
-    # repeat each skipped case + reason in the summary block.
     for _s in "${skips[@]}"; do
-        echo "  SKIP ${_s%%|*} — ${_s#*|}"
+        case "${_s#*|}" in
+            inconclusive:*|error:*)
+                nonconcl+=("$_s")
+                echo "  SKIP* ${_s%%|*} — ${_s#*|}  (non-conclusion / regression-watch)" ;;
+            *)
+                echo "  SKIP  ${_s%%|*} — ${_s#*|}" ;;
+        esac
     done
 fi
+
+# Non-conclusion safety net: surface the cluster loudly and red the gate only
+# when it is systemic (see threshold rationale at the knob definitions). A
+# lone transient flake stays a green warning; a storm or a stuck case fails.
+if [[ ${#nonconcl[@]} -gt 0 ]]; then
+    echo "smoke-test: ${#nonconcl[@]}/${total} case(s) reached a non-conclusion (inconclusive/error) — routed to <skipped/> so they did not red the gate, but they are NOT clean passes; a previously-passing case now skipping is a regression signal." >&2
+    if (( ${#nonconcl[@]} >= TC8_MIN_NONCONCLUSION_FAIL )) \
+       && (( ${#nonconcl[@]} * 100 > total * TC8_MAX_NONCONCLUSION_PCT )); then
+        echo "smoke-test: FATAL — non-conclusion rate ${#nonconcl[@]}/${total} exceeds the ${TC8_MAX_NONCONCLUSION_PCT}% ceiling (floor ${TC8_MIN_NONCONCLUSION_FAIL}); this is a systemic environment/flake problem, not isolated noise. Investigate before trusting the green skips." >&2
+        exit 1
+    fi
+fi
+
 if [[ ${#fails[@]} -gt 0 ]]; then
     printf '  FAIL %s\n' "${fails[@]}" >&2
     exit 1
