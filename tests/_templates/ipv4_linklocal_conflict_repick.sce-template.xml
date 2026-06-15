@@ -7,13 +7,13 @@
 
     listening (12 s deadline)
       └ DUT-emitted Probe (is_arp_probe()) → await_repick
-      └ deadline → fail_no_initial_probe
+      └ deadline → inconclusive_no_initial_probe (no probe at all: precondition_unmet)
 
     await_repick (entered at probe1; trait observer fires conflict
                   ARP injection on entry)
       └ DUT-emitted Probe with target_proto_ip ≠ first probe's
         → pass
-      └ deadline → fail_no_repick
+      └ deadline → inconclusive_no_repick (probed but no repick seen: property_unobserved)
 
   The trait's dispatch helper snapshots the first probe's
   target_proto_ip into `captured.first_probe_target_proto_ip` on
@@ -42,7 +42,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="await_repick"/>
-    <transition event="deadline_exceeded" target="fail_no_initial_probe"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_initial_probe"/>
   </state>
 
   <state id="await_repick">
@@ -50,7 +50,7 @@
                 cond="cpp:captured.is_arp_probe()
                       and captured.target_proto_ip != captured.first_probe_target_proto_ip"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="fail_no_repick"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_repick"/>
   </state>
 
   <final id="pass">
@@ -59,15 +59,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_initial_probe">
+  <final id="inconclusive_no_initial_probe">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_probe_after_ll_start","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_repick">
+  <final id="inconclusive_no_repick">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_repick_after_conflict_arp"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_repick_after_conflict_arp","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>

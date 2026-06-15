@@ -12,7 +12,8 @@
 
   Pass:    filter and ({$pass_expr})
   Fail:    filter and !({$pass_expr})  →  {$fail_state}
-  Timeout: deadline_exceeded            →  fail_timeout
+  Timeout: deadline_exceeded            →  inconclusive_no_probe
+           (no DUT probe at all: precondition not reached, not a violation)
 
   Single `{$pass_expr}` param per the ipv4_field_check precedent —
   XML attribute values can't carry a raw `<`, so dual pass/fail
@@ -54,7 +55,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and !({$pass_expr})"
                 target="{$fail_state}"/>
-    <transition event="deadline_exceeded" target="fail_timeout"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_probe"/>
   </state>
 
   <final id="pass">
@@ -65,13 +66,13 @@
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
     </donedata>
   </final>
 
-  <final id="fail_timeout">
+  <final id="inconclusive_no_probe">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_probe_after_ll_start"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_arp_probe_after_ll_start","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 </sce:template>

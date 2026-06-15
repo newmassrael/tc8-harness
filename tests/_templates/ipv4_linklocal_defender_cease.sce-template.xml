@@ -24,12 +24,12 @@
   States:
     listening_pre_claim (6 s deadline)
       └ DUT Announce (is_arp_announce()) → listening_post_claim
-      └ deadline → fail_no_claim_observed
+      └ deadline → inconclusive_no_claim (no claim observed: precondition_unmet)
 
     listening_post_claim (4 s deadline; observer fires conflicts on
                           entry, including the synchronous LL query)
       └ DUT Probe with target != snapshotted LL → pass
-      └ deadline → fail_no_reprobe
+      └ deadline → inconclusive_no_reprobe (claimed but no reprobe seen: property_unobserved)
 
   Wall budget for an always-cease DUT (fast envelope):
     initial_wait 1.5 s + DHCP 200 ms + Phase 1 ~1.15 s = ~2.85 s →
@@ -66,7 +66,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_announce()"
                 target="listening_post_claim"/>
-    <transition event="claim_deadline" target="fail_no_claim_observed"/>
+    <transition event="claim_deadline" target="inconclusive_no_claim"/>
   </state>
 
   <state id="listening_post_claim">
@@ -76,7 +76,7 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe() and captured.expected_responder_sender_ip_be != 0 and captured.target_proto_ip != captured.expected_responder_sender_ip_be"
                 target="pass"/>
-    <transition event="reprobe_deadline" target="fail_no_reprobe"/>
+    <transition event="reprobe_deadline" target="inconclusive_no_reprobe"/>
   </state>
 
   <final id="pass">
@@ -85,15 +85,15 @@
     </donedata>
   </final>
 
-  <final id="fail_no_claim_observed">
+  <final id="inconclusive_no_claim">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_announce_committed_link_local_address"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_announce_committed_link_local_address","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_reprobe">
+  <final id="inconclusive_no_reprobe">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_reprobe_after_conflicting_arp"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_reprobe_after_conflicting_arp","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </sce:template>
