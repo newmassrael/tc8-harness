@@ -436,20 +436,33 @@ std::uint8_t TestabilityServer::listenAndAcceptTcp(const std::uint8_t *dat, std:
     }
 
     // Accept asynchronously: E_OK returns now, each accepted connection is
-    // reported later as an Event to the requesting tester.
-    event_threads_.emplace_back(&TestabilityServer::acceptLoop, this, *fd, service_id,
-                                 listen_socket_id, max_con, peer);
+    // reported later as an Event to the requesting tester. The accept thread also
+    // drains the kernel accept queue (a listen-only case whose injected stimulus
+    // completes a handshake — FLAGS_PROCESSING_05 — must not back the queue up and
+    // block later SYNs). The worker's lifetime is owned by the listen socket
+    // (stopWorker on close), so re-arm the slot (stop any prior worker on this
+    // socket_id) before installing the new one.
+    stopWorker(listen_socket_id);
+    auto stop = std::make_shared<std::atomic<bool>>(false);
+    std::thread t(&TestabilityServer::acceptLoop, this, *fd, service_id, listen_socket_id, max_con,
+                  peer, stop);
+    {
+        std::lock_guard<std::mutex> lk(workers_mu_);
+        auto &w = event_workers_[listen_socket_id];  // fresh: stopWorker erased any prior
+        w.stop = std::move(stop);
+        w.thread = std::move(t);
+    }
     return tp::kRidEOk;
 }
 
 void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
                                    std::uint16_t listen_socket_id, std::uint16_t max_con,
-                                   sockaddr_in peer) {
+                                   sockaddr_in peer, std::shared_ptr<std::atomic<bool>> stop) {
     const int flags = ::fcntl(listen_fd, F_GETFL, 0);
     ::fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK);
 
     std::uint16_t accepted = 0;
-    while (!stop_requested_ && !reset_events_ && accepted < max_con) {
+    while (!stop_requested_ && !reset_events_ && !stop->load() && accepted < max_con) {
         fd_set rset;
         FD_ZERO(&rset);
         FD_SET(listen_fd, &rset);
@@ -569,21 +582,30 @@ std::uint8_t TestabilityServer::receiveAndForward(const std::uint8_t *dat, std::
     tp::appendU16(resp_dat, static_cast<std::uint16_t>(dropped > 0xFFFF ? 0xFFFF : dropped));
 
     // Active phase: forward subsequently-received data as Events on a worker
-    // thread — the same async lifecycle LISTEN_AND_ACCEPT uses.
-    event_threads_.emplace_back(&TestabilityServer::receiveLoop, this, *fd, service_id, max_fwd,
-                                max_len, peer);
+    // thread — the same async lifecycle (and socket-owned lifetime) as
+    // LISTEN_AND_ACCEPT. Re-arm the slot before installing the new worker.
+    stopWorker(socket_id);
+    auto stop = std::make_shared<std::atomic<bool>>(false);
+    std::thread t(&TestabilityServer::receiveLoop, this, *fd, service_id, max_fwd, max_len, peer,
+                  stop);
+    {
+        std::lock_guard<std::mutex> lk(workers_mu_);
+        auto &w = event_workers_[socket_id];  // fresh: stopWorker erased any prior
+        w.stop = std::move(stop);
+        w.thread = std::move(t);
+    }
     return tp::kRidEOk;
 }
 
 void TestabilityServer::receiveLoop(int conn_fd, std::uint16_t service_id,
                                     std::uint16_t max_fwd, std::uint16_t max_len,
-                                    sockaddr_in peer) {
+                                    sockaddr_in peer, std::shared_ptr<std::atomic<bool>> stop) {
     const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
     const int flags = ::fcntl(conn_fd, F_GETFL, 0);
     ::fcntl(conn_fd, F_SETFL, flags | O_NONBLOCK);
 
     std::uint32_t consumed = 0;
-    while (!stop_requested_ && !reset_events_ && (limitless || consumed < max_len)) {
+    while (!stop_requested_ && !reset_events_ && !stop->load() && (limitless || consumed < max_len)) {
         fd_set rset;
         FD_ZERO(&rset);
         FD_SET(conn_fd, &rset);
@@ -663,6 +685,13 @@ std::optional<int> TestabilityServer::lookupSocket(std::uint16_t id) const {
 }
 
 bool TestabilityServer::eraseSocket(std::uint16_t id, bool abort) {
+    // Stop + join this socket's async-event worker (if any) BEFORE closing the
+    // fd, so the worker has exited and can never select/accept on the fd once it
+    // is closed and the number reused. Done outside sockets_mu_ (stopWorker takes
+    // only workers_mu_) so a worker blocked in registerSocket cannot deadlock the
+    // join.
+    stopWorker(id);
+
     std::optional<TcpConnTuple> tuple;
     {
         std::lock_guard<std::mutex> lk(sockets_mu_);
@@ -740,13 +769,44 @@ void TestabilityServer::closeAllSockets() {
     tcp_conn_.clear();  // keep the connected-4-tuple map in lockstep with sockets_
 }
 
+void TestabilityServer::stopWorker(std::uint16_t socket_id) {
+    EventWorker w;
+    {
+        std::lock_guard<std::mutex> lk(workers_mu_);
+        const auto it = event_workers_.find(socket_id);
+        if (it == event_workers_.end()) {
+            return;  // no worker on this socket
+        }
+        w = std::move(it->second);
+        event_workers_.erase(it);
+    }
+    // Signal + join with workers_mu_ released: the worker may still take
+    // sockets_mu_ (registerSocket) as it winds down, and joining here never
+    // holds workers_mu_, so neither lock order can deadlock.
+    if (w.stop) {
+        w.stop->store(true);
+    }
+    if (w.thread.joinable()) {
+        w.thread.join();
+    }
+}
+
 void TestabilityServer::joinEventThreads() {
-    for (std::thread &t : event_threads_) {
-        if (t.joinable()) {
-            t.join();
+    std::map<std::uint16_t, EventWorker> workers;
+    {
+        std::lock_guard<std::mutex> lk(workers_mu_);
+        workers.swap(event_workers_);
+    }
+    for (auto &kv : workers) {
+        if (kv.second.stop) {
+            kv.second.stop->store(true);
         }
     }
-    event_threads_.clear();
+    for (auto &kv : workers) {
+        if (kv.second.thread.joinable()) {
+            kv.second.thread.join();
+        }
+    }
 }
 
 }  // namespace tc8::dut

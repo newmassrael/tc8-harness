@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -95,15 +96,21 @@ private:
 
     // Accept-thread body: poll `listen_fd` for up to `max_con` incoming
     // connections; per accept, register the new socket and emit the accept Event
-    // to `peer`. Exits on stop_requested_ or after max_con accepts.
+    // to `peer`. Exits on stop_requested_ / reset_events_ / its own `stop` flag,
+    // or after max_con accepts. `stop` is the per-worker flag the socket that
+    // owns this thread raises when it is closed (stopWorker), so the thread can
+    // never outlive its listen socket and race a reused fd.
     void acceptLoop(int listen_fd, std::uint16_t service_id, std::uint16_t listen_socket_id,
-                    std::uint16_t max_con, sockaddr_in peer);
+                    std::uint16_t max_con, sockaddr_in peer,
+                    std::shared_ptr<std::atomic<bool>> stop);
 
     // Forward-thread body: consume up to `max_len` bytes from `conn_fd`, emitting
     // a forward Event (fullLen + payload, payload capped at `max_fwd`) per bulk
-    // to `peer`. Exits on stop/reset or once max_len bytes were consumed.
+    // to `peer`. Exits on stop/reset/its own `stop` flag, or once max_len bytes
+    // were consumed. `stop` is the per-worker flag (see acceptLoop).
     void receiveLoop(int conn_fd, std::uint16_t service_id, std::uint16_t max_fwd,
-                     std::uint16_t max_len, sockaddr_in peer);
+                     std::uint16_t max_len, sockaddr_in peer,
+                     std::shared_ptr<std::atomic<bool>> stop);
 
     // Single emit path for every async Event (PRS_TPSP §6.2 TID 0x02, EVB-set TCP
     // method id) — shared by the LISTEN_AND_ACCEPT and RECEIVE_AND_FORWARD worker
@@ -134,6 +141,14 @@ private:
     // Called by END_TEST (PRS_TPSP §6.10 "terminate active SPs") and by stop().
     void joinEventThreads();
 
+    // Stop + join the async-event worker bound to `socket_id` (if any), then
+    // erase it. Called by eraseSocket BEFORE ::close so the worker has exited and
+    // no longer touches the fd when it is closed (and possibly reused) — the
+    // invariant that keeps a worker thread's lifetime a strict subset of its
+    // socket's. Acquires workers_mu_ only (never sockets_mu_), so it cannot
+    // deadlock against a worker blocked in registerSocket().
+    void stopWorker(std::uint16_t socket_id);
+
     int fd_ = -1;
     std::thread thread_;
     std::atomic<bool> stop_requested_{false};
@@ -141,12 +156,20 @@ private:
     // hard stop_requested_ used for full shutdown.
     std::atomic<bool> reset_events_{false};
 
-    // Async-event SP threads spawned by LISTEN_AND_ACCEPT (accept Events) and
-    // RECEIVE_AND_FORWARD (forward Events). A finished worker stays joinable in
-    // this vector until the next joinEventThreads() reap at END_TEST / stop(),
-    // so the count is bounded by the arm-per-case lifecycle (not by liveness):
-    // it grows only within one test session and is cleared between sessions.
-    std::vector<std::thread> event_threads_;
+    // Async-event SP worker (LISTEN_AND_ACCEPT accept Events / RECEIVE_AND_FORWARD
+    // forward Events) bound to the socket it serves: its `stop` flag plus the
+    // thread. The worker's lifetime is owned by that socket — eraseSocket raises
+    // `stop` and joins before ::close (stopWorker), and joinEventThreads reaps any
+    // survivors at END_TEST / stop(). Keyed by socket_id so a close targets
+    // exactly the worker on that socket; guarded by workers_mu_ (a finished worker
+    // stays in the map until reaped, so the entry count is bounded by the
+    // arm-per-case lifecycle, not by liveness).
+    struct EventWorker {
+        std::shared_ptr<std::atomic<bool>> stop;
+        std::thread thread;
+    };
+    std::mutex workers_mu_;
+    std::map<std::uint16_t, EventWorker> event_workers_;
 
     // PRS_TPSP §6.10 testability socket table: socketId -> fd, guarded by
     // sockets_mu_ (concurrent access from serverLoop + accept threads).

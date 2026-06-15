@@ -247,7 +247,11 @@ public:
         }
         // LISTEN_AND_ACCEPT, listen-only: the synchronous E_OK leaves the DUT in
         // LISTEN; the async accept Event is intentionally not awaited. max_con=1
-        // for parity with acceptTcp and the opcode listen(fd, 1).
+        // for parity with acceptTcp and the opcode listen(fd, 1). The server's
+        // accept thread also drains the accept queue, so a listen-only case whose
+        // injected stimulus completes a handshake (e.g. FLAGS_PROCESSING_05's
+        // SYN+ACK third-leg) does not back the queue up and block later SYNs; the
+        // thread's lifetime is bounded by the socket (server stopWorker on close).
         if (!stimulus::testabilityTcpListen(cfg_, *listen_id, /*max_con=*/1, timeout_ms_,
                                             src_ip_be_)
                  .eok()) {
