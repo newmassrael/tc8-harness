@@ -90,7 +90,7 @@
                 cond="cpp:captured.is_arp_probe()"
                 target="fail_emitted_during_silence_1"/>
     <transition event="silence_complete_1" target="wait_repick"/>
-    <transition event="deadline_exceeded" target="fail_emitted_during_silence_1"/>
+    <transition event="deadline_exceeded" target="inconclusive_silence_1_stalled"/>
   </state>
 
   <state id="wait_repick">
@@ -111,7 +111,7 @@
                 cond="cpp:captured.is_arp_probe()"
                 target="fail_emitted_during_silence_2"/>
     <transition event="silence_complete_2" target="pass"/>
-    <transition event="deadline_exceeded" target="fail_emitted_during_silence_2"/>
+    <transition event="deadline_exceeded" target="inconclusive_silence_2_stalled"/>
   </state>
 
   <final id="pass">
@@ -140,7 +140,13 @@
 
   <final id="fail_emitted_during_silence_1">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_arp_during_first_rate_limit_silence"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_arp_during_first_rate_limit_silence","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_silence_1_stalled">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"first_rate_limit_silence_window_not_concluded","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
@@ -158,7 +164,13 @@
 
   <final id="fail_emitted_during_silence_2">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_arp_during_second_rate_limit_silence"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_arp_during_second_rate_limit_silence","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_silence_2_stalled">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"second_rate_limit_silence_window_not_concluded","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

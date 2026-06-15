@@ -40,7 +40,7 @@
 
   <final id="fail_entry_shape">
     <donedata>
-      <content>{"verdict":"fail","reason":"entry_type_or_length_unexpected"}</content>
+      <content>{"verdict":"fail","reason":"entry_type_or_length_unexpected","role":"observed_violation"}</content>
     </donedata>
   </final>
 
