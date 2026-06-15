@@ -30,7 +30,7 @@ public:
         return true;
     }
 
-    std::string_view verdict() const override {
+    std::string verdict() const override {
         return "pass";
     }
 

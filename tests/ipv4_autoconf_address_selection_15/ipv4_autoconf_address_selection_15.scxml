@@ -152,7 +152,7 @@
 
   <final id="fail_post_silence_repeat">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_post_silence_probe_targets_first_ll"}</content>
+      <content>{"verdict":"fail","reason":"dut_post_silence_probe_targets_previous_ll"}</content>
     </donedata>
   </final>
 

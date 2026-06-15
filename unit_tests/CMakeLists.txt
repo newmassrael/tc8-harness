@@ -86,6 +86,11 @@ target_include_directories(testability_server_test PRIVATE
 tc8_add_unit_test(opcode_tcp_control_test)
 tc8_add_unit_test(iface_enumeration_test)
 tc8_add_unit_test(spec_inventory_test)
+# Verdict SSOT parser: drives the runner's donedata->verdict flattening with
+# the *real* SCE DoneDataHelper encoding (emitContentLiteral), so it links
+# sce_base to pin the engine's string-content wrapping contract.
+tc8_add_unit_test(verdict_donedata_test)
+target_link_libraries(verdict_donedata_test PRIVATE sce_base)
 
 # The 802.1Q round-trip test decodes the builder's output with libtins —
 # the same decoder the live dissector uses — so it links libtins on top
