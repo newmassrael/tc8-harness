@@ -16,7 +16,7 @@
 
   Mechanism:
     - UT OpenTcpPassive(13020) → DUT LISTEN.
-    - driveRawPassiveHandshake with empty SYN options. Linux's
+    - driveSeamRawPassiveAccept with empty SYN options. Linux's
       `tcp_options_received.mss_clamp` defaults to 536 when the
       received SYN carries no MSS option (net/ipv4/tcp_input.c
       `tcp_init_metrics`); subsequent ::send() segments at 536 B.

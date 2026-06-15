@@ -482,10 +482,9 @@ inline void dispatchArpFrameWithRepeatedConflictEmit(
 }
 
 // §4.5.6.2 ADDRESS_SELECTION_16: synchronous OpQueryLLAddress over
-// UDP. Mirrors `tcp_pilot_common::queryTcpEstablishedSync` — opens a
-// transient SOCK_DGRAM, sends the 0x0D request to DUT:30600, waits up
-// to `timeout` for the Confirmation, and returns the committed LL
-// address (network byte order). Returns 0 on any RPC failure (socket,
+// UDP — opens a transient SOCK_DGRAM, sends the 0x0D request to
+// DUT:30600, waits up to `timeout` for the Confirmation, and returns
+// the committed LL address (network byte order). Returns 0 on any RPC failure (socket,
 // send, recv timeout, malformed response) so the caller can fail the
 // scheduled stimulus closure deterministically without raising into
 // SCXML — the closure simply skips the ARP Request emit and the

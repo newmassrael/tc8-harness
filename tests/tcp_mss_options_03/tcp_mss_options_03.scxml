@@ -11,7 +11,7 @@
     4. TESTER: Send ACK.
     5. TESTER: Verify DUT in ESTABLISHED state.
 
-  Mechanism (driveRawPassiveHandshake): same shape as MSS_OPTIONS_02
+  Mechanism (driveSeamRawPassiveAccept): same shape as MSS_OPTIONS_02
   with the SYN's options region carrying [0xFD 0x04 0xAA 0xBB] —
   kind=253 (RFC 4727 §7.1 reserved for experimentation, no
   implementation in any standard TCP stack), length=4 (kind + length

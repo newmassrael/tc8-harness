@@ -13,7 +13,7 @@
     4. TESTER: Send ACK.
     5. TESTER: Verify DUT in ESTABLISHED state.
 
-  Mechanism (driveRawPassiveHandshake):
+  Mechanism (driveSeamRawPassiveAccept):
     - UT OpOpenTcpSocket(passive, kTcpMssOptionsListenPort02).
     - TesterAutoRstDrop scoped — Linux's tester kernel would
       otherwise emit RST against the DUT-emitted SYN+ACK on a

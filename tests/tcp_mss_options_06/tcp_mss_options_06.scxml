@@ -25,7 +25,7 @@
 
   Mechanism per phase:
     - UT OpOpenTcpSocket(passive, listen_port_phaseN) — socket_id N.
-    - driveRawPassiveHandshake with SYN options [02 04 hi lo]
+    - driveSeamRawPassiveAccept with SYN options [02 04 hi lo]
       encoding kind=2 length=4 MSS=Mv — Linux sets the connection's
       tp->rx_opt.mss_clamp accordingly.
     - UT OpSendTcpDataPattern(socket_id=N, pattern, total_len=4000)

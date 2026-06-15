@@ -11,7 +11,7 @@
 
   Mechanism:
     UT OpOpenTcpSocket(passive, kTcpSequence01ListenPort) brings DUT to
-    LISTEN. driveRawPassiveHandshake raw-injects SYN(seq=ISN=
+    LISTEN. driveSeamRawPassiveAccept raw-injects SYN(seq=ISN=
     kTesterInitialSeq) and snippet-captures the DUT SYN+ACK; the harness
     pcap also receives the same SYN+ACK and feeds it through tcp_observed.
     The handshake helper proceeds to the third-leg ACK and the case

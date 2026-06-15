@@ -13,7 +13,7 @@
                expected Ack Numbers.
 
   Mechanism:
-    driveRawPassiveHandshake on listen 13165 / tester +165 brings DUT
+    driveSeamRawPassiveAccept on listen 13165 / tester +165 brings DUT
     to ESTABLISHED with tester snd_nxt = kTesterInitialSeq + 1. The
     stimulus then emits three 4-byte PSH+ACK segments spaced by
     kDelayedAckSettle (600 ms, past the RFC 1122 §4.2.3.2 delayed-ACK

@@ -11,7 +11,7 @@
 
   Mechanism (passive-OPEN handshake + raw-inject in-window data):
     1. UT OpOpenTcpSocket(passive, kTcpAck03ListenPort=13030).
-    2. driveRawPassiveHandshake (no MSS option) drives the DUT into
+    2. driveSeamRawPassiveAccept (no MSS option) drives the DUT into
        ESTABLISHED on (kTcpAck03ListenPort, kTcpAck03TesterSrcPort).
        Handshake consumes 1 SEQ on each side.
     3. Tester raw-injects PSH+ACK with seq=kTesterInitialSeq+1,

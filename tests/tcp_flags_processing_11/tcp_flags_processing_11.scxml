@@ -24,9 +24,10 @@
 
   ut_established conjunct on the handshake_ack pass guard pins
   DUT in EST before the absence window opens; the stimulus
-  populates `captured.ut_established` synchronously via
-  queryTcpEstablishedSync prior to SCXML start, so the conjunct is
-  evaluated against an already-known value.
+  populates `captured.ut_established` synchronously via the
+  kCapTcpStateProbe established query (utEstablishedByte) prior to
+  SCXML start, so the conjunct is evaluated against an already-known
+  value.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
   is unreachable, lands on fail_no_handshake_ack at the 5 s
