@@ -115,74 +115,8 @@ TEST(BuildIpv4Frame, Ipv4ChecksumIsValid) {
     EXPECT_EQ(checksumRef(b.data() + 14, 20), 0u);
 }
 
-TEST(BuildIcmpEchoRequestBody, DefaultSizeIs8Bytes) {
-    // 8 B ICMP header, no payload. FRAGMENTS_04 splits this across
-    // two fragments — the first half is the 8 B header. With no data
-    // the body is exactly that and can't be split, so FRAGMENTS_01-04
-    // callers pass a non-empty `data` that makes each half >= 8 B.
-    const auto body = buildIcmpEchoRequestBody(0x1234, 0x5678, nullptr, 0);
-    EXPECT_EQ(body.size(), 8u);
-}
-
-TEST(BuildIcmpEchoRequestBody, IdAndSeqInBigEndian) {
-    // The DUT's Echo Reply echoes id/seq verbatim; FRAGMENTS_01
-    // asserts they match. Wire ordering is big-endian per RFC 792 —
-    // guards against host-endianness bugs on LE platforms.
-    const auto body = buildIcmpEchoRequestBody(0xAABB, 0xCCDD, nullptr, 0);
-    ASSERT_EQ(body.size(), 8u);
-    EXPECT_EQ(body[4], 0xAAU);
-    EXPECT_EQ(body[5], 0xBBU);
-    EXPECT_EQ(body[6], 0xCCU);
-    EXPECT_EQ(body[7], 0xDDU);
-}
-
-TEST(BuildIcmpEchoRequestBody, PayloadAppendsAfterHeader) {
-    // FRAGMENTS_01's reassembly-validation relies on the DUT reading
-    // the full reassembled body. The body helper must emit
-    // header-then-payload contiguously so `buildIpv4Frame(frag_N,
-    // body_slice_N)` yields the expected on-wire bytes.
-    const std::array<std::uint8_t, 8> payload{1, 2, 3, 4, 5, 6, 7, 8};
-    const auto body = buildIcmpEchoRequestBody(
-        0x1234, 0x5678, payload.data(), payload.size());
-    ASSERT_EQ(body.size(), 8u + payload.size());
-    EXPECT_EQ(std::memcmp(body.data() + 8, payload.data(), payload.size()), 0);
-}
-
-TEST(BuildIcmpEchoRequestBody, ChecksumCoversFullBodyIncludingPayload) {
-    // The DUT validates the ICMP checksum over the reassembled body.
-    // FRAGMENTS_01 computes ONE checksum over the 16 B body, splits
-    // 8/8 across two fragments — the reassembled datagram must
-    // validate. If the helper's checksum scope drifted to header-
-    // only, the DUT would drop after reassembly and FRAGMENTS_01
-    // would false-fail.
-    const std::array<std::uint8_t, 8> payload{0x10, 0x20, 0x30, 0x40,
-                                              0x50, 0x60, 0x70, 0x80};
-    const auto body = buildIcmpEchoRequestBody(
-        0x1234, 0x5678, payload.data(), payload.size());
-    EXPECT_EQ(checksumRef(body.data(), body.size()), 0u);
-}
-
-TEST(BuildIcmpEchoRequestBody, TypeOverrideReplacesByteZero) {
-    // Information Request (type=15) path — the same body helper
-    // serves TYPE_16 via the override. Parallels the
-    // `IcmpMessageSpec::icmp_type_override` coverage in
-    // icmpv4_builder_test but on the layered helper.
-    const auto body = buildIcmpEchoRequestBody(
-        0x1234, 0x5678, nullptr, 0, std::uint8_t{15}, std::uint8_t{0});
-    ASSERT_EQ(body.size(), 8u);
-    EXPECT_EQ(body[0], 15U);
-    EXPECT_EQ(body[1], 0U);
-}
-
-TEST(BuildIcmpEchoRequestBody, CorruptChecksumFlagProducesNonZeroSum) {
-    // TYPE_10 path. Post-compute XOR must produce a body whose
-    // running-sum is non-zero — exactly what the DUT kernel uses to
-    // reject the frame.
-    const auto body = buildIcmpEchoRequestBody(
-        0x1234, 0x5678, nullptr, 0,
-        std::nullopt, std::nullopt, /*corrupt_checksum=*/true);
-    EXPECT_NE(checksumRef(body.data(), body.size()), 0u);
-}
+// The ICMP Echo Request body builder moved to the shared wire layer; its unit
+// tests live with it in icmp_echo_test.cpp (tc8::wire::buildIcmpEchoRequestBody).
 
 }  // namespace
 }  // namespace tc8::stimulus

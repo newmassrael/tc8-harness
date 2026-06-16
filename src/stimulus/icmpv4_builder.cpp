@@ -5,6 +5,7 @@
 
 #include "stimulus/arp_builder.h"
 #include "stimulus/ipv4_frame_builder.h"
+#include "wire/icmp_echo.h"
 
 namespace tc8::stimulus {
 
@@ -38,7 +39,7 @@ std::vector<std::uint8_t> buildIcmpMessage(const IcmpMessageSpec &spec) {
             spec.icmp_type_override, spec.icmp_code_override,
             spec.corrupt_icmp_checksum);
     } else {
-        ip_payload = buildIcmpEchoRequestBody(
+        ip_payload = ::tc8::wire::buildIcmpEchoRequestBody(
             spec.echo_id, spec.echo_seq,
             spec.payload_data, spec.payload_len,
             spec.icmp_type_override, spec.icmp_code_override,

@@ -112,6 +112,19 @@ if(TARGET sce_core)
     endif()
 endif()
 
+# Shared IPv4-family wire math — the single build-level home for src/wire
+# (RFC 1071 Internet checksum, RFC 792 ICMP echo body). Linked by the harness,
+# tc8-dut, the testability server library and the unit tests so no target names
+# the source by path (the former pattern left ip_checksum.cpp listed in four
+# CMakeLists and tempted in-tree checksum copies). Pure byte math — no syscalls,
+# no third-party deps — so it cross-compiles and the lwIP DUT port can link it.
+add_library(tc8_wire STATIC
+    src/wire/ip_checksum.cpp
+    src/wire/icmp_echo.cpp
+)
+target_include_directories(tc8_wire PUBLIC src)
+tc8_enable_strict_warnings(tc8_wire)
+
 # Portability check: cross-compile the dependency-light core — the SCE
 # engine plus every wire builder / SOME/IP dissector where the
 # endianness- and bit-layout-sensitive code lives — without needing a
@@ -140,10 +153,9 @@ if(TC8_PORTABILITY_CHECK)
         src/stimulus/udp_datagram_builder.cpp
         src/stimulus/upper_tester_client.cpp
         src/stimulus/testability_client.cpp
-        src/wire/ip_checksum.cpp
     )
     target_include_directories(tc8-core-portability PRIVATE src include)
-    target_link_libraries(tc8-core-portability PRIVATE sce_base)
+    target_link_libraries(tc8-core-portability PRIVATE sce_base tc8_wire)
     tc8_enable_strict_warnings(tc8-core-portability)
     message(STATUS
         "TC8: portability-check configuration — building "
@@ -198,7 +210,6 @@ add_executable(tc8-harness
     src/stimulus/udp_datagram_builder.cpp
     src/stimulus/upper_tester_client.cpp
     src/stimulus/testability_client.cpp
-    src/wire/ip_checksum.cpp
 )
 
 # Each TC8 case lives in tests/<case_id>/ with its SCXML. The matching
@@ -456,6 +467,7 @@ target_link_libraries(tc8-harness PRIVATE
     CommonAPI
     CommonAPI-SomeIP
     sce_base
+    tc8_wire
     ${PCAP_LIBRARY}
     ${LIBTINS_LIBRARY}
 )

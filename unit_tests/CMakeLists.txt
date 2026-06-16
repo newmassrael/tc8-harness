@@ -32,12 +32,14 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/testability_client.cpp
-    ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.cpp
 )
 target_include_directories(tc8_harness_testable PUBLIC
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/include
 )
+# Shared wire math (checksum + ICMP echo body); PUBLIC so every test executable
+# linking tc8_harness_testable inherits the one tc8_wire archive.
+target_link_libraries(tc8_harness_testable PUBLIC tc8_wire)
 tc8_enable_strict_warnings(tc8_harness_testable)
 
 function(tc8_add_unit_test name)
@@ -64,6 +66,7 @@ tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)
 tc8_add_unit_test(ipv4_frame_builder_test)
+tc8_add_unit_test(icmp_echo_test)
 tc8_add_unit_test(icmpv4_builder_test)
 tc8_add_unit_test(ipv4_decode_test)
 tc8_add_unit_test(tcp_segment_builder_test)

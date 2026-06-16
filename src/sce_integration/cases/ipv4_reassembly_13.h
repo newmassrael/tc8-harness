@@ -9,6 +9,7 @@
 #include "sce_integration/ipv4_reassembly_common.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/icmpv4_builder.h"
+#include "wire/icmp_echo.h"
 
 #include "ipv4_reassembly_13_sm.h"
 
@@ -64,7 +65,7 @@ struct TestCaseTraits<cases::Ipv4Reassembly13SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        const auto body = ::tc8::stimulus::buildIcmpEchoRequestBody(
+        const auto body = ::tc8::wire::buildIcmpEchoRequestBody(
             ::tc8::stimulus::kIcmpEchoId,
             ::tc8::stimulus::kIcmpEchoSeq,
             ::tc8::sce::ipv4::reassembly::kReassembly13EchoPayload.data(),

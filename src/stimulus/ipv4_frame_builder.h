@@ -124,30 +124,10 @@ int emitIpv4Frame(std::string_view iface,
                   const std::vector<std::uint8_t> &ip_payload,
                   const IpBootTiming &timing = {});
 
-// Build an 8-byte ICMP header + `data_len` bytes of payload, compute
-// the RFC 1071 one's-complement checksum over the full region, and
-// return the bytes ready to drop into an IPv4 frame (fragmented or
-// not). `type` / `code` default to Echo Request (8/0); override for
-// Information Request (15/0) / Destination Unreachable (3/2) etc. —
-// the 8-byte header layout is identical across these types
-// (identifier + sequence in the rest-of-header slots), so the same
-// body helper serves all of them. `corrupt_checksum` flips one bit of
-// the computed checksum after the compute pass, used by §4.3.3.2
-// TYPE_10's malformed Echo Request.
-//
-// Keeping this at ICMP-body-only granularity lets §4.4.4.6 FRAGMENTS
-// callers build ONE body and split it across fragments: a single
-// checksum covers the full reassembled ICMP payload the DUT sees, so
-// the reassembled packet validates on the DUT side without the
-// FRAGMENTS traits having to know about ICMP checksum semantics.
-std::vector<std::uint8_t> buildIcmpEchoRequestBody(
-    std::uint16_t       id,
-    std::uint16_t       seq,
-    const std::uint8_t *data,
-    std::uint32_t       data_len,
-    std::optional<std::uint8_t> type_override = std::nullopt,
-    std::optional<std::uint8_t> code_override = std::nullopt,
-    bool                corrupt_checksum = false);
+// The ICMP Echo Request body builder moved to the shared wire layer
+// (tc8::wire::buildIcmpEchoRequestBody, "wire/icmp_echo.h") so the DUT-side
+// testability endpoint frames echoes from the same source — ICMP-body callers
+// include that header.
 
 // RFC 792 p17 ICMP Timestamp / Timestamp Reply (type=13 / type=14) body
 // builder. Wire layout is the canonical 8-byte ICMP header (Type, Code,

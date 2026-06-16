@@ -13,8 +13,6 @@ namespace tc8::stimulus {
 namespace {
 
 constexpr std::uint16_t kEtherTypeIpv4 = 0x0800;
-constexpr std::uint8_t  kIcmpTypeEchoRequest = 8;
-constexpr std::uint8_t  kIcmpCodeEchoRequest = 0;
 constexpr std::uint8_t  kIcmpTypeTimestampRequest = 13;
 constexpr std::uint8_t  kIcmpCodeTimestampRequest = 0;
 
@@ -149,36 +147,6 @@ int emitIpv4Frame(std::string_view iface,
         std::this_thread::sleep_for(timing.post_send_wait);
     }
     return rc;
-}
-
-std::vector<std::uint8_t> buildIcmpEchoRequestBody(
-    std::uint16_t       id,
-    std::uint16_t       seq,
-    const std::uint8_t *data,
-    std::uint32_t       data_len,
-    std::optional<std::uint8_t> type_override,
-    std::optional<std::uint8_t> code_override,
-    bool                corrupt_checksum) {
-    std::vector<std::uint8_t> icmp;
-    icmp.reserve(8U + data_len);
-    icmp.push_back(type_override.value_or(kIcmpTypeEchoRequest));
-    icmp.push_back(code_override.value_or(kIcmpCodeEchoRequest));
-    appendBe16(icmp, 0x0000);  // Checksum placeholder
-    appendBe16(icmp, id);
-    appendBe16(icmp, seq);
-    if (data_len > 0 && data != nullptr) {
-        icmp.insert(icmp.end(), data, data + data_len);
-    }
-
-    std::uint16_t icmp_csum = inetChecksum(icmp.data(), icmp.size());
-    if (corrupt_checksum) {
-        // Flip one bit so the DUT's kernel rejects the frame per RFC
-        // 1122 RFC 791 §3.2.2.
-        icmp_csum = static_cast<std::uint16_t>(icmp_csum ^ 0x0001U);
-    }
-    icmp[2] = static_cast<std::uint8_t>((icmp_csum >> 8) & 0xFFU);
-    icmp[3] = static_cast<std::uint8_t>(icmp_csum & 0xFFU);
-    return icmp;
 }
 
 std::vector<std::uint8_t> buildIcmpTimestampRequestBody(

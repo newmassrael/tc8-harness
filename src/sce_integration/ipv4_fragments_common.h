@@ -15,6 +15,7 @@
 #include "sce_integration/test_runner.h"   // IStimulusScheduler
 #include "stimulus/icmpv4_builder.h"       // kIcmpEchoId / kIcmpEchoSeq
 #include "stimulus/ipv4_frame_builder.h"
+#include "wire/icmp_echo.h"                // tc8::wire::buildIcmpEchoRequestBody
 
 namespace tc8::sce::ipv4::fragments {
 
@@ -109,7 +110,7 @@ inline int emitFragmentPair(std::string_view iface,
     // Build the full 16 B ICMP body ONCE so the checksum covers the
     // reassembled payload the DUT will see. 8 B ICMP header +
     // kFragmentsEchoPayload (8 B) = 16 B total, split 8/8.
-    const auto body = ::tc8::stimulus::buildIcmpEchoRequestBody(
+    const auto body = ::tc8::wire::buildIcmpEchoRequestBody(
         ::tc8::stimulus::kIcmpEchoId,
         ::tc8::stimulus::kIcmpEchoSeq,
         kFragmentsEchoPayload.data(),
@@ -160,7 +161,7 @@ inline int emitFragmentPair(std::string_view iface,
 inline int emitFragmentOne(std::string_view iface,
                            const ::tc8::TestConfig& cfg,
                            const std::array<std::uint8_t, 6>& dst_mac) {
-    const auto body = ::tc8::stimulus::buildIcmpEchoRequestBody(
+    const auto body = ::tc8::wire::buildIcmpEchoRequestBody(
         ::tc8::stimulus::kIcmpEchoId,
         ::tc8::stimulus::kIcmpEchoSeq,
         kFragmentsEchoPayload.data(),

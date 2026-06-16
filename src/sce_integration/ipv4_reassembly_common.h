@@ -10,6 +10,7 @@
 #include "sce_integration/test_config.h"
 #include "stimulus/icmpv4_builder.h"
 #include "stimulus/ipv4_frame_builder.h"
+#include "wire/icmp_echo.h"
 
 namespace tc8::sce::ipv4::reassembly {
 
@@ -121,7 +122,7 @@ inline int emitIpv4Fragment(std::string_view iface,
 // the wire frames conformant. `_09` likewise: DUT bucket sits with
 // frag 0 (offset=0, MF=1) waiting for offset=1 that never arrives.
 inline std::vector<std::uint8_t> buildReassembly16BEchoBody() {
-    return ::tc8::stimulus::buildIcmpEchoRequestBody(
+    return ::tc8::wire::buildIcmpEchoRequestBody(
         ::tc8::stimulus::kIcmpEchoId,
         ::tc8::stimulus::kIcmpEchoSeq,
         ::tc8::sce::ipv4::fragments::kFragmentsEchoPayload.data(),
@@ -133,7 +134,7 @@ inline std::vector<std::uint8_t> buildReassembly16BEchoBody() {
 // REASSEMBLY_04, which slices into 4 chunks of 8 B (offsets 0..3 in
 // 8-octet units).
 inline std::vector<std::uint8_t> buildReassembly32BEchoBody() {
-    return ::tc8::stimulus::buildIcmpEchoRequestBody(
+    return ::tc8::wire::buildIcmpEchoRequestBody(
         ::tc8::stimulus::kIcmpEchoId,
         ::tc8::stimulus::kIcmpEchoSeq,
         kReassembly04EchoPayload.data(),
