@@ -23,10 +23,6 @@ constexpr int kAcceptWaitUs = 200 * 1000;
 // while a refused connect returns immediately. Re-verify under netns at LIVE.
 constexpr int kConnectTimeoutMs = 5000;
 
-std::uint16_t readBe16(const std::uint8_t *p) {
-    return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
-}
-
 void writeBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
     b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFU));
     b.push_back(static_cast<std::uint8_t>(v & 0xFFU));
@@ -275,7 +271,7 @@ void UpperTesterServer::handleGetReceivedUdp(const std::uint8_t *p, std::size_t 
         st = kStatusMalformed;
         return;
     }
-    const std::uint16_t listen_port = readBe16(p);
+    const std::uint16_t listen_port = readU16(p);
     const std::uint32_t expected_dst_be = ipFromWire(p + 2);
     const auto rec = lookupReceipt(listen_port, expected_dst_be);
     if (rec.has_value()) {
@@ -305,10 +301,10 @@ void UpperTesterServer::handleTriggerSendUdp(const std::uint8_t *p, std::size_t 
         st = kStatusMalformed;
         return;
     }
-    const std::uint16_t src_port = readBe16(p);
+    const std::uint16_t src_port = readU16(p);
     const std::uint32_t dst_ip_be = ipFromWire(p + 2);
-    const std::uint16_t dst_port = readBe16(p + 6);
-    const std::uint16_t payload_len = readBe16(p + 8);
+    const std::uint16_t dst_port = readU16(p + 6);
+    const std::uint16_t payload_len = readU16(p + 8);
     const std::size_t legacy = 10u + payload_len;
     const std::size_t with_override = legacy + 4u;
     std::uint32_t src_override_be = 0;
@@ -332,7 +328,7 @@ void UpperTesterServer::handleOpenTcpSocket(const std::uint8_t *p, std::size_t n
         return;
     }
     const std::uint8_t type = p[0];
-    const std::uint16_t local_port = readBe16(p + 1);
+    const std::uint16_t local_port = readU16(p + 1);
     if (type == kSocketTypePassive) {
         const auto sid = openTcpPassive(local_port);
         if (!sid.has_value()) {
@@ -346,7 +342,7 @@ void UpperTesterServer::handleOpenTcpSocket(const std::uint8_t *p, std::size_t n
             return;
         }
         const std::uint32_t remote_ip_be = ipFromWire(p + 3);
-        const std::uint16_t remote_port = readBe16(p + 7);
+        const std::uint16_t remote_port = readU16(p + 7);
         const auto sid = openTcpActive(local_port, remote_ip_be, remote_port);
         if (!sid.has_value()) {
             st = kStatusConnectFailed;
@@ -399,7 +395,7 @@ void UpperTesterServer::handleSendTcpData(const std::uint8_t *p, std::size_t n, 
         return;
     }
     const std::uint8_t socket_id = p[0];
-    const std::uint16_t payload_len = readBe16(p + 1);
+    const std::uint16_t payload_len = readU16(p + 1);
     if (n < 3u + payload_len) {
         st = kStatusMalformed;
         return;
@@ -432,8 +428,8 @@ void UpperTesterServer::handleReceiveTcpData(const std::uint8_t *p, std::size_t 
         return;
     }
     const std::uint8_t socket_id = p[0];
-    const std::uint16_t expected_len = readBe16(p + 1);
-    const std::uint16_t timeout_ms = readBe16(p + 3);
+    const std::uint16_t expected_len = readU16(p + 1);
+    const std::uint16_t timeout_ms = readU16(p + 3);
     if (!slotExists(socket_id)) {
         st = kStatusUnknownSocket;
         return;
@@ -495,7 +491,7 @@ void UpperTesterServer::handleSendTcpDataPattern(const std::uint8_t *p, std::siz
     }
     const std::uint8_t socket_id = p[0];
     const std::uint8_t pattern = p[1];
-    const std::uint16_t total_len = readBe16(p + 2);
+    const std::uint16_t total_len = readU16(p + 2);
     if (!slotExists(socket_id)) {
         st = kStatusUnknownSocket;
         return;
@@ -529,8 +525,8 @@ void UpperTesterServer::handleReceiveTcpDataOob(const std::uint8_t *p, std::size
         return;
     }
     const std::uint8_t socket_id = p[0];
-    const std::uint16_t expected_len = readBe16(p + 1);
-    const std::uint16_t timeout_ms = readBe16(p + 3);
+    const std::uint16_t expected_len = readU16(p + 1);
+    const std::uint16_t timeout_ms = readU16(p + 3);
     if (!slotExists(socket_id)) {
         st = kStatusUnknownSocket;
         return;

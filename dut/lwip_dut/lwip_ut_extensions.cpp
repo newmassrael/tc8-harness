@@ -15,10 +15,6 @@ namespace {
 
 namespace ut = ::tc8::ut;
 
-std::uint16_t readBe16(const std::uint8_t *p) {
-    return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
-}
-
 }  // namespace
 
 void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server) {
@@ -40,7 +36,7 @@ void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server) {
                 return;
             }
             const std::uint8_t action = params[0];
-            const std::uint16_t param = readBe16(params + 1);
+            const std::uint16_t param = ut::readU16(params + 1);
             if (action == ut::kArpConditionFlushAll) {
                 // ARP_48/49 step 1 "clear the dynamic entries". Per-case DUT
                 // respawn already yields a cold table; this is the

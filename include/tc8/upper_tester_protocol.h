@@ -40,6 +40,14 @@
 
 namespace tc8::ut {
 
+// Big-endian u16 reader for the wire format above — the single source for every
+// producer/consumer of this protocol (the UT server core and its platform opcode
+// extensions), mirroring testability_protocol.h::readU16. All multi-byte UT
+// fields are big-endian (see "Wire format" above).
+inline std::uint16_t readU16(const std::uint8_t *p) {
+    return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
+}
+
 // tc8-dut UT server port. The spec only mandates a "separate UDP
 // port" — the concrete value is a harness convention. Chosen outside
 // the SOME/IP unicast range (30490..30510, see tc8::dut::kCapturePortHigh)

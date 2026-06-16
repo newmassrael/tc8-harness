@@ -22,10 +22,6 @@ namespace tc8::dut {
 namespace {
 namespace ut = ::tc8::ut;
 
-std::uint16_t readBe16(const std::uint8_t *p) {
-    return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
-}
-
 // Disable TX checksum + segmentation offload on `iface`. veth defaults to
 // CHECKSUM_PARTIAL on transmit; pcap then sees the partial form and §4.8.6.2
 // CHECKSUM_03's validator fails RFC 793 / RFC 768 pseudo-header checks. ethtool
@@ -125,13 +121,13 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
             return;
         }
         LinklocalAutoconf::Params params{};
-        params.dhcp_timeout_ms = milliseconds(readBe16(p + 0));
-        params.probe_wait_ms = milliseconds(readBe16(p + 2));
-        params.probe_min_ms = milliseconds(readBe16(p + 4));
-        params.probe_max_ms = milliseconds(readBe16(p + 6));
-        params.announce_wait_ms = milliseconds(readBe16(p + 8));
-        params.announce_interval_ms = milliseconds(readBe16(p + 10));
-        params.rate_limit_interval_ms = milliseconds(readBe16(p + 12));
+        params.dhcp_timeout_ms = milliseconds(ut::readU16(p + 0));
+        params.probe_wait_ms = milliseconds(ut::readU16(p + 2));
+        params.probe_min_ms = milliseconds(ut::readU16(p + 4));
+        params.probe_max_ms = milliseconds(ut::readU16(p + 6));
+        params.announce_wait_ms = milliseconds(ut::readU16(p + 8));
+        params.announce_interval_ms = milliseconds(ut::readU16(p + 10));
+        params.rate_limit_interval_ms = milliseconds(ut::readU16(p + 12));
         linklocal_autoconf_.start(params);
     });
 
@@ -162,13 +158,13 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
             return;
         }
         LinklocalAutoconf::Params params{};
-        params.dhcp_timeout_ms = milliseconds(readBe16(p + 0));
-        params.probe_wait_ms = milliseconds(readBe16(p + 2));
-        params.probe_min_ms = milliseconds(readBe16(p + 4));
-        params.probe_max_ms = milliseconds(readBe16(p + 6));
-        params.announce_wait_ms = milliseconds(readBe16(p + 8));
-        params.announce_interval_ms = milliseconds(readBe16(p + 10));
-        params.rate_limit_interval_ms = milliseconds(readBe16(p + 12));
+        params.dhcp_timeout_ms = milliseconds(ut::readU16(p + 0));
+        params.probe_wait_ms = milliseconds(ut::readU16(p + 2));
+        params.probe_min_ms = milliseconds(ut::readU16(p + 4));
+        params.probe_max_ms = milliseconds(ut::readU16(p + 6));
+        params.announce_wait_ms = milliseconds(ut::readU16(p + 8));
+        params.announce_interval_ms = milliseconds(ut::readU16(p + 10));
+        params.rate_limit_interval_ms = milliseconds(ut::readU16(p + 12));
         params.flavor = static_cast<LinklocalAutoconfFlavor>(p[14]);
         linklocal_autoconf_.start(params);
     });
@@ -183,25 +179,25 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
             return;
         }
         Dhcpv4Client::Params params{};
-        params.offer_wait_ms = milliseconds(readBe16(p + 0));
-        params.ack_wait_ms = milliseconds(readBe16(p + 2));
+        params.offer_wait_ms = milliseconds(ut::readU16(p + 0));
+        params.ack_wait_ms = milliseconds(ut::readU16(p + 2));
         params.retry_count = p[4];
-        params.retry_interval_ms = milliseconds(readBe16(p + 5));
+        params.retry_interval_ms = milliseconds(ut::readU16(p + 5));
         if (n >= 11) {
-            params.nak_to_discover_min_ms = milliseconds(readBe16(p + 7));
-            params.nak_to_discover_max_ms = milliseconds(readBe16(p + 9));
+            params.nak_to_discover_min_ms = milliseconds(ut::readU16(p + 7));
+            params.nak_to_discover_max_ms = milliseconds(ut::readU16(p + 9));
         }
         if (n >= 13) {
-            params.arp_probe_listen_ms = milliseconds(readBe16(p + 11));
+            params.arp_probe_listen_ms = milliseconds(ut::readU16(p + 11));
         }
         if (n >= 17) {  // decline pair at p+13 / p+15 needs 17 params bytes
-            params.decline_to_discover_min_ms = milliseconds(readBe16(p + 13));
-            params.decline_to_discover_max_ms = milliseconds(readBe16(p + 15));
+            params.decline_to_discover_min_ms = milliseconds(ut::readU16(p + 13));
+            params.decline_to_discover_max_ms = milliseconds(ut::readU16(p + 15));
         }
         if (n >= 23) {  // §4.7.6.7 CM_12/_13 exponential-backoff slots
-            params.retx_first_ms = milliseconds(readBe16(p + 17));
-            params.retx_cap_ms = milliseconds(readBe16(p + 19));
-            params.retx_jitter_ms = milliseconds(readBe16(p + 21));
+            params.retx_first_ms = milliseconds(ut::readU16(p + 17));
+            params.retx_cap_ms = milliseconds(ut::readU16(p + 19));
+            params.retx_jitter_ms = milliseconds(ut::readU16(p + 21));
         }
         std::uint8_t iface_index = 0;
         if (n >= 24) {
