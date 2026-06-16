@@ -6,6 +6,7 @@
 #include <linux/netlink.h>
 #include <linux/sock_diag.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -43,6 +44,15 @@ std::vector<std::uint8_t> buildRepeatedPayload(const std::uint8_t *data_body,
         }
     }
     return payload;
+}
+
+// setsockopt with an int-sized value, mapped to the testability result: E_OK on
+// success, E_NOK on any kernel rejection (e.g. a TCP-only option on a UDP
+// socket, which the kernel fails with ENOPROTOOPT). Shared by the CONFIGURE_SOCKET
+// parameter arms so the result mapping lives in one place.
+std::uint8_t setIntSockOpt(int fd, int level, int optname, int value) {
+    return ::setsockopt(fd, level, optname, &value, sizeof(value)) == 0 ? tp::kRidEOk
+                                                                        : tp::kRidENok;
 }
 
 // Bounded active connect on `fd` to `dst`: O_NONBLOCK connect + select up to
@@ -206,6 +216,9 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
             case tp::kPidShutdown:
                 rid_out = shutdownSocket(dat, dat_len);
                 return;
+            case tp::kPidConfigureSocket:
+                rid_out = configureSocket(dat, dat_len);
+                return;
             default:
                 // RECEIVE_AND_FORWARD (UDP) is deferred: its Event carries
                 // srcPort/srcAddr (vs the TCP fullLen+payload shape) and no UDP
@@ -238,8 +251,11 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
             case tp::kPidReceiveAndForward:
                 rid_out = receiveAndForward(dat, dat_len, req.service_id, peer, resp_dat);
                 return;
+            case tp::kPidConfigureSocket:
+                rid_out = configureSocket(dat, dat_len);
+                return;
             default:
-                rid_out = tp::kRidENtf;  // remaining TCP SPs (CONFIGURE_SOCKET) not served
+                rid_out = tp::kRidENtf;  // no remaining TCP SPs in this build
                 return;
         }
     }
@@ -345,6 +361,65 @@ std::uint8_t TestabilityServer::sendDataUdp(const std::uint8_t *dat, std::size_t
     // Non-blocking semantics (PRS_TPSP §6.10): E_OK signals the transmission was issued,
     // not that it was delivered. A hard send failure surfaces as E_NOK.
     return sent < 0 ? tp::kRidENok : tp::kRidEOk;
+}
+
+std::uint8_t TestabilityServer::configureSocket(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10.10 CONFIGURE_SOCKET request: socketId(u16) + paramId(u16) +
+    // paramVal(vint8). Group-agnostic — the IP-level options apply to both the UDP
+    // and TCP arms; MSS/Nagle are TCP-only and the UDP-checksum toggle UDP-only,
+    // where an inapplicable option surfaces as the kernel setsockopt failure ->
+    // E_NOK.
+    if (dat_len < 2 + 2) {
+        return tp::kRidEInv;
+    }
+    const std::uint16_t socket_id = tp::readU16(dat);
+    const std::uint16_t param_id = tp::readU16(dat + 2);
+    std::size_t off = 4;
+    const std::uint8_t *val = nullptr;
+    std::uint16_t val_len = 0;
+    if (!tp::readVint8(dat, dat_len, off, val, val_len)) {
+        return tp::kRidEInv;
+    }
+
+    const auto fd = lookupSocket(socket_id);
+    if (!fd) {
+        return tp::kRidEIsd;  // PRS_TPSP §6.8 invalid socket descriptor
+    }
+
+    // Each fixed-width parameter must carry exactly its paramVal length
+    // (PRS_TPSP §6.10.10); a mismatch is a malformed request.
+    const auto fixed = [&](std::uint16_t want) { return val_len == want; };
+
+    switch (param_id) {
+        case tp::kCfgTtl:  // IP TTL / hop limit
+            if (!fixed(1)) return tp::kRidEInv;
+            return setIntSockOpt(*fd, IPPROTO_IP, IP_TTL, val[0]);
+        case tp::kCfgPriority:  // traffic class / DSCP & ECN -> the IPv4 TOS byte
+        case tp::kCfgTos:       // IP Type of Service (RFC 791) -> the IPv4 TOS byte
+            if (!fixed(1)) return tp::kRidEInv;
+            return setIntSockOpt(*fd, IPPROTO_IP, IP_TOS, val[0]);
+        case tp::kCfgDontFragment:  // IP DF bit via the path-MTU-discovery mode
+            if (!fixed(1)) return tp::kRidEInv;
+            return setIntSockOpt(*fd, IPPROTO_IP, IP_MTU_DISCOVER,
+                                 val[0] ? IP_PMTUDISC_DO : IP_PMTUDISC_DONT);
+        case tp::kCfgIpTimestampOption:
+            // paramVal is the raw option-4 bytes "as stored in the IP header"
+            // (PRS_TPSP §6.10.10, RFC 791); hand them to IP_OPTIONS verbatim.
+            return ::setsockopt(*fd, IPPROTO_IP, IP_OPTIONS, val, val_len) == 0 ? tp::kRidEOk
+                                                                                : tp::kRidENok;
+        case tp::kCfgMss:  // TCP maximum segment size (TCP only)
+            if (!fixed(2)) return tp::kRidEInv;
+            return setIntSockOpt(*fd, IPPROTO_TCP, TCP_MAXSEG, tp::readU16(val));
+        case tp::kCfgNagle:  // Nagle enable=1 -> TCP_NODELAY is its inverse (TCP only)
+            if (!fixed(1)) return tp::kRidEInv;
+            return setIntSockOpt(*fd, IPPROTO_TCP, TCP_NODELAY, val[0] ? 0 : 1);
+        case tp::kCfgUdpChecksum:  // UDP cksum tx enable=1 -> SO_NO_CHECK is its inverse (UDP only)
+            if (!fixed(1)) return tp::kRidEInv;
+            return setIntSockOpt(*fd, SOL_SOCKET, SO_NO_CHECK, val[0] ? 0 : 1);
+        default:
+            // Unknown / non-standard (0xFFFF-down) parameter not served here.
+            return tp::kRidENtf;
+    }
 }
 
 std::uint8_t TestabilityServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {

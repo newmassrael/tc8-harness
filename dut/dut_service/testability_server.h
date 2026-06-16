@@ -87,6 +87,12 @@ private:
     // SHUTDOWN — group-agnostic: socketId + typeId. typeId 0x00/0x01/0x02 map
     // to shutdown(fd, SHUT_RD/SHUT_WR/SHUT_RDWR) (PRS_TPSP §6.10).
     std::uint8_t shutdownSocket(const std::uint8_t *dat, std::size_t dat_len);
+    // CONFIGURE_SOCKET — group-agnostic (PRS_TPSP §6.10.10): socketId + paramId +
+    // paramVal(vint8). Maps each paramId to the matching setsockopt; the IP-level
+    // options apply to both UDP and TCP, MSS/Nagle are TCP-only and the checksum
+    // toggle UDP-only (an inapplicable option surfaces as the kernel EINVAL ->
+    // E_NOK).
+    std::uint8_t configureSocket(const std::uint8_t *dat, std::size_t dat_len);
     // TCP RECEIVE_AND_FORWARD (PRS_TPSP §6.10) — socketId + maxFwd + maxLen.
     // Consumes the bytes queued before the call (returned as dropCnt) to reopen
     // the receive window, then spawns a forward thread; returns E_OK at once.

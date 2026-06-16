@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <thread>
 #include <vector>
 
@@ -653,6 +654,132 @@ TEST_F(TestabilityServerTest, UdpControlSeamOneShotSend) {
     const ssize_t n = ::recv(rfd, buf, sizeof(buf), 0);
     EXPECT_EQ(n, 3);
     ::close(rfd);
+}
+
+// CONFIGURE_SOCKET TTL (PRS_TPSP §6.10.10 paramId 0x0000) must set IP_TTL on the
+// DUT socket, observable as the TTL of a datagram it subsequently emits — the
+// tester receiver reads the delivered TTL via IP_RECVTTL / recvmsg. This proves
+// the paramId -> setsockopt mapping end to end on the wire (not just E_OK).
+TEST_F(TestabilityServerTest, ConfigureSocketTtlAppliesToEmittedDatagram) {
+    const auto cfg = loopbackConfig();
+
+    // Tester UDP receiver asking the kernel to report each datagram's TTL.
+    const int rfd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(rfd, 0);
+    int on = 1;
+    ASSERT_EQ(::setsockopt(rfd, IPPROTO_IP, IP_RECVTTL, &on, sizeof(on)), 0);
+    sockaddr_in ra{};
+    ra.sin_family = AF_INET;
+    ra.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    ra.sin_port = 0;
+    ASSERT_EQ(::bind(rfd, reinterpret_cast<sockaddr *>(&ra), sizeof(ra)), 0);
+    socklen_t rl = sizeof(ra);
+    ASSERT_EQ(::getsockname(rfd, reinterpret_cast<sockaddr *>(&ra), &rl), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    // DUT: create a UDP socket, set its TTL = 7, emit a datagram to the receiver.
+    const auto sock =
+        stimulus::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+
+    constexpr std::uint8_t kTtl = 7;
+    std::vector<std::uint8_t> cs;
+    tp::appendU16(cs, *sock);        // socketId
+    tp::appendU16(cs, tp::kCfgTtl);  // paramId 0x0000
+    const std::uint8_t ttl_val = kTtl;
+    tp::appendVint8(cs, &ttl_val, 1);  // paramVal (1 byte)
+    EXPECT_TRUE(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).eok());
+
+    std::vector<std::uint8_t> sd;
+    tp::appendU16(sd, *sock);                          // socketId
+    tp::appendU16(sd, 3);                              // totalLen
+    tp::appendU16(sd, ntohs(ra.sin_port));             // destPort
+    tp::appendIpv4Addr(sd, ::htonl(INADDR_LOOPBACK));  // destAddr
+    const std::vector<std::uint8_t> body = {'T', 'T', 'L'};
+    tp::appendVint8(sd, body.data(), body.size());  // data
+    EXPECT_TRUE(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidSendData, sd).eok());
+
+    // recvmsg reads the payload plus the ancillary TTL (IP_RECVTTL -> cmsg IP_TTL).
+    std::uint8_t buf[16];
+    iovec iov{};
+    iov.iov_base = buf;
+    iov.iov_len = sizeof(buf);
+    std::uint8_t ctl[CMSG_SPACE(sizeof(int))];
+    msghdr msg{};
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = ctl;
+    msg.msg_controllen = sizeof(ctl);
+    const ssize_t n = ::recvmsg(rfd, &msg, 0);
+    ASSERT_EQ(n, 3) << "datagram from the configured socket did not arrive";
+
+    int got_ttl = -1;
+    for (cmsghdr *c = CMSG_FIRSTHDR(&msg); c != nullptr; c = CMSG_NXTHDR(&msg, c)) {
+        if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TTL) {
+            int v = 0;
+            std::memcpy(&v, CMSG_DATA(c), sizeof(v));
+            got_ttl = v;
+        }
+    }
+    EXPECT_EQ(got_ttl, static_cast<int>(kTtl))
+        << "CONFIGURE_SOCKET TTL not reflected on the emitted datagram";
+
+    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
+    ::close(rfd);
+}
+
+// CONFIGURE_SOCKET result codes: unknown socketId -> E_ISD, a truncated request
+// -> E_INV, an unknown paramId -> E_NTF, and a valid parameter -> E_OK.
+TEST_F(TestabilityServerTest, ConfigureSocketResultCodes) {
+    const auto cfg = loopbackConfig();
+
+    // Unknown socketId (well-formed message, no such socket).
+    {
+        std::vector<std::uint8_t> cs;
+        tp::appendU16(cs, 0xBEEF);
+        tp::appendU16(cs, tp::kCfgTtl);
+        const std::uint8_t v = 5;
+        tp::appendVint8(cs, &v, 1);
+        EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).rid,
+                  tp::kRidEIsd);
+    }
+
+    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+
+    // Truncated: socketId only, no paramId / paramVal.
+    {
+        std::vector<std::uint8_t> cs;
+        tp::appendU16(cs, *sock);
+        EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).rid,
+                  tp::kRidEInv);
+    }
+
+    // Unknown paramId on a valid socket.
+    {
+        std::vector<std::uint8_t> cs;
+        tp::appendU16(cs, *sock);
+        tp::appendU16(cs, 0x00FF);  // not a defined selector
+        const std::uint8_t v = 1;
+        tp::appendVint8(cs, &v, 1);
+        EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).rid,
+                  tp::kRidENtf);
+    }
+
+    // Valid: disable Nagle on the TCP socket (TCP_NODELAY).
+    {
+        std::vector<std::uint8_t> cs;
+        tp::appendU16(cs, *sock);
+        tp::appendU16(cs, tp::kCfgNagle);
+        const std::uint8_t v = 0;  // disable Nagle
+        tp::appendVint8(cs, &v, 1);
+        EXPECT_TRUE(
+            stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).eok());
+    }
+
+    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
 // CONNECT / SEND_DATA / CLOSE_SOCKET against an unknown socketId -> E_ISD.

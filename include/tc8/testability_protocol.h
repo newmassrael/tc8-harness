@@ -112,6 +112,19 @@ inline constexpr std::uint8_t kShutdownRd = 0x00;    // further reception disall
 inline constexpr std::uint8_t kShutdownWr = 0x01;    // further transmission disallowed (SHUT_WR)
 inline constexpr std::uint8_t kShutdownRdWr = 0x02;  // transmission and reception (SHUT_RDWR)
 
+// PRS_TPSP §6.10.10 CONFIGURE_SOCKET paramId selectors (UDP/TCP). Each fixes the
+// paramVal byte length shown; the IP-level options apply to both groups, MSS and
+// Nagle are TCP-only and the checksum toggle UDP-only. Non-standard parameters
+// count down from 0xFFFF (PRS_TPSP §6.10.10).
+inline constexpr std::uint16_t kCfgTtl = 0x0000;               // 1B: TTL / Hop Limit
+inline constexpr std::uint16_t kCfgPriority = 0x0001;          // 1B: traffic class / DSCP & ECN
+inline constexpr std::uint16_t kCfgDontFragment = 0x0002;      // 1B: IP DF (Don't Fragment)
+inline constexpr std::uint16_t kCfgIpTimestampOption = 0x0003; // N B: IP Timestamp option-4 bytes
+inline constexpr std::uint16_t kCfgTos = 0x0004;               // 1B: IP Type of Service (RFC 791)
+inline constexpr std::uint16_t kCfgMss = 0x0005;               // 2B: TCP MSS 500..1460 (TCP only)
+inline constexpr std::uint16_t kCfgNagle = 0x0006;             // 1B: Nagle enable=1 (TCP only)
+inline constexpr std::uint16_t kCfgUdpChecksum = 0x0007;       // 1B: UDP checksum tx enable=1 (UDP)
+
 // PRS_TPSP §6.8 Result IDs (RID) — carried in the SOME/IP return_code byte.
 inline constexpr std::uint8_t kRidEOk = 0x00;   // performed successfully
 inline constexpr std::uint8_t kRidENok = 0x01;  // general error
