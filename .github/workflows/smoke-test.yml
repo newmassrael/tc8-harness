@@ -20,7 +20,7 @@ on:
 
 permissions:
   contents: read
-  # dorny/test-reporter@v1 creates per-job check runs to surface
+  # dorny/test-reporter@v3 creates per-job check runs to surface
   # JUnit failures inline on the commit page; that needs the
   # `checks: write` scope. Without it the publish step exits 1
   # even when every smoke case passed.
@@ -53,7 +53,7 @@ jobs:
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -161,14 +161,14 @@ jobs:
 
       - name: Upload JUnit reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: junit-reports
           path: reports/
 
       - name: Publish JUnit summary to PR
         if: always()
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         with:
           name: tc8 smoke
           path: reports/junit-*.xml

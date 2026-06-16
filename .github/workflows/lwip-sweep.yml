@@ -24,7 +24,7 @@ on:
 
 permissions:
   contents: read
-  # dorny/test-reporter@v1 needs `checks: write` to publish the JUnit
+  # dorny/test-reporter@v3 needs `checks: write` to publish the JUnit
   # check run (see smoke-test.yml for the failure mode without it).
   checks: write
 
@@ -39,7 +39,7 @@ jobs:
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -70,14 +70,14 @@ jobs:
 
       - name: Upload JUnit reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: junit-lwip-sweep
           path: reports/
 
       - name: Publish JUnit summary
         if: always()
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         with:
           name: lwip full sweep
           path: reports/junit-*.xml

@@ -26,7 +26,7 @@ jobs:
     name: sanitize + build
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Per-case captures live on the orphan `pcap-data` branch (decoupled
       # from main so timestamp churn from refresh runs stays out of the
@@ -35,7 +35,7 @@ jobs:
       # ``continue-on-error`` keeps the workflow alive on first deploy
       # before the branch is seeded.
       - name: Pull pcap-data branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: pcap-data
           path: .pcap-overlay
@@ -56,7 +56,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -66,7 +66,7 @@ jobs:
         run: python3 site/scripts/sanitize_pcap.py site/src/data/pcap
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -86,7 +86,7 @@ jobs:
         run: npm run build
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
 
@@ -100,4 +100,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
