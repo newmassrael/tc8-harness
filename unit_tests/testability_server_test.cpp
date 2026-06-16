@@ -858,6 +858,93 @@ TEST_F(TestabilityServerTest, ConfigureSocketTtlAppliesToEmittedDatagram) {
     ::close(rfd);
 }
 
+// CONFIGURE_SOCKET TOS (paramId 0x0002) and PRIORITY (0x0001) both map to the
+// IPv4 TOS byte (IP_TOS): the value set on the DUT socket must appear as the TOS
+// of a datagram it then emits, read by the tester via IP_RECVTOS / recvmsg. This
+// is the second IP-header field — after the TTL above — that the hermetic
+// loopback test can observe through a control message without a raw socket. The
+// DF bit (IP_MTU_DISCOVER), UDP checksum elision (SO_NO_CHECK) and TCP MSS option
+// (TCP_MAXSEG) would each need CAP_NET_RAW packet capture to read off the wire,
+// so those parameters are pinned at the mapping/length contract level below.
+TEST_F(TestabilityServerTest, ConfigureSocketTosAndPriorityApplyToEmittedDatagram) {
+    const auto cfg = loopbackConfig();
+
+    // Tester UDP receiver asking the kernel to report each datagram's TOS byte.
+    const int rfd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(rfd, 0);
+    int on = 1;
+    ASSERT_EQ(::setsockopt(rfd, IPPROTO_IP, IP_RECVTOS, &on, sizeof(on)), 0);
+    sockaddr_in ra{};
+    ra.sin_family = AF_INET;
+    ra.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    ra.sin_port = 0;
+    ASSERT_EQ(::bind(rfd, reinterpret_cast<sockaddr *>(&ra), sizeof(ra)), 0);
+    socklen_t rl = sizeof(ra);
+    ASSERT_EQ(::getsockname(rfd, reinterpret_cast<sockaddr *>(&ra), &rl), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const auto sock =
+        stimulus::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+
+    // Set <paramId>=<value> on the DUT socket, have it emit one datagram, and
+    // return the TOS byte the receiver observed (-1 if nothing / no cmsg).
+    const auto emitAndReadTos = [&](std::uint16_t param_id, std::uint8_t value) -> int {
+        std::vector<std::uint8_t> cs;
+        tp::appendU16(cs, *sock);     // socketId
+        tp::appendU16(cs, param_id);  // paramId
+        tp::appendVint8(cs, &value, 1);
+        EXPECT_TRUE(
+            stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).eok());
+
+        std::vector<std::uint8_t> sd;
+        tp::appendU16(sd, *sock);                          // socketId
+        tp::appendU16(sd, 3);                              // totalLen
+        tp::appendU16(sd, ntohs(ra.sin_port));             // destPort
+        tp::appendIpv4Addr(sd, ::htonl(INADDR_LOOPBACK));  // destAddr
+        const std::vector<std::uint8_t> body = {'T', 'O', 'S'};
+        tp::appendVint8(sd, body.data(), body.size());
+        EXPECT_TRUE(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidSendData, sd).eok());
+
+        std::uint8_t buf[16];
+        iovec iov{};
+        iov.iov_base = buf;
+        iov.iov_len = sizeof(buf);
+        std::uint8_t ctl[CMSG_SPACE(sizeof(int))];
+        msghdr msg{};
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = ctl;
+        msg.msg_controllen = sizeof(ctl);
+        const ssize_t n = ::recvmsg(rfd, &msg, 0);
+        EXPECT_EQ(n, 3) << "datagram from the configured socket did not arrive";
+        int tos = -1;
+        for (cmsghdr *c = CMSG_FIRSTHDR(&msg); c != nullptr; c = CMSG_NXTHDR(&msg, c)) {
+            // IP_RECVTOS delivers the TOS as a single byte (kernel ip_cmsg_recv_tos).
+            if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TOS) {
+                std::uint8_t v = 0;
+                std::memcpy(&v, CMSG_DATA(c), sizeof(v));
+                tos = v;
+            }
+        }
+        return tos;
+    };
+
+    // TOS selector (0x0002): a clean DSCP value with ECN bits clear so it
+    // round-trips byte-for-byte on loopback.
+    EXPECT_EQ(emitAndReadTos(tp::kCfgTos, 0x28), 0x28)
+        << "CONFIGURE_SOCKET TOS not reflected on the emitted datagram";
+    // PRIORITY selector (0x0001) drives the same IP_TOS byte — a distinct value
+    // proves it is the parameter, not a stale setting, that reached the wire.
+    EXPECT_EQ(emitAndReadTos(tp::kCfgPriority, 0x10), 0x10)
+        << "CONFIGURE_SOCKET PRIORITY not reflected on the emitted datagram's TOS";
+
+    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
+    ::close(rfd);
+}
+
 // CONFIGURE_SOCKET result codes: unknown socketId -> E_ISD, a truncated request
 // -> E_INV, an unknown paramId -> E_NTF, and a valid parameter -> E_OK.
 TEST_F(TestabilityServerTest, ConfigureSocketResultCodes) {
@@ -908,6 +995,53 @@ TEST_F(TestabilityServerTest, ConfigureSocketResultCodes) {
     }
 
     EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+}
+
+// CONFIGURE_SOCKET parameter-mapping contract for the selectors whose on-wire
+// effect a hermetic loopback test cannot read without CAP_NET_RAW packet capture
+// (the DF bit, TCP MSS option and UDP checksum elision). Each defined selector
+// must reach the backend and return E_OK on a socket of the right family, and
+// each fixed-width selector must reject a wrong-length paramVal with E_INV. This
+// pins the paramId -> setsockopt mapping table — and its per-parameter length
+// gate — even where the emitted header field is not observable here. (The TTL
+// and TOS/PRIORITY selectors are additionally verified on the wire above.)
+TEST_F(TestabilityServerTest, ConfigureSocketParameterMappingContract) {
+    const auto cfg = loopbackConfig();
+
+    const auto cfgCall = [&](std::uint8_t gid, std::uint16_t sock, std::uint16_t param_id,
+                             const std::vector<std::uint8_t> &param_val) {
+        std::vector<std::uint8_t> cs;
+        tp::appendU16(cs, sock);
+        tp::appendU16(cs, param_id);
+        tp::appendVint8(cs, param_val.data(), param_val.size());
+        return stimulus::testabilityCall(cfg, gid, tp::kPidConfigureSocket, cs).rid;
+    };
+
+    // UDP socket: DONT_FRAGMENT (IP_MTU_DISCOVER) and UDP_CHECKSUM (SO_NO_CHECK),
+    // both single-byte selectors.
+    {
+        const auto sock =
+            stimulus::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
+        ASSERT_TRUE(sock.has_value());
+        EXPECT_EQ(cfgCall(tp::kGidUdp, *sock, tp::kCfgDontFragment, {0x01}), tp::kRidEOk);
+        EXPECT_EQ(cfgCall(tp::kGidUdp, *sock, tp::kCfgDontFragment, {0x00}), tp::kRidEOk);
+        EXPECT_EQ(cfgCall(tp::kGidUdp, *sock, tp::kCfgUdpChecksum, {0x01}), tp::kRidEOk);
+        // Wrong-length paramVal (2 bytes where the fixed(1) gate wants 1) -> E_INV.
+        EXPECT_EQ(cfgCall(tp::kGidUdp, *sock, tp::kCfgDontFragment, {0x00, 0x00}),
+                  tp::kRidEInv);
+        EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
+    }
+
+    // TCP socket: MSS (TCP_MAXSEG), a two-byte selector, plus its length gate.
+    {
+        const auto sock =
+            stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, /*do_bind=*/false, 0xFFFF, 0);
+        ASSERT_TRUE(sock.has_value());
+        EXPECT_EQ(cfgCall(tp::kGidTcp, *sock, tp::kCfgMss, {0x02, 0x18}), tp::kRidEOk);  // 536
+        // Wrong-length MSS paramVal (1 byte where the fixed(2) gate wants 2) -> E_INV.
+        EXPECT_EQ(cfgCall(tp::kGidTcp, *sock, tp::kCfgMss, {0x05}), tp::kRidEInv);
+        EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    }
 }
 
 // CONNECT / SEND_DATA / CLOSE_SOCKET against an unknown socketId -> E_ISD.
