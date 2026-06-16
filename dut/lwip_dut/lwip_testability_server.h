@@ -13,9 +13,11 @@ namespace tc8::lwip_dut {
 // same translation unit the Linux tc8-dut runs; only the socket adapter differs.
 
 // Bind the testability UDP listener (default PRS_TPSP port 30700) and start the
-// server thread. Additive, like the Linux tc8-dut: a bind failure is logged and
-// the fixture keeps serving the opcode UT. No-op if already started.
-void StartTestabilityServer(std::uint16_t port = tc8::testability::kDefaultPort);
+// server thread. Returns true once bound; on a bind failure it logs and returns
+// false. The tc8-lwip-dut fixture ignores the result (additive — it keeps
+// serving the opcode UT), while the standalone tc8-lwip-utm treats it as fatal.
+// No-op returning true if already started.
+bool StartTestabilityServer(std::uint16_t port = tc8::testability::kDefaultPort);
 
 // SIGTERM teardown: join the server + async-event worker threads and close
 // every testability socket. Called from the main thread. No-op before

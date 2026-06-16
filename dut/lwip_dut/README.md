@@ -5,7 +5,10 @@ stack on a host tap interface as a persistent `--topology external` DUT,
 with an Upper Tester (UDP 30600) implemented on the lwIP socket API.
 It additionally hosts the AUTOSAR Testability endpoint (UDP 30700,
 `lwip_testability_server.cpp`) — the standard PRS_TPSP UTM channel,
-mirroring the Linux tc8-dut's additive listener on the same stack.
+mirroring the Linux tc8-dut's additive listener on the same stack. The
+same endpoint is also built as a standalone binary, `tc8-lwip-utm` — the
+lwIP analog of `dut/utm` (`tc8-utm`): the OEM-deployable AUTOSAR
+Testability UTM with none of the fixture's conformance extras.
 This is the project's second DUT platform after the Linux reference DUT
 (`dut/dut_service/tc8-dut`), and the first strict-embedded-stack
 consumer of the per-platform `inventory_overrides.json` mechanism.
@@ -31,6 +34,15 @@ cmake --build build-lwip-dut -j4
 The lwIP core is compiled by this directory's CMakeLists against
 `dut/lwip_dut/lwipopts.h`, so the stack configuration cannot drift from
 what the binary links.
+
+The build produces two binaries: `tc8-lwip-dut` (the conformance fixture
+— stack + opcode UT + testability endpoint) and `tc8-lwip-utm` (the
+standalone AUTOSAR Testability UTM — stack + testability endpoint only,
+no opcode UT). They share the platform-agnostic protocol core
+(`src/testability/protocol_server.cpp`), the lwIP `SocketBackend` adapter
+(`lwip_socket_backend.cpp`) and the stack bring-up
+(`lwip_stack_bringup.{h,cpp}`); only the entry point and the set of
+bundled servers differ.
 
 ## Sweep result (2026-06-11, lwIP master 8e75a40a)
 
@@ -260,15 +272,18 @@ behaviour-shaping ones:
 
 ## Testability endpoint notes (`lwip_testability_server.cpp`)
 
-The AUTOSAR Testability endpoint (PRS_TPSP §6, TC 1.2.0) is the
-functional mirror of `dut/dut_service/testability_server.cpp` on the
-lwIP socket API — the same relationship this file's UT server has to the
-Linux `upper_tester_server.cpp`. The wire codec
-(`include/tc8/testability_protocol.h`) and the ICMP Echo Request body
-builder (`tc8::wire`, compiled in from `src/wire/`) are reused verbatim;
-only the syscall layer is rewritten. Served standard groups: GENERAL
-(0x00), UDP (0x01), TCP (0x02) and ICMP (0x03) — the same set the Linux
-endpoint serves.
+The AUTOSAR Testability endpoint (PRS_TPSP §6, TC 1.2.0) runs the
+platform-agnostic protocol core `tc8::testability::ProtocolServer`
+(`src/testability/protocol_server.cpp`) — shared verbatim with the Linux
+tc8-dut — paired with this directory's lwIP `SocketBackend` adapter
+(`lwip_socket_backend.cpp`). The dispatch logic, wire codec
+(`include/tc8/testability_protocol.h`) and ICMP Echo Request body builder
+(`tc8::wire`, compiled in from `src/wire/`) are the same translation units
+the Linux endpoint runs; only the socket adapter differs, and the bullets
+below record where lwIP's stack forces that adapter to diverge.
+`lwip_testability_server.cpp` is the thin start/stop entry point. Served
+standard groups: GENERAL (0x00), UDP (0x01), TCP (0x02) and ICMP (0x03) —
+the same set the Linux endpoint serves.
 
 - The `CLOSE_SOCKET` abort RSTs via `tcp_abort()` on the raw pcb (the
   `lwip/priv/sockets_priv.h` fd→pcb bridge, shared with the UT ABORT
@@ -290,10 +305,13 @@ endpoint serves.
   on. The async-SP worker lifetime (LISTEN_AND_ACCEPT / RECEIVE_AND_-
   FORWARD) is a strict subset of its socket's, exactly as in the Linux
   server.
-- The OEM extension/override seam (`registerPrimitive`) is not mirrored:
-  the fixture is a conformance DUT serving the standard groups, and a
-  fixture-local seam with no caller would be dead code. OEM extension
-  stays the Linux server / standalone `tc8-utm`'s concern.
+- The OEM extension/override seam (`registerPrimitive`) lives in the
+  shared core, so both lwIP binaries carry it (regained for free when the
+  core was extracted). Neither registers a handler — they serve only the
+  standard groups as conformance binaries — but the seam is the supported
+  path for an OEM deploying `tc8-lwip-utm` to add vendor groups (e.g. ARP
+  capability, for which PRS_TPSP defines no service primitive) without
+  forking the core, exactly as on the Linux `tc8-utm`.
 
 The endpoint is additive — a bind failure is logged and the fixture
 keeps serving the UT cases — so it is inert in the push-triggered lwIP

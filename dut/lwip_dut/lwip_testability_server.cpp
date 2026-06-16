@@ -16,23 +16,22 @@ tc8::testability::ProtocolServer *g_server = nullptr;
 
 }  // namespace
 
-void StartTestabilityServer(std::uint16_t port) {
+bool StartTestabilityServer(std::uint16_t port) {
     if (g_server != nullptr) {
-        return;  // already started
+        return true;  // already started
     }
     auto *server =
         new tc8::testability::ProtocolServer(std::make_unique<LwipSocketBackend>());
     if (!server->start(port)) {
         std::fprintf(stderr,
-                     "tc8-lwip-testability: endpoint start failed on UDP port %u (continuing — "
-                     "additive to the opcode UT)\n",
-                     port);
+                     "tc8-lwip-testability: endpoint start failed on UDP port %u\n", port);
         delete server;
-        return;
+        return false;
     }
     g_server = server;
     std::fprintf(stderr, "tc8-lwip-testability: AUTOSAR testability endpoint on UDP port %u\n",
                  port);
+    return true;
 }
 
 void StopTestabilityServer() {
