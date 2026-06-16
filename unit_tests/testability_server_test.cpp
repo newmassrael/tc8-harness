@@ -918,5 +918,101 @@ TEST_F(TestabilityServerTest, UnknownSocketIdIsInvalid) {
     EXPECT_EQ(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, bogus).rid, tp::kRidEIsd);
 }
 
+// ── ICMP group (GID 0x03): ECHO_REQUEST (PRS_TPSP §6.10) ──
+
+// ECHO_REQUEST to loopback emits and reports E_OK. ping_group_range is open on
+// CI / dev hosts, so the unprivileged SOCK_DGRAM/IPPROTO_ICMP path applies (the
+// server falls back to SOCK_RAW only where ping sockets are restricted).
+TEST_F(TestabilityServerTest, IcmpEchoRequestToLoopbackReturnsEOk) {
+    const auto cfg = loopbackConfig();
+    const std::vector<std::uint8_t> payload = {'p', 'i', 'n', 'g'};
+    const auto r =
+        stimulus::testabilityEchoRequest(cfg, /*iface=*/"", ::htonl(INADDR_LOOPBACK), payload);
+    EXPECT_TRUE(r.eok()) << "ECHO_REQUEST to loopback should emit and report E_OK (rid="
+                         << static_cast<int>(r.rid) << ")";
+}
+
+// An empty payload is valid (data vint8 n=0): a bare Echo Request still emits.
+TEST_F(TestabilityServerTest, IcmpEchoRequestEmptyPayloadReturnsEOk) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityEchoRequest(cfg, /*iface=*/"", ::htonl(INADDR_LOOPBACK), {});
+    EXPECT_TRUE(r.eok()) << "rid=" << static_cast<int>(r.rid);
+}
+
+// An unknown interface name maps to the spec's E_IIF (PRS_TPSP §6.8). Relies on
+// unprivileged SO_BINDTODEVICE returning ENODEV (Linux >= 5.7).
+TEST_F(TestabilityServerTest, IcmpEchoRequestInvalidInterfaceReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityEchoRequest(cfg, /*iface=*/"tc8-no-such-if",
+                                                    ::htonl(INADDR_LOOPBACK), {});
+    EXPECT_TRUE(r.ok);  // the SP itself round-tripped
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+// ── PRS_TPSP §6.6 OEM extension / override seam (registerPrimitive) ──
+
+// EXTEND: a registered handler for a non-standard group the core knows nothing
+// about (GID 0x7F, counted down per PRS_TPSP §6.6) is dispatched with the parsed
+// request and its DAT, and its Result ID + response DAT reach the caller.
+TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
+    constexpr std::uint16_t kPort = 39711;
+    constexpr std::uint8_t kVendorGid = 0x7F;
+    constexpr std::uint8_t kVendorPid = 0x2A;
+
+    dut::TestabilityServer server;
+    server.registerPrimitive(
+        kVendorGid, kVendorPid,
+        [](const tp::Header &, const std::uint8_t *dat, std::size_t dat_len, const sockaddr_in &,
+           std::uint8_t &rid, std::vector<std::uint8_t> &resp) {
+            resp.push_back(0xA5);  // tag proving the handler ran
+            resp.insert(resp.end(), dat, dat + dat_len);  // echo the request DAT back
+            rid = tp::kRidEOk;
+        });
+    ASSERT_TRUE(server.start(kPort));
+
+    stimulus::TestabilityConfig cfg;
+    cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
+    cfg.dut_port = kPort;
+    const std::vector<std::uint8_t> req = {0x01, 0x02, 0x03};
+    const auto r = stimulus::testabilityCall(cfg, kVendorGid, kVendorPid, req);
+    server.stop();
+
+    ASSERT_TRUE(r.ok);
+    EXPECT_EQ(r.rid, tp::kRidEOk);
+    ASSERT_EQ(r.dat.size(), req.size() + 1);
+    EXPECT_EQ(r.dat[0], 0xA5u);
+    EXPECT_EQ(r.dat[1], 0x01u);
+    EXPECT_EQ(r.dat[3], 0x03u);
+}
+
+// OVERRIDE: a registered handler for a built-in standard primitive (GENERAL
+// GET_VERSION) wins over the core implementation.
+TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
+    constexpr std::uint16_t kPort = 39712;
+
+    dut::TestabilityServer server;
+    server.registerPrimitive(
+        tp::kGidGeneral, tp::kPidGetVersion,
+        [](const tp::Header &, const std::uint8_t *, std::size_t, const sockaddr_in &,
+           std::uint8_t &rid, std::vector<std::uint8_t> &resp) {
+            tp::appendU16(resp, 9);  // a version the built-in never reports (1.2.0)
+            tp::appendU16(resp, 9);
+            tp::appendU16(resp, 9);
+            rid = tp::kRidEOk;
+        });
+    ASSERT_TRUE(server.start(kPort));
+
+    stimulus::TestabilityConfig cfg;
+    cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
+    cfg.dut_port = kPort;
+    const auto v = stimulus::testabilityGetVersion(cfg);
+    server.stop();
+
+    ASSERT_TRUE(v.has_value());
+    EXPECT_EQ(v->major, 9u);  // the vendor override, not kVersionMajor
+    EXPECT_EQ(v->minor, 9u);
+    EXPECT_EQ(v->patch, 9u);
+}
+
 }  // namespace
 }  // namespace tc8

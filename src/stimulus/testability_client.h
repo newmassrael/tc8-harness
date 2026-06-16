@@ -207,4 +207,13 @@ TestabilityForwardResult testabilityReceiveAndForward(
     std::uint16_t max_len, const std::function<void()> &on_armed, int resp_timeout_ms = 1000,
     int event_timeout_ms = 2000, std::uint32_t src_ip_be = 0);
 
+// ECHO_REQUEST (ICMP / PID 0x00, PRS_TPSP §6.10): issue a single ICMP Echo
+// Request from the DUT toward `dest_addr_be` over interface `iface` (empty =>
+// kernel-chosen egress). `payload` is the Echo data. Fire-and-forget — the DUT
+// returns E_OK once the request is emitted, or E_IIF for an unknown interface.
+TestabilityResponse testabilityEchoRequest(const TestabilityConfig &cfg, const std::string &iface,
+                                           std::uint32_t dest_addr_be,
+                                           const std::vector<std::uint8_t> &payload,
+                                           int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
 }  // namespace tc8::stimulus

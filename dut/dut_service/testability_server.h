@@ -31,6 +31,14 @@ namespace tc8::dut {
 //     per accepted connection — emits an asynchronous Event (PRS_TPSP §6.2 TID
 //     0x02) to the requesting tester carrying the new socket id and the client
 //     port/address, so the DUT can be driven into ESTABLISHED as a server.
+//   * ICMP group (GID 0x03): ECHO_REQUEST — issues a single Echo Request from
+//     the DUT toward a destination, so a tester can drive observable ICMP egress.
+//
+// Beyond these standard groups, registerPrimitive() is an OEM extension/override
+// seam (PRS_TPSP §6.6 non-standard primitives): a vendor can add a non-standard
+// group (e.g. ARP/0x09, for which the spec reserves a GID but defines no
+// primitives) or replace a standard primitive with vendor behaviour, all without
+// forking this core.
 //
 // Wire framing + constants are the SSOT in include/tc8/testability_protocol.h,
 // shared with the tester client so both ends decode identically. The endpoint
@@ -54,6 +62,38 @@ public:
     // Signal the thread to exit, join it, and close any open sockets.
     // Idempotent.
     void stop();
+
+    // ── PRS_TPSP §6.6 OEM extension / override seam ──
+    //
+    // A synchronous service-primitive handler: it reads the parsed request, its
+    // DAT bytes and the requesting peer, and fills the Result ID (rid_out) plus
+    // any response DAT for the single Response the server sends back. It runs on
+    // the server thread and is request/response only — it cannot emit
+    // asynchronous Events or use the internal socket table, which stay private to
+    // the built-in async SPs (LISTEN_AND_ACCEPT, RECEIVE_AND_FORWARD). A vendor
+    // group needing async behaviour manages its own sockets/threads inside the
+    // handler.
+    using SpHandler =
+        std::function<void(const testability::Header &req, const std::uint8_t *dat,
+                           std::size_t dat_len, const sockaddr_in &peer, std::uint8_t &rid_out,
+                           std::vector<std::uint8_t> &resp_dat)>;
+
+    // Register an OEM handler for service primitive (gid, pid). A registered
+    // handler is consulted BEFORE the built-in standard groups, so this one call
+    // both EXTENDS the endpoint with a non-standard group (e.g. a vendor ARP/0x09
+    // or a 0x7F-down private group, PRS_TPSP §6.6) and OVERRIDES a standard
+    // primitive with vendor behaviour. Re-registering the same (gid, pid)
+    // replaces the handler.
+    //
+    // Overriding a mandatory standard primitive (GENERAL/UDP/TCP) changes the
+    // endpoint's conformance behaviour — that is intentional, for vendor variants
+    // a deployment opts into, and is the caller's responsibility; the default
+    // (register only new GIDs) leaves the standard groups conformant.
+    //
+    // Call before start(): the table is read-only while the server thread runs,
+    // so it is unguarded — mirroring the bind-before-run lifecycle of the rest of
+    // the configuration.
+    void registerPrimitive(std::uint8_t gid, std::uint8_t pid, SpHandler handler);
 
 private:
     void serverLoop();
@@ -101,6 +141,15 @@ private:
     std::uint8_t receiveAndForward(const std::uint8_t *dat, std::size_t dat_len,
                                    std::uint16_t service_id, const sockaddr_in &peer,
                                    std::vector<std::uint8_t> &resp_dat, bool udp);
+
+    // ECHO_REQUEST (ICMP group 0x03 / PID 0x00, PRS_TPSP §6.10) — request:
+    // ifName(text, optional) + destAddr(ipxaddr) + data(vint8). Issues a single
+    // ICMP Echo Request from the DUT toward destAddr (fire-and-forget — the spec
+    // forwards no reply). Builds the Echo Request body once (no syscalls, so the
+    // eventual lwIP port reuses it) and emits it via an unprivileged ICMP datagram
+    // socket (SOCK_DGRAM/IPPROTO_ICMP), falling back to SOCK_RAW where ping
+    // sockets are restricted. E_IIF on an unknown ifName.
+    std::uint8_t echoRequest(const std::uint8_t *dat, std::size_t dat_len);
 
     // Shared event-worker select pump for the async SP threads (PRS_TPSP §6.2):
     // puts `fd` non-blocking, then loops select(kEventThreadWakeUs) while the
@@ -210,6 +259,12 @@ private:
     // in lockstep with sockets_ (eraseSocket / closeAllSockets).
     std::map<std::uint16_t, TcpConnTuple> tcp_conn_;
     std::uint16_t next_socket_id_ = 1;
+
+    // PRS_TPSP §6.6 OEM extension/override table, keyed by methodId(gid, pid)
+    // (EVB clear). Consulted first by dispatch() — see registerPrimitive().
+    // Populated before start() and read-only on the server thread thereafter, so
+    // it needs no lock.
+    std::map<std::uint16_t, SpHandler> oem_handlers_;
 };
 
 }  // namespace tc8::dut

@@ -137,6 +137,46 @@ TEST(TestabilityParams, EmptyTextIsZeroLength) {
     EXPECT_EQ(dat[1], 0x00u);
 }
 
+// ── PRS_TPSP §6.7.5.2 text decode (readText — the appendText inverse) ──
+
+TEST(TestabilityParams, ReadTextRoundTripsAppendText) {
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "eth1.5");
+    std::size_t off = 0;
+    std::string out;
+    ASSERT_TRUE(tp::readText(dat.data(), dat.size(), off, out));
+    EXPECT_EQ(out, "eth1.5");    // BOM + null stripped
+    EXPECT_EQ(off, dat.size());  // consumed the whole field, ready for the next param
+}
+
+TEST(TestabilityParams, ReadTextEmptyIsEmptyString) {
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "");
+    std::size_t off = 0;
+    std::string out = "sentinel";
+    ASSERT_TRUE(tp::readText(dat.data(), dat.size(), off, out));
+    EXPECT_TRUE(out.empty());
+    EXPECT_EQ(off, 2u);  // just the vint8 length prefix
+}
+
+TEST(TestabilityParams, ReadTextToleratesBareString) {
+    // A third-party client may send a vint8 of raw bytes with no BOM/null;
+    // readText returns them verbatim (Postel's law).
+    const std::uint8_t bare[] = {0x00, 0x03, 'e', 't', 'h'};
+    std::size_t off = 0;
+    std::string out;
+    ASSERT_TRUE(tp::readText(bare, sizeof(bare), off, out));
+    EXPECT_EQ(out, "eth");
+}
+
+TEST(TestabilityParams, ReadTextRejectsTruncatedField) {
+    // vint8 claims 4 bytes but only 1 follows -> the field runs past the buffer.
+    const std::uint8_t bad[] = {0x00, 0x04, 0xEF};
+    std::size_t off = 0;
+    std::string out;
+    EXPECT_FALSE(tp::readText(bad, sizeof(bad), off, out));
+}
+
 TEST(TestabilityParams, Ipv4AddrIsVint8N4) {
     std::vector<std::uint8_t> dat;
     // 172.16.0.1 -> s_addr NBO; wire bytes must be AC 10 00 01.

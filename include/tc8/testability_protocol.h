@@ -106,6 +106,13 @@ inline constexpr std::uint8_t kPidConnect = 0x05;          // TCP only
 inline constexpr std::uint8_t kPidConfigureSocket = 0x06;
 inline constexpr std::uint8_t kPidShutdown = 0x07;
 
+// PRS_TPSP §6.10 ICMP group (0x03) / ICMPv6 group (0x04) Service Primitive ID.
+// PID values are scoped per GID (PRS_TPSP §6.10: separate primitives reuse "the
+// same service identifier (PID) but a different GID and set of parameters"), so
+// ECHO_REQUEST reuses the 0x00 slot that denotes CLOSE_SOCKET in the UDP/TCP
+// groups — the GID disambiguates which primitive a 0x00 PID names.
+inline constexpr std::uint8_t kPidEchoRequest = 0x00;
+
 // PRS_TPSP §6.10 SHUTDOWN typeId — selects which transfer direction the
 // primitive disallows on the socket (maps to the BSD shutdown(2) `how`).
 inline constexpr std::uint8_t kShutdownRd = 0x00;    // further reception disallowed (SHUT_RD)
@@ -324,6 +331,30 @@ inline bool readVint8(const std::uint8_t *dat, std::size_t dat_len, std::size_t 
     body = dat + off;
     body_len = n;
     off += n;
+    return true;
+}
+
+// Decode a PRS_TPSP §6.7.5.2 text field at dat[off] into `out` — the inverse of
+// appendText. The wire body is a vint8 of [BOM(EF BB BF) + UTF-8 + null]; this
+// strips a leading BOM and a trailing null when present (tolerating a bare
+// string a third-party client may send) and yields the UTF-8 content. An empty
+// field (n=0) decodes to "". False only if the vint8 itself runs past dat_len.
+inline bool readText(const std::uint8_t *dat, std::size_t dat_len, std::size_t &off,
+                     std::string &out) {
+    const std::uint8_t *body = nullptr;
+    std::uint16_t body_len = 0;
+    if (!readVint8(dat, dat_len, off, body, body_len)) {
+        return false;
+    }
+    std::size_t start = 0;
+    std::size_t end = body_len;
+    if (body_len >= 3 && body[0] == 0xEF && body[1] == 0xBB && body[2] == 0xBF) {
+        start = 3;  // skip the UTF-8 BOM
+    }
+    if (end > start && body[end - 1] == 0x00) {
+        end -= 1;  // drop the null terminator
+    }
+    out.assign(reinterpret_cast<const char *>(body + start), end - start);
     return true;
 }
 

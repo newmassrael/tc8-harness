@@ -14,6 +14,11 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <utility>
+
+#include "wire/icmp_echo.h"
+#include "wire/ip_checksum.h"
 
 namespace tc8::dut {
 
@@ -135,6 +140,12 @@ void TestabilityServer::stop() {
     closeAllSockets();
 }
 
+void TestabilityServer::registerPrimitive(std::uint8_t gid, std::uint8_t pid, SpHandler handler) {
+    // Keyed by the request method id (EVB clear) so dispatch() can look it up
+    // straight from the parsed header. Re-registering (gid, pid) replaces.
+    oem_handlers_[tp::methodId(gid, pid)] = std::move(handler);
+}
+
 void TestabilityServer::serverLoop() {
     std::uint8_t buf[2048];
     while (!stop_requested_) {
@@ -171,6 +182,15 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
                                  std::uint8_t &rid_out, std::vector<std::uint8_t> &resp_dat) {
     const std::uint8_t gid = tp::gidOf(req.method_id);
     const std::uint8_t pid = tp::pidOf(req.method_id);
+
+    // PRS_TPSP §6.6 OEM extension/override seam: a registered handler for this
+    // (gid, pid) takes precedence over the built-in standard groups, so a vendor
+    // can override a standard primitive or add a non-standard group (e.g. ARP)
+    // without forking this core.
+    if (const auto it = oem_handlers_.find(tp::methodId(gid, pid)); it != oem_handlers_.end()) {
+        it->second(req, dat, dat_len, peer, rid_out, resp_dat);
+        return;
+    }
 
     if (gid == tp::kGidGeneral) {
         switch (pid) {
@@ -258,6 +278,17 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
                 return;
             default:
                 rid_out = tp::kRidENtf;  // no remaining TCP SPs in this build
+                return;
+        }
+    }
+
+    if (gid == tp::kGidIcmp) {
+        switch (pid) {
+            case tp::kPidEchoRequest:
+                rid_out = echoRequest(dat, dat_len);
+                return;
+            default:
+                rid_out = tp::kRidENtf;  // ICMP group defines only ECHO_REQUEST
                 return;
         }
     }
@@ -422,6 +453,66 @@ std::uint8_t TestabilityServer::configureSocket(const std::uint8_t *dat, std::si
             // Unknown / non-standard (0xFFFF-down) parameter not served here.
             return tp::kRidENtf;
     }
+}
+
+std::uint8_t TestabilityServer::echoRequest(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 ECHO_REQUEST (ICMP): ifName(text) + destAddr(ipxaddr) + data(vint8).
+    std::size_t off = 0;
+    std::string ifname;
+    if (!tp::readText(dat, dat_len, off, ifname)) {
+        return tp::kRidEInv;
+    }
+    const std::uint8_t *addr_body = nullptr;
+    std::uint16_t addr_len = 0;
+    if (!tp::readVint8(dat, dat_len, off, addr_body, addr_len) || addr_len != 4) {
+        return tp::kRidEInv;  // IPv4 ipxaddr only — ICMPv6 is a separate GID
+    }
+    std::uint32_t dest_be = 0;
+    std::memcpy(&dest_be, addr_body, 4);
+    const std::uint8_t *data_body = nullptr;
+    std::uint16_t data_len = 0;
+    if (!tp::readVint8(dat, dat_len, off, data_body, data_len)) {
+        return tp::kRidEInv;
+    }
+
+    // Build the Echo Request via the shared wire builder — the same source the
+    // tester stimulus frames echoes from, so DUT-emitted and tester-observed
+    // bytes agree by construction. id 0: a SOCK_DGRAM ping socket overwrites it
+    // with the socket port and the SP names no id; seq 1. No syscalls, so the
+    // lwIP port reuses it verbatim.
+    const std::vector<std::uint8_t> msg =
+        tc8::wire::buildIcmpEchoRequestBody(/*id=*/0, /*seq=*/1, data_body, data_len);
+
+    // Prefer the unprivileged ICMP datagram (ping) socket where ping_group_range
+    // permits; fall back to a raw socket for root deployments where ping sockets
+    // are restricted.
+    int s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+    if (s < 0) {
+        s = ::socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    }
+    if (s < 0) {
+        return tp::kRidENok;  // no ICMP socket available (e.g. no CAP_NET_RAW)
+    }
+
+    // Optional ifName (PRS_TPSP §6.10): pin egress to the named interface. "0" /
+    // empty means "any" per the spec; an unknown interface is E_IIF.
+    if (!ifname.empty() && ifname != "0") {
+        if (::setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, ifname.c_str(),
+                         static_cast<socklen_t>(ifname.size())) < 0) {
+            const int e = errno;
+            ::close(s);
+            return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+        }
+    }
+
+    sockaddr_in dest{};
+    dest.sin_family = AF_INET;
+    dest.sin_port = 0;  // ICMP is portless
+    dest.sin_addr.s_addr = dest_be;
+    const ssize_t sent = ::sendto(s, msg.data(), msg.size(), 0,
+                                  reinterpret_cast<sockaddr *>(&dest), sizeof(dest));
+    ::close(s);
+    return (sent == static_cast<ssize_t>(msg.size())) ? tp::kRidEOk : tp::kRidENok;
 }
 
 std::uint8_t TestabilityServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {

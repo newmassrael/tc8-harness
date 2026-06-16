@@ -9,6 +9,10 @@ target_include_directories(tc8_testability_server PUBLIC
     ${PROJECT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+# The ICMP ECHO_REQUEST primitive frames its packet via the shared wire layer
+# (RFC 1071 checksum + RFC 792 echo body); PUBLIC so tc8-dut, tc8-utm and the
+# unit test inherit tc8_wire transitively rather than each naming the source.
+target_link_libraries(tc8_testability_server PUBLIC tc8_wire)
 
 add_executable(tc8-dut
     client_mode.cpp
@@ -19,7 +23,6 @@ add_executable(tc8-dut
     ets_impl_2.cpp
     linklocal_autoconf.cpp
     upper_tester_server.cpp
-    ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.cpp
 )
 target_include_directories(tc8-dut PRIVATE
     ${PROJECT_SOURCE_DIR}/include
