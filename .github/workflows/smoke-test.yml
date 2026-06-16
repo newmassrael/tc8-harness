@@ -29,6 +29,18 @@ permissions:
 jobs:
   smoke:
     name: dut/env/smoke-test.sh (--workers 4) on self-hosted [netns]
+    # [skip smoke] opt-out — a commit whose HEAD message contains the literal
+    # marker `[skip smoke]` skips THIS netns sweep only (build-test + mnemosyne
+    # still run, so build/link + citation gates are never bypassed). Use it
+    # ONLY when BOTH hold: (1) the change is genuinely behaviour-preserving
+    # (renames, comment/doc edits, dead-code removal, CMake-comment tweaks),
+    # and (2) the offline build + ctest are already green. A conformance / wire
+    # regression is exactly what this sweep catches, and "behaviour-preserving"
+    # is a claim the sweep sometimes disproves — so the DEFAULT is to let it
+    # run; the marker is a sparingly-used escape hatch, never a way to force a
+    # push through under time pressure. Manual workflow_dispatch always runs
+    # (head_commit is absent, so the marker check is false).
+    if: ${{ !contains(github.event.head_commit.message, '[skip smoke]') }}
     # Self-hosted runner with the `netns` label provisioned for veth-pair
     # bring-up + sudo NOPASSWD for /home/<runner>/tc8-harness/dut/env/smoke-test.sh.
     # See README.md §CI for setup notes.
