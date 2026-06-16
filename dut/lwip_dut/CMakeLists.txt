@@ -53,10 +53,15 @@ include(${LWIP_CONTRIB_DIR}/ports/unix/Filelists.cmake)
 add_executable(tc8-lwip-dut
     tc8_lwip_dut.cpp
     lwip_ut_server.cpp
+    # AUTOSAR Testability endpoint: the platform-agnostic protocol core (shared
+    # verbatim with the Linux tc8-dut) + this fixture's lwIP SocketBackend
+    # adapter + the thin start/stop entry point. Compiled straight into this
+    # standalone build — it cannot reach the main tree's library targets.
     lwip_testability_server.cpp
-    # AUTOSAR Testability endpoint wire-math, syscall-free and shared with the
-    # harness/Linux tc8-dut (tc8::wire). Compiled straight into this standalone
-    # fixture build — it cannot reach the main tree's tc8_wire CMake target.
+    lwip_socket_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/testability/protocol_server.cpp
+    # tc8::wire (icmp echo body + ip checksum): syscall-free, shared with the
+    # harness/Linux tc8-dut.
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/wire/ip_checksum.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/wire/icmp_echo.cpp
     ${LWIP_CONTRIB_DIR}/ports/unix/example_app/default_netif.c

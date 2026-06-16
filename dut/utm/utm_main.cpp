@@ -22,10 +22,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <thread>
 
+#include "posix_socket_backend.h"
 #include "tc8/testability_protocol.h"
-#include "testability_server.h"
+#include "testability/protocol_server.h"
 
 namespace {
 
@@ -61,7 +63,7 @@ int main(int argc, char **argv) {
     // Unlike tc8-dut — where the testability endpoint is additive and a bind
     // failure is non-fatal — binding the port is this binary's entire job, so a
     // bind failure is a hard error.
-    tc8::dut::TestabilityServer server;
+    tc8::testability::ProtocolServer server{std::make_unique<tc8::dut::PosixSocketBackend>()};
     if (!server.start(port)) {
         std::fprintf(stderr, "tc8-utm: failed to bind testability endpoint on UDP port %u\n",
                      static_cast<unsigned>(port));

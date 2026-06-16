@@ -1,12 +1,16 @@
 # The AUTOSAR testability endpoint, built once as a library so the DUT service,
-# the standalone tc8-utm, and the unit test all link the same translation unit —
-# a single source-of-truth for the source list and its include surface, instead
-# of three CMakeLists each naming the .cpp by path.
+# the standalone tc8-utm, and the unit test all link the same translation units.
+# Ports & adapters: the platform-agnostic protocol core (src/testability/) plus
+# the POSIX SocketBackend adapter. The lwIP DUT fixture compiles the same core
+# against its own adapter (dut/lwip_dut/lwip_socket_backend) — a single source
+# of truth for the protocol logic across both platforms.
 add_library(tc8_testability_server STATIC
-    testability_server.cpp
+    ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.cpp
+    posix_socket_backend.cpp
 )
 target_include_directories(tc8_testability_server PUBLIC
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 # The ICMP ECHO_REQUEST primitive frames its packet via the shared wire layer

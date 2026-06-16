@@ -10,7 +10,8 @@
 
 #include "ets_impl.h"
 #include "ets_impl_2.h"
-#include "testability_server.h"
+#include "posix_socket_backend.h"
+#include "testability/protocol_server.h"
 #include "upper_tester_server.h"
 
 namespace {
@@ -120,7 +121,7 @@ int main() {
     // standard-compliant tester drives the DUT over SOME/IP on the testability
     // port (30700). A bind failure is non-fatal — the opcode UT still serves
     // the in-tree cases; testability is an OEM-neutral enablement channel.
-    tc8::dut::TestabilityServer testability;
+    tc8::testability::ProtocolServer testability{std::make_unique<tc8::dut::PosixSocketBackend>()};
     if (!testability.start()) {
         std::fprintf(stderr, "tc8-dut: testability endpoint start failed (continuing)\n");
     }

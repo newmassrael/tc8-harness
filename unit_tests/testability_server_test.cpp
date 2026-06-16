@@ -8,15 +8,17 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
 
+#include "posix_socket_backend.h"
 #include "sce_integration/dut_control.h"
 #include "stimulus/testability_client.h"
 #include "tc8/testability_protocol.h"
-#include "testability_server.h"
+#include "testability/protocol_server.h"
 
 // Server-side integration: drive the real DUT-side TestabilityServer (which is
 // vsomeip-independent — a hand-rolled SOME/IP endpoint over a plain socket)
@@ -46,7 +48,7 @@ protected:
     void SetUp() override { ASSERT_TRUE(server_.start(kTestPort)); }
     void TearDown() override { server_.stop(); }
 
-    dut::TestabilityServer server_;
+    testability::ProtocolServer server_{std::make_unique<dut::PosixSocketBackend>()};
 };
 
 TEST_F(TestabilityServerTest, GeneralLifecycleRoundTrips) {
@@ -959,10 +961,10 @@ TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
     constexpr std::uint8_t kVendorGid = 0x7F;
     constexpr std::uint8_t kVendorPid = 0x2A;
 
-    dut::TestabilityServer server;
+    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
     server.registerPrimitive(
         kVendorGid, kVendorPid,
-        [](const tp::Header &, const std::uint8_t *dat, std::size_t dat_len, const sockaddr_in &,
+        [](const tp::Header &, const std::uint8_t *dat, std::size_t dat_len, const tp::Endpoint &,
            std::uint8_t &rid, std::vector<std::uint8_t> &resp) {
             resp.push_back(0xA5);  // tag proving the handler ran
             resp.insert(resp.end(), dat, dat + dat_len);  // echo the request DAT back
@@ -990,10 +992,10 @@ TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
 TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
     constexpr std::uint16_t kPort = 39712;
 
-    dut::TestabilityServer server;
+    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
     server.registerPrimitive(
         tp::kGidGeneral, tp::kPidGetVersion,
-        [](const tp::Header &, const std::uint8_t *, std::size_t, const sockaddr_in &,
+        [](const tp::Header &, const std::uint8_t *, std::size_t, const tp::Endpoint &,
            std::uint8_t &rid, std::vector<std::uint8_t> &resp) {
             tp::appendU16(resp, 9);  // a version the built-in never reports (1.2.0)
             tp::appendU16(resp, 9);
