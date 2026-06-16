@@ -708,7 +708,7 @@ inline constexpr std::uint8_t kMaxProtocolOpcode = OpConditionArpCache;
 // equivalence at the pass-through site, and non-Linux DUTs translate
 // their stack's own state enum to these constants (e.g. lwIP's
 // tcpbase.h numbers the same FSM differently —
-// dut/lwip_dut/lwip_ut_server.cpp wireTcpState). Frozen wire ABI:
+// dut/lwip_dut/lwip_stack_probe.cpp wireTcpState). Frozen wire ABI:
 // SCXML conds pin these values numerically and cannot include this
 // header, so the numbers must never change.
 inline constexpr std::uint8_t kTcpStateEstablished = 1;

@@ -147,7 +147,7 @@ bool UpperTesterServer::start(std::uint32_t iface_ip_be, std::uint32_t iface_bca
     return true;
 }
 
-void UpperTesterServer::stop() {
+void UpperTesterServer::stop(bool abort) {
     stop_requested_.store(true);
     if (data_thread_.joinable()) data_thread_.join();
     if (ut_thread_.joinable()) ut_thread_.join();
@@ -175,7 +175,13 @@ void UpperTesterServer::stop() {
             backend_->shutdown(s->accepted_fd, 2);  // unblock a connector mid-connect
         }
         if (s->worker.joinable()) s->worker.join();
-        if (s->accepted_fd >= 0) backend_->closeFd(s->accepted_fd);
+        if (s->accepted_fd >= 0) {
+            if (abort) {
+                backend_->closeWithAbort(s->accepted_fd);  // RST the leaked connection
+            } else {
+                backend_->closeFd(s->accepted_fd);
+            }
+        }
         if (s->listen_fd >= 0) backend_->closeFd(s->listen_fd);
     }
 

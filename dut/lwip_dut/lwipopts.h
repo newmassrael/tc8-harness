@@ -36,6 +36,14 @@
  * leaves the core icmp_input echo-reply behaviour the ICMPv4 cases observe
  * untouched. See dut/lwip_dut/lwip_testability_server.cpp echoRequest(). */
 #define LWIP_RAW                   1
+/* The §4.4.4.5 ADDRESSING data listener (OpGetReceivedUdp) must recover each
+ * datagram's ORIGINAL wire destination to apply the RFC 1122 directed-broadcast
+ * / multicast silent-discard (ADDRESSING_02 / UDP_INTRODUCTION_02). This appends
+ * the destination addr+port to every received netbuf, surfaced to the UT core's
+ * StackProbe via recvmsg + IP_PKTINFO — the socket-layer equivalent of the Linux
+ * DUT's IP_PKTINFO ancillary path. Additive and gated; no other behaviour
+ * changes. See dut/lwip_dut/lwip_stack_probe.cpp recvWithOriginalDstV4(). */
+#define LWIP_NETBUF_RECVINFO       1
 /* No IGMP/DNS/SNMP/mDNS/DHCP/AUTOIP: nothing in the swept TC8 areas
  * needs them, and a quiet DUT keeps per-case pcaps reviewable. DHCP and
  * AUTOIP become build-time opt-ins when their UT opcodes are ported. */

@@ -514,10 +514,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/lwip_dut/lwip_ut_server.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
@@ -532,6 +528,18 @@
         {
           "file": "src/sce_integration/arp_stimulus_config.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ut_extensions.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ut_extensions.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/tc8_lwip_dut.cpp",
+          "kind": "references"
         }
       ]
     },
@@ -1116,10 +1124,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/lwip_dut/lwip_ut_server.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "src/upper_tester/ut_server.cpp",
           "kind": "implements"
         },
@@ -1129,6 +1133,18 @@
         },
         {
           "file": "src/upper_tester/ut_server.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_stack_probe.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwipopts.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/tc8_lwip_dut.cpp",
           "kind": "references"
         }
       ]
@@ -1930,10 +1946,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/lwip_dut/lwip_ut_server.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
           "kind": "implements"
         },
@@ -1943,6 +1955,10 @@
         },
         {
           "file": "dut/dut_service/posix_stack_probe.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_stack_probe.cpp",
           "kind": "implements"
         }
       ]
@@ -2028,10 +2044,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/lwip_dut/lwip_ut_server.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
           "kind": "implements"
         },
@@ -2071,10 +2083,6 @@
         },
         {
           "file": "tests/udp_introduction_03/udp_introduction_03.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/lwip_dut/lwip_ut_server.cpp",
           "kind": "implements"
         },
         {
@@ -3003,6 +3011,10 @@
         },
         {
           "file": "src/upper_tester/ut_server.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/tc8_lwip_dut.cpp",
           "kind": "implements"
         }
       ]

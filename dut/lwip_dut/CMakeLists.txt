@@ -61,9 +61,10 @@ include(${LWIP_CONTRIB_DIR}/ports/unix/Filelists.cmake)
 # Compiled straight into each executable — they cannot reach the main tree's
 # library targets. Each binary's main() owns its tc8::testability::ProtocolServer
 # directly (exactly as the Linux dut_main / utm_main do), so there is no façade
-# translation unit. The opcode Upper Tester (lwip_ut_server.cpp) is deliberately
-# NOT here: it is the conformance fixture's harness-specific channel, carried
-# only by tc8-lwip-dut, not by the UTM.
+# translation unit. The opcode Upper Tester core (src/upper_tester/ut_server.cpp)
+# is deliberately NOT here: it is the conformance fixture's harness-specific
+# channel, carried only by tc8-lwip-dut (with its lwIP StackProbe + ARP
+# extension), not by the UTM.
 set(_tc8_lwip_common_srcs
     lwip_stack_bringup.cpp
     lwip_socket_backend.cpp
@@ -95,10 +96,10 @@ set_source_files_properties(${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
 
 # The unix-port flag set (LWIP_COMPILER_FLAGS) is C-oriented and applies three
 # diagnostics ungated that are invalid — or pure noise — on these executables'
-# C++ TUs (the apps + the lwip_ut_server / lwip_testability_server / bring-up
-# mirrors). A trailing -Wno-* cannot fix -Wmissing-prototypes: GCC warns the
-# moment it parses the positive flag ("valid for C/ObjC but not for C++"),
-# before any later -Wno-. So strip the three ungated entries and re-add the two
+# C++ TUs (the apps, the shared testability + Upper Tester cores, the lwIP
+# adapters and the bring-up). A trailing -Wno-* cannot fix -Wmissing-prototypes:
+# GCC warns the moment it parses the positive flag ("valid for C/ObjC but not for
+# C++"), before any later -Wno-. So strip the three ungated entries and re-add the two
 # without a surviving C-guarded form, scoped to the C TUs — the lwIP .c sources
 # compiled into these executables (default_netif.c, tcp_isn.c, md5.c) stay
 # strict while the C++ TUs build clean. The lwIP core/contrib libraries are
@@ -138,8 +139,17 @@ function(tc8_lwip_app name)
     target_link_libraries(${name} ${LWIP_SANITIZER_LIBS} lwipcontribportunix lwipcore)
 endfunction()
 
-# The conformance DUT fixture: stack + opcode Upper Tester + testability.
-tc8_lwip_app(tc8-lwip-dut tc8_lwip_dut.cpp lwip_ut_server.cpp)
+# The conformance DUT fixture: stack + opcode Upper Tester + testability. The
+# Upper Tester runs on the platform-agnostic core (src/upper_tester/ut_server.cpp,
+# shared verbatim with the Linux tc8-dut) paired with this fixture's lwIP adapters
+# (lwip_stack_probe = TCP-info / original-dst introspection) and the lwIP-only ARP
+# cache-conditioning opcode (lwip_ut_extensions). lwip_socket_backend (in the
+# common srcs) supplies the socket primitives for both the UT and testability.
+tc8_lwip_app(tc8-lwip-dut
+    tc8_lwip_dut.cpp
+    lwip_stack_probe.cpp
+    lwip_ut_extensions.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/upper_tester/ut_server.cpp)
 
 # The standalone, OEM-deployable AUTOSAR Testability UTM: stack + testability
 # endpoint only (no opcode UT). The lwIP analog of dut/utm (tc8-utm).

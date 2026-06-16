@@ -71,8 +71,13 @@ public:
                std::uint16_t ut_port = kPort, std::uint16_t data_port = kDataPort);
 
     // Signal the threads to exit, join them, tear down TCP sessions + receive
-    // ports, and close the listener sockets. Idempotent.
-    void stop();
+    // ports, and close the listener sockets. Idempotent. `abort` RSTs each live
+    // connection (closeWithAbort) instead of a graceful close: a userspace-stack
+    // DUT (lwIP) needs this on teardown so a case-leaked connection's tester-side
+    // half reaches CLOSED rather than orphaning in FIN-WAIT-2 and swallowing the
+    // next respawn's SYN on the reused port quad — a kernel DUT (Linux) instead
+    // relies on the OS closing sockets on process death and tears down gracefully.
+    void stop(bool abort = false);
 
 private:
     enum class TcpKind : std::uint8_t { Passive = 0, Active = 1 };
