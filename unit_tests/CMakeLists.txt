@@ -75,12 +75,13 @@ tc8_add_unit_test(upper_tester_client_test)
 tc8_add_unit_test(testability_client_test)
 # Server-side integration: drives the real DUT-side TestabilityServer
 # (vsomeip-independent) with the client wrappers over loopback, covering the
-# UDP and TCP active-open service-primitive backends end to end.
-tc8_add_unit_test(testability_server_test)
-target_sources(testability_server_test PRIVATE
-    ${PROJECT_SOURCE_DIR}/dut/dut_service/testability_server.cpp)
-target_include_directories(testability_server_test PRIVATE
-    ${PROJECT_SOURCE_DIR}/dut/dut_service)
+# UDP and TCP service-primitive backends end to end. Links the shared
+# tc8_testability_server library (whose PUBLIC includes carry the server header),
+# so it builds whenever the DUT component does — no by-path source duplication.
+if(TARGET tc8_testability_server)
+    tc8_add_unit_test(testability_server_test)
+    target_link_libraries(testability_server_test PRIVATE tc8_testability_server)
+endif()
 # Opcode-UT TCP control adapter, driven against a mock UT responder (the real
 # opcode server needs a netns/veth topology, not loopback).
 tc8_add_unit_test(opcode_tcp_control_test)

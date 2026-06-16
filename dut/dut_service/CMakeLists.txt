@@ -1,3 +1,15 @@
+# The AUTOSAR testability endpoint, built once as a library so the DUT service,
+# the standalone tc8-utm, and the unit test all link the same translation unit —
+# a single source-of-truth for the source list and its include surface, instead
+# of three CMakeLists each naming the .cpp by path.
+add_library(tc8_testability_server STATIC
+    testability_server.cpp
+)
+target_include_directories(tc8_testability_server PUBLIC
+    ${PROJECT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 add_executable(tc8-dut
     client_mode.cpp
     client_mode_proxy.cpp
@@ -7,7 +19,6 @@ add_executable(tc8-dut
     ets_impl_2.cpp
     linklocal_autoconf.cpp
     upper_tester_server.cpp
-    testability_server.cpp
     ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.cpp
 )
 target_include_directories(tc8-dut PRIVATE
@@ -15,4 +26,4 @@ target_include_directories(tc8-dut PRIVATE
     ${PROJECT_SOURCE_DIR}/src
 )
 target_link_options(tc8-dut PRIVATE -Wl,--no-as-needed)
-target_link_libraries(tc8-dut PRIVATE ets ets2 ets3)
+target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server)
