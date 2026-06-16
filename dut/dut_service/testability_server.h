@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -100,6 +101,17 @@ private:
     std::uint8_t receiveAndForward(const std::uint8_t *dat, std::size_t dat_len,
                                    std::uint16_t service_id, const sockaddr_in &peer,
                                    std::vector<std::uint8_t> &resp_dat, bool udp);
+
+    // Shared event-worker select pump for the async SP threads (PRS_TPSP §6.2):
+    // puts `fd` non-blocking, then loops select(kEventThreadWakeUs) while the
+    // stop_requested_ / reset_events_ / per-worker `stop` flags are clear and
+    // `again()` holds. On a readable fd it runs `on_readable()`, breaking if that
+    // returns false (e.g. a TCP peer close). Restores `fd`'s flags on exit — the
+    // accept / TCP-receive / UDP-receive bodies share this skeleton; only the
+    // continue predicate and the per-wake action differ.
+    void runEventWorkerLoop(int fd, const std::shared_ptr<std::atomic<bool>> &stop,
+                            const std::function<bool()> &again,
+                            const std::function<bool()> &on_readable);
 
     // Accept-thread body: poll `listen_fd` for up to `max_con` incoming
     // connections; per accept, register the new socket and emit the accept Event

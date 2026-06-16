@@ -532,50 +532,63 @@ std::uint8_t TestabilityServer::listenAndAcceptTcp(const std::uint8_t *dat, std:
     return tp::kRidEOk;
 }
 
+void TestabilityServer::runEventWorkerLoop(int fd, const std::shared_ptr<std::atomic<bool>> &stop,
+                                           const std::function<bool()> &again,
+                                           const std::function<bool()> &on_readable) {
+    // PRS_TPSP §6.2 async-SP worker skeleton, shared by acceptLoop /
+    // receiveLoopTcp / receiveLoopUdp. The fd is non-blocking only for the span
+    // of the loop (restored on exit) so select() never blocks past the
+    // kEventThreadWakeUs window — that bounds how fast the stop / reset flags are
+    // noticed. A select error / EBADF (the fd closed out from under us) breaks
+    // the loop; the thread is then reclaimed at joinEventThreads (END_TEST/stop).
+    const int flags = ::fcntl(fd, F_GETFL, 0);
+    ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    while (!stop_requested_ && !reset_events_ && !stop->load() && again()) {
+        fd_set rset;
+        FD_ZERO(&rset);
+        FD_SET(fd, &rset);
+        timeval tv{};
+        tv.tv_usec = kEventThreadWakeUs;
+        const int sr = ::select(fd + 1, &rset, nullptr, nullptr, &tv);
+        if (sr == 0 || (sr < 0 && errno == EINTR)) {
+            continue;  // timeout or signal — re-check the stop / reset flags
+        }
+        if (sr < 0) {
+            break;  // fd closed under us / fatal select error — stop
+        }
+        if (!on_readable()) {
+            break;  // the body signalled end-of-stream (e.g. a TCP peer close)
+        }
+    }
+    ::fcntl(fd, F_SETFL, flags);  // restore (the fd lives on in the socket table)
+}
+
 void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
                                    std::uint16_t listen_socket_id, std::uint16_t max_con,
                                    sockaddr_in peer, std::shared_ptr<std::atomic<bool>> stop) {
-    const int flags = ::fcntl(listen_fd, F_GETFL, 0);
-    ::fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK);
-
     std::uint16_t accepted = 0;
-    while (!stop_requested_ && !reset_events_ && !stop->load() && accepted < max_con) {
-        fd_set rset;
-        FD_ZERO(&rset);
-        FD_SET(listen_fd, &rset);
-        timeval tv{};
-        tv.tv_usec = kEventThreadWakeUs;
-        const int sr = ::select(listen_fd + 1, &rset, nullptr, nullptr, &tv);
-        if (sr == 0 || (sr < 0 && errno == EINTR)) {
-            continue;  // 200 ms timeout or a signal — re-check stop flags
-        }
-        if (sr < 0) {
-            // The listen fd was closed out from under us (EBADF after a
-            // CLOSE_SOCKET on a listen-only socket that never accepted) or a
-            // fatal select error: the listener is gone, so exit instead of
-            // spinning on the dead fd. The thread is reclaimed at the next
-            // joinEventThreads (END_TEST / stop).
-            break;
-        }
-        sockaddr_in client{};
-        socklen_t clen = sizeof(client);
-        const int conn = ::accept(listen_fd, reinterpret_cast<sockaddr *>(&client), &clen);
-        if (conn < 0) {
-            continue;
-        }
-        const std::uint16_t new_socket_id = registerSocket(conn);
-        ++accepted;
+    runEventWorkerLoop(
+        listen_fd, stop, [&] { return accepted < max_con; },
+        [&] {
+            sockaddr_in client{};
+            socklen_t clen = sizeof(client);
+            const int conn = ::accept(listen_fd, reinterpret_cast<sockaddr *>(&client), &clen);
+            if (conn < 0) {
+                return true;  // spurious wakeup — keep waiting (not end-of-stream)
+            }
+            const std::uint16_t new_socket_id = registerSocket(conn);
+            ++accepted;
 
-        // PRS_TPSP §6.10 LISTEN_AND_ACCEPT Event: listenSocketId + newSocketId +
-        // clientPort + clientAddr(ipxaddr).
-        std::vector<std::uint8_t> ev_dat;
-        tp::appendU16(ev_dat, listen_socket_id);
-        tp::appendU16(ev_dat, new_socket_id);
-        tp::appendU16(ev_dat, ntohs(client.sin_port));
-        tp::appendIpv4Addr(ev_dat, client.sin_addr.s_addr);
-        emitEvent(service_id, tp::kGidTcp, tp::kPidListenAndAccept, ev_dat, peer);
-    }
-    ::fcntl(listen_fd, F_SETFL, flags);  // restore (listen fd lives in the table)
+            // PRS_TPSP §6.10 LISTEN_AND_ACCEPT Event: listenSocketId + newSocketId +
+            // clientPort + clientAddr(ipxaddr).
+            std::vector<std::uint8_t> ev_dat;
+            tp::appendU16(ev_dat, listen_socket_id);
+            tp::appendU16(ev_dat, new_socket_id);
+            tp::appendU16(ev_dat, ntohs(client.sin_port));
+            tp::appendIpv4Addr(ev_dat, client.sin_addr.s_addr);
+            emitEvent(service_id, tp::kGidTcp, tp::kPidListenAndAccept, ev_dat, peer);
+            return true;
+        });
 }
 
 std::uint8_t TestabilityServer::closeSocket(const std::uint8_t *dat, std::size_t dat_len) {
@@ -683,53 +696,37 @@ void TestabilityServer::receiveLoopTcp(int conn_fd, std::uint16_t service_id,
                                        sockaddr_in peer,
                                        std::shared_ptr<std::atomic<bool>> stop) {
     const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
-    const int flags = ::fcntl(conn_fd, F_GETFL, 0);
-    ::fcntl(conn_fd, F_SETFL, flags | O_NONBLOCK);
-
     std::uint32_t consumed = 0;
-    while (!stop_requested_ && !reset_events_ && !stop->load() && (limitless || consumed < max_len)) {
-        fd_set rset;
-        FD_ZERO(&rset);
-        FD_SET(conn_fd, &rset);
-        timeval tv{};
-        tv.tv_usec = kEventThreadWakeUs;
-        const int sr = ::select(conn_fd + 1, &rset, nullptr, nullptr, &tv);
-        if (sr == 0 || (sr < 0 && errno == EINTR)) {
-            continue;  // timeout or signal — re-check the stop/reset flags
-        }
-        if (sr < 0) {
-            break;  // conn fd closed under us / fatal select error — stop
-        }
-        std::uint8_t buf[2048];
-        std::size_t want = sizeof(buf);
-        if (!limitless) {
-            const std::uint32_t remaining = max_len - consumed;
-            if (remaining < want) {
-                want = remaining;
+    runEventWorkerLoop(
+        conn_fd, stop, [&] { return limitless || consumed < max_len; },
+        [&]() -> bool {
+            std::uint8_t buf[2048];
+            std::size_t want = sizeof(buf);
+            if (!limitless) {
+                const std::uint32_t remaining = max_len - consumed;
+                if (remaining < want) {
+                    want = remaining;
+                }
             }
-        }
-        const ssize_t n = ::recv(conn_fd, buf, want, 0);
-        if (n <= 0) {
-            if (n == 0) {
-                break;  // peer closed the connection
+            const ssize_t n = ::recv(conn_fd, buf, want, 0);
+            if (n <= 0) {
+                return n != 0;  // n==0 peer close -> stop; n<0 spurious -> keep waiting
             }
-            continue;
-        }
-        consumed += static_cast<std::uint32_t>(n);
-        const std::uint16_t full_len = static_cast<std::uint16_t>(n);
-        const std::uint16_t fwd_len =
-            static_cast<std::uint16_t>(n < static_cast<ssize_t>(max_fwd) ? n : max_fwd);
+            consumed += static_cast<std::uint32_t>(n);
+            const std::uint16_t full_len = static_cast<std::uint16_t>(n);
+            const std::uint16_t fwd_len =
+                static_cast<std::uint16_t>(n < static_cast<ssize_t>(max_fwd) ? n : max_fwd);
 
-        // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (TCP): fullLen(u16) + payload(vint8).
-        // TCP has no srcPort/srcAddr (connection-oriented). fullLen is THIS
-        // recv()'s length, not a whole logical message — a stream split across
-        // recv()s emits one Event each.
-        std::vector<std::uint8_t> ev_dat;
-        tp::appendU16(ev_dat, full_len);
-        tp::appendVint8(ev_dat, buf, fwd_len);
-        emitEvent(service_id, tp::kGidTcp, tp::kPidReceiveAndForward, ev_dat, peer);
-    }
-    ::fcntl(conn_fd, F_SETFL, flags);  // restore (conn fd lives in the table)
+            // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (TCP): fullLen(u16) + payload(vint8).
+            // TCP has no srcPort/srcAddr (connection-oriented). fullLen is THIS
+            // recv()'s length, not a whole logical message — a stream split across
+            // recv()s emits one Event each.
+            std::vector<std::uint8_t> ev_dat;
+            tp::appendU16(ev_dat, full_len);
+            tp::appendVint8(ev_dat, buf, fwd_len);
+            emitEvent(service_id, tp::kGidTcp, tp::kPidReceiveAndForward, ev_dat, peer);
+            return true;
+        });
 }
 
 void TestabilityServer::receiveLoopUdp(int sock_fd, std::uint16_t service_id,
@@ -737,55 +734,42 @@ void TestabilityServer::receiveLoopUdp(int sock_fd, std::uint16_t service_id,
                                        sockaddr_in peer,
                                        std::shared_ptr<std::atomic<bool>> stop) {
     const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
-    const int flags = ::fcntl(sock_fd, F_GETFL, 0);
-    ::fcntl(sock_fd, F_SETFL, flags | O_NONBLOCK);
-
     std::uint32_t consumed = 0;
-    while (!stop_requested_ && !reset_events_ && !stop->load() &&
-           (limitless || consumed < max_len)) {
-        fd_set rset;
-        FD_ZERO(&rset);
-        FD_SET(sock_fd, &rset);
-        timeval tv{};
-        tv.tv_usec = kEventThreadWakeUs;
-        const int sr = ::select(sock_fd + 1, &rset, nullptr, nullptr, &tv);
-        if (sr == 0 || (sr < 0 && errno == EINTR)) {
-            continue;  // timeout or signal — re-check the stop/reset flags
-        }
-        if (sr < 0) {
-            break;  // sock fd closed under us / fatal select error — stop
-        }
-        std::uint8_t buf[2048];
-        sockaddr_in src{};
-        socklen_t srclen = sizeof(src);
-        // MSG_TRUNC: the return value is the true datagram length even when it
-        // overflows `buf`, so fullLen is exact while the buffer holds at most
-        // sizeof(buf) bytes to forward from.
-        const ssize_t n = ::recvfrom(sock_fd, buf, sizeof(buf), MSG_TRUNC,
-                                     reinterpret_cast<sockaddr *>(&src), &srclen);
-        if (n < 0) {
-            continue;  // spurious wakeup on the non-blocking socket
-        }
-        // A zero-length UDP datagram is a valid event (fullLen 0), NOT a peer
-        // close — the key behavioural split from the TCP body above.
-        const std::size_t in_buf =
-            (static_cast<std::size_t>(n) < sizeof(buf)) ? static_cast<std::size_t>(n) : sizeof(buf);
-        consumed += static_cast<std::uint32_t>(n);
-        const std::uint16_t full_len = static_cast<std::uint16_t>(n > 0xFFFF ? 0xFFFF : n);
-        const std::uint16_t fwd_len =
-            static_cast<std::uint16_t>(in_buf < max_fwd ? in_buf : max_fwd);
+    runEventWorkerLoop(
+        sock_fd, stop, [&] { return limitless || consumed < max_len; },
+        [&]() -> bool {
+            std::uint8_t buf[2048];
+            sockaddr_in src{};
+            socklen_t srclen = sizeof(src);
+            // MSG_TRUNC: the return value is the true datagram length even when it
+            // overflows `buf`, so fullLen is exact while the buffer holds at most
+            // sizeof(buf) bytes to forward from.
+            const ssize_t n = ::recvfrom(sock_fd, buf, sizeof(buf), MSG_TRUNC,
+                                         reinterpret_cast<sockaddr *>(&src), &srclen);
+            if (n < 0) {
+                return true;  // spurious wakeup — keep waiting (UDP has no close)
+            }
+            // A zero-length UDP datagram is a valid event (fullLen 0), NOT a peer
+            // close — the key behavioural split from the TCP body.
+            const std::size_t in_buf = (static_cast<std::size_t>(n) < sizeof(buf))
+                                           ? static_cast<std::size_t>(n)
+                                           : sizeof(buf);
+            consumed += static_cast<std::uint32_t>(n);
+            const std::uint16_t full_len = static_cast<std::uint16_t>(n > 0xFFFF ? 0xFFFF : n);
+            const std::uint16_t fwd_len =
+                static_cast<std::uint16_t>(in_buf < max_fwd ? in_buf : max_fwd);
 
-        // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (UDP): fullLen(u16) +
-        // srcPort(u16) + srcAddr(ipxaddr) + payload(vint8). The connectionless
-        // variant reports each datagram's source endpoint.
-        std::vector<std::uint8_t> ev_dat;
-        tp::appendU16(ev_dat, full_len);
-        tp::appendU16(ev_dat, ntohs(src.sin_port));
-        tp::appendIpv4Addr(ev_dat, src.sin_addr.s_addr);
-        tp::appendVint8(ev_dat, buf, fwd_len);
-        emitEvent(service_id, tp::kGidUdp, tp::kPidReceiveAndForward, ev_dat, peer);
-    }
-    ::fcntl(sock_fd, F_SETFL, flags);  // restore (sock fd lives in the table)
+            // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (UDP): fullLen(u16) +
+            // srcPort(u16) + srcAddr(ipxaddr) + payload(vint8). The connectionless
+            // variant reports each datagram's source endpoint.
+            std::vector<std::uint8_t> ev_dat;
+            tp::appendU16(ev_dat, full_len);
+            tp::appendU16(ev_dat, ntohs(src.sin_port));
+            tp::appendIpv4Addr(ev_dat, src.sin_addr.s_addr);
+            tp::appendVint8(ev_dat, buf, fwd_len);
+            emitEvent(service_id, tp::kGidUdp, tp::kPidReceiveAndForward, ev_dat, peer);
+            return true;
+        });
 }
 
 void TestabilityServer::emitEvent(std::uint16_t service_id, std::uint8_t gid, std::uint8_t pid,
