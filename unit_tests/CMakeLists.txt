@@ -85,6 +85,17 @@ if(TARGET tc8_testability_server)
     tc8_add_unit_test(testability_server_test)
     target_link_libraries(testability_server_test PRIVATE tc8_testability_server)
 endif()
+# Server-side integration: drives the real DUT-side Upper Tester server core
+# (tc8::ut::UpperTesterServer) over loopback with injected POSIX adapters,
+# covering the opcode dispatch, capability derivation, TCP session lifecycle,
+# and UDP backends end to end — the hermetic oracle the netns case suite alone
+# previously provided. Links the UT server lib plus tc8_testability_server for
+# the shared net::SocketBackend (PosixSocketBackend) adapter.
+if(TARGET tc8_upper_tester_server AND TARGET tc8_testability_server)
+    tc8_add_unit_test(ut_server_test)
+    target_link_libraries(ut_server_test PRIVATE
+        tc8_upper_tester_server tc8_testability_server)
+endif()
 # Opcode-UT TCP control adapter, driven against a mock UT responder (the real
 # opcode server needs a netns/veth topology, not loopback).
 tc8_add_unit_test(opcode_tcp_control_test)
