@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_from": "doc/spec/split/*.txt (pdftotext -layout)",
+  "generated_from": "docs/spec/split/*.txt (pdftotext -layout)",
   "case_count": 543,
   "cases": [
     {

@@ -96,8 +96,8 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    split_dir = args.repo_root / "doc" / "spec" / "split"
-    out_path = args.out or args.repo_root / "doc" / "spec" / "case_inventory.json"
+    split_dir = args.repo_root / "docs" / "spec" / "split"
+    out_path = args.out or args.repo_root / "docs" / "spec" / "case_inventory.json"
 
     cases = mine(split_dir)
     payload = {

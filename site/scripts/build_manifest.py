@@ -31,9 +31,9 @@ from typing import Callable
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-INVENTORY = REPO_ROOT / "doc" / "spec" / "case_inventory.json"
-OVERRIDES = REPO_ROOT / "doc" / "spec" / "inventory_overrides.json"
-DEPRECATED = REPO_ROOT / "doc" / "spec" / "deprecated_cases.json"
+INVENTORY = REPO_ROOT / "docs" / "spec" / "case_inventory.json"
+OVERRIDES = REPO_ROOT / "docs" / "spec" / "inventory_overrides.json"
+DEPRECATED = REPO_ROOT / "docs" / "spec" / "deprecated_cases.json"
 TESTS_DIR = REPO_ROOT / "tests"
 TRAITS_DIR = REPO_ROOT / "src" / "sce_integration" / "cases"
 OUT_DIR = REPO_ROOT / "site" / "src" / "data" / "cases"
