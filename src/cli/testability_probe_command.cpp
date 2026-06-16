@@ -237,6 +237,35 @@ bool runTcpPassiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
     return ok;
 }
 
+// ICMP echo loop: command the DUT's testability endpoint to emit an ICMP Echo
+// Request toward the tester and confirm the endpoint accepted it (E_OK). Like
+// ut-ping, this is a liveness / integration smoke of the SP round-trip — it is
+// deliberately NOT a wire observer. ICMP cannot be endpoint-received the way the
+// UDP/TCP loops are (the kernel intercepts Echo Requests and answers them on the
+// application's behalf), so E_OK is the strongest claim this CLI can make
+// honestly. Observing the emitted Echo Request on the wire is the job of the
+// framework conformance case, which reuses the shared ICMP dissector / Captured
+// / SCXML path rather than minting a second observer here. false on non-E_OK.
+bool runIcmpEchoLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
+    const std::uint32_t tester_ip = localAddrToReach(cfg.dut_ip_be);
+
+    static constexpr std::uint8_t kPayload[3] = {'T', 'C', '8'};
+    const std::vector<std::uint8_t> payload(kPayload, kPayload + sizeof(kPayload));
+    // ifName empty => "any" (the DUT's default egress); destAddr = the tester.
+    const auto er = stimulus::testabilityEchoRequest(cfg, /*iface=*/"", tester_ip, payload,
+                                                     timeout_ms);
+    if (!er.eok()) {
+        std::fprintf(stderr, "testability-probe: ICMP ECHO_REQUEST failed (ok=%d rid=0x%02X)\n",
+                     er.ok, er.rid);
+        return false;
+    }
+    char tb[INET_ADDRSTRLEN] = {};
+    ::inet_ntop(AF_INET, &tester_ip, tb, sizeof(tb));
+    std::printf("testability-probe: ICMP ECHO_REQUEST -> E_OK (Echo Request issued toward %s)\n",
+                tb);
+    return true;
+}
+
 }  // namespace
 
 TestabilityProbeCommand::TestabilityProbeCommand(CLI::App &app) {
@@ -244,7 +273,7 @@ TestabilityProbeCommand::TestabilityProbeCommand(CLI::App &app) {
         "testability-probe",
         "Drive a DUT's AUTOSAR Testability Protocol endpoint end to end "
         "(GET_VERSION + START_TEST + UDP data-plane loop + optional TCP "
-        "active/passive open loops + END_TEST)");
+        "active/passive open loops + optional ICMP echo loop + END_TEST)");
     sub_->add_option("--dut-ip", dut_ip_, "DUT IPv4 address")->required();
     sub_->add_option("--port", port_,
                      "Testability UDP/TCP port (default: protocol constant 30700)");
@@ -257,6 +286,8 @@ TestabilityProbeCommand::TestabilityProbeCommand(CLI::App &app) {
                    "Probe only the GENERAL lifecycle (skip the UDP data-plane loop)");
     sub_->add_flag("--tcp-data", tcp_data_,
                    "Also exercise the TCP-group active- and passive-open SP loops");
+    sub_->add_flag("--icmp", icmp_echo_,
+                   "Also exercise the ICMP-group ECHO_REQUEST SP loop");
 }
 
 int TestabilityProbeCommand::run() {
@@ -308,6 +339,11 @@ int TestabilityProbeCommand::run() {
     }
     if (tcp_data_) {
         if (!runTcpActiveLoop(cfg, timeout_ms_) || !runTcpPassiveLoop(cfg, timeout_ms_)) {
+            return 1;
+        }
+    }
+    if (icmp_echo_) {
+        if (!runIcmpEchoLoop(cfg, timeout_ms_)) {
             return 1;
         }
     }
