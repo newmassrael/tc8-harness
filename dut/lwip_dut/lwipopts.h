@@ -19,6 +19,25 @@
 #define LWIP_TCPIP_CORE_LOCKING    1
 /* The UT server and connector workers are plain application threads;
  * they reach the stack through the socket API only. */
+/* Wire LWIP_ASSERT_CORE_LOCKED to the unix port's sys_check_core_locking
+ * (contrib/ports/unix/port/sys_arch.c), matching the upstream
+ * contrib/examples/example_app/lwipopts.h pattern. The declaration gives the
+ * function a visible prototype (clearing -Wmissing-prototypes on its C
+ * definition) AND arms a stack-wide runtime assertion that every core entry
+ * holds the TCPIP core lock — validating the LOCK_TCPIP_CORE discipline the
+ * raw-pcb / abort bridges rely on. extern "C" because lwipopts.h is included
+ * by the C++ UT and testability server TUs, whose default linkage would
+ * otherwise not match the C definition. */
+#if !NO_SYS
+#ifdef __cplusplus
+extern "C" {
+#endif
+void sys_check_core_locking(void);
+#ifdef __cplusplus
+}
+#endif
+#define LWIP_ASSERT_CORE_LOCKED()  sys_check_core_locking()
+#endif
 
 /* ---------- protocol surface ---------- */
 #define LWIP_IPV4                  1
