@@ -1,0 +1,18 @@
+[package]
+name = "tc8-orchestrator"
+version = "0.1.0"
+edition = "2021"
+description = "Test orchestrator for the TC8 conformance harness — the Rust successor to dut/env/smoke-test.sh. Drives the harness against per-topology DUTs (single-pc netns, external, ssh-remote), aggregates verdicts, and emits JUnit. Built incrementally (strangler) alongside the bash original."
+
+[[bin]]
+name = "tc8-orchestrator"
+path = "src/main.rs"
+
+# Dependencies are added per stage as they are first used, keeping
+# `cargo clippy` warning-free (no unused crates). Stage 1: CLI only.
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+
+[profile.release]
+opt-level = 2
