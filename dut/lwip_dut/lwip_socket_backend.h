@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 
+#include "net/socket_backend.h"
 #include "testability/protocol_server.h"
 
 namespace tc8::lwip_dut {
@@ -20,16 +21,17 @@ public:
     int createUdp() override;
     int createTcp() override;
     void setReuseAddr(int fd) override;
+    void setBroadcast(int fd) override;
     void setRecvTimeoutMs(int fd, int ms) override;
     bool bindV4(int fd, std::uint32_t addr_be, std::uint16_t port) override;
-    int recvFromV4(int fd, void *buf, std::size_t len, tc8::testability::Endpoint &src) override;
+    int recvFromV4(int fd, void *buf, std::size_t len, tc8::net::Endpoint &src) override;
     int sendToV4(int fd, const void *buf, std::size_t len,
-                 const tc8::testability::Endpoint &dst) override;
+                 const tc8::net::Endpoint &dst) override;
     int recv(int fd, void *buf, std::size_t len) override;
     int send(int fd, const void *buf, std::size_t len) override;
-    bool connectBoundedV4(int fd, const tc8::testability::Endpoint &dst, int timeout_ms) override;
+    bool connectBoundedV4(int fd, const tc8::net::Endpoint &dst, int timeout_ms) override;
     bool listen(int fd, int backlog) override;
-    int accept(int fd, tc8::testability::Endpoint &client) override;
+    int accept(int fd, tc8::net::Endpoint &client) override;
     bool shutdown(int fd, int how) override;
     void setNonBlocking(int fd, bool on) override;
     int waitReadable(int fd, int timeout_us) override;

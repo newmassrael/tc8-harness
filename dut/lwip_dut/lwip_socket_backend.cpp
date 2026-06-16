@@ -33,7 +33,7 @@ extern "C" {
 namespace tc8::lwip_dut {
 
 namespace tp = ::tc8::testability;
-using tp::Endpoint;
+using ::tc8::net::Endpoint;
 
 int LwipSocketBackend::createUdp() {
     return lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -46,6 +46,11 @@ int LwipSocketBackend::createTcp() {
 void LwipSocketBackend::setReuseAddr(int fd) {
     int on = 1;
     lwip_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+}
+
+void LwipSocketBackend::setBroadcast(int fd) {
+    int on = 1;
+    lwip_setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
 }
 
 void LwipSocketBackend::setRecvTimeoutMs(int fd, int ms) {

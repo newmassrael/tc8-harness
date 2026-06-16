@@ -19,7 +19,7 @@
 namespace tc8::dut {
 
 namespace tp = ::tc8::testability;
-using tp::Endpoint;
+using ::tc8::net::Endpoint;
 
 namespace {
 
@@ -44,6 +44,11 @@ int PosixSocketBackend::createTcp() {
 void PosixSocketBackend::setReuseAddr(int fd) {
     int on = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+}
+
+void PosixSocketBackend::setBroadcast(int fd) {
+    int on = 1;
+    ::setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
 }
 
 void PosixSocketBackend::setRecvTimeoutMs(int fd, int ms) {
@@ -89,7 +94,9 @@ int PosixSocketBackend::recv(int fd, void *buf, std::size_t len) {
 }
 
 int PosixSocketBackend::send(int fd, const void *buf, std::size_t len) {
-    return static_cast<int>(::send(fd, buf, len, 0));
+    // MSG_NOSIGNAL: a send to a peer that already RST/closed returns EPIPE
+    // instead of raising SIGPIPE (which would kill the multi-threaded server).
+    return static_cast<int>(::send(fd, buf, len, MSG_NOSIGNAL));
 }
 
 bool PosixSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms) {

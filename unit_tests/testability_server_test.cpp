@@ -1163,7 +1163,7 @@ TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
     testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
     server.registerPrimitive(
         kVendorGid, kVendorPid,
-        [](const tp::Header &, const std::uint8_t *dat, std::size_t dat_len, const tp::Endpoint &,
+        [](const tp::Header &, const std::uint8_t *dat, std::size_t dat_len, const tc8::net::Endpoint &,
            std::uint8_t &rid, std::vector<std::uint8_t> &resp) {
             resp.push_back(0xA5);  // tag proving the handler ran
             resp.insert(resp.end(), dat, dat + dat_len);  // echo the request DAT back
@@ -1194,7 +1194,7 @@ TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
     testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
     server.registerPrimitive(
         tp::kGidGeneral, tp::kPidGetVersion,
-        [](const tp::Header &, const std::uint8_t *, std::size_t, const tp::Endpoint &,
+        [](const tp::Header &, const std::uint8_t *, std::size_t, const tc8::net::Endpoint &,
            std::uint8_t &rid, std::vector<std::uint8_t> &resp) {
             tp::appendU16(resp, 9);  // a version the built-in never reports (1.2.0)
             tp::appendU16(resp, 9);
