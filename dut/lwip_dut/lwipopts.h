@@ -145,6 +145,10 @@ extern "C" void tc8_lwip_platform_assert(const char *msg, int line,
 #else
 void tc8_lwip_platform_assert(const char *msg, int line, const char *file);
 #endif
+/* lwip/arch.h carries an #ifndef-guarded default for this macro; depending on
+ * include order it is processed first, so #undef before redefining keeps the
+ * substitution ours without a -Wbuiltin-macro-redefined / "redefined" warning. */
+#undef LWIP_PLATFORM_ASSERT
 #define LWIP_PLATFORM_ASSERT(x) tc8_lwip_platform_assert(x, __LINE__, __FILE__)
 
 #endif /* TC8_LWIP_DUT_LWIPOPTS_H */
