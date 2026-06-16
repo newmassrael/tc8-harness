@@ -56,15 +56,16 @@ include(${LWIP_CONTRIB_DIR}/ports/unix/Filelists.cmake)
 
 # Sources shared by every lwIP app binary built here: the platform-agnostic
 # AUTOSAR Testability protocol core (shared verbatim with the Linux tc8-dut) +
-# this fixture's lwIP SocketBackend adapter + the thin start/stop entry point,
-# the shared stack bring-up, the syscall-free tc8::wire helpers, and the lwIP C
-# addons the unix port needs. Compiled straight into each executable — they
-# cannot reach the main tree's library targets. The opcode Upper Tester
-# (lwip_ut_server.cpp) is deliberately NOT here: it is the conformance fixture's
-# harness-specific channel, carried only by tc8-lwip-dut, not by the UTM.
+# this fixture's lwIP SocketBackend adapter, the shared stack bring-up, the
+# syscall-free tc8::wire helpers, and the lwIP C addons the unix port needs.
+# Compiled straight into each executable — they cannot reach the main tree's
+# library targets. Each binary's main() owns its tc8::testability::ProtocolServer
+# directly (exactly as the Linux dut_main / utm_main do), so there is no façade
+# translation unit. The opcode Upper Tester (lwip_ut_server.cpp) is deliberately
+# NOT here: it is the conformance fixture's harness-specific channel, carried
+# only by tc8-lwip-dut, not by the UTM.
 set(_tc8_lwip_common_srcs
     lwip_stack_bringup.cpp
-    lwip_testability_server.cpp
     lwip_socket_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/testability/protocol_server.cpp
     # tc8::wire (icmp echo body + ip checksum): syscall-free, shared with the

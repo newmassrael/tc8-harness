@@ -8,6 +8,10 @@
 // the testability channel on an lwIP target: a real ECU swaps the tap netif for
 // its own Ethernet driver and links this same server core unchanged.
 //
+// As in the Linux tc8-utm, this binary owns the ProtocolServer directly, so an
+// OEM can call server.registerPrimitive(...) here (before start()) to add vendor
+// groups without forking the core.
+//
 // Usage: tc8-lwip-utm [PORT]
 //   PORT  UDP port for the testability endpoint (default 30700).
 //
@@ -19,12 +23,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 #include "lwip/ip4_addr.h"
 
+#include "lwip_socket_backend.h"
 #include "lwip_stack_bringup.h"
-#include "lwip_testability_server.h"
 #include "tc8/testability_protocol.h"
+#include "testability/protocol_server.h"
 
 int main(int argc, char **argv) {
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
@@ -48,10 +54,11 @@ int main(int argc, char **argv) {
 
     const ip4_addr_t addr = tc8::lwip_dut::BringUpLwipStack();
 
+    tc8::testability::ProtocolServer server{std::make_unique<tc8::lwip_dut::LwipSocketBackend>()};
     // Unlike tc8-lwip-dut — where the testability endpoint is additive to the
     // opcode UT and a bind failure is non-fatal — binding the port is this
     // binary's entire job, so a bind failure is a hard error.
-    if (!tc8::lwip_dut::StartTestabilityServer(port)) {
+    if (!server.start(port)) {
         std::fprintf(stderr, "tc8-lwip-utm: failed to bind testability endpoint on UDP port %u\n",
                      static_cast<unsigned>(port));
         return 1;
@@ -64,11 +71,11 @@ int main(int argc, char **argv) {
 
     tc8::lwip_dut::ParkUntilSigterm();
 
-    // A userspace stack emits nothing when SIGKILLed; StopTestabilityServer
-    // joins the server + async-event workers and closes the sockets (an
-    // abort-close RSTs), the stand-in for the kernel closing sockets on Linux
-    // process death.
+    // A userspace stack emits nothing when SIGKILLed; stop() joins the server +
+    // async-event workers and closes the sockets (an abort-close RSTs), the
+    // stand-in for the kernel closing sockets on Linux process death. The dtor
+    // would do the same on scope exit; calling it explicitly keeps the log order.
     std::fprintf(stderr, "tc8-lwip-utm: SIGTERM — shutting down\n");
-    tc8::lwip_dut::StopTestabilityServer();
+    server.stop();
     return 0;
 }

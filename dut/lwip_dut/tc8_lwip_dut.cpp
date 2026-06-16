@@ -8,24 +8,34 @@
 // topology conf is the single place that knows the fixture subnet.
 
 #include <cstdio>
+#include <memory>
 
 #include "lwip/ip4_addr.h"
 
+#include "lwip_socket_backend.h"
 #include "lwip_stack_bringup.h"
-#include "lwip_testability_server.h"
 #include "lwip_ut_server.h"
+#include "tc8/testability_protocol.h"
+#include "testability/protocol_server.h"
 
 int main() {
     const ip4_addr_t addr = tc8::lwip_dut::BringUpLwipStack();
 
     tc8::lwip_dut::StartUpperTesterServer(addr.addr);
 
-    // AUTOSAR Testability Protocol endpoint (PRS_TPSP §6, TC 1.2.0) — additive
-    // to the opcode UT above, exactly as the Linux tc8-dut hosts it. A bind
-    // failure is non-fatal (logged inside, return ignored): the fixture keeps
-    // serving the opcode UT cases. This is the standard-compliant UTM channel
-    // on lwIP; tc8-lwip-utm hoists the same endpoint into its own binary.
-    tc8::lwip_dut::StartTestabilityServer();
+    // AUTOSAR Testability Protocol endpoint (PRS_TPSP §6, TC 1.2.0) — the same
+    // platform-agnostic ProtocolServer the Linux tc8-dut owns in dut_main.cpp,
+    // here paired with the lwIP SocketBackend and started as an additive listener
+    // alongside the opcode UT above: a bind failure is non-fatal, so the fixture
+    // keeps serving the opcode UT cases. tc8-lwip-utm hoists this same endpoint
+    // into a standalone binary.
+    tc8::testability::ProtocolServer testability{
+        std::make_unique<tc8::lwip_dut::LwipSocketBackend>()};
+    if (!testability.start()) {
+        std::fprintf(stderr,
+                     "tc8-lwip-dut: testability endpoint start failed (continuing — additive to "
+                     "the opcode UT)\n");
+    }
 
     char ip_text[IP4ADDR_STRLEN_MAX];
     ip4addr_ntoa_r(&addr, ip_text, sizeof(ip_text));
@@ -43,7 +53,7 @@ int main() {
     // Join the testability server + its async workers and close its sockets (an
     // abort-close RSTs, the fixture's stand-in for the kernel closing sockets on
     // Linux process death).
-    tc8::lwip_dut::StopTestabilityServer();
+    testability.stop();
     std::fprintf(stderr, "tc8-lwip-dut: SIGTERM — UT slots aborted, exiting\n");
     return 0;
 }

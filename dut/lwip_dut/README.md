@@ -270,7 +270,7 @@ behaviour-shaping ones:
   per-case fresh-id expectation is satisfied by the fixture respawning
   the DUT per case (see below), never by resetting the counter.
 
-## Testability endpoint notes (`lwip_testability_server.cpp`)
+## Testability endpoint notes (`lwip_socket_backend.cpp`)
 
 The AUTOSAR Testability endpoint (PRS_TPSP §6, TC 1.2.0) runs the
 platform-agnostic protocol core `tc8::testability::ProtocolServer`
@@ -280,10 +280,12 @@ tc8-dut — paired with this directory's lwIP `SocketBackend` adapter
 (`include/tc8/testability_protocol.h`) and ICMP Echo Request body builder
 (`tc8::wire`, compiled in from `src/wire/`) are the same translation units
 the Linux endpoint runs; only the socket adapter differs, and the bullets
-below record where lwIP's stack forces that adapter to diverge.
-`lwip_testability_server.cpp` is the thin start/stop entry point. Served
-standard groups: GENERAL (0x00), UDP (0x01), TCP (0x02), ICMP (0x03) and
-ICMPv6 (0x04) — the same set the Linux endpoint serves.
+below record where lwIP's stack forces that adapter to diverge. Each
+binary's `main()` (`tc8_lwip_dut.cpp`, `lwip_utm_main.cpp`) owns its
+`ProtocolServer` directly — exactly as the Linux `dut_main` / `utm_main` do,
+with no façade translation unit. Served standard groups: GENERAL (0x00),
+UDP (0x01), TCP (0x02), ICMP (0x03) and ICMPv6 (0x04) — the same set the
+Linux endpoint serves.
 
 - The `CLOSE_SOCKET` abort RSTs via `tcp_abort()` on the raw pcb (the
   `lwip/priv/sockets_priv.h` fd→pcb bridge, shared with the UT ABORT
@@ -311,12 +313,13 @@ ICMPv6 (0x04) — the same set the Linux endpoint serves.
   FORWARD) is a strict subset of its socket's, exactly as in the Linux
   server.
 - The OEM extension/override seam (`registerPrimitive`) lives in the
-  shared core, so both lwIP binaries carry it (regained for free when the
-  core was extracted). Neither registers a handler — they serve only the
-  standard groups as conformance binaries — but the seam is the supported
-  path for an OEM deploying `tc8-lwip-utm` to add vendor groups (e.g. ARP
-  capability, for which PRS_TPSP defines no service primitive) without
-  forking the core, exactly as on the Linux `tc8-utm`.
+  shared core, so both lwIP binaries carry it. Neither registers a handler
+  — they serve only the standard groups as conformance binaries — but
+  because each `main()` owns its `ProtocolServer` directly, an OEM deploying
+  `tc8-lwip-utm` calls `server.registerPrimitive(...)` before `start()` to
+  add vendor groups (e.g. ARP capability, for which PRS_TPSP defines no
+  service primitive) without forking the core, exactly as on the Linux
+  `tc8-utm`.
 
 The endpoint is additive — a bind failure is logged and the fixture
 keeps serving the UT cases — so it is inert in the push-triggered lwIP
