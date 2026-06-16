@@ -11,8 +11,10 @@
 #include "ets_impl.h"
 #include "ets_impl_2.h"
 #include "posix_socket_backend.h"
+#include "posix_stack_probe.h"
+#include "posix_ut_extensions.h"
 #include "testability/protocol_server.h"
-#include "upper_tester_server.h"
+#include "upper_tester/ut_server.h"
 
 namespace {
 
@@ -110,8 +112,16 @@ int main() {
     // ADDRESSING_01/02 receive-probing and FRAGMENTS_05 send-triggering.
     // Independent of the SOME/IP stack — vsomeip owns 30490..30510,
     // UT lives on 20000 (data) + 30600 (RPC).
-    tc8::dut::UpperTesterServer upper_tester;
-    if (!upper_tester.start()) {
+    // The §4.5 and §4.7 autoconf + DHCP opcode families and the interface
+    // enumeration are POSIX-host-specific, so they live in PosixUtExtensions and
+    // register onto the platform-agnostic core. `ut_ext` is declared first so it
+    // outlives `upper_tester` — the registered handlers capture its members.
+    tc8::dut::PosixUtExtensions ut_ext;
+    ut_ext.discoverInterfaces();
+    tc8::ut::UpperTesterServer upper_tester{std::make_unique<tc8::dut::PosixSocketBackend>(),
+                                            std::make_unique<tc8::dut::PosixStackProbe>()};
+    ut_ext.registerOn(upper_tester);
+    if (!upper_tester.start(ut_ext.ifaceIpBe(), ut_ext.ifaceBcastBe())) {
         std::fprintf(stderr, "tc8-dut: upper-tester start failed\n");
         std::_Exit(1);
     }

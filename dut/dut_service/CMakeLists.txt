@@ -18,6 +18,23 @@ target_include_directories(tc8_testability_server PUBLIC
 # unit test inherit tc8_wire transitively rather than each naming the source.
 target_link_libraries(tc8_testability_server PUBLIC tc8_wire)
 
+# The TC8 Upper Tester server, built once as a library so the DUT service and
+# the unit test link the same translation units. Ports & adapters: the
+# platform-agnostic core (src/upper_tester/) plus the POSIX StackProbe adapter.
+# The socket primitives come from tc8::net::SocketBackend (PosixSocketBackend in
+# tc8_testability_server), so consumers link that too. The lwIP DUT fixture
+# compiles the same core against its own adapters — a single source of truth for
+# the UT protocol logic across both platforms.
+add_library(tc8_upper_tester_server STATIC
+    ${PROJECT_SOURCE_DIR}/src/upper_tester/ut_server.cpp
+    posix_stack_probe.cpp
+)
+target_include_directories(tc8_upper_tester_server PUBLIC
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 add_executable(tc8-dut
     client_mode.cpp
     client_mode_proxy.cpp
@@ -26,11 +43,11 @@ add_executable(tc8-dut
     ets_impl.cpp
     ets_impl_2.cpp
     linklocal_autoconf.cpp
-    upper_tester_server.cpp
+    posix_ut_extensions.cpp
 )
 target_include_directories(tc8-dut PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/src
 )
 target_link_options(tc8-dut PRIVATE -Wl,--no-as-needed)
-target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server)
+target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server tc8_upper_tester_server)
