@@ -396,6 +396,17 @@ TestabilityResponse testabilityEchoRequest(const TestabilityConfig &cfg, const s
     return testabilityCall(cfg, tp::kGidIcmp, tp::kPidEchoRequest, dat, timeout_ms, src_ip_be);
 }
 
+TestabilityResponse testabilityEchoRequestV6(const TestabilityConfig &cfg, const std::string &iface,
+                                             const std::uint8_t dest_addr16[16],
+                                             const std::vector<std::uint8_t> &payload,
+                                             int timeout_ms, std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, iface);            // ifName (text; empty => n=0 "any")
+    tp::appendIpv6Addr(dat, dest_addr16);  // destAddr (ipxaddr n=16)
+    tp::appendVint8(dat, payload.empty() ? nullptr : payload.data(), payload.size());  // data
+    return testabilityCall(cfg, tp::kGidIcmpv6, tp::kPidEchoRequest, dat, timeout_ms, src_ip_be);
+}
+
 // CLOSE_SOCKET request-encoding SSOT (PRS_TPSP §6.10): socketId(u16) + optional
 // abort(u8). The graceful and abortive public wrappers differ only in the abort
 // byte, so the wire shape lives here once.

@@ -297,6 +297,12 @@ inline void appendIpv4Addr(std::vector<std::uint8_t> &dat, std::uint32_t ip_be) 
     appendVint8(dat, b, 4);
 }
 
+// PRS_TPSP §6.7.5.1 ipxaddr (IPv6): vint8 with n=16 carrying the address in wire
+// order (the in6_addr / sin6_addr bytes).
+inline void appendIpv6Addr(std::vector<std::uint8_t> &dat, const std::uint8_t addr16[16]) {
+    appendVint8(dat, addr16, 16);
+}
+
 // PRS_TPSP §6.7.5.2 text: vint8 of [BOM(EF BB BF) + UTF-8 bytes + null]; empty => n=0
 // (per the spec's `n = 0 | 4..65535` rule).
 inline void appendText(std::vector<std::uint8_t> &dat, const std::string &text) {

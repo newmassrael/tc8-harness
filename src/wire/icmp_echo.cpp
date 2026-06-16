@@ -8,6 +8,8 @@ namespace {
 
 constexpr std::uint8_t kIcmpTypeEchoRequest = 8;
 constexpr std::uint8_t kIcmpCodeEchoRequest = 0;
+constexpr std::uint8_t kIcmpv6TypeEchoRequest = 128;  // RFC 4443 §4.1
+constexpr std::uint8_t kIcmpv6CodeEchoRequest = 0;
 
 void appendBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
     b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFU));
@@ -39,6 +41,24 @@ std::vector<std::uint8_t> buildIcmpEchoRequestBody(std::uint16_t id, std::uint16
     }
     icmp[2] = static_cast<std::uint8_t>((icmp_csum >> 8) & 0xFFU);
     icmp[3] = static_cast<std::uint8_t>(icmp_csum & 0xFFU);
+    return icmp;
+}
+
+std::vector<std::uint8_t> buildIcmpv6EchoRequestBody(std::uint16_t id, std::uint16_t seq,
+                                                     const std::uint8_t *data,
+                                                     std::uint32_t data_len) {
+    std::vector<std::uint8_t> icmp;
+    icmp.reserve(8U + data_len);
+    icmp.push_back(kIcmpv6TypeEchoRequest);
+    icmp.push_back(kIcmpv6CodeEchoRequest);
+    // Checksum left zero: the IPPROTO_ICMPV6 socket computes it over the IPv6
+    // pseudo-header (RFC 4443 §2.3) — see the header comment.
+    appendBe16(icmp, 0x0000);
+    appendBe16(icmp, id);
+    appendBe16(icmp, seq);
+    if (data_len > 0 && data != nullptr) {
+        icmp.insert(icmp.end(), data, data + data_len);
+    }
     return icmp;
 }
 

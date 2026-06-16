@@ -5,6 +5,7 @@
 #include <linux/inet_diag.h>
 #include <linux/netlink.h>
 #include <linux/sock_diag.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
@@ -12,6 +13,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstring>
 #include <optional>
 
 namespace tc8::dut {
@@ -263,6 +265,41 @@ std::uint8_t PosixSocketBackend::sendIcmpEcho(const std::string &ifname, std::ui
     dest.sin_family = AF_INET;
     dest.sin_port = 0;  // ICMP is portless
     dest.sin_addr.s_addr = dst_be;
+    const ssize_t sent =
+        ::sendto(s, body, len, 0, reinterpret_cast<sockaddr *>(&dest), sizeof(dest));
+    ::close(s);
+    return (sent == static_cast<ssize_t>(len)) ? tp::kRidEOk : tp::kRidENok;
+}
+
+std::uint8_t PosixSocketBackend::sendIcmpv6Echo(const std::string &ifname,
+                                                const std::uint8_t *dst16,
+                                                const std::uint8_t *body, std::size_t len) {
+    // The IPv6 mirror of sendIcmpEcho: an unprivileged ICMPv6 datagram (ping6)
+    // socket where ping_group_range permits, falling back to a raw socket.
+    int s = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_ICMPV6);
+    if (s < 0) {
+        s = ::socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+    }
+    if (s < 0) {
+        return tp::kRidENok;  // no ICMPv6 socket (IPv6 absent, or no CAP_NET_RAW)
+    }
+    unsigned scope = 0;
+    if (!ifname.empty() && ifname != "0") {
+        if (::setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, ifname.c_str(),
+                         static_cast<socklen_t>(ifname.size())) < 0) {
+            const int e = errno;
+            ::close(s);
+            return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+        }
+        scope = ::if_nametoindex(ifname.c_str());  // a link-local dst needs the scope id
+    }
+    sockaddr_in6 dest{};
+    dest.sin6_family = AF_INET6;
+    dest.sin6_port = 0;  // ICMPv6 is portless
+    dest.sin6_scope_id = scope;
+    std::memcpy(&dest.sin6_addr, dst16, 16);
+    // The kernel computes the ICMPv6 checksum (IPv6 pseudo-header) for an
+    // IPPROTO_ICMPV6 socket, so `body` carries a zero checksum field.
     const ssize_t sent =
         ::sendto(s, body, len, 0, reinterpret_cast<sockaddr *>(&dest), sizeof(dest));
     ::close(s);

@@ -39,6 +39,8 @@ public:
                                  std::uint16_t len) override;
     std::uint8_t sendIcmpEcho(const std::string &ifname, std::uint32_t dst_be,
                               const std::uint8_t *body, std::size_t len) override;
+    std::uint8_t sendIcmpv6Echo(const std::string &ifname, const std::uint8_t *dst16,
+                                const std::uint8_t *body, std::size_t len) override;
 };
 
 }  // namespace tc8::lwip_dut

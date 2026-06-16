@@ -228,6 +228,17 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
         }
     }
 
+    if (gid == kGidIcmpv6) {
+        switch (pid) {
+            case kPidEchoRequest:
+                rid_out = echoRequestV6(dat, dat_len);
+                return;
+            default:
+                rid_out = kRidENtf;  // ICMPv6 group defines only ECHO_REQUEST
+                return;
+        }
+    }
+
     rid_out = kRidENtf;  // group not implemented
 }
 
@@ -347,6 +358,33 @@ std::uint8_t ProtocolServer::echoRequest(const std::uint8_t *dat, std::size_t da
     const std::vector<std::uint8_t> msg =
         tc8::wire::buildIcmpEchoRequestBody(/*id=*/0, /*seq=*/1, data_body, data_len);
     return backend_->sendIcmpEcho(ifname, dest_be, msg.data(), msg.size());
+}
+
+std::uint8_t ProtocolServer::echoRequestV6(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 ECHO_REQUEST (ICMPv6): ifName(text) + destAddr(ipxaddr n=16)
+    // + data(vint8) — the same shape as the IPv4 echo above with a 16-byte address.
+    std::size_t off = 0;
+    std::string ifname;
+    if (!readText(dat, dat_len, off, ifname)) {
+        return kRidEInv;
+    }
+    const std::uint8_t *addr_body = nullptr;
+    std::uint16_t addr_len = 0;
+    if (!readVint8(dat, dat_len, off, addr_body, addr_len) || addr_len != 16) {
+        return kRidEInv;  // IPv6 ipxaddr only — the IPv4 echo is kGidIcmp
+    }
+    const std::uint8_t *data_body = nullptr;
+    std::uint16_t data_len = 0;
+    if (!readVint8(dat, dat_len, off, data_body, data_len)) {
+        return kRidEInv;
+    }
+
+    // The IPPROTO_ICMPV6 socket completes the checksum (it spans the IPv6
+    // pseudo-header), so the wire builder leaves it zero — see
+    // buildIcmpv6EchoRequestBody. The backend only sends it and resolves ifName.
+    const std::vector<std::uint8_t> msg =
+        tc8::wire::buildIcmpv6EchoRequestBody(/*id=*/0, /*seq=*/1, data_body, data_len);
+    return backend_->sendIcmpv6Echo(ifname, addr_body, msg.data(), msg.size());
 }
 
 std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {

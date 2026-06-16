@@ -282,8 +282,8 @@ tc8-dut — paired with this directory's lwIP `SocketBackend` adapter
 the Linux endpoint runs; only the socket adapter differs, and the bullets
 below record where lwIP's stack forces that adapter to diverge.
 `lwip_testability_server.cpp` is the thin start/stop entry point. Served
-standard groups: GENERAL (0x00), UDP (0x01), TCP (0x02) and ICMP (0x03) —
-the same set the Linux endpoint serves.
+standard groups: GENERAL (0x00), UDP (0x01), TCP (0x02), ICMP (0x03) and
+ICMPv6 (0x04) — the same set the Linux endpoint serves.
 
 - The `CLOSE_SOCKET` abort RSTs via `tcp_abort()` on the raw pcb (the
   `lwip/priv/sockets_priv.h` fd→pcb bridge, shared with the UT ABORT
@@ -295,6 +295,11 @@ the same set the Linux endpoint serves.
   `LWIP_RAW` above); the Echo Request body is built by the shared
   `tc8::wire` builder, which checksums it, and the raw pcb leaves it
   untouched (`chksum_reqd` defaults to 0) — no double-checksum.
+- The ICMPv6 `ECHO_REQUEST` (group 0x04) is routed by the shared core, but
+  this fixture's `lwipopts.h` sets `LWIP_IPV6 0`, so the lwIP backend has no
+  ip6 path and answers E_NOK — surfaced, not silently accepted, the same way
+  the unsupported `CONFIGURE_SOCKET` options do. The Linux backend implements
+  it fully (AF_INET6 / `IPPROTO_ICMPV6`).
 - `CONFIGURE_SOCKET` maps TTL/TOS/Nagle to `lwip_setsockopt`; the DF
   (`IP_MTU_DISCOVER`), IP timestamp-option (`IP_OPTIONS`) and MSS
   (`TCP_MAXSEG`) parameters have no lwIP socket option and answer E_NOK

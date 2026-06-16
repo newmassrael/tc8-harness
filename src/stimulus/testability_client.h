@@ -216,4 +216,11 @@ TestabilityResponse testabilityEchoRequest(const TestabilityConfig &cfg, const s
                                            const std::vector<std::uint8_t> &payload,
                                            int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
 
+// ECHO_REQUEST (ICMPv6 / GID 0x04, PID 0x00, PRS_TPSP §6.10): the IPv6 sibling of
+// testabilityEchoRequest — `dest_addr16` is the 16-byte destination (wire order).
+TestabilityResponse testabilityEchoRequestV6(const TestabilityConfig &cfg, const std::string &iface,
+                                             const std::uint8_t dest_addr16[16],
+                                             const std::vector<std::uint8_t> &payload,
+                                             int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
 }  // namespace tc8::stimulus

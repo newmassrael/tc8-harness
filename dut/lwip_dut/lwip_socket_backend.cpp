@@ -254,4 +254,15 @@ std::uint8_t LwipSocketBackend::sendIcmpEcho(const std::string &ifname, std::uin
     return rid;
 }
 
+std::uint8_t LwipSocketBackend::sendIcmpv6Echo(const std::string & /*ifname*/,
+                                               const std::uint8_t * /*dst16*/,
+                                               const std::uint8_t * /*body*/,
+                                               std::size_t /*len*/) {
+    // This fixture's lwipopts.h builds the stack with LWIP_IPV6 == 0, so there is
+    // no ICMPv6 emit path. Report E_NOK — surfaced, not silently accepted, the
+    // same way the unsupported CONFIGURE_SOCKET options answer. A deployment that
+    // enables IPv6 would add a raw ip6 pcb emit here, mirroring sendIcmpEcho.
+    return tp::kRidENok;
+}
+
 }  // namespace tc8::lwip_dut

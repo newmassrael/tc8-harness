@@ -32,4 +32,16 @@ std::vector<std::uint8_t> buildIcmpEchoRequestBody(
     std::optional<std::uint8_t> code_override = std::nullopt,
     bool corrupt_checksum = false);
 
+// RFC 4443 ICMPv6 Echo Request body: the 8-byte ICMPv6 header (type 128, code 0,
+// checksum, identifier, sequence number) followed by `data`. Unlike the IPv4
+// builder above it leaves the checksum field zero — the ICMPv6 checksum spans an
+// IPv6 pseudo-header (src / dst / length / next-header) the body builder cannot
+// know, and the kernel computes and inserts it for every IPPROTO_ICMPV6 socket
+// (RFC 3542 §3.1), so a body-local checksum would only be overwritten. The
+// header layout is shared with the IPv4 echo, so a DUT testability endpoint
+// frames both from this one wire layer.
+std::vector<std::uint8_t> buildIcmpv6EchoRequestBody(std::uint16_t id, std::uint16_t seq,
+                                                     const std::uint8_t *data,
+                                                     std::uint32_t data_len);
+
 }  // namespace tc8::wire

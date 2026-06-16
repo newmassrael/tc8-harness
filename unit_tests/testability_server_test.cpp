@@ -1085,6 +1085,71 @@ TEST_F(TestabilityServerTest, IcmpEchoRequestInvalidInterfaceReturnsEIif) {
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
 }
 
+// ── ICMPv6 group (GID 0x04): ECHO_REQUEST (PRS_TPSP §6.10) ──
+
+// A 4-byte (IPv4-length) destAddr to the ICMPv6 group is malformed: the v6 echo
+// requires a 16-byte ipxaddr. This rejection is pure dispatch + parse, so it
+// holds regardless of whether the host has a usable IPv6 stack.
+TEST_F(TestabilityServerTest, Icmpv6EchoRequestWrongAddrLengthReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "");                            // ifName
+    tp::appendIpv4Addr(dat, ::htonl(INADDR_LOOPBACK));  // 4-byte addr — wrong for ICMPv6
+    tp::appendVint8(dat, nullptr, 0);                   // data
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIcmpv6, tp::kPidEchoRequest, dat).rid,
+              tp::kRidEInv);
+}
+
+// The ICMPv6 group defines only ECHO_REQUEST; any other PID is E_NTF.
+TEST_F(TestabilityServerTest, Icmpv6UnknownPrimitiveReturnsENtf) {
+    const auto cfg = loopbackConfig();
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIcmpv6, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+}
+
+// True if this host can open an ICMPv6 socket (the same acquisition the backend
+// does). Where it cannot, the emit tests below would exercise the environment's
+// lack of IPv6 rather than the endpoint, so they skip instead of failing.
+static bool hasIcmpv6Socket() {
+    int s = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_ICMPV6);
+    if (s < 0) {
+        s = ::socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+    }
+    if (s < 0) {
+        return false;
+    }
+    ::close(s);
+    return true;
+}
+
+// ECHO_REQUEST to the IPv6 loopback (::1) emits and reports E_OK where the host
+// has a usable ICMPv6 socket (ping_group_range governs ICMPv6 ping sockets too,
+// the IPv6 analog of the IPv4 echo case above).
+TEST_F(TestabilityServerTest, Icmpv6EchoRequestToLoopbackReturnsEOk) {
+    if (!hasIcmpv6Socket()) {
+        GTEST_SKIP() << "no usable ICMPv6 socket on this host";
+    }
+    const auto cfg = loopbackConfig();
+    const std::uint8_t loop6[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};  // ::1
+    const std::vector<std::uint8_t> payload = {'p', 'i', 'n', 'g', '6'};
+    const auto r = stimulus::testabilityEchoRequestV6(cfg, /*iface=*/"", loop6, payload);
+    EXPECT_TRUE(r.eok()) << "ICMPv6 ECHO_REQUEST to ::1 should emit and report E_OK (rid="
+                         << static_cast<int>(r.rid) << ")";
+}
+
+// An unknown interface name maps to the spec's E_IIF on the IPv6 path too
+// (SO_BINDTODEVICE ENODEV), mirroring the IPv4 echo.
+TEST_F(TestabilityServerTest, Icmpv6EchoRequestInvalidInterfaceReturnsEIif) {
+    if (!hasIcmpv6Socket()) {
+        GTEST_SKIP() << "no usable ICMPv6 socket on this host";
+    }
+    const auto cfg = loopbackConfig();
+    const std::uint8_t loop6[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};  // ::1
+    const auto r =
+        stimulus::testabilityEchoRequestV6(cfg, /*iface=*/"tc8-no-such-if", loop6, {});
+    EXPECT_TRUE(r.ok);  // the SP itself round-tripped
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
 // ── PRS_TPSP §6.6 OEM extension / override seam (registerPrimitive) ──
 
 // EXTEND: a registered handler for a non-standard group the core knows nothing

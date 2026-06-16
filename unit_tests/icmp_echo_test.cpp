@@ -86,5 +86,24 @@ TEST(BuildIcmpEchoRequestBody, CorruptChecksumFlagProducesNonZeroSum) {
     EXPECT_NE(checksumRef(body.data(), body.size()), 0u);
 }
 
+TEST(BuildIcmpv6EchoRequestBody, HeaderTypeCodeAndZeroChecksum) {
+    // ICMPv6 Echo Request is type 128 / code 0 (RFC 4443 §4.1). The checksum
+    // field stays zero: the IPPROTO_ICMPV6 socket fills it over the IPv6
+    // pseudo-header (RFC 4443 §2.3), so a body-local sum would only be
+    // overwritten. id/seq keep the big-endian layout shared with the IPv4 echo.
+    const std::array<std::uint8_t, 4> payload{0xDE, 0xAD, 0xBE, 0xEF};
+    const auto body = buildIcmpv6EchoRequestBody(0xAABB, 0xCCDD, payload.data(), payload.size());
+    ASSERT_EQ(body.size(), 8u + payload.size());
+    EXPECT_EQ(body[0], 128U);   // type
+    EXPECT_EQ(body[1], 0U);     // code
+    EXPECT_EQ(body[2], 0U);     // checksum high byte — left zero
+    EXPECT_EQ(body[3], 0U);     // checksum low byte — left zero
+    EXPECT_EQ(body[4], 0xAAU);  // id, big-endian
+    EXPECT_EQ(body[5], 0xBBU);
+    EXPECT_EQ(body[6], 0xCCU);  // seq, big-endian
+    EXPECT_EQ(body[7], 0xDDU);
+    EXPECT_EQ(std::memcmp(body.data() + 8, payload.data(), payload.size()), 0);
+}
+
 }  // namespace
 }  // namespace tc8::wire

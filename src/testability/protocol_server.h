@@ -86,6 +86,12 @@ public:
     // = any) -> result id (E_OK / E_IIF on an unknown interface / E_NOK).
     virtual std::uint8_t sendIcmpEcho(const std::string &ifname, std::uint32_t dst_be,
                                       const std::uint8_t *body, std::size_t len) = 0;
+
+    // ICMPv6 ECHO_REQUEST: the IPv6 sibling of sendIcmpEcho — `dst16` is the
+    // 16-byte destination in wire order. A stack built without IPv6 answers
+    // E_NOK (surfaced, not silently dropped).
+    virtual std::uint8_t sendIcmpv6Echo(const std::string &ifname, const std::uint8_t *dst16,
+                                        const std::uint8_t *body, std::size_t len) = 0;
 };
 
 // AUTOSAR Testability Protocol endpoint (PRS_TPSP §6, AUTOSAR TC 1.2.0), the
@@ -97,7 +103,7 @@ public:
 // include/tc8/testability_protocol.h so both decode identically.
 //
 // Served standard groups (PRS_TPSP §6.10): GENERAL (0x00), UDP (0x01),
-// TCP (0x02), ICMP (0x03). registerPrimitive() is the OEM extension/override
+// TCP (0x02), ICMP (0x03), ICMPv6 (0x04). registerPrimitive() is the OEM extension/override
 // seam (PRS_TPSP §6.6). RAII: start() spawns the listener thread; stop()/dtor
 // joins it and closes any open sockets.
 class ProtocolServer {
@@ -154,6 +160,7 @@ private:
                                    std::uint16_t service_id, const Endpoint &peer,
                                    std::vector<std::uint8_t> &resp_dat, bool udp);
     std::uint8_t echoRequest(const std::uint8_t *dat, std::size_t dat_len);
+    std::uint8_t echoRequestV6(const std::uint8_t *dat, std::size_t dat_len);
 
     void runEventWorkerLoop(int fd, const std::shared_ptr<std::atomic<bool>> &stop,
                             const std::function<bool()> &again,
