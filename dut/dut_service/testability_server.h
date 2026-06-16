@@ -93,12 +93,13 @@ private:
     // toggle UDP-only (an inapplicable option surfaces as the kernel EINVAL ->
     // E_NOK).
     std::uint8_t configureSocket(const std::uint8_t *dat, std::size_t dat_len);
-    // TCP RECEIVE_AND_FORWARD (PRS_TPSP §6.10) — socketId + maxFwd + maxLen.
-    // Consumes the bytes queued before the call (returned as dropCnt) to reopen
-    // the receive window, then spawns a forward thread; returns E_OK at once.
+    // RECEIVE_AND_FORWARD (PRS_TPSP §6.10) — socketId + maxFwd + maxLen, shared by
+    // the UDP and TCP groups. Consumes the bytes queued before the call (returned
+    // as dropCnt) to reopen the receive window, then spawns the matching forward
+    // thread (receiveLoopUdp / receiveLoopTcp per `udp`); returns E_OK at once.
     std::uint8_t receiveAndForward(const std::uint8_t *dat, std::size_t dat_len,
                                    std::uint16_t service_id, const sockaddr_in &peer,
-                                   std::vector<std::uint8_t> &resp_dat);
+                                   std::vector<std::uint8_t> &resp_dat, bool udp);
 
     // Accept-thread body: poll `listen_fd` for up to `max_con` incoming
     // connections; per accept, register the new socket and emit the accept Event
@@ -110,19 +111,28 @@ private:
                     std::uint16_t max_con, sockaddr_in peer,
                     std::shared_ptr<std::atomic<bool>> stop);
 
-    // Forward-thread body: consume up to `max_len` bytes from `conn_fd`, emitting
-    // a forward Event (fullLen + payload, payload capped at `max_fwd`) per bulk
-    // to `peer`. Exits on stop/reset/its own `stop` flag, or once max_len bytes
-    // were consumed. `stop` is the per-worker flag (see acceptLoop).
-    void receiveLoop(int conn_fd, std::uint16_t service_id, std::uint16_t max_fwd,
-                     std::uint16_t max_len, sockaddr_in peer,
-                     std::shared_ptr<std::atomic<bool>> stop);
+    // TCP forward-thread body: consume up to `max_len` bytes from `conn_fd`,
+    // emitting a forward Event (fullLen + payload, payload capped at `max_fwd`)
+    // per recv() bulk to `peer`. Exits on stop/reset/its own `stop` flag, once
+    // max_len bytes were consumed, or on peer close. `stop` is the per-worker
+    // flag (see acceptLoop).
+    void receiveLoopTcp(int conn_fd, std::uint16_t service_id, std::uint16_t max_fwd,
+                        std::uint16_t max_len, sockaddr_in peer,
+                        std::shared_ptr<std::atomic<bool>> stop);
+    // UDP forward-thread body: per received datagram, emit a forward Event
+    // (fullLen + srcPort + srcAddr + payload capped at `max_fwd`) to `peer` — the
+    // connectionless variant carrying the datagram source (PRS_TPSP §6.10). A
+    // zero-length datagram is a valid event, not an end-of-stream. Exits on the
+    // same stop / reset / max_len conditions as the TCP body.
+    void receiveLoopUdp(int sock_fd, std::uint16_t service_id, std::uint16_t max_fwd,
+                        std::uint16_t max_len, sockaddr_in peer,
+                        std::shared_ptr<std::atomic<bool>> stop);
 
-    // Single emit path for every async Event (PRS_TPSP §6.2 TID 0x02, EVB-set TCP
-    // method id) — shared by the LISTEN_AND_ACCEPT and RECEIVE_AND_FORWARD worker
-    // threads so the Event framing lives in one place. See the .cpp for the fd_
-    // concurrency invariant.
-    void emitEvent(std::uint16_t service_id, std::uint8_t pid,
+    // Single emit path for every async Event (PRS_TPSP §6.2 TID 0x02, EVB-set
+    // method id for group `gid`) — shared by the LISTEN_AND_ACCEPT (TCP) and
+    // RECEIVE_AND_FORWARD (UDP/TCP) worker threads so the Event framing lives in
+    // one place. See the .cpp for the fd_ concurrency invariant.
+    void emitEvent(std::uint16_t service_id, std::uint8_t gid, std::uint8_t pid,
                    const std::vector<std::uint8_t> &dat, const sockaddr_in &peer);
 
     // Thread-safe socket-table access — the serverLoop thread and the accept

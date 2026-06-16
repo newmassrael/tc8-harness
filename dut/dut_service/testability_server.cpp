@@ -216,13 +216,14 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
             case tp::kPidShutdown:
                 rid_out = shutdownSocket(dat, dat_len);
                 return;
+            case tp::kPidReceiveAndForward:
+                rid_out = receiveAndForward(dat, dat_len, req.service_id, peer, resp_dat,
+                                            /*udp=*/true);
+                return;
             case tp::kPidConfigureSocket:
                 rid_out = configureSocket(dat, dat_len);
                 return;
             default:
-                // RECEIVE_AND_FORWARD (UDP) is deferred: its Event carries
-                // srcPort/srcAddr (vs the TCP fullLen+payload shape) and no UDP
-                // case needs it yet — add a UDP receiveLoop variant when one does.
                 rid_out = tp::kRidENtf;
                 return;
         }
@@ -249,7 +250,8 @@ void TestabilityServer::dispatch(const testability::Header &req, const std::uint
                 rid_out = shutdownSocket(dat, dat_len);
                 return;
             case tp::kPidReceiveAndForward:
-                rid_out = receiveAndForward(dat, dat_len, req.service_id, peer, resp_dat);
+                rid_out = receiveAndForward(dat, dat_len, req.service_id, peer, resp_dat,
+                                            /*udp=*/false);
                 return;
             case tp::kPidConfigureSocket:
                 rid_out = configureSocket(dat, dat_len);
@@ -571,7 +573,7 @@ void TestabilityServer::acceptLoop(int listen_fd, std::uint16_t service_id,
         tp::appendU16(ev_dat, new_socket_id);
         tp::appendU16(ev_dat, ntohs(client.sin_port));
         tp::appendIpv4Addr(ev_dat, client.sin_addr.s_addr);
-        emitEvent(service_id, tp::kPidListenAndAccept, ev_dat, peer);
+        emitEvent(service_id, tp::kGidTcp, tp::kPidListenAndAccept, ev_dat, peer);
     }
     ::fcntl(listen_fd, F_SETFL, flags);  // restore (listen fd lives in the table)
 }
@@ -622,9 +624,10 @@ std::uint8_t TestabilityServer::shutdownSocket(const std::uint8_t *dat, std::siz
 std::uint8_t TestabilityServer::receiveAndForward(const std::uint8_t *dat, std::size_t dat_len,
                                                   std::uint16_t service_id,
                                                   const sockaddr_in &peer,
-                                                  std::vector<std::uint8_t> &resp_dat) {
-    // PRS_TPSP §6.10 RECEIVE_AND_FORWARD (TCP): socketId(u16) + maxFwd(u16) +
-    // maxLen(u16). Response: dropCnt(u16).
+                                                  std::vector<std::uint8_t> &resp_dat, bool udp) {
+    // PRS_TPSP §6.10 RECEIVE_AND_FORWARD (UDP/TCP): socketId(u16) + maxFwd(u16) +
+    // maxLen(u16). Response: dropCnt(u16). The request shape is group-independent;
+    // `udp` selects the forward loop (datagram source-bearing Event vs TCP stream).
     if (dat_len < 2 + 2 + 2) {
         return tp::kRidEInv;
     }
@@ -637,9 +640,10 @@ std::uint8_t TestabilityServer::receiveAndForward(const std::uint8_t *dat, std::
         return tp::kRidEIsd;  // invalid socket id
     }
 
-    // PRS_TPSP §6.12.4 inactive-phase drain: consume the bytes queued before
-    // this call to reopen the receive window and report the count as dropCnt.
-    // Non-blocking so an empty queue does not stall the dispatch loop.
+    // PRS_TPSP §6.10 inactive-phase drain: consume the bytes queued before this
+    // call (TCP: reopen the receive window; UDP: drop pre-call datagrams) and
+    // report the count as dropCnt. Non-blocking so an empty queue does not stall
+    // the dispatch loop.
     const int flags = ::fcntl(*fd, F_GETFL, 0);
     ::fcntl(*fd, F_SETFL, flags | O_NONBLOCK);
     std::uint32_t dropped = 0;
@@ -661,8 +665,10 @@ std::uint8_t TestabilityServer::receiveAndForward(const std::uint8_t *dat, std::
     // LISTEN_AND_ACCEPT. Re-arm the slot before installing the new worker.
     stopWorker(socket_id);
     auto stop = std::make_shared<std::atomic<bool>>(false);
-    std::thread t(&TestabilityServer::receiveLoop, this, *fd, service_id, max_fwd, max_len, peer,
-                  stop);
+    std::thread t = udp ? std::thread(&TestabilityServer::receiveLoopUdp, this, *fd, service_id,
+                                      max_fwd, max_len, peer, stop)
+                        : std::thread(&TestabilityServer::receiveLoopTcp, this, *fd, service_id,
+                                      max_fwd, max_len, peer, stop);
     {
         std::lock_guard<std::mutex> lk(workers_mu_);
         auto &w = event_workers_[socket_id];  // fresh: stopWorker erased any prior
@@ -672,9 +678,10 @@ std::uint8_t TestabilityServer::receiveAndForward(const std::uint8_t *dat, std::
     return tp::kRidEOk;
 }
 
-void TestabilityServer::receiveLoop(int conn_fd, std::uint16_t service_id,
-                                    std::uint16_t max_fwd, std::uint16_t max_len,
-                                    sockaddr_in peer, std::shared_ptr<std::atomic<bool>> stop) {
+void TestabilityServer::receiveLoopTcp(int conn_fd, std::uint16_t service_id,
+                                       std::uint16_t max_fwd, std::uint16_t max_len,
+                                       sockaddr_in peer,
+                                       std::shared_ptr<std::atomic<bool>> stop) {
     const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
     const int flags = ::fcntl(conn_fd, F_GETFL, 0);
     ::fcntl(conn_fd, F_SETFL, flags | O_NONBLOCK);
@@ -713,29 +720,85 @@ void TestabilityServer::receiveLoop(int conn_fd, std::uint16_t service_id,
         const std::uint16_t fwd_len =
             static_cast<std::uint16_t>(n < static_cast<ssize_t>(max_fwd) ? n : max_fwd);
 
-        // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event: fullLen(u16) + payload(vint8).
+        // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (TCP): fullLen(u16) + payload(vint8).
         // TCP has no srcPort/srcAddr (connection-oriented). fullLen is THIS
         // recv()'s length, not a whole logical message — a stream split across
         // recv()s emits one Event each.
         std::vector<std::uint8_t> ev_dat;
         tp::appendU16(ev_dat, full_len);
         tp::appendVint8(ev_dat, buf, fwd_len);
-        emitEvent(service_id, tp::kPidReceiveAndForward, ev_dat, peer);
+        emitEvent(service_id, tp::kGidTcp, tp::kPidReceiveAndForward, ev_dat, peer);
     }
     ::fcntl(conn_fd, F_SETFL, flags);  // restore (conn fd lives in the table)
 }
 
-void TestabilityServer::emitEvent(std::uint16_t service_id, std::uint8_t pid,
+void TestabilityServer::receiveLoopUdp(int sock_fd, std::uint16_t service_id,
+                                       std::uint16_t max_fwd, std::uint16_t max_len,
+                                       sockaddr_in peer,
+                                       std::shared_ptr<std::atomic<bool>> stop) {
+    const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
+    const int flags = ::fcntl(sock_fd, F_GETFL, 0);
+    ::fcntl(sock_fd, F_SETFL, flags | O_NONBLOCK);
+
+    std::uint32_t consumed = 0;
+    while (!stop_requested_ && !reset_events_ && !stop->load() &&
+           (limitless || consumed < max_len)) {
+        fd_set rset;
+        FD_ZERO(&rset);
+        FD_SET(sock_fd, &rset);
+        timeval tv{};
+        tv.tv_usec = kEventThreadWakeUs;
+        const int sr = ::select(sock_fd + 1, &rset, nullptr, nullptr, &tv);
+        if (sr == 0 || (sr < 0 && errno == EINTR)) {
+            continue;  // timeout or signal — re-check the stop/reset flags
+        }
+        if (sr < 0) {
+            break;  // sock fd closed under us / fatal select error — stop
+        }
+        std::uint8_t buf[2048];
+        sockaddr_in src{};
+        socklen_t srclen = sizeof(src);
+        // MSG_TRUNC: the return value is the true datagram length even when it
+        // overflows `buf`, so fullLen is exact while the buffer holds at most
+        // sizeof(buf) bytes to forward from.
+        const ssize_t n = ::recvfrom(sock_fd, buf, sizeof(buf), MSG_TRUNC,
+                                     reinterpret_cast<sockaddr *>(&src), &srclen);
+        if (n < 0) {
+            continue;  // spurious wakeup on the non-blocking socket
+        }
+        // A zero-length UDP datagram is a valid event (fullLen 0), NOT a peer
+        // close — the key behavioural split from the TCP body above.
+        const std::size_t in_buf =
+            (static_cast<std::size_t>(n) < sizeof(buf)) ? static_cast<std::size_t>(n) : sizeof(buf);
+        consumed += static_cast<std::uint32_t>(n);
+        const std::uint16_t full_len = static_cast<std::uint16_t>(n > 0xFFFF ? 0xFFFF : n);
+        const std::uint16_t fwd_len =
+            static_cast<std::uint16_t>(in_buf < max_fwd ? in_buf : max_fwd);
+
+        // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (UDP): fullLen(u16) +
+        // srcPort(u16) + srcAddr(ipxaddr) + payload(vint8). The connectionless
+        // variant reports each datagram's source endpoint.
+        std::vector<std::uint8_t> ev_dat;
+        tp::appendU16(ev_dat, full_len);
+        tp::appendU16(ev_dat, ntohs(src.sin_port));
+        tp::appendIpv4Addr(ev_dat, src.sin_addr.s_addr);
+        tp::appendVint8(ev_dat, buf, fwd_len);
+        emitEvent(service_id, tp::kGidUdp, tp::kPidReceiveAndForward, ev_dat, peer);
+    }
+    ::fcntl(sock_fd, F_SETFL, flags);  // restore (sock fd lives in the table)
+}
+
+void TestabilityServer::emitEvent(std::uint16_t service_id, std::uint8_t gid, std::uint8_t pid,
                                   const std::vector<std::uint8_t> &dat,
                                   const sockaddr_in &peer) {
-    // PRS_TPSP §6.2 Event: EVB-set TCP method id + TID 0x02. fd_ is written here
-    // concurrently by the event worker threads and serverLoop; each ::sendto
-    // emits a single sub-MTU datagram, which the kernel serialises, so these
-    // writes need no lock (unlike the socket table, whose multi-step operations
-    // are guarded by sockets_mu_).
+    // PRS_TPSP §6.2 Event: EVB-set method id for group `gid` + TID 0x02. fd_ is
+    // written here concurrently by the event worker threads and serverLoop; each
+    // ::sendto emits a single sub-MTU datagram, which the kernel serialises, so
+    // these writes need no lock (unlike the socket table, whose multi-step
+    // operations are guarded by sockets_mu_).
     tp::Header ev;
     ev.service_id = service_id;
-    ev.method_id = tp::methodId(tp::kGidTcp, pid, /*event=*/true);
+    ev.method_id = tp::methodId(gid, pid, /*event=*/true);
     ev.tid = tp::kTidEvent;
     ev.rid = tp::kRidEOk;
     const auto out = tp::buildMessage(ev, dat.data(), dat.size());

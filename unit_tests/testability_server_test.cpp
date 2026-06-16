@@ -382,6 +382,132 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardReassemblesMultiSegment) {
     EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
+// UDP RECEIVE_AND_FORWARD (PRS_TPSP §6.10): a datagram received before the arm
+// counts as dropCnt, and each datagram received in the active phase is forwarded
+// as an Event carrying fullLen + the datagram's srcPort/srcAddr + payload — the
+// connectionless shape (distinct from TCP's fullLen+payload). Hand-rolled because
+// the async forward Event is addressed to the requester socket, so a single
+// persistent test-system socket issues the requests and reads the Event.
+TEST_F(TestabilityServerTest, UdpReceiveAndForwardEmitsDatagramSourceEvent) {
+    const int ts = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(ts, 0);
+    sockaddr_in tsa{};
+    tsa.sin_family = AF_INET;
+    tsa.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    tsa.sin_port = 0;
+    ASSERT_EQ(::bind(ts, reinterpret_cast<sockaddr *>(&tsa), sizeof(tsa)), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(ts, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    sockaddr_in dut{};
+    dut.sin_family = AF_INET;
+    dut.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    dut.sin_port = htons(kTestPort);
+
+    // Send a testability request from `ts` to the DUT, return the response DAT.
+    const auto call = [&](std::uint8_t gid, std::uint8_t pid,
+                          const std::vector<std::uint8_t> &dat) -> std::vector<std::uint8_t> {
+        tp::Header h;
+        h.method_id = tp::methodId(gid, pid);
+        const auto msg = tp::buildMessage(h, dat.data(), dat.size());
+        EXPECT_GT(::sendto(ts, msg.data(), msg.size(), 0, reinterpret_cast<sockaddr *>(&dut),
+                           sizeof(dut)),
+                  0);
+        std::uint8_t rb[1500];
+        const ssize_t rn = ::recvfrom(ts, rb, sizeof(rb), 0, nullptr, nullptr);
+        if (rn < static_cast<ssize_t>(tp::kHeaderSize)) {
+            return {};
+        }
+        return std::vector<std::uint8_t>(rb + tp::kHeaderSize, rb + rn);
+    };
+
+    // CREATE_AND_BIND a UDP socket on a known DUT port so the sender can target it.
+    constexpr std::uint16_t kDutUdpPort = 39733;
+    std::vector<std::uint8_t> cb;
+    cb.push_back(0x01);             // doBind = true
+    tp::appendU16(cb, kDutUdpPort);  // localPort
+    tp::appendIpv4Addr(cb, 0);       // localAddr = any
+    const auto cb_resp = call(tp::kGidUdp, tp::kPidCreateAndBind, cb);
+    ASSERT_EQ(cb_resp.size(), 2u);
+    const std::uint16_t sid = tp::readU16(cb_resp.data());
+
+    // A separate sender → the DUT's bound port.
+    const int snd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(snd, 0);
+    sockaddr_in sa{};
+    sa.sin_family = AF_INET;
+    sa.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    sa.sin_port = 0;
+    ASSERT_EQ(::bind(snd, reinterpret_cast<sockaddr *>(&sa), sizeof(sa)), 0);
+    socklen_t sl = sizeof(sa);
+    ASSERT_EQ(::getsockname(snd, reinterpret_cast<sockaddr *>(&sa), &sl), 0);
+    const std::uint16_t snd_port = ntohs(sa.sin_port);
+
+    sockaddr_in to{};
+    to.sin_family = AF_INET;
+    to.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    to.sin_port = htons(kDutUdpPort);
+
+    // One datagram BEFORE the arm (inactive phase) -> dropCnt.
+    const std::vector<std::uint8_t> pre = {'P', 'R', 'E'};
+    ASSERT_EQ(::sendto(snd, pre.data(), pre.size(), 0, reinterpret_cast<sockaddr *>(&to),
+                       sizeof(to)),
+              3);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // RECEIVE_AND_FORWARD(sid, maxFwd=16, maxLen=limitless) -> dropCnt == 3.
+    std::vector<std::uint8_t> raf;
+    tp::appendU16(raf, sid);
+    tp::appendU16(raf, 16);      // maxFwd
+    tp::appendU16(raf, 0xFFFF);  // maxLen (limitless)
+    const auto raf_resp = call(tp::kGidUdp, tp::kPidReceiveAndForward, raf);
+    ASSERT_EQ(raf_resp.size(), 2u);
+    EXPECT_EQ(tp::readU16(raf_resp.data()), 3u) << "pre-arm datagram not counted as dropCnt";
+
+    // Active phase: send a datagram; the DUT forwards it as an Event to `ts`.
+    const std::vector<std::uint8_t> body = {'T', 'e', 's', 't', '1', '2', '3'};
+    ASSERT_EQ(::sendto(snd, body.data(), body.size(), 0, reinterpret_cast<sockaddr *>(&to),
+                       sizeof(to)),
+              static_cast<ssize_t>(body.size()));
+
+    std::uint8_t eb[1500];
+    const ssize_t en = ::recvfrom(ts, eb, sizeof(eb), 0, nullptr, nullptr);
+    ASSERT_GE(en, static_cast<ssize_t>(tp::kHeaderSize)) << "no forward Event arrived";
+    const auto eh = tp::parseHeader(eb, static_cast<std::size_t>(en));
+    ASSERT_TRUE(eh.has_value());
+    EXPECT_TRUE(tp::isEvent(eh->method_id));
+    EXPECT_EQ(tp::gidOf(eh->method_id), tp::kGidUdp);
+    EXPECT_EQ(tp::pidOf(eh->method_id), tp::kPidReceiveAndForward);
+    EXPECT_EQ(eh->tid, tp::kTidEvent);
+
+    // Event DAT: fullLen(u16) + srcPort(u16) + srcAddr(ipxaddr) + payload(vint8).
+    const std::uint8_t *ed = eb + tp::kHeaderSize;
+    const std::size_t edl = static_cast<std::size_t>(en) - tp::kHeaderSize;
+    ASSERT_GE(edl, 6u);
+    EXPECT_EQ(tp::readU16(ed), static_cast<std::uint16_t>(body.size()));  // fullLen
+    EXPECT_EQ(tp::readU16(ed + 2), snd_port);                            // srcPort
+    std::size_t off = 4;
+    const std::uint8_t *addr = nullptr;
+    std::uint16_t addr_len = 0;
+    ASSERT_TRUE(tp::readVint8(ed, edl, off, addr, addr_len));
+    ASSERT_EQ(addr_len, 4u);
+    std::uint32_t src_be = 0;
+    std::memcpy(&src_be, addr, 4);
+    EXPECT_EQ(src_be, ::htonl(INADDR_LOOPBACK));  // srcAddr
+    const std::uint8_t *pl = nullptr;
+    std::uint16_t pl_len = 0;
+    ASSERT_TRUE(tp::readVint8(ed, edl, off, pl, pl_len));
+    ASSERT_EQ(pl_len, static_cast<std::uint16_t>(body.size()));
+    EXPECT_EQ(std::vector<std::uint8_t>(pl, pl + pl_len), body);  // payload
+
+    std::vector<std::uint8_t> cs;
+    tp::appendU16(cs, sid);
+    call(tp::kGidUdp, tp::kPidCloseSocket, cs);  // joins the forward worker
+    ::close(snd);
+    ::close(ts);
+}
+
 // ── Tier 2 seam: ITcpControl / IUdpControl over the real testability server ──
 
 // TCP control: capability bit set, active open against a tester listener (read
