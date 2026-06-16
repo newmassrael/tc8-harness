@@ -3,6 +3,9 @@
 Runs the [lwIP](https://savannah.nongnu.org/projects/lwip/) unix-port
 stack on a host tap interface as a persistent `--topology external` DUT,
 with an Upper Tester (UDP 30600) implemented on the lwIP socket API.
+It additionally hosts the AUTOSAR Testability endpoint (UDP 30700,
+`lwip_testability_server.cpp`) — the standard PRS_TPSP UTM channel,
+mirroring the Linux tc8-dut's additive listener on the same stack.
 This is the project's second DUT platform after the Linux reference DUT
 (`dut/dut_service/tc8-dut`), and the first strict-embedded-stack
 consumer of the per-platform `inventory_overrides.json` mechanism.
@@ -202,6 +205,12 @@ behaviour-shaping ones:
 - `SO_REUSE 1`, `LWIP_SO_LINGER 1`, `LWIP_SO_RCVTIMEO/SNDTIMEO 1`,
   `MEMP_NUM_NETCONN 16` — UT server requirements (listener rebinds over
   TIME-WAIT, ABORT primitive, bounded receive/send, socket pool).
+- `LWIP_RAW 1` — the Testability ICMP group's `ECHO_REQUEST` primitive
+  emits through a raw pcb (`IP_PROTO_ICMP`); lwIP's socket layer has no
+  unprivileged ICMP datagram socket. No raw receive callback is ever
+  registered, so only the egress path is enabled and the core
+  `icmp_input` echo-reply behaviour the ICMPv4 cases observe is
+  untouched.
 - Defaults that already conform and must not change:
   `LWIP_BROADCAST_PING=0`, `LWIP_MULTICAST_PING=0`,
   `IP_REASS_CHECK_OVERLAP=1`.
@@ -248,6 +257,49 @@ behaviour-shaping ones:
   tc8-dut — multi-phase cases rely on phase 2 getting sid 2. The
   per-case fresh-id expectation is satisfied by the fixture respawning
   the DUT per case (see below), never by resetting the counter.
+
+## Testability endpoint notes (`lwip_testability_server.cpp`)
+
+The AUTOSAR Testability endpoint (PRS_TPSP §6, TC 1.2.0) is the
+functional mirror of `dut/dut_service/testability_server.cpp` on the
+lwIP socket API — the same relationship this file's UT server has to the
+Linux `upper_tester_server.cpp`. The wire codec
+(`include/tc8/testability_protocol.h`) and the ICMP Echo Request body
+builder (`tc8::wire`, compiled in from `src/wire/`) are reused verbatim;
+only the syscall layer is rewritten. Served standard groups: GENERAL
+(0x00), UDP (0x01), TCP (0x02) and ICMP (0x03) — the same set the Linux
+endpoint serves.
+
+- The `CLOSE_SOCKET` abort RSTs via `tcp_abort()` on the raw pcb (the
+  `lwip/priv/sockets_priv.h` fd→pcb bridge, shared with the UT ABORT
+  primitive): lwIP's `SO_LINGER{on,0}` close FINs an empty queue. The
+  Linux server's netlink `SOCK_DESTROY` TIME-WAIT-residual path has no
+  lwIP analog and is dropped — `tcp_abort` reaches CLOSED directly, so
+  there is no residual and no connected-4-tuple to track.
+- `ECHO_REQUEST` emits through a raw pcb under the core lock (see
+  `LWIP_RAW` above); the Echo Request body is built by the shared
+  `tc8::wire` builder, which checksums it, and the raw pcb leaves it
+  untouched (`chksum_reqd` defaults to 0) — no double-checksum.
+- `CONFIGURE_SOCKET` maps TTL/TOS/Nagle to `lwip_setsockopt`; the DF
+  (`IP_MTU_DISCOVER`), IP timestamp-option (`IP_OPTIONS`) and MSS
+  (`TCP_MAXSEG`) parameters have no lwIP socket option and answer E_NOK
+  — surfaced, not silently accepted.
+- Response and asynchronous Event egress on the shared listener socket
+  are serialised by a send mutex: lwIP gives no cross-thread send
+  ordering on one netconn, unlike the Linux kernel the original relies
+  on. The async-SP worker lifetime (LISTEN_AND_ACCEPT / RECEIVE_AND_-
+  FORWARD) is a strict subset of its socket's, exactly as in the Linux
+  server.
+- The OEM extension/override seam (`registerPrimitive`) is not mirrored:
+  the fixture is a conformance DUT serving the standard groups, and a
+  fixture-local seam with no caller would be dead code. OEM extension
+  stays the Linux server / standalone `tc8-utm`'s concern.
+
+The endpoint is additive — a bind failure is logged and the fixture
+keeps serving the UT cases — so it is inert in the push-triggered lwIP
+regression slice (no testability stimulus drives it there). Exercising
+its dispatch paths needs testability cases in the external-fixture
+sweep, which is future work.
 
 ## Fixture topology notes (`lwip-tap-fixture.conf`)
 

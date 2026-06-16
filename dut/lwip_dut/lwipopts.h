@@ -29,6 +29,13 @@
 #define LWIP_UDP                   1
 #define LWIP_TCP                   1
 #define LWIP_ARP                   1
+/* The AUTOSAR Testability ICMP group's ECHO_REQUEST primitive emits a
+ * DUT-originated Echo Request through a raw pcb (IP_PROTO_ICMP) — lwIP's
+ * socket layer has no unprivileged ICMP datagram socket. No raw receive
+ * callback is ever registered, so this only enables the egress path and
+ * leaves the core icmp_input echo-reply behaviour the ICMPv4 cases observe
+ * untouched. See dut/lwip_dut/lwip_testability_server.cpp echoRequest(). */
+#define LWIP_RAW                   1
 /* No IGMP/DNS/SNMP/mDNS/DHCP/AUTOIP: nothing in the swept TC8 areas
  * needs them, and a quiet DUT keeps per-case pcaps reviewable. DHCP and
  * AUTOIP become build-time opt-ins when their UT opcodes are ported. */

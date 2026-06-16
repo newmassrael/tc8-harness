@@ -31,6 +31,7 @@ extern "C" {
 }
 #include "tcp_isn.h"
 
+#include "lwip_testability_server.h"
 #include "lwip_ut_server.h"
 
 // lwipopts.h routes LWIP_PLATFORM_ASSERT here: loud + fatal, because a
@@ -108,6 +109,12 @@ int main() {
 
     tc8::lwip_dut::StartUpperTesterServer(addr.addr);
 
+    // AUTOSAR Testability Protocol endpoint (PRS_TPSP §6, TC 1.2.0) — additive
+    // to the opcode UT above, exactly as the Linux tc8-dut hosts it. A bind
+    // failure is non-fatal (logged inside): the fixture keeps serving the
+    // opcode UT cases. This is the standard-compliant UTM channel on lwIP.
+    tc8::lwip_dut::StartTestabilityServer();
+
     char ip_text[IP4ADDR_STRLEN_MAX];
     ip4addr_ntoa_r(&addr, ip_text, sizeof(ip_text));
     std::fprintf(stderr, "tc8-lwip-dut: stack up at %s\n", ip_text);
@@ -127,6 +134,10 @@ int main() {
         pause();
     }
     tc8::lwip_dut::AbortUpperTesterSlots();
+    // Join the testability server + its async workers and close its sockets
+    // (an abort-close RSTs, the fixture's stand-in for the kernel closing
+    // sockets on Linux process death).
+    tc8::lwip_dut::StopTestabilityServer();
     std::fprintf(stderr, "tc8-lwip-dut: SIGTERM — UT slots aborted, exiting\n");
     return 0;
 }
