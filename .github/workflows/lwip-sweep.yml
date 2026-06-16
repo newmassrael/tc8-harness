@@ -68,6 +68,24 @@ jobs:
             --junit-xml reports/junit-lwip-sweep.xml \
             $(dut/lwip_dut/sweep-cases.sh)
 
+      - name: Run testability-backend TCP slice (--dut-control testability)
+        # The full sweep above drives the in-house opcode UT backend. This
+        # pass re-runs the TCP seam cases against the AUTOSAR Testability
+        # backend (--dut-control testability, port 30700) so the lwIP
+        # TestabilityTcpControl / TestabilityUdpControl adapters are
+        # exercised on the wire by conformance cases, not just the
+        # testability-probe liveness smoke. Seam cases needing opcode-only
+        # capabilities (kernel-state probe / OOB receive / SYN-SENT open)
+        # conditioning-skip honestly rather than fail. TCP carries every
+        # seam case (driveSeam* is TCP-only), so the grep is the slice.
+        run: |
+          sudo -n dut/env/smoke-test.sh \
+            --topology external \
+            --topology-conf dut/env/topology.d/examples/lwip-tap-fixture.conf \
+            --dut-control testability \
+            --junit-xml reports/junit-lwip-sweep-testability.xml \
+            $(dut/lwip_dut/sweep-cases.sh | grep '^TCP_')
+
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@v6
