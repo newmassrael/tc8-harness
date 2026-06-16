@@ -18,6 +18,16 @@ on:
       - 'docs/spec/deprecated_cases.json'
   workflow_dispatch: {}
 
+# A newer push to the same ref cancels an older in-flight run of THIS workflow —
+# the conformance verdict only cares about HEAD, and on the single self-hosted
+# netns runner a superseded run would otherwise pin the host for ~1 h (exactly
+# the 117b4c70-vs-688a843d pile-up that motivated this). Per-workflow group
+# (github.workflow) so smoke-test never cancels build-test or mnemosyne.
+# workflow_dispatch runs share the group too (a manual re-run supersedes).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   # dorny/test-reporter@v3 creates per-job check runs to surface
