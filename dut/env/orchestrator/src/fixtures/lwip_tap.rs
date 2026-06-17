@@ -116,9 +116,7 @@ impl<'a> LwipTap<'a> {
             Some("testability") => ReadyProbe::Testability,
             _ => ReadyProbe::Opcode,
         };
-        let kill_name = lw
-            .and_then(|l| l.kill_name.clone())
-            .unwrap_or_else(|| DEFAULT_KILL_NAME.to_string());
+        let kill_name = resolve_kill_name(site);
         LwipTap { cfg, site, app, ready_probe, kill_name, state: Mutex::new(None) }
     }
 
@@ -345,7 +343,7 @@ impl Topology for LwipTap<'_> {
         self.wait_dut_ready()?;
         // The readiness probe warmed the host neigh entry for the DUT IP — resolve
         // the lwIP MAC from it (the DUT MAC is not operator-pinned for this fixture).
-        let dut_mac = topology::resolve_dut_mac(self.site, TAP, DUT_IP)?;
+        let dut_mac = topology::resolve_dut_mac(None, TAP, DUT_IP)?;
         let tester_mac = topology::iface_mac(TAP)?;
         Ok(WorkerCtx { dut_mac, tester_mac })
     }
@@ -370,7 +368,10 @@ impl Topology for LwipTap<'_> {
         // this host's tap), DUT-side toggles are skipped + logged (the lwIP stack is
         // not a Linux kernel we can sysctl; ARP_48/49 cache aging rides the UT 0x17
         // channel instead — a per-case stimulus concern, not host conditioning).
-        topology::host_condition_case(self, &self.cfg.tester_ip4, &ctx.tester_mac, w, case_id, "lwip-tap")
+        // TESTER_IP — the wire-fixed const provision_tap configured the tap with, NOT
+        // cfg.tester_ip4 (env-overridable): lwip-tap is wire-fixed, so the tap address
+        // and the conditioning target must read the one source, never diverge.
+        topology::host_condition_case(self, TESTER_IP, &ctx.tester_mac, w, case_id, "lwip-tap")
     }
 
     fn exec_cond_step(&self, _w: u32, step: &CondStep, dir: CondDir) -> Result<()> {
@@ -419,15 +420,25 @@ impl Topology for LwipTap<'_> {
     }
 }
 
+/// The DUT process name for teardown pkills — `[lwip] kill_name` or the default.
+/// One source for both the Drop path (`LwipTap::new` → `kill_dut`) and the signal
+/// handler, so an operator-configured kill name is honored on BOTH paths: Ctrl-C
+/// reaps exactly the process this run could have spawned, never a stale literal.
+pub(crate) fn resolve_kill_name(site: &SiteConf) -> String {
+    site.lwip
+        .as_ref()
+        .and_then(|l| l.kill_name.clone())
+        .unwrap_or_else(|| DEFAULT_KILL_NAME.to_string())
+}
+
 /// Idempotent teardown for the signal handler (which cannot hold the `LwipTap`):
-/// SIGKILL the DUT by either lwIP process name (the fixture runs exactly one; the
-/// absent name no-ops — both are fixture-owned), remove the tap, preserve the log,
-/// drop the run dir. SIGKILL (not the per-case SIGTERM slot-abort) is acceptable on
-/// an interrupted run — the whole run is aborting. The flock releases on process
-/// exit (the held fd closes). Fixed names, so no state is needed.
-pub(crate) fn signal_teardown() {
-    pkill(&["-KILL", "-f", DEFAULT_KILL_NAME]);
-    pkill(&["-KILL", "-f", "tc8-lwip-utm"]);
+/// SIGKILL the DUT by its resolved `kill_name` (passed by `main` via
+/// `resolve_kill_name`, so the configured name is honored on the abort path too),
+/// remove the tap, preserve the log, drop the run dir. SIGKILL (not the per-case
+/// SIGTERM slot-abort) is acceptable on an interrupted run — the whole run aborts.
+/// The flock releases on process exit (the held fd closes).
+pub(crate) fn signal_teardown(kill_name: &str) {
+    pkill(&["-KILL", "-f", kill_name]);
     netns::ip_quiet(&["link", "del", TAP]);
     let _ = fs::rename(format!("{FIX_DIR}/dut.log"), LAST_DUT_LOG);
     let _ = fs::remove_dir_all(FIX_DIR);
@@ -442,7 +453,11 @@ fn acquire_lock() -> Result<fs::File> {
     let f = fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .truncate(false) // a lock file is just an inode to flock; its content is irrelevant
+        // A lock file is just an inode to flock; its content is irrelevant. The
+        // explicit `truncate(false)` is REQUIRED — clippy::suspicious_open_options
+        // rejects create+write with no truncate decision — and states the intent
+        // (never clobber a concurrent holder's file). Do not "simplify" it away.
+        .truncate(false)
         .open(LOCK_FILE)
         .with_context(|| format!("opening lwIP fixture lock {LOCK_FILE}"))?;
     // SAFETY: a live, owned fd from `f`; flock has no memory effects.

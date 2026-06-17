@@ -139,11 +139,13 @@ pub fn teardown_by_kind(kind: &str) {
 }
 
 /// Best-effort teardown of the `lwip-tap` TOPOLOGY's host state (tap + DUT) for the
-/// signal handler, which cannot borrow the topology. Idempotent; a no-op when the
-/// topology never provisioned. Separate from [`teardown_by_kind`] because lwip-tap
-/// is a first-class topology, not a `[fixture]` selector.
-pub fn lwip_signal_teardown() {
-    lwip_tap::signal_teardown();
+/// signal handler, which cannot borrow the topology. `kill_name` is the resolved
+/// `[lwip] kill_name` (via [`lwip_tap::resolve_kill_name`]) so the abort path reaps
+/// exactly the configured process. Idempotent; a no-op when nothing provisioned.
+/// Separate from [`teardown_by_kind`] because lwip-tap is a first-class topology,
+/// not a `[fixture]` selector.
+pub fn lwip_signal_teardown(kill_name: &str) {
+    lwip_tap::signal_teardown(kill_name);
 }
 
 // --- external: reference tc8-dut in a netns, tester veth in the root ns --------

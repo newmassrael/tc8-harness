@@ -237,9 +237,11 @@ pub trait Topology {
     fn exec_cond_step(&self, w: u32, step: &CondStep, dir: CondDir) -> Result<()>;
     /// Spawn the harness backgrounded in the tester context; caller waits on it.
     fn run_harness(&self, w: u32, hlog: &Path, args: &[String]) -> Result<Child>;
-    /// Spawn a fresh DUT backgrounded; None for persistent (external) topologies.
-    /// The caller owns the returned Child and must `wait()` it after stop_dut to
-    /// reap the `ip netns exec` wrapper PID.
+    /// Spawn a fresh DUT backgrounded. Called once per case UNCONDITIONALLY (the
+    /// dispatcher does not gate on `supports_dut_spawn`); a topology with a
+    /// persistent / externally-owned DUT (external, ssh-remote, lwip-tap) returns
+    /// `Ok(None)` to signal "no per-case spawn". The caller owns any returned Child
+    /// and must `wait()` it after stop_dut to reap the `ip netns exec` wrapper PID.
     fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path) -> Result<Option<Child>>;
     /// SIGKILL+confirm the DUT process tree (keeps the netns alive for the next
     /// case on this worker).
@@ -685,12 +687,13 @@ pub(crate) fn iface_mac(iface: &str) -> Result<String> {
     Ok(mac)
 }
 
-/// Resolve the DUT MAC: operator-pinned (`dut_mac` in the topology-conf) or read
-/// from the host neigh table the preflight ICMP probe populated (the host's ARP
-/// request for the DUT IP, answered, lands `<dut_ip, dut_mac>` in the cache).
-/// Mirrors external.conf / ssh-remote.conf bring-up.
-pub(crate) fn resolve_dut_mac(site: &SiteConf, iface: &str, dut_ip: &str) -> Result<String> {
-    if let Some(mac) = site.dut_mac.as_deref().filter(|m| !m.is_empty()) {
+/// Resolve the DUT MAC: operator-pinned (`dut_mac`, when a topology-conf supplies
+/// one) or read from the host neigh table the preflight ICMP probe populated (the
+/// host's ARP request for the DUT IP, answered, lands `<dut_ip, dut_mac>` in the
+/// cache). Takes the pin directly rather than the whole `SiteConf`, so a topology
+/// with no MAC override (lwip-tap) passes `None`. Mirrors external.conf bring-up.
+pub(crate) fn resolve_dut_mac(dut_mac: Option<&str>, iface: &str, dut_ip: &str) -> Result<String> {
+    if let Some(mac) = dut_mac.filter(|m| !m.is_empty()) {
         println!("orchestrator: DUT MAC pinned by operator: {mac}");
         return Ok(mac.to_string());
     }
@@ -822,7 +825,7 @@ impl Topology for External<'_> {
 
     fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx> {
         host_bring_up_common(self.cfg, w)?;
-        let dut_mac = resolve_dut_mac(self.site, self.iface(), self.site.require("dut_ip"))?;
+        let dut_mac = resolve_dut_mac(self.site.dut_mac.as_deref(), self.iface(), self.site.require("dut_ip"))?;
         let tester_mac = iface_mac(self.iface())?;
         Ok(WorkerCtx { dut_mac, tester_mac })
     }
@@ -1018,7 +1021,7 @@ impl Topology for SshRemote<'_> {
             println!("orchestrator[ssh-remote]: reaped a stale remote tc8-dut from a previous run");
         }
         host_bring_up_common(self.cfg, w)?;
-        let dut_mac = resolve_dut_mac(self.site, self.iface(), self.site.require("dut_ip"))?;
+        let dut_mac = resolve_dut_mac(self.site.dut_mac.as_deref(), self.iface(), self.site.require("dut_ip"))?;
         let tester_mac = iface_mac(self.iface())?;
         Ok(WorkerCtx { dut_mac, tester_mac })
     }

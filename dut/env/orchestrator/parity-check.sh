@@ -97,10 +97,16 @@ esac
 
 [[ -x "$SMOKE" ]] || { echo "parity-check: smoke-test.sh not found at $SMOKE" >&2; exit 2; }
 [[ -x "$ORCH" ]]  || { echo "parity-check: orchestrator not built at $ORCH (cargo build)" >&2; exit 2; }
-# A conf is checked only when set: single-pc and lwip-tap need none (zero-conf),
-# external/ssh-remote supply theirs (default or --bash-conf/--orch-conf).
-[[ -z "$BASH_CONF" || -f "$BASH_CONF" ]] || { echo "parity-check: bash conf not found: $BASH_CONF" >&2; exit 2; }
-[[ -z "$ORCH_CONF" || -f "$ORCH_CONF" ]] || { echo "parity-check: orch conf not found: $ORCH_CONF" >&2; exit 2; }
+# single-pc and lwip-tap are zero-conf; external/ssh-remote MUST supply a conf
+# (default or --bash-conf/--orch-conf) — keep the strict fail-fast for them, so a
+# future refactor that empties their conf assignment fails loudly here, not later.
+case "$TOPOLOGY" in
+    single-pc|lwip-tap) ;;
+    *)
+        [[ -f "$BASH_CONF" ]] || { echo "parity-check: bash conf not found: $BASH_CONF" >&2; exit 2; }
+        [[ -f "$ORCH_CONF" ]] || { echo "parity-check: orch conf not found: $ORCH_CONF" >&2; exit 2; }
+        ;;
+esac
 
 # Normalize a driver's per-case stdout line to a canonical disposition token.
 # Both drivers print `[wN] <DISP> <CASE> ...`; bash uses one SKIP for both

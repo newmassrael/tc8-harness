@@ -203,13 +203,19 @@ fn main() -> Result<()> {
         None
     };
     let fixture_kind: Option<String> = site.fixture.as_ref().map(|f| f.kind.clone());
-    let teardown_lwip = topology == "lwip-tap";
+    // Resolve the lwip-tap kill name HERE (the closure cannot borrow the topology)
+    // so the abort path reaps exactly the configured process, not a stale literal.
+    let lwip_signal_kill: Option<String> = if topology == "lwip-tap" {
+        Some(fixtures::lwip_tap::resolve_kill_name(&site))
+    } else {
+        None
+    };
     cleanup::install_signal_handler(&cfg, workers, move || {
         if let Some((target, opts)) = &ssh_reap {
             topology::ssh_reap_remote_dut(target, opts.as_deref());
         }
-        if teardown_lwip {
-            fixtures::lwip_signal_teardown();
+        if let Some(kill) = &lwip_signal_kill {
+            fixtures::lwip_signal_teardown(kill);
         }
         if let Some(kind) = &fixture_kind {
             fixtures::teardown_by_kind(kind);
