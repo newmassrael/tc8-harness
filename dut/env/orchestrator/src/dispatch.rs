@@ -344,6 +344,34 @@ fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
     e
 }
 
+/// The three runtime DUT-MAC `--expect` keys: the kernel-assigned veth MAC
+/// captured at netns bring-up, so they differ per run and per driver and are NOT
+/// part of the static identity the parity dump diffs (the per-case disposition
+/// phase exercises MAC behaviour instead).
+const RUNTIME_MAC_KEYS: [&str; 3] = ["arp.dut_iface_mac", "dut.mac", "dhcpv4.dut_iface_mac"];
+
+/// Print the resolved per-case-invariant `--expect` surface — the deterministic
+/// wire identity the bash and Rust drivers must agree on — as sorted `key=value`
+/// lines, one per line, for the `--print-expect` parity dump (`parity-check.sh`
+/// diffs the two drivers' output). Reuses `expect_args` so the dumped surface
+/// always tracks the real one, and appends the topology's UT ARP-cache expect the
+/// same way `run_case` does (so lwip-tap matches bash). The runtime DUT-MAC block
+/// is filtered out (see `RUNTIME_MAC_KEYS`).
+pub fn print_static_identity(cfg: &Config, ut_arp_cache_timeout: Option<&str>) {
+    let mut kvs: Vec<String> = expect_args(cfg, "<runtime>")
+        .into_iter()
+        .filter(|a| a != "--expect")
+        .filter(|kv| !RUNTIME_MAC_KEYS.contains(&kv.split('=').next().unwrap_or("")))
+        .collect();
+    if let Some(t) = ut_arp_cache_timeout {
+        kvs.push(format!("arp_stimulus.ut_cache_conditioning_s={t}"));
+    }
+    kvs.sort();
+    for kv in kvs {
+        println!("{kv}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

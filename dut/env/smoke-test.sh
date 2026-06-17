@@ -259,6 +259,7 @@ WORKERS=1
 DUT_CONTROL=""
 TOPOLOGY=${TC8_TOPOLOGY:-single-pc}
 TOPOLOGY_CONF=""
+PRINT_EXPECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --topology)  TOPOLOGY="$2"; shift 2 ;;
@@ -269,6 +270,7 @@ while [[ $# -gt 0 ]]; do
         --log-dir)   LOG_DIR="$2"; shift 2 ;;
         --junit-xml) JUNIT_OUT="$2"; shift 2 ;;
         --dut-control) DUT_CONTROL="$2"; shift 2 ;;
+        --print-expect) PRINT_EXPECT=1; shift ;;
         *) break ;;
     esac
 done
@@ -403,7 +405,9 @@ done
 [[ $_contract_errors -eq 0 ]] \
     || { echo "smoke-test: topology '$TOPOLOGY' violates the profile contract — aborting" >&2; exit 1; }
 unset _contract_errors _v _f _p _pn
-echo "smoke-test: topology '$TOPOLOGY' — $TOPOLOGY_DESCRIPTION"
+# --print-expect emits machine-readable stdout (sorted key=value) — suppress the
+# human INFO banner so the dump is clean for parity-check's diff.
+(( PRINT_EXPECT )) || echo "smoke-test: topology '$TOPOLOGY' — $TOPOLOGY_DESCRIPTION"
 
 # Optional per-site topology options (TC8_TOPOLOGY_* assignments).
 # sudo's env_reset strips TC8_TOPOLOGY_* under the NOPASSWD rules, so a
@@ -433,12 +437,25 @@ if [[ -n "$TOPOLOGY_CONF" ]]; then
     }
     # shellcheck source=/dev/null
     source "$TOPOLOGY_CONF"
-    echo "smoke-test: topology options loaded from $TOPOLOGY_CONF"
+    (( PRINT_EXPECT )) || echo "smoke-test: topology options loaded from $TOPOLOGY_CONF"
 fi
 
 # Expectation defaults are evaluated here — after profile + options —
 # so TC8_TOPOLOGY_* overrides reach the --expect arrays.
 init_expectation_defaults
+
+# --print-expect: emit the resolved static --expect identity (the wire/SOME/IP
+# surface every case carries) as sorted key=value, then exit — BEFORE the root
+# check, so parity-check.sh can diff it against the orchestrator's --print-expect
+# unprivileged. The runtime DUT-MAC block is appended per-case at bring-up, not in
+# these arrays, so it is absent by construction (it is netns-kernel-assigned and
+# cannot be diffed statically).
+if (( PRINT_EXPECT )); then
+    printf '%s\n' "${TC8_DUT_EXPECT[@]}" "${ARP_DUT_EXPECT_STATIC[@]}" \
+                  "${ICMPV4_DUT_EXPECT_STATIC[@]}" "${IPV4_DUT_EXPECT_STATIC[@]}" \
+        | grep -vx -- '--expect' | sort
+    exit 0
+fi
 
 [[ $EUID -eq 0 ]] || { echo "smoke-test: must run as root (try: sudo $0)" >&2; exit 1; }
 [[ -x "$HARNESS"  ]] || { echo "smoke-test: harness missing: $HARNESS"  >&2; exit 1; }

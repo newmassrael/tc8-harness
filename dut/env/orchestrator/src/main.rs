@@ -96,6 +96,12 @@ struct Cli {
     #[arg(long, value_parser = ["opcode", "testability"])]
     dut_control: Option<String>,
 
+    /// Print the resolved static `--expect` identity (sorted key=value) and exit,
+    /// without standing up any fixture. Used by parity-check.sh to diff value-level
+    /// identity against bash smoke-test.sh's `--print-expect`.
+    #[arg(long)]
+    print_expect: bool,
+
     /// Case IDs to run (default: SOMEIPSRV_FORMAT_01).
     cases: Vec<String>,
 }
@@ -156,6 +162,16 @@ fn main() -> Result<()> {
         "ssh-remote" => Box::new(SshRemote::new(&cfg, &site)),
         _ => unreachable!("topology validated above"),
     };
+
+    // --print-expect: dump the resolved per-case-invariant --expect identity and exit
+    // BEFORE any fixture/root work, so parity-check.sh can diff value-level identity
+    // between the two drivers unprivileged (disposition tokens alone are blind to it).
+    // Built after the topology so the dump includes the topology's UT ARP-cache expect
+    // exactly as run_case does (lwip-tap), matching bash's static --expect surface.
+    if cli.print_expect {
+        dispatch::print_static_identity(&cfg, topo.ut_arp_cache_timeout().as_deref());
+        return Ok(());
+    }
 
     // Contract gates (smoke-test.sh:412-422) — BEFORE provisioning a fixture, so a
     // rejected invocation never executes side-effectful host setup.

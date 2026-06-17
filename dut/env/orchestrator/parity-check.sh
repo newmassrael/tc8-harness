@@ -142,10 +142,41 @@ compare_case() {
     printf '%-28s %-10s %-10s %s\n' "$case" "$bd" "$od" "$result"
 }
 
+# Value-level identity parity: diff the resolved per-case-invariant `--expect`
+# surface (IPs/MACs/alias/host2/echo/SOME/IP identity/UT-cache) between the two
+# drivers via their `--print-expect` dumps. The per-case disposition diff below is
+# structurally BLIND to value drift — two drivers can agree on a token while
+# disagreeing on a value that only matters to an unsampled case. The dumps resolve
+# config and exit before any netns work, so this phase runs UNPRIVILEGED (no sudo).
+# external/ssh-remote are skipped: their example fixture confs provision host state
+# at source-time (need root, would leak a netns), and their wire identity equals
+# single-pc's, already diffed here.
+identity_parity() {
+    case "$TOPOLOGY" in
+        single-pc|lwip-tap) ;;
+        *) printf '%-28s %-10s %-10s %s\n' IDENTITY - - "SKIP (source-time fixture conf)"; return ;;
+    esac
+    local cb=() co=()
+    [[ -n "$BASH_CONF" ]] && cb=(--topology-conf "$BASH_CONF")
+    [[ -n "$ORCH_CONF" ]] && co=(--topology-conf "$ORCH_CONF")
+    local bid oid
+    bid=$("$SMOKE" --topology "$DRIVER_TOPO" "${cb[@]}" --print-expect 2>/dev/null)
+    oid=$(TC8_ROOT="$ROOT" "$ORCH" --topology "$DRIVER_TOPO" "${co[@]}" --print-expect 2>/dev/null)
+    if [[ "$bid" == "$oid" ]]; then
+        printf '%-28s %-10s %-10s %s\n' IDENTITY ok ok ok
+    else
+        printf '%-28s %-10s %-10s %s\n' IDENTITY — — MISMATCH
+        (( mismatches++ ))
+        echo "--- identity diff (< bash  > orchestrator) ---" >&2
+        diff <(printf '%s\n' "$bid") <(printf '%s\n' "$oid") >&2 || true
+    fi
+}
+
 echo "parity-check [topology=$TOPOLOGY]: ${#CASES[@]} case(s) — bash smoke-test.sh vs tc8-orchestrator"
 mismatches=0
 printf '%-28s %-10s %-10s %s\n' CASE BASH ORCH RESULT
 printf '%-28s %-10s %-10s %s\n' ---- ---- ---- ------
+identity_parity
 
 if [[ "$TOPOLOGY" == single-pc ]]; then
     # One invocation per case: each brings up its own fresh netns (clean attribution).
