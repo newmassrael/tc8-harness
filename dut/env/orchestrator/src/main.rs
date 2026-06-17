@@ -29,8 +29,15 @@ mod fixtures;
 mod netns;
 mod site;
 mod topology;
-mod wire;
 mod worker;
+
+/// Wire/fixture constants generated from tools/wire.def — the
+/// orchestrator shares one source with the C++ stimulus builders and the bash
+/// smoke-test profiles, cross-checked against the C++ headers by the generator.
+/// Regenerate: python3 tools/gen_wire_manifest.py
+mod wire {
+    include!("wire.gen.rs");
+}
 
 /// Verdict taxonomy generated from src/sce_integration/verdict_taxonomy.def —
 /// the orchestrator derives the wire-names from the same single source as the

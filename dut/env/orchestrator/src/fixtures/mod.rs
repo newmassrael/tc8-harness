@@ -30,6 +30,7 @@ use std::time::Duration;
 use crate::config::Config;
 use crate::netns;
 use crate::site::FixtureSpec;
+use crate::wire;
 
 pub(crate) mod lwip_tap;
 pub(crate) use lwip_tap::LwipTap;
@@ -47,11 +48,14 @@ const SSHFIX_VETH_T: &str = "veth-sshfix-t";
 const SSHFIX_VETH_D: &str = "veth-sshfix-d";
 const SSHFIX_PORT: &str = "2222";
 
-// Shared wire layout — tester 172.16.0.1, DUT 172.16.0.2 on a /24. The verification
-// TOML names these same values. The SD mcast route is single-homed in `netns`
-// (`netns::MCAST_ROUTE`), this fixture's setup mirrors setup-netns.sh's.
-const FIX_TESTER_CIDR: &str = "172.16.0.1/24";
-const FIX_DUT_CIDR: &str = "172.16.0.2/24";
+// Shared wire layout. The verification fixture's netns DUT MUST sit at the
+// orchestrator's configured DUT IP (Config::dut_ip4 defaults to wire::DUT_IP), so
+// the addresses are single-homed in `crate::wire` rather than re-declared; /24 is
+// the fixed fixture prefix. The SD mcast route is single-homed in `netns`
+// (`netns::MCAST_ROUTE`); this fixture's setup mirrors setup-netns.sh's.
+fn fix_cidr(ip: &str) -> String {
+    format!("{ip}/24")
+}
 /// DUT boot settle before preflight probes it (external-netns-fixture.conf `sleep
 /// 1.5`); the topology preflight ut-ping is the actual readiness gate.
 const DUT_SETTLE: Duration = Duration::from_millis(1500);
@@ -157,9 +161,9 @@ fn provision_netns_dut(cfg: &Config) -> Result<Child> {
     netns::ip(&["netns", "add", EXTFIX_NS])?;
     netns::ip(&["link", "add", EXTFIX_VETH_T, "type", "veth", "peer", "name", EXTFIX_VETH_D])?;
     netns::ip(&["link", "set", EXTFIX_VETH_D, "netns", EXTFIX_NS])?;
-    netns::ip(&["addr", "add", FIX_TESTER_CIDR, "dev", EXTFIX_VETH_T])?;
+    netns::ip(&["addr", "add", &fix_cidr(wire::TESTER_IP), "dev", EXTFIX_VETH_T])?;
     netns::ip(&["link", "set", EXTFIX_VETH_T, "up"])?;
-    netns::ip(&["-n", EXTFIX_NS, "addr", "add", FIX_DUT_CIDR, "dev", EXTFIX_VETH_D])?;
+    netns::ip(&["-n", EXTFIX_NS, "addr", "add", &fix_cidr(wire::DUT_IP), "dev", EXTFIX_VETH_D])?;
     netns::ip(&["-n", EXTFIX_NS, "link", "set", EXTFIX_VETH_D, "up"])?;
     netns::ip(&["-n", EXTFIX_NS, "link", "set", "lo", "up"])?;
 
@@ -210,9 +214,9 @@ fn provision_ssh_netns_dut() -> Result<()> {
     netns::ip(&["netns", "add", SSHFIX_NS])?;
     netns::ip(&["link", "add", SSHFIX_VETH_T, "type", "veth", "peer", "name", SSHFIX_VETH_D])?;
     netns::ip(&["link", "set", SSHFIX_VETH_D, "netns", SSHFIX_NS])?;
-    netns::ip(&["addr", "add", FIX_TESTER_CIDR, "dev", SSHFIX_VETH_T])?;
+    netns::ip(&["addr", "add", &fix_cidr(wire::TESTER_IP), "dev", SSHFIX_VETH_T])?;
     netns::ip(&["link", "set", SSHFIX_VETH_T, "up"])?;
-    netns::ip(&["-n", SSHFIX_NS, "addr", "add", FIX_DUT_CIDR, "dev", SSHFIX_VETH_D])?;
+    netns::ip(&["-n", SSHFIX_NS, "addr", "add", &fix_cidr(wire::DUT_IP), "dev", SSHFIX_VETH_D])?;
     netns::ip(&["-n", SSHFIX_NS, "link", "set", SSHFIX_VETH_D, "up"])?;
     netns::ip(&["-n", SSHFIX_NS, "link", "set", "lo", "up"])?;
 
@@ -227,7 +231,7 @@ fn provision_ssh_netns_dut() -> Result<()> {
     let status = Command::new("ip")
         .args(["netns", "exec", SSHFIX_NS, "/usr/sbin/sshd"])
         .args(["-o", &format!("Port={SSHFIX_PORT}")])
-        .args(["-o", "ListenAddress=172.16.0.2"])
+        .args(["-o", &format!("ListenAddress={}", wire::DUT_IP)])
         .args(["-o", &format!("HostKey={hostkey}")])
         .args(["-o", &format!("AuthorizedKeysFile={authkeys}")])
         .args(["-o", "PermitRootLogin=prohibit-password"])

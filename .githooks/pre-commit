@@ -17,6 +17,16 @@ if ! python3 "$HERE/../tools/gen_verdict_taxonomy.py" --check >/dev/null; then
     exit 1
 fi
 
+# Wire-constant manifest generated mirrors (wire.gen.{rs,sh}) must match the
+# single source src/sce_integration/wire.def, and the C++ stimulus headers must
+# still agree with it (--check cross-verifies both freshness and C++ drift).
+if ! python3 "$HERE/../tools/gen_wire_manifest.py" --check >/dev/null; then
+    echo "pre-commit: wire manifest STALE or C++ drift — run:" >&2
+    echo "    python3 tools/gen_wire_manifest.py" >&2
+    python3 "$HERE/../tools/gen_wire_manifest.py" --check >&2 || true
+    exit 1
+fi
+
 # Verdict SSOT invariant: every registered case carries a donedata verdict with
 # a canonical conformance class (src/sce_integration/verdict.h). Fast,
 # pure-Python; keeps the single source from rotting between CI runs.

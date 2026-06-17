@@ -38,29 +38,17 @@ use crate::config::Config;
 use crate::netns;
 use crate::site::SiteConf;
 use crate::topology::{self, Conditioning, Topology, WorkerCtx};
-use crate::wire;
+use crate::wire::{self, DUT_IP, DUT_MASK, FIX_DIR, LAST_DUT_LOG, LOCK_FILE, TAP, TESTER_IP};
 
-// Fixed host names / addresses — mirror topology.d/lwip-tap.conf. Not PID-scoped (the
-// fixture is host-global and runs sequentially with the bash profile; provisioning
-// teardown-firsts to reclaim a leftover).
-const TAP: &str = "tc8lwip0";
-const FIX_DIR: &str = "/tmp/tc8-lwipfix";
-const LAST_DUT_LOG: &str = "/tmp/tc8-lwipfix-last-dut.log";
-const LOCK_FILE: &str = "/var/lock/tc8-lwip-fixture.lock";
-const DUT_IP: &str = "172.16.0.2";
-const DUT_MASK: &str = "255.255.255.0";
-const TESTER_IP: &str = "172.16.0.1";
-// The AIface-0 alias the readiness probe sources from (cold-cache steering +
-// UDP_USER_INTERFACE_08) and the Host-2 address (UDP_FIELDS_04, /32 host-local
-// answerability) are single-homed in `crate::wire` (wire::TESTER_ALIAS_IP /
-// wire::HOST2_IP) — referenced directly below, never re-declared here.
+// Wire/fixture identity (tap, scratch dir, lock, primary IPs, mask) is single-
+// homed in `crate::wire`, generated from tools/wire.def together
+// with the bash profile's $TC8_WIRE_* — a retune updates exactly one source.
+// Imported unqualified so the `format!("{FIX_DIR}/…")`-style captures below read
+// the same as before; the alias/host-2 addresses (wire::TESTER_ALIAS_IP /
+// wire::HOST2_IP) and the ARP-cache window (wire::ARP_CACHE_TIMEOUT_S) stay
+// wire-qualified at their single use site each.
 const DEFAULT_APP_REL: &str = "build-lwip-dut/tc8-lwip-dut";
 const DEFAULT_KILL_NAME: &str = "tc8-lwip-dut";
-/// UT 0x17 ARP-cache conditioning window (virtual seconds). MUST track
-/// dut/lwip_dut/lwipopts.h ARP_MAXAGE (lwIP default 300): the ARP_48/49 trait
-/// stimulus ages the table by exactly this to cross the stack's `age >= ARP_MAXAGE`
-/// free condition (bash TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S in topology.d/lwip-tap.conf).
-const UT_ARP_CACHE_TIMEOUT_S: &str = "300";
 
 // Timings (mirror the bash seq/sleep budgets).
 const READY_ATTEMPTS: u32 = 25;
@@ -306,7 +294,7 @@ impl Topology for LwipTap<'_> {
     }
 
     fn ut_arp_cache_timeout(&self) -> Option<String> {
-        Some(UT_ARP_CACHE_TIMEOUT_S.to_string())
+        Some(wire::ARP_CACHE_TIMEOUT_S.to_string())
     }
 
     fn preflight(&self) -> Result<()> {

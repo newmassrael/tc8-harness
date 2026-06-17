@@ -173,6 +173,14 @@ jobs:
           python3 tools/gen_verdict_taxonomy.py --check
           python3 tools/verdict_drift_audit.py
 
+      - name: Wire-constant manifest SSOT gate
+        # The wire/fixture constants (IPs, MACs, tap/lock names, backstop) are
+        # generated from tools/wire.def into wire.gen.{rs,sh}, and
+        # the generator cross-checks the C++ stimulus headers (arp_builder.h,
+        # icmpv4_builder.h, udp_pilot_common.h, dhcpv4_default_endpoints.h) against
+        # it. --check fails on a stale mirror OR a C++ value drift. Pure-Python.
+        run: python3 tools/gen_wire_manifest.py --check
+
       - name: Re-mine spec inventory and verify it matches checked-in copy
         # Skipped on CI runners that don't have the TC8 spec PDF split
         # output (`docs/spec/split/*.txt` is gitignored — see LICENSE

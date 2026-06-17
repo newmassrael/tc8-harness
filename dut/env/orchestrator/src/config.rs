@@ -12,11 +12,11 @@ use std::path::{Path, PathBuf};
 /// already has a single source of truth. Each field names its vsomeip.json
 /// origin. The few values NOT present in vsomeip.json (SOME/IP-SD major/minor
 /// version, the default subscribe eventgroup) and the harness-emitted constants
-/// (tester MACs, ICMP echo id/seq) are documented at their use site in
-/// `dispatch::expect_args` with provenance, pending a generated cross-language
-/// manifest. Values are kept as strings: they pass straight through to the
-/// harness `--expect key=value` CLI, and vsomeip.json already stores them in the
-/// exact `0x...`/decimal/dotted forms the harness expects.
+/// (tester MACs, ICMP echo id/seq) are single-homed in `wire` (generated from
+/// tools/wire.def, cross-checked against the C++ stimulus headers) and consumed
+/// in `dispatch::expect_args`. Values are kept as strings: they pass straight
+/// through to the harness `--expect key=value` CLI, and vsomeip.json already
+/// stores them in the exact `0x...`/decimal/dotted forms the harness expects.
 pub struct DutIdentity {
     /// vsomeip `services[0].service`.
     pub service_id: String,
@@ -55,10 +55,9 @@ pub struct Config {
     pub dut_ip4: String,
     /// DUT SOME/IP identity derived from vsomeip.json.
     pub identity: DutIdentity,
-    /// Harness watchdog backstop (seconds). SSOT is bash's `HARNESS_BACKSTOP_SEC`
-    /// (dut/env/smoke-test.sh, `readonly`) — hand-synced today; generating a
-    /// shared constants file the way verdict_taxonomy.gen.{sh,rs} is generated
-    /// from one `.def` is the tracked fix to single-home it across bash + Rust.
+    /// Harness watchdog backstop (seconds). Single-homed in `wire::BACKSTOP_SEC`
+    /// (generated from tools/wire.def), the same source bash's
+    /// `HARNESS_BACKSTOP_SEC` reads via $TC8_WIRE_BACKSTOP_SEC.
     pub backstop_sec: u32,
 }
 
@@ -143,10 +142,12 @@ impl Config {
             capi_cfg: env_path("CAPI_CFG", root.join("dut/dut_service/commonapi.ini")),
             work_root: PathBuf::from(format!("/tmp/tc8-orch-workers.{pid}")),
             vsomeip_base: PathBuf::from(format!("/tmp/tc8-orch-vsomeip.{pid}")),
-            tester_ip4: env::var("TC8_TOPOLOGY_TESTER_IP").unwrap_or_else(|_| "172.16.0.1".into()),
-            dut_ip4: env::var("TC8_TOPOLOGY_DUT_IP").unwrap_or_else(|_| "172.16.0.2".into()),
+            tester_ip4: env::var("TC8_TOPOLOGY_TESTER_IP")
+                .unwrap_or_else(|_| crate::wire::TESTER_IP.into()),
+            dut_ip4: env::var("TC8_TOPOLOGY_DUT_IP")
+                .unwrap_or_else(|_| crate::wire::DUT_IP.into()),
             identity,
-            backstop_sec: 240,
+            backstop_sec: crate::wire::BACKSTOP_SEC,
             root,
         })
     }

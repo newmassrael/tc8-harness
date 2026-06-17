@@ -6,7 +6,7 @@
 # Envvars (all optional):
 #   TESTER_NS, DUT_NS          netns names               (default: tc8-tester / tc8-dut)
 #   VETH_T, VETH_D             veth interface names      (default: veth-tester / veth-dut)
-#   TESTER_IP, DUT_IP          CIDR addresses            (default: 172.16.0.1/24 / 172.16.0.2/24)
+#   TESTER_IP, DUT_IP          CIDR addresses            (default: wire.def TESTER_IP/DUT_IP, /24)
 #   MCAST_ROUTE                multicast dest for SOME/IP-SD (default: 224.0.0.0/4)
 #
 # §4.7.6.5 USAGE_01 Topology 2 second veth pair (DIface-1 / TIface-1) —
@@ -30,12 +30,19 @@
 #                               kept dotless so per-iface sysctl keys stay unambiguous)
 set -euo pipefail
 
+# Wire/fixture constants (primary + alias IPs) — single source of truth in
+# tools/wire.def, generated to wire.gen.sh beside this script and
+# shared with smoke-test.sh + the orchestrator. Sourced so a standalone run gets
+# the canonical defaults; the env knobs below still override.
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$HERE/wire.gen.sh"
+
 TESTER_NS=${TESTER_NS:-tc8-tester}
 DUT_NS=${DUT_NS:-tc8-dut}
 VETH_T=${VETH_T:-veth-tester}
 VETH_D=${VETH_D:-veth-dut}
-TESTER_IP=${TESTER_IP:-172.16.0.1/24}
-DUT_IP=${DUT_IP:-172.16.0.2/24}
+TESTER_IP=${TESTER_IP:-$TC8_WIRE_TESTER_IP/24}
+DUT_IP=${DUT_IP:-$TC8_WIRE_DUT_IP/24}
 MCAST_ROUTE=${MCAST_ROUTE:-224.0.0.0/4}
 SECOND_VETH=${SECOND_VETH:-0}
 VETH_T2=${VETH_T2:-veth-tester2}
@@ -102,14 +109,13 @@ ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$DUT_L3IF"
 #   * AIface-0 alias (TESTER) 172.16.0.4 — UI_08 caller asks DUT to emit
 #     UDP with dst=this alias; SCXML verifies wire dst_ip matches.
 #
-# Both literals mirrored as compile-time constants in
-# `src/sce_integration/udp_pilot_common.h` (`kDutAliasIp4Be` /
-# `kTesterAliasIp4Be`) — single source of truth between netns setup and
-# stimulus / SCXML cond. Picked outside `kUdpHost2IpBe`=172.16.0.3
-# (already pinned by FIELDS_04/_05) so the three secondary literals stay
-# disjoint.
-ip -n "$DUT_NS"    addr add 172.16.0.5/24 dev "$DUT_L3IF"
-ip -n "$TESTER_NS" addr add 172.16.0.4/24 dev "$TESTER_L3IF"
+# Both addresses single-homed in wire.def (`DUT_ALIAS_IP` / `TESTER_ALIAS_IP`),
+# which the generator cross-checks against the `kDutAliasIp4Be` / `kTesterAliasIp4Be`
+# compile-time constants in `src/sce_integration/udp_pilot_common.h` (stimulus /
+# SCXML cond). Picked outside `HOST2_IP`=172.16.0.3 (already pinned by
+# FIELDS_04/_05) so the three secondary literals stay disjoint.
+ip -n "$DUT_NS"    addr add "$TC8_WIRE_DUT_ALIAS_IP/24" dev "$DUT_L3IF"
+ip -n "$TESTER_NS" addr add "$TC8_WIRE_TESTER_ALIAS_IP/24" dev "$TESTER_L3IF"
 
 # Disable TX checksum offload on both veth ends. Linux's veth driver
 # defaults to reporting CHECKSUM_PARTIAL on transmit, leaving the L4

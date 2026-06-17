@@ -54,6 +54,12 @@ HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 # src/sce_integration/verdict_taxonomy.def, the single source. CI keeps it fresh
 # via `tools/gen_verdict_taxonomy.py --check`.
 source "$HERE/verdict_taxonomy.gen.sh"
+# Wire/fixture constants (IPs, MACs, tap/lock names, backstop) — generated from
+# tools/wire.def, shared with the orchestrator (wire.gen.rs) and
+# cross-checked against the C++ stimulus builders. CI keeps it fresh + C++-
+# consistent via `tools/gen_wire_manifest.py --check`. Sourced here (before the
+# globals + the topology profile) so $TC8_WIRE_* is in scope for both.
+source "$HERE/wire.gen.sh"
 ROOT="$(cd "$HERE/../.." && pwd)"
 HARNESS=${HARNESS:-$ROOT/build/tc8-harness}
 TC8_DUT_BIN=${TC8_DUT_BIN:-$ROOT/build/dut/dut_service/tc8-dut}
@@ -70,7 +76,7 @@ CAPI_CFG=${CAPI_CFG:-$ROOT/dut/dut_service/commonapi.ini}
 # A green suite never reaches it because every case self-terminates at its
 # own deadline first — replacing the former 689-entry per-case timeout
 # maps, which only shadowed those deadlines and drifted from them.
-readonly HARNESS_BACKSTOP_SEC=240
+readonly HARNESS_BACKSTOP_SEC="$TC8_WIRE_BACKSTOP_SEC"
 
 # Per-worker scratch root. Holds a sentinel subdir per live worker so the
 # cleanup trap can tear down exactly the workers that were set up, even
@@ -127,16 +133,16 @@ VSOMEIP_BASE=/tmp/tc8-vsomeip.$$
 # able to influence these values. Called from the topology loader below;
 # all assignments are global.
 init_expectation_defaults() {
-TESTER_IP4=${TC8_TOPOLOGY_TESTER_IP:-172.16.0.1}
-DUT_IP4=${TC8_TOPOLOGY_DUT_IP:-172.16.0.2}
+TESTER_IP4=${TC8_TOPOLOGY_TESTER_IP:-$TC8_WIRE_TESTER_IP}
+DUT_IP4=${TC8_TOPOLOGY_DUT_IP:-$TC8_WIRE_DUT_IP}
 
 TC8_DUT_EXPECT=(
     --expect service_id=0xF4E7
     --expect instance_id=0x0001
-    --expect major_version=1
+    --expect "major_version=$TC8_WIRE_SD_MAJOR_VERSION"
     --expect ttl=3
-    --expect minor_version=0
-    --expect eventgroup_id=0x0001
+    --expect "minor_version=$TC8_WIRE_SD_MINOR_VERSION"
+    --expect "eventgroup_id=$TC8_WIRE_SD_DEFAULT_EVENTGROUP"
     --expect "dut_iface_ip=$DUT_IP4"
     --expect udp_port=30502
     --expect tcp_port=30501
@@ -161,23 +167,22 @@ TC8_DUT_EXPECT=(
 # §4.2.4.1 ARP_03..06 additionally compare the DUT UDP egress Ethernet
 # destination (ARP_04/06) and filter DUT-originated ARP Requests by
 # sender_hw (ARP_03/05) against the MAC the harness injects as the
-# gratuitous/request sender. Must match `kTesterInjectedMac` in
-# src/stimulus/arp_builder.h — edit both together.
-ARP_TESTER_INJECTED_MAC=02:00:00:00:00:A1
+# gratuitous/request sender. Single-homed in wire.def `ARP_TESTER_MAC`, which
+# the generator cross-checks against `kTesterInjectedMac` in arp_builder.h.
+ARP_TESTER_INJECTED_MAC="$TC8_WIRE_ARP_TESTER_MAC"
 # Second tester MAC for §4.2.4.2 Phase 3b Group C cache-merge cases
-# (ARP_32/33/34/35). Must match `kTesterInjectedMac2` in arp_builder.h.
-ARP_TESTER_INJECTED_MAC2=02:00:00:00:00:A2
+# (ARP_32/33/34/35) — wire.def `ARP_TESTER_MAC2` (cf. kTesterInjectedMac2).
+ARP_TESTER_INJECTED_MAC2="$TC8_WIRE_ARP_TESTER_MAC2"
 # Third tester MAC for §4.2.4.2 Phase 3c Group D case ARP_40 (Response-
-# learning). Must match `kTesterInjectedMac3` in arp_builder.h.
-ARP_TESTER_INJECTED_MAC3=02:00:00:00:00:A3
+# learning) — wire.def `ARP_TESTER_MAC3` (cf. kTesterInjectedMac3).
+ARP_TESTER_INJECTED_MAC3="$TC8_WIRE_ARP_TESTER_MAC3"
 # (TESTER_IP4 / DUT_IP4 are defined above TC8_DUT_EXPECT — the SD
 # endpoint expectation reuses $DUT_IP4.)
-# §4.7 DHCPv4 server emul identity — matches `kDefaultServerIdBe` in
-# `src/sce_integration/dhcpv4_default_endpoints.h`. CM_05/_06 pre-pin
-# `<this_ip, ARP_TESTER_INJECTED_MAC>` permanent on the DUT side so
-# the synthetic gateway resolves without a real responder; if the C++
-# constexpr changes, this literal must follow.
-DHCPV4_SERVER1_IP4=172.16.0.10
+# §4.7 DHCPv4 server emul identity — wire.def `DHCPV4_SERVER1_IP4`, cross-checked
+# against `kDefaultServerIdBe` in dhcpv4_default_endpoints.h. CM_05/_06 pre-pin
+# `<this_ip, ARP_TESTER_INJECTED_MAC>` permanent on the DUT side so the
+# synthetic gateway resolves without a real responder.
+DHCPV4_SERVER1_IP4="$TC8_WIRE_DHCPV4_SERVER1_IP4"
 # `dut.ip` feeds the stimulus (target_ip of the injected ARP
 # Request); `arp.dut_iface_ip` is the SCXML expectation the captured
 # DUT Reply's sender_proto_ip is compared against. In positive rows both
@@ -206,14 +211,13 @@ if [[ -n "${TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S:-}" ]]; then
 fi
 
 # §4.3 ICMPv4 pilot cases (TYPE_08/09/10) compare captured Echo Reply
-# identifier / sequence against operator-supplied values. The matching
-# literals live in `src/stimulus/icmpv4_builder.h::kIcmpEchoId` /
-# `kIcmpEchoSeq` — stimulus hardcodes them, this CLI value is purely the
-# SCXML expectation. `--negative` rows flip one expectation alone to
-# prove the fail path; any drift between these two sources silently
-# turns a positive test into a false pass, so edit both together.
-ICMPV4_TESTER_ECHO_ID=0x1234
-ICMPV4_TESTER_ECHO_SEQ=0x5678
+# identifier / sequence against these expectations; the stimulus emits the
+# matching literals. Both this CLI value and the C++ stimulus
+# (`icmpv4_builder.h::kIcmpEchoId` / `kIcmpEchoSeq`) are single-homed in
+# wire.def, which the generator cross-checks against the header. `--negative`
+# rows flip one expectation alone to prove the fail path.
+ICMPV4_TESTER_ECHO_ID="$TC8_WIRE_ICMP_ECHO_ID"
+ICMPV4_TESTER_ECHO_SEQ="$TC8_WIRE_ICMP_ECHO_SEQ"
 ICMPV4_DUT_EXPECT_STATIC=(
     --expect "icmpv4.tester_ip=$TESTER_IP4"
     --expect "icmpv4.dut_iface_ip=$DUT_IP4"
@@ -242,8 +246,8 @@ IPV4_DUT_EXPECT_STATIC=(
     # Alias IPs are netns defaults (setup-netns.sh configures them);
     # external topologies whose DUT carries different aliases override
     # via env.
-    --expect "ipv4.dut_alias_ip=${TC8_TOPOLOGY_DUT_ALIAS_IP:-172.16.0.5}"
-    --expect "ipv4.tester_alias_ip=${TC8_TOPOLOGY_TESTER_ALIAS_IP:-172.16.0.4}"
+    --expect "ipv4.dut_alias_ip=${TC8_TOPOLOGY_DUT_ALIAS_IP:-$TC8_WIRE_DUT_ALIAS_IP}"
+    --expect "ipv4.tester_alias_ip=${TC8_TOPOLOGY_TESTER_ALIAS_IP:-$TC8_WIRE_TESTER_ALIAS_IP}"
 )
 }
 
