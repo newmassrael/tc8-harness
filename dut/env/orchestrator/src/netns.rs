@@ -25,7 +25,7 @@ use crate::wire;
 
 /// SOME/IP-SD multicast route — `224.244.224.245` in the vsomeip default lives in
 /// this block (setup-netns.sh MCAST_ROUTE default, line 39).
-const MCAST_ROUTE: &str = "224.0.0.0/4";
+pub(crate) const MCAST_ROUTE: &str = "224.0.0.0/4";
 /// DUT NUD delay-first-probe window, widened past the ARP_03/05 5 s listen window
 /// (setup-netns.sh:151) so a STALE→DELAY→PROBE re-verification does not fire a
 /// unicast Request inside the absence-check window. `pub(crate)` so the per-case
@@ -241,22 +241,23 @@ fn ping(ns: &str, cidr: &str) -> Result<()> {
 /// Best-effort `ip netns exec NS ethtool -K DEV tx off` (bash `... 2>&1 || true`):
 /// veth TX offload-disable is advisory; a missing ethtool must not abort bring-up.
 fn ethtool_tx_off(ns: &str, dev: &str) {
-    run_quiet(&["netns", "exec", ns, "ethtool", "-K", dev, "tx", "off"]);
+    ip_quiet(&["netns", "exec", ns, "ethtool", "-K", dev, "tx", "off"]);
 }
 
 /// Best-effort `ip netns delete NS` (bash `... 2>/dev/null || true`).
 fn del_netns(ns: &str) {
-    run_quiet(&["netns", "delete", ns]);
+    ip_quiet(&["netns", "delete", ns]);
 }
 
 /// Best-effort `ip link del DEV` (bash `... 2>/dev/null || true`).
 fn del_link(dev: &str) {
-    run_quiet(&["link", "del", dev]);
+    ip_quiet(&["link", "del", dev]);
 }
 
-/// Fire-and-forget `ip ARGS`, discarding output and ignoring the exit status
-/// (the bash `... 2>/dev/null || true` idiom).
-fn run_quiet(args: &[&str]) {
+/// Fire-and-forget `ip ARGS`, discarding output and ignoring the exit status (the
+/// bash `... 2>/dev/null || true` idiom). `pub(crate)` so the fixtures reuse the one
+/// `ip`-quiet helper instead of re-declaring it.
+pub(crate) fn ip_quiet(args: &[&str]) {
     let _ = Command::new("ip")
         .args(args)
         .stdout(Stdio::null())

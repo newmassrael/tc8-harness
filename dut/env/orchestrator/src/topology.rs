@@ -27,11 +27,7 @@ use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
 use crate::netns::{self, NetnsParams};
 use crate::site::SiteConf;
-
-/// Host-2 emulation address: bring-up pins <HOST2_IP, tester_mac> on the DUT
-/// side so UDP_FIELDS_04/05 (which expect a second host) resolve without a real
-/// third node. Test-fixture IP, single use; not part of the DUT identity.
-const HOST2_IP: &str = "172.16.0.3";
+use crate::wire;
 
 /// Per-worker identity captured at bring-up (kernel-assigned veth MACs).
 pub struct WorkerCtx {
@@ -336,7 +332,7 @@ impl Topology for SinglePc<'_> {
         // side (keeps the ARP cold-cache premise) and <HOST2_IP, tester_mac>
         // on the DUT side (Host-2 emulation for UDP_FIELDS_04/05).
         ip_neigh_replace(&netns_tester(w), &cfg.dut_ip4, &dut_mac, &veth_tester(w))?;
-        ip_neigh_replace(&netns_dut(w), HOST2_IP, &tester_mac, &veth_dut(w))?;
+        ip_neigh_replace(&netns_dut(w), wire::HOST2_IP, &tester_mac, &veth_dut(w))?;
 
         Ok(WorkerCtx { dut_mac, tester_mac })
     }
@@ -545,7 +541,7 @@ fn ip_neigh_replace(ns: &str, ip: &str, mac: &str, dev: &str) -> Result<()> {
     Ok(())
 }
 
-fn which(prog: &str) -> Option<PathBuf> {
+pub(crate) fn which(prog: &str) -> Option<PathBuf> {
     env::var_os("PATH").and_then(|paths| {
         env::split_paths(&paths).find_map(|dir| {
             let p = dir.join(prog);
@@ -1018,7 +1014,7 @@ impl Topology for SshRemote<'_> {
         // Reap a stale remote tc8-dut from a previous run — it would steal the SD/UT
         // ports from the per-case spawn. pkill -x (exact comm), never -f (which would
         // match the ssh session's own remote shell command line).
-        if self.ssh_ok("pkill -KILL -x tc8-dut") {
+        if self.ssh_ok(&remote_reap_dut()) {
             println!("orchestrator[ssh-remote]: reaped a stale remote tc8-dut from a previous run");
         }
         host_bring_up_common(self.cfg, w)?;
@@ -1028,7 +1024,7 @@ impl Topology for SshRemote<'_> {
     }
 
     fn tear_down_worker(&self, w: u32) -> Result<()> {
-        self.ssh_ok("pkill -KILL -x tc8-dut"); // last-resort remote reap
+        self.ssh_ok(&remote_reap_dut()); // last-resort remote reap
         kill_by_marker(&harness_link(&self.cfg.vsomeip_base, w));
         Ok(())
     }
@@ -1073,7 +1069,7 @@ impl Topology for SshRemote<'_> {
         let rbin = self.site.require("remote_dut_bin");
         let rcapi = self.site.require("remote_capi_cfg");
         let wrap = self.site.remote_wrap.as_deref().unwrap_or("");
-        let scratch = format!("/tmp/tc8-remote-vsomeip-{w}");
+        let scratch = format!("{REMOTE_VSOMEIP_PREFIX}-{w}");
         let remote_cmd = format!(
             "mkdir -p {scratch} && rm -f {scratch}/vsomeip-* {scratch}/vsomeip.lck && \
              {wrap} env COMMONAPI_CONFIG='{rcapi}' VSOMEIP_CONFIGURATION='{remote_cfg}' \
@@ -1097,7 +1093,7 @@ impl Topology for SshRemote<'_> {
         // Kill the remote process (the local ssh client dies with the connection
         // teardown). pkill exits 1 when nothing matched — the normal "DUT already
         // exited" case, not an error.
-        self.ssh_ok("pkill -KILL -x tc8-dut; rm -rf /tmp/tc8-remote-vsomeip-*");
+        self.ssh_ok(&remote_reap_dut_and_scratch());
         Ok(())
     }
 
@@ -1107,9 +1103,29 @@ impl Topology for SshRemote<'_> {
     }
 }
 
+// --- ssh-remote reap SSOT ---------------------------------------------------
+/// Remote tc8-dut process comm. `pkill -x` matches this exact name; `-f` would also
+/// match the ssh session's own remote shell command line, so always use `-x`.
+const REMOTE_DUT_COMM: &str = "tc8-dut";
+/// Per-worker remote vsomeip scratch base on the DUT host (the `-{w}` suffix is the
+/// worker; `-*` wipes them all on teardown).
+const REMOTE_VSOMEIP_PREFIX: &str = "/tmp/tc8-remote-vsomeip";
+
+/// `pkill -KILL -x <comm>` — reap the remote DUT only (stale-reap at bring-up,
+/// last-resort at tear-down). pkill exits 1 on no match — the normal "already gone".
+fn remote_reap_dut() -> String {
+    format!("pkill -KILL -x {REMOTE_DUT_COMM}")
+}
+/// `pkill -KILL -x <comm>; rm -rf <prefix>-*` — reap the DUT and wipe every
+/// per-worker remote scratch dir (per-case stop_dut + the signal-handler reap).
+fn remote_reap_dut_and_scratch() -> String {
+    format!("{}; rm -rf {REMOTE_VSOMEIP_PREFIX}-*", remote_reap_dut())
+}
+
 /// Best-effort remote tc8-dut reap for the signal handler, which cannot hold a
-/// borrowed `SshRemote`. Mirrors `SshRemote::stop_dut` with owned ssh params.
-/// `pkill -x` (exact comm) never matches the ssh session's own remote shell.
+/// borrowed `SshRemote`. Builds ssh from owned params but shares the reap command
+/// with `SshRemote::stop_dut` (via `remote_reap_dut_and_scratch`), so the two can
+/// never drift.
 pub fn ssh_reap_remote_dut(target: &str, opts: Option<&str>) {
     let mut c = Command::new("ssh");
     c.args(["-n", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"]);
@@ -1118,7 +1134,7 @@ pub fn ssh_reap_remote_dut(target: &str, opts: Option<&str>) {
     }
     let _ = c
         .arg(target)
-        .arg("pkill -KILL -x tc8-dut; rm -rf /tmp/tc8-remote-vsomeip-*")
+        .arg(remote_reap_dut_and_scratch())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

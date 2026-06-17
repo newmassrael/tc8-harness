@@ -38,6 +38,7 @@ use crate::config::Config;
 use crate::netns;
 use crate::site::SiteConf;
 use crate::topology::{self, Conditioning, Topology, WorkerCtx};
+use crate::wire;
 
 // Fixed host names / addresses — mirror lwip-tap-fixture.conf. Not PID-scoped (the
 // fixture is host-global and runs sequentially with the bash original; provisioning
@@ -49,12 +50,10 @@ const LOCK_FILE: &str = "/var/lock/tc8-lwip-fixture.lock";
 const DUT_IP: &str = "172.16.0.2";
 const DUT_MASK: &str = "255.255.255.0";
 const TESTER_IP: &str = "172.16.0.1";
-/// AIface-0 alias the readiness probe sources from (so the warmed DUT ARP entry
-/// lands on an address no cold-cache ARP case references) + UDP_USER_INTERFACE_08.
-const TESTER_ALIAS_IP: &str = "172.16.0.4";
-/// Host-2 emulation (UDP_FIELDS_04 second host on the link) — /32, host-local
-/// answerability only.
-const HOST2_IP: &str = "172.16.0.3";
+// The AIface-0 alias the readiness probe sources from (cold-cache steering +
+// UDP_USER_INTERFACE_08) and the Host-2 address (UDP_FIELDS_04, /32 host-local
+// answerability) are single-homed in `crate::wire` (wire::TESTER_ALIAS_IP /
+// wire::HOST2_IP) — referenced directly below, never re-declared here.
 const DEFAULT_APP_REL: &str = "build-lwip-dut/tc8-lwip-dut";
 const DEFAULT_KILL_NAME: &str = "tc8-lwip-dut";
 /// UT 0x17 ARP-cache conditioning window (virtual seconds). MUST track
@@ -129,15 +128,15 @@ impl<'a> LwipTap<'a> {
     fn provision_tap(&self) -> Result<()> {
         // Reclaim a stale fixture from a crashed prior run (best-effort).
         super::pkill_path(&self.app.to_string_lossy());
-        super::ip_quiet(&["link", "del", TAP]);
+        netns::ip_quiet(&["link", "del", TAP]);
         let _ = fs::remove_dir_all(FIX_DIR);
         fs::create_dir_all(FIX_DIR).with_context(|| format!("mkdir {FIX_DIR}"))?;
 
         netns::ip(&["tuntap", "add", "dev", TAP, "mode", "tap"])?;
         netns::ip(&["addr", "add", &format!("{TESTER_IP}/24"), "dev", TAP])?;
-        netns::ip(&["addr", "add", &format!("{TESTER_ALIAS_IP}/24"), "dev", TAP])?;
+        netns::ip(&["addr", "add", &format!("{}/24", wire::TESTER_ALIAS_IP), "dev", TAP])?;
         // /32: host-local answerability for the DUT's Host-2 ARP query, no 2nd subnet.
-        netns::ip(&["addr", "add", &format!("{HOST2_IP}/32"), "dev", TAP])?;
+        netns::ip(&["addr", "add", &format!("{}/32", wire::HOST2_IP), "dev", TAP])?;
         netns::ip(&["link", "set", TAP, "up"])?;
         Ok(())
     }
@@ -202,7 +201,7 @@ impl<'a> LwipTap<'a> {
             // the lwIP ARP table per case, so a primary-IP probe would warm the
             // <172.16.0.1> entry the cold-cache ARP cases assert is absent.
             ReadyProbe::Opcode => run_ok(Command::new(h).args([
-                "ut-ping", "--dut-ip", DUT_IP, "--timeout", PROBE_TIMEOUT_MS, "--source-ip", TESTER_ALIAS_IP,
+                "ut-ping", "--dut-ip", DUT_IP, "--timeout", PROBE_TIMEOUT_MS, "--source-ip", wire::TESTER_ALIAS_IP,
             ])),
         }
     }
@@ -279,7 +278,7 @@ impl<'a> LwipTap<'a> {
             // (kill_name), not the app path — so a custom lwip_kill_name is honored.
             pkill(&["-KILL", "-f", &self.kill_name]);
         }
-        super::ip_quiet(&["link", "del", TAP]);
+        netns::ip_quiet(&["link", "del", TAP]);
         // Preserve the DUT log for postmortems; the run dir goes away.
         let _ = fs::rename(format!("{FIX_DIR}/dut.log"), LAST_DUT_LOG);
         let _ = fs::remove_dir_all(FIX_DIR);
@@ -326,7 +325,7 @@ impl Topology for LwipTap<'_> {
         // (a missing pgrep makes kill_dut think the DUT is gone after one tick; a
         // missing ss makes the drain a no-op) — fail loud instead.
         for tool in ["ip", "ss", "pkill", "pgrep"] {
-            if which(tool).is_none() {
+            if topology::which(tool).is_none() {
                 bail!("preflight: '{tool}' not found on PATH (the lwIP fixture needs it for tap setup / socket drain / DUT reap)");
             }
         }
@@ -429,7 +428,7 @@ impl Topology for LwipTap<'_> {
 pub(crate) fn signal_teardown() {
     pkill(&["-KILL", "-f", DEFAULT_KILL_NAME]);
     pkill(&["-KILL", "-f", "tc8-lwip-utm"]);
-    super::ip_quiet(&["link", "del", TAP]);
+    netns::ip_quiet(&["link", "del", TAP]);
     let _ = fs::rename(format!("{FIX_DIR}/dut.log"), LAST_DUT_LOG);
     let _ = fs::remove_dir_all(FIX_DIR);
 }
@@ -509,11 +508,4 @@ fn run_ok(cmd: &mut Command) -> bool {
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
-}
-
-/// First `prog` on `PATH`.
-fn which(prog: &str) -> Option<PathBuf> {
-    std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths).find(|dir| dir.join(prog).is_file())
-    })
 }

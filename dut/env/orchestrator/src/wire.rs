@@ -39,6 +39,11 @@ pub const ICMP_ECHO_SEQ: &str = "0x5678";
 pub const DUT_ALIAS_IP: &str = "172.16.0.5";
 /// `kTesterAliasIp4Be` — tester-side destination-IP alias (UI_08).
 pub const TESTER_ALIAS_IP: &str = "172.16.0.4";
+/// `kUdpHost2IpBe` — the UDP_FIELDS_04/_05 "second host on the link" address.
+/// single-pc bring-up pins `<HOST2_IP, tester_mac>` NUD_PERMANENT on the DUT side
+/// so the DUT's egress ARP for it resolves without a real third node; the lwIP tap
+/// fixture answers ARP for it from the tap (/32). One value, two consumers.
+pub const HOST2_IP: &str = "172.16.0.3";
 
 // --- DHCPv4 synthetic server/gateway — src/sce_integration/dhcpv4_default_endpoints.h
 /// `kDefaultServerIdBe` — the Option-3 router the CM_05/_06 conditioning pins.

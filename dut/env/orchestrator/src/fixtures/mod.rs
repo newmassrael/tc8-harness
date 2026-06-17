@@ -47,11 +47,11 @@ const SSHFIX_VETH_T: &str = "veth-sshfix-t";
 const SSHFIX_VETH_D: &str = "veth-sshfix-d";
 const SSHFIX_PORT: &str = "2222";
 
-// Shared wire layout — tester 172.16.0.1, DUT 172.16.0.2 on a /24, the SD mcast
-// route both sides need. The verification TOML names these same values.
+// Shared wire layout — tester 172.16.0.1, DUT 172.16.0.2 on a /24. The verification
+// TOML names these same values. The SD mcast route is single-homed in `netns`
+// (`netns::MCAST_ROUTE`), this fixture's setup mirrors setup-netns.sh's.
 const FIX_TESTER_CIDR: &str = "172.16.0.1/24";
 const FIX_DUT_CIDR: &str = "172.16.0.2/24";
-const MCAST_ROUTE: &str = "224.0.0.0/4";
 /// DUT boot settle before preflight probes it (external-netns-fixture.conf `sleep
 /// 1.5`); the topology preflight ut-ping is the actual readiness gate.
 const DUT_SETTLE: Duration = Duration::from_millis(1500);
@@ -182,8 +182,8 @@ fn provision_netns_dut(cfg: &Config) -> Result<Child> {
 
 fn teardown_netns_dut() {
     pkill_path(&format!("{EXTFIX_DIR}/tc8-dut"));
-    ip_quiet(&["netns", "del", EXTFIX_NS]);
-    ip_quiet(&["link", "del", EXTFIX_VETH_T]);
+    netns::ip_quiet(&["netns", "del", EXTFIX_NS]);
+    netns::ip_quiet(&["link", "del", EXTFIX_VETH_T]);
     let _ = fs::remove_dir_all(EXTFIX_DIR);
 }
 
@@ -209,8 +209,8 @@ fn provision_ssh_netns_dut() -> Result<()> {
 
     // SOME/IP-SD multicast route (mirrors setup-netns.sh): tester side may already
     // carry one in the root ns (best-effort), DUT side is mandatory.
-    ip_quiet(&["route", "add", MCAST_ROUTE, "dev", SSHFIX_VETH_T]);
-    netns::ip(&["-n", SSHFIX_NS, "route", "add", MCAST_ROUTE, "dev", SSHFIX_VETH_D])?;
+    netns::ip_quiet(&["route", "add", netns::MCAST_ROUTE, "dev", SSHFIX_VETH_T]);
+    netns::ip(&["-n", SSHFIX_NS, "route", "add", netns::MCAST_ROUTE, "dev", SSHFIX_VETH_D])?;
 
     fs::create_dir_all("/run/sshd").context("mkdir /run/sshd (sshd privilege-separation dir)")?;
     let pidfile = format!("{SSHFIX_DIR}/sshd.pid");
@@ -239,9 +239,9 @@ fn teardown_ssh_netns_dut() {
     // only reclaims its own state — sshd (by exact pidfile PID, never `pkill -x
     // sshd` which would hit the host's system sshd), routes, netns, veth, dirs.
     kill_pidfile(&format!("{SSHFIX_DIR}/sshd.pid"));
-    ip_quiet(&["route", "del", MCAST_ROUTE, "dev", SSHFIX_VETH_T]);
-    ip_quiet(&["netns", "del", SSHFIX_NS]);
-    ip_quiet(&["link", "del", SSHFIX_VETH_T]);
+    netns::ip_quiet(&["route", "del", netns::MCAST_ROUTE, "dev", SSHFIX_VETH_T]);
+    netns::ip_quiet(&["netns", "del", SSHFIX_NS]);
+    netns::ip_quiet(&["link", "del", SSHFIX_VETH_T]);
     let _ = fs::remove_dir_all(SSHFIX_DIR);
     // The per-worker remote vsomeip scratch SshRemote spawns the DUT under.
     for ent in fs::read_dir("/tmp").into_iter().flatten().flatten() {
@@ -295,12 +295,3 @@ fn kill_pidfile(pidfile: &str) {
     }
 }
 
-/// Fire-and-forget `ip ARGS`, ignoring the exit status (the bash `2>/dev/null ||
-/// true` idiom) — for the best-effort teardown deletes.
-fn ip_quiet(args: &[&str]) {
-    let _ = Command::new("ip")
-        .args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-}
