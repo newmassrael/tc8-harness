@@ -16,7 +16,7 @@
 # USAGE_01.
 #   SECOND_VETH                 0 = single pair (default), 1 = add second pair
 #   VETH_T2, VETH_D2            second-pair veth names    (default: veth-tester2 / veth-dut2)
-#   TESTER_IP2, DUT_IP2         second-pair CIDR          (default: 172.17.0.1/24 / 172.17.0.2/24)
+#   TESTER_IP2, DUT_IP2         second-pair CIDR          (default: wire.def TESTER_IP_2/DUT_IP_2, /24)
 #
 # IEEE 802.1Q VLAN profile (D2 OEM tagged-traffic enablement; default off).
 # When VLAN_ID is set, a VLAN subinterface is stacked on each veth and ALL
@@ -47,8 +47,8 @@ MCAST_ROUTE=${MCAST_ROUTE:-224.0.0.0/4}
 SECOND_VETH=${SECOND_VETH:-0}
 VETH_T2=${VETH_T2:-veth-tester2}
 VETH_D2=${VETH_D2:-veth-dut2}
-TESTER_IP2=${TESTER_IP2:-172.17.0.1/24}
-DUT_IP2=${DUT_IP2:-172.17.0.2/24}
+TESTER_IP2=${TESTER_IP2:-$TC8_WIRE_TESTER_IP_2/24}
+DUT_IP2=${DUT_IP2:-$TC8_WIRE_DUT_IP_2/24}
 VLAN_ID=${VLAN_ID:-}
 TESTER_VLAN_IF=${TESTER_VLAN_IF:-vlan-tester}
 DUT_VLAN_IF=${DUT_VLAN_IF:-vlan-dut}

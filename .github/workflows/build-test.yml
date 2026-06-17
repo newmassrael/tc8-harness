@@ -181,6 +181,13 @@ jobs:
         # it. --check fails on a stale mirror OR a C++ value drift. Pure-Python.
         run: python3 tools/gen_wire_manifest.py --check
 
+      - name: timing_serial cadence-lane drift gate
+        # Every sub-second cadence case (*_within_us predicate) must be classified
+        # for the smoke serial lane (timing_serial:true in inventory_overrides, or
+        # EXEMPT with a window-margin reason). Catches a new cadence case that would
+        # silently join the contended --workers 4 lane and flake. Pure-Python.
+        run: python3 tools/timing_serial_audit.py
+
       - name: Re-mine spec inventory and verify it matches checked-in copy
         # Skipped on CI runners that don't have the TC8 spec PDF split
         # output (`docs/spec/split/*.txt` is gitignored — see LICENSE

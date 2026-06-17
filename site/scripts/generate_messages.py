@@ -2116,7 +2116,7 @@ def _eval_echo_payload_equals(call: Call, view: dict) -> Any:
 
 def _helper_echo_payload_matches_index_pattern(view, args) -> Any:
     """Mirror of ``Icmpv4Captured::echo_payload_matches_index_pattern``
-    (src/sce_integration/icmpv4_captured.h:115). C++ asserts the 548 B
+    (src/sce_integration/icmpv4_captured.h). C++ asserts the 548 B
     echo reply payload follows ``byte[i] = i & 0xFF`` exactly. The
     decoder only surfaces the first 16 B (``echo_payload_first16``) so
     we check those against ``0x00..0x0F``: a random reply byte

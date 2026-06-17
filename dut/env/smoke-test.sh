@@ -313,10 +313,10 @@ for _case in "${CASES[@]}"; do
         break
     fi
 done
-# Topology 2 second-pair endpoints — single source of truth for
-# smoke-test.sh. Mirror of setup-netns.sh's defaults (172.17.0.0/24).
-TESTER_IP4_2=172.17.0.1
-DUT_IP4_2=172.17.0.2
+# Topology 2 second-pair endpoints (172.17.0.0/24) — single-homed in wire.def
+# ($TC8_WIRE_*, sourced above), the same source setup-netns.sh's defaults read.
+TESTER_IP4_2=$TC8_WIRE_TESTER_IP_2
+DUT_IP4_2=$TC8_WIRE_DUT_IP_2
 
 # ── Topology profile contract ────────────────────────────────────────
 # A profile at topology.d/<name>.conf is a sourced bash fragment that

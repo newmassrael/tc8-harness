@@ -61,16 +61,20 @@ TestCommand::TestCommand(CLI::App &app) {
                    "that pass on a strict-RFC DUT. Independent from "
                    "--exclude-deferred; combine for the full CI smoke skip "
                    "list.");
-    sub_->add_flag("--exclude-serial", exclude_serial_,
+    auto *exclude_serial_flag = sub_->add_flag("--exclude-serial", exclude_serial_,
                    "With --list-cases (no --vs-spec), drop cases marked "
                    "timing_serial:true in the inventory overrides — sub-second "
                    "cadence measurements that the reference DUT can only meet "
                    "uncontended. The parallel (--workers N) CI lane uses this; "
                    "the serial lane uses --only-serial.");
+    // Mutually exclusive: passing both would filter out every case and emit an
+    // empty list — a CI lane built from that would silently run ZERO cases
+    // (green by vacuity). CLI11 rejects the combination loudly instead.
     sub_->add_flag("--only-serial", only_serial_,
                    "With --list-cases (no --vs-spec), keep ONLY cases marked "
                    "timing_serial:true — CI runs these at --workers 1 so a "
-                   "CPU-starved DUT does not skew the timing window.");
+                   "CPU-starved DUT does not skew the timing window.")
+        ->excludes(exclude_serial_flag);
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: docs/spec/case_inventory.json)");

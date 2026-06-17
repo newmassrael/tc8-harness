@@ -13,7 +13,7 @@
 //! renderer changes, never this table. See `Topology::exec_cond_step`.
 //!
 //! Scope: the POSITIVE `run_case` path only. The `run_negative_case` copy
-//! (smoke-test.sh:1681-1758) lands with the negative-row stage (S6).
+//! (smoke-test.sh) lands with the negative-row stage (S6).
 //!
 //! Case ids are matched UPPERCASED — the same canonicalisation
 //! `dispatch::expect_args` does, so a lower-case or test-dir-name invocation
@@ -107,7 +107,7 @@ impl CondStep {
     /// Which side's stack this step touches. The distinction is load-bearing for a
     /// topology that does not manage the DUT (external/ssh-remote): bash applies
     /// TESTER-side conditioning on every topology (the tester is always a host we
-    /// own, smoke-test.sh:966-974) and skips only the DUT-side toggles.
+    /// own, smoke-test.sh) and skips only the DUT-side toggles.
     pub fn side(&self) -> Side {
         match self {
             CondStep::SysctlIface { side, .. }
@@ -129,7 +129,7 @@ pub fn plan(case_id: &str, tester_ip4: &str, tester_mac: &str) -> Vec<CondStep> 
 
     let id = case_id.to_uppercase();
 
-    // Unconditional prefix (smoke-test.sh:908): cold the DUT neigh cache so a
+    // Unconditional prefix (smoke-test.sh): cold the DUT neigh cache so a
     // cold-cache ARP_07..15 run as a non-first case in the bucket re-emits its
     // Request. neigh flush skips PERMANENT, so bring-up pins survive.
     let mut steps = vec![NeighFlush { side: Dut }];
@@ -208,7 +208,7 @@ pub fn plan(case_id: &str, tester_ip4: &str, tester_mac: &str) -> Vec<CondStep> 
 /// Only DUT-side steps are skipped (and thus logged) — TESTER-side steps (ARP_39/40
 /// `arp_ignore`) bash applies on every topology and the orchestrator does too, so
 /// they are NOT an omission. bash emits up to two lines, reproduced here:
-///   1. the per-case DUT neigh FLUSH (smoke-test.sh:912-917) — logged for every
+///   1. the per-case DUT neigh FLUSH (smoke-test.sh) — logged for every
 ///      `ARP_*` / `IPV4_AUTOCONF_*` case (the cache-sensitive families); the flush
 ///      is a DUT-side step, always skipped on a non-DUT-managing topology;
 ///   2. the case-keyed DUT-side FAMILY toggles (the `log_conditioning_skip` in each
@@ -228,7 +228,7 @@ pub fn log_dut_skips(
     let id = case_id.to_uppercase();
     let steps = plan(case_id, tester_ip4, tester_mac);
     let mut logged = 0;
-    // 1. flush omission — cache-sensitive families only (bash smoke-test.sh:912-917).
+    // 1. flush omission — cache-sensitive families only (bash smoke-test.sh).
     //    The flush is a DUT-side step, so it is among the skipped steps.
     if id.starts_with("ARP_") || id.starts_with("IPV4_AUTOCONF_") {
         log_conditioning_skip(
@@ -244,7 +244,7 @@ pub fn log_dut_skips(
     //    the only extra step is the tester-side arp_ignore, so there is NO family line.
     //    ARP_48/49's neigh-timer family is suppressed when the topology UT-conditions
     //    the ARP cache (lwIP): it is conditioned via UT 0x17, not skipped — matching
-    //    bash, which omits the skip line there (smoke-test.sh:1088-1095).
+    //    bash, which omits the skip line there (smoke-test.sh).
     let ut_conditioned_neigh = ut_arp_conditioned && (id == "ARP_48" || id == "ARP_49");
     let dut_family: Vec<CondStep> = if ut_conditioned_neigh {
         Vec::new()
@@ -258,7 +258,7 @@ pub fn log_dut_skips(
     logged
 }
 
-/// One bash `log_conditioning_skip` line (smoke-test.sh:806-808), verbatim format.
+/// One bash `log_conditioning_skip` line (smoke-test.sh), verbatim format.
 fn log_conditioning_skip(w: u32, case_id: &str, topology: &str, what: &str) {
     println!(
         "[w{w}] INFO {case_id}: DUT-stack conditioning not applied ({what}) — topology '{topology}' does not manage the DUT network stack"
@@ -428,7 +428,7 @@ mod tests {
         assert_eq!(log_dut_skips(0, "ARP_03", "external", TIP, TMAC, f), 1);
         // ARP_39/40 — the only extra step is TESTER-side arp_ignore (applied, not
         // skipped), so the DUT-side skips are flush-only → 1 line, matching bash
-        // (bash applies arp_ignore on every topology, smoke-test.sh:966-974). This
+        // (bash applies arp_ignore on every topology, smoke-test.sh). This
         // is the round-2 over-count regression guard.
         assert_eq!(log_dut_skips(0, "ARP_39", "external", TIP, TMAC, f), 1);
         assert_eq!(log_dut_skips(0, "ARP_40", "ssh-remote", TIP, TMAC, f), 1);
@@ -446,7 +446,7 @@ mod tests {
     fn ut_arp_conditioned_suppresses_arp_48_49_neigh_skip() {
         // lwip-tap: ARP_48/49 condition via UT 0x17, not host sysctls, so the
         // neigh-timer family skip is suppressed — flush line only (1), matching bash
-        // (smoke-test.sh:1088-1095). Other families are unaffected.
+        // (smoke-test.sh). Other families are unaffected.
         let t = true;
         assert_eq!(log_dut_skips(0, "ARP_48", "lwip-tap", TIP, TMAC, t), 1);
         assert_eq!(log_dut_skips(0, "ARP_49", "lwip-tap", TIP, TMAC, t), 1);

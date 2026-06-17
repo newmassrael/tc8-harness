@@ -8,7 +8,7 @@
 //!
 //! Process teardown uses `pkill -f` on the worker-unique symlink path, matching
 //! the bash design. This is the TERMINAL design, not a placeholder: bash
-//! (smoke-test.sh:624-638) deliberately rejected PGID-based kill because under
+//! (smoke-test.sh) deliberately rejected PGID-based kill because under
 //! `set -m` `ip netns exec` forks internally and the real binary is reparented
 //! to init, so its PGID is unreliable across iproute2 versions — matching by the
 //! worker-unique argv[0] is the robust approach. The orchestrator's own cmdline
@@ -178,7 +178,7 @@ fn render_cond_step(w: u32, step: &CondStep, dir: CondDir) -> Option<Vec<String>
 /// The per-topology contract smoke-test.sh expresses as sourced bash functions.
 ///
 /// The three capability methods are the Rust form of the bash TOPOLOGY_* contract
-/// vars consumed by the `main` gates (smoke-test.sh:412-422). They are required —
+/// vars consumed by the `main` gates (smoke-test.sh). They are required —
 /// no default — so every topology states its contract explicitly, the same
 /// guarantee bash got from its startup contract check. The fourth bash var,
 /// TOPOLOGY_DUT_CONDITIONING, is not a separate method: each topology encodes that
@@ -215,8 +215,8 @@ pub trait Topology {
     /// The secondary tester interface for TC8 Topology 2 (DHCPv4_CLIENT_USAGE_01),
     /// or `None` when this topology/run provides none — in which case dispatch
     /// SKIPs the case instead of running it to a misleading timeout (bash
-    /// `topology_tester_iface_secondary` + run_case skip, smoke-test.sh:1436-1446).
-    /// A required bash contract hook (smoke-test.sh:390-393).
+    /// `topology_tester_iface_secondary` + run_case skip, smoke-test.sh).
+    /// A required bash contract hook (smoke-test.sh).
     fn tester_iface_secondary(&self, w: u32) -> Option<String>;
     /// Apply one case's per-case kernel conditioning (the per-case neigh flush + the
     /// case-keyed sysctl/neigh toggles smoke-test.sh's run_case applies before the
@@ -226,7 +226,7 @@ pub trait Topology {
     /// topology. This is also where the bash TOPOLOGY_DUT_CONDITIONING contract bit
     /// lives: single-pc applies every step (it owns both stacks); a topology that
     /// does not manage the DUT (external / ssh-remote) applies the TESTER-side steps
-    /// — the tester is always a host we own (smoke-test.sh:966-974) — and skips +
+    /// — the tester is always a host we own (smoke-test.sh) — and skips +
     /// logs only the DUT-side steps.
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>>;
     /// Render+run ONE semantic conditioning step in `dir` on this topology's
@@ -303,7 +303,7 @@ impl Topology for SinglePc<'_> {
         // Build the netns fixture natively (S3 port of setup-netns.sh).
         // single-pc destroys + recreates the netns pair each bring-up, which
         // wipes any leftover iptables `tc8-stimulus` rule — so unlike bash's
-        // common_bring_up_worker (smoke-test.sh:681) no explicit chain flush is
+        // common_bring_up_worker (smoke-test.sh) no explicit chain flush is
         // needed here. A persistent topology (external/ssh-remote) that reuses a
         // netns WILL need that flush ported alongside it.
         //
@@ -406,7 +406,7 @@ impl Topology for SinglePc<'_> {
         let log = fs::File::create(dlog).context("creating dut log")?;
         let err = log.try_clone()?;
         let base = cfg.vsomeip_base.join(w.to_string());
-        // Per-case wipe of stale vsomeip UDS sockets + lock (smoke-test.sh:884) so
+        // Per-case wipe of stale vsomeip UDS sockets + lock (smoke-test.sh) so
         // a leftover from the prior case in this worker's bucket cannot make the
         // fresh DUT's vsomeip routing init bind stale. Scoped to vsomeip-*/.lck —
         // never the worker symlinks kill_by_marker matches.
@@ -450,7 +450,7 @@ pub fn teardown_worker(vsomeip_base: &Path, w: u32) {
 /// path), then poll up to 5×0.1s for them to disappear before returning. The
 /// next case on a worker must not start while a prior DUT is still emitting SD
 /// offers (the FORMAT_02 session_id==0x0001 race). Mirrors bash
-/// kill_worker_procs's kill-and-confirm loop (smoke-test.sh:639-648).
+/// kill_worker_procs's kill-and-confirm loop (smoke-test.sh).
 pub(crate) fn kill_by_marker(marker: &Path) {
     let m = marker.as_os_str();
     if Command::new("pkill")
@@ -489,7 +489,7 @@ pub(crate) fn kill_by_marker(marker: &Path) {
 }
 
 /// Remove a worker's stale vsomeip UDS sockets + lock before a fresh DUT spawn
-/// (smoke-test.sh:884). Scoped to `vsomeip-*` / `vsomeip.lck` — NEVER the
+/// (smoke-test.sh). Scoped to `vsomeip-*` / `vsomeip.lck` — NEVER the
 /// per-worker `tc8-dut`/`tc8-harness` symlinks `kill_by_marker` pattern-matches.
 /// Best-effort: a missing dir or entry is a no-op.
 fn wipe_vsomeip_runtime(base: &Path) {
@@ -605,7 +605,7 @@ pub(crate) fn site_secondary_iface(site: &SiteConf) -> Option<String> {
 /// `condition_case` for a topology that does not manage the DUT stack (external /
 /// ssh-remote). It APPLIES the TESTER-side steps — the tester is this host, and
 /// bash applies tester-side conditioning (ARP_39/40 `arp_ignore`) on every topology
-/// (smoke-test.sh:966-974) — recording their restores in the guard, and SKIPS the
+/// (smoke-test.sh) — recording their restores in the guard, and SKIPS the
 /// DUT-side steps (logged via `log_dut_skips`). The applied tester-side steps are
 /// rendered to host commands by the topology's `exec_cond_step`
 /// (`host_exec_cond_step`), so the guard reverts them through the same path on Drop.
@@ -860,11 +860,11 @@ impl Topology for External<'_> {
 
     fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path) -> Result<Option<Child>> {
         // Persistent DUT — nothing to spawn. Record the provenance in the dut log
-        // (bash run_case, smoke-test.sh:1478) so a postmortem shows which DUT a case
+        // (bash run_case, smoke-test.sh) so a postmortem shows which DUT a case
         // ran against. `None` tells the dispatcher there is no Child to reap.
         //
         // `_cfg_path` is ignored because S5a always passes the default vsomeip cfg.
-        // When per-case vsomeip FLAVORS land, bash (smoke-test.sh:1475-1477) emits an
+        // When per-case vsomeip FLAVORS land, bash (smoke-test.sh) emits an
         // INFO when a case requests a non-default flavor against a non-spawning
         // topology ("the external DUT must provide the equivalent service"); that
         // warning must be ported here then — a prerequisite for the flavor stage.
@@ -907,7 +907,7 @@ impl<'a> SshRemote<'a> {
     /// `connect_timeout` bounds only the TCP/auth handshake: the short-lived
     /// probe/reap commands set it (fail fast on an unreachable host), but the
     /// long-lived per-case DUT spawn does NOT — bash makes the same split
-    /// (ssh-remote.conf:47 `_ssh_dut` vs :182 `topology_start_dut`), because the
+    /// (ssh-remote.conf `_ssh_dut` vs :182 `topology_start_dut`), because the
     /// spawn ssh stays connected for the whole case and a slow handshake under load
     /// must not abort it. Word-split opts mirror bash's intentional SC2086.
     fn ssh_command(&self, connect_timeout: bool) -> Command {

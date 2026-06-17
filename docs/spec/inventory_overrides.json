@@ -10,11 +10,23 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
     },
+    "DHCPV4_CLIENT_ALLOCATING_08": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+    },
     "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_12": {
       "timing_serial": true,
       "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
     },
     "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_13": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+    },
+    "DHCPV4_CLIENT_REACQUISITION_03": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+    },
+    "DHCPV4_CLIENT_REACQUISITION_04": {
       "timing_serial": true,
       "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
     },

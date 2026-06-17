@@ -27,13 +27,13 @@ use crate::wire;
 /// this block (setup-netns.sh MCAST_ROUTE default, line 39).
 pub(crate) const MCAST_ROUTE: &str = "224.0.0.0/4";
 /// DUT NUD delay-first-probe window, widened past the ARP_03/05 5 s listen window
-/// (setup-netns.sh:151) so a STALE→DELAY→PROBE re-verification does not fire a
+/// (setup-netns.sh) so a STALE→DELAY→PROBE re-verification does not fire a
 /// unicast Request inside the absence-check window. `pub(crate)` so the per-case
 /// conditioning (ARP_48/49) restores `delay_first_probe_time` to THIS value, not
 /// the kernel default — the two must agree, so they share one home.
 pub(crate) const DELAY_FIRST_PROBE_SECS: &str = "30";
 
-/// Optional second veth pair — USAGE_01 Topology 2 (setup-netns.sh:184-197).
+/// Optional second veth pair — USAGE_01 Topology 2 (setup-netns.sh).
 /// A distinct broadcast domain (separate veth, not a macvlan) per RFC 2131 §3.6.
 pub struct SecondVeth {
     pub veth_t2: String,
@@ -44,7 +44,7 @@ pub struct SecondVeth {
     pub dut_ip2: String,
 }
 
-/// Optional IEEE 802.1Q VLAN profile — D2 OEM tagged traffic (setup-netns.sh:81-88).
+/// Optional IEEE 802.1Q VLAN profile — D2 OEM tagged traffic (setup-netns.sh).
 /// When set, all L3 config (addresses/routes/sysctls) homes on the subinterface
 /// so every tester<->DUT L3 frame is 802.1Q-tagged.
 pub struct Vlan {
@@ -71,7 +71,7 @@ pub struct NetnsParams {
 /// Build the tester/DUT netns fixture. Idempotent: tears down any prior state
 /// first. Mirrors `setup-netns.sh` top to bottom.
 pub fn setup(p: &NetnsParams) -> Result<()> {
-    // Single source of truth for "which interface carries L3" (setup-netns.sh:49-54):
+    // Single source of truth for "which interface carries L3" (setup-netns.sh):
     // the bare veth, or the VLAN subinterface when 802.1Q is enabled. Every
     // addr/route/sysctl/neigh op below references these, so toggling the VLAN
     // leaves the no-VLAN path byte-identical.
@@ -80,7 +80,7 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
         None => (p.veth_t.as_str(), p.veth_d.as_str()),
     };
 
-    // --- Tear down previous state (setup-netns.sh:60-64). netns delete cascades
+    // --- Tear down previous state (setup-netns.sh). netns delete cascades
     //     to its veth peer; the bare `ip link del` catches a veth left orphaned in
     //     the root ns by a crashed prior setup. All best-effort. ---
     del_netns(&p.dut_ns);
@@ -90,7 +90,7 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
         del_link(&s.veth_t2);
     }
 
-    // --- netns + primary veth pair (setup-netns.sh:66-76) ---
+    // --- netns + primary veth pair (setup-netns.sh) ---
     ip(&["netns", "add", &p.tester_ns])?;
     ip(&["netns", "add", &p.dut_ns])?;
     ip(&["link", "add", &p.veth_t, "type", "veth", "peer", "name", &p.veth_d])?;
@@ -102,7 +102,7 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
     ip(&["-n", &p.dut_ns, "link", "set", &p.veth_d, "up"])?;
 
     // --- Opt-in 802.1Q: stack a VLAN subif on each veth, repoint L3 onto it
-    //     (setup-netns.sh:81-88). netns teardown cascades to subifs, no extra
+    //     (setup-netns.sh). netns teardown cascades to subifs, no extra
     //     cleanup needed. ---
     if let Some(v) = &p.vlan {
         let id = v.id.to_string();
@@ -114,7 +114,7 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
         ip(&["-n", &p.dut_ns, "link", "set", &v.dut_vlan_if, "up"])?;
     }
 
-    // --- Addresses: primary + the two UI_07/_08 aliases (setup-netns.sh:90-112).
+    // --- Addresses: primary + the two UI_07/_08 aliases (setup-netns.sh).
     //     The alias bare IPs are the harness's SSOT (wire); netns derives the /24
     //     it configures, the same way the primary CIDRs are built from cfg. ---
     let dut_alias = format!("{}/24", wire::DUT_ALIAS_IP);
@@ -124,33 +124,33 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
     ip(&["-n", &p.dut_ns, "addr", "add", &dut_alias, "dev", dut_l3if])?;
     ip(&["-n", &p.tester_ns, "addr", "add", &tester_alias, "dev", tester_l3if])?;
 
-    // --- Disable veth TX checksum offload (setup-netns.sh:114-127) — best-effort
+    // --- Disable veth TX checksum offload (setup-netns.sh) — best-effort
     //     (bash `|| true`). veth reports CHECKSUM_PARTIAL on TX, so without this
     //     the captured L4 checksum carries only the pseudo-header sum and
     //     TCP_CHECKSUM_03's `tcp_checksum_valid()` would see a bad value. ---
     ethtool_tx_off(&p.tester_ns, &p.veth_t);
     ethtool_tx_off(&p.dut_ns, &p.veth_d);
 
-    // --- DUT gratuitous-ARP learning for ARP_05/06 (setup-netns.sh:136-137) ---
+    // --- DUT gratuitous-ARP learning for ARP_05/06 (setup-netns.sh) ---
     sysctl(&p.dut_ns, &format!("net.ipv4.conf.{dut_l3if}.arp_accept=1"))?;
     sysctl(&p.dut_ns, "net.ipv4.conf.all.arp_accept=1")?;
 
-    // --- Widen the DUT NUD delay-first-probe window (setup-netns.sh:151).
+    // --- Widen the DUT NUD delay-first-probe window (setup-netns.sh).
     //     `default.*` does not exist in a fresh netns, so only the per-iface key
     //     matters. ---
     sysctl(&p.dut_ns,
         &format!("net.ipv4.neigh.{dut_l3if}.delay_first_probe_time={DELAY_FIRST_PROBE_SECS}"))?;
 
     // --- Suppress tester-side unicast NUD_PROBE so a STALE re-validation does not
-    //     fire an outbound ARP during an absence-check window (setup-netns.sh:171). ---
+    //     fire an outbound ARP during an absence-check window (setup-netns.sh). ---
     sysctl(&p.tester_ns, &format!("net.ipv4.neigh.{tester_l3if}.ucast_solicit=0"))?;
 
-    // --- SOME/IP-SD multicast route (setup-netns.sh:174-175) ---
+    // --- SOME/IP-SD multicast route (setup-netns.sh) ---
     ip(&["-n", &p.tester_ns, "route", "add", MCAST_ROUTE, "dev", tester_l3if])?;
     ip(&["-n", &p.dut_ns, "route", "add", MCAST_ROUTE, "dev", dut_l3if])?;
 
     // --- USAGE_01 second veth pair, structurally identical to the first
-    //     (setup-netns.sh:184-197) ---
+    //     (setup-netns.sh) ---
     if let Some(s) = &p.second_veth {
         ip(&["link", "add", &s.veth_t2, "type", "veth", "peer", "name", &s.veth_d2])?;
         ip(&["link", "set", &s.veth_t2, "netns", &p.tester_ns])?;
@@ -167,7 +167,7 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
         sysctl(&p.tester_ns, &format!("net.ipv4.neigh.{}.ucast_solicit=0", s.veth_t2))?;
     }
 
-    // --- Reachability sanity check (setup-netns.sh:199-205) ---
+    // --- Reachability sanity check (setup-netns.sh) ---
     ping(&p.tester_ns, &p.dut_ip)?;
     if let Some(s) = &p.second_veth {
         ping(&p.tester_ns, &s.dut_ip2)?;
@@ -175,7 +175,7 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
 
     // --- The sanity ping populated the DUT neigh table via RFC 826 §2.3; flush it
     //     once here so ARP_07..15 (DUT emits a Request on cache miss) see a cold
-    //     cache. The tester cache is intentionally left populated (setup-netns.sh:217). ---
+    //     cache. The tester cache is intentionally left populated (setup-netns.sh). ---
     ip(&["-n", &p.dut_ns, "neigh", "flush", "dev", dut_l3if])?;
 
     Ok(())

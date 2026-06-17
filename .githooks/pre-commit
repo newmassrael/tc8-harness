@@ -18,12 +18,22 @@ if ! python3 "$HERE/../tools/gen_verdict_taxonomy.py" --check >/dev/null; then
 fi
 
 # Wire-constant manifest generated mirrors (wire.gen.{rs,sh}) must match the
-# single source src/sce_integration/wire.def, and the C++ stimulus headers must
-# still agree with it (--check cross-verifies both freshness and C++ drift).
+# single source tools/wire.def, and the C++ stimulus headers must still agree
+# with it (--check cross-verifies both freshness and C++ drift).
 if ! python3 "$HERE/../tools/gen_wire_manifest.py" --check >/dev/null; then
     echo "pre-commit: wire manifest STALE or C++ drift — run:" >&2
     echo "    python3 tools/gen_wire_manifest.py" >&2
     python3 "$HERE/../tools/gen_wire_manifest.py" --check >&2 || true
+    exit 1
+fi
+
+# timing_serial drift guard: every sub-second cadence case (*_within_us) must be
+# classified for the smoke serial lane (timing_serial:true, or EXEMPT with a
+# window-margin reason). Stops a new cadence case silently joining the contended
+# --workers 4 lane where its window flakes.
+if ! python3 "$HERE/../tools/timing_serial_audit.py" >/dev/null; then
+    echo "pre-commit: timing_serial drift — details:" >&2
+    python3 "$HERE/../tools/timing_serial_audit.py" >&2
     exit 1
 fi
 

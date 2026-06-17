@@ -51,7 +51,7 @@ pub struct LwipSpec {
 /// Declarative site config for the external / ssh-remote topologies. Every field
 /// is optional at the TOML layer; [`SiteConf::validate`] enforces the per-topology
 /// required set, enumerating every gap at once (bash contract-validation parity,
-/// smoke-test.sh:379-400 + the per-profile preflight checks).
+/// smoke-test.sh + the per-profile preflight checks).
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SiteConf {

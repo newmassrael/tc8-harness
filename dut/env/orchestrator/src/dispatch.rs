@@ -142,7 +142,7 @@ pub fn run_case(
 
     // TC8 Topology 2 (DHCPv4_CLIENT_USAGE_01) needs a second tester interface. A
     // topology that provides none cannot execute the case — explicit SKIP, never a
-    // misleading timeout FAIL (bash run_case, smoke-test.sh:1436-1446). Decided
+    // misleading timeout FAIL (bash run_case, smoke-test.sh). Decided
     // before conditioning: a skipped case applies none, and the next case's flush
     // covers the DUT-cache reset regardless.
     let mut extra_args: Vec<String> = Vec::new();
@@ -179,11 +179,11 @@ pub fn run_case(
     ];
     args.extend(expect_args(cfg, &ctx.dut_mac));
     args.extend(extra_args);
-    // Topology-level UT ARP-cache conditioning (lwIP DUT — bash smoke-test.sh:202-205):
+    // Topology-level UT ARP-cache conditioning (lwIP DUT — bash smoke-test.sh):
     // a global expect so the harness UT-ages the DUT's ARP table for ARP_48/49 (the
     // stack has no host sysctls to compress). Inert for cases that do not read it.
     // NOTE for the S6 negative stage: bash also splices this expect into the negative
-    // baseline (smoke-test.sh:1770) — the negative dispatch path must replicate this.
+    // baseline (smoke-test.sh) — the negative dispatch path must replicate this.
     if let Some(t) = topo.ut_arp_cache_timeout() {
         args.push("--expect".to_string());
         args.push(format!("arp_stimulus.ut_cache_conditioning_s={t}"));
@@ -203,7 +203,7 @@ pub fn run_case(
         procs.dut = topo.start_dut(w, &dlog, &cfg.vsomeip_cfg)?;
     }
 
-    // Poll ceiling in ticks — ports bash's wait_budget (smoke-test.sh:1497):
+    // Poll ceiling in ticks — ports bash's wait_budget (smoke-test.sh):
     // (backstop+3)*5, capped at 1100 ticks (220s @ 200ms/tick). The cap is bash's
     // and sits just below the harness -t backstop (240s) BY BASH'S DESIGN: real
     // cases conclude on their SCXML final state well under 215s, so neither bound
@@ -228,7 +228,7 @@ pub fn run_case(
     // and its log flushed); Drop then no-ops via the `reaped` flag.
     procs.reap();
     // Restore conditioning after the procs are down — mirrors bash run_case
-    // (kill_worker_procs → restore toggles → classify, smoke-test.sh:1505-1575).
+    // (kill_worker_procs → restore toggles → classify, smoke-test.sh).
     // Drop is the backstop for the error/panic paths.
     cond.restore();
     Ok(classify(&hlog))
@@ -245,7 +245,7 @@ fn classify(hlog: &Path) -> Verdict {
     };
     // The harness emits EXACTLY ONE `verdict  :` line per run — it prints the
     // donedata verdict when the SCXML reaches its single final state — so taking
-    // the first occurrence equals taking the only one. bash (smoke-test.sh:1594-
+    // the first occurrence equals taking the only one. bash (smoke-test.sh-
     // 1611) instead greps for a skip/inconclusive/error class anywhere, then for
     // pass; with one verdict line per run the two are equivalent. If the harness
     // ever emitted multiple verdict lines, this first-line policy would diverge
@@ -257,7 +257,7 @@ fn classify(hlog: &Path) -> Verdict {
     }
     // Readable log, no verdict line = the harness ran but never concluded (killed
     // at the poll ceiling, or crashed mid-run). bash scores this FAIL ("did not
-    // return pass verdict", smoke-test.sh:1612) — match it for parity.
+    // return pass verdict", smoke-test.sh) — match it for parity.
     Verdict::Fail("did not return pass verdict".to_string())
 }
 
@@ -288,7 +288,7 @@ fn ex(e: &mut Vec<String>, key: &str, value: &str) {
     e.push(format!("{key}={value}"));
 }
 
-/// The base `--expect` set bash passes for EVERY case (smoke-test.sh:1218-1226):
+/// The base `--expect` set bash passes for EVERY case (smoke-test.sh):
 /// `TC8_DUT_EXPECT` (SOME/IP identity, derived from vsomeip.json via
 /// `config::DutIdentity`) + the per-worker DUT-MAC block + ALL category static
 /// groups (ARP / ICMPv4 / IPv4), unconditionally.
@@ -325,7 +325,7 @@ fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
     ex(&mut e, "arp.tester_mac2", wire::ARP_TESTER_MAC2);
     ex(&mut e, "arp.tester_mac3", wire::ARP_TESTER_MAC3);
 
-    // DUT-MAC block — base, every case (smoke-test.sh:1221-1223)
+    // DUT-MAC block — base, every case (smoke-test.sh)
     ex(&mut e, "arp.dut_iface_mac", dut_mac);
     ex(&mut e, "dut.mac", dut_mac);
     ex(&mut e, "dhcpv4.dut_iface_mac", dut_mac);
@@ -431,7 +431,7 @@ mod tests {
     fn expect_args_emits_dut_mac_block_for_every_case() {
         // Regression guard for the prefix-gating false-pass: bash emits
         // arp.dut_iface_mac + dut.mac + dhcpv4.dut_iface_mac for EVERY case
-        // (smoke-test.sh:1221-1223). All three must always be present.
+        // (smoke-test.sh). All three must always be present.
         let args = expect_args(&fake_cfg(), "02:00:00:00:00:DD");
         for key in [
             "arp.dut_iface_mac=02:00:00:00:00:DD",

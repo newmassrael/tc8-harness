@@ -35,6 +35,12 @@ mod worker;
 /// orchestrator shares one source with the C++ stimulus builders and the bash
 /// smoke-test profiles, cross-checked against the C++ headers by the generator.
 /// Regenerate: python3 tools/gen_wire_manifest.py
+///
+/// `allow(dead_code)`: this is a generated cross-LANGUAGE constants SSOT — the
+/// Rust side consumes a subset; values that are bash-only today (the Topology-2
+/// secondary IPs, used by setup-netns.sh/smoke-test.sh until USAGE_01 is ported
+/// to the orchestrator) are still emitted here so the one source stays whole.
+#[allow(dead_code)]
 mod wire {
     include!("wire.gen.rs");
 }
@@ -173,7 +179,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Contract gates (smoke-test.sh:412-422) — BEFORE provisioning a fixture, so a
+    // Contract gates (smoke-test.sh) — BEFORE provisioning a fixture, so a
     // rejected invocation never executes side-effectful host setup.
     if cli.negative {
         if !topo.supports_negative() {
@@ -344,7 +350,7 @@ fn summarize(topology: &str, total: usize, workers: u32, results: &[WorkerResult
 }
 
 /// An unset env var falls back to `default`; a SET-but-unparseable one is a hard
-/// error (matches bash smoke-test.sh:286-289, and the crate's fail-loud config
+/// error (matches bash smoke-test.sh, and the crate's fail-loud config
 /// philosophy — a typo'd tuning knob must not silently take the default).
 fn env_usize(key: &str, default: usize) -> Result<usize> {
     match env::var(key) {

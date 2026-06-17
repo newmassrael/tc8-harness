@@ -58,6 +58,13 @@ def parse() -> list[Entry]:
                                  m.group(4), pending))
             pending = []
             continue
+        # A line that INTENDS to be an entry (TC8_WIRE_ prefix) but failed the
+        # full regex is a fat-fingered SSOT line — fail loud, never silently drop
+        # it (a dropped constant vanishes from both generated files AND the C++
+        # cross-check while the `if not entries` guard stays green).
+        if line.lstrip().startswith("TC8_WIRE_"):
+            sys.exit(f"gen_wire_manifest: malformed entry (TC8_WIRE_ prefix but "
+                     f"unparseable): {line!r}")
         # Any other line (blank, '#' comment, separator) breaks doc adjacency.
         pending = []
     if not entries:
@@ -113,22 +120,34 @@ def _strip_cpp_comments(text: str) -> str:
 
 
 def _decode_ipv4(rhs: str) -> str:
-    """Evaluate a C++ NBO uint32 initialiser to dotted-decimal. Supports the two
-    forms in tree: a hex literal (`0xAABBCCDDU`) and a static_cast shift-OR
-    (`(static_cast<std::uint32_t>(a) << 0) | ... | (d << 24)`). Both store the
-    on-wire byte sequence in little-endian memory order, so the dotted form is
-    the LE byte unpack of the evaluated value."""
-    shifts = re.findall(r"(\d+)\s*U?\s*\)?\s*<<\s*(\d+)", rhs)
-    if shifts:
+    """Evaluate a C++ NBO uint32 IPv4 initialiser to dotted-decimal, accepting
+    ONLY the two byte-explicit forms in tree and REJECTING anything else — a
+    future C++ style change MUST fail --check loudly, not silently mis-decode
+    (best-effort regex-scraping was the exact "silent false pass" the manifest
+    header warns against). Accepted:
+      (a) a lone hex literal `0xAABBCCDDU` (the `*Be` NBO convention), or
+      (b) exactly four `static_cast<...>(<decimal 0-255>) << {0,8,16,24}` terms.
+    Both store the on-wire byte sequence in little-endian memory order, so the
+    dotted form is the LE byte unpack of the evaluated uint32."""
+    s = rhs.strip()
+    # Form (a): a lone hex literal (optionally U-suffixed), nothing else.
+    m = re.fullmatch(r"0[xX]([0-9A-Fa-f]{1,8})[uU]?", s)
+    if m is not None:
+        value = int(m.group(1), 16)
+        return ".".join(str(b) for b in struct.pack("<I", value & 0xFFFFFFFF))
+    # Form (b): exactly four static_cast shift terms covering bytes 0/8/16/24.
+    terms = re.findall(r"static_cast<[^>]+>\(\s*(\d+)[uU]?\s*\)\s*<<\s*(\d+)", s)
+    if len(terms) == 4 and sorted(int(sh) for _, sh in terms) == [0, 8, 16, 24]:
         value = 0
-        for num, sh in shifts:
-            value |= int(num) << int(sh)
-    else:
-        m = re.search(r"0[xX][0-9A-Fa-f]+|\d+", rhs)
-        if m is None:
-            raise ValueError(f"no integer literal in IPv4 initialiser: {rhs!r}")
-        value = int(m.group(0), 0)
-    return ".".join(str(b) for b in struct.pack("<I", value & 0xFFFFFFFF))
+        for num, sh in terms:
+            b = int(num)
+            if b > 255:
+                raise ValueError(f"IPv4 shift operand {b} > 255: {rhs!r}")
+            value |= b << int(sh)
+        return ".".join(str(byte) for byte in struct.pack("<I", value & 0xFFFFFFFF))
+    raise ValueError(
+        "unrecognised C++ IPv4 initialiser — decoder accepts only a lone "
+        f"0x..U literal or four static_cast<..>(N)<<{{0,8,16,24}} terms: {rhs!r}")
 
 
 def _decode_mac(body: str) -> str:

@@ -1,5 +1,5 @@
 //! Crash/interrupt resilience — the bash `trap cleanup EXIT` + startup stale-GC
-//! (smoke-test.sh:698-781) ported to Rust.
+//! (smoke-test.sh) ported to Rust.
 //!
 //! Two parts:
 //!   * a SIGINT/SIGTERM handler that tears down every worker before exit, so an
@@ -108,7 +108,7 @@ fn reap_dead_scratch(prefix: &str, mine: &Path, kill_procs: bool) {
     }
 }
 
-/// A process can outlive its scratch dir (bash note, smoke-test.sh:745-764): reap
+/// A process can outlive its scratch dir (bash note, smoke-test.sh): reap
 /// anything executed from a dead run's `/tmp/tc8-orch-vsomeip.PID/` path.
 fn reap_orphan_processes() {
     let out = match Command::new("pgrep")
