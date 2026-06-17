@@ -9,11 +9,13 @@ Rules — distilled from COMMIT_FORMAT.md, in priority order:
   1. Subject line ``<type>(<scope>): <subject>`` — scope optional.
      - type ∈ {feat, refactor, fix, docs, test, chore, build, perf}
      - subject ≤ 72 chars, no trailing period
-  2. If a body is present:
+  2. If a body is present (pinion-style concise bullets):
      - exactly one blank line separating it from the subject
-     - top-level lines must start with ``- `` (bullets)
-     - non-bullet continuation lines must start with whitespace
-     - 1-3 top-level bullets recommended (warn at >3)
+     - every body line is a single ``- `` bullet — NO blank line
+       between bullets (contiguous), NO indented continuation / wrap
+       line, NO prose lead paragraph
+     - each bullet line ≤ 72 BYTES total (including the ``- `` prefix)
+     - 1-3 bullets (a 4th is rejected, not just warned)
   3. Forbidden anywhere:
      - ``Generated with Claude Code`` footer
      - ``Co-Authored-By:`` tag
@@ -83,22 +85,32 @@ def validate(raw: str) -> list[str]:
     if len(lines) >= 2:
         if lines[1].strip() != "":
             issues.append("subject와 body 사이에 빈 줄 1개 필요")
-        body = lines[2:]
+        body = lines[2:]  # trailing blank lines already stripped above
         bullet_count = 0
         for ln_no, ln in enumerate(body, start=3):
-            if not ln.strip():
-                continue
-            if ln.startswith((" ", "\t")):
-                continue
-            if not ln.lstrip().startswith("- "):
+            if ln.strip() == "":
                 issues.append(
-                    f"body line {ln_no}: 불릿(- prefix)만 허용\n  '{ln[:60]}'"
+                    f"body line {ln_no}: 불릿 사이 빈 줄 금지 (불릿은 연속)"
                 )
-            else:
-                bullet_count += 1
+                continue
+            if not ln.startswith("- "):
+                issues.append(
+                    f"body line {ln_no}: 불릿만 허용 — '- '로 시작하는 단일 줄 "
+                    f"(들여쓰기 연속/wrap 줄·산문 금지)\n  '{ln[:60]}'"
+                )
+                continue
+            bullet_count += 1
+            nbytes = len(ln.encode("utf-8"))
+            if nbytes > 72:
+                issues.append(
+                    f"body line {ln_no}: 불릿 1줄 ≤72 bytes 초과 ({nbytes} bytes) "
+                    f"— 더 짧게 쓰거나 별도 불릿으로 분리\n  '{ln[:60]}'"
+                )
+        if bullet_count == 0:
+            issues.append("body가 있으면 불릿(- ) 1개 이상 필요")
         if bullet_count > 3:
             issues.append(
-                f"body 불릿 {bullet_count}개 — 1-3개 권장 (핵심 변경에 응축)"
+                f"body 불릿 {bullet_count}개 — 최대 3개 (핵심 변경에 응축)"
             )
 
     text = "\n".join(lines)
