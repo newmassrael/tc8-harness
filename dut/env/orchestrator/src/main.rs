@@ -17,6 +17,9 @@
 //! Stage 5a: external / ssh-remote topologies — TOML site config (`site`), the
 //! two new `Topology` impls, the contract gates, and the netns/ssh verification
 //! fixtures (`fixtures`) that stand up a DUT for self-hosted parity.
+//! Stage 5b: the first-class `lwip-tap` topology (`fixtures::lwip_tap`) — a host
+//! tap + a per-case-respawning lwIP embedded-stack DUT, mirroring the bash
+//! `topology.d/lwip-tap.conf` profile so both drivers share one dispatch axis.
 
 mod cleanup;
 mod conditioning;
@@ -99,8 +102,8 @@ fn main() -> Result<()> {
     };
 
     let topology = cli.topology.as_str();
-    if !matches!(topology, "single-pc" | "external" | "ssh-remote") {
-        bail!("--topology '{topology}' is not recognised (single-pc | external | ssh-remote)");
+    if !matches!(topology, "single-pc" | "external" | "ssh-remote" | "lwip-tap") {
+        bail!("--topology '{topology}' is not recognised (single-pc | external | ssh-remote | lwip-tap)");
     }
     // Flags parsed for CLI parity with smoke-test.sh but not yet ported — fail
     // loudly, never silently ignore. (Stage-agnostic wording: a stage number in a
@@ -113,11 +116,13 @@ fn main() -> Result<()> {
 
     // Site config (TOML --topology-conf). external/ssh-remote REQUIRE it — their
     // iface / wire IPs / remote paths live there, and sudo strips the environment.
-    // single-pc derives its IPs from defaults/env and may omit the conf entirely.
+    // single-pc and lwip-tap derive their wire identity from fixed defaults and may
+    // omit the conf entirely (lwip-tap's optional [lwip] section only overrides the
+    // standalone-UTM binary / probe / kill-name).
     let site = match &cli.topology_conf {
         Some(path) => SiteConf::load(Path::new(path), topology, &cfg.root)?,
         None => {
-            if topology != "single-pc" {
+            if !matches!(topology, "single-pc" | "lwip-tap") {
                 bail!("--topology {topology} requires --topology-conf (iface/dut_ip/tester_ip live there; sudo strips the environment)");
             }
             SiteConf::default()
@@ -133,13 +138,13 @@ fn main() -> Result<()> {
     }
 
     // Build the topology as a trait object so one worker fan-out drives them all.
-    // `external` + a lwip-tap fixture is its own topology (LwipTap) — the lwIP DUT
-    // needs a fixture-owned per-case respawn that a persistent External does not do.
+    // lwip-tap is its own first-class topology (LwipTap): the lwIP embedded-stack DUT
+    // needs a fixture-owned per-case respawn (drain → SIGTERM-slot-abort → respawn)
+    // a persistent External does not do; it self-provisions the tap + DUT in
+    // bring_up_worker and reaps them in tear_down_worker.
     let topo: Box<dyn Topology + Sync> = match topology {
         "single-pc" => Box::new(SinglePc::new(&cfg)),
-        "external" if site.fixture.as_ref().map(|f| f.kind.as_str()) == Some("lwip-tap") => {
-            Box::new(fixtures::LwipTap::new(&cfg, &site))
-        }
+        "lwip-tap" => Box::new(fixtures::LwipTap::new(&cfg, &site)),
         "external" => Box::new(External::new(&cfg, &site)),
         "ssh-remote" => Box::new(SshRemote::new(&cfg, &site)),
         _ => unreachable!("topology validated above"),
@@ -198,9 +203,13 @@ fn main() -> Result<()> {
         None
     };
     let fixture_kind: Option<String> = site.fixture.as_ref().map(|f| f.kind.clone());
+    let teardown_lwip = topology == "lwip-tap";
     cleanup::install_signal_handler(&cfg, workers, move || {
         if let Some((target, opts)) = &ssh_reap {
             topology::ssh_reap_remote_dut(target, opts.as_deref());
+        }
+        if teardown_lwip {
+            fixtures::lwip_signal_teardown();
         }
         if let Some(kind) = &fixture_kind {
             fixtures::teardown_by_kind(kind);
@@ -210,12 +219,12 @@ fn main() -> Result<()> {
     // Provision the verification fixture (if any) BEFORE preflight — preflight
     // probes the DUT the fixture stands up. The guard tears it down on Drop
     // (normal/panic); the handler installed above covers SIGINT/SIGTERM. The
-    // lwip-tap fixture is NOT provisioned here: the LwipTap topology built above
-    // self-provisions in bring_up_worker (tap + DUT) and tears down in
-    // tear_down_worker, so it needs no separate guard.
+    // lwip-tap topology needs no fixture: LwipTap self-provisions the tap + DUT in
+    // bring_up_worker and reaps them in tear_down_worker (a `[fixture]` block is
+    // only ever netns-dut/ssh-netns-dut, enforced by SiteConf::validate).
     let _fixture = match &site.fixture {
-        Some(spec) if spec.kind != "lwip-tap" => Some(fixtures::provision(spec, &cfg)?),
-        _ => None,
+        Some(spec) => Some(fixtures::provision(spec, &cfg)?),
+        None => None,
     };
 
     topo.preflight()?;

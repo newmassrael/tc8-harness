@@ -208,10 +208,10 @@ sudo ./dut/env/smoke-test.sh --topology external \
 배포 형태를 재현하며(`ssh-remote` 픽스처는 전용 `sshd` 포함) 어떤 단일
 머신에서도 실행 가능합니다.
 
-`lwip-tap-fixture.conf` 예제는 한발 더 나아가 실제 임베디드 TCP/IP
-스택(lwIP, `dut/lwip_dut/`)을 외부 DUT로 구동합니다 — lwIP 소켓 API
-위의 Upper Tester와 플랫폼별 known-fail 레저 포함. 검증된 편차 목록과
-스윕 레시피는 `dut/lwip_dut/README.md`를 참고하세요.
+`lwip-tap` 프로필(`--topology lwip-tap`)은 한발 더 나아가 실제 임베디드
+TCP/IP 스택(lwIP, `dut/lwip_dut/`)을 호스트 tap 위에서 구동합니다 — lwIP
+소켓 API 위의 Upper Tester와 플랫폼별 known-fail 레저 포함. 검증된 편차
+목록과 스윕 레시피는 `dut/lwip_dut/README.md`를 참고하세요.
 
 ### 임베디드 테스터용 크로스빌드 (target↔target)
 

@@ -20,13 +20,13 @@
 # NOT run while a CI netns sweep is in flight (shared netns names) — the
 # self-hosted runner is this host.
 #
-# Topology modes (external / ssh-remote) drive a verification fixture both halves
-# provision under the SAME fixed netns names (tc8-extfix-* / tc8-sshfix-*), so the
-# two drivers MUST run sequentially — each invocation stands its fixture up and
-# tears it down, and provision teardown-firsts to reclaim any leftover. Unlike
-# single-pc (one fresh netns per case), the fixture is persistent within an
-# invocation, so a topology run drives all cases through ONE invocation per driver
-# (matching the bash example-conf usage) rather than the per-case loop.
+# Topology modes (external / ssh-remote / lwip-tap) drive a persistent DUT both
+# halves stand up under the SAME fixed host names (tc8-extfix-* / tc8-sshfix-* /
+# the tc8lwip0 tap), so the two drivers MUST run sequentially — each invocation
+# stands its DUT up and tears it down, and provision teardown-firsts to reclaim any
+# leftover. Unlike single-pc (one fresh netns per case), the DUT is persistent
+# within an invocation, so a topology run drives all cases through ONE invocation
+# per driver rather than the per-case loop.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,11 +66,10 @@ done
 # category branch → TCP_RETRANSMISSION_TO_*; per-case eventgroup overrides →
 # SOMEIPSRV/ETS) — that is the override stage, NOT a conditioning gap. Grow this
 # set as those land.
-# Per-topology defaults: the case set, and (external/ssh-remote/lwip-tap) the bash +
-# orchestrator fixture confs. Defaults match the verified bash example-conf headers.
-# DRIVER_TOPO is what each driver gets for --topology; for lwip-tap it is `external`
-# (lwip-tap is a fixture ON external, selected by the conf), the mode name only
-# steers conf/case selection here.
+# Per-topology defaults: the case set, and (external/ssh-remote) the bash +
+# orchestrator verification-fixture confs. Defaults match the verified bash
+# example-conf headers. lwip-tap is first-class on BOTH drivers (--topology
+# lwip-tap, zero-conf), so DRIVER_TOPO is just $TOPOLOGY and no conf is required.
 DRIVER_TOPO=$TOPOLOGY
 case "$TOPOLOGY" in
     single-pc)
@@ -87,9 +86,8 @@ case "$TOPOLOGY" in
         [[ ${#CASES[@]} -eq 0 ]] && CASES=(SOMEIPSRV_FORMAT_01 ICMPv4_TYPE_08)
         ;;
     lwip-tap)
-        DRIVER_TOPO=external
-        [[ -z "$BASH_CONF" ]] && BASH_CONF="$ROOT/dut/env/topology.d/examples/lwip-tap-fixture.conf"
-        [[ -z "$ORCH_CONF" ]] && ORCH_CONF="$HERE/examples/lwip-tap-fixture.toml"
+        # First-class on both drivers; zero-conf, so no default BASH_CONF/ORCH_CONF
+        # (pass --bash-conf/--orch-conf to exercise the standalone-UTM override).
         [[ ${#CASES[@]} -eq 0 ]] && CASES=(ICMPv4_TYPE_08 UDP_INTRODUCTION_03 TCP_BASICS_01)
         ;;
     *)
@@ -99,10 +97,10 @@ esac
 
 [[ -x "$SMOKE" ]] || { echo "parity-check: smoke-test.sh not found at $SMOKE" >&2; exit 2; }
 [[ -x "$ORCH" ]]  || { echo "parity-check: orchestrator not built at $ORCH (cargo build)" >&2; exit 2; }
-if [[ "$TOPOLOGY" != single-pc ]]; then
-    [[ -f "$BASH_CONF" ]] || { echo "parity-check: bash conf not found: $BASH_CONF" >&2; exit 2; }
-    [[ -f "$ORCH_CONF" ]] || { echo "parity-check: orch conf not found: $ORCH_CONF" >&2; exit 2; }
-fi
+# A conf is checked only when set: single-pc and lwip-tap need none (zero-conf),
+# external/ssh-remote supply theirs (default or --bash-conf/--orch-conf).
+[[ -z "$BASH_CONF" || -f "$BASH_CONF" ]] || { echo "parity-check: bash conf not found: $BASH_CONF" >&2; exit 2; }
+[[ -z "$ORCH_CONF" || -f "$ORCH_CONF" ]] || { echo "parity-check: orch conf not found: $ORCH_CONF" >&2; exit 2; }
 
 # Normalize a driver's per-case stdout line to a canonical disposition token.
 # Both drivers print `[wN] <DISP> <CASE> ...`; bash uses one SKIP for both
@@ -151,11 +149,14 @@ if [[ "$TOPOLOGY" == single-pc ]]; then
         compare_case "$case" "$bash_out" "$orch_out"
     done
 else
-    # One invocation per driver: the verification fixture is persistent within a run
-    # (ssh-remote respawns its DUT per case inside it), so all cases share it. The
-    # two halves use the same fixture netns names, hence strictly sequential.
-    bash_all=$(sudo -n "$SMOKE" --topology "$DRIVER_TOPO" --topology-conf "$BASH_CONF" --workers 1 "${CASES[@]}" 2>&1)
-    orch_all=$(sudo -n "$ORCH" --topology "$DRIVER_TOPO" --topology-conf "$ORCH_CONF" --workers 1 "${CASES[@]}" 2>&1)
+    # One invocation per driver: the DUT is persistent within a run (ssh-remote and
+    # lwip-tap respawn it per case inside the invocation), so all cases share it. The
+    # two halves use the same fixed host names, hence strictly sequential.
+    # --topology-conf is passed only when set (lwip-tap is zero-conf).
+    bash_conf_args=(); [[ -n "$BASH_CONF" ]] && bash_conf_args=(--topology-conf "$BASH_CONF")
+    orch_conf_args=(); [[ -n "$ORCH_CONF" ]] && orch_conf_args=(--topology-conf "$ORCH_CONF")
+    bash_all=$(sudo -n "$SMOKE" --topology "$DRIVER_TOPO" "${bash_conf_args[@]}" --workers 1 "${CASES[@]}" 2>&1)
+    orch_all=$(sudo -n "$ORCH" --topology "$DRIVER_TOPO" "${orch_conf_args[@]}" --workers 1 "${CASES[@]}" 2>&1)
     for case in "${CASES[@]}"; do
         compare_case "$case" "$bash_all" "$orch_all"
     done

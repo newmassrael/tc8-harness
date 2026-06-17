@@ -21,21 +21,31 @@ use std::path::Path;
 
 /// A verification fixture to provision around the run — orchestrator-owned host
 /// scaffolding, the Rust equivalent of the bash example confs. Absent when the
-/// topology drives a real, already-running external/remote DUT.
+/// topology drives a real, already-running external/remote DUT. The lwIP DUT is NOT
+/// a fixture: it is the first-class `lwip-tap` topology (see [`LwipSpec`]).
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FixtureSpec {
-    /// `netns-dut` (external) | `ssh-netns-dut` (ssh-remote) | `lwip-tap` (external,
-    /// the lwIP embedded stack DUT on a host tap).
+    /// `netns-dut` (external) | `ssh-netns-dut` (ssh-remote).
     pub kind: String,
-    /// lwip-tap: the lwIP DUT binary (default `${ROOT}/build-lwip-dut/tc8-lwip-dut`).
-    pub lwip_app: Option<String>,
-    /// lwip-tap: readiness-probe backend — `opcode` (UT OpPing, default) or
-    /// `testability` (AUTOSAR GET_VERSION, for the standalone UTM which has no opcode UT).
-    pub lwip_ready_probe: Option<String>,
-    /// lwip-tap: DUT process name for the teardown pkill (default `tc8-lwip-dut`;
-    /// the UTM variant sets `tc8-lwip-utm`).
-    pub lwip_kill_name: Option<String>,
+}
+
+/// The `[lwip]` sub-table — config for the first-class `lwip-tap` topology (the lwIP
+/// embedded stack DUT on a host tap). Every field is optional: the topology runs
+/// zero-conf on the defaults (like single-pc), and an override conf supplies only
+/// the standalone-UTM variant's binary / probe / process name. Distinct from
+/// [`FixtureSpec`], which provisions a *verification* DUT for external/ssh-remote.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LwipSpec {
+    /// The lwIP DUT binary (default `${ROOT}/build-lwip-dut/tc8-lwip-dut`).
+    pub app: Option<String>,
+    /// Readiness-probe backend — `opcode` (UT OpPing, default) or `testability`
+    /// (AUTOSAR GET_VERSION, for the standalone UTM which has no opcode UT).
+    pub ready_probe: Option<String>,
+    /// DUT process name for the teardown pkill (default `tc8-lwip-dut`; the UTM
+    /// variant sets `tc8-lwip-utm`).
+    pub kill_name: Option<String>,
 }
 
 /// Declarative site config for the external / ssh-remote topologies. Every field
@@ -88,8 +98,16 @@ pub struct SiteConf {
     pub remote_wrap: Option<String>,
 
     // --- verification fixture ---
-    /// Stand up + tear down an orchestrator-owned verification DUT around the run.
+    /// Stand up + tear down an orchestrator-owned verification DUT around the run
+    /// (external/ssh-remote only). The lwIP DUT is the `lwip-tap` topology, not a
+    /// fixture — its config lives in `[lwip]` below.
     pub fixture: Option<FixtureSpec>,
+
+    // --- lwip-tap topology ---
+    /// Optional overrides for the first-class `lwip-tap` topology (binary / readiness
+    /// probe / kill name). Absent = run on the defaults. Valid only under
+    /// `--topology lwip-tap`.
+    pub lwip: Option<LwipSpec>,
 }
 
 impl SiteConf {
@@ -129,12 +147,9 @@ impl SiteConf {
         for v in fields.into_iter().flatten() {
             *v = expand_env(v, root)?;
         }
-        // The fixture's own string fields (lwip_app carries `${ROOT}`).
-        if let Some(fx) = &mut self.fixture {
-            for v in [&mut fx.lwip_app, &mut fx.lwip_ready_probe, &mut fx.lwip_kill_name]
-                .into_iter()
-                .flatten()
-            {
+        // The lwip-tap topology's own string fields (`app` carries `${ROOT}`).
+        if let Some(lw) = &mut self.lwip {
+            for v in [&mut lw.app, &mut lw.ready_probe, &mut lw.kill_name].into_iter().flatten() {
                 *v = expand_env(v, root)?;
             }
         }
@@ -192,20 +207,26 @@ impl SiteConf {
         }
 
         // A fixture provisions topology-specific host state, so it must match the
-        // selected topology — sourcing the lwIP/netns fixture under the wrong
-        // topology built a "frankenstate" in bash (a documented 2026-06-11 leak);
-        // reject it here before any host state is touched.
+        // selected topology — sourcing the netns fixture under the wrong topology
+        // built a "frankenstate" in bash (a documented 2026-06-11 leak); reject it
+        // here before any host state is touched.
         if let Some(fx) = &self.fixture {
             let compatible = matches!(
                 (topology, fx.kind.as_str()),
-                ("external", "netns-dut") | ("external", "lwip-tap") | ("ssh-remote", "ssh-netns-dut")
+                ("external", "netns-dut") | ("ssh-remote", "ssh-netns-dut")
             );
             if !compatible {
                 bail!(
-                    "fixture kind '{}' is not valid for topology '{topology}' (netns-dut/lwip-tap⇒external, ssh-netns-dut⇒ssh-remote)",
+                    "fixture kind '{}' is not valid for topology '{topology}' (netns-dut⇒external, ssh-netns-dut⇒ssh-remote)",
                     fx.kind
                 );
             }
+        }
+
+        // `[lwip]` configures the lwip-tap topology; under any other topology it is a
+        // misplaced section (the same frankenstate hazard, caught declaratively).
+        if self.lwip.is_some() && topology != "lwip-tap" {
+            bail!("[lwip] config is only valid for --topology lwip-tap (got '{topology}')");
         }
         Ok(())
     }
@@ -304,7 +325,7 @@ mod tests {
             iface: Some("eth0".into()),
             dut_ip: Some("172.16.0.2".into()),
             tester_ip: Some("172.16.0.1".into()),
-            fixture: Some(FixtureSpec { kind: "ssh-netns-dut".into(), ..FixtureSpec::default() }),
+            fixture: Some(FixtureSpec { kind: "ssh-netns-dut".into() }),
             ..SiteConf::default()
         };
         // ssh-netns-dut fixture under external → reject.
@@ -317,47 +338,42 @@ mod tests {
             iface: Some("eth0".into()),
             dut_ip: Some("172.16.0.2".into()),
             tester_ip: Some("172.16.0.1".into()),
-            fixture: Some(FixtureSpec { kind: "netns-dut".into(), ..FixtureSpec::default() }),
+            fixture: Some(FixtureSpec { kind: "netns-dut".into() }),
             ..SiteConf::default()
         };
         assert!(conf.validate("external").is_ok());
     }
 
     #[test]
-    fn lwip_tap_fixture_external_only() {
-        let lwip_conf = || SiteConf {
-            iface: Some("tc8lwip0".into()),
-            dut_ip: Some("172.16.0.2".into()),
-            tester_ip: Some("172.16.0.1".into()),
-            fixture: Some(FixtureSpec { kind: "lwip-tap".into(), ..FixtureSpec::default() }),
+    fn lwip_tap_topology_is_zero_conf_and_lwip_section_is_scoped() {
+        // The lwip-tap topology hardcodes its wire identity, so it needs no fields.
+        assert!(SiteConf::default().validate("lwip-tap").is_ok());
+        // A [lwip] override validates under lwip-tap...
+        let with_lwip = || SiteConf {
+            lwip: Some(LwipSpec { kill_name: Some("tc8-lwip-utm".into()), ..LwipSpec::default() }),
             ..SiteConf::default()
         };
-        assert!(lwip_conf().validate("external").is_ok());
-        // single-pc has no required fields, so the fixture-compatibility check is
-        // what rejects an lwip-tap fixture there.
-        assert!(lwip_conf().validate("single-pc").is_err());
+        assert!(with_lwip().validate("lwip-tap").is_ok());
+        // ...and is rejected under any other topology (misplaced-section guard).
+        assert!(with_lwip().validate("external").is_err());
+        assert!(with_lwip().validate("single-pc").is_err());
     }
 
     #[test]
     fn parses_lwip_tap_toml_with_fields() {
         let toml = r#"
-            iface = "tc8lwip0"
-            dut_ip = "172.16.0.2"
-            tester_ip = "172.16.0.1"
-
-            [fixture]
-            kind = "lwip-tap"
-            lwip_app = "${ROOT}/build-lwip-dut/tc8-lwip-utm"
-            lwip_ready_probe = "testability"
-            lwip_kill_name = "tc8-lwip-utm"
+            [lwip]
+            app = "${ROOT}/build-lwip-dut/tc8-lwip-utm"
+            ready_probe = "testability"
+            kill_name = "tc8-lwip-utm"
         "#;
         let mut conf: SiteConf = toml::from_str(toml).unwrap();
         conf.expand_all(Path::new("/repo")).unwrap();
-        conf.validate("external").unwrap();
-        let fx = conf.fixture.unwrap();
-        assert_eq!(fx.lwip_app.unwrap(), "/repo/build-lwip-dut/tc8-lwip-utm");
-        assert_eq!(fx.lwip_ready_probe.unwrap(), "testability");
-        assert_eq!(fx.lwip_kill_name.unwrap(), "tc8-lwip-utm");
+        conf.validate("lwip-tap").unwrap();
+        let lw = conf.lwip.unwrap();
+        assert_eq!(lw.app.unwrap(), "/repo/build-lwip-dut/tc8-lwip-utm");
+        assert_eq!(lw.ready_probe.unwrap(), "testability");
+        assert_eq!(lw.kill_name.unwrap(), "tc8-lwip-utm");
     }
 
     #[test]

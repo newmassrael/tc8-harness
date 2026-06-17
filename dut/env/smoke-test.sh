@@ -197,8 +197,8 @@ ARP_DUT_EXPECT_STATIC=(
 # the profile contract above); the knob rides into the trait stimulus,
 # which then ages the DUT's table through the UT channel instead of
 # relying on the Linux netns sysctl compression. Evaluated here —
-# init_expectation_defaults runs after the --topology-conf source, so
-# fixture confs (lwip-tap-fixture.conf) reach this branch.
+# init_expectation_defaults runs after the profile + any --topology-conf
+# override, so a topology that sets it (the lwip-tap profile) reaches this branch.
 if [[ -n "${TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S:-}" ]]; then
     ARP_DUT_EXPECT_STATIC+=(
         --expect "arp_stimulus.ut_cache_conditioning_s=$TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S"

@@ -214,8 +214,8 @@ in `dut/env/topology.d/examples/` — each emulates its deployment shape
 with an isolated netns (the `ssh-remote` fixture includes a dedicated
 `sshd`) and can be run on any single machine.
 
-The `lwip-tap-fixture.conf` example goes further: it drives a real
-embedded TCP/IP stack (lwIP, `dut/lwip_dut/`) as the external DUT,
+The `lwip-tap` profile (`--topology lwip-tap`) goes further: it drives a
+real embedded TCP/IP stack (lwIP, `dut/lwip_dut/`) on a host tap,
 including an Upper Tester on the lwIP socket API and a per-platform
 known-fail ledger — see `dut/lwip_dut/README.md` for the verified
 deviation list and the sweep recipe.

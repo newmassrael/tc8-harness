@@ -327,9 +327,9 @@ regression slice (no testability stimulus drives it there). Exercising
 its dispatch paths needs testability cases in the external-fixture
 sweep, which is future work.
 
-## Fixture topology notes (`lwip-tap-fixture.conf`)
+## Topology notes (`topology.d/lwip-tap.conf` profile)
 
-- **Per-case DUT respawn** (`topology_stop_dut` override): case stimuli
+- **Per-case DUT respawn** (`topology_stop_dut`): case stimuli
   hardcode the socket ids a freshly spawned DUT hands out, and passing
   cases legitimately leave auxiliary sockets open. Respawning restores
   the per-case fresh-DUT semantics the Linux fixture gets from
@@ -346,20 +346,20 @@ sweep, which is future work.
 - Stimulus-suppression iptables leaks from killed prior runs are
   handled by smoke-test.sh flushing the harness-owned `tc8-stimulus`
   chain at bring-up — no fixture-side rule knowledge.
-- **Preflights must not warm the DUT's primary-tester ARP entry**
-  (`ut-ping --source-ip` + `TC8_TOPOLOGY_PREFLIGHT_SRC_IP`): every
-  probe's reply path makes the DUT ARP-resolve the probe's source
-  address — and the host's own ARP request for the DUT IP teaches the
-  DUT `<sender_ip, host MAC>` per RFC 826 target-is-us learning — and
-  this fixture has no way to flush the lwIP ARP table afterwards
-  (per-case neigh conditioning is a Linux-netns affordance). Probing
-  from the primary tester IP broke the §4.2 cold-cache cases two ways:
-  the per-respawn readiness poll warmed every case until the poll was
-  alias-pinned, and the once-per-run external.conf preflight (ICMP
-  reachability + UT probe) kept warming the bring-up DUT that serves
-  position 1 until `TC8_TOPOLOGY_PREFLIGHT_SRC_IP` steered it to the
-  alias too. The warm entry now lands on an address no §4.2 assertion
-  references.
+- **Readiness probes must not warm the DUT's primary-tester ARP entry**
+  (`ut-ping --source-ip $LWIP_TESTER_ALIAS_IP`): every probe's reply
+  path makes the DUT ARP-resolve the probe's source address — and the
+  host's own ARP request for the DUT IP teaches the DUT
+  `<sender_ip, host MAC>` per RFC 826 target-is-us learning — and this
+  fixture has no way to flush the lwIP ARP table afterwards (per-case
+  neigh conditioning is a Linux-netns affordance). Probing from the
+  primary tester IP broke the §4.2 cold-cache cases two ways: the
+  bring-up probe in `topology_preflight` warms the position-1 DUT, and
+  the per-respawn poll in `topology_stop_dut` warms every later case —
+  so both source from the tester alias. The warm entry now lands on an
+  address (`<172.16.0.4>`) no §4.2 assertion references. (The
+  testability readiness probe has no source-IP; a UTM run drives no
+  §4.2 cold-cache case.)
 
 ## ARP egress provocation (SOME/IP-blocked bucket, RETIRED 2026-06-11)
 
@@ -382,8 +382,7 @@ landed (virtual-time table aging, above).
 
 ```sh
 sudo -n dut/env/smoke-test.sh \
-  --topology external \
-  --topology-conf dut/env/topology.d/examples/lwip-tap-fixture.conf \
+  --topology lwip-tap \
   $(dut/lwip_dut/sweep-cases.sh)
 ```
 

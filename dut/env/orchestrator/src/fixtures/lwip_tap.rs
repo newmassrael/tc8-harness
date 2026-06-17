@@ -1,4 +1,4 @@
-//! lwIP tap fixture — the Rust port of `topology.d/examples/lwip-tap-fixture.conf`.
+//! lwIP tap topology — the Rust peer of the `topology.d/lwip-tap.conf` profile.
 //!
 //! The lwIP DUT (dut/lwip_dut/, a real embedded TCP/IP stack) attaches to a host
 //! TAP via its unix-port tapif driver and answers ARP/ICMP/IP/UDP/TCP itself,
@@ -7,10 +7,10 @@
 //! the lwIP fixture also owns a per-case DUT LIFECYCLE: it respawns the DUT after
 //! every case (the stack hands out UT socket ids 1,2,… that a persistent DUT would
 //! drift, and tester-side connection halves must be drained before the kill to
-//! avoid FIN-WAIT-2 orphans). bash expressed this by overriding `topology_stop_dut`
-//! on `--topology external`; here it is a dedicated `Topology` (`LwipTap`) selected
-//! by `[fixture] kind = "lwip-tap"`, reusing External's tester-side seam
-//! (host-exec harness + host conditioning) via the `topology::host_*` helpers.
+//! avoid FIN-WAIT-2 orphans). Both drivers express this as a first-class topology:
+//! the bash `topology.d/lwip-tap.conf` profile, and here the `LwipTap` `Topology`
+//! selected by `--topology lwip-tap`, reusing External's tester-side seam (host-exec
+//! harness + host conditioning) via the `topology::host_*` helpers.
 //!
 //! Lock: bash held a flock on /var/lock and ran a fuser/leaked-holder SELF-HEAL,
 //! because it leaked the lock fd to backgrounded children that outlived the run. A
@@ -40,8 +40,8 @@ use crate::site::SiteConf;
 use crate::topology::{self, Conditioning, Topology, WorkerCtx};
 use crate::wire;
 
-// Fixed host names / addresses — mirror lwip-tap-fixture.conf. Not PID-scoped (the
-// fixture is host-global and runs sequentially with the bash original; provisioning
+// Fixed host names / addresses — mirror topology.d/lwip-tap.conf. Not PID-scoped (the
+// fixture is host-global and runs sequentially with the bash profile; provisioning
 // teardown-firsts to reclaim a leftover).
 const TAP: &str = "tc8lwip0";
 const FIX_DIR: &str = "/tmp/tc8-lwipfix";
@@ -59,7 +59,7 @@ const DEFAULT_KILL_NAME: &str = "tc8-lwip-dut";
 /// UT 0x17 ARP-cache conditioning window (virtual seconds). MUST track
 /// dut/lwip_dut/lwipopts.h ARP_MAXAGE (lwIP default 300): the ARP_48/49 trait
 /// stimulus ages the table by exactly this to cross the stack's `age >= ARP_MAXAGE`
-/// free condition (bash TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S, lwip-tap-fixture.conf:49).
+/// free condition (bash TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S in topology.d/lwip-tap.conf).
 const UT_ARP_CACHE_TIMEOUT_S: &str = "300";
 
 // Timings (mirror the bash seq/sleep budgets).
@@ -107,17 +107,17 @@ pub struct LwipTap<'a> {
 
 impl<'a> LwipTap<'a> {
     pub fn new(cfg: &'a Config, site: &'a SiteConf) -> Self {
-        let fx = site.fixture.as_ref();
-        let app = fx
-            .and_then(|f| f.lwip_app.clone())
+        let lw = site.lwip.as_ref();
+        let app = lw
+            .and_then(|l| l.app.clone())
             .map(PathBuf::from)
             .unwrap_or_else(|| cfg.root.join(DEFAULT_APP_REL));
-        let ready_probe = match fx.and_then(|f| f.lwip_ready_probe.as_deref()) {
+        let ready_probe = match lw.and_then(|l| l.ready_probe.as_deref()) {
             Some("testability") => ReadyProbe::Testability,
             _ => ReadyProbe::Opcode,
         };
-        let kill_name = fx
-            .and_then(|f| f.lwip_kill_name.clone())
+        let kill_name = lw
+            .and_then(|l| l.kill_name.clone())
             .unwrap_or_else(|| DEFAULT_KILL_NAME.to_string());
         LwipTap { cfg, site, app, ready_probe, kill_name, state: Mutex::new(None) }
     }

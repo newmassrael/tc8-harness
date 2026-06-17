@@ -142,10 +142,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
-          "kind": "references"
-        },
-        {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
         },
@@ -167,6 +163,10 @@
         },
         {
           "file": "src/upper_tester/ut_server.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/env/topology.d/lwip-tap.conf",
           "kind": "references"
         }
       ]
@@ -510,10 +510,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
@@ -540,6 +536,10 @@
         {
           "file": "dut/lwip_dut/tc8_lwip_dut.cpp",
           "kind": "references"
+        },
+        {
+          "file": "dut/env/topology.d/lwip-tap.conf",
+          "kind": "implements"
         }
       ]
     },
@@ -1946,10 +1946,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
-          "kind": "implements"
-        },
-        {
           "file": "src/upper_tester/ut_server.cpp",
           "kind": "implements"
         },
@@ -2044,12 +2040,12 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/topology.d/examples/lwip-tap-fixture.conf",
-          "kind": "implements"
-        },
-        {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "dut/env/topology.d/lwip-tap.conf",
+          "kind": "implements"
         }
       ]
     },
