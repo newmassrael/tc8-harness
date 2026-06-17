@@ -1,0 +1,25 @@
+# Verification fixture for the 'external' topology — the typed Rust successor to
+# dut/env/topology.d/examples/external-netns-fixture.conf.
+#
+# The orchestrator provisions a persistent "external DUT": the reference tc8-dut
+# inside an isolated netns, with the tester-side veth left in the root namespace —
+# exactly the surface a real target ECU presents to the tester host. The [fixture]
+# selector below is what tells the orchestrator to stand it up and tear it down
+# (the bash conf did this imperatively at source time; here it is declarative).
+#
+# Run (as root — sudo strips the environment, hence the file channel):
+#   sudo dut/env/orchestrator/target/debug/tc8-orchestrator \
+#        --topology external \
+#        --topology-conf dut/env/orchestrator/examples/external-netns-fixture.toml \
+#        ICMPv4_TYPE_08 UDP_INTRODUCTION_03
+# Expected: PASS + PASS (matches the bash external-netns-fixture.conf verdicts).
+# Adding DHCPv4_CLIENT_USAGE_01 lands as an explicit SKIP (no secondary interface).
+
+iface = "veth-extfix-t"
+dut_ip = "172.16.0.2"
+tester_ip = "172.16.0.1"
+
+# Stand up the reference DUT in a netns (tester veth in the root ns). The fixture
+# uses the iface / IPs above, so the three must agree.
+[fixture]
+kind = "netns-dut"

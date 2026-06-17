@@ -19,15 +19,38 @@ use crate::config::Config;
 use crate::topology;
 
 /// Install the termination handler. On the first SIGINT/SIGTERM it tears down all
-/// `workers` workers (idempotent), removes the scratch roots, and exits 130.
-pub fn install_signal_handler(cfg: &Config, workers: u32) -> anyhow::Result<()> {
+/// `workers` workers (idempotent), runs the caller's `extra` teardown, removes the
+/// scratch roots, and exits 130.
+///
+/// `extra` carries the topology/fixture teardown the per-worker reap below cannot:
+/// the ssh-remote remote DUT and the verification fixture (netns/sshd/veth). It is
+/// an owned closure (`'static`) because the signal handler outlives every borrow —
+/// `main` composes it from owned ssh params + the fixture kind.
+pub fn install_signal_handler<F>(cfg: &Config, workers: u32, extra: F) -> anyhow::Result<()>
+where
+    F: Fn() + Send + 'static,
+{
     let work_root = cfg.work_root.clone();
     let vsomeip_base = cfg.vsomeip_base.clone();
     ctrlc::set_handler(move || {
         eprintln!("orchestrator: signal received — tearing down {workers} worker(s)");
+        // This runs on the ctrlc thread, possibly concurrently with live worker
+        // threads (mid-spawn, mid-pcap, writing into these dirs) and their own RAII
+        // reaps. Every step below is idempotent + best-effort, so a racing double
+        // kill or a remove_dir_all over a file a worker is still creating yields at
+        // most a transient error, never corruption — the same best-effort signal
+        // race bash's `trap cleanup EXIT` accepts. process::exit(130) then ends all
+        // threads.
+        // Per-worker LOCAL reap first: kills the local harness/DUT under each worker
+        // symlink and removes the netns (single-pc). Idempotent and safe for every
+        // topology — external/ssh-remote have no netns, but the harness symlink reap
+        // still applies and `netns::teardown` no-ops on an absent netns.
         for w in 0..workers {
             topology::teardown_worker(&vsomeip_base, w);
         }
+        // Topology/fixture reap next, so the ssh-remote DUT dies before its sshd and
+        // netns are removed (the fixture teardown).
+        extra();
         let _ = fs::remove_dir_all(&work_root);
         let _ = fs::remove_dir_all(&vsomeip_base);
         // 128 + SIGINT(2): conventional shell exit status for an interrupt.

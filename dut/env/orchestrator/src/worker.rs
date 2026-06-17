@@ -51,15 +51,17 @@ pub fn distribute(cases: &[String], workers: u32) -> Vec<Vec<String>> {
 }
 
 /// Reaps a worker's netns/symlinks on scope exit — including a panic unwind or
-/// an early bring-up failure (`netns::teardown` is idempotent, so a half-built or
-/// never-built worker is safe to tear down). Mirrors bash's `trap cleanup EXIT`
-/// for the normal/panic paths; signal-time teardown is handled in `cleanup`.
-struct WorkerGuard<'a, T: Topology> {
-    topo: &'a T,
+/// an early bring-up failure (every topology's `tear_down_worker` is idempotent,
+/// so a half-built or never-built worker is safe to tear down). Mirrors bash's
+/// `trap cleanup EXIT` for the normal/panic paths; signal-time teardown is handled
+/// in `cleanup`. Holds the topology as a `dyn` trait object so one worker fan-out
+/// drives single-pc / external / ssh-remote without monomorphising per type.
+struct WorkerGuard<'a> {
+    topo: &'a (dyn Topology + Sync),
     w: u32,
 }
 
-impl<T: Topology> Drop for WorkerGuard<'_, T> {
+impl Drop for WorkerGuard<'_> {
     fn drop(&mut self) {
         // tear_down_worker emits its own warnings for surviving processes; the
         // netns delete is best-effort idempotent (mirrors cleanup.sh `|| true`).
@@ -69,9 +71,9 @@ impl<T: Topology> Drop for WorkerGuard<'_, T> {
 
 /// Bring up one worker, drain its bucket sequentially, tear down. The teardown
 /// guard is armed *before* bring-up so a partial `netns::setup` still gets reaped.
-fn run_worker<T: Topology + Sync>(
+fn run_worker(
     cfg: &Config,
-    topo: &T,
+    topo: &(dyn Topology + Sync),
     w: u32,
     bucket: Vec<String>,
     dut_first: bool,
@@ -119,9 +121,9 @@ fn run_worker<T: Topology + Sync>(
 /// Fan workers out across scoped threads and join each explicitly. A panicking
 /// worker yields a `worker_error` result (its processed count drops to zero, so
 /// the caller's ledger fails the run) rather than aborting the whole process.
-pub fn run_all<T: Topology + Sync>(
+pub fn run_all(
     cfg: &Config,
-    topo: &T,
+    topo: &(dyn Topology + Sync),
     buckets: Vec<Vec<String>>,
     dut_first: bool,
 ) -> Vec<WorkerResult> {

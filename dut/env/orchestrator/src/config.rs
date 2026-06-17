@@ -38,6 +38,11 @@ pub struct DutIdentity {
 
 /// Resolved paths and wire constants for one orchestrator run.
 pub struct Config {
+    /// Repo root (TC8_ROOT or the cwd). Sudo preserves the cwd but strips the
+    /// environment, so this is also how `${ROOT}` in a `--topology-conf` is
+    /// expanded — from a value the orchestrator resolves itself, not an env var
+    /// that would be empty under the NOPASSWD rules.
+    pub root: PathBuf,
     pub harness: PathBuf,
     pub dut_bin: PathBuf,
     pub vsomeip_cfg: PathBuf,
@@ -142,6 +147,7 @@ impl Config {
             dut_ip4: env::var("TC8_TOPOLOGY_DUT_IP").unwrap_or_else(|_| "172.16.0.2".into()),
             identity,
             backstop_sec: 240,
+            root,
         })
     }
 }

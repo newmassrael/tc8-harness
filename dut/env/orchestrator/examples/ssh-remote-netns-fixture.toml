@@ -1,0 +1,34 @@
+# Verification fixture for the 'ssh-remote' topology — the typed Rust successor to
+# dut/env/topology.d/examples/ssh-remote-netns-fixture.conf.
+#
+# The orchestrator emulates a second PC: an isolated netns holding the DUT-side
+# veth AND a dedicated sshd (port 2222, fixture-local keys under /tmp/tc8-sshfix —
+# the user's ~/.ssh is untouched). The ssh-remote topology then spawns a fresh
+# reference tc8-dut per case over SSH, exactly as it would against a real host.
+#
+# ${ROOT} expands to the orchestrator's resolved repo root (from the cwd, which
+# sudo preserves — a plain env var would be stripped), so the remote-path fields
+# stay portable. On this self-hosted fixture the "remote" host shares the
+# filesystem, so the remote paths are the repo's own build artifacts.
+#
+# Run (as root):
+#   sudo dut/env/orchestrator/target/debug/tc8-orchestrator \
+#        --topology ssh-remote \
+#        --topology-conf dut/env/orchestrator/examples/ssh-remote-netns-fixture.toml \
+#        SOMEIPSRV_FORMAT_01 ICMPv4_TYPE_08
+# Expected: PASS + PASS — FORMAT_01 proves per-case fresh DUT spawn + harness-first
+# start order over the SSH path.
+
+iface = "veth-sshfix-t"
+dut_ip = "172.16.0.2"
+tester_ip = "172.16.0.1"
+
+ssh_target = "root@172.16.0.2"
+ssh_opts = "-p 2222 -i /tmp/tc8-sshfix/client -o StrictHostKeyChecking=no -o UserKnownHostsFile=/tmp/tc8-sshfix/known_hosts"
+remote_dut_bin = "${ROOT}/build/dut/dut_service/tc8-dut"
+remote_vsomeip_cfg = "${ROOT}/dut/dut_service/vsomeip.json"
+remote_capi_cfg = "${ROOT}/dut/dut_service/commonapi.ini"
+
+# Stand up the netns + sshd the ssh_target/ssh_opts above point at.
+[fixture]
+kind = "ssh-netns-dut"

@@ -35,6 +35,28 @@ const DUT_FIRST_SETTLE_MS: u64 = 1500;
 /// harness-first: let the harness pcap open before the DUT's first OfferService
 /// (FORMAT_02 expects session_id==0x0001 captured).
 const HARNESS_FIRST_SETTLE_MS: u64 = 500;
+/// Bound on waiting for a case DUT's wrapper / ssh-client `Child` to exit after
+/// `stop_dut` (≈3 s at 200 ms/tick). On the happy path the wrapper exits in the
+/// first tick or two; the bound exists only so a MISSED remote kill (an ssh failure
+/// or comm mismatch on the ssh-remote path) cannot block the worker for the whole
+/// harness backstop. On timeout the local child is killed and the run proceeds.
+/// `pub(crate)` so the ssh-remote preflight transient-DUT reap reuses the same
+/// bound (the structurally identical hang site).
+pub(crate) const REAP_WAIT_TICKS: u32 = 15;
+
+/// Poll a child to exit within `ticks` × `POLL_INTERVAL_MS`, non-blocking between
+/// polls. Returns whether it exited in budget. A `try_wait` error (already reaped /
+/// unwaitable) counts as exited — there is nothing left to wait on.
+pub(crate) fn wait_bounded(child: &mut Child, ticks: u32) -> bool {
+    for _ in 0..ticks {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) => sleep(Duration::from_millis(POLL_INTERVAL_MS)),
+            Err(_) => return true,
+        }
+    }
+    matches!(child.try_wait(), Ok(Some(_)) | Err(_))
+}
 
 // --- Verdict line parsing ---------------------------------------------------
 /// Harness verdict line prefix — SSOT is the printf at src/cli/test_command.cpp
@@ -82,7 +104,20 @@ impl<'a> CaseProcs<'a> {
         let _ = self.topo.stop_harness(self.w); // pkill the reparented real harness
         let _ = self.topo.stop_dut(self.w);
         if let Some(mut d) = self.dut.take() {
-            let _ = d.wait(); // reap the DUT ip wrapper (Child::drop does not wait)
+            // stop_dut killed the DUT (by worker-symlink path for single-pc, by a
+            // separate ssh pkill for ssh-remote), after which this wrapper / ssh
+            // client exits. Bound the wait: a MISSED remote kill must not hang the
+            // worker for the whole backstop. On timeout, kill the local child
+            // (signals the wrapper / drops the ssh channel) and warn — the next
+            // bring-up's stale-reap is the backstop for a surviving remote DUT.
+            if !wait_bounded(&mut d, REAP_WAIT_TICKS) {
+                eprintln!(
+                    "orchestrator: warning: worker {} case DUT did not exit after stop_dut; the kill may have missed (a stale DUT could affect the next case)",
+                    self.w
+                );
+                let _ = d.kill();
+                let _ = d.wait();
+            }
         }
     }
 }
@@ -105,6 +140,27 @@ pub fn run_case(
     let dlog = cfg.work_root.join(format!("{w}/{case_id}.dut.log"));
     let iface = topo.tester_iface(w);
 
+    // TC8 Topology 2 (DHCPv4_CLIENT_USAGE_01) needs a second tester interface. A
+    // topology that provides none cannot execute the case — explicit SKIP, never a
+    // misleading timeout FAIL (bash run_case, smoke-test.sh:1436-1446). Decided
+    // before conditioning: a skipped case applies none, and the next case's flush
+    // covers the DUT-cache reset regardless.
+    let mut extra_args: Vec<String> = Vec::new();
+    if case_id.eq_ignore_ascii_case("DHCPv4_CLIENT_USAGE_01") {
+        match topo.tester_iface_secondary(w) {
+            None => {
+                return Ok(Verdict::Skip(
+                    "requires a secondary tester interface (TC8 Topology 2); topology provides none"
+                        .to_string(),
+                ))
+            }
+            Some(sec) => {
+                extra_args.push("--interface-secondary".to_string());
+                extra_args.push(sec);
+            }
+        }
+    }
+
     // Per-case DUT/tester kernel conditioning (smoke-test.sh run_case prefix neigh
     // flush + the case-keyed sysctl/neigh toggles). Declared BEFORE CaseProcs so on
     // any early-return `?` the procs guard drops first (reap), then this restores —
@@ -122,6 +178,7 @@ pub fn run_case(
         cfg.backstop_sec.to_string(),
     ];
     args.extend(expect_args(cfg, &ctx.dut_mac));
+    args.extend(extra_args);
 
     // Spawn order: harness first so its pcap is open before the DUT's first
     // OfferService (FORMAT_02 session_id==0x0001); --dut-first inverts it. On any
@@ -310,6 +367,7 @@ mod tests {
     fn fake_cfg() -> Config {
         use crate::config::DutIdentity;
         Config {
+            root: "/x".into(),
             harness: "/x".into(),
             dut_bin: "/x".into(),
             vsomeip_cfg: "/x".into(),

@@ -26,6 +26,7 @@ use std::time::Duration;
 use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
 use crate::netns::{self, NetnsParams};
+use crate::site::SiteConf;
 
 /// Host-2 emulation address: bring-up pins <HOST2_IP, tester_mac> on the DUT
 /// side so UDP_FIELDS_04/05 (which expect a second host) resolve without a real
@@ -80,6 +81,15 @@ impl Conditioning<'_> {
 impl Drop for Conditioning<'_> {
     fn drop(&mut self) {
         self.restore();
+    }
+}
+
+impl<'a> Conditioning<'a> {
+    /// A guard starting with no restore steps — `host_condition_case` builds on this,
+    /// pushing a restore for each tester-side step it applies (often none, e.g. a
+    /// flush-only case, in which case `restore`/Drop are genuine no-ops).
+    pub(crate) fn empty(topo: &'a dyn Topology, w: u32) -> Self {
+        Conditioning { topo, w, restore_steps: Vec::new(), restored: false }
     }
 }
 
@@ -170,23 +180,54 @@ fn render_cond_step(w: u32, step: &CondStep, dir: CondDir) -> Option<Vec<String>
 }
 
 /// The per-topology contract smoke-test.sh expresses as sourced bash functions.
+///
+/// The three capability methods are the Rust form of the bash TOPOLOGY_* contract
+/// vars consumed by the `main` gates (smoke-test.sh:412-422). They are required —
+/// no default — so every topology states its contract explicitly, the same
+/// guarantee bash got from its startup contract check. The fourth bash var,
+/// TOPOLOGY_DUT_CONDITIONING, is not a separate method: each topology encodes that
+/// policy directly in `condition_case` (single-pc applies the toggles; external /
+/// ssh-remote log the omission and return an empty guard).
 pub trait Topology {
+    /// Worker cap (bash `TOPOLOGY_MAX_WORKERS`): `None` = no cap (single-pc netns
+    /// pairs are cheap), `Some(1)` = one shared physical/remote DUT serves one
+    /// worker. Enforced as a hard reject in `main`, not a silent clamp.
+    fn max_workers(&self) -> Option<u32>;
+    /// Whether the orchestrator starts a fresh DUT per case (bash
+    /// `TOPOLOGY_SUPPORTS_DUT_SPAWN`). `false` ⇒ a persistent external DUT, and
+    /// `--dut-first` (start-order control) is rejected as inapplicable.
+    fn supports_dut_spawn(&self) -> bool;
+    /// Whether the curated negative rows can run here (bash
+    /// `TOPOLOGY_SUPPORTS_NEGATIVE`) — they need a spawned reference DUT plus
+    /// deliberate mis-expectations and start-order tricks. Gated in `main`;
+    /// consumed in full by the S6 negative stage.
+    fn supports_negative(&self) -> bool;
     fn preflight(&self) -> Result<()>;
     fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx>;
     fn tear_down_worker(&self, w: u32) -> Result<()>;
     fn tester_iface(&self, w: u32) -> String;
-    /// Apply one case's per-case DUT/tester kernel conditioning (the per-case
-    /// neigh flush + the case-keyed sysctl/neigh toggles smoke-test.sh's run_case
-    /// applies before the harness runs), returning a guard that reverts every
-    /// toggle on `restore()` / Drop. The case→toggle POLICY is shared
-    /// (`conditioning::plan`); only `exec_cond_step` (rendering to this topology's
-    /// transport) varies per topology.
+    /// The secondary tester interface for TC8 Topology 2 (DHCPv4_CLIENT_USAGE_01),
+    /// or `None` when this topology/run provides none — in which case dispatch
+    /// SKIPs the case instead of running it to a misleading timeout (bash
+    /// `topology_tester_iface_secondary` + run_case skip, smoke-test.sh:1436-1446).
+    /// A required bash contract hook (smoke-test.sh:390-393).
+    fn tester_iface_secondary(&self, w: u32) -> Option<String>;
+    /// Apply one case's per-case kernel conditioning (the per-case neigh flush + the
+    /// case-keyed sysctl/neigh toggles smoke-test.sh's run_case applies before the
+    /// harness runs), returning a guard that reverts every applied toggle on
+    /// `restore()` / Drop. The case→toggle POLICY is shared (`conditioning::plan`);
+    /// only `exec_cond_step` (rendering to this topology's transport) varies per
+    /// topology. This is also where the bash TOPOLOGY_DUT_CONDITIONING contract bit
+    /// lives: single-pc applies every step (it owns both stacks); a topology that
+    /// does not manage the DUT (external / ssh-remote) applies the TESTER-side steps
+    /// — the tester is always a host we own (smoke-test.sh:966-974) — and skips +
+    /// logs only the DUT-side steps.
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>>;
     /// Render+run ONE semantic conditioning step in `dir` on this topology's
-    /// transport (single-pc: `ip netns exec` / `ip -n`; a topology that does not
-    /// manage the DUT stack renders the DUT-side steps as a logged skip — a later
-    /// stage). The `Conditioning` guard calls this to replay restores, so it stays
-    /// object-safe.
+    /// transport: single-pc → `ip netns exec` / `ip -n` in the worker's namespaces;
+    /// external / ssh-remote → a plain host command for the tester-side step (the
+    /// tester is this host). The `Conditioning` guard calls this to replay restores,
+    /// so it stays object-safe.
     fn exec_cond_step(&self, w: u32, step: &CondStep, dir: CondDir) -> Result<()>;
     /// Spawn the harness backgrounded in the tester context; caller waits on it.
     fn run_harness(&self, w: u32, hlog: &Path, args: &[String]) -> Result<Child>;
@@ -214,6 +255,18 @@ impl<'a> SinglePc<'a> {
 }
 
 impl Topology for SinglePc<'_> {
+    // single-pc.conf contract: cheap netns pairs (no cap), fresh DUT per case,
+    // negative self-validation, and per-case kernel conditioning all available.
+    fn max_workers(&self) -> Option<u32> {
+        None
+    }
+    fn supports_dut_spawn(&self) -> bool {
+        true
+    }
+    fn supports_negative(&self) -> bool {
+        true
+    }
+
     fn preflight(&self) -> Result<()> {
         let cfg = self.cfg;
         if !cfg.dut_bin.is_file() {
@@ -286,6 +339,15 @@ impl Topology for SinglePc<'_> {
     fn tester_iface(&self, w: u32) -> String {
         // Bare veth (not a VLAN subif) so libpcap sees any 802.1Q tag intact.
         veth_tester(w)
+    }
+
+    fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
+        // The single-pc netns bring-up does not yet provision the Topology-2 second
+        // veth pair (netns::setup is called with second_veth: None), so no secondary
+        // iface is available and USAGE_01 SKIPs here. Wiring the second pair (and
+        // running USAGE_01) is deferred; this is a noted gap, not a silent
+        // wrong-pass — bash single-pc runs USAGE_01 via NEED_SECOND_VETH.
+        None
     }
 
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
@@ -484,6 +546,566 @@ fn which(prog: &str) -> Option<PathBuf> {
             }
         })
     })
+}
+
+// ===========================================================================
+// external / ssh-remote topologies (S5)
+// ===========================================================================
+// Both drive the tester side locally on a host NIC (no netns), so they share the
+// harness symlink scaffolding, the host-exec harness spawn, and the DUT/tester MAC
+// resolution below. They differ only in the DUT lifecycle (persistent vs
+// ssh-spawned-per-case) and their contract capabilities. Neither manages the DUT
+// network stack, so both reuse the S4 conditioning seam: `condition_case` logs the
+// per-case omission and returns an empty guard, leaving `conditioning::plan`
+// untouched.
+
+/// Per-worker scratch dirs + the worker-unique harness symlink (the argv[0] marker
+/// `kill_by_marker` scopes to). external/ssh-remote run the harness locally, so —
+/// unlike single-pc — there is no DUT symlink (no local DUT spawn).
+fn host_bring_up_common(cfg: &Config, w: u32) -> Result<()> {
+    fs::create_dir_all(cfg.work_root.join(w.to_string()))?;
+    fs::create_dir_all(cfg.vsomeip_base.join(w.to_string()))?;
+    symlink_force(&cfg.harness, &harness_link(&cfg.vsomeip_base, w))
+}
+
+/// Spawn the harness directly on this host (the tester context is the root ns),
+/// stdout+stderr to `hlog`. No `ip netns exec` wrapper — so the returned Child IS
+/// the harness, not a reparented grandchild, and `kill()`+`wait()` reaps it
+/// directly; `stop_harness`'s pkill is then a harmless belt-and-suspenders.
+fn host_run_harness(harness: &Path, hlog: &Path, args: &[String]) -> Result<Child> {
+    let log = fs::File::create(hlog).context("creating harness log")?;
+    let err = log.try_clone()?;
+    Command::new(harness)
+        .args(args)
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(err))
+        .spawn()
+        .with_context(|| format!("spawning harness {}", harness.display()))
+}
+
+/// True if `iface` is a network interface on this host.
+fn iface_exists(iface: &str) -> bool {
+    Path::new(&format!("/sys/class/net/{iface}")).is_dir()
+}
+
+/// The configured secondary tester iface (TC8 Topology 2), with an empty string
+/// normalized to absent. Shared by External + SshRemote.
+fn site_secondary_iface(site: &SiteConf) -> Option<String> {
+    site.iface_secondary.clone().filter(|s| !s.is_empty())
+}
+
+/// `condition_case` for a topology that does not manage the DUT stack (external /
+/// ssh-remote). It APPLIES the TESTER-side steps — the tester is this host, and
+/// bash applies tester-side conditioning (ARP_39/40 `arp_ignore`) on every topology
+/// (smoke-test.sh:966-974) — recording their restores in the guard, and SKIPS the
+/// DUT-side steps (logged via `log_dut_skips`). The applied tester-side steps are
+/// rendered to host commands by the topology's `exec_cond_step`
+/// (`host_exec_cond_step`), so the guard reverts them through the same path on Drop.
+fn host_condition_case<'a>(
+    topo: &'a dyn Topology,
+    tester_ip4: &str,
+    tester_mac: &str,
+    w: u32,
+    case_id: &str,
+    topology_name: &str,
+) -> Result<Conditioning<'a>> {
+    let steps = conditioning::plan(case_id, tester_ip4, tester_mac);
+    let mut cond = Conditioning::empty(topo, w);
+    for step in steps {
+        if step.side() == Side::Tester {
+            topo.exec_cond_step(w, &step, CondDir::Apply)
+                .with_context(|| format!("tester-side conditioning {case_id} (worker {w})"))?;
+            if step.has_restore() {
+                cond.restore_steps.push(step);
+            }
+        }
+    }
+    conditioning::log_dut_skips(w, case_id, topology_name, tester_ip4, tester_mac);
+    Ok(cond)
+}
+
+/// Render a TESTER-side conditioning step to a plain host command — external /
+/// ssh-remote's `exec_cond_step`. The tester is this host's NIC, so there is no
+/// `ip netns exec`. Only tester-side steps reach here (`host_condition_case` skips
+/// DUT-side steps rather than executing them); a DUT-side or unrecognised step is a
+/// logic bug, surfaced loudly rather than silently mis-targeted at the host.
+fn host_exec_cond_step(iface: &str, step: &CondStep, dir: CondDir) -> Result<()> {
+    match step {
+        CondStep::SysctlIface { side: Side::Tester, table, leaf, on, off } => {
+            let val = match dir {
+                CondDir::Apply => on,
+                CondDir::Restore => off,
+            };
+            host_sysctl(&format!("net.ipv4.{}.{iface}.{leaf}={val}", table.as_str()))
+        }
+        _ => bail!(
+            "external/ssh-remote: unrenderable conditioning step {step:?} on the host transport (DUT-side steps are skipped; a new tester-side family needs a host renderer here)"
+        ),
+    }
+}
+
+/// `sysctl -qw KEY=VALUE` on this host (no netns). Mandatory — bash applies the
+/// tester-side toggle without `|| true`.
+fn host_sysctl(kv: &str) -> Result<()> {
+    let st = Command::new("sysctl")
+        .args(["-qw", kv])
+        .status()
+        .with_context(|| format!("sysctl -qw {kv}"))?;
+    if !st.success() {
+        bail!("host sysctl `{kv}` failed");
+    }
+    Ok(())
+}
+
+/// The tester NIC/veth MAC, read from sysfs — the host-side analogue of
+/// single-pc's `ip -n NS link show`. Fed to the per-worker DUT-MAC / identity
+/// expectations (external.conf / ssh-remote.conf `cat .../address`).
+fn iface_mac(iface: &str) -> Result<String> {
+    let path = format!("/sys/class/net/{iface}/address");
+    let mac = fs::read_to_string(&path)
+        .with_context(|| format!("reading tester iface MAC from {path}"))?
+        .trim()
+        .to_string();
+    if mac.is_empty() {
+        bail!("tester iface '{iface}' reported an empty MAC ({path})");
+    }
+    Ok(mac)
+}
+
+/// Resolve the DUT MAC: operator-pinned (`dut_mac` in the topology-conf) or read
+/// from the host neigh table the preflight ICMP probe populated (the host's ARP
+/// request for the DUT IP, answered, lands `<dut_ip, dut_mac>` in the cache).
+/// Mirrors external.conf / ssh-remote.conf bring-up.
+fn resolve_dut_mac(site: &SiteConf, iface: &str, dut_ip: &str) -> Result<String> {
+    if let Some(mac) = site.dut_mac.as_deref().filter(|m| !m.is_empty()) {
+        println!("orchestrator: DUT MAC pinned by operator: {mac}");
+        return Ok(mac.to_string());
+    }
+    let out = Command::new("ip")
+        .args(["-4", "neigh", "show", dut_ip, "dev", iface])
+        .output()
+        .with_context(|| format!("ip -4 neigh show {dut_ip} dev {iface}"))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    for line in text.lines() {
+        let toks: Vec<&str> = line.split_whitespace().collect();
+        if let Some(i) = toks.iter().position(|&t| t == "lladdr") {
+            if let Some(mac) = toks.get(i + 1) {
+                println!("orchestrator: DUT MAC resolved from neigh table: {mac}");
+                return Ok((*mac).to_string());
+            }
+        }
+    }
+    bail!("failed to resolve the DUT MAC for {dut_ip} on '{iface}' — set dut_mac in the topology-conf")
+}
+
+/// `ping -c1 -W2 -I <src> <dut_ip>` from the host root ns; `src` is a source IP
+/// (cold-cache probe steering) or the iface name. Returns whether the DUT answered.
+fn ping_dut(src: &str, dut_ip: &str) -> bool {
+    Command::new("ping")
+        .args(["-c", "1", "-W", "2", "-I", src, dut_ip])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// `tc8-harness ut-ping --dut-ip <dut_ip> [--source-ip <src>]` — a side-effect-free
+/// Upper Tester OpPing round trip. Returns whether the UT answered.
+fn ut_ping(harness: &Path, dut_ip: &str, source_ip: Option<&str>) -> bool {
+    let mut c = Command::new(harness);
+    c.args(["ut-ping", "--dut-ip", dut_ip]);
+    if let Some(src) = source_ip {
+        c.args(["--source-ip", src]);
+    }
+    c.stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// external: a persistent, already-running DUT (real ECU / second PC) on a host
+/// NIC. The orchestrator drives the tester side only — never starting, stopping,
+/// or conditioning the DUT (external.conf). One physical DUT serves one worker.
+pub struct External<'a> {
+    cfg: &'a Config,
+    site: &'a SiteConf,
+}
+
+impl<'a> External<'a> {
+    pub fn new(cfg: &'a Config, site: &'a SiteConf) -> Self {
+        External { cfg, site }
+    }
+    fn iface(&self) -> &str {
+        self.site.require("iface")
+    }
+}
+
+impl Topology for External<'_> {
+    fn max_workers(&self) -> Option<u32> {
+        Some(1)
+    }
+    fn supports_dut_spawn(&self) -> bool {
+        false
+    }
+    fn supports_negative(&self) -> bool {
+        false
+    }
+
+    fn preflight(&self) -> Result<()> {
+        let iface = self.iface();
+        let dut_ip = self.site.require("dut_ip");
+        let tester_ip = self.site.require("tester_ip");
+        if !self.cfg.harness.is_file() {
+            bail!("preflight: tc8-harness binary missing: {}", self.cfg.harness.display());
+        }
+        if !iface_exists(iface) {
+            bail!("preflight: interface '{iface}' does not exist on this host");
+        }
+        let operstate = fs::read_to_string(format!("/sys/class/net/{iface}/operstate"))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|_| "unreadable".into());
+        match operstate.as_str() {
+            "up" | "unknown" => {
+                println!("orchestrator[external]: preflight: '{iface}' operstate={operstate} — OK")
+            }
+            other => bail!("preflight: interface '{iface}' operstate={other} (link down or not configured)"),
+        }
+        if let Some(sec) = self.site.iface_secondary.as_deref().filter(|s| !s.is_empty()) {
+            if !iface_exists(sec) {
+                bail!("preflight: secondary interface '{sec}' does not exist");
+            }
+        }
+        // Tester identity sanity (WARNING, not fatal — split-identity can be
+        // deliberate): does the iface actually carry the tester IP that raw stimulus
+        // sources from? A no means kernel-socket (UT) traffic uses a different IP.
+        let carries = Command::new("ip")
+            .args(["-4", "addr", "show", "dev", iface])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).contains(&format!("inet {tester_ip}/")))
+            .unwrap_or(false);
+        if !carries {
+            eprintln!("orchestrator[external]: preflight WARNING — '{iface}' does not carry tester IP {tester_ip}; kernel-socket traffic (Upper Tester) will source a different address than raw-injected stimulus");
+        }
+        // DUT ICMP reachability — also warms the neigh entry bring-up reads. The
+        // probe source steers which DUT ARP entry gets warmed (cold-cache cases).
+        let probe_src = self.site.preflight_src_ip.as_deref().filter(|s| !s.is_empty());
+        if ping_dut(probe_src.unwrap_or(iface), dut_ip) {
+            println!("orchestrator[external]: preflight: DUT {dut_ip} answers ICMP Echo — OK");
+        } else {
+            bail!("preflight: DUT {dut_ip} did not answer ICMP Echo on '{iface}' (DUT down, cable, or IP mismatch)");
+        }
+        // Upper Tester probe — WARNING unless require_ut promotes it to fatal.
+        if ut_ping(&self.cfg.harness, dut_ip, probe_src) {
+            println!("orchestrator[external]: preflight: Upper Tester probe — OK");
+        } else if self.site.require_ut {
+            bail!("preflight: Upper Tester did not answer (UDP 30600) and require_ut=true");
+        } else {
+            eprintln!("orchestrator[external]: preflight WARNING — Upper Tester did not answer (UDP 30600); UT-dependent cases will fail visibly. Set require_ut=true to make this fatal.");
+        }
+        Ok(())
+    }
+
+    fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx> {
+        host_bring_up_common(self.cfg, w)?;
+        let dut_mac = resolve_dut_mac(self.site, self.iface(), self.site.require("dut_ip"))?;
+        let tester_mac = iface_mac(self.iface())?;
+        Ok(WorkerCtx { dut_mac, tester_mac })
+    }
+
+    fn tear_down_worker(&self, w: u32) -> Result<()> {
+        // The DUT + NIC belong to the operator; only reap a possibly-surviving local
+        // harness under this worker's symlink (run_case already reaped it). The
+        // scratch dirs are removed by main.
+        kill_by_marker(&harness_link(&self.cfg.vsomeip_base, w));
+        Ok(())
+    }
+
+    fn tester_iface(&self, _w: u32) -> String {
+        self.iface().to_string()
+    }
+
+    fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
+        site_secondary_iface(self.site)
+    }
+
+    fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
+        host_condition_case(self, &self.cfg.tester_ip4, &ctx.tester_mac, w, case_id, "external")
+    }
+
+    fn exec_cond_step(&self, _w: u32, step: &CondStep, dir: CondDir) -> Result<()> {
+        host_exec_cond_step(self.iface(), step, dir)
+    }
+
+    fn run_harness(&self, w: u32, hlog: &Path, args: &[String]) -> Result<Child> {
+        host_run_harness(&harness_link(&self.cfg.vsomeip_base, w), hlog, args)
+    }
+
+    fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path) -> Result<Option<Child>> {
+        // Persistent DUT — nothing to spawn. Record the provenance in the dut log
+        // (bash run_case, smoke-test.sh:1478) so a postmortem shows which DUT a case
+        // ran against. `None` tells the dispatcher there is no Child to reap.
+        //
+        // `_cfg_path` is ignored because S5a always passes the default vsomeip cfg.
+        // When per-case vsomeip FLAVORS land, bash (smoke-test.sh:1475-1477) emits an
+        // INFO when a case requests a non-default flavor against a non-spawning
+        // topology ("the external DUT must provide the equivalent service"); that
+        // warning must be ported here then — a prerequisite for the flavor stage.
+        let _ = fs::write(
+            dlog,
+            format!("[external] using persistent DUT at {}\n", self.site.require("dut_ip")),
+        );
+        Ok(None)
+    }
+
+    fn stop_dut(&self, _w: u32) -> Result<()> {
+        Ok(()) // persistent — deliberately nothing to stop
+    }
+
+    fn stop_harness(&self, w: u32) -> Result<()> {
+        kill_by_marker(&harness_link(&self.cfg.vsomeip_base, w));
+        Ok(())
+    }
+}
+
+/// ssh-remote: the tester runs here; a fresh reference tc8-dut is spawned per case
+/// on a second host over SSH (ssh-remote.conf). Same fresh-DUT-per-case semantics
+/// as single-pc, but the remote kernel is not ours to condition. One remote host
+/// serves one worker.
+pub struct SshRemote<'a> {
+    cfg: &'a Config,
+    site: &'a SiteConf,
+}
+
+impl<'a> SshRemote<'a> {
+    pub fn new(cfg: &'a Config, site: &'a SiteConf) -> Self {
+        SshRemote { cfg, site }
+    }
+    fn iface(&self) -> &str {
+        self.site.require("iface")
+    }
+
+    /// `ssh -n -o BatchMode=yes [-o ConnectTimeout=5] <opts...> <target>`, ready for
+    /// a remote-command argument. `-n` keeps ssh off the orchestrator's stdin.
+    /// `connect_timeout` bounds only the TCP/auth handshake: the short-lived
+    /// probe/reap commands set it (fail fast on an unreachable host), but the
+    /// long-lived per-case DUT spawn does NOT — bash makes the same split
+    /// (ssh-remote.conf:47 `_ssh_dut` vs :182 `topology_start_dut`), because the
+    /// spawn ssh stays connected for the whole case and a slow handshake under load
+    /// must not abort it. Word-split opts mirror bash's intentional SC2086.
+    fn ssh_command(&self, connect_timeout: bool) -> Command {
+        let mut c = Command::new("ssh");
+        c.args(["-n", "-o", "BatchMode=yes"]);
+        if connect_timeout {
+            c.args(["-o", "ConnectTimeout=5"]);
+        }
+        if let Some(opts) = self.site.ssh_opts.as_deref() {
+            c.args(opts.split_whitespace());
+        }
+        c.arg(self.site.require("ssh_target"));
+        c
+    }
+
+    /// Run a short remote command (probe/reap), returning whether it exited zero;
+    /// output discarded. Uses the connect-timeout builder so an unreachable host
+    /// fails fast.
+    fn ssh_ok(&self, remote_cmd: &str) -> bool {
+        self.ssh_command(true)
+            .arg(remote_cmd)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+}
+
+impl Topology for SshRemote<'_> {
+    fn max_workers(&self) -> Option<u32> {
+        Some(1)
+    }
+    fn supports_dut_spawn(&self) -> bool {
+        true
+    }
+    fn supports_negative(&self) -> bool {
+        false
+    }
+
+    fn preflight(&self) -> Result<()> {
+        let iface = self.iface();
+        let dut_ip = self.site.require("dut_ip");
+        if !self.cfg.harness.is_file() {
+            bail!("preflight: tc8-harness binary missing: {}", self.cfg.harness.display());
+        }
+        if !iface_exists(iface) {
+            bail!("preflight: interface '{iface}' does not exist on this host");
+        }
+        println!("orchestrator[ssh-remote]: preflight: '{iface}' exists — OK");
+        if !self.ssh_ok("true") {
+            bail!(
+                "preflight: cannot SSH to '{}' non-interactively (key auth + BatchMode required)",
+                self.site.require("ssh_target")
+            );
+        }
+        let rbin = self.site.require("remote_dut_bin");
+        if !self.ssh_ok(&format!("test -x '{rbin}'")) {
+            bail!("preflight: remote tc8-dut missing or not executable: {rbin}");
+        }
+        let rv = self.site.require("remote_vsomeip_cfg");
+        let rc = self.site.require("remote_capi_cfg");
+        if !self.ssh_ok(&format!("test -f '{rv}' && test -f '{rc}'")) {
+            bail!("preflight: remote vsomeip/commonapi config missing: {rv} / {rc}");
+        }
+        println!("orchestrator[ssh-remote]: preflight: SSH + remote tc8-dut/configs present — OK");
+        if !ping_dut(iface, dut_ip) {
+            bail!("preflight: DUT host {dut_ip} did not answer ICMP Echo on '{iface}'");
+        }
+        println!("orchestrator[ssh-remote]: preflight: DUT host {dut_ip} answers ICMP Echo — OK");
+
+        // UT probe: spawn one transient remote DUT, OpPing it, reap it — proving the
+        // full spawn-over-SSH + UT path before any case runs. The reference tc8-dut
+        // always implements UT, so no answer here is fatal (remote log dumped).
+        let probe_log = self.cfg.work_root.join("ut-probe.dut.log");
+        let child = self.start_dut(0, &probe_log, &self.cfg.vsomeip_cfg)?;
+        sleep(Duration::from_millis(1500));
+        let ut_ok = ut_ping(&self.cfg.harness, dut_ip, None);
+        let _ = self.stop_dut(0);
+        if let Some(mut c) = child {
+            // Bounded, like dispatch::CaseProcs::reap: stop_dut's remote pkill may
+            // miss (ssh failure / comm mismatch), and an unbounded wait here would
+            // hang preflight before any case runs. On timeout kill the local ssh
+            // client so the run proceeds (the bring-up stale-reap is the backstop).
+            if !crate::dispatch::wait_bounded(&mut c, crate::dispatch::REAP_WAIT_TICKS) {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+        }
+        if ut_ok {
+            println!("orchestrator[ssh-remote]: preflight: remote tc8-dut spawn + Upper Tester probe — OK");
+        } else {
+            if let Ok(log) = fs::read_to_string(&probe_log) {
+                for line in log.lines() {
+                    eprintln!("    [remote tc8-dut] {line}");
+                }
+            }
+            let _ = fs::remove_file(&probe_log);
+            bail!("preflight: spawned a remote tc8-dut but its Upper Tester did not answer (UDP 30600); remote log dumped above");
+        }
+        let _ = fs::remove_file(&probe_log);
+        Ok(())
+    }
+
+    fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx> {
+        // Reap a stale remote tc8-dut from a previous run — it would steal the SD/UT
+        // ports from the per-case spawn. pkill -x (exact comm), never -f (which would
+        // match the ssh session's own remote shell command line).
+        if self.ssh_ok("pkill -KILL -x tc8-dut") {
+            println!("orchestrator[ssh-remote]: reaped a stale remote tc8-dut from a previous run");
+        }
+        host_bring_up_common(self.cfg, w)?;
+        let dut_mac = resolve_dut_mac(self.site, self.iface(), self.site.require("dut_ip"))?;
+        let tester_mac = iface_mac(self.iface())?;
+        Ok(WorkerCtx { dut_mac, tester_mac })
+    }
+
+    fn tear_down_worker(&self, w: u32) -> Result<()> {
+        self.ssh_ok("pkill -KILL -x tc8-dut"); // last-resort remote reap
+        kill_by_marker(&harness_link(&self.cfg.vsomeip_base, w));
+        Ok(())
+    }
+
+    fn tester_iface(&self, _w: u32) -> String {
+        self.iface().to_string()
+    }
+
+    fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
+        site_secondary_iface(self.site)
+    }
+
+    fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
+        host_condition_case(self, &self.cfg.tester_ip4, &ctx.tester_mac, w, case_id, "ssh-remote")
+    }
+
+    fn exec_cond_step(&self, _w: u32, step: &CondStep, dir: CondDir) -> Result<()> {
+        host_exec_cond_step(self.iface(), step, dir)
+    }
+
+    fn run_harness(&self, w: u32, hlog: &Path, args: &[String]) -> Result<Child> {
+        host_run_harness(&harness_link(&self.cfg.vsomeip_base, w), hlog, args)
+    }
+
+    fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path) -> Result<Option<Child>> {
+        // Map the local cfg's basename onto a sibling of the remote vsomeip cfg
+        // (per-case flavor support; S5a always passes the default, so the basename
+        // equals remote_vsomeip_cfg's). mkdir + wipe the per-worker remote vsomeip
+        // scratch — vsomeip cannot create its base path and fails with a misleading
+        // routing-manager error when it is missing.
+        let rv = self.site.require("remote_vsomeip_cfg");
+        let remote_dir = Path::new(rv)
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let base = cfg_path.file_name().and_then(|n| n.to_str()).unwrap_or("vsomeip.json");
+        let remote_cfg = if remote_dir.is_empty() {
+            base.to_string()
+        } else {
+            format!("{remote_dir}/{base}")
+        };
+        let rbin = self.site.require("remote_dut_bin");
+        let rcapi = self.site.require("remote_capi_cfg");
+        let wrap = self.site.remote_wrap.as_deref().unwrap_or("");
+        let scratch = format!("/tmp/tc8-remote-vsomeip-{w}");
+        let remote_cmd = format!(
+            "mkdir -p {scratch} && rm -f {scratch}/vsomeip-* {scratch}/vsomeip.lck && \
+             {wrap} env COMMONAPI_CONFIG='{rcapi}' VSOMEIP_CONFIGURATION='{remote_cfg}' \
+             VSOMEIP_APPLICATION_NAME=tc8-dut VSOMEIP_BASE_PATH={scratch}/ '{rbin}'"
+        );
+        let log = fs::File::create(dlog).context("creating remote dut log")?;
+        let err = log.try_clone()?;
+        // No ConnectTimeout: this ssh stays connected for the whole case.
+        let child = self
+            .ssh_command(false)
+            .arg(remote_cmd)
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(log))
+            .stderr(Stdio::from(err))
+            .spawn()
+            .context("spawning remote tc8-dut via ssh")?;
+        Ok(Some(child))
+    }
+
+    fn stop_dut(&self, _w: u32) -> Result<()> {
+        // Kill the remote process (the local ssh client dies with the connection
+        // teardown). pkill exits 1 when nothing matched — the normal "DUT already
+        // exited" case, not an error.
+        self.ssh_ok("pkill -KILL -x tc8-dut; rm -rf /tmp/tc8-remote-vsomeip-*");
+        Ok(())
+    }
+
+    fn stop_harness(&self, w: u32) -> Result<()> {
+        kill_by_marker(&harness_link(&self.cfg.vsomeip_base, w));
+        Ok(())
+    }
+}
+
+/// Best-effort remote tc8-dut reap for the signal handler, which cannot hold a
+/// borrowed `SshRemote`. Mirrors `SshRemote::stop_dut` with owned ssh params.
+/// `pkill -x` (exact comm) never matches the ssh session's own remote shell.
+pub fn ssh_reap_remote_dut(target: &str, opts: Option<&str>) {
+    let mut c = Command::new("ssh");
+    c.args(["-n", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"]);
+    if let Some(o) = opts {
+        c.args(o.split_whitespace());
+    }
+    let _ = c
+        .arg(target)
+        .arg("pkill -KILL -x tc8-dut; rm -rf /tmp/tc8-remote-vsomeip-*")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
 }
 
 #[cfg(test)]

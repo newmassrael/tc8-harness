@@ -14,12 +14,17 @@
 //! cleanup.sh (ip/sysctl/ethtool/neigh), retiring the shell-out.
 //! Stage 4: per-case conditioning — the `conditioning` module data-tables the
 //! case-keyed sysctl/neigh toggles run_case applies, driven via a Topology seam.
+//! Stage 5a: external / ssh-remote topologies — TOML site config (`site`), the
+//! two new `Topology` impls, the contract gates, and the netns/ssh verification
+//! fixtures (`fixtures`) that stand up a DUT for self-hosted parity.
 
 mod cleanup;
 mod conditioning;
 mod config;
 mod dispatch;
+mod fixtures;
 mod netns;
+mod site;
 mod topology;
 mod wire;
 mod worker;
@@ -35,9 +40,11 @@ use anyhow::{bail, Result};
 use clap::Parser;
 use std::env;
 use std::fs;
+use std::path::Path;
 
 use config::Config;
-use topology::{SinglePc, Topology};
+use site::SiteConf;
+use topology::{External, SinglePc, SshRemote, Topology};
 use worker::WorkerResult;
 
 /// Orchestrate TC8 conformance cases against a DUT (smoke-test.sh successor).
@@ -91,33 +98,76 @@ fn main() -> Result<()> {
         cli.cases.clone()
     };
 
-    // Flags/topologies not yet ported are parsed (CLI parity with smoke-test.sh)
-    // but fail loudly rather than being silently ignored. (Stage-agnostic wording:
-    // a stage number in a user-facing string goes stale every stage.)
-    if cli.topology != "single-pc" {
-        bail!("--topology '{}' not yet implemented (single-pc only)", cli.topology);
+    let topology = cli.topology.as_str();
+    if !matches!(topology, "single-pc" | "external" | "ssh-remote") {
+        bail!("--topology '{topology}' is not recognised (single-pc | external | ssh-remote)");
     }
-    if cli.negative {
-        bail!("--negative not yet implemented");
-    }
-    if cli.topology_conf.is_some() || cli.log_dir.is_some() || cli.junit_xml.is_some()
-        || cli.dut_control.is_some()
-    {
-        bail!("--topology-conf/--log-dir/--junit-xml/--dut-control not yet implemented");
+    // Flags parsed for CLI parity with smoke-test.sh but not yet ported — fail
+    // loudly, never silently ignore. (Stage-agnostic wording: a stage number in a
+    // user-facing string goes stale every stage.)
+    if cli.log_dir.is_some() || cli.junit_xml.is_some() || cli.dut_control.is_some() {
+        bail!("--log-dir/--junit-xml/--dut-control not yet implemented");
     }
 
-    let cfg = Config::resolve()?;
-    // Reap leftovers from prior runs that died before cleanup (bash startup GC).
+    let mut cfg = Config::resolve()?;
+
+    // Site config (TOML --topology-conf). external/ssh-remote REQUIRE it — their
+    // iface / wire IPs / remote paths live there, and sudo strips the environment.
+    // single-pc derives its IPs from defaults/env and may omit the conf entirely.
+    let site = match &cli.topology_conf {
+        Some(path) => SiteConf::load(Path::new(path), topology, &cfg.root)?,
+        None => {
+            if topology != "single-pc" {
+                bail!("--topology {topology} requires --topology-conf (iface/dut_ip/tester_ip live there; sudo strips the environment)");
+            }
+            SiteConf::default()
+        }
+    };
+    // The site's wire IPs (when present) override the defaults Config resolved, so
+    // expect_args + the conditioning-skip log see the real tester/DUT addresses.
+    if let Some(ip) = &site.tester_ip {
+        cfg.tester_ip4 = ip.clone();
+    }
+    if let Some(ip) = &site.dut_ip {
+        cfg.dut_ip4 = ip.clone();
+    }
+
+    // Build the topology as a trait object so one worker fan-out drives all three.
+    let topo: Box<dyn Topology + Sync> = match topology {
+        "single-pc" => Box::new(SinglePc::new(&cfg)),
+        "external" => Box::new(External::new(&cfg, &site)),
+        "ssh-remote" => Box::new(SshRemote::new(&cfg, &site)),
+        _ => unreachable!("topology validated above"),
+    };
+
+    // Contract gates (smoke-test.sh:412-422) — BEFORE provisioning a fixture, so a
+    // rejected invocation never executes side-effectful host setup.
+    if cli.negative {
+        if !topo.supports_negative() {
+            bail!("--negative requires a topology with a spawned reference DUT (deliberate mis-expectations + start-order control); topology '{topology}' does not support it");
+        }
+        bail!("--negative not yet implemented");
+    }
+    if cli.dut_first && !topo.supports_dut_spawn() {
+        bail!("--dut-first controls DUT-vs-harness start order, but topology '{topology}' does not spawn the DUT");
+    }
+    if let Some(max) = topo.max_workers() {
+        if cli.workers > max {
+            bail!("--workers {} exceeds topology '{topology}' limit of {max} (one shared physical/remote DUT cannot serve parallel workers)", cli.workers);
+        }
+    }
+
+    // Side effects begin only after the gates pass (a rejected invocation leaves no
+    // scratch and no fixture). Reap leftovers from prior runs that died before
+    // cleanup (bash startup GC), then create this run's scratch roots.
     cleanup::stale_gc(&cfg);
     fs::create_dir_all(&cfg.work_root)?;
     fs::create_dir_all(&cfg.vsomeip_base)?;
 
-    let topo = SinglePc::new(&cfg);
-    topo.preflight()?;
-
     // Cap the worker count at the schedule size — empty buckets would bring up
-    // netns pairs for no work. Bash always brings up `--workers` netns; the cap
-    // is a deliberate divergence, so surface it (never a silent reinterpretation).
+    // resources for no work. A deliberate divergence from bash, so surface it
+    // (never a silent reinterpretation). The MAX_WORKERS gate above already
+    // rejected an over-cap request for external/ssh-remote.
     let workers = cli.workers.min(cases.len() as u32);
     if workers < cli.workers {
         eprintln!(
@@ -128,16 +178,47 @@ fn main() -> Result<()> {
         );
     }
 
-    // Tear workers down on SIGINT/SIGTERM (Drop does not run on signal exit).
-    cleanup::install_signal_handler(&cfg, workers)?;
+    // Install the signal handler BEFORE provisioning the fixture and running
+    // preflight: both touch host state (fixture netns/sshd/DUT; the ssh-remote
+    // preflight spawns a transient remote DUT and sleeps), and a SIGINT/SIGTERM in
+    // that window bypasses every Drop — so without an early handler it would leak.
+    // The handler is idempotent and no-ops on absent state (a not-yet-provisioned
+    // or partially-provisioned fixture is safely reclaimed by teardown_by_kind), so
+    // installing it early is sound. It composes the teardown the per-worker reap
+    // cannot do: the ssh-remote remote DUT (owned ssh params — the handler cannot
+    // borrow the topology) then the verification fixture.
+    let ssh_reap: Option<(String, Option<String>)> = if topology == "ssh-remote" {
+        Some((site.require("ssh_target").to_string(), site.ssh_opts.clone()))
+    } else {
+        None
+    };
+    let fixture_kind: Option<String> = site.fixture.as_ref().map(|f| f.kind.clone());
+    cleanup::install_signal_handler(&cfg, workers, move || {
+        if let Some((target, opts)) = &ssh_reap {
+            topology::ssh_reap_remote_dut(target, opts.as_deref());
+        }
+        if let Some(kind) = &fixture_kind {
+            fixtures::teardown_by_kind(kind);
+        }
+    })?;
+
+    // Provision the verification fixture (if any) BEFORE preflight — preflight
+    // probes the DUT the fixture stands up. The guard tears it down on Drop
+    // (normal/panic); the handler installed above covers SIGINT/SIGTERM.
+    let _fixture = match &site.fixture {
+        Some(spec) => Some(fixtures::provision(spec, &cfg)?),
+        None => None,
+    };
+
+    topo.preflight()?;
 
     let buckets = worker::distribute(&cases, workers);
-    let results = worker::run_all(&cfg, &topo, buckets, cli.dut_first);
+    let results = worker::run_all(&cfg, topo.as_ref(), buckets, cli.dut_first);
 
     let _ = fs::remove_dir_all(&cfg.work_root);
     let _ = fs::remove_dir_all(&cfg.vsomeip_base);
 
-    summarize(&cli.topology, cases.len(), workers, &results)
+    summarize(topology, cases.len(), workers, &results)
 }
 
 /// Aggregate worker tallies, print the summary, and apply the gates: the

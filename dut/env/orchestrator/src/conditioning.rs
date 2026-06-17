@@ -103,6 +103,20 @@ impl CondStep {
             CondStep::SysctlIface { .. } | CondStep::SysctlConfAll { .. } | CondStep::SysctlGlobal { .. } => true,
         }
     }
+
+    /// Which side's stack this step touches. The distinction is load-bearing for a
+    /// topology that does not manage the DUT (external/ssh-remote): bash applies
+    /// TESTER-side conditioning on every topology (the tester is always a host we
+    /// own, smoke-test.sh:966-974) and skips only the DUT-side toggles.
+    pub fn side(&self) -> Side {
+        match self {
+            CondStep::SysctlIface { side, .. }
+            | CondStep::SysctlConfAll { side, .. }
+            | CondStep::SysctlGlobal { side, .. }
+            | CondStep::NeighPin { side, .. }
+            | CondStep::NeighFlush { side } => *side,
+        }
+    }
 }
 
 /// The per-case conditioning steps for `case_id`. Always begins with the
@@ -185,6 +199,85 @@ pub fn plan(case_id: &str, tester_ip4: &str, tester_mac: &str) -> Vec<CondStep> 
     }
 
     steps
+}
+
+/// Log the per-case conditioning OMISSIONS for a topology that does not manage the
+/// DUT network stack (external/ssh-remote), mirroring bash `run_case` so an affected
+/// case's later behaviour stays explainable. Returns the number of skip lines (tests).
+///
+/// Only DUT-side steps are skipped (and thus logged) — TESTER-side steps (ARP_39/40
+/// `arp_ignore`) bash applies on every topology and the orchestrator does too, so
+/// they are NOT an omission. bash emits up to two lines, reproduced here:
+///   1. the per-case DUT neigh FLUSH (smoke-test.sh:912-917) — logged for every
+///      `ARP_*` / `IPV4_AUTOCONF_*` case (the cache-sensitive families); the flush
+///      is a DUT-side step, always skipped on a non-DUT-managing topology;
+///   2. the case-keyed DUT-side FAMILY toggles (the `log_conditioning_skip` in each
+///      conditioning block, e.g. arp_accept for ARP_38).
+///
+/// The family text is DERIVED from `plan` (the single source for which knobs a case
+/// touches) rather than duplicating bash's per-family prose — deriving keeps the
+/// case→knob mapping single-homed.
+pub fn log_dut_skips(
+    w: u32,
+    case_id: &str,
+    topology: &str,
+    tester_ip4: &str,
+    tester_mac: &str,
+) -> usize {
+    let id = case_id.to_uppercase();
+    let steps = plan(case_id, tester_ip4, tester_mac);
+    let mut logged = 0;
+    // 1. flush omission — cache-sensitive families only (bash smoke-test.sh:912-917).
+    //    The flush is a DUT-side step, so it is among the skipped steps.
+    if id.starts_with("ARP_") || id.starts_with("IPV4_AUTOCONF_") {
+        log_conditioning_skip(
+            w,
+            case_id,
+            topology,
+            "per-case DUT neigh cache flush — repeat runs against a persistent DUT may hit a warm ARP cache",
+        );
+        logged += 1;
+    }
+    // 2. DUT-side family omission — the case-keyed toggles past the flush prefix,
+    //    excluding any TESTER-side step (which is applied, not skipped). For ARP_39/40
+    //    the only extra step is the tester-side arp_ignore, so there is NO family line.
+    let dut_family: Vec<CondStep> = steps
+        .into_iter()
+        .skip(1)
+        .filter(|s| s.side() == Side::Dut)
+        .collect();
+    if !dut_family.is_empty() {
+        log_conditioning_skip(w, case_id, topology, &describe_family(&dut_family));
+        logged += 1;
+    }
+    logged
+}
+
+/// One bash `log_conditioning_skip` line (smoke-test.sh:806-808), verbatim format.
+fn log_conditioning_skip(w: u32, case_id: &str, topology: &str, what: &str) {
+    println!(
+        "[w{w}] INFO {case_id}: DUT-stack conditioning not applied ({what}) — topology '{topology}' does not manage the DUT network stack"
+    );
+}
+
+/// A short summary of the case-keyed conditioning steps (the knobs that were not
+/// applied), derived from the semantic plan so the case→knob mapping is not
+/// duplicated. Distinct knobs only, in plan order (ARP_38's two arp_accept steps
+/// collapse to one entry).
+fn describe_family(steps: &[CondStep]) -> String {
+    let mut knobs: Vec<String> = Vec::new();
+    for step in steps {
+        let knob = match step {
+            CondStep::SysctlIface { leaf, .. } | CondStep::SysctlConfAll { leaf, .. } => leaf.to_string(),
+            CondStep::SysctlGlobal { key, .. } => key.to_string(),
+            CondStep::NeighPin { ip, .. } => format!("neigh-pin {ip}"),
+            CondStep::NeighFlush { .. } => continue, // never in steps[1..]
+        };
+        if !knobs.contains(&knob) {
+            knobs.push(knob);
+        }
+    }
+    knobs.join("/")
 }
 
 #[cfg(test)]
@@ -316,5 +409,40 @@ mod tests {
         assert_eq!(plan("arp_38", TIP, TMAC).len(), 3);
         assert_eq!(plan("tcp_retransmission_to_04", TIP, TMAC).len(), 3);
         assert_eq!(plan("icmpv4_type_04", TIP, TMAC).len(), 2);
+    }
+
+    #[test]
+    fn dut_skip_line_count_matches_bash_structure() {
+        // Non-ARP/AUTOCONF, flush-only → no flush line, no family line (bash silent).
+        assert_eq!(log_dut_skips(0, "ICMPv4_TYPE_08", "external", TIP, TMAC), 0);
+        assert_eq!(log_dut_skips(0, "SOMEIPSRV_FORMAT_01", "external", TIP, TMAC), 0);
+        // ARP_*, flush-only (no keyed family) → flush line only (bash:912-917).
+        assert_eq!(log_dut_skips(0, "ARP_03", "external", TIP, TMAC), 1);
+        // ARP_39/40 — the only extra step is TESTER-side arp_ignore (applied, not
+        // skipped), so the DUT-side skips are flush-only → 1 line, matching bash
+        // (bash applies arp_ignore on every topology, smoke-test.sh:966-974). This
+        // is the round-2 over-count regression guard.
+        assert_eq!(log_dut_skips(0, "ARP_39", "external", TIP, TMAC), 1);
+        assert_eq!(log_dut_skips(0, "ARP_40", "ssh-remote", TIP, TMAC), 1);
+        // ARP_* WITH a DUT-side keyed family → flush line + family line (912-917 + 943).
+        assert_eq!(log_dut_skips(0, "ARP_38", "external", TIP, TMAC), 2);
+        assert_eq!(log_dut_skips(0, "ARP_48", "external", TIP, TMAC), 2);
+        // AUTOCONF (matches the flush gate AND carries the DUT-side tester pin) → 2.
+        assert_eq!(log_dut_skips(0, "IPv4_AUTOCONF_CONFLICT_01", "external", TIP, TMAC), 2);
+        // Non-ARP DUT family (ipfrag/tcp) → family line only (no flush gate match).
+        assert_eq!(log_dut_skips(0, "ICMPv4_TYPE_04", "ssh-remote", TIP, TMAC), 1);
+        assert_eq!(log_dut_skips(0, "TCP_RETRANSMISSION_TO_04", "ssh-remote", TIP, TMAC), 1);
+    }
+
+    #[test]
+    fn describe_family_dedupes_and_names_knobs() {
+        // ARP_38's two arp_accept steps collapse to one knob name.
+        assert_eq!(describe_family(&plan("ARP_38", TIP, TMAC)[1..]), "arp_accept");
+        assert_eq!(describe_family(&plan("ICMPv4_TYPE_04", TIP, TMAC)[1..]), "ipfrag_time");
+        assert_eq!(
+            describe_family(&plan("ARP_49", TIP, TMAC)[1..]),
+            "base_reachable_time_ms/delay_first_probe_time/gc_stale_time"
+        );
+        assert_eq!(describe_family(&plan("IPv4_AUTOCONF_CONFLICT_01", TIP, TMAC)[1..]), format!("neigh-pin {TIP}"));
     }
 }
