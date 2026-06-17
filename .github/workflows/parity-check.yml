@@ -1,0 +1,44 @@
+name: parity-check
+
+# Strangler parity gate — diffs the Rust tc8-orchestrator against bash
+# smoke-test.sh over a shared case set (dut/env/orchestrator/parity-check.sh).
+# Behavioral equivalence is the precondition for ever deleting smoke-test.sh, so
+# this accrues evidence as the orchestrator ports stages; make it a required
+# gate at the final cutover.
+#
+# Manual-trigger only for now: the orchestrator binary needs its own NOPASSWD
+# sudoers entry on the self-hosted runner (alongside smoke-test.sh's), i.e.
+#   <runner> ALL=(root) NOPASSWD: /home/<runner>/tc8-harness/dut/env/orchestrator/target/debug/tc8-orchestrator
+# Once that is provisioned, switch this to `push: branches: [main]` to run
+# non-gating on every push (and gate before cutover).
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    name: orchestrator vs smoke-test.sh parity on self-hosted [netns]
+    runs-on: [self-hosted, netns]
+    timeout-minutes: 120
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Build harness (vsomeip + cmake)
+        uses: ./.github/actions/build-harness
+
+      - name: Build orchestrator
+        working-directory: dut/env/orchestrator
+        run: cargo build
+
+      - name: Parity diff (orchestrator-implemented categories)
+        run: dut/env/orchestrator/parity-check.sh ICMPv4_TYPE_08 ARP_03

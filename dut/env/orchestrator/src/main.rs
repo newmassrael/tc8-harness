@@ -1,24 +1,37 @@
 //! tc8-orchestrator — Rust successor to `dut/env/smoke-test.sh`.
 //!
 //! Drives the TC8 conformance harness against a per-topology DUT, extracts the
-//! verdict, and (later stages) parallelises workers, aggregates JUnit, and
-//! ports the netns/conditioning logic from bash. Built incrementally
-//! (strangler): early stages shell out to the proven bash helpers
-//! (`setup-netns.sh`, `cleanup.sh`); later stages replace them with Rust.
+//! verdict, and (later stages) aggregates JUnit and ports the netns/conditioning
+//! logic from bash. Built incrementally (strangler): early stages shell out to
+//! the proven bash helpers (`setup-netns.sh`, `cleanup.sh`); later stages
+//! replace them with Rust.
 //!
 //! Stage 1: CLI + single-pc topology + single-worker positive-case dispatch.
+//! Stage 2: round-robin distribution across N parallel workers (per-worker
+//! netns/symlink isolation, explicit join, execution ledger, non-conclusion
+//! gate, signal-time + stale teardown).
 
+mod cleanup;
 mod config;
 mod dispatch;
 mod topology;
+mod worker;
+
+/// Verdict taxonomy generated from src/sce_integration/verdict_taxonomy.def —
+/// the orchestrator derives the wire-names from the same single source as the
+/// C++/bash/Python consumers. Regenerate: python3 tools/gen_verdict_taxonomy.py
+mod taxonomy {
+    include!("verdict_taxonomy.gen.rs");
+}
 
 use anyhow::{bail, Result};
 use clap::Parser;
+use std::env;
 use std::fs;
 
 use config::Config;
-use dispatch::Verdict;
 use topology::{SinglePc, Topology};
+use worker::WorkerResult;
 
 /// Orchestrate TC8 conformance cases against a DUT (smoke-test.sh successor).
 ///
@@ -71,14 +84,11 @@ fn main() -> Result<()> {
         cli.cases.clone()
     };
 
-    // Stage 1 scope: single-pc, single worker, positive cases. The flags below
-    // are parsed (CLI parity with smoke-test.sh) but their behaviour lands in
-    // later stages — fail loudly rather than silently ignoring them.
+    // Stage 2 scope: single-pc, positive cases. The flags below are parsed (CLI
+    // parity with smoke-test.sh) but their behaviour lands in later stages —
+    // fail loudly rather than silently ignoring them.
     if cli.topology != "single-pc" {
         bail!("Stage 1 supports only --topology single-pc (got '{}')", cli.topology);
-    }
-    if cli.workers != 1 {
-        bail!("Stage 1 supports only --workers 1 (got {})", cli.workers);
     }
     if cli.negative {
         bail!("Stage 1 does not implement --negative yet");
@@ -90,42 +100,114 @@ fn main() -> Result<()> {
     }
 
     let cfg = Config::resolve()?;
+    // Reap leftovers from prior runs that died before cleanup (bash startup GC).
+    cleanup::stale_gc(&cfg);
     fs::create_dir_all(&cfg.work_root)?;
     fs::create_dir_all(&cfg.vsomeip_base)?;
 
     let topo = SinglePc::new(&cfg);
     topo.preflight()?;
-    let ctx = topo.bring_up_worker(0)?;
 
-    let mut fails = 0usize;
-    let mut skips = 0usize;
-    for case in &cases {
-        match dispatch::run_case(&cfg, &topo, 0, &ctx, case, cli.dut_first)? {
-            Verdict::Pass => println!("[w0] PASS {case}"),
-            Verdict::Skip(reason) => {
-                println!("[w0] SKIP {case} — {reason}");
-                skips += 1;
-            }
-            Verdict::Fail(reason) => {
-                println!("[w0] FAIL {case} — {reason}");
-                fails += 1;
-            }
-        }
+    // Cap the worker count at the schedule size — empty buckets would bring up
+    // netns pairs for no work. Bash always brings up `--workers` netns; the cap
+    // is a deliberate divergence, so surface it (never a silent reinterpretation).
+    let workers = cli.workers.min(cases.len() as u32);
+    if workers < cli.workers {
+        eprintln!(
+            "orchestrator: --workers {} capped to {} ({} case(s) scheduled)",
+            cli.workers,
+            workers,
+            cases.len()
+        );
     }
 
-    topo.tear_down_worker(0).ok();
+    // Tear workers down on SIGINT/SIGTERM (Drop does not run on signal exit).
+    cleanup::install_signal_handler(&cfg, workers)?;
+
+    let buckets = worker::distribute(&cases, workers);
+    let results = worker::run_all(&cfg, &topo, buckets, cli.dut_first);
+
     let _ = fs::remove_dir_all(&cfg.work_root);
     let _ = fs::remove_dir_all(&cfg.vsomeip_base);
 
+    summarize(&cli.topology, cases.len(), workers, &results)
+}
+
+/// Aggregate worker tallies, print the summary, and apply the gates: the
+/// execution ledger (processed == scheduled) and the non-conclusion ceiling,
+/// both ported from smoke-test.sh (lines 2959-3024).
+fn summarize(topology: &str, total: usize, workers: u32, results: &[WorkerResult]) -> Result<()> {
+    let mut fails: Vec<&str> = Vec::new();
+    let mut skips: Vec<&worker::Skip> = Vec::new();
+    let mut nonconcl: Vec<&worker::Skip> = Vec::new();
+    let mut processed = 0usize;
+    let mut worker_errors: Vec<&str> = Vec::new();
+    for r in results {
+        fails.extend(r.fails.iter().map(String::as_str));
+        skips.extend(r.skips.iter());
+        nonconcl.extend(r.nonconclusions.iter());
+        processed += r.processed;
+        if let Some(e) = &r.worker_error {
+            worker_errors.push(e);
+        }
+    }
+
     println!(
-        "orchestrator summary [topology={}]: {} case(s), {} failure(s), {} skipped",
-        cli.topology,
-        cases.len(),
-        fails,
-        skips
+        "orchestrator summary [topology={topology}]: {total} case(s), {} failure(s), {} skipped, {} non-conclusion(s) across {workers} worker(s)",
+        fails.len(),
+        skips.len(),
+        nonconcl.len(),
     );
-    if fails > 0 {
+    for s in &skips {
+        println!("  SKIP  {} — {}", s.case, s.reason);
+    }
+    for s in &nonconcl {
+        println!("  SKIP* {} — {}  (non-conclusion / regression-watch)", s.case, s.reason);
+    }
+
+    // Execution-ledger cross-check — every scheduled case must have concluded.
+    // A shortfall means a worker died mid-bucket; fail loudly rather than
+    // reporting a clean summary over partial work.
+    if processed != total {
+        for e in &worker_errors {
+            eprintln!("orchestrator: {e}");
+        }
+        eprintln!(
+            "orchestrator: FATAL — scheduled {total} case(s) but only {processed} were processed; a worker terminated early. Treat every result above as suspect."
+        );
+        std::process::exit(1);
+    }
+
+    // Non-conclusion ceiling — a storm of inconclusive/error results is a
+    // systemic environment/flake problem, not a clean pass; red the gate when it
+    // is systemic. Thresholds env-overridable, same defaults/semantics as bash
+    // (TC8_MAX_NONCONCLUSION_PCT=5, TC8_MIN_NONCONCLUSION_FAIL=3). Positive-run
+    // detector; the negative set (later stage) gates differently.
+    if !nonconcl.is_empty() {
+        let max_pct = env_usize("TC8_MAX_NONCONCLUSION_PCT", 5);
+        let min_fail = env_usize("TC8_MIN_NONCONCLUSION_FAIL", 3);
+        eprintln!(
+            "orchestrator: {}/{total} case(s) reached a non-conclusion (inconclusive/error) — routed to skip so they did not red the gate, but they are NOT clean passes; a previously-passing case now skipping is a regression signal.",
+            nonconcl.len()
+        );
+        if nonconcl.len() >= min_fail && nonconcl.len() * 100 > total * max_pct {
+            eprintln!(
+                "orchestrator: FATAL — non-conclusion rate {}/{total} exceeds the {max_pct}% ceiling (floor {min_fail}); systemic, not isolated noise. Investigate before trusting the green skips.",
+                nonconcl.len()
+            );
+            std::process::exit(1);
+        }
+    }
+
+    if !fails.is_empty() {
+        for f in &fails {
+            eprintln!("  FAIL {f}");
+        }
         std::process::exit(1);
     }
     Ok(())
+}
+
+fn env_usize(key: &str, default: usize) -> usize {
+    env::var(key).ok().and_then(|s| s.parse().ok()).unwrap_or(default)
 }
