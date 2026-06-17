@@ -25,8 +25,10 @@ ORCH="$HERE/target/debug/tc8-orchestrator"
 # (ARP / ICMPv4) that need NO per-case expectation override.
 #
 # Conditioning boundary: the bring-up sysctls (arp_accept, delay_first_probe,
-# ucast_solicit, ...) ARE covered — both drivers shell out to the same
-# setup-netns.sh, so e.g. ARP_05 (arp_accept=1) runs identically. What the
+# ucast_solicit, ...) ARE covered, and since S3 they are a REAL parity surface —
+# bash builds the fixture via setup-netns.sh while the orchestrator builds it via
+# the native `netns` module, so e.g. ARP_05 (arp_accept=1) passing on both sides
+# is evidence the port reproduced that sysctl, not a tautology. What the
 # orchestrator does NOT yet port is the PER-CASE DUT neigh flush bash does in
 # run_case (smoke-test.sh:907) before each case. That only diverges when a
 # worker's bucket holds >1 ARP case or runs a cold-cache ARP_07..15 as a

@@ -51,7 +51,7 @@ pub fn distribute(cases: &[String], workers: u32) -> Vec<Vec<String>> {
 }
 
 /// Reaps a worker's netns/symlinks on scope exit — including a panic unwind or
-/// an early bring-up failure (cleanup.sh is idempotent, so a half-built or
+/// an early bring-up failure (`netns::teardown` is idempotent, so a half-built or
 /// never-built worker is safe to tear down). Mirrors bash's `trap cleanup EXIT`
 /// for the normal/panic paths; signal-time teardown is handled in `cleanup`.
 struct WorkerGuard<'a, T: Topology> {
@@ -61,13 +61,14 @@ struct WorkerGuard<'a, T: Topology> {
 
 impl<T: Topology> Drop for WorkerGuard<'_, T> {
     fn drop(&mut self) {
-        // tear_down_worker logs its own failures (no silent swallow).
+        // tear_down_worker emits its own warnings for surviving processes; the
+        // netns delete is best-effort idempotent (mirrors cleanup.sh `|| true`).
         let _ = self.topo.tear_down_worker(self.w);
     }
 }
 
 /// Bring up one worker, drain its bucket sequentially, tear down. The teardown
-/// guard is armed *before* bring-up so a partial setup-netns.sh still gets reaped.
+/// guard is armed *before* bring-up so a partial `netns::setup` still gets reaped.
 fn run_worker<T: Topology + Sync>(
     cfg: &Config,
     topo: &T,

@@ -38,8 +38,6 @@ pub struct DutIdentity {
 
 /// Resolved paths and wire constants for one orchestrator run.
 pub struct Config {
-    /// dut/env — where setup-netns.sh / cleanup.sh live.
-    pub here: PathBuf,
     pub harness: PathBuf,
     pub dut_bin: PathBuf,
     pub vsomeip_cfg: PathBuf,
@@ -127,13 +125,13 @@ impl Config {
         // worker symlinks / vsomeip UDS sockets never collide and the startup
         // stale-GC can key teardown on the owner PID. NOTE: the netns names
         // (tc8-tester-W / tc8-dut-W) are NOT PID-scoped — they are shared with
-        // bash and reclaimed by setup-netns.sh's idempotent re-create, exactly
-        // as bash does. The orchestrator and bash must therefore not drive the
-        // same netns concurrently; the sequential parity protocol guarantees
-        // that (only the /tmp scratch is concurrency-isolated).
+        // bash and reclaimed by `netns::setup`'s idempotent re-create (teardown-
+        // first), the same contract bash's setup-netns.sh relies on. The
+        // orchestrator and bash must therefore not drive the same netns
+        // concurrently; the sequential parity protocol guarantees that (only the
+        // /tmp scratch is concurrency-isolated).
         let pid = std::process::id();
         Ok(Config {
-            here: root.join("dut/env"),
             harness: env_path("HARNESS", root.join("build/tc8-harness")),
             dut_bin: env_path("TC8_DUT_BIN", root.join("build/dut/dut_service/tc8-dut")),
             vsomeip_cfg,

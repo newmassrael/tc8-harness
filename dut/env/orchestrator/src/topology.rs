@@ -2,8 +2,9 @@
 //! (single-pc.conf / external.conf / ssh-remote.conf) reimplemented as a Rust
 //! trait. single-pc spawns per-worker netns pairs.
 //!
-//! Stage 1 shells out to the proven `setup-netns.sh` / `cleanup.sh`; the
-//! ip/sysctl/neigh logic is ported to Rust in a later stage.
+//! Stage 3 ported the netns fixture natively: bring-up/teardown call the `netns`
+//! module instead of shelling out to `setup-netns.sh` / `cleanup.sh` (the bash
+//! originals remain the SSOT baseline for smoke-test.sh until the S8 CI cutover).
 //!
 //! Process teardown uses `pkill -f` on the worker-unique symlink path, matching
 //! the bash design. This is the TERMINAL design, not a placeholder: bash
@@ -23,6 +24,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use crate::config::Config;
+use crate::netns::{self, NetnsParams};
 
 /// Host-2 emulation address: bring-up pins <HOST2_IP, tester_mac> on the DUT
 /// side so UDP_FIELDS_04/05 (which expect a second host) resolve without a real
@@ -101,11 +103,14 @@ impl Topology for SinglePc<'_> {
         if !cfg.vsomeip_cfg.is_file() {
             bail!("preflight: vsomeip.json missing: {}", cfg.vsomeip_cfg.display());
         }
-        if which("ip").is_none() {
-            bail!("preflight: 'ip' (iproute2) not found");
-        }
-        if !cfg.here.join("setup-netns.sh").is_file() {
-            bail!("preflight: setup-netns.sh missing under {}", cfg.here.display());
+        // Tools the netns module (S3 port) invokes directly. `ip`/`sysctl`/`ping`
+        // are mandatory — bash setup-netns.sh runs them without `|| true` under
+        // `set -e`. `ethtool` is best-effort there (offload-disable is advisory),
+        // so it is intentionally not a hard preflight requirement.
+        for tool in ["ip", "sysctl", "ping"] {
+            if which(tool).is_none() {
+                bail!("preflight: '{tool}' not found on PATH");
+            }
         }
         Ok(())
     }
@@ -115,26 +120,28 @@ impl Topology for SinglePc<'_> {
         fs::create_dir_all(cfg.work_root.join(w.to_string()))?;
         fs::create_dir_all(cfg.vsomeip_base.join(w.to_string()))?;
 
-        // Stage 1: reuse the proven bash netns setup (Rust port = later stage).
+        // Build the netns fixture natively (S3 port of setup-netns.sh).
         // single-pc destroys + recreates the netns pair each bring-up, which
         // wipes any leftover iptables `tc8-stimulus` rule — so unlike bash's
         // common_bring_up_worker (smoke-test.sh:681) no explicit chain flush is
         // needed here. A persistent topology (external/ssh-remote) that reuses a
         // netns WILL need that flush ported alongside it.
-        let st = Command::new(cfg.here.join("setup-netns.sh"))
-            .env("TESTER_NS", netns_tester(w))
-            .env("DUT_NS", netns_dut(w))
-            .env("VETH_T", veth_tester(w))
-            .env("VETH_D", veth_dut(w))
-            .env("TESTER_IP", format!("{}/24", cfg.tester_ip4))
-            .env("DUT_IP", format!("{}/24", cfg.dut_ip4))
-            .env("SECOND_VETH", "0")
-            .stdout(Stdio::null())
-            .status()
-            .context("running setup-netns.sh")?;
-        if !st.success() {
-            bail!("setup-netns.sh failed for worker {w}");
-        }
+        //
+        // second_veth / vlan are None: the single-pc orchestrator drives the
+        // single-pair, no-VLAN path. netns::setup implements both optional
+        // branches (full setup-netns.sh port); S5 / USAGE_01 wire the Config
+        // fields + a parity case that drive them.
+        netns::setup(&NetnsParams {
+            tester_ns: netns_tester(w),
+            dut_ns: netns_dut(w),
+            veth_t: veth_tester(w),
+            veth_d: veth_dut(w),
+            tester_ip: format!("{}/24", cfg.tester_ip4),
+            dut_ip: format!("{}/24", cfg.dut_ip4),
+            second_veth: None,
+            vlan: None,
+        })
+        .with_context(|| format!("bringing up netns for worker {w}"))?;
 
         // Worker-unique argv[0] so a teardown pkill is scoped to this worker.
         symlink_force(&cfg.dut_bin, &dut_link(&cfg.vsomeip_base, w))?;
@@ -153,7 +160,7 @@ impl Topology for SinglePc<'_> {
     }
 
     fn tear_down_worker(&self, w: u32) -> Result<()> {
-        teardown_worker(&self.cfg.here, &self.cfg.vsomeip_base, w);
+        teardown_worker(&self.cfg.vsomeip_base, w);
         Ok(())
     }
 
@@ -207,26 +214,12 @@ impl Topology for SinglePc<'_> {
 
 /// Tear down one worker's processes + netns. Idempotent and best-effort (safe on
 /// a partially-brought-up worker and to call twice) — the kills no-op when their
-/// targets are absent and cleanup.sh is idempotent. Shared by the per-worker
-/// teardown path and the signal handler so both reap identically. Failures are
-/// logged, never silently swallowed: a cleanup.sh non-zero exit means a netns
-/// may have leaked, which the next run's setup-netns.sh would otherwise mask.
-pub fn teardown_worker(here: &Path, vsomeip_base: &Path, w: u32) {
+/// targets are absent and `netns::teardown` is idempotent. Shared by the
+/// per-worker teardown path and the signal handler so both reap identically.
+pub fn teardown_worker(vsomeip_base: &Path, w: u32) {
     kill_by_marker(&dut_link(vsomeip_base, w));
     kill_by_marker(&harness_link(vsomeip_base, w));
-    match Command::new(here.join("cleanup.sh"))
-        .env("TESTER_NS", netns_tester(w))
-        .env("DUT_NS", netns_dut(w))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-    {
-        Ok(st) if !st.success() => eprintln!(
-            "orchestrator: warning: cleanup.sh exited {st} for worker {w} (possible netns leak)"
-        ),
-        Err(e) => eprintln!("orchestrator: warning: could not run cleanup.sh for worker {w}: {e}"),
-        Ok(_) => {}
-    }
+    netns::teardown(&netns_tester(w), &netns_dut(w));
 }
 
 /// SIGKILL every process whose argv contains `marker` (a worker-unique symlink

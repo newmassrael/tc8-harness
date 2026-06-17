@@ -7,9 +7,9 @@
 //!     NOT run on signal termination, so the per-worker RAII guard is not enough;
 //!   * a startup sweep that reaps the processes + PID-scoped scratch dirs of
 //!     prior orchestrator runs whose owner PID is dead. The netns themselves are
-//!     reclaimed by setup-netns.sh's idempotent re-create at bring-up, exactly as
-//!     bash relies on (the sweep only clears what would block the next run:
-//!     leftover vsomeip UDS sockets and orphaned processes).
+//!     reclaimed by `netns::setup`'s idempotent re-create at bring-up (teardown-
+//!     first), the same contract bash relies on (the sweep only clears what would
+//!     block the next run: leftover vsomeip UDS sockets and orphaned processes).
 
 use std::fs;
 use std::path::Path;
@@ -21,13 +21,12 @@ use crate::topology;
 /// Install the termination handler. On the first SIGINT/SIGTERM it tears down all
 /// `workers` workers (idempotent), removes the scratch roots, and exits 130.
 pub fn install_signal_handler(cfg: &Config, workers: u32) -> anyhow::Result<()> {
-    let here = cfg.here.clone();
     let work_root = cfg.work_root.clone();
     let vsomeip_base = cfg.vsomeip_base.clone();
     ctrlc::set_handler(move || {
         eprintln!("orchestrator: signal received — tearing down {workers} worker(s)");
         for w in 0..workers {
-            topology::teardown_worker(&here, &vsomeip_base, w);
+            topology::teardown_worker(&vsomeip_base, w);
         }
         let _ = fs::remove_dir_all(&work_root);
         let _ = fs::remove_dir_all(&vsomeip_base);

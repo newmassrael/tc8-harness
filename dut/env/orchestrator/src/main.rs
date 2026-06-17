@@ -1,19 +1,22 @@
 //! tc8-orchestrator — Rust successor to `dut/env/smoke-test.sh`.
 //!
 //! Drives the TC8 conformance harness against a per-topology DUT, extracts the
-//! verdict, and (later stages) aggregates JUnit and ports the netns/conditioning
-//! logic from bash. Built incrementally (strangler): early stages shell out to
-//! the proven bash helpers (`setup-netns.sh`, `cleanup.sh`); later stages
-//! replace them with Rust.
+//! verdict, and (later stages) aggregates JUnit and ports the per-case
+//! conditioning from bash. Built incrementally (strangler): each stage absorbs
+//! more of smoke-test.sh, with the bash original kept as the parity baseline
+//! until the S8 CI cutover.
 //!
 //! Stage 1: CLI + single-pc topology + single-worker positive-case dispatch.
 //! Stage 2: round-robin distribution across N parallel workers (per-worker
 //! netns/symlink isolation, explicit join, execution ledger, non-conclusion
 //! gate, signal-time + stale teardown).
+//! Stage 3: native netns fixture — the `netns` module ports setup-netns.sh /
+//! cleanup.sh (ip/sysctl/ethtool/neigh), retiring the shell-out.
 
 mod cleanup;
 mod config;
 mod dispatch;
+mod netns;
 mod topology;
 mod worker;
 
