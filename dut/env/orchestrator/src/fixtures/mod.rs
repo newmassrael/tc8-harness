@@ -31,6 +31,9 @@ use crate::config::Config;
 use crate::netns;
 use crate::site::FixtureSpec;
 
+pub(crate) mod lwip_tap;
+pub(crate) use lwip_tap::LwipTap;
+
 // external (netns-dut) fixed names — mirror external-netns-fixture.conf.
 const EXTFIX_NS: &str = "tc8-extfix-dut";
 const EXTFIX_DIR: &str = "/tmp/tc8-extfix";
@@ -131,6 +134,7 @@ pub fn teardown_by_kind(kind: &str) {
     match kind {
         "netns-dut" => teardown_netns_dut(),
         "ssh-netns-dut" => teardown_ssh_netns_dut(),
+        "lwip-tap" => lwip_tap::signal_teardown(),
         _ => {}
     }
 }

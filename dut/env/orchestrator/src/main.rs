@@ -132,9 +132,14 @@ fn main() -> Result<()> {
         cfg.dut_ip4 = ip.clone();
     }
 
-    // Build the topology as a trait object so one worker fan-out drives all three.
+    // Build the topology as a trait object so one worker fan-out drives them all.
+    // `external` + a lwip-tap fixture is its own topology (LwipTap) — the lwIP DUT
+    // needs a fixture-owned per-case respawn that a persistent External does not do.
     let topo: Box<dyn Topology + Sync> = match topology {
         "single-pc" => Box::new(SinglePc::new(&cfg)),
+        "external" if site.fixture.as_ref().map(|f| f.kind.as_str()) == Some("lwip-tap") => {
+            Box::new(fixtures::LwipTap::new(&cfg, &site))
+        }
         "external" => Box::new(External::new(&cfg, &site)),
         "ssh-remote" => Box::new(SshRemote::new(&cfg, &site)),
         _ => unreachable!("topology validated above"),
@@ -204,10 +209,13 @@ fn main() -> Result<()> {
 
     // Provision the verification fixture (if any) BEFORE preflight — preflight
     // probes the DUT the fixture stands up. The guard tears it down on Drop
-    // (normal/panic); the handler installed above covers SIGINT/SIGTERM.
+    // (normal/panic); the handler installed above covers SIGINT/SIGTERM. The
+    // lwip-tap fixture is NOT provisioned here: the LwipTap topology built above
+    // self-provisions in bring_up_worker (tap + DUT) and tears down in
+    // tear_down_worker, so it needs no separate guard.
     let _fixture = match &site.fixture {
-        Some(spec) => Some(fixtures::provision(spec, &cfg)?),
-        None => None,
+        Some(spec) if spec.kind != "lwip-tap" => Some(fixtures::provision(spec, &cfg)?),
+        _ => None,
     };
 
     topo.preflight()?;

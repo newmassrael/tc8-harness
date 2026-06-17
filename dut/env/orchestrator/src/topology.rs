@@ -202,6 +202,16 @@ pub trait Topology {
     /// deliberate mis-expectations and start-order tricks. Gated in `main`;
     /// consumed in full by the S6 negative stage.
     fn supports_negative(&self) -> bool;
+    /// For a DUT that ages its ARP cache through the Upper Tester channel (UT 0x17)
+    /// instead of host sysctls — the lwIP stack — the cache-conditioning window in
+    /// virtual seconds (bash `TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S`). `Some(n)` makes
+    /// dispatch emit a global `--expect arp_stimulus.ut_cache_conditioning_s=n` (the
+    /// harness then UT-ages the table for ARP_48/49) and suppresses those cases'
+    /// host-sysctl conditioning-skip line (they are UT-conditioned, not skipped).
+    /// `None` (Linux DUTs) → host sysctls. Default `None`; only LwipTap overrides.
+    fn ut_arp_cache_timeout(&self) -> Option<String> {
+        None
+    }
     fn preflight(&self) -> Result<()>;
     fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx>;
     fn tear_down_worker(&self, w: u32) -> Result<()>;
@@ -443,7 +453,7 @@ pub fn teardown_worker(vsomeip_base: &Path, w: u32) {
 /// next case on a worker must not start while a prior DUT is still emitting SD
 /// offers (the FORMAT_02 session_id==0x0001 race). Mirrors bash
 /// kill_worker_procs's kill-and-confirm loop (smoke-test.sh:639-648).
-fn kill_by_marker(marker: &Path) {
+pub(crate) fn kill_by_marker(marker: &Path) {
     let m = marker.as_os_str();
     if Command::new("pkill")
         .args(["-KILL", "-f"])
@@ -562,7 +572,7 @@ fn which(prog: &str) -> Option<PathBuf> {
 /// Per-worker scratch dirs + the worker-unique harness symlink (the argv[0] marker
 /// `kill_by_marker` scopes to). external/ssh-remote run the harness locally, so —
 /// unlike single-pc — there is no DUT symlink (no local DUT spawn).
-fn host_bring_up_common(cfg: &Config, w: u32) -> Result<()> {
+pub(crate) fn host_bring_up_common(cfg: &Config, w: u32) -> Result<()> {
     fs::create_dir_all(cfg.work_root.join(w.to_string()))?;
     fs::create_dir_all(cfg.vsomeip_base.join(w.to_string()))?;
     symlink_force(&cfg.harness, &harness_link(&cfg.vsomeip_base, w))
@@ -572,7 +582,7 @@ fn host_bring_up_common(cfg: &Config, w: u32) -> Result<()> {
 /// stdout+stderr to `hlog`. No `ip netns exec` wrapper — so the returned Child IS
 /// the harness, not a reparented grandchild, and `kill()`+`wait()` reaps it
 /// directly; `stop_harness`'s pkill is then a harmless belt-and-suspenders.
-fn host_run_harness(harness: &Path, hlog: &Path, args: &[String]) -> Result<Child> {
+pub(crate) fn host_run_harness(harness: &Path, hlog: &Path, args: &[String]) -> Result<Child> {
     let log = fs::File::create(hlog).context("creating harness log")?;
     let err = log.try_clone()?;
     Command::new(harness)
@@ -590,7 +600,7 @@ fn iface_exists(iface: &str) -> bool {
 
 /// The configured secondary tester iface (TC8 Topology 2), with an empty string
 /// normalized to absent. Shared by External + SshRemote.
-fn site_secondary_iface(site: &SiteConf) -> Option<String> {
+pub(crate) fn site_secondary_iface(site: &SiteConf) -> Option<String> {
     site.iface_secondary.clone().filter(|s| !s.is_empty())
 }
 
@@ -601,7 +611,7 @@ fn site_secondary_iface(site: &SiteConf) -> Option<String> {
 /// DUT-side steps (logged via `log_dut_skips`). The applied tester-side steps are
 /// rendered to host commands by the topology's `exec_cond_step`
 /// (`host_exec_cond_step`), so the guard reverts them through the same path on Drop.
-fn host_condition_case<'a>(
+pub(crate) fn host_condition_case<'a>(
     topo: &'a dyn Topology,
     tester_ip4: &str,
     tester_mac: &str,
@@ -620,7 +630,14 @@ fn host_condition_case<'a>(
             }
         }
     }
-    conditioning::log_dut_skips(w, case_id, topology_name, tester_ip4, tester_mac);
+    conditioning::log_dut_skips(
+        w,
+        case_id,
+        topology_name,
+        tester_ip4,
+        tester_mac,
+        topo.ut_arp_cache_timeout().is_some(),
+    );
     Ok(cond)
 }
 
@@ -629,7 +646,7 @@ fn host_condition_case<'a>(
 /// `ip netns exec`. Only tester-side steps reach here (`host_condition_case` skips
 /// DUT-side steps rather than executing them); a DUT-side or unrecognised step is a
 /// logic bug, surfaced loudly rather than silently mis-targeted at the host.
-fn host_exec_cond_step(iface: &str, step: &CondStep, dir: CondDir) -> Result<()> {
+pub(crate) fn host_exec_cond_step(iface: &str, step: &CondStep, dir: CondDir) -> Result<()> {
     match step {
         CondStep::SysctlIface { side: Side::Tester, table, leaf, on, off } => {
             let val = match dir {
@@ -660,7 +677,7 @@ fn host_sysctl(kv: &str) -> Result<()> {
 /// The tester NIC/veth MAC, read from sysfs — the host-side analogue of
 /// single-pc's `ip -n NS link show`. Fed to the per-worker DUT-MAC / identity
 /// expectations (external.conf / ssh-remote.conf `cat .../address`).
-fn iface_mac(iface: &str) -> Result<String> {
+pub(crate) fn iface_mac(iface: &str) -> Result<String> {
     let path = format!("/sys/class/net/{iface}/address");
     let mac = fs::read_to_string(&path)
         .with_context(|| format!("reading tester iface MAC from {path}"))?
@@ -676,7 +693,7 @@ fn iface_mac(iface: &str) -> Result<String> {
 /// from the host neigh table the preflight ICMP probe populated (the host's ARP
 /// request for the DUT IP, answered, lands `<dut_ip, dut_mac>` in the cache).
 /// Mirrors external.conf / ssh-remote.conf bring-up.
-fn resolve_dut_mac(site: &SiteConf, iface: &str, dut_ip: &str) -> Result<String> {
+pub(crate) fn resolve_dut_mac(site: &SiteConf, iface: &str, dut_ip: &str) -> Result<String> {
     if let Some(mac) = site.dut_mac.as_deref().filter(|m| !m.is_empty()) {
         println!("orchestrator: DUT MAC pinned by operator: {mac}");
         return Ok(mac.to_string());

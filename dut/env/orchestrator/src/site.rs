@@ -22,11 +22,20 @@ use std::path::Path;
 /// A verification fixture to provision around the run — orchestrator-owned host
 /// scaffolding, the Rust equivalent of the bash example confs. Absent when the
 /// topology drives a real, already-running external/remote DUT.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FixtureSpec {
-    /// `netns-dut` (external profile) | `ssh-netns-dut` (ssh-remote profile).
+    /// `netns-dut` (external) | `ssh-netns-dut` (ssh-remote) | `lwip-tap` (external,
+    /// the lwIP embedded stack DUT on a host tap).
     pub kind: String,
+    /// lwip-tap: the lwIP DUT binary (default `${ROOT}/build-lwip-dut/tc8-lwip-dut`).
+    pub lwip_app: Option<String>,
+    /// lwip-tap: readiness-probe backend — `opcode` (UT OpPing, default) or
+    /// `testability` (AUTOSAR GET_VERSION, for the standalone UTM which has no opcode UT).
+    pub lwip_ready_probe: Option<String>,
+    /// lwip-tap: DUT process name for the teardown pkill (default `tc8-lwip-dut`;
+    /// the UTM variant sets `tc8-lwip-utm`).
+    pub lwip_kill_name: Option<String>,
 }
 
 /// Declarative site config for the external / ssh-remote topologies. Every field
@@ -120,6 +129,15 @@ impl SiteConf {
         for v in fields.into_iter().flatten() {
             *v = expand_env(v, root)?;
         }
+        // The fixture's own string fields (lwip_app carries `${ROOT}`).
+        if let Some(fx) = &mut self.fixture {
+            for v in [&mut fx.lwip_app, &mut fx.lwip_ready_probe, &mut fx.lwip_kill_name]
+                .into_iter()
+                .flatten()
+            {
+                *v = expand_env(v, root)?;
+            }
+        }
         Ok(())
     }
 
@@ -180,11 +198,11 @@ impl SiteConf {
         if let Some(fx) = &self.fixture {
             let compatible = matches!(
                 (topology, fx.kind.as_str()),
-                ("external", "netns-dut") | ("ssh-remote", "ssh-netns-dut")
+                ("external", "netns-dut") | ("external", "lwip-tap") | ("ssh-remote", "ssh-netns-dut")
             );
             if !compatible {
                 bail!(
-                    "fixture kind '{}' is not valid for topology '{topology}' (netns-dut⇒external, ssh-netns-dut⇒ssh-remote)",
+                    "fixture kind '{}' is not valid for topology '{topology}' (netns-dut/lwip-tap⇒external, ssh-netns-dut⇒ssh-remote)",
                     fx.kind
                 );
             }
@@ -286,7 +304,7 @@ mod tests {
             iface: Some("eth0".into()),
             dut_ip: Some("172.16.0.2".into()),
             tester_ip: Some("172.16.0.1".into()),
-            fixture: Some(FixtureSpec { kind: "ssh-netns-dut".into() }),
+            fixture: Some(FixtureSpec { kind: "ssh-netns-dut".into(), ..FixtureSpec::default() }),
             ..SiteConf::default()
         };
         // ssh-netns-dut fixture under external → reject.
@@ -299,10 +317,47 @@ mod tests {
             iface: Some("eth0".into()),
             dut_ip: Some("172.16.0.2".into()),
             tester_ip: Some("172.16.0.1".into()),
-            fixture: Some(FixtureSpec { kind: "netns-dut".into() }),
+            fixture: Some(FixtureSpec { kind: "netns-dut".into(), ..FixtureSpec::default() }),
             ..SiteConf::default()
         };
         assert!(conf.validate("external").is_ok());
+    }
+
+    #[test]
+    fn lwip_tap_fixture_external_only() {
+        let lwip_conf = || SiteConf {
+            iface: Some("tc8lwip0".into()),
+            dut_ip: Some("172.16.0.2".into()),
+            tester_ip: Some("172.16.0.1".into()),
+            fixture: Some(FixtureSpec { kind: "lwip-tap".into(), ..FixtureSpec::default() }),
+            ..SiteConf::default()
+        };
+        assert!(lwip_conf().validate("external").is_ok());
+        // single-pc has no required fields, so the fixture-compatibility check is
+        // what rejects an lwip-tap fixture there.
+        assert!(lwip_conf().validate("single-pc").is_err());
+    }
+
+    #[test]
+    fn parses_lwip_tap_toml_with_fields() {
+        let toml = r#"
+            iface = "tc8lwip0"
+            dut_ip = "172.16.0.2"
+            tester_ip = "172.16.0.1"
+
+            [fixture]
+            kind = "lwip-tap"
+            lwip_app = "${ROOT}/build-lwip-dut/tc8-lwip-utm"
+            lwip_ready_probe = "testability"
+            lwip_kill_name = "tc8-lwip-utm"
+        "#;
+        let mut conf: SiteConf = toml::from_str(toml).unwrap();
+        conf.expand_all(Path::new("/repo")).unwrap();
+        conf.validate("external").unwrap();
+        let fx = conf.fixture.unwrap();
+        assert_eq!(fx.lwip_app.unwrap(), "/repo/build-lwip-dut/tc8-lwip-utm");
+        assert_eq!(fx.lwip_ready_probe.unwrap(), "testability");
+        assert_eq!(fx.lwip_kill_name.unwrap(), "tc8-lwip-utm");
     }
 
     #[test]

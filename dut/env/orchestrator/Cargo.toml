@@ -26,6 +26,11 @@ ctrlc = { version = "3", features = ["termination"] }
 # sudo's env_reset stripped). `serde` derives the schema; `toml` parses it.
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+# `flock(2)` for the lwIP tap fixture's host-global mutual exclusion (one shared
+# tap / scratch dir). The only FFI need; a Rust `File` is `O_CLOEXEC` by default,
+# so unlike bash the lock fd is never inherited by the spawned DUT — the bash
+# fuser/leaked-holder self-heal is therefore unnecessary here.
+libc = "0.2"
 
 [profile.release]
 opt-level = 2

@@ -10,6 +10,7 @@
 #   dut/env/orchestrator/parity-check.sh [CASE ...]                  # single-pc
 #   dut/env/orchestrator/parity-check.sh --topology external  [CASE ...]
 #   dut/env/orchestrator/parity-check.sh --topology ssh-remote [CASE ...]
+#   dut/env/orchestrator/parity-check.sh --topology lwip-tap   [CASE ...]
 #   dut/env/orchestrator/parity-check.sh --topology external \
 #        --bash-conf FILE --orch-conf FILE [CASE ...]
 #
@@ -65,8 +66,12 @@ done
 # category branch → TCP_RETRANSMISSION_TO_*; per-case eventgroup overrides →
 # SOMEIPSRV/ETS) — that is the override stage, NOT a conditioning gap. Grow this
 # set as those land.
-# Per-topology defaults: the case set, and (external/ssh-remote) the bash +
+# Per-topology defaults: the case set, and (external/ssh-remote/lwip-tap) the bash +
 # orchestrator fixture confs. Defaults match the verified bash example-conf headers.
+# DRIVER_TOPO is what each driver gets for --topology; for lwip-tap it is `external`
+# (lwip-tap is a fixture ON external, selected by the conf), the mode name only
+# steers conf/case selection here.
+DRIVER_TOPO=$TOPOLOGY
 case "$TOPOLOGY" in
     single-pc)
         [[ ${#CASES[@]} -eq 0 ]] && CASES=(ICMPv4_TYPE_08 ARP_03 ICMPv4_TYPE_04 ARP_38 ARP_48)
@@ -81,8 +86,14 @@ case "$TOPOLOGY" in
         [[ -z "$ORCH_CONF" ]] && ORCH_CONF="$HERE/examples/ssh-remote-netns-fixture.toml"
         [[ ${#CASES[@]} -eq 0 ]] && CASES=(SOMEIPSRV_FORMAT_01 ICMPv4_TYPE_08)
         ;;
+    lwip-tap)
+        DRIVER_TOPO=external
+        [[ -z "$BASH_CONF" ]] && BASH_CONF="$ROOT/dut/env/topology.d/examples/lwip-tap-fixture.conf"
+        [[ -z "$ORCH_CONF" ]] && ORCH_CONF="$HERE/examples/lwip-tap-fixture.toml"
+        [[ ${#CASES[@]} -eq 0 ]] && CASES=(ICMPv4_TYPE_08 UDP_INTRODUCTION_03 TCP_BASICS_01)
+        ;;
     *)
-        echo "parity-check: unknown --topology '$TOPOLOGY' (single-pc | external | ssh-remote)" >&2
+        echo "parity-check: unknown --topology '$TOPOLOGY' (single-pc | external | ssh-remote | lwip-tap)" >&2
         exit 2 ;;
 esac
 
@@ -143,8 +154,8 @@ else
     # One invocation per driver: the verification fixture is persistent within a run
     # (ssh-remote respawns its DUT per case inside it), so all cases share it. The
     # two halves use the same fixture netns names, hence strictly sequential.
-    bash_all=$(sudo -n "$SMOKE" --topology "$TOPOLOGY" --topology-conf "$BASH_CONF" --workers 1 "${CASES[@]}" 2>&1)
-    orch_all=$(sudo -n "$ORCH" --topology "$TOPOLOGY" --topology-conf "$ORCH_CONF" --workers 1 "${CASES[@]}" 2>&1)
+    bash_all=$(sudo -n "$SMOKE" --topology "$DRIVER_TOPO" --topology-conf "$BASH_CONF" --workers 1 "${CASES[@]}" 2>&1)
+    orch_all=$(sudo -n "$ORCH" --topology "$DRIVER_TOPO" --topology-conf "$ORCH_CONF" --workers 1 "${CASES[@]}" 2>&1)
     for case in "${CASES[@]}"; do
         compare_case "$case" "$bash_all" "$orch_all"
     done

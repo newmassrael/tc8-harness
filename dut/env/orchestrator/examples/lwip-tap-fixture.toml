@@ -1,0 +1,30 @@
+# Verification fixture for the lwIP DUT on the external topology — the typed Rust
+# successor to dut/env/topology.d/examples/lwip-tap-fixture.conf.
+#
+# The orchestrator provisions a host TAP (tc8lwip0) that the lwIP unix-port tapif
+# driver attaches to, and runs one tc8-lwip-dut (a real embedded TCP/IP stack, not
+# the Linux reference DUT) that answers ARP/ICMP/IP/UDP/TCP itself and serves the
+# Upper Tester on UDP 30600. The `[fixture] kind = "lwip-tap"` selector builds the
+# LwipTap topology, which owns the DUT's per-case respawn (drain → SIGTERM-slot-abort
+# → respawn → readiness) so each case sees the fresh UT socket-id sequence the
+# stack hands out.
+#
+# Build the DUT once:
+#   cmake -S dut/lwip_dut -B build-lwip-dut -DLWIP_DIR=/tmp/lwip -DCMAKE_BUILD_TYPE=Release
+#   cmake --build build-lwip-dut -j4
+#
+# Run (as root — provisions a tap + holds a /var/lock flock):
+#   sudo dut/env/orchestrator/target/debug/tc8-orchestrator \
+#        --topology external \
+#        --topology-conf dut/env/orchestrator/examples/lwip-tap-fixture.toml \
+#        ICMPv4_TYPE_08 UDP_INTRODUCTION_03 TCP_BASICS_01
+# Expected: 3x PASS. Full sweep + per-case known-fail rationale: dut/lwip_dut/README.md.
+
+iface = "tc8lwip0"
+dut_ip = "172.16.0.2"
+tester_ip = "172.16.0.1"
+
+# lwip_app defaults to ${ROOT}/build-lwip-dut/tc8-lwip-dut, lwip_ready_probe to
+# "opcode" (UT OpPing), lwip_kill_name to "tc8-lwip-dut" — all left implicit here.
+[fixture]
+kind = "lwip-tap"

@@ -179,6 +179,15 @@ pub fn run_case(
     ];
     args.extend(expect_args(cfg, &ctx.dut_mac));
     args.extend(extra_args);
+    // Topology-level UT ARP-cache conditioning (lwIP DUT — bash smoke-test.sh:202-205):
+    // a global expect so the harness UT-ages the DUT's ARP table for ARP_48/49 (the
+    // stack has no host sysctls to compress). Inert for cases that do not read it.
+    // NOTE for the S6 negative stage: bash also splices this expect into the negative
+    // baseline (smoke-test.sh:1770) — the negative dispatch path must replicate this.
+    if let Some(t) = topo.ut_arp_cache_timeout() {
+        args.push("--expect".to_string());
+        args.push(format!("arp_stimulus.ut_cache_conditioning_s={t}"));
+    }
 
     // Spawn order: harness first so its pcap is open before the DUT's first
     // OfferService (FORMAT_02 session_id==0x0001); --dut-first inverts it. On any
