@@ -147,15 +147,11 @@ compare_case() {
 # drivers via their `--print-expect` dumps. The per-case disposition diff below is
 # structurally BLIND to value drift — two drivers can agree on a token while
 # disagreeing on a value that only matters to an unsampled case. The dumps resolve
-# config and exit before any netns work, so this phase runs UNPRIVILEGED (no sudo).
-# external/ssh-remote are skipped: their example fixture confs provision host state
-# at source-time (need root, would leak a netns), and their wire identity equals
-# single-pc's, already diffed here.
+# config and exit before any provisioning/netns work, so this phase runs UNPRIVILEGED
+# (no sudo) for every topology — the example fixture overlays now provision in
+# topology_provision_run (not at source-time), so sourcing them for --print-expect is
+# side-effect-free.
 identity_parity() {
-    case "$TOPOLOGY" in
-        single-pc|lwip-tap) ;;
-        *) printf '%-28s %-10s %-10s %s\n' IDENTITY - - "SKIP (source-time fixture conf)"; return ;;
-    esac
     local cb=() co=()
     [[ -n "$BASH_CONF" ]] && cb=(--topology-conf "$BASH_CONF")
     [[ -n "$ORCH_CONF" ]] && co=(--topology-conf "$ORCH_CONF")

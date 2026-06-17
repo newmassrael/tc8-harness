@@ -352,11 +352,23 @@ DUT_IP4_2=172.17.0.2
 #                                 TOPOLOGY_DUT_CONDITIONING decides.
 #
 #   Functions (every one must log its own failures — no silent fail):
-#     topology_preflight                 startup environment validation
+#     topology_preflight                 pre-provision precondition checks
+#                                        (required vars, local iface/tool/
+#                                        binary existence); NO DUT liveness
+#     topology_provision_run             stand up what the topology OWNS
+#                                        (netns/tap/DUT/lock/baseline) ONCE
+#                                        in the main shell, post-preflight +
+#                                        pre-worker-fork, AND verify the DUT
+#                                        is live; a pre-existing-DUT topology
+#                                        stands up nothing but still verifies
 #     topology_bring_up_worker W         per-worker bring-up (after the
 #                                        common scaffolding); must write
 #                                        $WORK_ROOT/$W/dut_mac
 #     topology_tear_down_worker W        per-worker teardown
+#     topology_teardown_run              reap what the topology OWNS ONCE in
+#                                        the main shell (DUT/netns/tap +
+#                                        lock release); no-op for a
+#                                        pre-existing DUT
 #     topology_tester_iface W            echoes the tester capture iface
 #     topology_tester_iface_secondary W  echoes the Topology 2 second
 #                                        iface, or nothing if unsupported
@@ -393,7 +405,8 @@ for _v in TOPOLOGY_DESCRIPTION TOPOLOGY_DUT_CONDITIONING \
         _contract_errors=1
     }
 done
-for _f in topology_preflight topology_bring_up_worker \
+for _f in topology_preflight topology_provision_run topology_teardown_run \
+          topology_bring_up_worker \
           topology_tear_down_worker topology_tester_iface \
           topology_tester_iface_secondary topology_exec_tester \
           topology_run_harness topology_start_dut topology_stop_dut; do
@@ -730,6 +743,11 @@ cleanup() {
         done
         rm -rf "$WORK_ROOT"
     fi
+    # Run-level teardown: reap what the topology OWNS (host-global DUT/tap/lock),
+    # ONCE, after every per-worker teardown. Idempotent (tolerates a partial or
+    # absent provision), so it is safe on an early-abort exit. Defined by the time
+    # the trap can fire — the trap is armed only after the profile is sourced.
+    topology_teardown_run
     rm -rf "$VSOMEIP_BASE"
 }
 trap cleanup EXIT
@@ -803,6 +821,15 @@ rm -rf /tmp/tc8-workers /tmp/vsomeip-* /tmp/vsomeip.lck /tmp/tc8-vsomeip-[0-9]*
 
 mkdir -p "$WORK_ROOT" "$VSOMEIP_BASE"
 : >"$STDOUT_LOCK"
+
+# Run-level provisioning: stand up the topology's owned fixture (lwIP tap + DUT, or
+# an example netns DUT) and verify the DUT is live — ONCE, in the main shell, after
+# preflight + scratch setup and BEFORE the worker fan-out forks, so a held lock fd /
+# socket baseline lives in the main shell and is inherited by the worker subshells (a
+# backgrounded bring-up subshell would release it on join). topology_teardown_run
+# (cleanup) reaps it. No-op for per-worker topologies (single-pc provisions per netns).
+topology_provision_run \
+    || { echo "smoke-test: topology '$TOPOLOGY' provisioning failed — aborting before any case runs" >&2; exit 1; }
 
 # Parallel bring-up: setup-netns.sh is idempotent and operates on
 # distinct names per worker, so concurrent netlink ops don't collide.
