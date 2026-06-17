@@ -12,12 +12,16 @@
 //! gate, signal-time + stale teardown).
 //! Stage 3: native netns fixture — the `netns` module ports setup-netns.sh /
 //! cleanup.sh (ip/sysctl/ethtool/neigh), retiring the shell-out.
+//! Stage 4: per-case conditioning — the `conditioning` module data-tables the
+//! case-keyed sysctl/neigh toggles run_case applies, driven via a Topology seam.
 
 mod cleanup;
+mod conditioning;
 mod config;
 mod dispatch;
 mod netns;
 mod topology;
+mod wire;
 mod worker;
 
 /// Verdict taxonomy generated from src/sce_integration/verdict_taxonomy.def —
@@ -87,19 +91,19 @@ fn main() -> Result<()> {
         cli.cases.clone()
     };
 
-    // Stage 2 scope: single-pc, positive cases. The flags below are parsed (CLI
-    // parity with smoke-test.sh) but their behaviour lands in later stages —
-    // fail loudly rather than silently ignoring them.
+    // Flags/topologies not yet ported are parsed (CLI parity with smoke-test.sh)
+    // but fail loudly rather than being silently ignored. (Stage-agnostic wording:
+    // a stage number in a user-facing string goes stale every stage.)
     if cli.topology != "single-pc" {
-        bail!("Stage 1 supports only --topology single-pc (got '{}')", cli.topology);
+        bail!("--topology '{}' not yet implemented (single-pc only)", cli.topology);
     }
     if cli.negative {
-        bail!("Stage 1 does not implement --negative yet");
+        bail!("--negative not yet implemented");
     }
     if cli.topology_conf.is_some() || cli.log_dir.is_some() || cli.junit_xml.is_some()
         || cli.dut_control.is_some()
     {
-        bail!("Stage 1 does not implement --topology-conf/--log-dir/--junit-xml/--dut-control yet");
+        bail!("--topology-conf/--log-dir/--junit-xml/--dut-control not yet implemented");
     }
 
     let cfg = Config::resolve()?;
@@ -175,10 +179,12 @@ fn summarize(topology: &str, total: usize, workers: u32, results: &[WorkerResult
         for e in &worker_errors {
             eprintln!("orchestrator: {e}");
         }
-        eprintln!(
-            "orchestrator: FATAL — scheduled {total} case(s) but only {processed} were processed; a worker terminated early. Treat every result above as suspect."
+        // bail! (not process::exit) so main unwinds normally and the runtime sets
+        // the non-zero exit — the scratch cleanup already ran before summarize, and
+        // no destructor is bypassed.
+        bail!(
+            "FATAL — scheduled {total} case(s) but only {processed} were processed; a worker terminated early. Treat every result above as suspect."
         );
-        std::process::exit(1);
     }
 
     // Non-conclusion ceiling — a storm of inconclusive/error results is a
@@ -187,18 +193,17 @@ fn summarize(topology: &str, total: usize, workers: u32, results: &[WorkerResult
     // (TC8_MAX_NONCONCLUSION_PCT=5, TC8_MIN_NONCONCLUSION_FAIL=3). Positive-run
     // detector; the negative set (later stage) gates differently.
     if !nonconcl.is_empty() {
-        let max_pct = env_usize("TC8_MAX_NONCONCLUSION_PCT", 5);
-        let min_fail = env_usize("TC8_MIN_NONCONCLUSION_FAIL", 3);
+        let max_pct = env_usize("TC8_MAX_NONCONCLUSION_PCT", 5)?;
+        let min_fail = env_usize("TC8_MIN_NONCONCLUSION_FAIL", 3)?;
         eprintln!(
             "orchestrator: {}/{total} case(s) reached a non-conclusion (inconclusive/error) — routed to skip so they did not red the gate, but they are NOT clean passes; a previously-passing case now skipping is a regression signal.",
             nonconcl.len()
         );
         if nonconcl.len() >= min_fail && nonconcl.len() * 100 > total * max_pct {
-            eprintln!(
-                "orchestrator: FATAL — non-conclusion rate {}/{total} exceeds the {max_pct}% ceiling (floor {min_fail}); systemic, not isolated noise. Investigate before trusting the green skips.",
+            bail!(
+                "FATAL — non-conclusion rate {}/{total} exceeds the {max_pct}% ceiling (floor {min_fail}); systemic, not isolated noise. Investigate before trusting the green skips.",
                 nonconcl.len()
             );
-            std::process::exit(1);
         }
     }
 
@@ -206,11 +211,19 @@ fn summarize(topology: &str, total: usize, workers: u32, results: &[WorkerResult
         for f in &fails {
             eprintln!("  FAIL {f}");
         }
-        std::process::exit(1);
+        bail!("{} conformance failure(s) — see the FAIL line(s) above", fails.len());
     }
     Ok(())
 }
 
-fn env_usize(key: &str, default: usize) -> usize {
-    env::var(key).ok().and_then(|s| s.parse().ok()).unwrap_or(default)
+/// An unset env var falls back to `default`; a SET-but-unparseable one is a hard
+/// error (matches bash smoke-test.sh:286-289, and the crate's fail-loud config
+/// philosophy — a typo'd tuning knob must not silently take the default).
+fn env_usize(key: &str, default: usize) -> Result<usize> {
+    match env::var(key) {
+        Err(_) => Ok(default),
+        Ok(s) => s
+            .parse()
+            .map_err(|_| anyhow::anyhow!("env {key}='{s}' must be a non-negative integer")),
+    }
 }

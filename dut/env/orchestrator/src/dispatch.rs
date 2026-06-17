@@ -1,6 +1,6 @@
-//! Per-case dispatch: build `--expect`, spawn harness + DUT in start order,
-//! poll to a verdict, classify it. Mirrors smoke-test.sh run_case
-//! (lines 1457-1630) for the single-worker positive path.
+//! Per-case dispatch: apply per-case conditioning (via the topology seam), build
+//! `--expect`, spawn harness + DUT in start order, poll to a verdict, classify it,
+//! then restore conditioning. Mirrors smoke-test.sh run_case for the positive path.
 
 use anyhow::Result;
 use std::path::Path;
@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use crate::config::Config;
 use crate::topology::{Topology, WorkerCtx};
+use crate::wire;
 
 /// Disposition of one case, mapped from the harness verdict line via the
 /// generated taxonomy (`crate::taxonomy`).
@@ -44,29 +45,8 @@ const VERDICT_LINE_PREFIX: &str = "verdict  : ";
 /// non-conclusion disposition, not a `.def` verdict class.
 const SKIP_TOKEN: &str = "skip";
 
-// --- Wire constants whose SSOT is the C++ stimulus builders -----------------
-// vsomeip.json-sourced values are derived in config::DutIdentity; these are the
-// harness-emitted constants, which live in C++ `inline constexpr` and cannot yet
-// be read from Rust. Pinned here with provenance pending a generated cross-
-// language manifest (tracked for the expect-override stage). Drift here silently
-// turns a positive test into a false pass, so they MUST match the headers.
-const ARP_TESTER_MAC: &str = "02:00:00:00:00:A1"; // src/stimulus/arp_builder.h kTesterInjectedMac
-const ARP_TESTER_MAC2: &str = "02:00:00:00:00:A2"; // kTesterInjectedMac2
-const ARP_TESTER_MAC3: &str = "02:00:00:00:00:A3"; // kTesterInjectedMac3
-const ICMP_ECHO_ID: &str = "0x1234"; // src/stimulus/icmpv4_builder.h kIcmpEchoId
-const ICMP_ECHO_SEQ: &str = "0x5678"; // kIcmpEchoSeq
-// SOME/IP-SD version — SSOT: dut/ets/ets.fidl `version { major 1 minor 0 }`.
-const SD_MAJOR_VERSION: &str = "1";
-const SD_MINOR_VERSION: &str = "0";
-// 0x0001 is the UNCONFIGURED Subscribe target — NOT a deployed eventgroup (the
-// fdepl declares 0x0002/0x0005/0x0006/0x0008). tc8-dut Nacks a Subscribe to it
-// echoing the same ID, which several SOMEIPSRV/ETS cases assert. SSOT:
-// smoke-test.sh init_expectation_defaults `eventgroup_id=0x0001`. Do NOT
-// "correct" this to a deployed eventgroup — that breaks the Nack-echo baseline.
-const SD_DEFAULT_EVENTGROUP: &str = "0x0001";
-// IPv4 alias fixture IPs (SSOT: smoke-test.sh init_expectation_defaults).
-const IPV4_DUT_ALIAS_IP: &str = "172.16.0.5";
-const IPV4_TESTER_ALIAS_IP: &str = "172.16.0.4";
+// The harness-emitted wire constants (tester MACs, ICMP echo id/seq, alias IPs,
+// SD version + default eventgroup) are single-homed in `crate::wire`.
 
 /// Owns the spawned harness + DUT children for one case so they are reaped on
 /// EVERY exit path — normal return, an error `return`, or a panic. The reaping
@@ -125,6 +105,13 @@ pub fn run_case(
     let dlog = cfg.work_root.join(format!("{w}/{case_id}.dut.log"));
     let iface = topo.tester_iface(w);
 
+    // Per-case DUT/tester kernel conditioning (smoke-test.sh run_case prefix neigh
+    // flush + the case-keyed sysctl/neigh toggles). Declared BEFORE CaseProcs so on
+    // any early-return `?` the procs guard drops first (reap), then this restores —
+    // matching bash's kill → restore order. The guard reverts on the explicit
+    // restore() below and as a Drop backstop on the error/panic paths.
+    let mut cond = topo.condition_case(w, case_id, ctx)?;
+
     let mut args = vec![
         "test".to_string(),
         "--case".to_string(),
@@ -134,7 +121,7 @@ pub fn run_case(
         "-t".to_string(),
         cfg.backstop_sec.to_string(),
     ];
-    args.extend(expect_args(cfg, case_id, &ctx.dut_mac));
+    args.extend(expect_args(cfg, &ctx.dut_mac));
 
     // Spawn order: harness first so its pcap is open before the DUT's first
     // OfferService (FORMAT_02 session_id==0x0001); --dut-first inverts it. On any
@@ -174,6 +161,10 @@ pub fn run_case(
     // Reap on the happy path BEFORE reading the log (the harness must be stopped
     // and its log flushed); Drop then no-ops via the `reaped` flag.
     procs.reap();
+    // Restore conditioning after the procs are down — mirrors bash run_case
+    // (kill_worker_procs → restore toggles → classify, smoke-test.sh:1505-1575).
+    // Drop is the backstop for the error/panic paths.
+    cond.restore();
     Ok(classify(&hlog))
 }
 
@@ -186,6 +177,13 @@ fn classify(hlog: &Path) -> Verdict {
         // but-no-verdict case below, per the verdict taxonomy's error class).
         Err(e) => return Verdict::NonConclusion(format!("error:harness_log_unreadable: {e}")),
     };
+    // The harness emits EXACTLY ONE `verdict  :` line per run — it prints the
+    // donedata verdict when the SCXML reaches its single final state — so taking
+    // the first occurrence equals taking the only one. bash (smoke-test.sh:1594-
+    // 1611) instead greps for a skip/inconclusive/error class anywhere, then for
+    // pass; with one verdict line per run the two are equivalent. If the harness
+    // ever emitted multiple verdict lines, this first-line policy would diverge
+    // from bash's class-precedence scan — the single-line invariant is the pin.
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix(VERDICT_LINE_PREFIX) {
             return classify_verdict(rest.trim());
@@ -224,24 +222,28 @@ fn ex(e: &mut Vec<String>, key: &str, value: &str) {
     e.push(format!("{key}={value}"));
 }
 
-/// base TC8_DUT_EXPECT + the case's category static group
-/// (smoke-test.sh init_expectation_defaults). The SOME/IP identity is derived
-/// from vsomeip.json (config::DutIdentity); category statics cover ARP / ICMPv4
-/// / IPv4. The full per-case / negative-row override layers land in a later
-/// stage — when they do, this flat builder becomes one (base) input to a
-/// precedence-ordered merge (base → category → per-case → negative), mirroring
-/// bash's last-wins shadowing; it is intentionally not that shape yet (the
-/// override maps do not exist in Rust).
-fn expect_args(cfg: &Config, case_id: &str, dut_mac: &str) -> Vec<String> {
+/// The base `--expect` set bash passes for EVERY case (smoke-test.sh:1218-1226):
+/// `TC8_DUT_EXPECT` (SOME/IP identity, derived from vsomeip.json via
+/// `config::DutIdentity`) + the per-worker DUT-MAC block + ALL category static
+/// groups (ARP / ICMPv4 / IPv4), unconditionally.
+///
+/// These are emitted flat for every case, NOT gated by case prefix. The harness
+/// reads only the keys its case references; extra keys are inert. The previous
+/// prefix-gated shape DROPPED `dut.mac`/`dhcpv4.dut_iface_mac` entirely and hid
+/// `arp.dut_iface_mac` behind the ARP branch — a silent parity gap vs bash, which
+/// gives every case the full set. Mirroring bash's flat array removes the whole
+/// cross-category-read hazard. The per-case / negative-row OVERRIDE layers (the
+/// last-wins precedence merge) land in a later stage; this is its `base` input.
+fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
     let id = &cfg.identity;
     let mut e = Vec::new();
-    // base — SOME/IP identity from vsomeip.json + SD deployment defaults
+    // base — SOME/IP identity (vsomeip.json) + SD deployment defaults (wire)
     ex(&mut e, "service_id", &id.service_id);
     ex(&mut e, "instance_id", &id.instance_id);
-    ex(&mut e, "major_version", SD_MAJOR_VERSION);
+    ex(&mut e, "major_version", wire::SD_MAJOR_VERSION);
     ex(&mut e, "ttl", &id.ttl);
-    ex(&mut e, "minor_version", SD_MINOR_VERSION);
-    ex(&mut e, "eventgroup_id", SD_DEFAULT_EVENTGROUP);
+    ex(&mut e, "minor_version", wire::SD_MINOR_VERSION);
+    ex(&mut e, "eventgroup_id", wire::SD_DEFAULT_EVENTGROUP);
     ex(&mut e, "dut_iface_ip", &cfg.dut_ip4);
     ex(&mut e, "udp_port", &id.udp_port);
     ex(&mut e, "tcp_port", &id.tcp_port);
@@ -249,26 +251,30 @@ fn expect_args(cfg: &Config, case_id: &str, dut_mac: &str) -> Vec<String> {
     ex(&mut e, "mcast_ipv4", &id.mcast_ipv4);
     ex(&mut e, "mcast_port", &id.mcast_port);
 
-    let cat = case_id.to_uppercase();
-    if cat.starts_with("ARP_") {
-        ex(&mut e, "arp.tester_ip", &cfg.tester_ip4);
-        ex(&mut e, "arp.dut_iface_ip", &cfg.dut_ip4);
-        ex(&mut e, "arp.dut_iface_mac", dut_mac);
-        ex(&mut e, "dut.ip", &cfg.dut_ip4);
-        ex(&mut e, "arp.tester_mac", ARP_TESTER_MAC);
-        ex(&mut e, "arp.tester_mac2", ARP_TESTER_MAC2);
-        ex(&mut e, "arp.tester_mac3", ARP_TESTER_MAC3);
-    } else if cat.starts_with("ICMPV4_") {
-        ex(&mut e, "icmpv4.tester_ip", &cfg.tester_ip4);
-        ex(&mut e, "icmpv4.dut_iface_ip", &cfg.dut_ip4);
-        ex(&mut e, "icmpv4.echo_id", ICMP_ECHO_ID);
-        ex(&mut e, "icmpv4.echo_seq", ICMP_ECHO_SEQ);
-    } else if cat.starts_with("IPV4_") {
-        ex(&mut e, "ipv4.tester_ip", &cfg.tester_ip4);
-        ex(&mut e, "ipv4.dut_iface_ip", &cfg.dut_ip4);
-        ex(&mut e, "ipv4.dut_alias_ip", IPV4_DUT_ALIAS_IP);
-        ex(&mut e, "ipv4.tester_alias_ip", IPV4_TESTER_ALIAS_IP);
-    }
+    // ARP static group (ARP_DUT_EXPECT_STATIC)
+    ex(&mut e, "arp.tester_ip", &cfg.tester_ip4);
+    ex(&mut e, "arp.dut_iface_ip", &cfg.dut_ip4);
+    ex(&mut e, "dut.ip", &cfg.dut_ip4);
+    ex(&mut e, "arp.tester_mac", wire::ARP_TESTER_MAC);
+    ex(&mut e, "arp.tester_mac2", wire::ARP_TESTER_MAC2);
+    ex(&mut e, "arp.tester_mac3", wire::ARP_TESTER_MAC3);
+
+    // DUT-MAC block — base, every case (smoke-test.sh:1221-1223)
+    ex(&mut e, "arp.dut_iface_mac", dut_mac);
+    ex(&mut e, "dut.mac", dut_mac);
+    ex(&mut e, "dhcpv4.dut_iface_mac", dut_mac);
+
+    // ICMPv4 static group (ICMPV4_DUT_EXPECT_STATIC)
+    ex(&mut e, "icmpv4.tester_ip", &cfg.tester_ip4);
+    ex(&mut e, "icmpv4.dut_iface_ip", &cfg.dut_ip4);
+    ex(&mut e, "icmpv4.echo_id", wire::ICMP_ECHO_ID);
+    ex(&mut e, "icmpv4.echo_seq", wire::ICMP_ECHO_SEQ);
+
+    // IPv4 static group (IPV4_DUT_EXPECT_STATIC)
+    ex(&mut e, "ipv4.tester_ip", &cfg.tester_ip4);
+    ex(&mut e, "ipv4.dut_iface_ip", &cfg.dut_ip4);
+    ex(&mut e, "ipv4.dut_alias_ip", wire::DUT_ALIAS_IP);
+    ex(&mut e, "ipv4.tester_alias_ip", wire::TESTER_ALIAS_IP);
     e
 }
 
@@ -299,5 +305,45 @@ mod tests {
         // Taxonomy drift must surface as a gate-red Fail, never a silent pass.
         assert!(matches!(classify_verdict("passive"), Verdict::Fail(_)));
         assert!(matches!(classify_verdict("bogus"), Verdict::Fail(_)));
+    }
+
+    fn fake_cfg() -> Config {
+        use crate::config::DutIdentity;
+        Config {
+            harness: "/x".into(),
+            dut_bin: "/x".into(),
+            vsomeip_cfg: "/x".into(),
+            capi_cfg: "/x".into(),
+            work_root: "/x".into(),
+            vsomeip_base: "/x".into(),
+            tester_ip4: "172.16.0.1".into(),
+            dut_ip4: "172.16.0.2".into(),
+            identity: DutIdentity {
+                service_id: "0xF4E7".into(),
+                instance_id: "0x0001".into(),
+                udp_port: "30502".into(),
+                tcp_port: "30501".into(),
+                sd_multicast_ip: "224.244.224.245".into(),
+                ttl: "3".into(),
+                mcast_ipv4: "224.244.224.246".into(),
+                mcast_port: "30495".into(),
+            },
+            backstop_sec: 240,
+        }
+    }
+
+    #[test]
+    fn expect_args_emits_dut_mac_block_for_every_case() {
+        // Regression guard for the prefix-gating false-pass: bash emits
+        // arp.dut_iface_mac + dut.mac + dhcpv4.dut_iface_mac for EVERY case
+        // (smoke-test.sh:1221-1223). All three must always be present.
+        let args = expect_args(&fake_cfg(), "02:00:00:00:00:DD");
+        for key in [
+            "arp.dut_iface_mac=02:00:00:00:00:DD",
+            "dut.mac=02:00:00:00:00:DD",
+            "dhcpv4.dut_iface_mac=02:00:00:00:00:DD",
+        ] {
+            assert!(args.iter().any(|a| a == key), "missing --expect {key}");
+        }
     }
 }

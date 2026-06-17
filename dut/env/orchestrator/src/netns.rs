@@ -21,21 +21,17 @@
 use anyhow::{bail, Context, Result};
 use std::process::{Command, Stdio};
 
-/// DUT-side alias making the UDP_USER_INTERFACE_07 source-IP axis
-/// exercisable (setup-netns.sh:111). Mirror of `kDutAliasIp4Be` in
-/// src/sce_integration/udp_pilot_common.h — single source of truth between netns
-/// setup and the UI_07 SCXML cond. Pending the S6 cross-language wire manifest.
-const DUT_ALIAS_IP: &str = "172.16.0.5/24";
-/// TESTER-side alias for the UI_08 destination-IP axis (setup-netns.sh:112).
-/// Mirror of `kTesterAliasIp4Be`.
-const TESTER_ALIAS_IP: &str = "172.16.0.4/24";
+use crate::wire;
+
 /// SOME/IP-SD multicast route — `224.244.224.245` in the vsomeip default lives in
 /// this block (setup-netns.sh MCAST_ROUTE default, line 39).
 const MCAST_ROUTE: &str = "224.0.0.0/4";
 /// DUT NUD delay-first-probe window, widened past the ARP_03/05 5 s listen window
 /// (setup-netns.sh:151) so a STALE→DELAY→PROBE re-verification does not fire a
-/// unicast Request inside the absence-check window.
-const DELAY_FIRST_PROBE_SECS: &str = "30";
+/// unicast Request inside the absence-check window. `pub(crate)` so the per-case
+/// conditioning (ARP_48/49) restores `delay_first_probe_time` to THIS value, not
+/// the kernel default — the two must agree, so they share one home.
+pub(crate) const DELAY_FIRST_PROBE_SECS: &str = "30";
 
 /// Optional second veth pair — USAGE_01 Topology 2 (setup-netns.sh:184-197).
 /// A distinct broadcast domain (separate veth, not a macvlan) per RFC 2131 §3.6.
@@ -118,11 +114,15 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
         ip(&["-n", &p.dut_ns, "link", "set", &v.dut_vlan_if, "up"])?;
     }
 
-    // --- Addresses: primary + the two UI_07/_08 aliases (setup-netns.sh:90-112) ---
+    // --- Addresses: primary + the two UI_07/_08 aliases (setup-netns.sh:90-112).
+    //     The alias bare IPs are the harness's SSOT (wire); netns derives the /24
+    //     it configures, the same way the primary CIDRs are built from cfg. ---
+    let dut_alias = format!("{}/24", wire::DUT_ALIAS_IP);
+    let tester_alias = format!("{}/24", wire::TESTER_ALIAS_IP);
     ip(&["-n", &p.tester_ns, "addr", "add", &p.tester_ip, "dev", tester_l3if])?;
     ip(&["-n", &p.dut_ns, "addr", "add", &p.dut_ip, "dev", dut_l3if])?;
-    ip(&["-n", &p.dut_ns, "addr", "add", DUT_ALIAS_IP, "dev", dut_l3if])?;
-    ip(&["-n", &p.tester_ns, "addr", "add", TESTER_ALIAS_IP, "dev", tester_l3if])?;
+    ip(&["-n", &p.dut_ns, "addr", "add", &dut_alias, "dev", dut_l3if])?;
+    ip(&["-n", &p.tester_ns, "addr", "add", &tester_alias, "dev", tester_l3if])?;
 
     // --- Disable veth TX checksum offload (setup-netns.sh:114-127) — best-effort
     //     (bash `|| true`). veth reports CHECKSUM_PARTIAL on TX, so without this
@@ -192,7 +192,8 @@ pub fn teardown(tester_ns: &str, dut_ns: &str) {
 
 /// Run `ip ARGS`, bailing with the captured stderr on a non-zero exit. Used for
 /// every mandatory step (bash runs these without `|| true` under `set -e`).
-fn ip(args: &[&str]) -> Result<()> {
+/// `pub(crate)` so topology.rs's per-case conditioning reuses one checked runner.
+pub(crate) fn ip(args: &[&str]) -> Result<()> {
     let out = Command::new("ip")
         .args(args)
         .output()

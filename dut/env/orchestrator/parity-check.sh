@@ -21,23 +21,27 @@ ROOT="$(cd "$HERE/../../.." && pwd)"
 SMOKE="$ROOT/dut/env/smoke-test.sh"
 ORCH="$HERE/target/debug/tc8-orchestrator"
 
-# Default case set: positive categories the orchestrator implements today
-# (ARP / ICMPv4) that need NO per-case expectation override.
+# Default case set: positive cases that conclude on the orchestrator's expect
+# surface (base SOME/IP identity + the DUT-MAC block + ARP/ICMPv4/IPv4 category
+# statics, emitted flat for every case — bash's structure). The per-case eventgroup
+# OVERRIDES and a TCP category branch are not ported yet (the override stage).
 #
-# Conditioning boundary: the bring-up sysctls (arp_accept, delay_first_probe,
-# ucast_solicit, ...) ARE covered, and since S3 they are a REAL parity surface —
-# bash builds the fixture via setup-netns.sh while the orchestrator builds it via
-# the native `netns` module, so e.g. ARP_05 (arp_accept=1) passing on both sides
-# is evidence the port reproduced that sysctl, not a tautology. What the
-# orchestrator does NOT yet port is the PER-CASE DUT neigh flush bash does in
-# run_case (smoke-test.sh:907) before each case. That only diverges when a
-# worker's bucket holds >1 ARP case or runs a cold-cache ARP_07..15 as a
-# non-first case; ARP_03 / ICMPv4_TYPE_08 at workers=1 × 1-case are
-# flush-independent. Grow this set toward those once the conditioning stage
-# lands the flush.
+# Conditioning surface: the S3 bring-up sysctls (arp_accept=1, delay_first_probe,
+# ucast_solicit, ...) AND the S4 per-case toggles + per-case DUT neigh flush are
+# native, so the orchestrator and bash build BOTH the fixture and the per-case
+# kernel state via independent code — a passing case is real evidence, not a
+# tautology. The default set exercises three conditioning families end-to-end:
+#   ICMPv4_TYPE_04  → the ipfrag_time global toggle
+#   ARP_38          → the conf.<iface>/conf.all arp_accept toggle
+#   ARP_48          → the neigh base_reachable/delay_first_probe/gc_stale toggles
+#
+# Cases still NONCONC here need --expect keys the builder does not emit yet (no TCP
+# category branch → TCP_RETRANSMISSION_TO_*; per-case eventgroup overrides →
+# SOMEIPSRV/ETS) — that is the override stage, NOT a conditioning gap. Grow this
+# set as those land.
 CASES=("$@")
 if [[ ${#CASES[@]} -eq 0 ]]; then
-    CASES=(ICMPv4_TYPE_08 ARP_03)
+    CASES=(ICMPv4_TYPE_08 ARP_03 ICMPv4_TYPE_04 ARP_38 ARP_48)
 fi
 
 [[ -x "$SMOKE" ]] || { echo "parity-check: smoke-test.sh not found at $SMOKE" >&2; exit 2; }
