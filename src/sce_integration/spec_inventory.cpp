@@ -442,12 +442,18 @@ std::optional<SpecInventory> SpecInventory::load(
                 findBoolField(body, "platform_known_fail", false);
             std::string platform_known_fail_ref =
                 findStringField(body, "platform_known_fail_ref");
+            const bool timing_serial =
+                findBoolField(body, "timing_serial", false);
+            std::string timing_serial_ref =
+                findStringField(body, "timing_serial_ref");
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
                     sc.defer_reason = std::move(reason);
                     sc.platform_known_fail = platform_known_fail;
                     sc.platform_known_fail_ref = std::move(platform_known_fail_ref);
+                    sc.timing_serial = timing_serial;
+                    sc.timing_serial_ref = std::move(timing_serial_ref);
                     break;
                 }
             }

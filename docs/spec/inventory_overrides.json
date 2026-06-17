@@ -1,6 +1,6 @@
 {
-  "schema_version": 3,
-  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Two independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`. The two axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer.",
+  "schema_version": 4,
+  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Three independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage. The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis.",
   "overrides": {
     "ARP_33": {
       "platform_known_fail": true,
@@ -9,6 +9,22 @@
     "ARP_34": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
+    },
+    "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_12": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+    },
+    "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_13": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+    },
+    "DHCPV4_CLIENT_REACQUISITION_05": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+    },
+    "DHCPV4_CLIENT_REACQUISITION_06": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
     },
     "ICMPV4_ERROR_02": {
       "platform_known_fail": true,

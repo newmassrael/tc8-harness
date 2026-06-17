@@ -37,6 +37,16 @@ struct SpecCase {
     std::string defer_reason;
     bool platform_known_fail = false;
     std::string platform_known_fail_ref;
+    // Third (independent) axis: `timing_serial:true` (+ `timing_serial_ref`)
+    // marks a case whose verdict measures a sub-second inter-frame interval
+    // (a strict `frame_delta_within_us` cadence window) — the reference DUT
+    // can only meet it when it is NOT CPU-starved, so it MUST run uncontended
+    // (smoke `--workers 1`), mirroring how a conformance lab measures timing
+    // on dedicated DUT hardware. Stays ACTIVE in coverage (it is a real,
+    // passing case); CI routes it to a serial lane via `--only-serial` /
+    // away from the parallel lane via `--exclude-serial`.
+    bool timing_serial = false;
+    std::string timing_serial_ref;
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json

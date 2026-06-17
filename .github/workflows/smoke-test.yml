@@ -99,6 +99,10 @@ jobs:
         #     regression in cases the Linux DUT is capable of passing".
         #     Per-case rationale + memory cross-references live in
         #     each entry's `platform_known_fail_ref`.
+        #   * `--exclude-serial` drops cases marked `timing_serial:true`
+        #     (sub-second cadence windows) — they run UNCONTENDED in the
+        #     next step, since 4-way CPU contention starves the DUT's
+        #     timer and skews the interval (see that step).
         # When the harness later runs against a strict-RFC DUT, drop
         # the second flag — the marked cases land green there.
         run: |
@@ -107,7 +111,24 @@ jobs:
             --workers 4 \
             --junit-xml reports/junit-smoke-positive.xml \
             $(./build/tc8-harness test --list-cases \
-                --exclude-deferred --exclude-platform-known-fail \
+                --exclude-deferred --exclude-platform-known-fail --exclude-serial \
+              | awk '/^  [A-Z]/{print $1}')
+
+      - name: Run timing-cadence cases serially (--workers 1 + JUnit)
+        # Cases marked `timing_serial:true` in inventory_overrides.json verify a
+        # strict sub-second inter-frame cadence (frame_delta_within_us) — e.g. the
+        # DHCPv4 retransmission backoff windows. Under --workers 4 the reference
+        # DUT is CPU-starved and emits late, pushing the measured interval out of
+        # the spec window (a test-environment artifact, not a DUT fault). Running
+        # them alone gives the DUT the host's CPU so it emits on time, mirroring a
+        # conformance lab's dedicated DUT. Separate JUnit file (junit_emit_xml
+        # clobbers); dorny/test-reporter globs reports/junit-*.xml.
+        run: |
+          sudo -n dut/env/smoke-test.sh \
+            --workers 1 \
+            --junit-xml reports/junit-smoke-positive-serial.xml \
+            $(./build/tc8-harness test --list-cases \
+                --only-serial \
               | awk '/^  [A-Z]/{print $1}')
 
       - name: Run negative curated set (--workers 4)

@@ -60,6 +60,13 @@ private:
     // (`--vs-spec`) ignores this axis so reports stay honest about
     // what the harness covers.
     bool exclude_platform_known_fail_ = false;
+    // `--list-cases --exclude-serial` strips cases marked `timing_serial:true`
+    // (sub-second cadence measurements) from the parallel lane;
+    // `--list-cases --only-serial` keeps ONLY those — CI runs them at
+    // `--workers 1` so the reference DUT is not CPU-starved. Mutually
+    // exclusive in use; combinable with the other axes' filters.
+    bool exclude_serial_ = false;
+    bool only_serial_ = false;
     std::string inventory_path_;
     std::string overrides_path_;
     // `--inventory-extra` (repeatable) — D5 out-of-tree injection hook.

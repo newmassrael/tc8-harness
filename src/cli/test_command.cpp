@@ -61,6 +61,16 @@ TestCommand::TestCommand(CLI::App &app) {
                    "that pass on a strict-RFC DUT. Independent from "
                    "--exclude-deferred; combine for the full CI smoke skip "
                    "list.");
+    sub_->add_flag("--exclude-serial", exclude_serial_,
+                   "With --list-cases (no --vs-spec), drop cases marked "
+                   "timing_serial:true in the inventory overrides — sub-second "
+                   "cadence measurements that the reference DUT can only meet "
+                   "uncontended. The parallel (--workers N) CI lane uses this; "
+                   "the serial lane uses --only-serial.");
+    sub_->add_flag("--only-serial", only_serial_,
+                   "With --list-cases (no --vs-spec), keep ONLY cases marked "
+                   "timing_serial:true — CI runs these at --workers 1 so a "
+                   "CPU-starved DUT does not skew the timing window.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: docs/spec/case_inventory.json)");
@@ -124,7 +134,7 @@ int TestCommand::runListCases() const {
     // set. Failure to load surfaces with stderr + non-zero exit so
     // smoke/CI invocations don't silently fall back to the full list.
     std::optional<sce::SpecInventory> inv_for_filter;
-    if (exclude_deferred_ || exclude_platform_known_fail_) {
+    if (exclude_deferred_ || exclude_platform_known_fail_ || exclude_serial_ || only_serial_) {
         const std::string inv_path = inventory_path_.empty()
             ? std::string("docs/spec/case_inventory.json")
             : inventory_path_;
@@ -146,7 +156,17 @@ int TestCommand::runListCases() const {
     for (const auto *e : entries) {
         if (inv_for_filter.has_value()) {
             const auto canon = sce::SpecInventory::canonicalise(std::string{e->id});
-            if (const auto *sc = inv_for_filter->find(canon); sc != nullptr) {
+            const auto *sc = inv_for_filter->find(canon);
+            // timing_serial defaults false, so a case with no override entry is
+            // non-serial — --only-serial drops it, --exclude-serial keeps it.
+            const bool serial = (sc != nullptr) && sc->timing_serial;
+            if (only_serial_ && !serial) {
+                continue;
+            }
+            if (exclude_serial_ && serial) {
+                continue;
+            }
+            if (sc != nullptr) {
                 if (exclude_deferred_ && !sc->expected) {
                     continue;
                 }
@@ -168,7 +188,9 @@ int TestCommand::runListCases() const {
                     static_cast<int>(e->description.size()), e->description.data(), tag);
         ++emitted;
     }
-    if (exclude_deferred_ || exclude_platform_known_fail_) {
+    if (only_serial_) {
+        std::printf("\n%zu timing_serial case(s) listed.\n", emitted);
+    } else if (exclude_deferred_ || exclude_platform_known_fail_ || exclude_serial_) {
         std::string note;
         if (exclude_deferred_) {
             note = "deferred";
@@ -176,6 +198,10 @@ int TestCommand::runListCases() const {
         if (exclude_platform_known_fail_) {
             note += note.empty() ? "" : "+";
             note += "platform_known_fail";
+        }
+        if (exclude_serial_) {
+            note += note.empty() ? "" : "+";
+            note += "timing_serial";
         }
         std::printf("\n%zu case(s) listed (%s excluded).\n", emitted, note.c_str());
     } else {
