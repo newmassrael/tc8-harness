@@ -860,6 +860,7 @@ sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/smoke-test.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-eth-sp-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-ip-static-check.sh
+%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-ipv6-static-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/scripts/setup-vsomeip.sh
 EOF
 # 5. `sudo systemctl enable --now actions.runner.<owner>-<repo>.<runner-name>.service`

@@ -36,6 +36,7 @@ private:
     bool icmp_echo_ = false; // also exercise the ICMP-group ECHO_REQUEST SP loop
     bool eth_ = false;       // also exercise the ETH INTERFACE_DOWN/UP SP loop
     bool ip_static_ = false; // also exercise the IP STATIC_ADDRESS/ROUTE SP loop
+    bool ipv6_static_ = false; // also exercise the IPv6 STATIC_ADDRESS/ROUTE SP loop
 
     // ETH loop parameters (required with --eth): the DUT-side interface to
     // toggle, and a SECOND DUT IP (on a different interface) whose reachability
@@ -55,6 +56,18 @@ private:
     std::string ip_static_route_subnet_;
     std::string ip_static_route_gw_;
     int ip_static_route_cidr_ = 24;
+
+    // IPv6 STATIC loop parameters (with --ipv6-static): the IPv6 mirror of the IP
+    // STATIC parameters. The testability control transport is IPv4 (the UTM binds
+    // INADDR_ANY = IPv4), so unlike the IPv4 loop the probe cannot self-observe the
+    // new address; its ping6 reachability and the route's table presence are observed
+    // by the check script, which holds netns access.
+    std::string ipv6_static_iface_;
+    std::string ipv6_static_addr_;
+    int ipv6_static_prefix_ = 64;
+    std::string ipv6_static_route_subnet_;
+    std::string ipv6_static_route_gw_;
+    int ipv6_static_route_prefix_ = 64;
 };
 
 }  // namespace tc8::cli

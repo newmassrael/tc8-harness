@@ -221,6 +221,16 @@ jobs:
       - name: Testability IP STATIC SP observable check
         run: sudo -n dut/env/testability-ip-static-check.sh
 
+      # Observable IPv6 STATIC_ADDRESS / STATIC_ROUTE service primitive check
+      # (PRS_TPSP §6.10, GID 0x06). The IPv6 mirror of the IP STATIC check above:
+      # testability-probe --ipv6-static assigns a fresh IPv6 to the DUT's SECONDARY
+      # interface over the (IPv4) PRIMARY control channel; the script then observes the
+      # address is ping6-reachable and the route landed in the DUT's table. Both are
+      # observed here (the IPv4 testability transport cannot self-observe an IPv6 addr).
+      # The E_OK path the hermetic unit tests skip, verified against the deployable UTM.
+      - name: Testability IPv6 STATIC SP observable check
+        run: sudo -n dut/env/testability-ipv6-static-check.sh
+
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@v6

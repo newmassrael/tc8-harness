@@ -379,6 +379,49 @@ bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &
     return true;
 }
 
+// IPv6 STATIC_ADDRESS / STATIC_ROUTE loop (GID 0x06): the IPv6 mirror of
+// runIpStaticLoop. The testability control transport is IPv4 (the UTM binds
+// INADDR_ANY = IPv4), so unlike the IPv4 loop the probe cannot self-observe the new
+// address by answering GET_VERSION on it. It drives STATIC_ADDRESS + STATIC_ROUTE
+// and asserts E_OK; the assigned address's ping6 reachability and the route's table
+// presence are observed by the check script, which holds netns access — the same
+// division the IPv4 loop already uses for STATIC_ROUTE.
+bool runIpv6StaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &iface,
+                       const std::uint8_t addr16[16], std::uint8_t prefix, bool do_route,
+                       const std::uint8_t subnet16[16], std::uint8_t route_prefix,
+                       const std::uint8_t gw16[16], int timeout_ms) {
+    char nb[INET6_ADDRSTRLEN] = {};
+    ::inet_ntop(AF_INET6, addr16, nb, sizeof(nb));
+
+    const auto sa = stimulus::testabilityStaticAddressV6(cfg, iface, addr16, prefix, timeout_ms);
+    if (!sa.eok()) {
+        std::fprintf(stderr,
+                     "testability-probe: IPv6 STATIC_ADDRESS(%s, %s/%u) failed (ok=%d rid=0x%02X)\n",
+                     iface.c_str(), nb, prefix, sa.ok, sa.rid);
+        return false;
+    }
+    std::printf("testability-probe: IPv6 STATIC_ADDRESS(%s) -> E_OK "
+                "(%s/%u assigned; reachability observed by the check script)\n",
+                iface.c_str(), nb, prefix);
+
+    if (do_route) {
+        char sb[INET6_ADDRSTRLEN] = {};
+        ::inet_ntop(AF_INET6, subnet16, sb, sizeof(sb));
+        const auto sr =
+            stimulus::testabilityStaticRouteV6(cfg, iface, subnet16, route_prefix, gw16, timeout_ms);
+        if (!sr.eok()) {
+            std::fprintf(stderr,
+                         "testability-probe: IPv6 STATIC_ROUTE(%s/%u) failed (ok=%d rid=0x%02X)\n",
+                         sb, route_prefix, sr.ok, sr.rid);
+            return false;
+        }
+        std::printf("testability-probe: IPv6 STATIC_ROUTE(%s/%u dev %s) -> E_OK "
+                    "(table presence observed by the check script)\n",
+                    sb, route_prefix, iface.c_str());
+    }
+    return true;
+}
+
 // ICMP echo loop: command the DUT's testability endpoint to emit an ICMP Echo
 // Request toward the tester and confirm the endpoint accepted it (E_OK). Like
 // ut-ping, this is a liveness / integration smoke of the SP round-trip — it is
@@ -453,6 +496,21 @@ TestabilityProbeCommand::TestabilityProbeCommand(CLI::App &app) {
                      "STATIC_ROUTE gateway (required with --ip-static-route-subnet)");
     sub_->add_option("--ip-static-route-cidr", ip_static_route_cidr_,
                      "CIDR prefix length for --ip-static-route-subnet (default 24)");
+    sub_->add_flag("--ipv6-static", ipv6_static_,
+                   "Also exercise the IPv6-group STATIC_ADDRESS/STATIC_ROUTE SP loop "
+                   "(requires --ipv6-static-iface and --ipv6-static-addr)");
+    sub_->add_option("--ipv6-static-iface", ipv6_static_iface_,
+                     "DUT-side secondary interface the IPv6 STATIC loop reconfigures");
+    sub_->add_option("--ipv6-static-addr", ipv6_static_addr_,
+                     "Fresh IPv6 the loop assigns (reachability observed by the check script)");
+    sub_->add_option("--ipv6-static-prefix", ipv6_static_prefix_,
+                     "Prefix length for --ipv6-static-addr (default 64)");
+    sub_->add_option("--ipv6-static-route-subnet", ipv6_static_route_subnet_,
+                     "Optional IPv6 STATIC_ROUTE destination subnet (with --ipv6-static)");
+    sub_->add_option("--ipv6-static-route-gw", ipv6_static_route_gw_,
+                     "IPv6 STATIC_ROUTE gateway (required with --ipv6-static-route-subnet)");
+    sub_->add_option("--ipv6-static-route-prefix", ipv6_static_route_prefix_,
+                     "Prefix length for --ipv6-static-route-subnet (default 64)");
 }
 
 int TestabilityProbeCommand::run() {
@@ -523,6 +581,41 @@ int TestabilityProbeCommand::run() {
         }
     }
 
+    // Validate the IPv6 STATIC loop's parameters up front too (fail fast before any
+    // DUT-mutating lifecycle runs).
+    std::uint8_t ipv6_addr[16] = {};
+    std::uint8_t ipv6_route_subnet[16] = {};
+    std::uint8_t ipv6_route_gw[16] = {};
+    bool ipv6_do_route = false;
+    if (ipv6_static_) {
+        if (ipv6_static_iface_.empty() || ipv6_static_addr_.empty()) {
+            std::fprintf(stderr, "testability-probe: --ipv6-static requires --ipv6-static-iface "
+                                 "and --ipv6-static-addr\n");
+            return 1;
+        }
+        if (::inet_pton(AF_INET6, ipv6_static_addr_.c_str(), ipv6_addr) != 1) {
+            std::fprintf(stderr, "testability-probe: invalid --ipv6-static-addr '%s'\n",
+                         ipv6_static_addr_.c_str());
+            return 1;
+        }
+        if (ipv6_static_prefix_ < 0 || ipv6_static_prefix_ > 128) {
+            std::fprintf(stderr, "testability-probe: --ipv6-static-prefix must be 0..128\n");
+            return 1;
+        }
+        if (!ipv6_static_route_subnet_.empty()) {
+            if (::inet_pton(AF_INET6, ipv6_static_route_subnet_.c_str(), ipv6_route_subnet) != 1 ||
+                ipv6_static_route_gw_.empty() ||
+                ::inet_pton(AF_INET6, ipv6_static_route_gw_.c_str(), ipv6_route_gw) != 1 ||
+                ipv6_static_route_prefix_ < 0 || ipv6_static_route_prefix_ > 128) {
+                std::fprintf(stderr,
+                             "testability-probe: --ipv6-static-route-subnet needs a valid subnet, "
+                             "--ipv6-static-route-gw, and a 0..128 --ipv6-static-route-prefix\n");
+                return 1;
+            }
+            ipv6_do_route = true;
+        }
+    }
+
     stimulus::TestabilityConfig cfg;
     cfg.dut_ip_be = addr.s_addr;
     cfg.dut_port = port_ > 0 ? static_cast<std::uint16_t>(port_) : tp::kDefaultPort;
@@ -582,6 +675,15 @@ int TestabilityProbeCommand::run() {
                              static_cast<std::uint8_t>(ip_static_cidr_), ip_do_route,
                              ip_route_subnet_be, static_cast<std::uint8_t>(ip_static_route_cidr_),
                              ip_route_gw_be, timeout_ms_)) {
+            return 1;
+        }
+    }
+    if (ipv6_static_) {
+        if (!runIpv6StaticLoop(cfg, ipv6_static_iface_, ipv6_addr,
+                               static_cast<std::uint8_t>(ipv6_static_prefix_), ipv6_do_route,
+                               ipv6_route_subnet,
+                               static_cast<std::uint8_t>(ipv6_static_route_prefix_), ipv6_route_gw,
+                               timeout_ms_)) {
             return 1;
         }
     }
