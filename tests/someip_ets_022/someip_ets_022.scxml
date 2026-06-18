@@ -46,10 +46,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0036 and captured.return_code == 0x00 and captured.payload_len == 5 and captured.payload_snapshot[0] == 0x10 and captured.payload_snapshot[1] == 0x11 and captured.payload_snapshot[2] == 0x12 and captured.payload_snapshot[3] == 0x13 and captured.payload_snapshot[4] == 0x14"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x0036 and captured.return_code == 0x00 and captured.payload_equals(expected.payload_view())"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0036 and captured.message_type == 0x80 and (captured.payload_len != 5 or captured.payload_snapshot[0] != 0x10 or captured.payload_snapshot[4] != 0x14)"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0036 and captured.message_type == 0x80 and !captured.payload_equals(expected.payload_view())"
                 target="fail_phase2_static_array_echo_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response"/>
   </state>

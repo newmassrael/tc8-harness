@@ -1315,6 +1315,14 @@ run_case() {
         [SOMEIP_ETS_009]="payload=02"
         [SOMEIP_ETS_019]="payload=3F:F8:00:00:00:00:00:00"
         [SOMEIP_ETS_027]="payload=42"
+        [SOMEIP_ETS_007]="payload=01:80:02:1E:6A:2C:48"
+        [SOMEIP_ETS_022]="payload=10:11:12:13:14"
+        [SOMEIP_ETS_028]="payload=00:00:00:03:42:43:44"
+        [SOMEIP_ETS_029]="payload=00:03:42:43:44"
+        [SOMEIP_ETS_030]="payload=00:00:00:0A:00:00:00:01:42:00:00:00:01:43"
+        [SOMEIP_ETS_031]="payload=03:42:43:44"
+        [SOMEIP_ETS_032]="payload=00:00:00:04:10:11:12:13"
+        [SOMEIP_ETS_038]="payload=00:00:00:01:00:00:00:02:42"
         [SOMEIPSRV_BASIC_03]="eventgroup_id=0x0002"
         # §5.1.5.1.28 FORMAT_28 round-trip eventgroup_id check: the
         # trait subscribes to eg 0x0002 (Ack path); SCXML cond checks
@@ -2234,16 +2242,16 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # _033 reuses the malformed-length axis (length_override) since
         # CommonAPI-SOMEIP on Linux does not enforce SomeIpArrayMinLength
         # when length-width != 0; the same NEG token rebases its phase 1.
-        "SOMEIP_ETS_028|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_029|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_031|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_032|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_028|payload=00:00:00:03:42:43:45|fail:echo_array_response_did_not_match_request"
+        "SOMEIP_ETS_029|payload=00:03:42:43:45|fail:echo_array16_response_did_not_match_request"
+        "SOMEIP_ETS_031|payload=03:42:43:45|fail:echo_array8_response_did_not_match_request"
+        "SOMEIP_ETS_032|payload=00:00:00:04:10:11:12:14|fail:echo_arraymin_response_did_not_match_request"
         "SOMEIP_ETS_033|service_id=0x0000|fail:no_offer_service_within_listen_window"
         # Wave 3-b §5.1.6 ETS Array-family + FLOAT64 cluster — same SD-side
         # phase 1 service_id flip pattern as Wave 3-a.
         "SOMEIP_ETS_019|payload=3F:F8:00:00:00:00:00:01|fail:echo_float64_response_did_not_match_request"
-        "SOMEIP_ETS_022|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_030|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_022|payload=10:11:12:13:15|fail:echo_static_array_response_did_not_match_request"
+        "SOMEIP_ETS_030|payload=00:00:00:0A:00:00:00:01:42:00:00:00:01:44|fail:echo_array2dim_response_did_not_match_request"
         # Wave 3-c §5.1.6 ETS ENUM + UTF16DYNAMIC cluster — same SD-side
         # phase 1 service_id flip pattern as Waves 3-a/b.
         "SOMEIP_ETS_009|payload=03|fail:echo_enum_response_did_not_match_request"
@@ -2279,9 +2287,9 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # Each phase-2 verdict already covers its datatype axis; the
         # phase 1 flip rebases the OfferService cond so the case never
         # reaches the byte-equality verdict.
-        "SOMEIP_ETS_007|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_007|payload=01:80:02:1E:6A:2C:49|fail:echo_bitfields_response_did_not_match_reversed_request"
         "SOMEIP_ETS_034|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_038|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_038|payload=00:00:00:01:00:00:00:02:43|fail:echo_union_response_did_not_match_request"
         # Wave 5-a §5.1.6 ETS UNION NEG cluster (length_override + inner-prefix
         # mutations + wrong-type discriminant). Same SD-side flip pattern; the
         # phase 1 timeout rebases the OfferService cond before any of the
