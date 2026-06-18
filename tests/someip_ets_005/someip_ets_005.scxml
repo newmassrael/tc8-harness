@@ -10,6 +10,9 @@
   Pass criterion verifies all 4 response payload bytes against the
   expected sum — the strongest byte-order assertion the spec body
   describes (DUT must read both inputs in BE and emit the sum in BE).
+  The expected sum is supplied via the `payload=00:00:34:68` expect token
+  (the positive run sets it; the negative harness flips a byte to drive
+  fail_phase2_payload_mismatch as an observed_violation), not a literal.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -42,10 +45,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and captured.return_code == 0x00 and captured.payload_len == 4 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x34 and captured.payload_snapshot[3] == 0x68"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and captured.return_code == 0x00 and captured.payload_equals(expected.payload_view())"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and (captured.payload_len != 4 or captured.payload_snapshot[0] != 0x00 or captured.payload_snapshot[1] != 0x00 or captured.payload_snapshot[2] != 0x34 or captured.payload_snapshot[3] != 0x68)"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x001F and !captured.payload_equals(expected.payload_view())"
                 target="fail_phase2_payload_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response"/>
   </state>

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <string_view>
 
 #include "someip_expectations.h"
 #include "test_config.h"
@@ -54,6 +56,19 @@ struct SomeIpExpected {
     // doc-comment in `someip_expectations.h` for byte-order semantics.
     std::uint32_t mcast_ipv4 = 0;
     std::uint16_t mcast_port = 0;
+
+    // Expected L7 payload for a Method-Response echo assertion (see
+    // `SomeIpExpectations`). `payload_view()` exposes the valid prefix as a
+    // string_view so an ETS cond reads
+    // `captured.payload_equals(expected.payload_view())` — the single-dot
+    // form SCE's rewriter requires for both contexts.
+    std::array<std::uint8_t, kMaxExpectedPayload> payload{};
+    std::uint32_t payload_len = 0;
+
+    std::string_view payload_view() const {
+        return std::string_view(reinterpret_cast<const char *>(payload.data()),
+                                payload_len);
+    }
 };
 
 // ADL hook called by `TestRunner<SM>` at construction for any case whose
@@ -74,6 +89,8 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     e.sd_multicast_ip = cfg.someip.sd_multicast_ip;
     e.mcast_ipv4 = cfg.someip.mcast_ipv4;
     e.mcast_port = cfg.someip.mcast_port;
+    e.payload = cfg.someip.payload;
+    e.payload_len = cfg.someip.payload_len;
 }
 
 }  // namespace tc8

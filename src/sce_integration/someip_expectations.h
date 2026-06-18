@@ -1,8 +1,16 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace tc8 {
+
+// Ceiling for an expected L7 payload supplied via `--expect payload=HH:..`
+// and asserted by a SOME/IP ETS Method-Response echo cond. Echo payloads are
+// small (primitives / short structs / short arrays); a token that exceeds this
+// makes the parser reject it (fail-loud) rather than silently truncate.
+inline constexpr std::size_t kMaxExpectedPayload = 256;
 
 // Flat DTO for the expected values a TC8 §5.1 SOMEIPSRV case compares
 // captured SD-entry fields against — carries configured SERVICE-ID-1
@@ -51,6 +59,14 @@ struct SomeIpExpectations {
     // literals in SCXML cond expressions.
     std::uint32_t mcast_ipv4 = 0;
     std::uint16_t mcast_port = 0;
+
+    // Expected L7 payload bytes for a Method-Response echo assertion,
+    // supplied via `--expect payload=HH:HH:..`. `payload_len` is the count
+    // of valid leading bytes (0 = unset). ETS echo conds compare it via
+    // `captured.payload_equals(expected.payload_view())`; the negative
+    // harness flips one byte to drive the observed_violation final.
+    std::array<std::uint8_t, kMaxExpectedPayload> payload{};
+    std::uint32_t payload_len = 0;
 };
 
 }  // namespace tc8

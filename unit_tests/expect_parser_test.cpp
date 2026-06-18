@@ -80,12 +80,17 @@ TEST(ApplyExpectToken, AllRecognisedKeys) {
     EXPECT_TRUE(applyExpectToken("ttl=3", e));
     EXPECT_TRUE(applyExpectToken("minor_version=0", e));
     EXPECT_TRUE(applyExpectToken("eventgroup_id=0x0042", e));
+    EXPECT_TRUE(applyExpectToken("payload=00:00:34:68", e));
     EXPECT_EQ(e.service_id, 0x1234);
     EXPECT_EQ(e.instance_id, 0x5678);
     EXPECT_EQ(e.major_version, 2);
     EXPECT_EQ(e.ttl, 3u);
     EXPECT_EQ(e.minor_version, 0u);
     EXPECT_EQ(e.eventgroup_id, 0x0042);
+    ASSERT_EQ(e.payload_len, 4u);
+    EXPECT_EQ(e.payload[0], 0x00);
+    EXPECT_EQ(e.payload[2], 0x34);
+    EXPECT_EQ(e.payload[3], 0x68);
 }
 
 TEST(ApplyExpectToken, RejectsOverflowServiceId) {
@@ -115,6 +120,36 @@ TEST(ApplyExpectToken, RejectsMissingEquals) {
 TEST(ApplyExpectToken, RejectsUnknownKey) {
     ::tc8::SomeIpExpectations e{};
     EXPECT_FALSE(applyExpectToken("client_id=0", e));
+}
+
+TEST(ApplyExpectToken, PayloadSingleByte) {
+    ::tc8::SomeIpExpectations e{};
+    ASSERT_TRUE(applyExpectToken("payload=42", e));
+    ASSERT_EQ(e.payload_len, 1u);
+    EXPECT_EQ(e.payload[0], 0x42);
+}
+
+TEST(ApplyExpectToken, PayloadRejectsEmpty) {
+    // An empty value must fail loud, not leave a zero-length expectation
+    // that would vacuously match an empty payload.
+    ::tc8::SomeIpExpectations e{};
+    EXPECT_FALSE(applyExpectToken("payload=", e));
+    EXPECT_EQ(e.payload_len, 0u);
+}
+
+TEST(ApplyExpectToken, PayloadRejectsBadHex) {
+    ::tc8::SomeIpExpectations e{};
+    EXPECT_FALSE(applyExpectToken("payload=00:zz:34", e));
+}
+
+TEST(ApplyExpectToken, PayloadRejectsOverflow) {
+    // More than kMaxExpectedPayload octets is rejected, never truncated.
+    ::tc8::SomeIpExpectations e{};
+    std::string tok = "payload=00";
+    for (std::size_t i = 0; i <= ::tc8::kMaxExpectedPayload; ++i) {
+        tok += ":00";
+    }
+    EXPECT_FALSE(applyExpectToken(tok, e));
 }
 
 TEST(ApplyExpectToken, RejectsEmptyValue) {

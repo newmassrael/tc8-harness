@@ -124,6 +124,34 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
         e.mcast_ipv4 = ip;
         return true;
     }
+    if (key == "payload") {
+        // Colon-separated hex byte list (e.g. payload=00:00:34:68) — the
+        // expected L7 echo asserted by ETS Method-Response conds. Empty or
+        // over-`kMaxExpectedPayload` is rejected so a malformed token fails
+        // loud instead of leaving a stale/partial expectation.
+        if (val.empty()) {
+            return false;
+        }
+        std::array<std::uint8_t, kMaxExpectedPayload> bytes{};
+        std::uint32_t len = 0;
+        std::size_t cursor = 0;
+        while (true) {
+            const std::size_t colon = val.find(':', cursor);
+            const std::size_t end = (colon == std::string_view::npos) ? val.size() : colon;
+            std::uint8_t b = 0;
+            if (len >= bytes.size() || !parseHexOctet(val.substr(cursor, end - cursor), b)) {
+                return false;
+            }
+            bytes[len++] = b;
+            if (colon == std::string_view::npos) {
+                break;
+            }
+            cursor = colon + 1;
+        }
+        e.payload = bytes;
+        e.payload_len = len;
+        return true;
+    }
 
     std::uint64_t n = 0;
     if (!parseNumeric(val, n)) {

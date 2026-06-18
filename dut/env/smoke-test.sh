@@ -1307,6 +1307,11 @@ run_case() {
     # `--expect` is last-wins per src/cli/expect_parser.cpp, so appending
     # the override here cleanly shadows TC8_DUT_EXPECT.
     declare -A CASE_EXPECT_OVERRIDES=(
+        # SOMEIP_ETS Method-Response echo payload (the conformant value the
+        # positive run asserts). Parameterised out of the case .scxml literal
+        # so the --negative NEG_ROW can flip a byte and drive the case's
+        # observed_violation final (debt D7; see docs/verdict_policy.md).
+        [SOMEIP_ETS_005]="payload=00:00:34:68"
         [SOMEIPSRV_BASIC_03]="eventgroup_id=0x0002"
         # §5.1.5.1.28 FORMAT_28 round-trip eventgroup_id check: the
         # trait subscribes to eg 0x0002 (Ack path); SCXML cond checks
@@ -2208,7 +2213,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # expectation (service_id flip → phase 1 OfferService cond never
         # matches → timeout). _035 covers the response-side TCP src_port
         # axis the case adds on top of the ETS_027 echo shape.
-        "SOMEIP_ETS_005|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_005|payload=00:00:34:69|fail:check_byte_order_response_did_not_match_expected_uint32_sum"
         "SOMEIP_ETS_027|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_035|tcp_port=12345|fail:echo_uint8_reliable_response_did_not_match_request_or_wrong_tcp_src_port"
         # Wave 2 §5.1.6 ETS rows — SD-side phase 1 expectation flip

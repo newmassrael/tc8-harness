@@ -41,7 +41,11 @@ bool parseMac(std::string_view text, std::array<std::uint8_t, 6> &out);
 // Applies a single `--expect key=value` token to `e`. Recognised keys:
 // service_id (uint16), instance_id (uint16), major_version (uint8),
 // ttl (uint24 — SD TTL is 24-bit big-endian), minor_version (uint32),
-// eventgroup_id (uint16 — Type 2 entry eventgroup identifier).
+// eventgroup_id (uint16 — Type 2 entry eventgroup identifier),
+// dut_iface_ip / sd_multicast_ip / mcast_ipv4 (IPv4 dotted, NBO),
+// udp_port / tcp_port / mcast_port (uint16),
+// payload (colon-separated hex byte list, e.g. 00:00:34:68 — the expected
+//   L7 Method-Response echo; ETS conds assert it, --negative flips a byte).
 // Returns false when:
 //   - the token has no '=' separator,
 //   - the value doesn't parse as a numeric literal,
