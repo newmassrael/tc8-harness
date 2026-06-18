@@ -312,6 +312,67 @@ bool runEthInterfaceLoop(const stimulus::TestabilityConfig &cfg, const std::stri
     return true;
 }
 
+// IP STATIC_ADDRESS / STATIC_ROUTE loop (GID 0x05): command the DUT to assign a
+// FRESH IPv4 address to a SECONDARY interface over the PRIMARY control channel and
+// OBSERVE the effect — the new address, unreachable before, answers GET_VERSION
+// after (the UTM binds INADDR_ANY, so it replies on every DUT IP). Then, when route
+// params are given, command STATIC_ROUTE and assert E_OK (the route's presence in
+// the DUT's table is observed by the check script, which holds netns access). Like
+// the ETH loop, STATIC_ADDRESS's effect is observable, so the probe observes it.
+bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &iface,
+                     std::uint32_t new_addr_be, std::uint8_t cidr, bool do_route,
+                     std::uint32_t route_subnet_be, std::uint8_t route_cidr,
+                     std::uint32_t route_gw_be, int timeout_ms) {
+    char nb[INET_ADDRSTRLEN] = {};
+    ::inet_ntop(AF_INET, &new_addr_be, nb, sizeof(nb));
+    const int obs_ms = timeout_ms > 600 ? 300 : timeout_ms / 2;
+
+    // Precondition: the address to assign is not already live, so reachability
+    // AFTER the assignment is unambiguous evidence the SP took effect.
+    if (reachableByVersion(cfg, new_addr_be, obs_ms, 3)) {
+        std::fprintf(stderr,
+                     "testability-probe: IP precondition failed — %s already reachable before "
+                     "STATIC_ADDRESS (pick an unused address)\n",
+                     nb);
+        return false;
+    }
+    std::printf("testability-probe: IP precondition -> %s not yet assigned\n", nb);
+
+    const auto sa = stimulus::testabilityStaticAddress(cfg, iface, new_addr_be, cidr, timeout_ms);
+    if (!sa.eok()) {
+        std::fprintf(stderr,
+                     "testability-probe: IP STATIC_ADDRESS(%s, %s/%u) failed (ok=%d rid=0x%02X)\n",
+                     iface.c_str(), nb, cidr, sa.ok, sa.rid);
+        return false;
+    }
+    if (!reachableByVersion(cfg, new_addr_be, obs_ms, 10)) {
+        std::fprintf(stderr,
+                     "testability-probe: IP STATIC_ADDRESS reported E_OK but %s did not become "
+                     "reachable — the address was not assigned\n",
+                     nb);
+        return false;
+    }
+    std::printf("testability-probe: IP STATIC_ADDRESS(%s) -> E_OK (%s/%u now reachable)\n",
+                iface.c_str(), nb, cidr);
+
+    if (do_route) {
+        char sb[INET_ADDRSTRLEN] = {};
+        ::inet_ntop(AF_INET, &route_subnet_be, sb, sizeof(sb));
+        const auto sr = stimulus::testabilityStaticRoute(cfg, iface, route_subnet_be, route_cidr,
+                                                         route_gw_be, timeout_ms);
+        if (!sr.eok()) {
+            std::fprintf(stderr,
+                         "testability-probe: IP STATIC_ROUTE(%s/%u) failed (ok=%d rid=0x%02X)\n",
+                         sb, route_cidr, sr.ok, sr.rid);
+            return false;
+        }
+        std::printf("testability-probe: IP STATIC_ROUTE(%s/%u dev %s) -> E_OK "
+                    "(table presence observed by the check script)\n",
+                    sb, route_cidr, iface.c_str());
+    }
+    return true;
+}
+
 // ICMP echo loop: command the DUT's testability endpoint to emit an ICMP Echo
 // Request toward the tester and confirm the endpoint accepted it (E_OK). Like
 // ut-ping, this is a liveness / integration smoke of the SP round-trip — it is
@@ -371,6 +432,21 @@ TestabilityProbeCommand::TestabilityProbeCommand(CLI::App &app) {
     sub_->add_option("--eth-observe-ip", eth_observe_ip_,
                      "DUT IPv4 on a second interface whose reachability the ETH loop "
                      "watches to observe the toggle (with --eth)");
+    sub_->add_flag("--ip-static", ip_static_,
+                   "Also exercise the IP-group STATIC_ADDRESS/STATIC_ROUTE SP loop "
+                   "(requires --ip-static-iface and --ip-static-addr)");
+    sub_->add_option("--ip-static-iface", ip_static_iface_,
+                     "DUT-side secondary interface the STATIC loop reconfigures (with --ip-static)");
+    sub_->add_option("--ip-static-addr", ip_static_addr_,
+                     "Fresh IPv4 the loop assigns and observes reachable (with --ip-static)");
+    sub_->add_option("--ip-static-cidr", ip_static_cidr_,
+                     "CIDR prefix length for --ip-static-addr (default 24)");
+    sub_->add_option("--ip-static-route-subnet", ip_static_route_subnet_,
+                     "Optional STATIC_ROUTE destination subnet (with --ip-static)");
+    sub_->add_option("--ip-static-route-gw", ip_static_route_gw_,
+                     "STATIC_ROUTE gateway (required with --ip-static-route-subnet)");
+    sub_->add_option("--ip-static-route-cidr", ip_static_route_cidr_,
+                     "CIDR prefix length for --ip-static-route-subnet (default 24)");
 }
 
 int TestabilityProbeCommand::run() {
@@ -397,6 +473,48 @@ int TestabilityProbeCommand::run() {
             return 1;
         }
         eth_observe_be = obs.s_addr;
+    }
+
+    // Validate the IP STATIC loop's parameters up front too (fail fast before any
+    // DUT-mutating lifecycle runs).
+    std::uint32_t ip_static_addr_be = 0;
+    std::uint32_t ip_route_subnet_be = 0;
+    std::uint32_t ip_route_gw_be = 0;
+    bool ip_do_route = false;
+    if (ip_static_) {
+        if (ip_static_iface_.empty() || ip_static_addr_.empty()) {
+            std::fprintf(
+                stderr,
+                "testability-probe: --ip-static requires --ip-static-iface and --ip-static-addr\n");
+            return 1;
+        }
+        in_addr a{};
+        if (::inet_pton(AF_INET, ip_static_addr_.c_str(), &a) != 1) {
+            std::fprintf(stderr, "testability-probe: invalid --ip-static-addr '%s'\n",
+                         ip_static_addr_.c_str());
+            return 1;
+        }
+        ip_static_addr_be = a.s_addr;
+        if (ip_static_cidr_ < 0 || ip_static_cidr_ > 32) {
+            std::fprintf(stderr, "testability-probe: --ip-static-cidr must be 0..32\n");
+            return 1;
+        }
+        if (!ip_static_route_subnet_.empty()) {
+            in_addr sn{};
+            in_addr gw{};
+            if (::inet_pton(AF_INET, ip_static_route_subnet_.c_str(), &sn) != 1 ||
+                ip_static_route_gw_.empty() ||
+                ::inet_pton(AF_INET, ip_static_route_gw_.c_str(), &gw) != 1 ||
+                ip_static_route_cidr_ < 0 || ip_static_route_cidr_ > 32) {
+                std::fprintf(stderr,
+                             "testability-probe: --ip-static-route-subnet needs a valid subnet, "
+                             "--ip-static-route-gw, and a 0..32 --ip-static-route-cidr\n");
+                return 1;
+            }
+            ip_route_subnet_be = sn.s_addr;
+            ip_route_gw_be = gw.s_addr;
+            ip_do_route = true;
+        }
     }
 
     stimulus::TestabilityConfig cfg;
@@ -450,6 +568,14 @@ int TestabilityProbeCommand::run() {
     }
     if (eth_) {
         if (!runEthInterfaceLoop(cfg, eth_iface_, eth_observe_be, timeout_ms_)) {
+            return 1;
+        }
+    }
+    if (ip_static_) {
+        if (!runIpStaticLoop(cfg, ip_static_iface_, ip_static_addr_be,
+                             static_cast<std::uint8_t>(ip_static_cidr_), ip_do_route,
+                             ip_route_subnet_be, static_cast<std::uint8_t>(ip_static_route_cidr_),
+                             ip_route_gw_be, timeout_ms_)) {
             return 1;
         }
     }

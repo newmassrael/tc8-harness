@@ -35,6 +35,7 @@ private:
     bool tcp_data_ = false;  // also exercise the TCP-group active-open SP loop
     bool icmp_echo_ = false; // also exercise the ICMP-group ECHO_REQUEST SP loop
     bool eth_ = false;       // also exercise the ETH INTERFACE_DOWN/UP SP loop
+    bool ip_static_ = false; // also exercise the IP STATIC_ADDRESS/ROUTE SP loop
 
     // ETH loop parameters (required with --eth): the DUT-side interface to
     // toggle, and a SECOND DUT IP (on a different interface) whose reachability
@@ -42,6 +43,18 @@ private:
     // channel the commands ride on.
     std::string eth_iface_;
     std::string eth_observe_ip_;
+
+    // IP STATIC loop parameters (with --ip-static): the DUT-side SECONDARY
+    // interface to reconfigure, a fresh IPv4 to assign + observe reachable, and
+    // its CIDR; plus an optional STATIC_ROUTE destination subnet + gateway (whose
+    // table presence the check script observes). The control channel rides the
+    // PRIMARY interface, untouched by the secondary's reconfiguration.
+    std::string ip_static_iface_;
+    std::string ip_static_addr_;
+    int ip_static_cidr_ = 24;
+    std::string ip_static_route_subnet_;
+    std::string ip_static_route_gw_;
+    int ip_static_route_cidr_ = 24;
 };
 
 }  // namespace tc8::cli

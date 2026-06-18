@@ -831,11 +831,13 @@ VLAN-투명합니다:
 # 2. 등록 시 [self-hosted, netns] 라벨 적용
 # 3. 빌드 의존성 설치 (cmake, build-essential, quilt, libpcap-dev,
 #    libtins-dev, libboost-{system,thread,filesystem,log}-dev)
-# 4. runner가 smoke-test.sh와 setup-vsomeip.sh를 비대화식으로 돌릴 수
-#    있도록 sudoers fragment 추가 (후자의 `sudo cmake --install`는
-#    root→root이므로 별도 항목 불필요):
+# 4. runner가 smoke-test.sh, setup-vsomeip.sh, testability-*-sp-check.sh
+#    관측 체크를 비대화식으로 돌릴 수 있도록 sudoers fragment 추가
+#    (setup-vsomeip의 `sudo cmake --install`는 root→root이므로 별도 항목 불필요):
 sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/smoke-test.sh
+%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-eth-sp-check.sh
+%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-ip-static-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/scripts/setup-vsomeip.sh
 EOF
 # 5. `sudo systemctl enable --now actions.runner.<owner>-<repo>.<runner-name>.service`

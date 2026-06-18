@@ -211,6 +211,16 @@ jobs:
       - name: Testability ETH SP observable check
         run: sudo -n dut/env/testability-eth-sp-check.sh
 
+      # Observable IP STATIC_ADDRESS / STATIC_ROUTE service primitive check
+      # (PRS_TPSP §6.10). The same Topology-2 dual-veth netns + standalone tc8-utm:
+      # testability-probe --ip-static assigns a fresh address to the DUT's SECONDARY
+      # interface over the PRIMARY control channel and observes it become reachable,
+      # then installs a route and the check confirms it landed in the DUT's table.
+      # The E_OK assignment path the hermetic unit tests skip (a privileged write
+      # would mutate the build host), verified here against the deployable UTM. ~5 s.
+      - name: Testability IP STATIC SP observable check
+        run: sudo -n dut/env/testability-ip-static-check.sh
+
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@v6
