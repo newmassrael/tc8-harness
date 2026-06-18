@@ -173,6 +173,15 @@ jobs:
           python3 tools/gen_verdict_taxonomy.py --check
           python3 tools/verdict_drift_audit.py
 
+      - name: Negative-coverage soundness ratchet
+        # A negative test must drive an OBSERVED violation (fail), not merely
+        # suppress an awaited observation (which now lands on inconclusive and
+        # proves nothing). The ratchet enforces: no NEG_ROW points at a missing
+        # reason; no NEW vacuous negative beyond the shrinking debt ledger
+        # (tools/negative_coverage_baseline.txt, D7); no stale ledger entry.
+        # Pure-Python. See docs/verdict_policy.md §6.
+        run: python3 tools/negative_coverage_audit.py --check
+
       - name: Wire-constant manifest SSOT gate
         # The wire/fixture constants (IPs, MACs, tap/lock names, backstop) are
         # generated from tools/wire.def into wire.gen.{rs,sh}, and
