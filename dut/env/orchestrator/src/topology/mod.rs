@@ -78,6 +78,14 @@ pub struct Conditioning<'a> {
 }
 
 impl Conditioning<'_> {
+    /// Record a step's restore action, called as each apply succeeds so the guard
+    /// reverts exactly the applied steps on Drop. Keeps `restore_steps` private:
+    /// the per-topology `condition_case` builders push through here rather than
+    /// reaching into the field across the module boundary.
+    pub(crate) fn record_restore(&mut self, step: CondStep) {
+        self.restore_steps.push(step);
+    }
+
     /// Revert the toggles. Safe to call more than once (Drop also calls it).
     pub fn restore(&mut self) {
         if self.restored {

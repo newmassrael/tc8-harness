@@ -86,7 +86,7 @@ fn host_condition_case<'a>(
             topo.exec_cond_step(w, &step, CondDir::Apply)
                 .with_context(|| format!("tester-side conditioning {case_id} (worker {w})"))?;
             if step.has_restore() {
-                cond.restore_steps.push(step);
+                cond.record_restore(step);
             }
         }
     }
@@ -725,11 +725,5 @@ pub fn ssh_reap_remote_dut(target: &str, opts: Option<&str>) {
     if let Some(o) = opts {
         c.args(o.split_whitespace());
     }
-    let _ = c
-        .arg(target)
-        .arg(remote_reap_dut_and_scratch())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+    crate::proc::run_quiet(c.arg(target).arg(remote_reap_dut_and_scratch()).stdin(Stdio::null()));
 }

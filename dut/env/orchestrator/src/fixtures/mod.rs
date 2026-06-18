@@ -285,11 +285,7 @@ fn kill_pidfile(pidfile: &str) {
     if let Ok(s) = fs::read_to_string(pidfile) {
         let pid = s.trim();
         if !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit()) {
-            let _ = Command::new("kill")
-                .args(["-KILL", pid])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+            crate::proc::run_quiet(Command::new("kill").args(["-KILL", pid]));
         }
     }
 }

@@ -139,7 +139,7 @@ impl Topology for SinglePc<'_> {
             self.exec_cond_step(w, &step, CondDir::Apply)
                 .with_context(|| format!("conditioning {case_id} (worker {w})"))?;
             if step.has_restore() {
-                cond.restore_steps.push(step);
+                cond.record_restore(step);
             }
         }
         Ok(cond)
