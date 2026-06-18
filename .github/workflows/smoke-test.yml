@@ -201,6 +201,16 @@ jobs:
             IPv4_ADDRESSING_02 UDP_USER_INTERFACE_01 UDP_USER_INTERFACE_07 \
             ARP_07
 
+      # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
+      # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:
+      # testability-probe --eth toggles the DUT's SECONDARY interface over the
+      # PRIMARY control channel and observes the secondary go unreachable then
+      # reachable again. ETH's effect — unlike ICMP's — is observable end to end,
+      # so the probe asserts the effect, not just E_OK. The one testability SP
+      # with no TC8-case driver, verified here against the deployable UTM. ~5 s.
+      - name: Testability ETH SP observable check
+        run: sudo -n dut/env/testability-eth-sp-check.sh
+
       - name: Upload JUnit reports
         if: always()
         uses: actions/upload-artifact@v6

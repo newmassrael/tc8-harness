@@ -237,6 +237,81 @@ bool runTcpPassiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
     return ok;
 }
 
+// True if the UTM answers GET_VERSION on `ip_be` within the budget — the
+// reachability signal for the ETH loop. Retried briefly so the positive case
+// tolerates ARP warm-up; a single short timeout suffices for the negative case.
+// Observing the toggle THROUGH the testability protocol itself (rather than a
+// re-implemented ICMP/ARP probe) keeps the wire-observation single-sourced.
+bool reachableByVersion(const stimulus::TestabilityConfig &base, std::uint32_t ip_be,
+                        int per_try_ms, int tries) {
+    stimulus::TestabilityConfig cfg = base;
+    cfg.dut_ip_be = ip_be;
+    for (int i = 0; i < tries; ++i) {
+        if (stimulus::testabilityGetVersion(cfg, per_try_ms)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ETH INTERFACE_DOWN / INTERFACE_UP loop (GID 0x0B): command the DUT to take a
+// SECONDARY interface down then back up over the PRIMARY control channel, and
+// OBSERVE the effect — the DUT becomes unreachable on the secondary IP while the
+// down primary stays alive (every E_OK returns), then reachable again. This is a
+// strictly stronger claim than E_OK alone: ETH's effect, unlike ICMP's, is
+// observable, so the probe observes it. `eth_iface` is the DUT-side interface
+// name to toggle; `observe_ip_be` is the DUT's IP on a different interface.
+bool runEthInterfaceLoop(const stimulus::TestabilityConfig &cfg, const std::string &eth_iface,
+                         std::uint32_t observe_ip_be, int timeout_ms) {
+    char ob[INET_ADDRSTRLEN] = {};
+    ::inet_ntop(AF_INET, &observe_ip_be, ob, sizeof(ob));
+    // Short per-try budget so the negative (unreachable) observation does not
+    // wait the full control timeout; a few tries cover ARP warm-up when up.
+    const int obs_ms = timeout_ms > 600 ? 300 : timeout_ms / 2;
+
+    if (!reachableByVersion(cfg, observe_ip_be, obs_ms, 5)) {
+        std::fprintf(stderr,
+                     "testability-probe: ETH precondition failed — %s not reachable before toggle "
+                     "(is the secondary interface up?)\n",
+                     ob);
+        return false;
+    }
+    std::printf("testability-probe: ETH precondition -> %s reachable (secondary up)\n", ob);
+
+    const auto down = stimulus::testabilityInterfaceDown(cfg, eth_iface, timeout_ms);
+    if (!down.eok()) {
+        std::fprintf(stderr, "testability-probe: ETH INTERFACE_DOWN(%s) failed (ok=%d rid=0x%02X)\n",
+                     eth_iface.c_str(), down.ok, down.rid);
+        return false;
+    }
+    if (reachableByVersion(cfg, observe_ip_be, obs_ms, 3)) {
+        std::fprintf(stderr,
+                     "testability-probe: ETH INTERFACE_DOWN reported E_OK but %s still reachable "
+                     "— the link did not go down\n",
+                     ob);
+        return false;
+    }
+    std::printf("testability-probe: ETH INTERFACE_DOWN(%s) -> E_OK (%s now unreachable)\n",
+                eth_iface.c_str(), ob);
+
+    const auto up = stimulus::testabilityInterfaceUp(cfg, eth_iface, timeout_ms);
+    if (!up.eok()) {
+        std::fprintf(stderr, "testability-probe: ETH INTERFACE_UP(%s) failed (ok=%d rid=0x%02X)\n",
+                     eth_iface.c_str(), up.ok, up.rid);
+        return false;
+    }
+    if (!reachableByVersion(cfg, observe_ip_be, obs_ms, 10)) {
+        std::fprintf(stderr,
+                     "testability-probe: ETH INTERFACE_UP reported E_OK but %s did not become "
+                     "reachable again\n",
+                     ob);
+        return false;
+    }
+    std::printf("testability-probe: ETH INTERFACE_UP(%s) -> E_OK (%s reachable again)\n",
+                eth_iface.c_str(), ob);
+    return true;
+}
+
 // ICMP echo loop: command the DUT's testability endpoint to emit an ICMP Echo
 // Request toward the tester and confirm the endpoint accepted it (E_OK). Like
 // ut-ping, this is a liveness / integration smoke of the SP round-trip — it is
@@ -288,6 +363,14 @@ TestabilityProbeCommand::TestabilityProbeCommand(CLI::App &app) {
                    "Also exercise the TCP-group active- and passive-open SP loops");
     sub_->add_flag("--icmp", icmp_echo_,
                    "Also exercise the ICMP-group ECHO_REQUEST SP loop");
+    sub_->add_flag("--eth", eth_,
+                   "Also exercise the ETH-group INTERFACE_DOWN/UP SP loop "
+                   "(requires --eth-iface and --eth-observe-ip)");
+    sub_->add_option("--eth-iface", eth_iface_,
+                     "DUT-side interface name the ETH loop toggles (with --eth)");
+    sub_->add_option("--eth-observe-ip", eth_observe_ip_,
+                     "DUT IPv4 on a second interface whose reachability the ETH loop "
+                     "watches to observe the toggle (with --eth)");
 }
 
 int TestabilityProbeCommand::run() {
@@ -296,6 +379,24 @@ int TestabilityProbeCommand::run() {
         std::fprintf(stderr, "testability-probe: invalid DUT IPv4 address '%s'\n",
                      dut_ip_.c_str());
         return 1;
+    }
+
+    // Validate the ETH loop's parameters up front, before any DUT-mutating
+    // lifecycle (START_TEST) runs, so a misconfigured invocation fails fast.
+    std::uint32_t eth_observe_be = 0;
+    if (eth_) {
+        in_addr obs{};
+        if (eth_iface_.empty() || eth_observe_ip_.empty()) {
+            std::fprintf(stderr,
+                         "testability-probe: --eth requires --eth-iface and --eth-observe-ip\n");
+            return 1;
+        }
+        if (::inet_pton(AF_INET, eth_observe_ip_.c_str(), &obs) != 1) {
+            std::fprintf(stderr, "testability-probe: invalid --eth-observe-ip '%s'\n",
+                         eth_observe_ip_.c_str());
+            return 1;
+        }
+        eth_observe_be = obs.s_addr;
     }
 
     stimulus::TestabilityConfig cfg;
@@ -344,6 +445,11 @@ int TestabilityProbeCommand::run() {
     }
     if (icmp_echo_) {
         if (!runIcmpEchoLoop(cfg, timeout_ms_)) {
+            return 1;
+        }
+    }
+    if (eth_) {
+        if (!runEthInterfaceLoop(cfg, eth_iface_, eth_observe_be, timeout_ms_)) {
             return 1;
         }
     }

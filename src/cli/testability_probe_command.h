@@ -11,9 +11,10 @@ namespace tc8::cli {
 // START_TEST + a UDP CREATE_AND_BIND / SEND_DATA / CLOSE_SOCKET data-plane
 // loop + (with --tcp-data) a TCP CREATE_AND_BIND / CONNECT / SEND_DATA /
 // CLOSE_SOCKET active-open loop + (with --icmp) an ICMP ECHO_REQUEST loop +
-// END_TEST, reporting each Result ID. The
-// standard-protocol counterpart to `ut-ping` (which speaks the in-house opcode
-// UT). Exit 0 when the GENERAL lifecycle round-trips with E_OK; exit 1 on
+// (with --eth) an ETH INTERFACE_DOWN/UP loop that OBSERVES the link toggle by
+// watching reachability on a second interface + END_TEST, reporting each Result
+// ID. The standard-protocol counterpart to `ut-ping` (which speaks the in-house
+// opcode UT). Exit 0 when the GENERAL lifecycle round-trips with E_OK; exit 1 on
 // transport failure or a non-E_OK GENERAL result.
 class TestabilityProbeCommand {
 public:
@@ -33,6 +34,14 @@ private:
     bool skip_data_ = false; // GENERAL lifecycle only (no UDP data-plane loop)
     bool tcp_data_ = false;  // also exercise the TCP-group active-open SP loop
     bool icmp_echo_ = false; // also exercise the ICMP-group ECHO_REQUEST SP loop
+    bool eth_ = false;       // also exercise the ETH INTERFACE_DOWN/UP SP loop
+
+    // ETH loop parameters (required with --eth): the DUT-side interface to
+    // toggle, and a SECOND DUT IP (on a different interface) whose reachability
+    // is watched to observe the toggle's effect without severing the control
+    // channel the commands ride on.
+    std::string eth_iface_;
+    std::string eth_observe_ip_;
 };
 
 }  // namespace tc8::cli

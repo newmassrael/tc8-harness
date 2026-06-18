@@ -852,11 +852,13 @@ provide that. Provision a self-hosted runner once per host:
 # 2. apply the [self-hosted, netns] labels at registration time
 # 3. install build deps (cmake, build-essential, quilt, libpcap-dev,
 #    libtins-dev, libboost-{system,thread,filesystem,log}-dev)
-# 4. add a sudoers fragment so the runner can run smoke-test.sh and
-#    setup-vsomeip.sh non-interactively (the latter's `sudo cmake
-#    --install` runs as root-from-root, no extra entry needed):
+# 4. add a sudoers fragment so the runner can run smoke-test.sh,
+#    setup-vsomeip.sh and testability-eth-sp-check.sh non-interactively
+#    (setup-vsomeip's `sudo cmake --install` runs as root-from-root, no
+#    extra entry needed):
 sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/smoke-test.sh
+%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-eth-sp-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/scripts/setup-vsomeip.sh
 EOF
 # 5. `sudo systemctl enable --now actions.runner.<owner>-<repo>.<runner-name>.service`
