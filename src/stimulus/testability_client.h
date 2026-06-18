@@ -249,4 +249,23 @@ TestabilityResponse testabilityStaticRoute(const TestabilityConfig &cfg, const s
                                            std::uint32_t gateway_be, int timeout_ms = 1000,
                                            std::uint32_t src_ip_be = 0);
 
+// STATIC_ADDRESS (IPv6 / GID 0x06, PRS_TPSP §6.10): the IPv6 sibling of
+// testabilityStaticAddress — assign `addr16` (16-byte wire order) with the
+// `prefix`-bit length to `iface`. Request DAT = ifName(text) + addr(ipxaddr n=16) +
+// netMask(uint8). E_OK on success, E_IIF for an unknown interface.
+TestabilityResponse testabilityStaticAddressV6(const TestabilityConfig &cfg,
+                                               const std::string &iface,
+                                               const std::uint8_t addr16[16], std::uint8_t prefix,
+                                               int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
+// STATIC_ROUTE (IPv6 / GID 0x06, PRS_TPSP §6.10): the IPv6 sibling of
+// testabilityStaticRoute — add a non-persistent route to `subnet16`/`prefix` via
+// `gateway16` (all 16-byte wire order) on `iface`. Request DAT = ifName(text) +
+// subNet(ipxaddr n=16) + netMask(uint8) + gateway(ipxaddr n=16). E_OK on success,
+// E_IIF for an unknown interface, E_NOK where the stack has no IPv6 route table.
+TestabilityResponse testabilityStaticRouteV6(const TestabilityConfig &cfg, const std::string &iface,
+                                             const std::uint8_t subnet16[16], std::uint8_t prefix,
+                                             const std::uint8_t gateway16[16], int timeout_ms = 1000,
+                                             std::uint32_t src_ip_be = 0);
+
 }  // namespace tc8::stimulus

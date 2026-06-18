@@ -1280,6 +1280,70 @@ TEST_F(TestabilityServerTest, IpStaticAddressBadCidrReturnsEInv) {
     EXPECT_EQ(r.rid, tp::kRidEInv) << "cidr > 32 should be E_INV";
 }
 
+// ── PRS_TPSP §6.10 IPv6 group (GID 0x06): STATIC_ADDRESS / STATIC_ROUTE ──
+// The IPv6 mirror of the IP group above. The privileged write (SIOCSIFADDR /
+// SIOCADDRT with an in6_ifreq / in6_rtmsg) would mutate this host's addressing /
+// routing, so only the non-mutating error paths are unit-tested here; the E_OK path
+// is left to the LIVE netns check. 2001:db8::/32 is the RFC 3849 documentation prefix.
+
+TEST_F(TestabilityServerTest, Ipv6StaticAddressInvalidInterfaceReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const std::uint8_t addr16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                                     0,    0,    0,    0,    0, 0, 0, 0x01};
+    const auto r = stimulus::testabilityStaticAddressV6(cfg, /*iface=*/"tc8-no-such-if", addr16,
+                                                        /*prefix=*/64);
+    EXPECT_TRUE(r.ok);  // the SP itself round-tripped
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+TEST_F(TestabilityServerTest, Ipv6StaticRouteInvalidInterfaceReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const std::uint8_t subnet16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    const std::uint8_t gw16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                                   0,    0,    0,    0,    0, 0, 0, 0x01};
+    const auto r = stimulus::testabilityStaticRouteV6(cfg, /*iface=*/"tc8-no-such-if", subnet16,
+                                                      /*prefix=*/64, gw16);
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+// A request with no parameters at all (missing the ifName text) is malformed -> E_INV.
+TEST_F(TestabilityServerTest, Ipv6StaticAddressMissingParamsReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticAddress, {}).rid,
+              tp::kRidEInv);
+}
+
+// STATIC_ADDRESS under the IPv6 group accepts only an n=16 ipxaddr; a 4-byte (IPv4)
+// address is E_INV — IPv4 STATIC_ADDRESS is the separate GID 0x05.
+TEST_F(TestabilityServerTest, Ipv6StaticAddressWrongAddrLengthReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");                          // ifName
+    tp::appendIpv4Addr(dat, ::htonl(0x7F000001));       // 4-byte addr under the IPv6 GID
+    dat.push_back(64);                                  // netMask
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticAddress, dat).rid,
+              tp::kRidEInv);
+}
+
+// The IPv6 group defines only STATIC_ADDRESS / STATIC_ROUTE; any other PID is E_NTF.
+TEST_F(TestabilityServerTest, Ipv6UnknownPrimitiveReturnsENtf) {
+    const auto cfg = loopbackConfig();
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+}
+
+// A prefix length > 128 is invalid input -> E_INV, returned by the backend BEFORE it
+// resolves the interface or issues any ioctl, so this is host-safe even naming a real
+// interface ("lo" is never touched).
+TEST_F(TestabilityServerTest, Ipv6StaticAddressBadPrefixReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    const std::uint8_t addr16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                                     0,    0,    0,    0,    0, 0, 0, 0x02};
+    const auto r = stimulus::testabilityStaticAddressV6(cfg, /*iface=*/"lo", addr16,
+                                                        /*prefix=*/129);
+    EXPECT_EQ(r.rid, tp::kRidEInv) << "prefix > 128 should be E_INV";
+}
+
 // ── PRS_TPSP §6.6 OEM extension / override seam (registerPrimitive) ──
 
 // EXTEND: a registered handler for a non-standard group the core knows nothing

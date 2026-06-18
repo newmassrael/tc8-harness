@@ -253,6 +253,20 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
         }
     }
 
+    if (gid == kGidIpv6) {
+        switch (pid) {
+            case kPidStaticAddress:
+                rid_out = staticAddressV6(dat, dat_len);
+                return;
+            case kPidStaticRoute:
+                rid_out = staticRouteV6(dat, dat_len);
+                return;
+            default:
+                rid_out = kRidENtf;  // IPv6 group defines only STATIC_ADDRESS/ROUTE
+                return;
+        }
+    }
+
     if (gid == kGidEth) {
         switch (pid) {
             case kPidInterfaceUp:
@@ -482,6 +496,56 @@ std::uint8_t ProtocolServer::staticRoute(const std::uint8_t *dat, std::size_t da
     std::uint32_t gateway_be = 0;
     std::memcpy(&gateway_be, gw_body, 4);
     return backend_->setStaticRouteV4(ifname, subnet_be, cidr, gateway_be);
+}
+
+std::uint8_t ProtocolServer::staticAddressV6(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 STATIC_ADDRESS (IPv6): ifName(text) + addr(ipxaddr n=16) +
+    // netMask(uint8 prefix length). The mirror of staticAddress with a 16-byte
+    // address; IPv4 is the separate GID (0x05), so only the n=16 ipxaddr is accepted.
+    std::size_t off = 0;
+    std::string ifname;
+    if (!readText(dat, dat_len, off, ifname)) {
+        return kRidEInv;
+    }
+    const std::uint8_t *addr_body = nullptr;
+    std::uint16_t addr_len = 0;
+    if (!readVint8(dat, dat_len, off, addr_body, addr_len) || addr_len != 16) {
+        return kRidEInv;  // IPv6 ipxaddr only
+    }
+    if (off >= dat_len) {
+        return kRidEInv;  // missing netMask(uint8)
+    }
+    const std::uint8_t prefix = dat[off];
+    return backend_->setStaticAddressV6(ifname, addr_body, prefix);
+}
+
+std::uint8_t ProtocolServer::staticRouteV6(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 STATIC_ROUTE (IPv6): ifName(text) + subNet(ipxaddr n=16) +
+    // netMask(uint8 prefix) + gateway(ipxaddr n=16). The mirror of staticRoute with
+    // 16-byte addresses; IPv4 is the separate GID (0x05), so only n=16 ipxaddrs are
+    // accepted. Non-persistent; the route install is the backend's (unknown
+    // interface => E_IIF, no IPv6 routing table => E_NOK).
+    std::size_t off = 0;
+    std::string ifname;
+    if (!readText(dat, dat_len, off, ifname)) {
+        return kRidEInv;
+    }
+    const std::uint8_t *subnet_body = nullptr;
+    std::uint16_t subnet_len = 0;
+    if (!readVint8(dat, dat_len, off, subnet_body, subnet_len) || subnet_len != 16) {
+        return kRidEInv;
+    }
+    if (off >= dat_len) {
+        return kRidEInv;  // missing netMask(uint8)
+    }
+    const std::uint8_t prefix = dat[off];
+    off += 1;
+    const std::uint8_t *gw_body = nullptr;
+    std::uint16_t gw_len = 0;
+    if (!readVint8(dat, dat_len, off, gw_body, gw_len) || gw_len != 16) {
+        return kRidEInv;
+    }
+    return backend_->setStaticRouteV6(ifname, subnet_body, prefix, gw_body);
 }
 
 std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {

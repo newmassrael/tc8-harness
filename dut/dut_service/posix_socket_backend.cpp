@@ -70,6 +70,29 @@ int openAndResolveIface(const std::string &ifname, ifreq &ifr, std::uint8_t &rid
     return s;
 }
 
+// The kernel ABI for SIOCSIFADDR / SIOCADDRT on an AF_INET6 socket. These live in
+// <linux/ipv6.h>, which clashes with the glibc <netinet/in.h> already included above
+// on some header versions; declare the exact layouts here (in6_addr itself comes from
+// <netinet/in.h>). Anonymous-namespace types never collide with the kernel header's
+// ::in6_ifreq / ::in6_rtmsg, and the ioctl only needs matching memory.
+struct in6_ifreq {
+    in6_addr addr;
+    std::uint32_t prefixlen;
+    int ifindex;
+};
+struct in6_rtmsg {
+    in6_addr dst;
+    in6_addr src;
+    in6_addr gateway;
+    std::uint32_t type;
+    std::uint16_t dst_len;
+    std::uint16_t src_len;
+    std::uint32_t metric;
+    unsigned long info;
+    std::uint32_t flags;
+    int ifindex;
+};
+
 }  // namespace
 
 int PosixSocketBackend::createUdp() {
@@ -437,6 +460,78 @@ std::uint8_t PosixSocketBackend::setStaticRouteV4(const std::string &ifname,
     gw->sin_addr.s_addr = gateway_be;
     rt.rt_flags = (gateway_be != 0) ? (RTF_UP | RTF_GATEWAY) : RTF_UP;
     rt.rt_dev = dev_buf;
+    const int rc = ::ioctl(s, SIOCADDRT, &rt);
+    const int e = errno;
+    ::close(s);
+    if (rc == 0 || (rc < 0 && e == EEXIST)) {
+        return tp::kRidEOk;
+    }
+    return ridFromIfaceErrno(e, {ENODEV, ENXIO});
+}
+
+std::uint8_t PosixSocketBackend::setStaticAddressV6(const std::string &ifname,
+                                                    const std::uint8_t *addr16,
+                                                    std::uint8_t prefix) {
+    // PRS_TPSP §6.10 STATIC_ADDRESS (IPv6): SIOCSIFADDR with a struct in6_ifreq on an
+    // AF_INET6 socket assigns the address + prefix length (the IPv6 analog of the
+    // SIOCSIFADDR/SIOCSIFNETMASK pair the V4 path uses). if_nametoindex resolves the
+    // interface unprivileged first, so an unknown one is E_IIF before the privileged
+    // write reports EPERM; the assignment then needs CAP_NET_ADMIN (EPERM => E_NOK).
+    if (prefix > 128) {
+        return tp::kRidEInv;
+    }
+    const unsigned ifindex = ::if_nametoindex(ifname.c_str());
+    if (ifindex == 0) {
+        return tp::kRidEIif;
+    }
+    const int s = ::socket(AF_INET6, SOCK_DGRAM, 0);
+    if (s < 0) {
+        return tp::kRidENok;  // host has no IPv6 stack
+    }
+    in6_ifreq ifr6{};
+    std::memcpy(&ifr6.addr, addr16, 16);
+    ifr6.prefixlen = prefix;
+    ifr6.ifindex = static_cast<int>(ifindex);
+    const bool ok = ::ioctl(s, SIOCSIFADDR, &ifr6) == 0;
+    const int e = errno;
+    ::close(s);
+    return ok ? tp::kRidEOk : ridFromIfaceErrno(e);
+}
+
+std::uint8_t PosixSocketBackend::setStaticRouteV6(const std::string &ifname,
+                                                  const std::uint8_t *subnet16, std::uint8_t prefix,
+                                                  const std::uint8_t *gateway16) {
+    // PRS_TPSP §6.10 STATIC_ROUTE (IPv6): SIOCADDRT with a struct in6_rtmsg on an
+    // AF_INET6 socket installs a non-persistent route to subnet/prefix via gateway,
+    // scoped to ifname (the IPv6 analog of the rtentry SIOCADDRT the V4 path uses).
+    // if_nametoindex resolves the interface first (unknown => E_IIF before the
+    // privileged SIOCADDRT reports EPERM); ENXIO also maps to E_IIF and EEXIST is
+    // success (the route is already present), matching the post-condition.
+    if (prefix > 128) {
+        return tp::kRidEInv;
+    }
+    const unsigned ifindex = ::if_nametoindex(ifname.c_str());
+    if (ifindex == 0) {
+        return tp::kRidEIif;
+    }
+    const int s = ::socket(AF_INET6, SOCK_DGRAM, 0);
+    if (s < 0) {
+        return tp::kRidENok;  // host has no IPv6 stack
+    }
+    bool gw_zero = true;
+    for (int i = 0; i < 16; ++i) {
+        if (gateway16[i] != 0) {
+            gw_zero = false;
+            break;
+        }
+    }
+    in6_rtmsg rt{};
+    std::memcpy(&rt.dst, subnet16, 16);
+    std::memcpy(&rt.gateway, gateway16, 16);
+    rt.dst_len = prefix;
+    rt.metric = 1;  // the conventional default user metric for an ioctl IPv6 route
+    rt.ifindex = static_cast<int>(ifindex);
+    rt.flags = gw_zero ? RTF_UP : (RTF_UP | RTF_GATEWAY);
     const int rc = ::ioctl(s, SIOCADDRT, &rt);
     const int e = errno;
     ::close(s);

@@ -50,6 +50,10 @@ public:
                                     std::uint8_t cidr) override;
     std::uint8_t setStaticRouteV4(const std::string &ifname, std::uint32_t subnet_be,
                                   std::uint8_t cidr, std::uint32_t gateway_be) override;
+    std::uint8_t setStaticAddressV6(const std::string &ifname, const std::uint8_t *addr16,
+                                    std::uint8_t prefix) override;
+    std::uint8_t setStaticRouteV6(const std::string &ifname, const std::uint8_t *subnet16,
+                                  std::uint8_t prefix, const std::uint8_t *gateway16) override;
 
 private:
     // A connected TCP 4-tuple captured at CONNECT for the abort SOCK_DESTROY.

@@ -67,6 +67,21 @@ public:
     // e.g. a single-homed stack with no routing table).
     virtual std::uint8_t setStaticRouteV4(const std::string &ifname, std::uint32_t subnet_be,
                                           std::uint8_t cidr, std::uint32_t gateway_be) = 0;
+
+    // IPv6 STATIC_ADDRESS (PRS_TPSP §6.10, GID 0x06): the IPv6 sibling of
+    // setStaticAddressV4 — assign the 16-byte `addr16` (wire order) with the
+    // `prefix`-bit length to `ifname` -> result id (E_OK / E_IIF on an unknown
+    // interface / E_NOK where not permitted or the stack lacks IPv6).
+    virtual std::uint8_t setStaticAddressV6(const std::string &ifname, const std::uint8_t *addr16,
+                                            std::uint8_t prefix) = 0;
+
+    // IPv6 STATIC_ROUTE (PRS_TPSP §6.10, GID 0x06): the IPv6 sibling of
+    // setStaticRouteV4 — add a non-persistent route to `subnet16`/`prefix` via
+    // `gateway16` (all 16-byte wire order) on `ifname` -> result id (E_OK / E_IIF on
+    // an unknown interface / E_NOK where unsupported, e.g. a stack with no IPv6
+    // routing table).
+    virtual std::uint8_t setStaticRouteV6(const std::string &ifname, const std::uint8_t *subnet16,
+                                          std::uint8_t prefix, const std::uint8_t *gateway16) = 0;
 };
 
 // AUTOSAR Testability Protocol endpoint (PRS_TPSP §6, AUTOSAR TC 1.2.0), the
@@ -78,7 +93,7 @@ public:
 // include/tc8/testability_protocol.h so both decode identically.
 //
 // Served standard groups (PRS_TPSP §6.10): GENERAL (0x00), UDP (0x01),
-// TCP (0x02), ICMP (0x03), ICMPv6 (0x04), IP (0x05), ETH (0x0B).
+// TCP (0x02), ICMP (0x03), ICMPv6 (0x04), IP (0x05), IPv6 (0x06), ETH (0x0B).
 // registerPrimitive() is the
 // OEM extension/override seam (PRS_TPSP §6.6). RAII: start() spawns the listener
 // thread; stop()/dtor joins it and closes any open sockets.
@@ -140,6 +155,8 @@ private:
     std::uint8_t setInterface(const std::uint8_t *dat, std::size_t dat_len, bool up);
     std::uint8_t staticAddress(const std::uint8_t *dat, std::size_t dat_len);
     std::uint8_t staticRoute(const std::uint8_t *dat, std::size_t dat_len);
+    std::uint8_t staticAddressV6(const std::uint8_t *dat, std::size_t dat_len);
+    std::uint8_t staticRouteV6(const std::uint8_t *dat, std::size_t dat_len);
 
     void runEventWorkerLoop(int fd, const std::shared_ptr<std::atomic<bool>> &stop,
                             const std::function<bool()> &again,
