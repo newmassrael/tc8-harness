@@ -73,7 +73,7 @@
                 cond="cpp:captured.tcp_peer_state == 1"
                 target="pass"/>
     <transition event="phase3_deadline_exceeded"
-                target="inconclusive_phase3_dut_emitted_fin"/>
+                target="fail_phase3_dut_emitted_fin"/>
   </state>
 
   <final id="pass">
@@ -94,9 +94,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase3_dut_emitted_fin">
+  <final id="fail_phase3_dut_emitted_fin">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"dut_tore_down_tcp_reliable_connection_on_reset_interface","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"dut_tore_down_tcp_reliable_connection_on_reset_interface","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>
