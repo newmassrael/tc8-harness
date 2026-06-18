@@ -232,4 +232,21 @@ TestabilityResponse testabilityInterfaceUp(const TestabilityConfig &cfg, const s
 TestabilityResponse testabilityInterfaceDown(const TestabilityConfig &cfg, const std::string &iface,
                                              int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
 
+// STATIC_ADDRESS (IP / GID 0x05, PRS_TPSP §6.10): assign IPv4 `addr_be` (network
+// byte order) with the `cidr`-bit netmask to `iface` on the DUT. Request DAT =
+// ifName(text) + addr(ipxaddr) + netMask(uint8). E_OK on success, E_IIF for an
+// unknown interface.
+TestabilityResponse testabilityStaticAddress(const TestabilityConfig &cfg, const std::string &iface,
+                                             std::uint32_t addr_be, std::uint8_t cidr,
+                                             int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
+// STATIC_ROUTE (IP / GID 0x05, PRS_TPSP §6.10): add a non-persistent route to
+// `subnet_be`/`cidr` via `gateway_be` (network byte order) on `iface`. Request DAT
+// = ifName(text) + subNet(ipxaddr) + netMask(uint8) + gateway(ipxaddr). E_OK on
+// success, E_IIF for an unknown interface, E_NOK where the stack has no route table.
+TestabilityResponse testabilityStaticRoute(const TestabilityConfig &cfg, const std::string &iface,
+                                           std::uint32_t subnet_be, std::uint8_t cidr,
+                                           std::uint32_t gateway_be, int timeout_ms = 1000,
+                                           std::uint32_t src_ip_be = 0);
+
 }  // namespace tc8::stimulus

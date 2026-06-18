@@ -421,6 +421,28 @@ TestabilityResponse testabilityInterfaceDown(const TestabilityConfig &cfg, const
     return testabilityCall(cfg, tp::kGidEth, tp::kPidInterfaceDown, dat, timeout_ms, src_ip_be);
 }
 
+TestabilityResponse testabilityStaticAddress(const TestabilityConfig &cfg, const std::string &iface,
+                                             std::uint32_t addr_be, std::uint8_t cidr, int timeout_ms,
+                                             std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, iface);        // ifName (text)
+    tp::appendIpv4Addr(dat, addr_be);  // addr (ipxaddr)
+    dat.push_back(cidr);               // netMask (uint8 CIDR)
+    return testabilityCall(cfg, tp::kGidIp, tp::kPidStaticAddress, dat, timeout_ms, src_ip_be);
+}
+
+TestabilityResponse testabilityStaticRoute(const TestabilityConfig &cfg, const std::string &iface,
+                                           std::uint32_t subnet_be, std::uint8_t cidr,
+                                           std::uint32_t gateway_be, int timeout_ms,
+                                           std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, iface);           // ifName (text)
+    tp::appendIpv4Addr(dat, subnet_be);   // subNet (ipxaddr)
+    dat.push_back(cidr);                  // netMask (uint8 CIDR)
+    tp::appendIpv4Addr(dat, gateway_be);  // gateway (ipxaddr)
+    return testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat, timeout_ms, src_ip_be);
+}
+
 // CLOSE_SOCKET request-encoding SSOT (PRS_TPSP §6.10): socketId(u16) + optional
 // abort(u8). The graceful and abortive public wrappers differ only in the abort
 // byte, so the wire shape lives here once.

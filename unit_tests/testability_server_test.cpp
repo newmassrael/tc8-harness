@@ -1220,6 +1220,56 @@ TEST_F(TestabilityServerTest, EthInterfaceUpLoopbackReturnsEOk) {
                          << static_cast<int>(r.rid) << ")";
 }
 
+// ── PRS_TPSP §6.10 IP group (0x05) STATIC_ADDRESS / STATIC_ROUTE ──
+//
+// The privileged write (SIOCSIFADDR / SIOCADDRT) would mutate this host's
+// addressing / routing, so only the non-mutating error paths are unit-tested here;
+// the E_OK assignment path is left to the LIVE netns sweep. Each backend resolves
+// the interface unprivileged FIRST, so an unknown one is E_IIF on any host.
+
+TEST_F(TestabilityServerTest, IpStaticAddressInvalidInterfaceReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityStaticAddress(cfg, /*iface=*/"tc8-no-such-if",
+                                                      ::htonl(0x0A000001), /*cidr=*/24);
+    EXPECT_TRUE(r.ok);  // the SP itself round-tripped
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+TEST_F(TestabilityServerTest, IpStaticRouteInvalidInterfaceReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityStaticRoute(cfg, /*iface=*/"tc8-no-such-if",
+                                                    ::htonl(0x0A000000), /*cidr=*/24,
+                                                    ::htonl(0x0A0000FE));
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+// A request with no parameters at all (missing the ifName text) is malformed -> E_INV.
+TEST_F(TestabilityServerTest, IpStaticAddressMissingParamsReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticAddress, {}).rid,
+              tp::kRidEInv);
+}
+
+// STATIC_ADDRESS under the IPv4 group accepts only an n=4 ipxaddr; a 16-byte (IPv6)
+// address is E_INV — IPv6 STATIC_ADDRESS is the separate GID 0x06.
+TEST_F(TestabilityServerTest, IpStaticAddressWrongAddrLengthReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");        // ifName
+    const std::uint8_t addr16[16] = {};
+    tp::appendIpv6Addr(dat, addr16);  // 16-byte addr under the IPv4 GID
+    dat.push_back(24);                // netMask
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticAddress, dat).rid,
+              tp::kRidEInv);
+}
+
+// The IP group defines only STATIC_ADDRESS / STATIC_ROUTE; any other PID is E_NTF.
+TEST_F(TestabilityServerTest, IpUnknownPrimitiveReturnsENtf) {
+    const auto cfg = loopbackConfig();
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+}
+
 // ── PRS_TPSP §6.6 OEM extension / override seam (registerPrimitive) ──
 
 // EXTEND: a registered handler for a non-standard group the core knows nothing

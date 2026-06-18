@@ -120,6 +120,15 @@ inline constexpr std::uint8_t kPidEchoRequest = 0x00;
 inline constexpr std::uint8_t kPidInterfaceUp = 0x00;
 inline constexpr std::uint8_t kPidInterfaceDown = 0x01;
 
+// PRS_TPSP §6.10 IP group (0x05) / IPv6 group (0x06) Service Primitive IDs.
+// STATIC_ADDRESS assigns an addr(ipxaddr) + CIDR netMask(uint8) to ifName(text);
+// STATIC_ROUTE adds a subNet(ipxaddr)/netMask(uint8)-via-gateway(ipxaddr) route
+// for ifName(text) without affecting persistent configuration. Both report E_IIF
+// on an unknown interface. These GID-scoped 0x00/0x01 PIDs name CLOSE_SOCKET /
+// CREATE_AND_BIND in the UDP/TCP groups — the GID disambiguates which a PID names.
+inline constexpr std::uint8_t kPidStaticAddress = 0x00;
+inline constexpr std::uint8_t kPidStaticRoute = 0x01;
+
 // PRS_TPSP §6.10 SHUTDOWN typeId — selects which transfer direction the
 // primitive disallows on the socket (maps to the BSD shutdown(2) `how`).
 inline constexpr std::uint8_t kShutdownRd = 0x00;    // further reception disallowed (SHUT_RD)

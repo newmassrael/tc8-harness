@@ -239,6 +239,20 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
         }
     }
 
+    if (gid == kGidIp) {
+        switch (pid) {
+            case kPidStaticAddress:
+                rid_out = staticAddress(dat, dat_len);
+                return;
+            case kPidStaticRoute:
+                rid_out = staticRoute(dat, dat_len);
+                return;
+            default:
+                rid_out = kRidENtf;  // IP group defines only STATIC_ADDRESS/ROUTE
+                return;
+        }
+    }
+
     if (gid == kGidEth) {
         switch (pid) {
             case kPidInterfaceUp:
@@ -412,6 +426,62 @@ std::uint8_t ProtocolServer::setInterface(const std::uint8_t *dat, std::size_t d
         return kRidEInv;
     }
     return backend_->setInterfaceUp(ifname, up);
+}
+
+std::uint8_t ProtocolServer::staticAddress(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 STATIC_ADDRESS (IP): ifName(text) + addr(ipxaddr n=4) +
+    // netMask(uint8 CIDR). The address assignment is the backend's (an unknown
+    // interface is E_IIF); IPv6 is a separate GID (0x06), so only the n=4 ipxaddr
+    // is accepted here.
+    std::size_t off = 0;
+    std::string ifname;
+    if (!readText(dat, dat_len, off, ifname)) {
+        return kRidEInv;
+    }
+    const std::uint8_t *addr_body = nullptr;
+    std::uint16_t addr_len = 0;
+    if (!readVint8(dat, dat_len, off, addr_body, addr_len) || addr_len != 4) {
+        return kRidEInv;  // IPv4 ipxaddr only
+    }
+    std::uint32_t addr_be = 0;
+    std::memcpy(&addr_be, addr_body, 4);
+    if (off >= dat_len) {
+        return kRidEInv;  // missing netMask(uint8)
+    }
+    const std::uint8_t cidr = dat[off];
+    return backend_->setStaticAddressV4(ifname, addr_be, cidr);
+}
+
+std::uint8_t ProtocolServer::staticRoute(const std::uint8_t *dat, std::size_t dat_len) {
+    // PRS_TPSP §6.10 STATIC_ROUTE (IP): ifName(text) + subNet(ipxaddr n=4) +
+    // netMask(uint8 CIDR) + gateway(ipxaddr n=4). Non-persistent; the route
+    // install is the backend's (unknown interface => E_IIF, no routing table =>
+    // E_NOK). IPv6 is a separate GID (0x06), so only n=4 ipxaddrs are accepted.
+    std::size_t off = 0;
+    std::string ifname;
+    if (!readText(dat, dat_len, off, ifname)) {
+        return kRidEInv;
+    }
+    const std::uint8_t *subnet_body = nullptr;
+    std::uint16_t subnet_len = 0;
+    if (!readVint8(dat, dat_len, off, subnet_body, subnet_len) || subnet_len != 4) {
+        return kRidEInv;
+    }
+    std::uint32_t subnet_be = 0;
+    std::memcpy(&subnet_be, subnet_body, 4);
+    if (off >= dat_len) {
+        return kRidEInv;  // missing netMask(uint8)
+    }
+    const std::uint8_t cidr = dat[off];
+    off += 1;
+    const std::uint8_t *gw_body = nullptr;
+    std::uint16_t gw_len = 0;
+    if (!readVint8(dat, dat_len, off, gw_body, gw_len) || gw_len != 4) {
+        return kRidEInv;
+    }
+    std::uint32_t gateway_be = 0;
+    std::memcpy(&gateway_be, gw_body, 4);
+    return backend_->setStaticRouteV4(ifname, subnet_be, cidr, gateway_be);
 }
 
 std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {

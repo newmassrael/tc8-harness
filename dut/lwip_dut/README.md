@@ -284,8 +284,8 @@ below record where lwIP's stack forces that adapter to diverge. Each
 binary's `main()` (`tc8_lwip_dut.cpp`, `lwip_utm_main.cpp`) owns its
 `ProtocolServer` directly — exactly as the Linux `dut_main` / `utm_main` do,
 with no façade translation unit. Served standard groups: GENERAL (0x00),
-UDP (0x01), TCP (0x02), ICMP (0x03), ICMPv6 (0x04) and ETH (0x0B) — the same
-set the Linux endpoint serves.
+UDP (0x01), TCP (0x02), ICMP (0x03), ICMPv6 (0x04), IP (0x05) and ETH (0x0B) —
+the same set the Linux endpoint serves.
 
 - The `CLOSE_SOCKET` abort RSTs via `tcp_abort()` on the raw pcb (the
   `lwip/priv/sockets_priv.h` fd→pcb bridge, shared with the UT ABORT
@@ -307,6 +307,12 @@ set the Linux endpoint serves.
   the core lock (`netif_find` resolves the name; an unknown one is E_IIF). A
   single-process stack has no privilege gate, so a resolved netif succeeds —
   unlike the Linux backend, whose `SIOCSIFFLAGS` needs CAP_NET_ADMIN.
+- The IP `STATIC_ADDRESS` (group 0x05) assigns the address + CIDR netmask via
+  `netif_set_addr()` under the core lock, keeping the existing gateway. IP
+  `STATIC_ROUTE` answers E_NOK: base lwIP routes by netif (one gateway per
+  interface) with no general per-subnet route table, so a faithful subnet route
+  is not expressible — surfaced, not silently accepted (the unknown-interface
+  case is still E_IIF). The Linux backend installs it via `SIOCADDRT`.
 - `CONFIGURE_SOCKET` maps TTL/TOS/Nagle to `lwip_setsockopt`; the DF
   (`IP_MTU_DISCOVER`), IP timestamp-option (`IP_OPTIONS`) and MSS
   (`TCP_MAXSEG`) parameters have no lwIP socket option and answer E_NOK

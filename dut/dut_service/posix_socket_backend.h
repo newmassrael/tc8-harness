@@ -46,6 +46,10 @@ public:
     std::uint8_t sendIcmpv6Echo(const std::string &ifname, const std::uint8_t *dst16,
                                 const std::uint8_t *body, std::size_t len) override;
     std::uint8_t setInterfaceUp(const std::string &ifname, bool up) override;
+    std::uint8_t setStaticAddressV4(const std::string &ifname, std::uint32_t addr_be,
+                                    std::uint8_t cidr) override;
+    std::uint8_t setStaticRouteV4(const std::string &ifname, std::uint32_t subnet_be,
+                                  std::uint8_t cidr, std::uint32_t gateway_be) override;
 
 private:
     // A connected TCP 4-tuple captured at CONNECT for the abort SOCK_DESTROY.

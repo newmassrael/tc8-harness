@@ -6,6 +6,7 @@
 #include <linux/netlink.h>
 #include <linux/sock_diag.h>
 #include <net/if.h>
+#include <net/route.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/ioctl.h>
@@ -342,6 +343,105 @@ std::uint8_t PosixSocketBackend::setInterfaceUp(const std::string &ifname, bool 
         return tp::kRidEOk;
     }
     return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+}
+
+// CIDR prefix length -> IPv4 netmask in network byte order (0 => 0.0.0.0, 32 =>
+// 255.255.255.255). Callers reject cidr > 32 before calling, so the shift is
+// always in range (a 32-bit shift would be undefined — hence the cidr==0 guard).
+static std::uint32_t cidrToMaskBe(std::uint8_t cidr) {
+    if (cidr == 0) {
+        return 0;
+    }
+    return ::htonl(0xFFFFFFFFu << (32u - cidr));
+}
+
+std::uint8_t PosixSocketBackend::setStaticAddressV4(const std::string &ifname,
+                                                    std::uint32_t addr_be, std::uint8_t cidr) {
+    // PRS_TPSP §6.10 STATIC_ADDRESS: SIOCSIFADDR assigns the IPv4 address,
+    // SIOCSIFNETMASK the mask (CIDR -> dotted). ENODEV => unknown interface =>
+    // E_IIF; the assignment needs CAP_NET_ADMIN (EPERM => E_NOK, surfaced).
+    if (cidr > 32) {
+        return tp::kRidEInv;
+    }
+    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) {
+        return tp::kRidENok;
+    }
+    ifreq ifr{};
+    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
+    // Unprivileged existence pre-check so an unknown interface is E_IIF before any
+    // privileged write — SIOCSIFADDR may otherwise report EPERM first on a host
+    // without CAP_NET_ADMIN (mirrors the ETH SIOCGIFFLAGS-before-SET pattern).
+    if (::ioctl(s, SIOCGIFFLAGS, &ifr) < 0) {
+        const int e = errno;
+        ::close(s);
+        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    }
+    auto *sin = reinterpret_cast<sockaddr_in *>(&ifr.ifr_addr);
+    sin->sin_family = AF_INET;
+    sin->sin_addr.s_addr = addr_be;
+    if (::ioctl(s, SIOCSIFADDR, &ifr) < 0) {
+        const int e = errno;
+        ::close(s);
+        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    }
+    sin->sin_addr.s_addr = cidrToMaskBe(cidr);
+    const bool ok = ::ioctl(s, SIOCSIFNETMASK, &ifr) == 0;
+    const int e = errno;
+    ::close(s);
+    if (ok) {
+        return tp::kRidEOk;
+    }
+    return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+}
+
+std::uint8_t PosixSocketBackend::setStaticRouteV4(const std::string &ifname,
+                                                  std::uint32_t subnet_be, std::uint8_t cidr,
+                                                  std::uint32_t gateway_be) {
+    // PRS_TPSP §6.10 STATIC_ROUTE: SIOCADDRT installs a non-persistent route to
+    // subnet/cidr via gateway, scoped to ifname (mirrors dhcpv4_client's default-
+    // route install). The destination is masked to its network address. ENODEV /
+    // ENXIO => unknown interface => E_IIF; EPERM => E_NOK; EEXIST is success (the
+    // route is already present), matching the post-condition "route reachable".
+    if (cidr > 32) {
+        return tp::kRidEInv;
+    }
+    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) {
+        return tp::kRidENok;
+    }
+    // Unprivileged existence pre-check so an unknown interface is E_IIF before the
+    // privileged SIOCADDRT, which checks CAP_NET_ADMIN first and would otherwise
+    // report EPERM => E_NOK on a host without it (mirrors the ETH GET-before-SET).
+    ifreq ifr{};
+    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
+    if (::ioctl(s, SIOCGIFFLAGS, &ifr) < 0) {
+        const int e = errno;
+        ::close(s);
+        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    }
+    const std::uint32_t mask_be = cidrToMaskBe(cidr);
+    rtentry rt{};
+    char dev_buf[IFNAMSIZ] = {};
+    std::strncpy(dev_buf, ifname.c_str(), IFNAMSIZ - 1);
+    auto *dst = reinterpret_cast<sockaddr_in *>(&rt.rt_dst);
+    dst->sin_family = AF_INET;
+    dst->sin_addr.s_addr = subnet_be & mask_be;  // network address
+    auto *mask = reinterpret_cast<sockaddr_in *>(&rt.rt_genmask);
+    mask->sin_family = AF_INET;
+    mask->sin_addr.s_addr = mask_be;
+    auto *gw = reinterpret_cast<sockaddr_in *>(&rt.rt_gateway);
+    gw->sin_family = AF_INET;
+    gw->sin_addr.s_addr = gateway_be;
+    rt.rt_flags = (gateway_be != 0) ? (RTF_UP | RTF_GATEWAY) : RTF_UP;
+    rt.rt_dev = dev_buf;
+    const int rc = ::ioctl(s, SIOCADDRT, &rt);
+    const int e = errno;
+    ::close(s);
+    if (rc == 0 || (rc < 0 && e == EEXIST)) {
+        return tp::kRidEOk;
+    }
+    return (e == ENODEV || e == ENXIO) ? tp::kRidEIif : tp::kRidENok;
 }
 
 void PosixSocketBackend::destroyTimeWaitResidual(const TcpConnTuple &t) {

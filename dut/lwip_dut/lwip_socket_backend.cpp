@@ -292,4 +292,46 @@ std::uint8_t LwipSocketBackend::setInterfaceUp(const std::string &ifname, bool u
     return rid;
 }
 
+std::uint8_t LwipSocketBackend::setStaticAddressV4(const std::string &ifname, std::uint32_t addr_be,
+                                                   std::uint8_t cidr) {
+    // PRS_TPSP §6.10 STATIC_ADDRESS: assign the address + CIDR netmask via
+    // netif_set_addr under the core lock, keeping the existing gateway (the SP
+    // carries no gateway). netif_find resolves the name (unknown => E_IIF); a
+    // single-process stack has no privilege gate, so a resolved netif succeeds.
+    if (cidr > 32) {
+        return tp::kRidEInv;
+    }
+    std::uint8_t rid;
+    LOCK_TCPIP_CORE();
+    struct netif *nif = netif_find(ifname.c_str());
+    if (nif == nullptr) {
+        rid = tp::kRidEIif;
+    } else {
+        ip4_addr_t ip{};
+        ip4_addr_t nm{};
+        ip4_addr_set_u32(&ip, addr_be);
+        ip4_addr_set_u32(&nm, (cidr == 0) ? 0 : lwip_htonl(0xFFFFFFFFu << (32u - cidr)));
+        netif_set_addr(nif, &ip, &nm, netif_ip4_gw(nif));
+        rid = tp::kRidEOk;
+    }
+    UNLOCK_TCPIP_CORE();
+    return rid;
+}
+
+std::uint8_t LwipSocketBackend::setStaticRouteV4(const std::string &ifname, std::uint32_t /*subnet*/,
+                                                 std::uint8_t /*cidr*/, std::uint32_t /*gateway*/) {
+    // PRS_TPSP §6.10 STATIC_ROUTE: base lwIP routes by netif (one default gateway
+    // per interface), with no general per-subnet routing table — a faithful "add a
+    // route for this subnet via this gateway" is not expressible. Report E_NOK
+    // (surfaced, not silently dropped), the same unsupported-capability convention
+    // as the IPv6/DF/MSS stubs. The interface is still resolved so an unknown one
+    // is E_IIF rather than a blanket E_NOK.
+    std::uint8_t rid;
+    LOCK_TCPIP_CORE();
+    struct netif *nif = netif_find(ifname.c_str());
+    rid = (nif == nullptr) ? tp::kRidEIif : tp::kRidENok;
+    UNLOCK_TCPIP_CORE();
+    return rid;
+}
+
 }  // namespace tc8::lwip_dut
