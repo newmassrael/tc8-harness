@@ -15,6 +15,7 @@ Outputs:
 """
 from __future__ import annotations
 
+import json
 import re
 import struct
 import sys
@@ -25,22 +26,30 @@ DEF = ROOT / "tools/wire.def"
 RS_OUT = ROOT / "dut/env/orchestrator/src/wire.gen.rs"
 SH_OUT = ROOT / "dut/env/wire.gen.sh"
 
-# /// doc line, and the TC8_WIRE_<KIND>(NAME, "value"[, cpp=relpath:sym]) entry.
+# /// doc line, and the
+# TC8_WIRE_<KIND>(NAME, "value"[, {cpp|json}=relpath:locator]) entry.
+# The optional annotation names an EXTERNAL home that owns the same value in a
+# divergent representation, cross-verified by --check:
+#   cpp=<header>:<symbol>   a C++ constant (decoded from its NBO uint32 / byte
+#                           array / hex form)
+#   json=<file>:<dotpath>   a config-file scalar (e.g. vsomeip.json:unicast),
+#                           compared as the canonical string
 _DOC_RE = re.compile(r'^\s*///\s?(.*)$')
 _ENTRY_RE = re.compile(
     r'^TC8_WIRE_(IPV4|MAC|U16|STR|INT)\(\s*(\w+)\s*,\s*"([^"]*)"'
-    r'\s*(?:,\s*cpp=([^)\s]+))?\s*\)\s*$'
+    r'\s*(?:,\s*(cpp|json)=([^)\s]+))?\s*\)\s*$'
 )
 
 
 class Entry:
-    __slots__ = ("kind", "name", "value", "cpp", "docs")
+    __slots__ = ("kind", "name", "value", "anno_kind", "anno_target", "docs")
 
-    def __init__(self, kind, name, value, cpp, docs):
+    def __init__(self, kind, name, value, anno_kind, anno_target, docs):
         self.kind = kind
         self.name = name
         self.value = value
-        self.cpp = cpp  # "relpath:symbol" or None
+        self.anno_kind = anno_kind  # "cpp" | "json" | None
+        self.anno_target = anno_target  # "relpath:locator" or None
         self.docs = docs  # list[str]
 
 
@@ -55,7 +64,7 @@ def parse() -> list[Entry]:
         m = _ENTRY_RE.match(line)
         if m is not None:
             entries.append(Entry(m.group(1), m.group(2), m.group(3),
-                                 m.group(4), pending))
+                                 m.group(4), m.group(5), pending))
             pending = []
             continue
         # A line that INTENDS to be an entry (TC8_WIRE_ prefix) but failed the
@@ -165,49 +174,77 @@ def _decode_u16(rhs: str) -> str:
 
 
 def _norm(kind: str, value: str) -> str:
-    """Canonicalise a wire.def value to the same form the C++ decoder emits, so
-    the comparison is representation-insensitive (MAC case, hex width)."""
+    """Canonicalise a wire.def value to the same form the decoders emit, so the
+    comparison is representation-insensitive (MAC case, hex width)."""
     if kind == "MAC":
         return ":".join(f"{int(o, 16):02X}" for o in value.split(":"))
     if kind == "U16":
         return f"0x{int(value, 0):04X}"
-    return value  # IPV4 dotted compares verbatim
+    return value  # IPV4 dotted / STR compare verbatim
 
 
-def check_cpp(entries: list[Entry]) -> list[str]:
+def _decode_json(path: Path, locator: str) -> str:
+    """Resolve a dotted path into a JSON file down to its string scalar. Unlike
+    the C++ decoders this needs no representation conversion — the config files
+    store IPs/masks as the same dotted-decimal strings wire.def uses — so the
+    only failure modes are a missing path or a non-string node, both fail-loud."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"JSON parse error: {exc}") from exc
+    cur = data
+    for part in locator.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            raise ValueError(f"json path '{locator}' has no key '{part}'")
+        cur = cur[part]
+    if not isinstance(cur, str):
+        raise ValueError(f"json path '{locator}' is not a string scalar: {cur!r}")
+    return cur
+
+
+def check_refs(entries: list[Entry]) -> list[str]:
+    """Cross-verify every annotated entry against the external home that owns the
+    same value (cpp= C++ header symbol, or json= config-file scalar). A drift in
+    either direction is an error — wire.def and its home must move together."""
     problems: list[str] = []
     for e in entries:
-        if not e.cpp:
+        if not e.anno_kind:
             continue
-        relpath, _, sym = e.cpp.partition(":")
+        relpath, _, locator = e.anno_target.partition(":")
         path = ROOT / relpath
         if not path.exists():
-            problems.append(f"{e.name}: cpp header {relpath} not found")
+            problems.append(f"{e.name}: {e.anno_kind} ref {relpath} not found")
             continue
-        text = _strip_cpp_comments(path.read_text(encoding="utf-8"))
         try:
-            if e.kind == "MAC":
-                m = re.search(rf"\b{re.escape(sym)}\b\s*\{{([^}}]*)\}}",
-                              text, re.DOTALL)
-                if m is None:
-                    raise ValueError("symbol/initialiser not found")
-                decoded = _decode_mac(m.group(1))
-            elif e.kind in ("IPV4", "U16"):
-                m = re.search(rf"\b{re.escape(sym)}\b\s*=\s*(.*?);",
-                              text, re.DOTALL)
-                if m is None:
-                    raise ValueError("symbol/initialiser not found")
-                decoded = (_decode_ipv4 if e.kind == "IPV4" else _decode_u16)(m.group(1))
-            else:
-                problems.append(f"{e.name}: cpp= on unsupported kind {e.kind}")
-                continue
+            if e.anno_kind == "json":
+                if e.kind not in ("IPV4", "STR"):
+                    problems.append(f"{e.name}: json= on unsupported kind {e.kind}")
+                    continue
+                decoded = _decode_json(path, locator)
+            else:  # cpp
+                text = _strip_cpp_comments(path.read_text(encoding="utf-8"))
+                if e.kind == "MAC":
+                    m = re.search(rf"\b{re.escape(locator)}\b\s*\{{([^}}]*)\}}",
+                                  text, re.DOTALL)
+                    if m is None:
+                        raise ValueError("symbol/initialiser not found")
+                    decoded = _decode_mac(m.group(1))
+                elif e.kind in ("IPV4", "U16"):
+                    m = re.search(rf"\b{re.escape(locator)}\b\s*=\s*(.*?);",
+                                  text, re.DOTALL)
+                    if m is None:
+                        raise ValueError("symbol/initialiser not found")
+                    decoded = (_decode_ipv4 if e.kind == "IPV4" else _decode_u16)(m.group(1))
+                else:
+                    problems.append(f"{e.name}: cpp= on unsupported kind {e.kind}")
+                    continue
         except ValueError as exc:
-            problems.append(f"{e.name}: parsing {relpath}:{sym} failed — {exc}")
+            problems.append(f"{e.name}: parsing {relpath}:{locator} failed — {exc}")
             continue
         expected = _norm(e.kind, e.value)
         if decoded != expected:
             problems.append(
-                f"{e.name}: wire.def has {expected} but {relpath}:{sym} "
+                f"{e.name}: wire.def has {expected} but {relpath}:{locator} "
                 f"decodes to {decoded} — edit them together")
     return problems
 
@@ -226,7 +263,7 @@ def main() -> int:
             if not check:
                 path.write_text(content, encoding="utf-8")
 
-    cpp_problems = check_cpp(entries)
+    ref_problems = check_refs(entries)
 
     if check:
         rc = 0
@@ -235,20 +272,20 @@ def main() -> int:
             for p in stale:
                 print(f"  {rel(p)}")
             rc = 1
-        if cpp_problems:
-            print("C++ wire-constant drift (wire.def disagrees with the headers):")
-            for msg in cpp_problems:
+        if ref_problems:
+            print("wire-constant drift (wire.def disagrees with its C++/JSON homes):")
+            for msg in ref_problems:
                 print(f"  {msg}")
             rc = 1
         if rc == 0:
-            print("wire manifest generated files are up to date and match C++")
+            print("wire manifest generated files are up to date and match C++/JSON homes")
         return rc
 
     for p in outputs:
         print(f"wrote {rel(p)}" if p in stale else f"unchanged {rel(p)}")
-    if cpp_problems:
-        print("C++ wire-constant drift (wire.def disagrees with the headers):")
-        for msg in cpp_problems:
+    if ref_problems:
+        print("wire-constant drift (wire.def disagrees with its C++/JSON homes):")
+        for msg in ref_problems:
             print(f"  {msg}")
         return 1
     return 0

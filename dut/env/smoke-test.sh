@@ -105,21 +105,26 @@ VSOMEIP_BASE=/tmp/tc8-vsomeip.$$
 # DUT-specific expected values for SOMEIPSRV_FORMAT_14..18,
 # FORMAT_19..28, and OPTIONS_04/07/15. Passed to the harness via
 # `--expect` so the SCXML guards compare captured fields against
-# these rather than hard-coded literals. Mirrors
-# dut/dut_service/vsomeip.json + ets.fidl:
-#   service_id    = 0xF4E7      (vsomeip.json services[0].service)
-#   instance_id   = 0x0001      (vsomeip.json services[0].instance)
-#   major_version = 1           (ets.fidl version.major)
-#   ttl           = 3           (vsomeip.json service-discovery.ttl)
-#   minor_version = 0           (ets.fidl version.minor / vsomeip default)
-#   eventgroup_id = 0x0001      (Subscribe target — tc8-dut Nacks this
-#                                 with the same ID echoed in the reply)
-#   dut_iface_ip  = 172.16.0.2  (vsomeip.json unicast — OPTIONS_04 IPv4
-#                                 Endpoint Option address field)
-#   udp_port      = 30502       (vsomeip.json services[0].unreliable —
-#                                 OPTIONS_07 IPv4 Endpoint UDP port)
-#   tcp_port      = 30501       (vsomeip.json services[0].reliable.port —
-#                                 OPTIONS_15 IPv4 Endpoint TCP port)
+# these rather than hard-coded literals.
+#
+# The SOME/IP identity keys are DERIVED at runtime from the DUT's own
+# vsomeip.json (tools/dut_identity.py) — that file is the single home of
+# these values, since the DUT advertises exactly what it declares. The
+# tc8-orchestrator parses the same file (config.rs parse_dut_identity), so
+# the two drivers cannot disagree and neither can drift from what the DUT
+# serves. The vsomeip.json field each key reads:
+#   service_id      services[0].service
+#   instance_id     services[0].instance
+#   ttl             service-discovery.ttl
+#   udp_port        services[0].unreliable            (OPTIONS_07)
+#   tcp_port        services[0].reliable.port         (OPTIONS_15)
+#   sd_multicast_ip service-discovery.multicast       (SD_BEHAVIOR_03/_04)
+#   mcast_ipv4      eventgroups[*].multicast.address  (OPTIONS_11/_14)
+#   mcast_port      eventgroups[*].multicast.port     (OPTIONS_11/_14)
+# major_version / minor_version (ets.fidl, via TC8_WIRE_SD_*) and
+# eventgroup_id (the Subscribe Nack-echo target, TC8_WIRE_SD_DEFAULT_
+# EVENTGROUP) come from the wire manifest; dut_iface_ip is the resolved
+# topology DUT IP (OPTIONS_04 IPv4 Endpoint Option address field).
 # Topology endpoint IPs — single source of truth for smoke-test.sh.
 # single-pc passes them to setup-netns.sh in topology_bring_up_worker so
 # the two files can never drift; external/ssh-remote topologies override
@@ -136,25 +141,47 @@ init_expectation_defaults() {
 TESTER_IP4=${TC8_TOPOLOGY_TESTER_IP:-$TC8_WIRE_TESTER_IP}
 DUT_IP4=${TC8_TOPOLOGY_DUT_IP:-$TC8_WIRE_DUT_IP}
 
+# Derive the SOME/IP identity straight from the DUT's vsomeip.json (see the
+# header note above) so it can never drift from what the DUT serves. Fail loud
+# if the file or any key is missing rather than emit an empty --expect surface
+# that would let every identity case silently pass.
+local _id_dump
+_id_dump=$(python3 "$ROOT/tools/dut_identity.py" "$VSOMEIP_CFG") || {
+    echo "smoke-test.sh: cannot derive DUT identity from $VSOMEIP_CFG" >&2
+    exit 1
+}
+declare -A DUT_ID
+local _k _v _need
+while IFS='=' read -r _k _v; do
+    [[ -n "$_k" ]] && DUT_ID["$_k"]="$_v"
+done <<< "$_id_dump"
+for _need in service_id instance_id udp_port tcp_port sd_multicast_ip ttl \
+             mcast_ipv4 mcast_port; do
+    [[ -n "${DUT_ID[$_need]:-}" ]] || {
+        echo "smoke-test.sh: DUT identity missing '$_need' from $VSOMEIP_CFG" >&2
+        exit 1
+    }
+done
+
 TC8_DUT_EXPECT=(
-    --expect service_id=0xF4E7
-    --expect instance_id=0x0001
+    --expect "service_id=${DUT_ID[service_id]}"
+    --expect "instance_id=${DUT_ID[instance_id]}"
     --expect "major_version=$TC8_WIRE_SD_MAJOR_VERSION"
-    --expect ttl=3
+    --expect "ttl=${DUT_ID[ttl]}"
     --expect "minor_version=$TC8_WIRE_SD_MINOR_VERSION"
     --expect "eventgroup_id=$TC8_WIRE_SD_DEFAULT_EVENTGROUP"
     --expect "dut_iface_ip=$DUT_IP4"
-    --expect udp_port=30502
-    --expect tcp_port=30501
+    --expect "udp_port=${DUT_ID[udp_port]}"
+    --expect "tcp_port=${DUT_ID[tcp_port]}"
     # §5.1.5.4 SD_BEHAVIOR_03/_04 verify the DUT answers FindService
     # with a multicast OfferService addressed to the SD multicast group
     # (vsomeip.json `service-discovery.multicast` for tc8-dut).
-    --expect sd_multicast_ip=224.244.224.245
+    --expect "sd_multicast_ip=${DUT_ID[sd_multicast_ip]}"
     # §5.1.5.5 OPTIONS_11/_14 verify the IPv4 Multicast Option fields
     # emitted in SubscribeEventgroupAck for the multicast-configured
     # eventgroup 0x0008 (vsomeip.json eventgroup multicast block).
-    --expect mcast_ipv4=224.244.224.246
-    --expect mcast_port=30495
+    --expect "mcast_ipv4=${DUT_ID[mcast_ipv4]}"
+    --expect "mcast_port=${DUT_ID[mcast_port]}"
 )
 
 # ARP §4.2 cases compare captured Sender Hardware Address (ARP_13),

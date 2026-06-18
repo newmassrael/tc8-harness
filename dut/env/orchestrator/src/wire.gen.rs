@@ -54,10 +54,14 @@ pub const SD_DEFAULT_EVENTGROUP: &str = "0x0001";
 /// Tester-side primary IP (single-pc tester veth + lwIP tap host side).
 pub const TESTER_IP: &str = "172.16.0.1";
 
-/// DUT-side primary IP (single-pc DUT veth + lwIP DUT netif).
+/// DUT-side primary IP (single-pc DUT veth + lwIP DUT netif). The local DUT's
+/// vsomeip.json `unicast` MUST equal this — vsomeip binds/advertises that
+/// address, so a drift makes the DUT serve on an IP its netns does not own. The
+/// json= cross-check pins the file to this home (the netns IP is the authority).
 pub const DUT_IP: &str = "172.16.0.2";
 
-/// DUT-side /24 netmask (lwIP netif; single-pc derives it from the CIDR).
+/// DUT-side /24 netmask (lwIP netif; single-pc derives it from the CIDR). The
+/// local DUT's vsomeip.json `netmask` mirrors it; cross-checked against here.
 pub const DUT_MASK: &str = "255.255.255.0";
 
 /// Topology-2 second veth pair (TIface-1) tester IP — the second broadcast
