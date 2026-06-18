@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <initializer_list>
 #include <string_view>
@@ -95,6 +96,9 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     // explicitly set, so the conformant default survives a positive run and the
     // negative harness's wrong value wins. Unconditional copy would wipe the
     // case-local default with the empty CLI default on every positive run.
+    // `payload_len == 0` means *unset* (keep the default), so an expectation of
+    // a genuinely empty echo is not expressible through this path — a case that
+    // needs it asserts `captured.payload_len == 0` directly in SCXML (cf. ETS_003).
     if (cfg.someip.payload_len > 0) {
         e.payload = cfg.someip.payload;
         e.payload_len = cfg.someip.payload_len;
@@ -104,9 +108,11 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
 // Set a case-local expected L7 payload default — the conformant echo a
 // test-intrinsic ETS assertion compares against. Called from a case's
 // `applyExpectedDefaults` hook; `--expect payload=` overrides it for the
-// negative. Truncates at the array capacity (a payload that large is a
-// case-authoring error, not runtime input).
+// negative. The size is a compile-tree authoring invariant, so an over-capacity
+// literal fails loud (assert) rather than silently truncating — matching the
+// CLI parser, which rejects an over-capacity `payload=` token.
 inline void setExpectedPayload(SomeIpExpected &e, std::initializer_list<std::uint8_t> bytes) {
+    assert(bytes.size() <= e.payload.size() && "expected payload exceeds kMaxExpectedPayload");
     e.payload.fill(0);
     e.payload_len = 0;
     for (auto b : bytes) {

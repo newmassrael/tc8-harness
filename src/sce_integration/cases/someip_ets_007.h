@@ -54,6 +54,12 @@ struct TestCaseTraits<cases::SomeipEts007SM> : SomeIpAnyBase<cases::SomeipEts007
     }
 };
 
+// Compile-time guard: the SFINAE detector must see this case's
+// applyExpectedDefaults hook. A name/type drift would silently skip the
+// case-local default at runtime and false-FAIL a conformant positive run.
+static_assert(has_expected_defaults_v<TestCaseTraits<cases::SomeipEts007SM>>,
+              "SOMEIP_ETS_007: applyExpectedDefaults must be detected");
+
 }  // namespace tc8::sce
 
 TC8_REGISTER_CASE(::tc8::sce::cases::SomeipEts007SM, someip_ets_007)

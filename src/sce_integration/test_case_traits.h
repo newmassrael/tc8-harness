@@ -136,14 +136,24 @@ struct has_stimulus<Traits, std::void_t<decltype(Traits::stimulus(std::declval<t
 template <typename Traits> inline constexpr bool has_stimulus_v = has_stimulus<Traits>::value;
 
 // Detects whether TestCaseTraits<SM> provides a per-case
-// `static void applyExpectedDefaults(Expected&)` hook. The conformant value a
-// TEST-INTRINSIC assertion compares against (e.g. an ETS Method-Response echo
-// payload — a deterministic consequence of the case's own stimulus, not an
-// operator-supplied DUT identity) is a property OF THE CASE. It lives here as a
-// case-local default the runner applies BEFORE `--expect`, so the case stays
-// self-contained (every driver concludes correctly with no external value feed)
-// and `--expect` overrides it ONLY for the negative harness. See
-// docs/verdict_policy.md (negative-test soundness).
+// `static void applyExpectedDefaults(Expected&)` hook. The runner applies it
+// BEFORE `--expect`, so a positive run needs no external value feed and
+// `--expect` overrides it ONLY for the negative harness.
+//
+// Seam rule (where a per-case expected value belongs):
+//   - TEST-INTRINSIC constant — a deterministic consequence of the case's own
+//     stimulus (e.g. an ETS Method-Response echo payload) → here, in the case
+//     traits. It is a property OF THE CASE, so it must be case-local.
+//   - OPERATOR / STIMULUS-COUPLED identity — what the IUT is configured as, or
+//     the harness's own stimulus target (service_id, ports, eventgroup_id) →
+//     `--expect` (CASE_EXPECT_OVERRIDES). Supplied by the test driver.
+// A case that reads `expected.X` for a test-intrinsic X but routes its value
+// through `--expect` is non-self-contained (other drivers mis-conclude) — that
+// was the C1 regression this hook fixes. See docs/verdict_policy.md.
+//
+// NOTE the converse exposure is still latent for the eventgroup_id overrides
+// that remain in CASE_EXPECT_OVERRIDES: a non-smoke driver omitting `--expect`
+// would default those to 0 and mis-conclude. Migrating them here closes it.
 template <typename Traits, typename = void> struct has_expected_defaults : std::false_type {};
 
 template <typename Traits>

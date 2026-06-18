@@ -10,9 +10,11 @@
   Pass criterion verifies all 4 response payload bytes against the
   expected sum — the strongest byte-order assertion the spec body
   describes (DUT must read both inputs in BE and emit the sum in BE).
-  The expected sum is supplied via the `payload=00:00:34:68` expect token
-  (the positive run sets it; the negative harness flips a byte to drive
-  fail_phase2_payload_mismatch as an observed_violation), not a literal.
+  The expected sum is the case-local default set by
+  TestCaseTraits::applyExpectedDefaults (cases/someip_ets_005.h); the cond
+  reads expected.payload_view(). The negative harness overrides it with a
+  flipped-byte `payload=` expect token to drive fail_phase2_payload_mismatch
+  as an observed_violation. The positive run needs no external value.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
