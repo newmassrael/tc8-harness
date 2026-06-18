@@ -266,27 +266,52 @@ impl SiteConf {
     /// other `${VAR}` resolves from the process environment. Applied before
     /// resolution, so a required field that expands to empty still fails the
     /// required-field check.
+    ///
+    /// `self` is destructured WITHOUT a `..` rest pattern so the field set is
+    /// compile-enforced: a newly-added `SiteConf`/`LwipSpec` field fails to compile
+    /// here until its expansion (or, like `require_ut`/`fixture`, a deliberate
+    /// non-expansion) is chosen. The former `[_; 12]` array fixed only the COUNT,
+    /// so a new `Option<String>` outside it silently skipped expansion — a `${ROOT}`
+    /// there would then pass through literally and mis-path a binary.
     fn expand_all(&mut self, root: &Path) -> Result<()> {
-        let fields: [&mut Option<String>; 12] = [
-            &mut self.iface,
-            &mut self.dut_ip,
-            &mut self.tester_ip,
-            &mut self.dut_mac,
-            &mut self.iface_secondary,
-            &mut self.preflight_src_ip,
-            &mut self.ssh_target,
-            &mut self.ssh_opts,
-            &mut self.remote_dut_bin,
-            &mut self.remote_vsomeip_cfg,
-            &mut self.remote_capi_cfg,
-            &mut self.remote_wrap,
+        let SiteConf {
+            iface,
+            dut_ip,
+            tester_ip,
+            dut_mac,
+            iface_secondary,
+            preflight_src_ip,
+            require_ut: _, // bool — no ${} to expand
+            ssh_target,
+            ssh_opts,
+            remote_dut_bin,
+            remote_vsomeip_cfg,
+            remote_capi_cfg,
+            remote_wrap,
+            fixture: _, // kind is a fixed selector literal, never ${}-bearing
+            lwip,
+        } = self;
+        let strings = [
+            iface,
+            dut_ip,
+            tester_ip,
+            dut_mac,
+            iface_secondary,
+            preflight_src_ip,
+            ssh_target,
+            ssh_opts,
+            remote_dut_bin,
+            remote_vsomeip_cfg,
+            remote_capi_cfg,
+            remote_wrap,
         ];
-        for v in fields.into_iter().flatten() {
+        for v in strings.into_iter().flatten() {
             *v = expand_env(v, root)?;
         }
-        // The lwip-tap topology's own string fields (`app` carries `${ROOT}`).
-        if let Some(lw) = &mut self.lwip {
-            for v in [&mut lw.app, &mut lw.ready_probe, &mut lw.kill_name].into_iter().flatten() {
+        // The lwip-tap topology's own ${}-bearing strings (`app` carries `${ROOT}`),
+        // destructured for the same compile-time completeness.
+        if let Some(LwipSpec { app, ready_probe, kill_name }) = lwip {
+            for v in [app, ready_probe, kill_name].into_iter().flatten() {
                 *v = expand_env(v, root)?;
             }
         }
