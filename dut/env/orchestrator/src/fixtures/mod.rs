@@ -32,9 +32,6 @@ use crate::netns;
 use crate::site::FixtureSpec;
 use crate::wire;
 
-pub(crate) mod lwip_tap;
-pub(crate) use lwip_tap::LwipTap;
-
 // external (netns-dut) fixed names — mirror external-netns-fixture.conf.
 const EXTFIX_NS: &str = "tc8-extfix-dut";
 const EXTFIX_DIR: &str = "/tmp/tc8-extfix";
@@ -141,16 +138,6 @@ pub fn teardown_by_kind(kind: &str) {
         "ssh-netns-dut" => teardown_ssh_netns_dut(),
         _ => {}
     }
-}
-
-/// Best-effort teardown of the `lwip-tap` TOPOLOGY's host state (tap + DUT) for the
-/// signal handler, which cannot borrow the topology. `kill_name` is the resolved
-/// `[lwip] kill_name` (via [`lwip_tap::resolve_kill_name`]) so the abort path reaps
-/// exactly the configured process. Idempotent; a no-op when nothing provisioned.
-/// Separate from [`teardown_by_kind`] because lwip-tap is a first-class topology,
-/// not a `[fixture]` selector.
-pub fn lwip_signal_teardown(kill_name: &str) {
-    lwip_tap::signal_teardown(kill_name);
 }
 
 // --- external: reference tc8-dut in a netns, tester veth in the root ns --------

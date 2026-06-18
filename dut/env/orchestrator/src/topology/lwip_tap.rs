@@ -9,8 +9,9 @@
 //! drift, and tester-side connection halves must be drained before the kill to
 //! avoid FIN-WAIT-2 orphans). Both drivers express this as a first-class topology:
 //! the bash `topology.d/lwip-tap.conf` profile, and here the `LwipTap` `Topology`
-//! selected by `--topology lwip-tap`, reusing External's tester-side seam (host-exec
-//! harness + host conditioning) via the `topology::host_*` helpers.
+//! selected by `--topology lwip-tap`, reusing the host-NIC tester transport (host-
+//! exec harness + host conditioning) via the shared [`super::HostTester`] — this
+//! module is a sibling of `host.rs` under `topology/`, no longer a `fixtures/` peer.
 //!
 //! Lock: bash held a flock on /var/lock and ran a fuser/leaked-holder SELF-HEAL,
 //! because it leaked the lock fd to backgrounded children that outlived the run. A
@@ -38,8 +39,8 @@ use crate::conditioning::{CondDir, CondStep};
 use crate::config::Config;
 use crate::netns;
 use crate::site::LwipSpec;
-use crate::topology::{self, Conditioning, Topology, WorkerCtx};
 use crate::wire::{self, DUT_IP, DUT_MASK, FIX_DIR, LAST_DUT_LOG, LOCK_FILE, TAP, TESTER_IP};
+use super::{which, Conditioning, HostTester, Topology, WorkerCtx};
 
 // Wire/fixture identity (tap, scratch dir, lock, primary IPs, mask) is single-
 // homed in `crate::wire`, generated from tools/wire.def together
@@ -101,6 +102,9 @@ pub struct LwipTap<'a> {
     /// user who acquired the freed lock). The flag makes the second call a true
     /// no-op (the `&self`-method analogue of FixtureGuard::torn).
     torn: AtomicBool,
+    /// Shared host-NIC tester transport (harness symlink/spawn, conditioning, MAC
+    /// resolution) — wire-fixed to the tap iface + the const TESTER_IP/DUT_IP.
+    host: HostTester<'a>,
 }
 
 impl<'a> LwipTap<'a> {
@@ -118,6 +122,10 @@ impl<'a> LwipTap<'a> {
             _ => ReadyProbe::Opcode,
         };
         let kill_name = resolve_kill_name(lwip);
+        // Wire-fixed identity: the tap iface + the const TESTER_IP/DUT_IP (NOT the
+        // env-overridable cfg.tester_ip4 external/ssh-remote pass) and no DUT-MAC pin
+        // (resolved from the readiness probe's warmed neigh entry).
+        let host = HostTester::new(cfg, TAP, TESTER_IP, DUT_IP, None, "lwip-tap");
         LwipTap {
             cfg,
             iface_secondary: iface_secondary.map(str::to_owned),
@@ -126,6 +134,7 @@ impl<'a> LwipTap<'a> {
             kill_name,
             state: Mutex::new(None),
             torn: AtomicBool::new(false),
+            host,
         }
     }
 
@@ -133,8 +142,11 @@ impl<'a> LwipTap<'a> {
 
     /// Provision the host tap + addresses (idempotent: pre-clean a leftover first).
     fn provision_tap(&self) -> Result<()> {
-        // Reclaim a stale fixture from a crashed prior run (best-effort).
-        super::pkill_path(&self.app.to_string_lossy());
+        // Reclaim a stale fixture from a crashed prior run (best-effort) — pkill by the
+        // app path with the same `-f` selector kill_dut uses (was fixtures::pkill_path,
+        // inlined onto this module's own `pkill` now that it left `fixtures/`).
+        let app_path = self.app.to_string_lossy();
+        pkill(&["-KILL", "-f", app_path.as_ref()]);
         netns::ip_quiet(&["link", "del", TAP]);
         let _ = fs::remove_dir_all(FIX_DIR);
         fs::create_dir_all(FIX_DIR).with_context(|| format!("mkdir {FIX_DIR}"))?;
@@ -338,7 +350,7 @@ impl Topology for LwipTap<'_> {
         // (a missing pgrep makes kill_dut think the DUT is gone after one tick; a
         // missing ss makes the drain a no-op) — fail loud instead.
         for tool in ["ip", "ss", "pkill", "pgrep"] {
-            if topology::which(tool).is_none() {
+            if which(tool).is_none() {
                 bail!("preflight: '{tool}' not found on PATH (the lwIP fixture needs it for tap setup / socket drain / DUT reap)");
             }
         }
@@ -374,17 +386,15 @@ impl Topology for LwipTap<'_> {
         // Per-worker: the worker-unique harness symlink + this worker's identity. The
         // tap + DUT are already up (provision_run); its readiness probe warmed the
         // host neigh entry for the DUT IP, so resolve the lwIP MAC from it (the DUT
-        // MAC is not operator-pinned for this fixture).
-        topology::host_bring_up_common(self.cfg, w)?;
-        let dut_mac = topology::resolve_dut_mac(None, TAP, DUT_IP)?;
-        let tester_mac = topology::iface_mac(TAP)?;
-        Ok(WorkerCtx { dut_mac, tester_mac })
+        // MAC is not operator-pinned for this fixture). HostTester is wire-fixed to
+        // TAP/DUT_IP, so the worker's identity is resolved there.
+        self.host.bring_up_worker(w)
     }
 
     fn tear_down_worker(&self, w: u32) -> Result<()> {
         // Per-worker: reap this worker's local harness. The run-level DUT/tap/lock
         // reap is teardown_run (Drop is the panic/SIGINT backstop).
-        topology::kill_by_marker(&topology::harness_link(&self.cfg.vsomeip_base, w));
+        self.host.kill_harness(w);
         Ok(())
     }
 
@@ -402,19 +412,18 @@ impl Topology for LwipTap<'_> {
         // Same per-side policy as External: tester-side toggles apply (the tester is
         // this host's tap), DUT-side toggles are skipped + logged (the lwIP stack is
         // not a Linux kernel we can sysctl; ARP_48/49 cache aging rides the UT 0x17
-        // channel instead — a per-case stimulus concern, not host conditioning).
-        // TESTER_IP — the wire-fixed const provision_tap configured the tap with, NOT
-        // cfg.tester_ip4 (env-overridable): lwip-tap is wire-fixed, so the tap address
-        // and the conditioning target must read the one source, never diverge.
-        topology::host_condition_case(self, TESTER_IP, &ctx.tester_mac, w, case_id, "lwip-tap")
+        // channel instead — a per-case stimulus concern, not host conditioning). The
+        // HostTester captured the wire-fixed const TESTER_IP (NOT env-overridable
+        // cfg.tester_ip4), so the tap address and conditioning target are one source.
+        self.host.condition_case(self, w, case_id, &ctx.tester_mac)
     }
 
     fn exec_cond_step(&self, _w: u32, step: &CondStep, dir: CondDir) -> Result<()> {
-        topology::host_exec_cond_step(TAP, step, dir)
+        self.host.exec_cond_step(step, dir)
     }
 
     fn run_harness(&self, w: u32, hlog: &Path, args: &[String]) -> Result<Child> {
-        topology::host_run_harness(&topology::harness_link(&self.cfg.vsomeip_base, w), hlog, args)
+        self.host.run_harness(w, hlog, args)
     }
 
     fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path) -> Result<Option<Child>> {
@@ -450,7 +459,7 @@ impl Topology for LwipTap<'_> {
     }
 
     fn stop_harness(&self, w: u32) -> Result<()> {
-        topology::kill_by_marker(&topology::harness_link(&self.cfg.vsomeip_base, w));
+        self.host.kill_harness(w);
         Ok(())
     }
 }

@@ -17,7 +17,7 @@
 //! Stage 5a: external / ssh-remote topologies — TOML site config (`site`), the
 //! two new `Topology` impls, the contract gates, and the netns/ssh verification
 //! fixtures (`fixtures`) that stand up a DUT for self-hosted parity.
-//! Stage 5b: the first-class `lwip-tap` topology (`fixtures::lwip_tap`) — a host
+//! Stage 5b: the first-class `lwip-tap` topology (`topology::lwip_tap`) — a host
 //! tap + a per-case-respawning lwIP embedded-stack DUT, mirroring the bash
 //! `topology.d/lwip-tap.conf` profile so both drivers share one dispatch axis.
 
@@ -172,7 +172,7 @@ fn main() -> Result<()> {
     let topo: Box<dyn Topology + Sync> = match &site {
         TopologyConf::SinglePc { .. } => Box::new(SinglePc::new(&cfg)),
         TopologyConf::LwipTap { lwip, iface_secondary } => {
-            Box::new(fixtures::LwipTap::new(&cfg, lwip, iface_secondary.as_deref()))
+            Box::new(topology::LwipTap::new(&cfg, lwip, iface_secondary.as_deref()))
         }
         TopologyConf::External(e) => Box::new(External::new(&cfg, e)),
         TopologyConf::SshRemote(s) => Box::new(SshRemote::new(&cfg, s)),
@@ -247,7 +247,7 @@ fn main() -> Result<()> {
     // Resolve the lwip-tap kill name HERE (the closure cannot borrow the topology)
     // so the abort path reaps exactly the configured process, not a stale literal.
     let lwip_signal_kill: Option<String> = match &site {
-        TopologyConf::LwipTap { lwip, .. } => Some(fixtures::lwip_tap::resolve_kill_name(lwip)),
+        TopologyConf::LwipTap { lwip, .. } => Some(topology::resolve_kill_name(lwip)),
         _ => None,
     };
     cleanup::install_signal_handler(&cfg, workers, move || {
@@ -255,7 +255,7 @@ fn main() -> Result<()> {
             topology::ssh_reap_remote_dut(target, opts.as_deref());
         }
         if let Some(kill) = &lwip_signal_kill {
-            fixtures::lwip_signal_teardown(kill);
+            topology::lwip_signal_teardown(kill);
         }
         if let Some(kind) = &fixture_kind {
             fixtures::teardown_by_kind(kind);
