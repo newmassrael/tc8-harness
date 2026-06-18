@@ -10,6 +10,7 @@
 #include "sce_integration/arp_expectations.h"
 #include "sce_integration/dhcpv4_expectations.h"
 #include "sce_integration/someip_expectations.h"
+#include "sce_integration/someip_expected.h"
 
 // Mock out-of-tree OEM Context in ITS OWN namespace, so the
 // `applyExpectToken` overload below is reachable only via ADL — exactly
@@ -150,6 +151,31 @@ TEST(ApplyExpectToken, PayloadRejectsOverflow) {
         tok += ":00";
     }
     EXPECT_FALSE(applyExpectToken(tok, e));
+}
+
+// The case-local expected-payload default (set by a case's
+// applyExpectedDefaults hook) must survive a positive run with no `--expect
+// payload=`, so the case is self-contained across every driver; `--expect`
+// overrides it only for the negative harness. This is the override-if-set
+// contract in applyTestConfig(SomeIpExpected&, cfg).
+TEST(ExpectedPayloadDefault, CaseDefaultSurvivesEmptyConfig) {
+    ::tc8::SomeIpExpected e{};
+    ::tc8::setExpectedPayload(e, {0x00, 0x00, 0x34, 0x68});
+    ::tc8::TestConfig cfg{};  // operator/positive run supplied no payload
+    ::tc8::applyTestConfig(e, cfg);
+    ASSERT_EQ(e.payload_len, 4u);
+    EXPECT_EQ(e.payload[2], 0x34);
+    EXPECT_EQ(e.payload[3], 0x68);
+}
+
+TEST(ExpectedPayloadDefault, ExpectOverridesCaseDefault) {
+    ::tc8::SomeIpExpected e{};
+    ::tc8::setExpectedPayload(e, {0x00, 0x00, 0x34, 0x68});
+    ::tc8::TestConfig cfg{};
+    ASSERT_TRUE(applyExpectToken("payload=00:00:34:69", cfg.someip));  // negative override
+    ::tc8::applyTestConfig(e, cfg);
+    ASSERT_EQ(e.payload_len, 4u);
+    EXPECT_EQ(e.payload[3], 0x69);  // override wins over the case default
 }
 
 TEST(ApplyExpectToken, RejectsEmptyValue) {

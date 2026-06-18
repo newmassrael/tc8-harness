@@ -227,6 +227,15 @@ public:
     explicit TestRunner(const ::tc8::TestConfig &cfg = {})
         : cfg_{cfg}, captured_{}, expected_{}, sm_(captured_, expected_) {
         applyTestConfig(captured_, cfg_);
+        // A case-local expected default (e.g. an ETS echo payload) is the
+        // case's own SSOT for a test-intrinsic expectation. Apply it BEFORE
+        // applyTestConfig so a positive run is self-contained (no external
+        // value feed needed); applyTestConfig then overrides only the fields
+        // `--expect` explicitly set, so the negative harness wins and the
+        // conformant default survives the positive run.
+        if constexpr (has_expected_defaults_v<Traits>) {
+            Traits::applyExpectedDefaults(expected_);
+        }
         applyTestConfig(expected_, cfg_);
     }
 

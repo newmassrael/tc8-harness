@@ -135,6 +135,24 @@ struct has_stimulus<Traits, std::void_t<decltype(Traits::stimulus(std::declval<t
 
 template <typename Traits> inline constexpr bool has_stimulus_v = has_stimulus<Traits>::value;
 
+// Detects whether TestCaseTraits<SM> provides a per-case
+// `static void applyExpectedDefaults(Expected&)` hook. The conformant value a
+// TEST-INTRINSIC assertion compares against (e.g. an ETS Method-Response echo
+// payload — a deterministic consequence of the case's own stimulus, not an
+// operator-supplied DUT identity) is a property OF THE CASE. It lives here as a
+// case-local default the runner applies BEFORE `--expect`, so the case stays
+// self-contained (every driver concludes correctly with no external value feed)
+// and `--expect` overrides it ONLY for the negative harness. See
+// docs/verdict_policy.md (negative-test soundness).
+template <typename Traits, typename = void> struct has_expected_defaults : std::false_type {};
+
+template <typename Traits>
+struct has_expected_defaults<
+    Traits, std::void_t<decltype(Traits::applyExpectedDefaults(std::declval<typename Traits::Expected &>()))>>
+    : std::true_type {};
+
+template <typename Traits> inline constexpr bool has_expected_defaults_v = has_expected_defaults<Traits>::value;
+
 // Detects whether TestCaseTraits<SM> specializes the 4-arg
 // `static void stimulus(Captured&, const TestConfig&, string_view,
 // IStimulusScheduler&)` overload. TestRunner prefers the 4-arg form

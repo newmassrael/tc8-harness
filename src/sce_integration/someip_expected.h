@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <initializer_list>
 #include <string_view>
 
 #include "someip_expectations.h"
@@ -89,8 +90,30 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     e.sd_multicast_ip = cfg.someip.sd_multicast_ip;
     e.mcast_ipv4 = cfg.someip.mcast_ipv4;
     e.mcast_port = cfg.someip.mcast_port;
-    e.payload = cfg.someip.payload;
-    e.payload_len = cfg.someip.payload_len;
+    // payload is a per-case default (setExpectedPayload via the traits'
+    // applyExpectedDefaults hook); `--expect payload=` overrides it ONLY when
+    // explicitly set, so the conformant default survives a positive run and the
+    // negative harness's wrong value wins. Unconditional copy would wipe the
+    // case-local default with the empty CLI default on every positive run.
+    if (cfg.someip.payload_len > 0) {
+        e.payload = cfg.someip.payload;
+        e.payload_len = cfg.someip.payload_len;
+    }
+}
+
+// Set a case-local expected L7 payload default — the conformant echo a
+// test-intrinsic ETS assertion compares against. Called from a case's
+// `applyExpectedDefaults` hook; `--expect payload=` overrides it for the
+// negative. Truncates at the array capacity (a payload that large is a
+// case-authoring error, not runtime input).
+inline void setExpectedPayload(SomeIpExpected &e, std::initializer_list<std::uint8_t> bytes) {
+    e.payload.fill(0);
+    e.payload_len = 0;
+    for (auto b : bytes) {
+        if (e.payload_len < e.payload.size()) {
+            e.payload[e.payload_len++] = b;
+        }
+    }
 }
 
 }  // namespace tc8

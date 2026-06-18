@@ -1307,22 +1307,6 @@ run_case() {
     # `--expect` is last-wins per src/cli/expect_parser.cpp, so appending
     # the override here cleanly shadows TC8_DUT_EXPECT.
     declare -A CASE_EXPECT_OVERRIDES=(
-        # SOMEIP_ETS Method-Response echo payload (the conformant value the
-        # positive run asserts). Parameterised out of the case .scxml literal
-        # so the --negative NEG_ROW can flip a byte and drive the case's
-        # observed_violation final (debt D7; see docs/verdict_policy.md).
-        [SOMEIP_ETS_005]="payload=00:00:34:68"
-        [SOMEIP_ETS_009]="payload=02"
-        [SOMEIP_ETS_019]="payload=3F:F8:00:00:00:00:00:00"
-        [SOMEIP_ETS_027]="payload=42"
-        [SOMEIP_ETS_007]="payload=01:80:02:1E:6A:2C:48"
-        [SOMEIP_ETS_022]="payload=10:11:12:13:14"
-        [SOMEIP_ETS_028]="payload=00:00:00:03:42:43:44"
-        [SOMEIP_ETS_029]="payload=00:03:42:43:44"
-        [SOMEIP_ETS_030]="payload=00:00:00:0A:00:00:00:01:42:00:00:00:01:43"
-        [SOMEIP_ETS_031]="payload=03:42:43:44"
-        [SOMEIP_ETS_032]="payload=00:00:00:04:10:11:12:13"
-        [SOMEIP_ETS_038]="payload=00:00:00:01:00:00:00:02:42"
         [SOMEIPSRV_BASIC_03]="eventgroup_id=0x0002"
         # §5.1.5.1.28 FORMAT_28 round-trip eventgroup_id check: the
         # trait subscribes to eg 0x0002 (Ack path); SCXML cond checks

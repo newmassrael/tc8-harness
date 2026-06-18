@@ -59,6 +59,12 @@ struct TestCaseTraits<cases::SomeipEts038SM> : SomeIpAnyBase<cases::SomeipEts038
         };
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
+
+    // Conformant echo: case-local SSOT for the positive assertion;
+    // --expect payload= overrides only for the negative harness.
+    static void applyExpectedDefaults(::tc8::SomeIpExpected& e) {
+        ::tc8::setExpectedPayload(e, {0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x42});
+    }
 };
 
 }  // namespace tc8::sce

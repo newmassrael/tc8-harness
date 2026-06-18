@@ -43,6 +43,14 @@ struct TestCaseTraits<cases::SomeipEts005SM> : SomeIpAnyBase<cases::SomeipEts005
         target.payload = {0x12, 0x34, 0x56};
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
+
+    // Conformant checkByteOrder echo: UInt32 BE sum of 0x12 + 0x3456 = 0x3468.
+    // Case-local SSOT for the positive assertion (cond reads
+    // expected.payload_view()); --expect payload= overrides only for the
+    // negative harness. Keeps the case self-contained across all drivers.
+    static void applyExpectedDefaults(::tc8::SomeIpExpected& e) {
+        ::tc8::setExpectedPayload(e, {0x00, 0x00, 0x34, 0x68});
+    }
 };
 
 }  // namespace tc8::sce
