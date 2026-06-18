@@ -1312,6 +1312,9 @@ run_case() {
         # so the --negative NEG_ROW can flip a byte and drive the case's
         # observed_violation final (debt D7; see docs/verdict_policy.md).
         [SOMEIP_ETS_005]="payload=00:00:34:68"
+        [SOMEIP_ETS_009]="payload=02"
+        [SOMEIP_ETS_019]="payload=3F:F8:00:00:00:00:00:00"
+        [SOMEIP_ETS_027]="payload=42"
         [SOMEIPSRV_BASIC_03]="eventgroup_id=0x0002"
         # §5.1.5.1.28 FORMAT_28 round-trip eventgroup_id check: the
         # trait subscribes to eg 0x0002 (Ack path); SCXML cond checks
@@ -2214,7 +2217,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # matches → timeout). _035 covers the response-side TCP src_port
         # axis the case adds on top of the ETS_027 echo shape.
         "SOMEIP_ETS_005|payload=00:00:34:69|fail:check_byte_order_response_did_not_match_expected_uint32_sum"
-        "SOMEIP_ETS_027|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_027|payload=43|fail:echo_uint8_response_payload_did_not_match_request"
         "SOMEIP_ETS_035|tcp_port=12345|fail:echo_uint8_reliable_response_did_not_match_request_or_wrong_tcp_src_port"
         # Wave 2 §5.1.6 ETS rows — SD-side phase 1 expectation flip
         # rebases the OfferService cond so the malformed-cluster cases
@@ -2238,12 +2241,12 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIP_ETS_033|service_id=0x0000|fail:no_offer_service_within_listen_window"
         # Wave 3-b §5.1.6 ETS Array-family + FLOAT64 cluster — same SD-side
         # phase 1 service_id flip pattern as Wave 3-a.
-        "SOMEIP_ETS_019|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_019|payload=3F:F8:00:00:00:00:00:01|fail:echo_float64_response_did_not_match_request"
         "SOMEIP_ETS_022|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_030|service_id=0x0000|fail:no_offer_service_within_listen_window"
         # Wave 3-c §5.1.6 ETS ENUM + UTF16DYNAMIC cluster — same SD-side
         # phase 1 service_id flip pattern as Waves 3-a/b.
-        "SOMEIP_ETS_009|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_009|payload=03|fail:echo_enum_response_did_not_match_request"
         "SOMEIP_ETS_039|service_id=0x0000|fail:no_offer_service_within_listen_window"
         # Wave 3-d §5.1.6 ETS UTF16FIXED + UTF8DYNAMIC + UTF8FIXED cluster —
         # same SD-side phase 1 service_id flip pattern as Waves 3-a/b/c.
