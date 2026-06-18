@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <vector>
@@ -254,6 +255,11 @@ bool reachableByVersion(const stimulus::TestabilityConfig &base, std::uint32_t i
     return false;
 }
 
+// Per-attempt budget for a reachability observation: half the SP timeout, capped at
+// 300 ms so a long SP timeout doesn't stretch each observe poll. Shared by the ETH
+// and IP STATIC loops.
+int observeBudgetMs(int timeout_ms) { return std::min(timeout_ms / 2, 300); }
+
 // ETH INTERFACE_DOWN / INTERFACE_UP loop (GID 0x0B): command the DUT to take a
 // SECONDARY interface down then back up over the PRIMARY control channel, and
 // OBSERVE the effect — the DUT becomes unreachable on the secondary IP while the
@@ -267,7 +273,7 @@ bool runEthInterfaceLoop(const stimulus::TestabilityConfig &cfg, const std::stri
     ::inet_ntop(AF_INET, &observe_ip_be, ob, sizeof(ob));
     // Short per-try budget so the negative (unreachable) observation does not
     // wait the full control timeout; a few tries cover ARP warm-up when up.
-    const int obs_ms = timeout_ms > 600 ? 300 : timeout_ms / 2;
+    const int obs_ms = observeBudgetMs(timeout_ms);
 
     if (!reachableByVersion(cfg, observe_ip_be, obs_ms, 5)) {
         std::fprintf(stderr,
@@ -325,7 +331,7 @@ bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &
                      std::uint32_t route_gw_be, int timeout_ms) {
     char nb[INET_ADDRSTRLEN] = {};
     ::inet_ntop(AF_INET, &new_addr_be, nb, sizeof(nb));
-    const int obs_ms = timeout_ms > 600 ? 300 : timeout_ms / 2;
+    const int obs_ms = observeBudgetMs(timeout_ms);
 
     // Precondition: the address to assign is not already live, so reachability
     // AFTER the assignment is unambiguous evidence the SP took effect.

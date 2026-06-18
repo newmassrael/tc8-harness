@@ -16,7 +16,10 @@
 
 #include <cerrno>
 #include <cstring>
+#include <initializer_list>
 #include <optional>
+
+#include "wire/ip_checksum.h"
 
 namespace tc8::dut {
 
@@ -31,6 +34,40 @@ namespace {
 std::uint8_t setIntSockOpt(int fd, int level, int optname, int value) {
     return ::setsockopt(fd, level, optname, &value, sizeof(value)) == 0 ? tp::kRidEOk
                                                                         : tp::kRidENok;
+}
+
+// errno from a privileged netif / route ioctl -> testability Result ID: an unknown
+// interface (an errno in `iif`) is E_IIF; everything else (notably EPERM on a host
+// without CAP_NET_ADMIN) is E_NOK, surfaced rather than dropped.
+std::uint8_t ridFromIfaceErrno(int e, std::initializer_list<int> iif = {ENODEV}) {
+    for (int x : iif) {
+        if (e == x) {
+            return tp::kRidEIif;
+        }
+    }
+    return tp::kRidENok;
+}
+
+// Open an AF_INET DGRAM socket and resolve `ifname` unprivileged via SIOCGIFFLAGS,
+// so an unknown interface is E_IIF BEFORE any privileged write — SIOCSIFADDR /
+// SIOCADDRT can otherwise report EPERM first on a host without CAP_NET_ADMIN. On
+// success returns the fd (>= 0) with `ifr` carrying the resolved name + flags (the
+// flags are load-bearing for INTERFACE_UP/DOWN); on failure returns -1 and sets
+// `rid`. The caller closes the fd.
+int openAndResolveIface(const std::string &ifname, ifreq &ifr, std::uint8_t &rid) {
+    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) {
+        rid = tp::kRidENok;
+        return -1;
+    }
+    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
+    if (::ioctl(s, SIOCGIFFLAGS, &ifr) < 0) {
+        const int e = errno;
+        ::close(s);
+        rid = ridFromIfaceErrno(e);
+        return -1;
+    }
+    return s;
 }
 
 }  // namespace
@@ -317,19 +354,14 @@ std::uint8_t PosixSocketBackend::sendIcmpv6Echo(const std::string &ifname,
 
 std::uint8_t PosixSocketBackend::setInterfaceUp(const std::string &ifname, bool up) {
     // PRS_TPSP §6.10 INTERFACE_UP / INTERFACE_DOWN: toggle IFF_UP via the classic
-    // SIOCGIFFLAGS/SIOCSIFFLAGS ioctl pair. SIOCGIFFLAGS reads the current flags
-    // (ENODEV => unknown interface => E_IIF); flipping IFF_UP is administrative
-    // and needs CAP_NET_ADMIN (EPERM => E_NOK, surfaced rather than dropped).
-    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (s < 0) {
-        return tp::kRidENok;
-    }
+    // SIOCGIFFLAGS/SIOCSIFFLAGS ioctl pair. openAndResolveIface does the GET (ENODEV
+    // => unknown interface => E_IIF) and hands back the current flags; flipping
+    // IFF_UP is administrative and needs CAP_NET_ADMIN (EPERM => E_NOK, surfaced).
     ifreq ifr{};
-    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
-    if (::ioctl(s, SIOCGIFFLAGS, &ifr) < 0) {
-        const int e = errno;
-        ::close(s);
-        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    std::uint8_t rid = tp::kRidENok;
+    const int s = openAndResolveIface(ifname, ifr, rid);
+    if (s < 0) {
+        return rid;
     }
     if (up) {
         ifr.ifr_flags |= IFF_UP;
@@ -339,43 +371,23 @@ std::uint8_t PosixSocketBackend::setInterfaceUp(const std::string &ifname, bool 
     const bool ok = ::ioctl(s, SIOCSIFFLAGS, &ifr) == 0;
     const int e = errno;
     ::close(s);
-    if (ok) {
-        return tp::kRidEOk;
-    }
-    return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
-}
-
-// CIDR prefix length -> IPv4 netmask in network byte order (0 => 0.0.0.0, 32 =>
-// 255.255.255.255). Callers reject cidr > 32 before calling, so the shift is
-// always in range (a 32-bit shift would be undefined — hence the cidr==0 guard).
-static std::uint32_t cidrToMaskBe(std::uint8_t cidr) {
-    if (cidr == 0) {
-        return 0;
-    }
-    return ::htonl(0xFFFFFFFFu << (32u - cidr));
+    return ok ? tp::kRidEOk : ridFromIfaceErrno(e);
 }
 
 std::uint8_t PosixSocketBackend::setStaticAddressV4(const std::string &ifname,
                                                     std::uint32_t addr_be, std::uint8_t cidr) {
     // PRS_TPSP §6.10 STATIC_ADDRESS: SIOCSIFADDR assigns the IPv4 address,
-    // SIOCSIFNETMASK the mask (CIDR -> dotted). ENODEV => unknown interface =>
-    // E_IIF; the assignment needs CAP_NET_ADMIN (EPERM => E_NOK, surfaced).
+    // SIOCSIFNETMASK the mask (CIDR -> dotted via tc8::wire::cidrToMaskHost).
+    // openAndResolveIface resolves the interface unprivileged first (unknown =>
+    // E_IIF); the assignment then needs CAP_NET_ADMIN (EPERM => E_NOK, surfaced).
     if (cidr > 32) {
         return tp::kRidEInv;
     }
-    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (s < 0) {
-        return tp::kRidENok;
-    }
     ifreq ifr{};
-    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
-    // Unprivileged existence pre-check so an unknown interface is E_IIF before any
-    // privileged write — SIOCSIFADDR may otherwise report EPERM first on a host
-    // without CAP_NET_ADMIN (mirrors the ETH SIOCGIFFLAGS-before-SET pattern).
-    if (::ioctl(s, SIOCGIFFLAGS, &ifr) < 0) {
-        const int e = errno;
-        ::close(s);
-        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    std::uint8_t rid = tp::kRidENok;
+    const int s = openAndResolveIface(ifname, ifr, rid);
+    if (s < 0) {
+        return rid;
     }
     auto *sin = reinterpret_cast<sockaddr_in *>(&ifr.ifr_addr);
     sin->sin_family = AF_INET;
@@ -383,16 +395,13 @@ std::uint8_t PosixSocketBackend::setStaticAddressV4(const std::string &ifname,
     if (::ioctl(s, SIOCSIFADDR, &ifr) < 0) {
         const int e = errno;
         ::close(s);
-        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+        return ridFromIfaceErrno(e);
     }
-    sin->sin_addr.s_addr = cidrToMaskBe(cidr);
+    sin->sin_addr.s_addr = ::htonl(tc8::wire::cidrToMaskHost(cidr));
     const bool ok = ::ioctl(s, SIOCSIFNETMASK, &ifr) == 0;
     const int e = errno;
     ::close(s);
-    if (ok) {
-        return tp::kRidEOk;
-    }
-    return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    return ok ? tp::kRidEOk : ridFromIfaceErrno(e);
 }
 
 std::uint8_t PosixSocketBackend::setStaticRouteV4(const std::string &ifname,
@@ -400,27 +409,20 @@ std::uint8_t PosixSocketBackend::setStaticRouteV4(const std::string &ifname,
                                                   std::uint32_t gateway_be) {
     // PRS_TPSP §6.10 STATIC_ROUTE: SIOCADDRT installs a non-persistent route to
     // subnet/cidr via gateway, scoped to ifname (mirrors dhcpv4_client's default-
-    // route install). The destination is masked to its network address. ENODEV /
-    // ENXIO => unknown interface => E_IIF; EPERM => E_NOK; EEXIST is success (the
-    // route is already present), matching the post-condition "route reachable".
+    // route install). The destination is masked to its network address.
+    // openAndResolveIface resolves the interface first (unknown => E_IIF, before the
+    // privileged SIOCADDRT reports EPERM); ENXIO also maps to E_IIF and EEXIST is
+    // success (the route is already present), matching the post-condition.
     if (cidr > 32) {
         return tp::kRidEInv;
     }
-    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (s < 0) {
-        return tp::kRidENok;
-    }
-    // Unprivileged existence pre-check so an unknown interface is E_IIF before the
-    // privileged SIOCADDRT, which checks CAP_NET_ADMIN first and would otherwise
-    // report EPERM => E_NOK on a host without it (mirrors the ETH GET-before-SET).
     ifreq ifr{};
-    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
-    if (::ioctl(s, SIOCGIFFLAGS, &ifr) < 0) {
-        const int e = errno;
-        ::close(s);
-        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    std::uint8_t rid = tp::kRidENok;
+    const int s = openAndResolveIface(ifname, ifr, rid);
+    if (s < 0) {
+        return rid;
     }
-    const std::uint32_t mask_be = cidrToMaskBe(cidr);
+    const std::uint32_t mask_be = ::htonl(tc8::wire::cidrToMaskHost(cidr));
     rtentry rt{};
     char dev_buf[IFNAMSIZ] = {};
     std::strncpy(dev_buf, ifname.c_str(), IFNAMSIZ - 1);
@@ -441,7 +443,7 @@ std::uint8_t PosixSocketBackend::setStaticRouteV4(const std::string &ifname,
     if (rc == 0 || (rc < 0 && e == EEXIST)) {
         return tp::kRidEOk;
     }
-    return (e == ENODEV || e == ENXIO) ? tp::kRidEIif : tp::kRidENok;
+    return ridFromIfaceErrno(e, {ENODEV, ENXIO});
 }
 
 void PosixSocketBackend::destroyTimeWaitResidual(const TcpConnTuple &t) {

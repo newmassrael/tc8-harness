@@ -1270,6 +1270,16 @@ TEST_F(TestabilityServerTest, IpUnknownPrimitiveReturnsENtf) {
     EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
 }
 
+// A CIDR prefix > 32 is invalid input -> E_INV, returned by the backend BEFORE it
+// resolves the interface or issues any ioctl, so this is host-safe even naming a
+// real interface ("lo" is never touched).
+TEST_F(TestabilityServerTest, IpStaticAddressBadCidrReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityStaticAddress(cfg, /*iface=*/"lo",
+                                                      ::htonl(0x7F000002), /*cidr=*/33);
+    EXPECT_EQ(r.rid, tp::kRidEInv) << "cidr > 32 should be E_INV";
+}
+
 // ── PRS_TPSP §6.6 OEM extension / override seam (registerPrimitive) ──
 
 // EXTEND: a registered handler for a non-standard group the core knows nothing

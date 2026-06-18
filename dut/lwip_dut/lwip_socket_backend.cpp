@@ -2,6 +2,8 @@
 
 #include <cerrno>
 
+#include "wire/ip_checksum.h"
+
 #include "lwip/api.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
@@ -310,7 +312,7 @@ std::uint8_t LwipSocketBackend::setStaticAddressV4(const std::string &ifname, st
         ip4_addr_t ip{};
         ip4_addr_t nm{};
         ip4_addr_set_u32(&ip, addr_be);
-        ip4_addr_set_u32(&nm, (cidr == 0) ? 0 : lwip_htonl(0xFFFFFFFFu << (32u - cidr)));
+        ip4_addr_set_u32(&nm, lwip_htonl(tc8::wire::cidrToMaskHost(cidr)));
         netif_set_addr(nif, &ip, &nm, netif_ip4_gw(nif));
         rid = tp::kRidEOk;
     }

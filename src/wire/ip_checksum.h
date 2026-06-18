@@ -50,4 +50,14 @@ inline void writeBe32(std::uint8_t* p, std::uint32_t v) {
     p[3] = static_cast<std::uint8_t>(v & 0xFFU);
 }
 
+// IPv4 CIDR prefix length -> netmask in HOST byte order (0 => 0.0.0.0,
+// 32 => 255.255.255.255). Each network backend applies its own
+// htonl / lwip_htonl for the wire/socket form, so the bit-math AND the
+// count-equals-width shift-UB guard live here once rather than once per
+// backend. Precondition: cidr <= 32 (callers reject a wider prefix as
+// E_INV before reaching here); a wider value underflows `32 - cidr`.
+inline std::uint32_t cidrToMaskHost(std::uint8_t cidr) {
+    return cidr == 0 ? 0U : (0xFFFFFFFFU << (32U - cidr));
+}
+
 }  // namespace tc8::wire
