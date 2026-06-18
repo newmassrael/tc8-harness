@@ -22,12 +22,13 @@ namespace tc8::testability {
 using net::Endpoint;
 
 // The testability-specific extension of the shared socket seam
-// (tc8::net::SocketBackend): the three operations whose result is a PRS_TPSP
+// (tc8::net::SocketBackend): the operations whose result is a PRS_TPSP
 // service-primitive outcome rather than a raw socket value — CONFIGURE_SOCKET
-// option application and the ICMP / ICMPv6 ECHO_REQUEST emit. Kept off the
-// generic net seam so that layer stays free of testability protocol vocabulary;
-// the Upper Tester server, which has none of these primitives, depends on the
-// generic base alone and reuses the very same adapters.
+// option application, the ICMP / ICMPv6 ECHO_REQUEST emit, and the ETH
+// INTERFACE_UP / INTERFACE_DOWN link-state change. Kept off the generic net
+// seam so that layer stays free of testability protocol vocabulary; the Upper
+// Tester server, which has none of these primitives, depends on the generic
+// base alone and reuses the very same adapters.
 class SocketBackend : public net::SocketBackend {
 public:
     // CONFIGURE_SOCKET parameter application -> testability result id
@@ -47,6 +48,12 @@ public:
     // E_NOK (surfaced, not silently dropped).
     virtual std::uint8_t sendIcmpv6Echo(const std::string &ifname, const std::uint8_t *dst16,
                                         const std::uint8_t *body, std::size_t len) = 0;
+
+    // ETH INTERFACE_UP / INTERFACE_DOWN (PRS_TPSP §6.10): bring the named
+    // interface administratively up (`up` = true) or down (`up` = false) ->
+    // result id (E_OK / E_IIF on an unknown interface / E_NOK where the change
+    // is not permitted, e.g. lacking the privilege to alter link state).
+    virtual std::uint8_t setInterfaceUp(const std::string &ifname, bool up) = 0;
 };
 
 // AUTOSAR Testability Protocol endpoint (PRS_TPSP §6, AUTOSAR TC 1.2.0), the
@@ -58,9 +65,9 @@ public:
 // include/tc8/testability_protocol.h so both decode identically.
 //
 // Served standard groups (PRS_TPSP §6.10): GENERAL (0x00), UDP (0x01),
-// TCP (0x02), ICMP (0x03), ICMPv6 (0x04). registerPrimitive() is the OEM extension/override
-// seam (PRS_TPSP §6.6). RAII: start() spawns the listener thread; stop()/dtor
-// joins it and closes any open sockets.
+// TCP (0x02), ICMP (0x03), ICMPv6 (0x04), ETH (0x0B). registerPrimitive() is the
+// OEM extension/override seam (PRS_TPSP §6.6). RAII: start() spawns the listener
+// thread; stop()/dtor joins it and closes any open sockets.
 class ProtocolServer {
 public:
     explicit ProtocolServer(std::unique_ptr<SocketBackend> backend);
@@ -116,6 +123,7 @@ private:
                                    std::vector<std::uint8_t> &resp_dat, bool udp);
     std::uint8_t echoRequest(const std::uint8_t *dat, std::size_t dat_len);
     std::uint8_t echoRequestV6(const std::uint8_t *dat, std::size_t dat_len);
+    std::uint8_t setInterface(const std::uint8_t *dat, std::size_t dat_len, bool up);
 
     void runEventWorkerLoop(int fd, const std::shared_ptr<std::atomic<bool>> &stop,
                             const std::function<bool()> &again,

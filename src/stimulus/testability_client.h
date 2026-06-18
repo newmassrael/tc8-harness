@@ -223,4 +223,13 @@ TestabilityResponse testabilityEchoRequestV6(const TestabilityConfig &cfg, const
                                              const std::vector<std::uint8_t> &payload,
                                              int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
 
+// INTERFACE_UP / INTERFACE_DOWN (ETH / GID 0x0B, PRS_TPSP §6.10): bring `iface`
+// administratively up / down on the DUT. The sole request parameter is the
+// interface name (text); the DUT returns E_OK on success or E_IIF for an unknown
+// interface.
+TestabilityResponse testabilityInterfaceUp(const TestabilityConfig &cfg, const std::string &iface,
+                                           int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+TestabilityResponse testabilityInterfaceDown(const TestabilityConfig &cfg, const std::string &iface,
+                                             int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
 }  // namespace tc8::stimulus

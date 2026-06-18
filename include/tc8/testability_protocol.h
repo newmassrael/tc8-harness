@@ -113,6 +113,13 @@ inline constexpr std::uint8_t kPidShutdown = 0x07;
 // groups — the GID disambiguates which primitive a 0x00 PID names.
 inline constexpr std::uint8_t kPidEchoRequest = 0x00;
 
+// PRS_TPSP §6.10 ETH group (0x0B) Service Primitive IDs. INTERFACE_UP/DOWN each
+// take a single ifName(text) and report E_IIF on an unknown interface. These
+// 0x00/0x01 PIDs are GID-scoped (they name CLOSE_SOCKET/CREATE_AND_BIND in the
+// UDP/TCP groups) — the GID disambiguates which primitive a PID names.
+inline constexpr std::uint8_t kPidInterfaceUp = 0x00;
+inline constexpr std::uint8_t kPidInterfaceDown = 0x01;
+
 // PRS_TPSP §6.10 SHUTDOWN typeId — selects which transfer direction the
 // primitive disallows on the socket (maps to the BSD shutdown(2) `how`).
 inline constexpr std::uint8_t kShutdownRd = 0x00;    // further reception disallowed (SHUT_RD)

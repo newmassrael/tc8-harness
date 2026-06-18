@@ -239,6 +239,20 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
         }
     }
 
+    if (gid == kGidEth) {
+        switch (pid) {
+            case kPidInterfaceUp:
+                rid_out = setInterface(dat, dat_len, /*up=*/true);
+                return;
+            case kPidInterfaceDown:
+                rid_out = setInterface(dat, dat_len, /*up=*/false);
+                return;
+            default:
+                rid_out = kRidENtf;  // ETH group defines only INTERFACE_UP/DOWN
+                return;
+        }
+    }
+
     rid_out = kRidENtf;  // group not implemented
 }
 
@@ -385,6 +399,19 @@ std::uint8_t ProtocolServer::echoRequestV6(const std::uint8_t *dat, std::size_t 
     const std::vector<std::uint8_t> msg =
         tc8::wire::buildIcmpv6EchoRequestBody(/*id=*/0, /*seq=*/1, data_body, data_len);
     return backend_->sendIcmpv6Echo(ifname, addr_body, msg.data(), msg.size());
+}
+
+std::uint8_t ProtocolServer::setInterface(const std::uint8_t *dat, std::size_t dat_len, bool up) {
+    // PRS_TPSP §6.10 INTERFACE_UP / INTERFACE_DOWN (ETH): the sole request
+    // parameter is ifName(text). The administrative link-state change is the
+    // backend's (an unknown interface is E_IIF); this primitive does not affect
+    // persistent configuration, matching the spec.
+    std::size_t off = 0;
+    std::string ifname;
+    if (!readText(dat, dat_len, off, ifname)) {
+        return kRidEInv;
+    }
+    return backend_->setInterfaceUp(ifname, up);
 }
 
 std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {

@@ -8,6 +8,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -311,6 +312,36 @@ std::uint8_t PosixSocketBackend::sendIcmpv6Echo(const std::string &ifname,
         ::sendto(s, body, len, 0, reinterpret_cast<sockaddr *>(&dest), sizeof(dest));
     ::close(s);
     return (sent == static_cast<ssize_t>(len)) ? tp::kRidEOk : tp::kRidENok;
+}
+
+std::uint8_t PosixSocketBackend::setInterfaceUp(const std::string &ifname, bool up) {
+    // PRS_TPSP §6.10 INTERFACE_UP / INTERFACE_DOWN: toggle IFF_UP via the classic
+    // SIOCGIFFLAGS/SIOCSIFFLAGS ioctl pair. SIOCGIFFLAGS reads the current flags
+    // (ENODEV => unknown interface => E_IIF); flipping IFF_UP is administrative
+    // and needs CAP_NET_ADMIN (EPERM => E_NOK, surfaced rather than dropped).
+    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) {
+        return tp::kRidENok;
+    }
+    ifreq ifr{};
+    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
+    if (::ioctl(s, SIOCGIFFLAGS, &ifr) < 0) {
+        const int e = errno;
+        ::close(s);
+        return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
+    }
+    if (up) {
+        ifr.ifr_flags |= IFF_UP;
+    } else {
+        ifr.ifr_flags &= ~IFF_UP;
+    }
+    const bool ok = ::ioctl(s, SIOCSIFFLAGS, &ifr) == 0;
+    const int e = errno;
+    ::close(s);
+    if (ok) {
+        return tp::kRidEOk;
+    }
+    return (e == ENODEV) ? tp::kRidEIif : tp::kRidENok;
 }
 
 void PosixSocketBackend::destroyTimeWaitResidual(const TcpConnTuple &t) {

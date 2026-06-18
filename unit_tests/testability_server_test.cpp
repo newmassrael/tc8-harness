@@ -1,5 +1,7 @@
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netinet/in.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -1148,6 +1150,74 @@ TEST_F(TestabilityServerTest, Icmpv6EchoRequestInvalidInterfaceReturnsEIif) {
         stimulus::testabilityEchoRequestV6(cfg, /*iface=*/"tc8-no-such-if", loop6, {});
     EXPECT_TRUE(r.ok);  // the SP itself round-tripped
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+// ── ETH group (GID 0x0B): INTERFACE_UP / INTERFACE_DOWN (PRS_TPSP §6.10) ──
+
+// An unknown interface name maps to the spec's E_IIF: the SIOCGIFFLAGS read
+// returns ENODEV before any privileged write, so this holds on an unprivileged
+// CI host (no link-state change is attempted).
+TEST_F(TestabilityServerTest, EthInterfaceUpInvalidInterfaceReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityInterfaceUp(cfg, /*iface=*/"tc8-no-such-if");
+    EXPECT_TRUE(r.ok);  // the SP itself round-tripped
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+TEST_F(TestabilityServerTest, EthInterfaceDownInvalidInterfaceReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityInterfaceDown(cfg, /*iface=*/"tc8-no-such-if");
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+// A request with no parameters at all (missing the ifName text) is malformed
+// -> E_INV, distinct from an empty-but-present ifName (which reaches the backend
+// and resolves to E_IIF).
+TEST_F(TestabilityServerTest, EthInterfaceUpMissingIfNameReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidEth, tp::kPidInterfaceUp, {}).rid,
+              tp::kRidEInv);
+}
+
+// The ETH group defines only INTERFACE_UP / INTERFACE_DOWN; any other PID is E_NTF.
+TEST_F(TestabilityServerTest, EthUnknownPrimitiveReturnsENtf) {
+    const auto cfg = loopbackConfig();
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidEth, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+}
+
+// True if this process may change a link's administrative state. Probed by
+// writing loopback's CURRENT flags straight back via SIOCSIFFLAGS — a genuine
+// no-op that never brings an interface down. Where it cannot (no CAP_NET_ADMIN),
+// the E_OK emit test would exercise the host's lack of privilege rather than the
+// endpoint, so it skips instead of failing (mirrors hasIcmpv6Socket()).
+static bool canSetLinkState() {
+    int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) {
+        return false;
+    }
+    ifreq ifr{};
+    std::strncpy(ifr.ifr_name, "lo", IFNAMSIZ - 1);
+    bool ok = false;
+    if (::ioctl(s, SIOCGIFFLAGS, &ifr) == 0) {
+        ok = ::ioctl(s, SIOCSIFFLAGS, &ifr) == 0;  // write the same flags back: a true no-op
+    }
+    ::close(s);
+    return ok;
+}
+
+// Bringing loopback "up" while it is already up is an idempotent no-op that
+// reports E_OK where the process holds CAP_NET_ADMIN. The destructive direction
+// (INTERFACE_DOWN) would sever loopback for this very server, so it is left to
+// the LIVE netns sweep; here only the non-destructive up-path is asserted.
+TEST_F(TestabilityServerTest, EthInterfaceUpLoopbackReturnsEOk) {
+    if (!canSetLinkState()) {
+        GTEST_SKIP() << "no CAP_NET_ADMIN to change link state on this host";
+    }
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityInterfaceUp(cfg, /*iface=*/"lo");
+    EXPECT_TRUE(r.eok()) << "INTERFACE_UP on already-up loopback should report E_OK (rid="
+                         << static_cast<int>(r.rid) << ")";
 }
 
 // ── PRS_TPSP §6.6 OEM extension / override seam (registerPrimitive) ──

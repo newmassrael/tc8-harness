@@ -270,4 +270,26 @@ std::uint8_t LwipSocketBackend::sendIcmpv6Echo(const std::string & /*ifname*/,
     return tp::kRidENok;
 }
 
+std::uint8_t LwipSocketBackend::setInterfaceUp(const std::string &ifname, bool up) {
+    // PRS_TPSP §6.10 INTERFACE_UP / INTERFACE_DOWN: toggle the netif's
+    // administrative state under the core lock. netif_find resolves the name
+    // (an unknown / unnamed interface is null => E_IIF); there is no privilege
+    // gate in a single-process stack, so a resolved netif always succeeds.
+    std::uint8_t rid;
+    LOCK_TCPIP_CORE();
+    struct netif *nif = netif_find(ifname.c_str());
+    if (nif == nullptr) {
+        rid = tp::kRidEIif;
+    } else {
+        if (up) {
+            netif_set_up(nif);
+        } else {
+            netif_set_down(nif);
+        }
+        rid = tp::kRidEOk;
+    }
+    UNLOCK_TCPIP_CORE();
+    return rid;
+}
+
 }  // namespace tc8::lwip_dut
