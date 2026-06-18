@@ -24,6 +24,15 @@ NEW_ADDR="${TC8_WIRE_DUT_IP_2%.*}.50"
 ROUTE_SUBNET="192.0.2.0"          # RFC 5737 TEST-NET-1 (intentionally unroutable)
 ROUTE_GW="$TC8_WIRE_TESTER_IP_2"
 
+# The route must be absent before the SP, so its post-SP presence is the SP's doing and
+# not a pre-existing route (the route observation below otherwise only proves "present
+# after", which a stale route would satisfy; the address path is already guarded by the
+# probe's own reachability precondition).
+if ip netns exec "$DUT_NS" ip route show "$ROUTE_SUBNET/24" | grep -q .; then
+    echo "ip-static-check: FAIL — $ROUTE_SUBNET/24 already routed before STATIC_ROUTE" >&2
+    exit 1
+fi
+
 # Drive the observable IP STATIC loop over the primary control channel: assign
 # $NEW_ADDR to the DUT's secondary interface (VETH_D2) and confirm it becomes
 # reachable, then install the $ROUTE_SUBNET route via $ROUTE_GW.
@@ -34,8 +43,9 @@ ip netns exec "$TESTER_NS" "$HARNESS" testability-probe \
     --ip-static-route-cidr 24
 
 # STATIC_ROUTE's effect is in the DUT's routing table, not observable by reachability
-# without a third hop — confirm it directly (the probe asserted E_OK).
-if ip netns exec "$DUT_NS" ip route show "$ROUTE_SUBNET/24" | grep -q "via $ROUTE_GW"; then
+# without a third hop — confirm it directly (the probe asserted E_OK). The gateway is
+# matched as a whole word (grep -w) so 172.17.0.1 cannot spuriously match a ...1x sibling.
+if ip netns exec "$DUT_NS" ip route show "$ROUTE_SUBNET/24" | grep -qwF "$ROUTE_GW"; then
     echo "ip-static-check: STATIC_ROUTE effect observed ($ROUTE_SUBNET/24 via $ROUTE_GW in DUT table)"
 else
     echo "ip-static-check: FAIL — STATIC_ROUTE reported E_OK but the route is absent" >&2

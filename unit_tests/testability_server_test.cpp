@@ -1244,6 +1244,42 @@ TEST_F(TestabilityServerTest, IpStaticRouteInvalidInterfaceReturnsEIif) {
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
 }
 
+// STATIC_ROUTE's parser has three malformed-input E_INV branches beyond the ifName: a
+// wrong-length subNet, a missing netMask, and a wrong-length gateway. Each is pinned so
+// a copy-paste error in a length gate (4 vs 16) cannot pass silently.
+TEST_F(TestabilityServerTest, IpStaticRouteWrongSubnetLengthReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");
+    const std::uint8_t subnet16[16] = {};
+    tp::appendIpv6Addr(dat, subnet16);  // 16-byte subNet under the IPv4 GID
+    dat.push_back(24);                  // netMask
+    tp::appendIpv4Addr(dat, ::htonl(0x0A0000FE));
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
+              tp::kRidEInv);
+}
+
+TEST_F(TestabilityServerTest, IpStaticRouteMissingNetMaskReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");
+    tp::appendIpv4Addr(dat, ::htonl(0x0A000000));  // subNet, then truncate (no netMask)
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
+              tp::kRidEInv);
+}
+
+TEST_F(TestabilityServerTest, IpStaticRouteWrongGatewayLengthReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");
+    tp::appendIpv4Addr(dat, ::htonl(0x0A000000));  // subNet (n=4, valid)
+    dat.push_back(24);                             // netMask
+    const std::uint8_t gw16[16] = {};
+    tp::appendIpv6Addr(dat, gw16);                 // 16-byte gateway under the IPv4 GID
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
+              tp::kRidEInv);
+}
+
 // A request with no parameters at all (missing the ifName text) is malformed -> E_INV.
 TEST_F(TestabilityServerTest, IpStaticAddressMissingParamsReturnsEInv) {
     const auto cfg = loopbackConfig();
@@ -1280,6 +1316,16 @@ TEST_F(TestabilityServerTest, IpStaticAddressBadCidrReturnsEInv) {
     EXPECT_EQ(r.rid, tp::kRidEInv) << "cidr > 32 should be E_INV";
 }
 
+// The valid maximum prefix (/32) must PASS the range guard — pinned via an unknown
+// interface so no privileged write is attempted: cidr 32 clears the `> 32` guard and the
+// unknown iface yields E_IIF (an off-by-one `>= 32` would wrongly return E_INV here).
+TEST_F(TestabilityServerTest, IpStaticAddressCidr32PassesGuardReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const auto r = stimulus::testabilityStaticAddress(cfg, /*iface=*/"tc8-no-such-if",
+                                                      ::htonl(0x0A000001), /*cidr=*/32);
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "cidr == 32 is valid and should pass to E_IIF";
+}
+
 // ── PRS_TPSP §6.10 IPv6 group (GID 0x06): STATIC_ADDRESS / STATIC_ROUTE ──
 // The IPv6 mirror of the IP group above. The privileged write (SIOCSIFADDR /
 // SIOCADDRT with an in6_ifreq / in6_rtmsg) would mutate this host's addressing /
@@ -1305,6 +1351,43 @@ TEST_F(TestabilityServerTest, Ipv6StaticRouteInvalidInterfaceReturnsEIif) {
                                                       /*prefix=*/64, gw16);
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
+}
+
+// STATIC_ROUTE's parser has the same three malformed-input E_INV branches as the IPv4
+// route above (wrong-length subNet, missing netMask, wrong-length gateway), pinned so a
+// length-gate copy-paste error (16 vs 4) cannot pass silently.
+TEST_F(TestabilityServerTest, Ipv6StaticRouteWrongSubnetLengthReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");
+    tp::appendIpv4Addr(dat, ::htonl(0x7F000001));  // 4-byte subNet under the IPv6 GID
+    dat.push_back(64);                             // netMask
+    const std::uint8_t gw16[16] = {};
+    tp::appendIpv6Addr(dat, gw16);
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
+              tp::kRidEInv);
+}
+
+TEST_F(TestabilityServerTest, Ipv6StaticRouteMissingNetMaskReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");
+    const std::uint8_t subnet16[16] = {};
+    tp::appendIpv6Addr(dat, subnet16);  // subNet, then truncate (no netMask)
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
+              tp::kRidEInv);
+}
+
+TEST_F(TestabilityServerTest, Ipv6StaticRouteWrongGatewayLengthReturnsEInv) {
+    const auto cfg = loopbackConfig();
+    std::vector<std::uint8_t> dat;
+    tp::appendText(dat, "lo");
+    const std::uint8_t subnet16[16] = {};
+    tp::appendIpv6Addr(dat, subnet16);             // subNet (n=16, valid)
+    dat.push_back(64);                             // netMask
+    tp::appendIpv4Addr(dat, ::htonl(0x7F000001));  // 4-byte gateway under the IPv6 GID
+    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
+              tp::kRidEInv);
 }
 
 // A request with no parameters at all (missing the ifName text) is malformed -> E_INV.
@@ -1342,6 +1425,18 @@ TEST_F(TestabilityServerTest, Ipv6StaticAddressBadPrefixReturnsEInv) {
     const auto r = stimulus::testabilityStaticAddressV6(cfg, /*iface=*/"lo", addr16,
                                                         /*prefix=*/129);
     EXPECT_EQ(r.rid, tp::kRidEInv) << "prefix > 128 should be E_INV";
+}
+
+// The valid maximum prefix (/128, an IPv6 host route) must PASS the range guard — pinned
+// via an unknown interface (prefix 128 clears the `> 128` guard, the unknown iface yields
+// E_IIF). An off-by-one `>= 128` would wrongly return E_INV here. Host-safe.
+TEST_F(TestabilityServerTest, Ipv6StaticAddressPrefix128PassesGuardReturnsEIif) {
+    const auto cfg = loopbackConfig();
+    const std::uint8_t addr16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                                     0,    0,    0,    0,    0, 0, 0, 0x03};
+    const auto r = stimulus::testabilityStaticAddressV6(cfg, /*iface=*/"tc8-no-such-if", addr16,
+                                                        /*prefix=*/128);
+    EXPECT_EQ(r.rid, tp::kRidEIif) << "prefix == 128 is valid and should pass to E_IIF";
 }
 
 // ── PRS_TPSP §6.6 OEM extension / override seam (registerPrimitive) ──

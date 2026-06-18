@@ -49,6 +49,15 @@ if ip netns exec "$TESTER_NS" ping -6 -c1 -W1 "$NEW_ADDR6" >/dev/null 2>&1; then
 fi
 echo "ipv6-static-check: precondition -> $NEW_ADDR6 not yet assigned"
 
+# The route must likewise be absent before the SP, so its post-SP presence is the SP's
+# doing and not a pre-existing route (otherwise the route observation only proves
+# "present after", which a stale route would satisfy).
+if ip netns exec "$DUT_NS" ip -6 route show "$ROUTE_SUBNET6/$PREFIX" | grep -q .; then
+    echo "ipv6-static-check: FAIL — $ROUTE_SUBNET6/$PREFIX already routed before STATIC_ROUTE" >&2
+    exit 1
+fi
+echo "ipv6-static-check: precondition -> $ROUTE_SUBNET6/$PREFIX not yet routed"
+
 # Drive the IPv6 STATIC loop over the (IPv4) primary control channel: assign $NEW_ADDR6
 # to the DUT's secondary interface (VETH_D2), then install the $ROUTE_SUBNET6 route via
 # the tester. The probe asserts E_OK for both; this script observes the effects.
@@ -79,8 +88,9 @@ fi
 echo "ipv6-static-check: STATIC_ADDRESS effect observed ($NEW_ADDR6 assigned + reachable)"
 
 # Observe STATIC_ROUTE: its effect is in the DUT's table (no third hop to reach) —
-# confirm it directly (the probe asserted E_OK).
-if ip netns exec "$DUT_NS" ip -6 route show "$ROUTE_SUBNET6/$PREFIX" | grep -q "via $TESTER_IP6"; then
+# confirm it directly (the probe asserted E_OK). The gateway is matched as a whole word
+# (grep -w) so fd00:17::1 cannot spuriously match a fd00:17::1x sibling.
+if ip netns exec "$DUT_NS" ip -6 route show "$ROUTE_SUBNET6/$PREFIX" | grep -qwF "$TESTER_IP6"; then
     echo "ipv6-static-check: STATIC_ROUTE effect observed ($ROUTE_SUBNET6/$PREFIX via $TESTER_IP6)"
 else
     echo "ipv6-static-check: FAIL — STATIC_ROUTE reported E_OK but the route is absent" >&2
