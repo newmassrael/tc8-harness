@@ -29,6 +29,7 @@ use std::fs;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
@@ -91,6 +92,13 @@ pub struct LwipTap<'a> {
     ready_probe: ReadyProbe,
     kill_name: String,
     state: Mutex<Option<LwipState>>,
+    /// Set once `teardown()` has run. teardown_run() reaps in the main flow, then
+    /// Drop reaps again as the panic/SIGINT backstop — but the first teardown
+    /// RELEASES the fixture lock, so a second pass must not run the no-tracked-state
+    /// branch's host-wide pkill / tap-delete (it would stomp a concurrent fixture
+    /// user who acquired the freed lock). The flag makes the second call a true
+    /// no-op (the `&self`-method analogue of FixtureGuard::torn).
+    torn: AtomicBool,
 }
 
 impl<'a> LwipTap<'a> {
@@ -105,7 +113,15 @@ impl<'a> LwipTap<'a> {
             _ => ReadyProbe::Opcode,
         };
         let kill_name = resolve_kill_name(site);
-        LwipTap { cfg, site, app, ready_probe, kill_name, state: Mutex::new(None) }
+        LwipTap {
+            cfg,
+            site,
+            app,
+            ready_probe,
+            kill_name,
+            state: Mutex::new(None),
+            torn: AtomicBool::new(false),
+        }
     }
 
     // --- DUT lifecycle primitives -------------------------------------------
@@ -255,6 +271,12 @@ impl<'a> LwipTap<'a> {
     /// user acquiring the lock and provisioning a fresh tap cannot collide with this
     /// run (which is done with the tap).
     fn teardown(&self) {
+        // Run at most once: teardown_run() reaps in the main flow and Drop is the
+        // backstop, but the first pass drops the lock, so a second host-wide pkill /
+        // tap-delete could stomp a concurrent fixture user. See the `torn` field.
+        if self.torn.swap(true, Ordering::SeqCst) {
+            return;
+        }
         let mut guard = self.state.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(st) = guard.as_mut() {
             self.kill_dut(&mut st.dut);
@@ -319,25 +341,45 @@ impl Topology for LwipTap<'_> {
         Ok(())
     }
 
-    fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx> {
-        topology::host_bring_up_common(self.cfg, w)?;
+    fn provision_run(&self) -> Result<()> {
+        // Run-level (ONCE, bash topology_provision_run): acquire the fixture lock,
+        // provision the tap, snapshot the socket baseline, spawn the lwIP DUT, and
+        // poll it to readiness. Stored in `state` so teardown_run / Drop reap it and
+        // the per-case respawn (stop_dut) mutates it. This is what masked the
+        // bash↔Rust divergence: it lived in bring_up_worker, which max_workers may
+        // call more than once — correct only because LwipTap caps workers at 1.
         let lock = acquire_lock()?;
         self.provision_tap()?;
-        // Snapshot pre-existing frozen sockets BEFORE spawning, so the per-case
-        // drain only ever waits on sockets this run created.
+        // Snapshot pre-existing frozen sockets BEFORE spawning, so the per-case drain
+        // only ever waits on sockets this run created.
         let baseline_socks = socket_snapshot();
         let dut = self.spawn_dut()?;
         *self.state.lock().unwrap() = Some(LwipState { _lock: lock, dut: Some(dut), baseline_socks });
-        self.wait_dut_ready()?;
-        // The readiness probe warmed the host neigh entry for the DUT IP — resolve
-        // the lwIP MAC from it (the DUT MAC is not operator-pinned for this fixture).
+        self.wait_dut_ready()
+    }
+
+    fn teardown_run(&self) -> Result<()> {
+        // Run-level reap of the DUT + tap + lock (bash topology_teardown_run); Drop
+        // is the panic/SIGINT backstop. Idempotent.
+        self.teardown();
+        Ok(())
+    }
+
+    fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx> {
+        // Per-worker: the worker-unique harness symlink + this worker's identity. The
+        // tap + DUT are already up (provision_run); its readiness probe warmed the
+        // host neigh entry for the DUT IP, so resolve the lwIP MAC from it (the DUT
+        // MAC is not operator-pinned for this fixture).
+        topology::host_bring_up_common(self.cfg, w)?;
         let dut_mac = topology::resolve_dut_mac(None, TAP, DUT_IP)?;
         let tester_mac = topology::iface_mac(TAP)?;
         Ok(WorkerCtx { dut_mac, tester_mac })
     }
 
-    fn tear_down_worker(&self, _w: u32) -> Result<()> {
-        self.teardown();
+    fn tear_down_worker(&self, w: u32) -> Result<()> {
+        // Per-worker: reap this worker's local harness. The run-level DUT/tap/lock
+        // reap is teardown_run (Drop is the panic/SIGINT backstop).
+        topology::kill_by_marker(&topology::harness_link(&self.cfg.vsomeip_base, w));
         Ok(())
     }
 

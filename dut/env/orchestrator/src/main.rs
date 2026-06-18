@@ -160,7 +160,7 @@ fn main() -> Result<()> {
     // lwip-tap is its own first-class topology (LwipTap): the lwIP embedded-stack DUT
     // needs a fixture-owned per-case respawn (drain → SIGTERM-slot-abort → respawn)
     // a persistent External does not do; it self-provisions the tap + DUT in
-    // bring_up_worker and reaps them in tear_down_worker.
+    // provision_run and reaps them in teardown_run.
     let topo: Box<dyn Topology + Sync> = match topology {
         "single-pc" => Box::new(SinglePc::new(&cfg)),
         "lwip-tap" => Box::new(fixtures::LwipTap::new(&cfg, &site)),
@@ -251,11 +251,11 @@ fn main() -> Result<()> {
         }
     })?;
 
-    // Provision the verification fixture (if any) BEFORE preflight — preflight
-    // probes the DUT the fixture stands up. The guard tears it down on Drop
-    // (normal/panic); the handler installed above covers SIGINT/SIGTERM. The
+    // Provision the verification fixture (if any) before the topology lifecycle —
+    // provision_run probes the DUT the fixture stands up. The guard tears it down on
+    // Drop (normal/panic); the handler installed above covers SIGINT/SIGTERM. The
     // lwip-tap topology needs no fixture: LwipTap self-provisions the tap + DUT in
-    // bring_up_worker and reaps them in tear_down_worker (a `[fixture]` block is
+    // provision_run and reaps them in teardown_run (a `[fixture]` block is
     // only ever netns-dut/ssh-netns-dut, enforced by SiteConf::validate).
     let _fixture = match &site.fixture {
         Some(spec) => Some(fixtures::provision(spec, &cfg)?),
@@ -264,8 +264,23 @@ fn main() -> Result<()> {
 
     topo.preflight()?;
 
+    // Run-level provisioning: stand up what the topology OWNS (lwip-tap's tap + DUT +
+    // lock; external/ssh-remote verify the pre-existing DUT is live) ONCE, after
+    // preflight and before the worker fork (bash topology_provision_run, smoke-test.sh
+    // pre-fork). Distinct from the per-worker bring_up_worker the fan-out calls: this
+    // is the seam whose absence let the lwip-tap fixture hide run-level work inside
+    // bring_up_worker, correct only because max_workers caps it at one.
+    topo.provision_run()?;
+
     let buckets = worker::distribute(&cases, workers);
     let results = worker::run_all(&cfg, topo.as_ref(), buckets, cli.dut_first);
+
+    // Run-level teardown of what provision_run owns (bash topology_teardown_run, run
+    // from the cleanup trap). Best-effort — a failure here must not mask the case
+    // results; the fixture's Drop is the panic/SIGINT backstop.
+    if let Err(e) = topo.teardown_run() {
+        eprintln!("orchestrator: warning: run-level teardown failed: {e:#}");
+    }
 
     let _ = fs::remove_dir_all(&cfg.work_root);
     let _ = fs::remove_dir_all(&cfg.vsomeip_base);

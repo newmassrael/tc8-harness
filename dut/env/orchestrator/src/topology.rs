@@ -208,7 +208,30 @@ pub trait Topology {
     fn ut_arp_cache_timeout(&self) -> Option<String> {
         None
     }
+    /// Pre-provision precondition checks ONLY (required config, local binary/tool/
+    /// interface existence) — never DUT liveness (bash `topology_preflight`). Runs
+    /// before `provision_run`, so it must not assume anything `provision_run` (or a
+    /// `[fixture]` overlay) stands up exists yet.
     fn preflight(&self) -> Result<()>;
+    /// Stand up what this topology OWNS for the whole run — netns / tap / DUT / lock
+    /// / socket-baseline — ONCE, post-`preflight` and pre-worker-fork, AND verify the
+    /// DUT is live (bash `topology_provision_run`). A topology that owns nothing
+    /// (single-pc provisions per-worker netns pairs; a pre-existing external DUT
+    /// stands up nothing) still uses this as the DUT-liveness gate. This is the run-
+    /// level seam: per-worker work belongs in `bring_up_worker`, which `max_workers`
+    /// may call more than once — run-level provisioning here is called exactly once.
+    /// Default: no-op (single-pc).
+    fn provision_run(&self) -> Result<()> {
+        Ok(())
+    }
+    /// Reap what `provision_run` stood up, ONCE in the main flow (bash
+    /// `topology_teardown_run`); no-op for a pre-existing DUT. Best-effort: it runs
+    /// on the teardown path, so the caller logs a failure rather than aborting.
+    /// Default: no-op. (Per-worker teardown is `tear_down_worker`; a fixture's Drop
+    /// remains the panic/SIGINT backstop.)
+    fn teardown_run(&self) -> Result<()> {
+        Ok(())
+    }
     fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx>;
     fn tear_down_worker(&self, w: u32) -> Result<()>;
     fn tester_iface(&self, w: u32) -> String;
@@ -770,27 +793,42 @@ impl Topology for External<'_> {
     }
 
     fn preflight(&self) -> Result<()> {
-        let iface = self.iface();
-        let dut_ip = self.site.require("dut_ip");
-        let tester_ip = self.site.require("tester_ip");
+        // Preconditions only. Required config vars (iface/dut_ip/tester_ip) are
+        // single-homed in SiteConf::validate, which enumerates+bails on any missing
+        // one at load — so there is nothing to re-check here. Iface existence /
+        // operstate / reachability are NOT here either: a `[fixture]` overlay stands
+        // up the tester veth + DUT in provision_run, so those iface-dependent checks
+        // belong post-stand-up in provision_run (mirrors external.conf: preflight=
+        // vars [enforced at load], provision=verify). The binary can vanish after
+        // load, so that one stays a live precondition.
         if !self.cfg.harness.is_file() {
             bail!("preflight: tc8-harness binary missing: {}", self.cfg.harness.display());
         }
+        Ok(())
+    }
+
+    fn provision_run(&self) -> Result<()> {
+        // The external DUT is operator-owned and already running — nothing to stand
+        // up; verify it is live (and warm the neigh entry bring_up_worker reads)
+        // before any case runs (external.conf `_external_verify_dut_live`).
+        let iface = self.iface();
+        let dut_ip = self.site.require("dut_ip");
+        let tester_ip = self.site.require("tester_ip");
         if !iface_exists(iface) {
-            bail!("preflight: interface '{iface}' does not exist on this host");
+            bail!("provision: interface '{iface}' does not exist on this host");
         }
         let operstate = fs::read_to_string(format!("/sys/class/net/{iface}/operstate"))
             .map(|s| s.trim().to_string())
             .unwrap_or_else(|_| "unreadable".into());
         match operstate.as_str() {
             "up" | "unknown" => {
-                println!("orchestrator[external]: preflight: '{iface}' operstate={operstate} — OK")
+                println!("orchestrator[external]: provision: '{iface}' operstate={operstate} — OK")
             }
-            other => bail!("preflight: interface '{iface}' operstate={other} (link down or not configured)"),
+            other => bail!("provision: interface '{iface}' operstate={other} (link down or not configured)"),
         }
         if let Some(sec) = self.site.iface_secondary.as_deref().filter(|s| !s.is_empty()) {
             if !iface_exists(sec) {
-                bail!("preflight: secondary interface '{sec}' does not exist");
+                bail!("provision: secondary interface '{sec}' does not exist");
             }
         }
         // Tester identity sanity (WARNING, not fatal — split-identity can be
@@ -802,23 +840,23 @@ impl Topology for External<'_> {
             .map(|o| String::from_utf8_lossy(&o.stdout).contains(&format!("inet {tester_ip}/")))
             .unwrap_or(false);
         if !carries {
-            eprintln!("orchestrator[external]: preflight WARNING — '{iface}' does not carry tester IP {tester_ip}; kernel-socket traffic (Upper Tester) will source a different address than raw-injected stimulus");
+            eprintln!("orchestrator[external]: provision WARNING — '{iface}' does not carry tester IP {tester_ip}; kernel-socket traffic (Upper Tester) will source a different address than raw-injected stimulus");
         }
         // DUT ICMP reachability — also warms the neigh entry bring-up reads. The
         // probe source steers which DUT ARP entry gets warmed (cold-cache cases).
         let probe_src = self.site.preflight_src_ip.as_deref().filter(|s| !s.is_empty());
         if ping_dut(probe_src.unwrap_or(iface), dut_ip) {
-            println!("orchestrator[external]: preflight: DUT {dut_ip} answers ICMP Echo — OK");
+            println!("orchestrator[external]: provision: DUT {dut_ip} answers ICMP Echo — OK");
         } else {
-            bail!("preflight: DUT {dut_ip} did not answer ICMP Echo on '{iface}' (DUT down, cable, or IP mismatch)");
+            bail!("provision: DUT {dut_ip} did not answer ICMP Echo on '{iface}' (DUT down, cable, or IP mismatch)");
         }
         // Upper Tester probe — WARNING unless require_ut promotes it to fatal.
         if ut_ping(&self.cfg.harness, dut_ip, probe_src) {
-            println!("orchestrator[external]: preflight: Upper Tester probe — OK");
+            println!("orchestrator[external]: provision: Upper Tester probe — OK");
         } else if self.site.require_ut {
-            bail!("preflight: Upper Tester did not answer (UDP 30600) and require_ut=true");
+            bail!("provision: Upper Tester did not answer (UDP 30600) and require_ut=true");
         } else {
-            eprintln!("orchestrator[external]: preflight WARNING — Upper Tester did not answer (UDP 30600); UT-dependent cases will fail visibly. Set require_ut=true to make this fatal.");
+            eprintln!("orchestrator[external]: provision WARNING — Upper Tester did not answer (UDP 30600); UT-dependent cases will fail visibly. Set require_ut=true to make this fatal.");
         }
         Ok(())
     }
@@ -950,35 +988,50 @@ impl Topology for SshRemote<'_> {
     }
 
     fn preflight(&self) -> Result<()> {
-        let iface = self.iface();
-        let dut_ip = self.site.require("dut_ip");
+        // Preconditions only. The required config vars (iface/dut_ip/tester_ip/
+        // ssh_target/remote_dut_bin/remote_vsomeip_cfg/remote_capi_cfg) are single-
+        // homed in SiteConf::validate, which enumerates+bails on any missing one at
+        // load — nothing to re-check here. The SSH / remote-binary / reachability /
+        // spawn-probe checks are DUT liveness and live in provision_run (ssh-remote
+        // .conf: preflight=vars [enforced at load], provision=verify) — the example
+        // netns fixture also stands up the tester veth in provision_run. The binary
+        // can vanish after load, so that one stays a live precondition.
         if !self.cfg.harness.is_file() {
             bail!("preflight: tc8-harness binary missing: {}", self.cfg.harness.display());
         }
+        Ok(())
+    }
+
+    fn provision_run(&self) -> Result<()> {
+        // The remote DUT host is operator-owned — nothing to stand up; verify it is
+        // live (SSH + remote bins + ICMP + spawn-probe) before any case runs
+        // (ssh-remote.conf `_sshremote_verify_dut_live`).
+        let iface = self.iface();
+        let dut_ip = self.site.require("dut_ip");
         if !iface_exists(iface) {
-            bail!("preflight: interface '{iface}' does not exist on this host");
+            bail!("provision: interface '{iface}' does not exist on this host");
         }
-        println!("orchestrator[ssh-remote]: preflight: '{iface}' exists — OK");
+        println!("orchestrator[ssh-remote]: provision: '{iface}' exists — OK");
         if !self.ssh_ok("true") {
             bail!(
-                "preflight: cannot SSH to '{}' non-interactively (key auth + BatchMode required)",
+                "provision: cannot SSH to '{}' non-interactively (key auth + BatchMode required)",
                 self.site.require("ssh_target")
             );
         }
         let rbin = self.site.require("remote_dut_bin");
         if !self.ssh_ok(&format!("test -x '{rbin}'")) {
-            bail!("preflight: remote tc8-dut missing or not executable: {rbin}");
+            bail!("provision: remote tc8-dut missing or not executable: {rbin}");
         }
         let rv = self.site.require("remote_vsomeip_cfg");
         let rc = self.site.require("remote_capi_cfg");
         if !self.ssh_ok(&format!("test -f '{rv}' && test -f '{rc}'")) {
-            bail!("preflight: remote vsomeip/commonapi config missing: {rv} / {rc}");
+            bail!("provision: remote vsomeip/commonapi config missing: {rv} / {rc}");
         }
-        println!("orchestrator[ssh-remote]: preflight: SSH + remote tc8-dut/configs present — OK");
+        println!("orchestrator[ssh-remote]: provision: SSH + remote tc8-dut/configs present — OK");
         if !ping_dut(iface, dut_ip) {
-            bail!("preflight: DUT host {dut_ip} did not answer ICMP Echo on '{iface}'");
+            bail!("provision: DUT host {dut_ip} did not answer ICMP Echo on '{iface}'");
         }
-        println!("orchestrator[ssh-remote]: preflight: DUT host {dut_ip} answers ICMP Echo — OK");
+        println!("orchestrator[ssh-remote]: provision: DUT host {dut_ip} answers ICMP Echo — OK");
 
         // UT probe: spawn one transient remote DUT, OpPing it, reap it — proving the
         // full spawn-over-SSH + UT path before any case runs. The reference tc8-dut
@@ -999,7 +1052,7 @@ impl Topology for SshRemote<'_> {
             }
         }
         if ut_ok {
-            println!("orchestrator[ssh-remote]: preflight: remote tc8-dut spawn + Upper Tester probe — OK");
+            println!("orchestrator[ssh-remote]: provision: remote tc8-dut spawn + Upper Tester probe — OK");
         } else {
             if let Ok(log) = fs::read_to_string(&probe_log) {
                 for line in log.lines() {
@@ -1007,9 +1060,17 @@ impl Topology for SshRemote<'_> {
                 }
             }
             let _ = fs::remove_file(&probe_log);
-            bail!("preflight: spawned a remote tc8-dut but its Upper Tester did not answer (UDP 30600); remote log dumped above");
+            bail!("provision: spawned a remote tc8-dut but its Upper Tester did not answer (UDP 30600); remote log dumped above");
         }
         let _ = fs::remove_file(&probe_log);
+        Ok(())
+    }
+
+    fn teardown_run(&self) -> Result<()> {
+        // Last-resort remote reap of any tc8-dut left running (per-case stop_dut
+        // already ran). pkill -x (exact comm) — a -f pattern would match the ssh
+        // session's own remote command line (ssh-remote.conf topology_teardown_run).
+        self.ssh_ok(&remote_reap_dut());
         Ok(())
     }
 
@@ -1027,7 +1088,8 @@ impl Topology for SshRemote<'_> {
     }
 
     fn tear_down_worker(&self, w: u32) -> Result<()> {
-        self.ssh_ok(&remote_reap_dut()); // last-resort remote reap
+        // Per-worker: reap this worker's local harness. The run-level remote DUT reap
+        // is teardown_run (it owns the remote-side resource, once per run).
         kill_by_marker(&harness_link(&self.cfg.vsomeip_base, w));
         Ok(())
     }
