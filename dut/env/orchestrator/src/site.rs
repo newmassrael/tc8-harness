@@ -51,9 +51,10 @@ pub enum TopologyKind {
 
 impl TopologyKind {
     /// The canonical kebab-case selector string. The *variants* are the single home
-    /// of the valid set; this is only their name rendering (messages + summary
-    /// banner), kept in lock-step with clap's parse names by a round-trip test.
-    pub fn as_str(self) -> &'static str {
+    /// of the valid set; this is only their name rendering (CLI messages, the summary
+    /// banner, and the conditioning-skip log), kept in lock-step with clap's parse
+    /// names by a round-trip test. Crate-internal — external callers use `Display`.
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             TopologyKind::SinglePc => "single-pc",
             TopologyKind::External => "external",
@@ -273,6 +274,12 @@ impl SiteConf {
     /// non-expansion) is chosen. The former `[_; 12]` array fixed only the COUNT,
     /// so a new `Option<String>` outside it silently skipped expansion — a `${ROOT}`
     /// there would then pass through literally and mis-path a binary.
+    ///
+    /// The compile-time guarantee covers the directly-destructured structs `SiteConf`
+    /// and `LwipSpec`. `FixtureSpec` is intentionally exempt: its only field `kind` is
+    /// a fixed selector literal (`netns-dut`/`ssh-netns-dut`), never `${}`-bearing, so
+    /// `fixture: _` is bound opaquely. A path-carrying field added to `FixtureSpec`
+    /// would need its own expansion decision here.
     fn expand_all(&mut self, root: &Path) -> Result<()> {
         let SiteConf {
             iface,

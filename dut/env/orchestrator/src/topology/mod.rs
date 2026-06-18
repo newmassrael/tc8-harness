@@ -117,11 +117,11 @@ fn veth_dut(w: u32) -> String {
     format!("veth-dut-{w}")
 }
 /// Worker-unique argv[0] for the DUT (the marker `pkill -f` scopes the kill to).
-pub fn dut_link(vsomeip_base: &Path, w: u32) -> PathBuf {
+fn dut_link(vsomeip_base: &Path, w: u32) -> PathBuf {
     vsomeip_base.join(format!("{w}/tc8-dut"))
 }
 /// Worker-unique argv[0] for the harness.
-pub fn harness_link(vsomeip_base: &Path, w: u32) -> PathBuf {
+pub(crate) fn harness_link(vsomeip_base: &Path, w: u32) -> PathBuf {
     vsomeip_base.join(format!("{w}/tc8-harness"))
 }
 

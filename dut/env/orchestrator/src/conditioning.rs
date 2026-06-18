@@ -21,6 +21,7 @@
 //! for canonical-case invocations (what parity-check.sh and normal use pass).
 
 use crate::netns;
+use crate::site::TopologyKind;
 use crate::wire;
 
 /// Which side's network stack a step touches. The topology resolves this to a
@@ -220,12 +221,13 @@ pub fn plan(case_id: &str, tester_ip4: &str, tester_mac: &str) -> Vec<CondStep> 
 pub fn log_dut_skips(
     w: u32,
     case_id: &str,
-    topology: &str,
+    topology: TopologyKind,
     tester_ip4: &str,
     tester_mac: &str,
     ut_arp_conditioned: bool,
 ) -> usize {
     let id = case_id.to_uppercase();
+    let topology = topology.as_str();
     let steps = plan(case_id, tester_ip4, tester_mac);
     let mut logged = 0;
     // 1. flush omission — cache-sensitive families only (bash smoke-test.sh).
@@ -422,24 +424,24 @@ mod tests {
         // external/ssh-remote): ut_arp_conditioned = false.
         let f = false;
         // Non-ARP/AUTOCONF, flush-only → no flush line, no family line (bash silent).
-        assert_eq!(log_dut_skips(0, "ICMPv4_TYPE_08", "external", TIP, TMAC, f), 0);
-        assert_eq!(log_dut_skips(0, "SOMEIPSRV_FORMAT_01", "external", TIP, TMAC, f), 0);
+        assert_eq!(log_dut_skips(0, "ICMPv4_TYPE_08", TopologyKind::External, TIP, TMAC, f), 0);
+        assert_eq!(log_dut_skips(0, "SOMEIPSRV_FORMAT_01", TopologyKind::External, TIP, TMAC, f), 0);
         // ARP_*, flush-only (no keyed family) → flush line only (bash:912-917).
-        assert_eq!(log_dut_skips(0, "ARP_03", "external", TIP, TMAC, f), 1);
+        assert_eq!(log_dut_skips(0, "ARP_03", TopologyKind::External, TIP, TMAC, f), 1);
         // ARP_39/40 — the only extra step is TESTER-side arp_ignore (applied, not
         // skipped), so the DUT-side skips are flush-only → 1 line, matching bash
         // (bash applies arp_ignore on every topology, smoke-test.sh). This
         // is the round-2 over-count regression guard.
-        assert_eq!(log_dut_skips(0, "ARP_39", "external", TIP, TMAC, f), 1);
-        assert_eq!(log_dut_skips(0, "ARP_40", "ssh-remote", TIP, TMAC, f), 1);
+        assert_eq!(log_dut_skips(0, "ARP_39", TopologyKind::External, TIP, TMAC, f), 1);
+        assert_eq!(log_dut_skips(0, "ARP_40", TopologyKind::SshRemote, TIP, TMAC, f), 1);
         // ARP_* WITH a DUT-side keyed family → flush line + family line (912-917 + 943).
-        assert_eq!(log_dut_skips(0, "ARP_38", "external", TIP, TMAC, f), 2);
-        assert_eq!(log_dut_skips(0, "ARP_48", "external", TIP, TMAC, f), 2);
+        assert_eq!(log_dut_skips(0, "ARP_38", TopologyKind::External, TIP, TMAC, f), 2);
+        assert_eq!(log_dut_skips(0, "ARP_48", TopologyKind::External, TIP, TMAC, f), 2);
         // AUTOCONF (matches the flush gate AND carries the DUT-side tester pin) → 2.
-        assert_eq!(log_dut_skips(0, "IPv4_AUTOCONF_CONFLICT_01", "external", TIP, TMAC, f), 2);
+        assert_eq!(log_dut_skips(0, "IPv4_AUTOCONF_CONFLICT_01", TopologyKind::External, TIP, TMAC, f), 2);
         // Non-ARP DUT family (ipfrag/tcp) → family line only (no flush gate match).
-        assert_eq!(log_dut_skips(0, "ICMPv4_TYPE_04", "ssh-remote", TIP, TMAC, f), 1);
-        assert_eq!(log_dut_skips(0, "TCP_RETRANSMISSION_TO_04", "ssh-remote", TIP, TMAC, f), 1);
+        assert_eq!(log_dut_skips(0, "ICMPv4_TYPE_04", TopologyKind::SshRemote, TIP, TMAC, f), 1);
+        assert_eq!(log_dut_skips(0, "TCP_RETRANSMISSION_TO_04", TopologyKind::SshRemote, TIP, TMAC, f), 1);
     }
 
     #[test]
@@ -448,12 +450,12 @@ mod tests {
         // neigh-timer family skip is suppressed — flush line only (1), matching bash
         // (smoke-test.sh). Other families are unaffected.
         let t = true;
-        assert_eq!(log_dut_skips(0, "ARP_48", "lwip-tap", TIP, TMAC, t), 1);
-        assert_eq!(log_dut_skips(0, "ARP_49", "lwip-tap", TIP, TMAC, t), 1);
+        assert_eq!(log_dut_skips(0, "ARP_48", TopologyKind::LwipTap, TIP, TMAC, t), 1);
+        assert_eq!(log_dut_skips(0, "ARP_49", TopologyKind::LwipTap, TIP, TMAC, t), 1);
         // ARP_38 arp_accept has no UT equivalent → still flush + family = 2 lines.
-        assert_eq!(log_dut_skips(0, "ARP_38", "lwip-tap", TIP, TMAC, t), 2);
+        assert_eq!(log_dut_skips(0, "ARP_38", TopologyKind::LwipTap, TIP, TMAC, t), 2);
         // ARP_03 (flush only) unaffected → 1.
-        assert_eq!(log_dut_skips(0, "ARP_03", "lwip-tap", TIP, TMAC, t), 1);
+        assert_eq!(log_dut_skips(0, "ARP_03", TopologyKind::LwipTap, TIP, TMAC, t), 1);
     }
 
     #[test]

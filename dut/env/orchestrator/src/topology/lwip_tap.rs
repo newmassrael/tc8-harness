@@ -4,7 +4,7 @@
 //! TAP via its unix-port tapif driver and answers ARP/ICMP/IP/UDP/TCP itself,
 //! serving the Upper Tester on UDP 30600. Unlike the netns/ssh verification
 //! fixtures — which only PROVISION a DUT for the External/SshRemote topologies —
-//! the lwIP fixture also owns a per-case DUT LIFECYCLE: it respawns the DUT after
+//! this lwIP topology also owns a per-case DUT LIFECYCLE: it respawns the DUT after
 //! every case (the stack hands out UT socket ids 1,2,… that a persistent DUT would
 //! drift, and tester-side connection halves must be drained before the kill to
 //! avoid FIN-WAIT-2 orphans). Both drivers express this as a first-class topology:
@@ -38,7 +38,7 @@ use std::time::Duration;
 use crate::conditioning::{CondDir, CondStep};
 use crate::config::Config;
 use crate::netns;
-use crate::site::LwipSpec;
+use crate::site::{LwipSpec, TopologyKind};
 use crate::wire::{self, DUT_IP, DUT_MASK, FIX_DIR, LAST_DUT_LOG, LOCK_FILE, TAP, TESTER_IP};
 use super::{which, Conditioning, HostTester, Topology, WorkerCtx};
 
@@ -70,8 +70,8 @@ enum ReadyProbe {
     Testability,
 }
 
-/// Mutable fixture state, behind a `Mutex` so the `&self` Topology methods can
-/// mutate it (MAX_WORKERS=1, so it is uncontended). Built in `bring_up_worker`.
+/// Mutable per-run topology state, behind a `Mutex` so the `&self` Topology methods
+/// can mutate it (MAX_WORKERS=1, so it is uncontended). Built in `provision_run`.
 struct LwipState {
     /// flock held for the run; releases when this `File` drops. `O_CLOEXEC`, so the
     /// spawned DUT never inherits it.
@@ -84,8 +84,8 @@ struct LwipState {
     baseline_socks: BTreeSet<String>,
 }
 
-/// lwIP-on-a-tap topology: External's tester side + a fixture-owned, per-case-
-/// respawning lwIP DUT.
+/// lwIP-on-a-tap topology: the shared `HostTester` tester side + a topology-owned,
+/// per-case-respawning lwIP DUT.
 pub struct LwipTap<'a> {
     cfg: &'a Config,
     /// Secondary tester NIC for an OEM Topology-2-on-tap conf (none in-tree);
@@ -125,7 +125,7 @@ impl<'a> LwipTap<'a> {
         // Wire-fixed identity: the tap iface + the const TESTER_IP/DUT_IP (NOT the
         // env-overridable cfg.tester_ip4 external/ssh-remote pass) and no DUT-MAC pin
         // (resolved from the readiness probe's warmed neigh entry).
-        let host = HostTester::new(cfg, TAP, TESTER_IP, DUT_IP, None, "lwip-tap");
+        let host = HostTester::new(cfg, TAP, TESTER_IP, DUT_IP, None, TopologyKind::LwipTap);
         LwipTap {
             cfg,
             iface_secondary: iface_secondary.map(str::to_owned),
@@ -314,7 +314,9 @@ impl<'a> LwipTap<'a> {
 impl Drop for LwipTap<'_> {
     fn drop(&mut self) {
         // Backstop for the normal/panic paths if tear_down_worker did not run; the
-        // signal path uses fixtures::teardown_by_kind. Idempotent.
+        // signal path uses this module's signal_teardown (wired in main via
+        // resolve_kill_name) — NOT fixtures::teardown_by_kind, which only knows the
+        // netns-dut/ssh-netns-dut verification fixtures, never this topology. Idempotent.
         self.teardown();
     }
 }

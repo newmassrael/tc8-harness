@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
-use crate::site::{ExternalSite, SshSite};
+use crate::site::{ExternalSite, SshSite, TopologyKind};
 
 use super::{harness_link, kill_by_marker, symlink_force, Conditioning, Topology, WorkerCtx};
 
@@ -35,7 +35,7 @@ use super::{harness_link, kill_by_marker, symlink_force, Conditioning, Topology,
 /// Per-worker scratch dirs + the worker-unique harness symlink (the argv[0] marker
 /// `kill_by_marker` scopes to). external/ssh-remote run the harness locally, so —
 /// unlike single-pc — there is no DUT symlink (no local DUT spawn).
-pub(crate) fn host_bring_up_common(cfg: &Config, w: u32) -> Result<()> {
+fn host_bring_up_common(cfg: &Config, w: u32) -> Result<()> {
     fs::create_dir_all(cfg.work_root.join(w.to_string()))?;
     fs::create_dir_all(cfg.vsomeip_base.join(w.to_string()))?;
     symlink_force(&cfg.harness, &harness_link(&cfg.vsomeip_base, w))
@@ -45,7 +45,7 @@ pub(crate) fn host_bring_up_common(cfg: &Config, w: u32) -> Result<()> {
 /// stdout+stderr to `hlog`. No `ip netns exec` wrapper — so the returned Child IS
 /// the harness, not a reparented grandchild, and `kill()`+`wait()` reaps it
 /// directly; `stop_harness`'s pkill is then a harmless belt-and-suspenders.
-pub(crate) fn host_run_harness(harness: &Path, hlog: &Path, args: &[String]) -> Result<Child> {
+fn host_run_harness(harness: &Path, hlog: &Path, args: &[String]) -> Result<Child> {
     let log = fs::File::create(hlog).context("creating harness log")?;
     let err = log.try_clone()?;
     Command::new(harness)
@@ -68,13 +68,13 @@ fn iface_exists(iface: &str) -> bool {
 /// DUT-side steps (logged via `log_dut_skips`). The applied tester-side steps are
 /// rendered to host commands by the topology's `exec_cond_step`
 /// (`host_exec_cond_step`), so the guard reverts them through the same path on Drop.
-pub(crate) fn host_condition_case<'a>(
+fn host_condition_case<'a>(
     topo: &'a dyn Topology,
     tester_ip4: &str,
     tester_mac: &str,
     w: u32,
     case_id: &str,
-    topology_name: &str,
+    kind: TopologyKind,
 ) -> Result<Conditioning<'a>> {
     let steps = conditioning::plan(case_id, tester_ip4, tester_mac);
     let mut cond = Conditioning::empty(topo, w);
@@ -90,7 +90,7 @@ pub(crate) fn host_condition_case<'a>(
     conditioning::log_dut_skips(
         w,
         case_id,
-        topology_name,
+        kind,
         tester_ip4,
         tester_mac,
         topo.ut_arp_cache_timeout().is_some(),
@@ -103,7 +103,7 @@ pub(crate) fn host_condition_case<'a>(
 /// `ip netns exec`. Only tester-side steps reach here (`host_condition_case` skips
 /// DUT-side steps rather than executing them); a DUT-side or unrecognised step is a
 /// logic bug, surfaced loudly rather than silently mis-targeted at the host.
-pub(crate) fn host_exec_cond_step(iface: &str, step: &CondStep, dir: CondDir) -> Result<()> {
+fn host_exec_cond_step(iface: &str, step: &CondStep, dir: CondDir) -> Result<()> {
     match step {
         CondStep::SysctlIface { side: Side::Tester, table, leaf, on, off } => {
             let val = match dir {
@@ -134,7 +134,7 @@ fn host_sysctl(kv: &str) -> Result<()> {
 /// The tester NIC/veth MAC, read from sysfs — the host-side analogue of
 /// single-pc's `ip -n NS link show`. Fed to the per-worker DUT-MAC / identity
 /// expectations (external.conf / ssh-remote.conf `cat .../address`).
-pub(crate) fn iface_mac(iface: &str) -> Result<String> {
+fn iface_mac(iface: &str) -> Result<String> {
     let path = format!("/sys/class/net/{iface}/address");
     let mac = fs::read_to_string(&path)
         .with_context(|| format!("reading tester iface MAC from {path}"))?
@@ -151,7 +151,7 @@ pub(crate) fn iface_mac(iface: &str) -> Result<String> {
 /// host's ARP request for the DUT IP, answered, lands `<dut_ip, dut_mac>` in the
 /// cache). Takes the pin directly rather than the whole site config, so a topology
 /// with no MAC override (lwip-tap) passes `None`. Mirrors external.conf bring-up.
-pub(crate) fn resolve_dut_mac(dut_mac: Option<&str>, iface: &str, dut_ip: &str) -> Result<String> {
+fn resolve_dut_mac(dut_mac: Option<&str>, iface: &str, dut_ip: &str) -> Result<String> {
     if let Some(mac) = dut_mac.filter(|m| !m.is_empty()) {
         println!("orchestrator: DUT MAC pinned by operator: {mac}");
         return Ok(mac.to_string());
@@ -204,8 +204,8 @@ fn ut_ping(harness: &Path, dut_ip: &str, source_ip: Option<&str>) -> bool {
 /// resolved tester identity (iface + tester IP) and DUT-MAC inputs so the
 /// delegating methods need no per-call plumbing; each topology composes one and
 /// keeps only its DUT lifecycle. `tester_ip` is captured at construction — for
-/// external/ssh-remote it is `cfg.tester_ip4`; for lwip-tap it is the wire-fixed
-/// const (never the env-overridable cfg value), so the tap address and the
+/// external/ssh-remote it is `site.wire.tester_ip`; for lwip-tap it is the wire-
+/// fixed const (never the env-overridable cfg value), so the tap address and the
 /// conditioning target read one source.
 pub(crate) struct HostTester<'a> {
     cfg: &'a Config,
@@ -213,7 +213,10 @@ pub(crate) struct HostTester<'a> {
     tester_ip: String,
     dut_ip: String,
     dut_mac_pin: Option<String>,
-    topology_name: &'static str,
+    /// Which host-NIC topology owns this transport — the single home of the name,
+    /// rendered for the conditioning-skip log via `TopologyKind::as_str` (no bare
+    /// "external"/"ssh-remote"/"lwip-tap" literal re-typed here).
+    kind: TopologyKind,
 }
 
 impl<'a> HostTester<'a> {
@@ -223,7 +226,7 @@ impl<'a> HostTester<'a> {
         tester_ip: impl Into<String>,
         dut_ip: impl Into<String>,
         dut_mac_pin: Option<String>,
-        topology_name: &'static str,
+        kind: TopologyKind,
     ) -> Self {
         HostTester {
             cfg,
@@ -231,7 +234,7 @@ impl<'a> HostTester<'a> {
             tester_ip: tester_ip.into(),
             dut_ip: dut_ip.into(),
             dut_mac_pin,
-            topology_name,
+            kind,
         }
     }
 
@@ -264,7 +267,7 @@ impl<'a> HostTester<'a> {
         case_id: &str,
         tester_mac: &str,
     ) -> Result<Conditioning<'t>> {
-        host_condition_case(topo, &self.tester_ip, tester_mac, w, case_id, self.topology_name)
+        host_condition_case(topo, &self.tester_ip, tester_mac, w, case_id, self.kind)
     }
 
     pub(crate) fn exec_cond_step(&self, step: &CondStep, dir: CondDir) -> Result<()> {
@@ -283,15 +286,16 @@ pub struct External<'a> {
 
 impl<'a> External<'a> {
     pub fn new(cfg: &'a Config, site: &'a ExternalSite) -> Self {
-        // cfg.tester_ip4 is the site's tester IP (main set it before constructing the
-        // topology); capturing it here matches the former `&self.cfg.tester_ip4`.
+        // Tester/DUT identity read from the typed `site` (the resolve-layer output),
+        // not the env-overridable `Config` flat fields — so construction does not
+        // depend on `main` having copied site.wire.tester_ip into cfg first.
         let host = HostTester::new(
             cfg,
             site.wire.iface.clone(),
-            cfg.tester_ip4.clone(),
+            site.wire.tester_ip.clone(),
             site.wire.dut_ip.clone(),
             site.wire.dut_mac.clone(),
-            "external",
+            TopologyKind::External,
         );
         External { cfg, site, host }
     }
@@ -452,13 +456,15 @@ pub struct SshRemote<'a> {
 
 impl<'a> SshRemote<'a> {
     pub fn new(cfg: &'a Config, site: &'a SshSite) -> Self {
+        // Identity from the typed `site`, not the env-overridable `Config` (see
+        // External::new) — symmetric sourcing, no main-ordering dependency.
         let host = HostTester::new(
             cfg,
             site.wire.iface.clone(),
-            cfg.tester_ip4.clone(),
+            site.wire.tester_ip.clone(),
             site.wire.dut_ip.clone(),
             site.wire.dut_mac.clone(),
-            "ssh-remote",
+            TopologyKind::SshRemote,
         );
         SshRemote { cfg, site, host }
     }
