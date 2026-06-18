@@ -26,7 +26,7 @@ use std::time::Duration;
 use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
 use crate::netns::{self, NetnsParams};
-use crate::site::{ExternalSite, SshSite, WireSite};
+use crate::site::{ExternalSite, SshSite};
 use crate::wire;
 
 /// Per-worker identity captured at bring-up (kernel-assigned veth MACs).
@@ -619,12 +619,6 @@ fn iface_exists(iface: &str) -> bool {
     Path::new(&format!("/sys/class/net/{iface}")).is_dir()
 }
 
-/// The configured secondary tester iface (TC8 Topology 2). Empty-normalization
-/// happened at resolve, so this is a plain clone. Shared by External + SshRemote.
-pub(crate) fn site_secondary_iface(wire: &WireSite) -> Option<String> {
-    wire.iface_secondary.clone()
-}
-
 /// `condition_case` for a topology that does not manage the DUT stack (external /
 /// ssh-remote). It APPLIES the TESTER-side steps — the tester is this host, and
 /// bash applies tester-side conditioning (ARP_39/40 `arp_ignore`) on every topology
@@ -882,7 +876,7 @@ impl Topology for External<'_> {
     }
 
     fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
-        site_secondary_iface(&self.site.wire)
+        self.site.wire.iface_secondary.clone()
     }
 
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
@@ -1101,7 +1095,7 @@ impl Topology for SshRemote<'_> {
     }
 
     fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
-        site_secondary_iface(&self.site.wire)
+        self.site.wire.iface_secondary.clone()
     }
 
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {

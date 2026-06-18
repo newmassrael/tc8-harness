@@ -104,6 +104,9 @@ pub struct LwipTap<'a> {
 }
 
 impl<'a> LwipTap<'a> {
+    // Unlike External/SshRemote (which borrow `&'a ExternalSite`/`&'a SshSite`),
+    // LwipTap OWNS its resolved config (cloning out of `lwip`/`iface_secondary`), so
+    // it carries no borrow of the site and need not be outlived by it.
     pub fn new(cfg: &'a Config, lwip: &LwipSpec, iface_secondary: Option<&str>) -> Self {
         let app = lwip
             .app

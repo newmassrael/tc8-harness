@@ -150,7 +150,7 @@ _id_dump=$(python3 "$ROOT/tools/dut_identity.py" "$VSOMEIP_CFG") || {
     echo "smoke-test.sh: cannot derive DUT identity from $VSOMEIP_CFG" >&2
     exit 1
 }
-declare -A DUT_ID
+local -A DUT_ID
 local _k _v _need
 while IFS='=' read -r _k _v; do
     [[ -n "$_k" ]] && DUT_ID["$_k"]="$_v"

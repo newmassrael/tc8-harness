@@ -211,41 +211,67 @@ def check_refs(entries: list[Entry]) -> list[str]:
         if not e.anno_kind:
             continue
         relpath, _, locator = e.anno_target.partition(":")
-        path = ROOT / relpath
-        if not path.exists():
-            problems.append(f"{e.name}: {e.anno_kind} ref {relpath} not found")
-            continue
+        if e.anno_kind == "json":
+            problems.extend(_check_json(e, relpath, locator))
+        else:
+            problems.extend(_check_cpp(e, relpath, locator))
+    return problems
+
+
+def _check_cpp(e: Entry, relpath: str, sym: str) -> list[str]:
+    path = ROOT / relpath
+    if not path.exists():
+        return [f"{e.name}: cpp header {relpath} not found"]
+    text = _strip_cpp_comments(path.read_text(encoding="utf-8"))
+    try:
+        if e.kind == "MAC":
+            m = re.search(rf"\b{re.escape(sym)}\b\s*\{{([^}}]*)\}}", text, re.DOTALL)
+            if m is None:
+                raise ValueError("symbol/initialiser not found")
+            decoded = _decode_mac(m.group(1))
+        elif e.kind in ("IPV4", "U16"):
+            m = re.search(rf"\b{re.escape(sym)}\b\s*=\s*(.*?);", text, re.DOTALL)
+            if m is None:
+                raise ValueError("symbol/initialiser not found")
+            decoded = (_decode_ipv4 if e.kind == "IPV4" else _decode_u16)(m.group(1))
+        else:
+            return [f"{e.name}: cpp= on unsupported kind {e.kind}"]
+    except ValueError as exc:
+        return [f"{e.name}: parsing {relpath}:{sym} failed — {exc}"]
+    expected = _norm(e.kind, e.value)
+    if decoded != expected:
+        return [f"{e.name}: wire.def has {expected} but {relpath}:{sym} "
+                f"decodes to {decoded} — edit them together"]
+    return []
+
+
+def _check_json(e: Entry, relpath: str, locator: str) -> list[str]:
+    """Cross-check a json= entry. A `*` in relpath globs MULTIPLE files and asserts
+    EVERY match agrees — so one annotation pins the value across a config and all
+    its variants (e.g. vsomeip.json + vsomeip-multi-*.json share `unicast`)."""
+    if e.kind not in ("IPV4", "STR"):
+        return [f"{e.name}: json= on unsupported kind {e.kind}"]
+    if "*" in relpath:
+        paths = sorted(ROOT.glob(relpath))
+        if not paths:
+            return [f"{e.name}: json ref glob {relpath} matched no files"]
+    else:
+        p = ROOT / relpath
+        if not p.exists():
+            return [f"{e.name}: json ref {relpath} not found"]
+        paths = [p]
+    expected = _norm(e.kind, e.value)
+    problems: list[str] = []
+    for p in paths:
+        rel = p.relative_to(ROOT)
         try:
-            if e.anno_kind == "json":
-                if e.kind not in ("IPV4", "STR"):
-                    problems.append(f"{e.name}: json= on unsupported kind {e.kind}")
-                    continue
-                decoded = _decode_json(path, locator)
-            else:  # cpp
-                text = _strip_cpp_comments(path.read_text(encoding="utf-8"))
-                if e.kind == "MAC":
-                    m = re.search(rf"\b{re.escape(locator)}\b\s*\{{([^}}]*)\}}",
-                                  text, re.DOTALL)
-                    if m is None:
-                        raise ValueError("symbol/initialiser not found")
-                    decoded = _decode_mac(m.group(1))
-                elif e.kind in ("IPV4", "U16"):
-                    m = re.search(rf"\b{re.escape(locator)}\b\s*=\s*(.*?);",
-                                  text, re.DOTALL)
-                    if m is None:
-                        raise ValueError("symbol/initialiser not found")
-                    decoded = (_decode_ipv4 if e.kind == "IPV4" else _decode_u16)(m.group(1))
-                else:
-                    problems.append(f"{e.name}: cpp= on unsupported kind {e.kind}")
-                    continue
+            decoded = _decode_json(p, locator)
         except ValueError as exc:
-            problems.append(f"{e.name}: parsing {relpath}:{locator} failed — {exc}")
+            problems.append(f"{e.name}: parsing {rel}:{locator} failed — {exc}")
             continue
-        expected = _norm(e.kind, e.value)
         if decoded != expected:
-            problems.append(
-                f"{e.name}: wire.def has {expected} but {relpath}:{locator} "
-                f"decodes to {decoded} — edit them together")
+            problems.append(f"{e.name}: wire.def has {expected} but {rel}:{locator} "
+                            f"decodes to {decoded} — edit them together")
     return problems
 
 

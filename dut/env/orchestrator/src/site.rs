@@ -280,6 +280,28 @@ impl SiteConf {
         let remote_capi_cfg = ne(remote_capi_cfg);
         let remote_wrap = ne(remote_wrap);
 
+        // Every topology-conf field, paired with whether it was set. Each arm below
+        // declares the fields it consumes; reject_unless_allowed bails on any set
+        // field that arm does not consume — so a misplaced-but-known key (remote_*
+        // under single-pc, require_ut under ssh-remote) fails LOUD rather than being
+        // silently dropped, the field-level completion of the fixture/[lwip] guards.
+        // (fixture/lwip have their own dedicated guards with kind-specific messages.)
+        let all_fields: [(&str, bool); 13] = [
+            ("iface", iface.is_some()),
+            ("dut_ip", dut_ip.is_some()),
+            ("tester_ip", tester_ip.is_some()),
+            ("dut_mac", dut_mac.is_some()),
+            ("iface_secondary", iface_secondary.is_some()),
+            ("preflight_src_ip", preflight_src_ip.is_some()),
+            ("require_ut", require_ut),
+            ("ssh_target", ssh_target.is_some()),
+            ("ssh_opts", ssh_opts.is_some()),
+            ("remote_dut_bin", remote_dut_bin.is_some()),
+            ("remote_vsomeip_cfg", remote_vsomeip_cfg.is_some()),
+            ("remote_capi_cfg", remote_capi_cfg.is_some()),
+            ("remote_wrap", remote_wrap.is_some()),
+        ];
+
         // `[lwip]` configures the lwip-tap topology; under any other it is a
         // misplaced section — the same frankenstate hazard bash hit (a documented
         // 2026-06-11 cross-topology leak), caught declaratively before host setup.
@@ -290,16 +312,24 @@ impl SiteConf {
         match topology {
             "single-pc" => {
                 reject_fixture(&fixture, topology)?;
+                reject_unless_allowed(topology, &all_fields, &["tester_ip", "dut_ip"])?;
                 Ok(TopologyConf::SinglePc { tester_ip, dut_ip })
             }
             "lwip-tap" => {
                 reject_fixture(&fixture, topology)?;
+                reject_unless_allowed(topology, &all_fields, &["iface_secondary"])?;
                 Ok(TopologyConf::LwipTap {
                     lwip: lwip.unwrap_or_default(),
                     iface_secondary,
                 })
             }
             "external" => {
+                reject_unless_allowed(
+                    topology,
+                    &all_fields,
+                    &["iface", "dut_ip", "tester_ip", "dut_mac", "iface_secondary",
+                      "preflight_src_ip", "require_ut"],
+                )?;
                 let mut missing: Vec<&str> = Vec::new();
                 if iface.is_none() {
                     missing.push("iface");
@@ -326,6 +356,13 @@ impl SiteConf {
                 }))
             }
             "ssh-remote" => {
+                reject_unless_allowed(
+                    topology,
+                    &all_fields,
+                    &["iface", "dut_ip", "tester_ip", "dut_mac", "iface_secondary",
+                      "ssh_target", "ssh_opts", "remote_dut_bin", "remote_vsomeip_cfg",
+                      "remote_capi_cfg", "remote_wrap"],
+                )?;
                 let mut missing: Vec<&str> = Vec::new();
                 if iface.is_none() {
                     missing.push("iface");
@@ -412,6 +449,25 @@ fn reject_fixture(fixture: &Option<FixtureSpec>, topology: &str) -> Result<()> {
         bail!(
             "fixture kind '{}' is not valid for topology '{topology}' (fixtures are external/ssh-remote only)",
             fx.kind
+        );
+    }
+    Ok(())
+}
+
+/// Reject any field set in the conf that `topology` does not consume — so a
+/// misplaced-but-known key fails loud instead of being silently dropped by
+/// resolve. `all` is every field paired with whether it was set; `allowed` names
+/// the ones this topology consumes.
+fn reject_unless_allowed(topology: &str, all: &[(&str, bool)], allowed: &[&str]) -> Result<()> {
+    let foreign: Vec<&str> = all
+        .iter()
+        .filter(|(name, set)| *set && !allowed.contains(name))
+        .map(|(name, _)| *name)
+        .collect();
+    if !foreign.is_empty() {
+        bail!(
+            "topology '{topology}' does not accept --topology-conf field(s): {} (they belong to a different topology)",
+            foreign.join(", ")
         );
     }
     Ok(())
@@ -527,12 +583,13 @@ mod tests {
     }
 
     #[test]
-    fn lwip_tap_cannot_carry_a_wire_ip() {
-        // A dut_ip in a lwip-tap conf cannot reach Config: the LwipTap variant has
-        // no wire-IP field to hold it (the flat struct silently let it override the
-        // wire-fixed default — a latent bug this refactor removes structurally).
+    fn lwip_tap_rejects_a_wire_ip() {
+        // A dut_ip in a lwip-tap conf is foreign to the wire-fixed topology: the
+        // LwipTap variant has no field to hold it (so it cannot override the
+        // wire-fixed default — the former silent-override bug), AND resolve now
+        // rejects it loudly rather than silently dropping it.
         let conf = SiteConf { dut_ip: Some("10.0.0.9".into()), ..SiteConf::default() };
-        assert!(matches!(conf.resolve("lwip-tap"), Ok(TopologyConf::LwipTap { .. })));
+        assert!(conf.resolve("lwip-tap").unwrap_err().to_string().contains("dut_ip"));
     }
 
     #[test]
@@ -549,6 +606,45 @@ mod tests {
             }
             other => panic!("expected SinglePc, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn fixture_under_single_pc_or_lwip_tap_rejected() {
+        let with_fx = || SiteConf {
+            fixture: Some(FixtureSpec { kind: "netns-dut".into() }),
+            ..SiteConf::default()
+        };
+        assert!(with_fx().resolve("single-pc").is_err());
+        assert!(with_fx().resolve("lwip-tap").is_err());
+    }
+
+    #[test]
+    fn unknown_topology_rejected() {
+        assert!(SiteConf::default().resolve("bogus").is_err());
+    }
+
+    #[test]
+    fn misplaced_field_fails_loud() {
+        // A known key for a DIFFERENT topology is rejected, not silently dropped.
+        let spc = SiteConf {
+            remote_dut_bin: Some("/x".into()),
+            tester_ip: Some("10.0.0.1".into()),
+            ..SiteConf::default()
+        };
+        assert!(spc.resolve("single-pc").unwrap_err().to_string().contains("remote_dut_bin"));
+
+        let ext = SiteConf { ssh_target: Some("root@h".into()), ..external_triple() };
+        assert!(ext.resolve("external").unwrap_err().to_string().contains("ssh_target"));
+
+        let ssh = SiteConf {
+            require_ut: true,
+            ssh_target: Some("root@h".into()),
+            remote_dut_bin: Some("/x".into()),
+            remote_vsomeip_cfg: Some("/v".into()),
+            remote_capi_cfg: Some("/c".into()),
+            ..external_triple()
+        };
+        assert!(ssh.resolve("ssh-remote").unwrap_err().to_string().contains("require_ut"));
     }
 
     #[test]

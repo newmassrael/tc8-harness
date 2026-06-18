@@ -57,6 +57,10 @@ def extract(cfg_path: Path) -> dict[str, str]:
     # The threshold/multicast eventgroup (0x0008 for tc8-dut) carries the
     # notification multicast endpoint; pick whichever eventgroup declares one
     # (mirrors the orchestrator's find_map over eventgroups[*].multicast).
+    # The source file MUST be the base/full vsomeip.json: the multi-service/
+    # instance variants are spawn-only and omit this eventgroup, so deriving the
+    # identity surface from one would fail loud here (correct — they are not the
+    # expectation source; smoke-test.sh feeds the base VSOMEIP_CFG to derive it).
     mcast = None
     egs = svc.get("eventgroups")
     if isinstance(egs, list):

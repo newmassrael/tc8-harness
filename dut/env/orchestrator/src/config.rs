@@ -152,3 +152,54 @@ impl Config {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pin the two independent SOME/IP-identity parsers together: bash derives the
+    /// identity via tools/dut_identity.py, the orchestrator via parse_dut_identity.
+    /// Both read the same vsomeip.json so the VALUE cannot drift, but the field-
+    /// mapping logic lives in two languages — this asserts they extract the same
+    /// keys/values on the committed config, catching a structural (mapping) drift
+    /// that runtime value-equality alone would not. Two independent drivers are
+    /// deliberate (the strangler's "a passing case is real evidence, not a
+    /// tautology"), so the fix for the duplication is this pin, NOT collapsing bash
+    /// onto the Rust binary (which would break that independence).
+    #[test]
+    fn dut_identity_py_matches_rust_parser() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let vsomeip = root.join("dut/dut_service/vsomeip.json");
+        let rust = parse_dut_identity(&vsomeip).expect("rust parse_dut_identity");
+        let out = std::process::Command::new("python3")
+            .arg(root.join("tools/dut_identity.py"))
+            .arg(&vsomeip)
+            .output()
+            .expect("run dut_identity.py (python3 required)");
+        assert!(
+            out.status.success(),
+            "dut_identity.py failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let py: std::collections::HashMap<String, String> = String::from_utf8(out.stdout)
+            .unwrap()
+            .lines()
+            .filter_map(|l| l.split_once('=').map(|(k, v)| (k.to_string(), v.to_string())))
+            .collect();
+        let pairs = [
+            ("service_id", &rust.service_id),
+            ("instance_id", &rust.instance_id),
+            ("udp_port", &rust.udp_port),
+            ("tcp_port", &rust.tcp_port),
+            ("sd_multicast_ip", &rust.sd_multicast_ip),
+            ("ttl", &rust.ttl),
+            ("mcast_ipv4", &rust.mcast_ipv4),
+            ("mcast_port", &rust.mcast_port),
+        ];
+        for (key, rust_val) in pairs {
+            assert_eq!(py.get(key), Some(rust_val), "parser drift on '{key}'");
+        }
+        // Neither parser invented or dropped a key.
+        assert_eq!(py.len(), pairs.len(), "dut_identity.py emitted unexpected keys: {py:?}");
+    }
+}
