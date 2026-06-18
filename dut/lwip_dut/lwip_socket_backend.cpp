@@ -340,9 +340,10 @@ std::uint8_t LwipSocketBackend::setStaticAddressV6(const std::string &ifname,
                                                    const std::uint8_t * /*addr16*/,
                                                    std::uint8_t /*prefix*/) {
     // PRS_TPSP §6.10 STATIC_ADDRESS (IPv6): this fixture builds lwIP with LWIP_IPV6 0
-    // (see lwipopts.h), so there is no ip6 address to assign. Report E_NOK (surfaced,
-    // not silently dropped) — the same unsupported-capability convention as
-    // sendIcmpv6Echo. The interface is still resolved so an unknown one is E_IIF.
+    // (see lwipopts.h), so there is no ip6 address to assign. Report E_NOK for the
+    // missing capability (surfaced, not silently dropped), but — unlike sendIcmpv6Echo,
+    // which returns a blanket E_NOK — still resolve the interface (as setStaticRouteV4 /
+    // setInterfaceUp do) so an unknown one is E_IIF.
     std::uint8_t rid;
     LOCK_TCPIP_CORE();
     struct netif *nif = netif_find(ifname.c_str());
@@ -357,7 +358,8 @@ std::uint8_t LwipSocketBackend::setStaticRouteV6(const std::string &ifname,
                                                  const std::uint8_t * /*gateway16*/) {
     // PRS_TPSP §6.10 STATIC_ROUTE (IPv6): with LWIP_IPV6 0 there is no ip6 routing
     // path; like setStaticRouteV4 (no per-subnet table) and setStaticAddressV6, this
-    // answers E_NOK (surfaced), resolving the interface so an unknown one is E_IIF.
+    // answers E_NOK for the missing capability (surfaced), resolving the interface (as
+    // setStaticRouteV4 does) so an unknown one is E_IIF.
     std::uint8_t rid;
     LOCK_TCPIP_CORE();
     struct netif *nif = netif_find(ifname.c_str());

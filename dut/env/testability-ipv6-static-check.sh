@@ -17,15 +17,21 @@ source "$(dirname "$(readlink -f "$0")")/lib-sp-check.sh"
 
 sp_check_setup ip6st
 
-# IPv6 addressing for the secondary veth pair (the lib provisions IPv4 only). The tester
-# gets an on-link ULA that doubles as the route's gateway; the DUT's fresh address (the
-# SP assigns it below) shares the /64 so ping6 reaches it. DAD is disabled so a freshly
-# added address is immediately usable rather than tentative for ~1 s. The route target is
-# the RFC 3849 documentation prefix, intentionally unroutable.
-TESTER_IP6="fd00:17::1"
-NEW_ADDR6="fd00:17::50"
-ROUTE_SUBNET6="2001:db8:dead::"
+# IPv6 addressing for the secondary veth pair (the lib provisions IPv4 only). wire.def
+# carries no IPv6 axis (it is IPv4-only by design, and these addresses have no consumer
+# beyond this check), so — unlike the IPv4 check, which derives its addresses from the
+# wire SSOT — these are check-local. They still single-source within the script: the
+# tester (.1, doubling as the route gateway) and the DUT's fresh address (.50, the SP
+# assigns it below) both derive from one $V6_NET /64. That ULA net deliberately echoes
+# the IPv4 secondary subnet 172.17.0.0/24 as a mnemonic but is independent of it. The
+# fresh address shares the /64 so ping6 reaches it; DAD is disabled so it is immediately
+# usable rather than tentative for ~1 s. The route target is the RFC 3849 documentation
+# prefix, intentionally unroutable.
+V6_NET="fd00:17::"
 PREFIX=64
+TESTER_IP6="${V6_NET}1"
+NEW_ADDR6="${V6_NET}50"
+ROUTE_SUBNET6="2001:db8:dead::"
 
 for spec in "$DUT_NS:$VETH_D2" "$TESTER_NS:$VETH_T2"; do
     ns="${spec%%:*}"; ifc="${spec##*:}"

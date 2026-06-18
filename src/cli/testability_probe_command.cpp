@@ -383,9 +383,9 @@ bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &
 // runIpStaticLoop. The testability control transport is IPv4 (the UTM binds
 // INADDR_ANY = IPv4), so unlike the IPv4 loop the probe cannot self-observe the new
 // address by answering GET_VERSION on it. It drives STATIC_ADDRESS + STATIC_ROUTE
-// and asserts E_OK; the assigned address's ping6 reachability and the route's table
-// presence are observed by the check script, which holds netns access — the same
-// division the IPv4 loop already uses for STATIC_ROUTE.
+// and asserts E_OK; both the precondition (address not yet reachable) and the effect
+// observation (ping6 reachability + route table presence) move to the check script,
+// which holds netns access — the same division the IPv4 loop uses for STATIC_ROUTE.
 bool runIpv6StaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &iface,
                        const std::uint8_t addr16[16], std::uint8_t prefix, bool do_route,
                        const std::uint8_t subnet16[16], std::uint8_t route_prefix,

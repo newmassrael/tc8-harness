@@ -70,6 +70,25 @@ int openAndResolveIface(const std::string &ifname, ifreq &ifr, std::uint8_t &rid
     return s;
 }
 
+// IPv6 sibling of openAndResolveIface: resolve `ifname` to its index unprivileged via
+// if_nametoindex (an unknown interface is E_IIF before any privileged write, the same
+// guarantee SIOCGIFFLAGS gives the V4 path), then open an AF_INET6 DGRAM socket for the
+// SIOCSIFADDR / SIOCADDRT in6_* ioctls (the index, not the flags, is what those need).
+// Returns the fd (>= 0) with `ifindex` set, or -1 with `rid` set. The caller closes it.
+int openAndResolveIfaceV6(const std::string &ifname, unsigned &ifindex, std::uint8_t &rid) {
+    ifindex = ::if_nametoindex(ifname.c_str());
+    if (ifindex == 0) {
+        rid = tp::kRidEIif;
+        return -1;
+    }
+    const int s = ::socket(AF_INET6, SOCK_DGRAM, 0);
+    if (s < 0) {
+        rid = tp::kRidENok;  // host has no IPv6 stack
+        return -1;
+    }
+    return s;
+}
+
 // The kernel ABI for SIOCSIFADDR / SIOCADDRT on an AF_INET6 socket. These live in
 // <linux/ipv6.h>, which clashes with the glibc <netinet/in.h> already included above
 // on some header versions; declare the exact layouts here (in6_addr itself comes from
@@ -474,19 +493,18 @@ std::uint8_t PosixSocketBackend::setStaticAddressV6(const std::string &ifname,
                                                     std::uint8_t prefix) {
     // PRS_TPSP §6.10 STATIC_ADDRESS (IPv6): SIOCSIFADDR with a struct in6_ifreq on an
     // AF_INET6 socket assigns the address + prefix length (the IPv6 analog of the
-    // SIOCSIFADDR/SIOCSIFNETMASK pair the V4 path uses). if_nametoindex resolves the
-    // interface unprivileged first, so an unknown one is E_IIF before the privileged
-    // write reports EPERM; the assignment then needs CAP_NET_ADMIN (EPERM => E_NOK).
+    // SIOCSIFADDR/SIOCSIFNETMASK pair the V4 path uses). openAndResolveIfaceV6 resolves
+    // the interface unprivileged first, so an unknown one is E_IIF before the
+    // privileged write reports EPERM; the assignment then needs CAP_NET_ADMIN
+    // (EPERM => E_NOK, surfaced).
     if (prefix > 128) {
         return tp::kRidEInv;
     }
-    const unsigned ifindex = ::if_nametoindex(ifname.c_str());
-    if (ifindex == 0) {
-        return tp::kRidEIif;
-    }
-    const int s = ::socket(AF_INET6, SOCK_DGRAM, 0);
+    unsigned ifindex = 0;
+    std::uint8_t rid = tp::kRidENok;
+    const int s = openAndResolveIfaceV6(ifname, ifindex, rid);
     if (s < 0) {
-        return tp::kRidENok;  // host has no IPv6 stack
+        return rid;
     }
     in6_ifreq ifr6{};
     std::memcpy(&ifr6.addr, addr16, 16);
@@ -504,19 +522,17 @@ std::uint8_t PosixSocketBackend::setStaticRouteV6(const std::string &ifname,
     // PRS_TPSP §6.10 STATIC_ROUTE (IPv6): SIOCADDRT with a struct in6_rtmsg on an
     // AF_INET6 socket installs a non-persistent route to subnet/prefix via gateway,
     // scoped to ifname (the IPv6 analog of the rtentry SIOCADDRT the V4 path uses).
-    // if_nametoindex resolves the interface first (unknown => E_IIF before the
+    // openAndResolveIfaceV6 resolves the interface first (unknown => E_IIF before the
     // privileged SIOCADDRT reports EPERM); ENXIO also maps to E_IIF and EEXIST is
     // success (the route is already present), matching the post-condition.
     if (prefix > 128) {
         return tp::kRidEInv;
     }
-    const unsigned ifindex = ::if_nametoindex(ifname.c_str());
-    if (ifindex == 0) {
-        return tp::kRidEIif;
-    }
-    const int s = ::socket(AF_INET6, SOCK_DGRAM, 0);
+    unsigned ifindex = 0;
+    std::uint8_t rid = tp::kRidENok;
+    const int s = openAndResolveIfaceV6(ifname, ifindex, rid);
     if (s < 0) {
-        return tp::kRidENok;  // host has no IPv6 stack
+        return rid;
     }
     bool gw_zero = true;
     for (int i = 0; i < 16; ++i) {
@@ -526,10 +542,12 @@ std::uint8_t PosixSocketBackend::setStaticRouteV6(const std::string &ifname,
         }
     }
     in6_rtmsg rt{};
+    // The kernel masks rtmsg_dst by rtmsg_dst_len on insert, so (unlike the V4 rtentry
+    // path, which masks rt_dst itself) the destination is copied verbatim.
     std::memcpy(&rt.dst, subnet16, 16);
     std::memcpy(&rt.gateway, gateway16, 16);
     rt.dst_len = prefix;
-    rt.metric = 1;  // the conventional default user metric for an ioctl IPv6 route
+    rt.metric = 0;  // 0 => the kernel applies its IP6_RT_PRIO_USER default (as V4 does)
     rt.ifindex = static_cast<int>(ifindex);
     rt.flags = gw_zero ? RTF_UP : (RTF_UP | RTF_GATEWAY);
     const int rc = ::ioctl(s, SIOCADDRT, &rt);
