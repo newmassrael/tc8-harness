@@ -116,6 +116,9 @@ fn reap_orphan_processes() {
         Err(_) => return,
     };
     for line in String::from_utf8_lossy(&out.stdout).lines() {
+        // `-a` formats each match as `<pid> <full cmdline>`, single-space delimited,
+        // so splitn(2, ' ') cleanly yields (pid, args) even when the cmdline itself
+        // contains spaces — the pid is always the first whitespace-free token.
         let mut it = line.splitn(2, ' ');
         let opid = it.next().unwrap_or("");
         let oargs = it.next().unwrap_or("");

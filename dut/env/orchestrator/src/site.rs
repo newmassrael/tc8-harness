@@ -369,6 +369,13 @@ impl SiteConf {
         // under single-pc, require_ut under ssh-remote) fails LOUD rather than being
         // silently dropped, the field-level completion of the fixture/[lwip] guards.
         // (fixture/lwip have their own dedicated guards with kind-specific messages.)
+        //
+        // Hand-maintained membership list — it MUST name every topology-conf field.
+        // Narrow residue (no compile-time enforcement without a derive macro, which
+        // this macro-free crate deliberately avoids): a field consumed by one arm but
+        // FORGOTTEN here would not be rejected when set under a different topology.
+        // Adding a field to the struct without listing it here weakens, not breaks,
+        // foreign-field rejection — keep this array in sync with the struct fields.
         let all_fields: [(&str, bool); 13] = [
             ("iface", iface.is_some()),
             ("dut_ip", dut_ip.is_some()),

@@ -438,7 +438,10 @@ impl Topology for LwipTap<'_> {
 
     fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path) -> Result<Option<Child>> {
         // The fixture already has the DUT up (bring-up, or the prior case's respawn).
-        let _ = fs::write(dlog, format!("[lwip-tap] persistent lwIP DUT on {TAP} at {DUT_IP}\n"));
+        // Surface a write failure: a silently-missing dut.log defeats the postmortem.
+        if let Err(e) = fs::write(dlog, format!("[lwip-tap] persistent lwIP DUT on {TAP} at {DUT_IP}\n")) {
+            eprintln!("orchestrator[lwip-tap]: WARNING — could not write DUT provenance to {}: {e}", dlog.display());
+        }
         Ok(None)
     }
 
@@ -527,6 +530,10 @@ fn acquire_lock() -> Result<fs::File> {
 /// `ss -H -tn state connected dst <DUT_IP>` → set of `"<local> <peer>"` quads,
 /// excluding TIME-WAIT / FIN-WAIT-2 (the tester's FIN is already out+ACKed there).
 /// A `BTreeSet` gives the sorted-unique set bash got from `sort` + `comm`.
+///
+/// Column contract: `-H` drops the header and `-tn` carries NO `-p` (process) or
+/// `-o` (timer) columns, so the local and peer `addr:port` are always the final two
+/// whitespace fields — `NF-1, NF` is stable as long as those flags are not added.
 fn socket_snapshot() -> BTreeSet<String> {
     let out = match Command::new("ss")
         .args(["-H", "-tn", "state", "connected", "dst", DUT_IP])

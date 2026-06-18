@@ -257,7 +257,10 @@ fn classify(hlog: &Path) -> Verdict {
     }
     // Readable log, no verdict line = the harness ran but never concluded (killed
     // at the poll ceiling, or crashed mid-run). bash scores this FAIL ("did not
-    // return pass verdict", smoke-test.sh) — match it for parity.
+    // return pass verdict", smoke-test.sh) — match it for parity. Reclassifying this
+    // (and the poll-ceiling kill in run_case) as an ISO-9646 non-conclusion is the
+    // SAME tracked JOINT bash+Rust change as the budget-exceeded reclassification —
+    // one honesty gap, moved together, never unilaterally here.
     Verdict::Fail("did not return pass verdict".to_string())
 }
 

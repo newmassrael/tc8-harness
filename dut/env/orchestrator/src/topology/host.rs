@@ -182,11 +182,19 @@ fn ping_dut(src: &str, dut_ip: &str) -> bool {
     crate::proc::run_ok(Command::new("ping").args(["-c", "1", "-W", "2", "-I", src, dut_ip]))
 }
 
-/// `tc8-harness ut-ping --dut-ip <dut_ip> [--source-ip <src>]` — a side-effect-free
-/// Upper Tester OpPing round trip. Returns whether the UT answered.
+/// Host-preflight Upper Tester probe timeout. A one-shot reachability check run
+/// AFTER ICMP already answered, so the DUT is reachable and the UT should reply
+/// promptly. The value matches `ut-ping`'s CLI default (1000 ms), passed
+/// explicitly so the preflight's timeout policy is readable at the call site
+/// rather than inherited. (Distinct from lwip-tap's tighter 200 ms readiness
+/// POLL, which retries many times — this is a single probe.)
+const UT_PROBE_TIMEOUT_MS: &str = "1000";
+
+/// `tc8-harness ut-ping --dut-ip <dut_ip> --timeout <ms> [--source-ip <src>]` — a
+/// side-effect-free Upper Tester OpPing round trip. Returns whether the UT answered.
 fn ut_ping(harness: &Path, dut_ip: &str, source_ip: Option<&str>) -> bool {
     let mut c = Command::new(harness);
-    c.args(["ut-ping", "--dut-ip", dut_ip]);
+    c.args(["ut-ping", "--dut-ip", dut_ip, "--timeout", UT_PROBE_TIMEOUT_MS]);
     if let Some(src) = source_ip {
         c.args(["--source-ip", src]);
     }
@@ -420,10 +428,13 @@ impl Topology for External<'_> {
         // INFO when a case requests a non-default flavor against a non-spawning
         // topology ("the external DUT must provide the equivalent service"); that
         // warning must be ported here then — a prerequisite for the flavor stage.
-        let _ = fs::write(
+        // Surface a write failure: a silently-missing dut.log defeats the postmortem.
+        if let Err(e) = fs::write(
             dlog,
             format!("[external] using persistent DUT at {}\n", self.site.wire.dut_ip),
-        );
+        ) {
+            eprintln!("orchestrator[external]: WARNING — could not write DUT provenance to {}: {e}", dlog.display());
+        }
         Ok(None)
     }
 
