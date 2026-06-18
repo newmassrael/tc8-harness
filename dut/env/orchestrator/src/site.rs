@@ -22,8 +22,59 @@
 //! external, is then unrepresentable rather than a runtime `require()` panic.
 
 use anyhow::{bail, Context, Result};
+use clap::ValueEnum;
 use serde::Deserialize;
 use std::path::Path;
+
+/// The `--topology` selector — the CLI discriminant, parsed ONCE by clap into this
+/// typed enum so the valid set of topologies lives in exactly one place (these
+/// variants). `resolve` then matches it exhaustively: an unrecognised value is
+/// rejected by clap at parse time, never re-validated by a stringly-typed
+/// `matches!`/`other => bail` that could drift from the parse-time set. Distinct
+/// from the `Topology` *trait* (topology.rs), which abstracts a resolved topology's
+/// runtime behaviour; this names *which* one, before any site config is loaded.
+///
+/// clap's `ValueEnum` derive renders the variants as kebab-case (`SinglePc` →
+/// `single-pc`, `SshRemote` → `ssh-remote`, …); [`TopologyKind::as_str`] returns the
+/// same rendering for user-facing messages, guarded against drift by a unit test.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum TopologyKind {
+    /// Per-worker netns; wire identity from fixed defaults (zero-conf).
+    SinglePc,
+    /// Persistent DUT on a host NIC; requires a `--topology-conf`.
+    External,
+    /// Tester here, per-case reference DUT spawned over SSH; requires a conf.
+    SshRemote,
+    /// Host tap + per-case-respawning lwIP embedded-stack DUT (zero-conf).
+    LwipTap,
+}
+
+impl TopologyKind {
+    /// The canonical kebab-case selector string. The *variants* are the single home
+    /// of the valid set; this is only their name rendering (messages + summary
+    /// banner), kept in lock-step with clap's parse names by a round-trip test.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TopologyKind::SinglePc => "single-pc",
+            TopologyKind::External => "external",
+            TopologyKind::SshRemote => "ssh-remote",
+            TopologyKind::LwipTap => "lwip-tap",
+        }
+    }
+
+    /// Zero-conf topologies derive their wire identity from fixed defaults and may
+    /// run without a `--topology-conf`; external/ssh-remote require one (their
+    /// iface / wire IPs / remote paths live there, and sudo strips the environment).
+    fn requires_conf(self) -> bool {
+        !matches!(self, TopologyKind::SinglePc | TopologyKind::LwipTap)
+    }
+}
+
+impl std::fmt::Display for TopologyKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 /// A verification fixture to provision around the run — orchestrator-owned host
 /// scaffolding, the Rust equivalent of the bash example confs. Absent when the
@@ -187,7 +238,7 @@ impl TopologyConf {
     /// lwip-tap run zero-conf on their defaults, every other topology requires one
     /// (its iface / wire IPs / remote paths live there, and sudo strips the env).
     /// `root` expands `${ROOT}`.
-    pub fn load(conf_path: Option<&Path>, topology: &str, root: &Path) -> Result<TopologyConf> {
+    pub fn load(conf_path: Option<&Path>, topology: TopologyKind, root: &Path) -> Result<TopologyConf> {
         let raw = match conf_path {
             Some(path) => {
                 let text = std::fs::read_to_string(path)
@@ -198,7 +249,7 @@ impl TopologyConf {
                 conf
             }
             None => {
-                if !matches!(topology, "single-pc" | "lwip-tap") {
+                if topology.requires_conf() {
                     bail!("--topology {topology} requires --topology-conf (iface/dut_ip/tester_ip live there; sudo strips the environment)");
                 }
                 SiteConf::default()
@@ -248,7 +299,7 @@ impl SiteConf {
     /// nothing downstream sees the raw form. Empty strings (e.g. a `${VAR}` that
     /// expanded to "") normalize to absent here, so the consumers no longer carry
     /// scattered `.filter(|s| !s.is_empty())` guards.
-    fn resolve(self, topology: &str) -> Result<TopologyConf> {
+    fn resolve(self, topology: TopologyKind) -> Result<TopologyConf> {
         let SiteConf {
             iface,
             dut_ip,
@@ -305,17 +356,17 @@ impl SiteConf {
         // `[lwip]` configures the lwip-tap topology; under any other it is a
         // misplaced section — the same frankenstate hazard bash hit (a documented
         // 2026-06-11 cross-topology leak), caught declaratively before host setup.
-        if lwip.is_some() && topology != "lwip-tap" {
+        if lwip.is_some() && topology != TopologyKind::LwipTap {
             bail!("[lwip] config is only valid for --topology lwip-tap (got '{topology}')");
         }
 
         match topology {
-            "single-pc" => {
+            TopologyKind::SinglePc => {
                 reject_fixture(&fixture, topology)?;
                 reject_unless_allowed(topology, &all_fields, &["tester_ip", "dut_ip"])?;
                 Ok(TopologyConf::SinglePc { tester_ip, dut_ip })
             }
-            "lwip-tap" => {
+            TopologyKind::LwipTap => {
                 reject_fixture(&fixture, topology)?;
                 reject_unless_allowed(topology, &all_fields, &["iface_secondary"])?;
                 Ok(TopologyConf::LwipTap {
@@ -323,7 +374,7 @@ impl SiteConf {
                     iface_secondary,
                 })
             }
-            "external" => {
+            TopologyKind::External => {
                 reject_unless_allowed(
                     topology,
                     &all_fields,
@@ -355,7 +406,7 @@ impl SiteConf {
                     require_ut,
                 }))
             }
-            "ssh-remote" => {
+            TopologyKind::SshRemote => {
                 reject_unless_allowed(
                     topology,
                     &all_fields,
@@ -404,14 +455,13 @@ impl SiteConf {
                     remote_wrap,
                 }))
             }
-            other => bail!("unknown topology '{other}'"),
         }
     }
 }
 
 /// Bail listing every missing required field at once (one actionable error, not a
 /// fix-one-rerun loop) — bash contract-validation parity.
-fn bail_missing(topology: &str, missing: Vec<&str>) -> Result<()> {
+fn bail_missing(topology: TopologyKind, missing: Vec<&str>) -> Result<()> {
     if !missing.is_empty() {
         bail!(
             "topology '{topology}' requires --topology-conf field(s): {} (sudo strips the environment, so they must come from the TOML file)",
@@ -425,11 +475,11 @@ fn bail_missing(topology: &str, missing: Vec<&str>) -> Result<()> {
 /// topology (external⇒netns-dut, ssh-remote⇒ssh-netns-dut). Sourcing the wrong one
 /// built a "frankenstate" in bash (a documented 2026-06-11 leak); reject it here
 /// before any host state is touched.
-fn check_fixture(fixture: Option<FixtureSpec>, topology: &str) -> Result<Option<FixtureSpec>> {
+fn check_fixture(fixture: Option<FixtureSpec>, topology: TopologyKind) -> Result<Option<FixtureSpec>> {
     if let Some(fx) = &fixture {
         let compatible = matches!(
             (topology, fx.kind.as_str()),
-            ("external", "netns-dut") | ("ssh-remote", "ssh-netns-dut")
+            (TopologyKind::External, "netns-dut") | (TopologyKind::SshRemote, "ssh-netns-dut")
         );
         if !compatible {
             bail!(
@@ -444,7 +494,7 @@ fn check_fixture(fixture: Option<FixtureSpec>, topology: &str) -> Result<Option<
 /// single-pc / lwip-tap own no verification fixture (they self-provision or run
 /// zero-conf), so a `[fixture]` block there is misplaced — reject it loudly rather
 /// than silently ignore.
-fn reject_fixture(fixture: &Option<FixtureSpec>, topology: &str) -> Result<()> {
+fn reject_fixture(fixture: &Option<FixtureSpec>, topology: TopologyKind) -> Result<()> {
     if let Some(fx) = fixture {
         bail!(
             "fixture kind '{}' is not valid for topology '{topology}' (fixtures are external/ssh-remote only)",
@@ -458,7 +508,7 @@ fn reject_fixture(fixture: &Option<FixtureSpec>, topology: &str) -> Result<()> {
 /// misplaced-but-known key fails loud instead of being silently dropped by
 /// resolve. `all` is every field paired with whether it was set; `allowed` names
 /// the ones this topology consumes.
-fn reject_unless_allowed(topology: &str, all: &[(&str, bool)], allowed: &[&str]) -> Result<()> {
+fn reject_unless_allowed(topology: TopologyKind, all: &[(&str, bool)], allowed: &[&str]) -> Result<()> {
     let foreign: Vec<&str> = all
         .iter()
         .filter(|(name, set)| *set && !allowed.contains(name))
@@ -516,7 +566,7 @@ mod tests {
 
     #[test]
     fn external_requires_core_triple_and_lists_every_gap() {
-        let err = SiteConf::default().resolve("external").unwrap_err().to_string();
+        let err = SiteConf::default().resolve(TopologyKind::External).unwrap_err().to_string();
         assert!(err.contains("iface"), "{err}");
         assert!(err.contains("dut_ip"), "{err}");
         assert!(err.contains("tester_ip"), "{err}");
@@ -524,7 +574,7 @@ mod tests {
 
     #[test]
     fn ssh_remote_requires_remote_fields() {
-        let err = external_triple().resolve("ssh-remote").unwrap_err().to_string();
+        let err = external_triple().resolve(TopologyKind::SshRemote).unwrap_err().to_string();
         assert!(err.contains("ssh_target"), "{err}");
         assert!(err.contains("remote_dut_bin"), "{err}");
         assert!(err.contains("remote_vsomeip_cfg"), "{err}");
@@ -535,7 +585,7 @@ mod tests {
 
     #[test]
     fn external_triple_present_resolves() {
-        match external_triple().resolve("external").unwrap() {
+        match external_triple().resolve(TopologyKind::External).unwrap() {
             TopologyConf::External(e) => {
                 assert_eq!(e.wire.iface, "eth0");
                 assert_eq!(e.wire.dut_ip, "172.16.0.2");
@@ -553,7 +603,7 @@ mod tests {
             ..external_triple()
         };
         // ssh-netns-dut fixture under external → reject.
-        assert!(conf.resolve("external").is_err());
+        assert!(conf.resolve(TopologyKind::External).is_err());
     }
 
     #[test]
@@ -562,24 +612,24 @@ mod tests {
             fixture: Some(FixtureSpec { kind: "netns-dut".into() }),
             ..external_triple()
         };
-        assert!(matches!(conf.resolve("external"), Ok(TopologyConf::External(_))));
+        assert!(matches!(conf.resolve(TopologyKind::External), Ok(TopologyConf::External(_))));
     }
 
     #[test]
     fn lwip_tap_is_zero_conf_and_lwip_section_is_scoped() {
         // The lwip-tap topology hardcodes its wire identity, so it needs no fields.
         assert!(matches!(
-            SiteConf::default().resolve("lwip-tap"),
+            SiteConf::default().resolve(TopologyKind::LwipTap),
             Ok(TopologyConf::LwipTap { .. })
         ));
         let with_lwip = || SiteConf {
             lwip: Some(LwipSpec { kill_name: Some("tc8-lwip-utm".into()), ..LwipSpec::default() }),
             ..SiteConf::default()
         };
-        assert!(with_lwip().resolve("lwip-tap").is_ok());
+        assert!(with_lwip().resolve(TopologyKind::LwipTap).is_ok());
         // ...and is rejected under any other topology (misplaced-section guard).
-        assert!(with_lwip().resolve("external").is_err());
-        assert!(with_lwip().resolve("single-pc").is_err());
+        assert!(with_lwip().resolve(TopologyKind::External).is_err());
+        assert!(with_lwip().resolve(TopologyKind::SinglePc).is_err());
     }
 
     #[test]
@@ -589,7 +639,7 @@ mod tests {
         // wire-fixed default — the former silent-override bug), AND resolve now
         // rejects it loudly rather than silently dropping it.
         let conf = SiteConf { dut_ip: Some("10.0.0.9".into()), ..SiteConf::default() };
-        assert!(conf.resolve("lwip-tap").unwrap_err().to_string().contains("dut_ip"));
+        assert!(conf.resolve(TopologyKind::LwipTap).unwrap_err().to_string().contains("dut_ip"));
     }
 
     #[test]
@@ -599,7 +649,7 @@ mod tests {
             dut_ip: Some("10.0.0.2".into()),
             ..SiteConf::default()
         };
-        match conf.resolve("single-pc").unwrap() {
+        match conf.resolve(TopologyKind::SinglePc).unwrap() {
             TopologyConf::SinglePc { tester_ip, dut_ip } => {
                 assert_eq!(tester_ip.as_deref(), Some("10.0.0.1"));
                 assert_eq!(dut_ip.as_deref(), Some("10.0.0.2"));
@@ -614,13 +664,23 @@ mod tests {
             fixture: Some(FixtureSpec { kind: "netns-dut".into() }),
             ..SiteConf::default()
         };
-        assert!(with_fx().resolve("single-pc").is_err());
-        assert!(with_fx().resolve("lwip-tap").is_err());
+        assert!(with_fx().resolve(TopologyKind::SinglePc).is_err());
+        assert!(with_fx().resolve(TopologyKind::LwipTap).is_err());
     }
 
     #[test]
-    fn unknown_topology_rejected() {
-        assert!(SiteConf::default().resolve("bogus").is_err());
+    fn topology_kind_string_set_is_single_homed() {
+        // The variants ARE the valid set; `as_str` is only their kebab rendering and
+        // must agree with clap's parse names, so the selector has exactly one home
+        // (no `matches!`/`other => bail` re-list to drift). An unrecognised selector
+        // is rejected at parse time (clap), not by a resolve fallback — there is no
+        // longer an "unknown topology" arm to reach, so the former resolve-based
+        // rejection test is replaced by this parse-level one.
+        for k in TopologyKind::value_variants() {
+            assert_eq!(k.to_possible_value().unwrap().get_name(), k.as_str());
+            assert_eq!(TopologyKind::from_str(k.as_str(), false).unwrap(), *k);
+        }
+        assert!(TopologyKind::from_str("bogus", true).is_err());
     }
 
     #[test]
@@ -631,10 +691,10 @@ mod tests {
             tester_ip: Some("10.0.0.1".into()),
             ..SiteConf::default()
         };
-        assert!(spc.resolve("single-pc").unwrap_err().to_string().contains("remote_dut_bin"));
+        assert!(spc.resolve(TopologyKind::SinglePc).unwrap_err().to_string().contains("remote_dut_bin"));
 
         let ext = SiteConf { ssh_target: Some("root@h".into()), ..external_triple() };
-        assert!(ext.resolve("external").unwrap_err().to_string().contains("ssh_target"));
+        assert!(ext.resolve(TopologyKind::External).unwrap_err().to_string().contains("ssh_target"));
 
         let ssh = SiteConf {
             require_ut: true,
@@ -644,7 +704,7 @@ mod tests {
             remote_capi_cfg: Some("/c".into()),
             ..external_triple()
         };
-        assert!(ssh.resolve("ssh-remote").unwrap_err().to_string().contains("require_ut"));
+        assert!(ssh.resolve(TopologyKind::SshRemote).unwrap_err().to_string().contains("require_ut"));
     }
 
     #[test]
@@ -657,7 +717,7 @@ mod tests {
             tester_ip: Some("172.16.0.1".into()),
             ..SiteConf::default()
         };
-        assert!(conf.resolve("external").unwrap_err().to_string().contains("iface"));
+        assert!(conf.resolve(TopologyKind::External).unwrap_err().to_string().contains("iface"));
     }
 
     #[test]
@@ -670,7 +730,7 @@ mod tests {
         "#;
         let mut conf: SiteConf = toml::from_str(toml).unwrap();
         conf.expand_all(Path::new("/repo")).unwrap();
-        match conf.resolve("lwip-tap").unwrap() {
+        match conf.resolve(TopologyKind::LwipTap).unwrap() {
             TopologyConf::LwipTap { lwip: lw, iface_secondary } => {
                 assert_eq!(lw.app.unwrap(), "/repo/build-lwip-dut/tc8-lwip-utm");
                 assert_eq!(lw.ready_probe.unwrap(), "testability");
@@ -716,7 +776,7 @@ mod tests {
         "#;
         let mut conf: SiteConf = toml::from_str(toml).unwrap();
         conf.expand_all(Path::new("/repo")).unwrap();
-        match conf.resolve("ssh-remote").unwrap() {
+        match conf.resolve(TopologyKind::SshRemote).unwrap() {
             TopologyConf::SshRemote(s) => {
                 assert_eq!(s.ssh_target, "root@172.16.0.2");
                 assert_eq!(s.ssh_opts.as_deref(), Some("-p 2222"));

@@ -59,7 +59,7 @@ use std::fs;
 use std::path::Path;
 
 use config::Config;
-use site::TopologyConf;
+use site::{TopologyConf, TopologyKind};
 use topology::{External, SinglePc, SshRemote, Topology};
 use worker::WorkerResult;
 
@@ -70,9 +70,11 @@ use worker::WorkerResult;
 #[derive(Parser, Debug)]
 #[command(name = "tc8-orchestrator", version, about, long_about = None)]
 struct Cli {
-    /// Topology profile: single-pc (per-worker netns), external, ssh-remote.
-    #[arg(long, default_value = "single-pc")]
-    topology: String,
+    /// Topology profile: single-pc (per-worker netns), external, ssh-remote,
+    /// lwip-tap. clap parses the value into `TopologyKind`, so an unrecognised
+    /// selector is rejected at parse time — the valid set lives in the enum alone.
+    #[arg(long, default_value_t = TopologyKind::SinglePc)]
+    topology: TopologyKind,
 
     /// Additional site config applied after the profile.
     #[arg(long)]
@@ -120,10 +122,9 @@ fn main() -> Result<()> {
         cli.cases.clone()
     };
 
-    let topology = cli.topology.as_str();
-    if !matches!(topology, "single-pc" | "external" | "ssh-remote" | "lwip-tap") {
-        bail!("--topology '{topology}' is not recognised (single-pc | external | ssh-remote | lwip-tap)");
-    }
+    // clap parsed --topology into a TopologyKind (Copy), so the valid set is
+    // enforced at parse time — no stringly-typed re-validation here.
+    let topology = cli.topology;
     // Flags parsed for CLI parity with smoke-test.sh but not yet ported — fail
     // loudly, never silently ignore. (Stage-agnostic wording: a stage number in a
     // user-facing string goes stale every stage.)
@@ -306,7 +307,7 @@ fn main() -> Result<()> {
 /// Aggregate worker tallies, print the summary, and apply the gates: the
 /// execution ledger (processed == scheduled) and the non-conclusion ceiling,
 /// both ported from smoke-test.sh (lines 2959-3024).
-fn summarize(topology: &str, total: usize, workers: u32, results: &[WorkerResult]) -> Result<()> {
+fn summarize(topology: TopologyKind, total: usize, workers: u32, results: &[WorkerResult]) -> Result<()> {
     let mut fails: Vec<&str> = Vec::new();
     let mut skips: Vec<&worker::Skip> = Vec::new();
     let mut nonconcl: Vec<&worker::Skip> = Vec::new();
