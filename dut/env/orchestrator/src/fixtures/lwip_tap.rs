@@ -37,7 +37,7 @@ use std::time::Duration;
 use crate::conditioning::{CondDir, CondStep};
 use crate::config::Config;
 use crate::netns;
-use crate::site::SiteConf;
+use crate::site::LwipSpec;
 use crate::topology::{self, Conditioning, Topology, WorkerCtx};
 use crate::wire::{self, DUT_IP, DUT_MASK, FIX_DIR, LAST_DUT_LOG, LOCK_FILE, TAP, TESTER_IP};
 
@@ -87,7 +87,9 @@ struct LwipState {
 /// respawning lwIP DUT.
 pub struct LwipTap<'a> {
     cfg: &'a Config,
-    site: &'a SiteConf,
+    /// Secondary tester NIC for an OEM Topology-2-on-tap conf (none in-tree);
+    /// empty-normalized at resolve.
+    iface_secondary: Option<String>,
     app: PathBuf,
     ready_probe: ReadyProbe,
     kill_name: String,
@@ -102,20 +104,20 @@ pub struct LwipTap<'a> {
 }
 
 impl<'a> LwipTap<'a> {
-    pub fn new(cfg: &'a Config, site: &'a SiteConf) -> Self {
-        let lw = site.lwip.as_ref();
-        let app = lw
-            .and_then(|l| l.app.clone())
+    pub fn new(cfg: &'a Config, lwip: &LwipSpec, iface_secondary: Option<&str>) -> Self {
+        let app = lwip
+            .app
+            .clone()
             .map(PathBuf::from)
             .unwrap_or_else(|| cfg.root.join(DEFAULT_APP_REL));
-        let ready_probe = match lw.and_then(|l| l.ready_probe.as_deref()) {
+        let ready_probe = match lwip.ready_probe.as_deref() {
             Some("testability") => ReadyProbe::Testability,
             _ => ReadyProbe::Opcode,
         };
-        let kill_name = resolve_kill_name(site);
+        let kill_name = resolve_kill_name(lwip);
         LwipTap {
             cfg,
-            site,
+            iface_secondary: iface_secondary.map(str::to_owned),
             app,
             ready_probe,
             kill_name,
@@ -390,7 +392,7 @@ impl Topology for LwipTap<'_> {
     fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
         // The in-tree lwIP fixture conf sets no secondary iface, but honor one if an
         // OEM conf configures it (Topology-2 on a tap is not in the in-tree set).
-        topology::site_secondary_iface(self.site)
+        self.iface_secondary.clone()
     }
 
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
@@ -454,10 +456,9 @@ impl Topology for LwipTap<'_> {
 /// One source for both the Drop path (`LwipTap::new` → `kill_dut`) and the signal
 /// handler, so an operator-configured kill name is honored on BOTH paths: Ctrl-C
 /// reaps exactly the process this run could have spawned, never a stale literal.
-pub(crate) fn resolve_kill_name(site: &SiteConf) -> String {
-    site.lwip
-        .as_ref()
-        .and_then(|l| l.kill_name.clone())
+pub(crate) fn resolve_kill_name(lwip: &LwipSpec) -> String {
+    lwip.kill_name
+        .clone()
         .unwrap_or_else(|| DEFAULT_KILL_NAME.to_string())
 }
 

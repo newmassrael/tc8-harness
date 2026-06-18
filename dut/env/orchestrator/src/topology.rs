@@ -26,7 +26,7 @@ use std::time::Duration;
 use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
 use crate::netns::{self, NetnsParams};
-use crate::site::SiteConf;
+use crate::site::{ExternalSite, SshSite, WireSite};
 use crate::wire;
 
 /// Per-worker identity captured at bring-up (kernel-assigned veth MACs).
@@ -619,10 +619,10 @@ fn iface_exists(iface: &str) -> bool {
     Path::new(&format!("/sys/class/net/{iface}")).is_dir()
 }
 
-/// The configured secondary tester iface (TC8 Topology 2), with an empty string
-/// normalized to absent. Shared by External + SshRemote.
-pub(crate) fn site_secondary_iface(site: &SiteConf) -> Option<String> {
-    site.iface_secondary.clone().filter(|s| !s.is_empty())
+/// The configured secondary tester iface (TC8 Topology 2). Empty-normalization
+/// happened at resolve, so this is a plain clone. Shared by External + SshRemote.
+pub(crate) fn site_secondary_iface(wire: &WireSite) -> Option<String> {
+    wire.iface_secondary.clone()
 }
 
 /// `condition_case` for a topology that does not manage the DUT stack (external /
@@ -713,7 +713,7 @@ pub(crate) fn iface_mac(iface: &str) -> Result<String> {
 /// Resolve the DUT MAC: operator-pinned (`dut_mac`, when a topology-conf supplies
 /// one) or read from the host neigh table the preflight ICMP probe populated (the
 /// host's ARP request for the DUT IP, answered, lands `<dut_ip, dut_mac>` in the
-/// cache). Takes the pin directly rather than the whole `SiteConf`, so a topology
+/// cache). Takes the pin directly rather than the whole site config, so a topology
 /// with no MAC override (lwip-tap) passes `None`. Mirrors external.conf bring-up.
 pub(crate) fn resolve_dut_mac(dut_mac: Option<&str>, iface: &str, dut_ip: &str) -> Result<String> {
     if let Some(mac) = dut_mac.filter(|m| !m.is_empty()) {
@@ -769,15 +769,15 @@ fn ut_ping(harness: &Path, dut_ip: &str, source_ip: Option<&str>) -> bool {
 /// or conditioning the DUT (external.conf). One physical DUT serves one worker.
 pub struct External<'a> {
     cfg: &'a Config,
-    site: &'a SiteConf,
+    site: &'a ExternalSite,
 }
 
 impl<'a> External<'a> {
-    pub fn new(cfg: &'a Config, site: &'a SiteConf) -> Self {
+    pub fn new(cfg: &'a Config, site: &'a ExternalSite) -> Self {
         External { cfg, site }
     }
     fn iface(&self) -> &str {
-        self.site.require("iface")
+        &self.site.wire.iface
     }
 }
 
@@ -794,8 +794,9 @@ impl Topology for External<'_> {
 
     fn preflight(&self) -> Result<()> {
         // Preconditions only. Required config vars (iface/dut_ip/tester_ip) are
-        // single-homed in SiteConf::validate, which enumerates+bails on any missing
-        // one at load — so there is nothing to re-check here. Iface existence /
+        // present by construction in the External site (the site resolve step
+        // enumerates+bails on any missing one at load) — so there is nothing to
+        // re-check here. Iface existence /
         // operstate / reachability are NOT here either: a `[fixture]` overlay stands
         // up the tester veth + DUT in provision_run, so those iface-dependent checks
         // belong post-stand-up in provision_run (mirrors external.conf: preflight=
@@ -812,8 +813,8 @@ impl Topology for External<'_> {
         // up; verify it is live (and warm the neigh entry bring_up_worker reads)
         // before any case runs (external.conf `_external_verify_dut_live`).
         let iface = self.iface();
-        let dut_ip = self.site.require("dut_ip");
-        let tester_ip = self.site.require("tester_ip");
+        let dut_ip = self.site.wire.dut_ip.as_str();
+        let tester_ip = self.site.wire.tester_ip.as_str();
         if !iface_exists(iface) {
             bail!("provision: interface '{iface}' does not exist on this host");
         }
@@ -826,7 +827,7 @@ impl Topology for External<'_> {
             }
             other => bail!("provision: interface '{iface}' operstate={other} (link down or not configured)"),
         }
-        if let Some(sec) = self.site.iface_secondary.as_deref().filter(|s| !s.is_empty()) {
+        if let Some(sec) = self.site.wire.iface_secondary.as_deref() {
             if !iface_exists(sec) {
                 bail!("provision: secondary interface '{sec}' does not exist");
             }
@@ -844,7 +845,7 @@ impl Topology for External<'_> {
         }
         // DUT ICMP reachability — also warms the neigh entry bring-up reads. The
         // probe source steers which DUT ARP entry gets warmed (cold-cache cases).
-        let probe_src = self.site.preflight_src_ip.as_deref().filter(|s| !s.is_empty());
+        let probe_src = self.site.preflight_src_ip.as_deref();
         if ping_dut(probe_src.unwrap_or(iface), dut_ip) {
             println!("orchestrator[external]: provision: DUT {dut_ip} answers ICMP Echo — OK");
         } else {
@@ -863,7 +864,7 @@ impl Topology for External<'_> {
 
     fn bring_up_worker(&self, w: u32) -> Result<WorkerCtx> {
         host_bring_up_common(self.cfg, w)?;
-        let dut_mac = resolve_dut_mac(self.site.dut_mac.as_deref(), self.iface(), self.site.require("dut_ip"))?;
+        let dut_mac = resolve_dut_mac(self.site.wire.dut_mac.as_deref(), self.iface(), self.site.wire.dut_ip.as_str())?;
         let tester_mac = iface_mac(self.iface())?;
         Ok(WorkerCtx { dut_mac, tester_mac })
     }
@@ -881,7 +882,7 @@ impl Topology for External<'_> {
     }
 
     fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
-        site_secondary_iface(self.site)
+        site_secondary_iface(&self.site.wire)
     }
 
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
@@ -908,7 +909,7 @@ impl Topology for External<'_> {
         // warning must be ported here then — a prerequisite for the flavor stage.
         let _ = fs::write(
             dlog,
-            format!("[external] using persistent DUT at {}\n", self.site.require("dut_ip")),
+            format!("[external] using persistent DUT at {}\n", self.site.wire.dut_ip),
         );
         Ok(None)
     }
@@ -929,15 +930,15 @@ impl Topology for External<'_> {
 /// serves one worker.
 pub struct SshRemote<'a> {
     cfg: &'a Config,
-    site: &'a SiteConf,
+    site: &'a SshSite,
 }
 
 impl<'a> SshRemote<'a> {
-    pub fn new(cfg: &'a Config, site: &'a SiteConf) -> Self {
+    pub fn new(cfg: &'a Config, site: &'a SshSite) -> Self {
         SshRemote { cfg, site }
     }
     fn iface(&self) -> &str {
-        self.site.require("iface")
+        &self.site.wire.iface
     }
 
     /// `ssh -n -o BatchMode=yes [-o ConnectTimeout=5] <opts...> <target>`, ready for
@@ -957,7 +958,7 @@ impl<'a> SshRemote<'a> {
         if let Some(opts) = self.site.ssh_opts.as_deref() {
             c.args(opts.split_whitespace());
         }
-        c.arg(self.site.require("ssh_target"));
+        c.arg(&self.site.ssh_target);
         c
     }
 
@@ -989,9 +990,10 @@ impl Topology for SshRemote<'_> {
 
     fn preflight(&self) -> Result<()> {
         // Preconditions only. The required config vars (iface/dut_ip/tester_ip/
-        // ssh_target/remote_dut_bin/remote_vsomeip_cfg/remote_capi_cfg) are single-
-        // homed in SiteConf::validate, which enumerates+bails on any missing one at
-        // load — nothing to re-check here. The SSH / remote-binary / reachability /
+        // ssh_target/remote_dut_bin/remote_vsomeip_cfg/remote_capi_cfg) are present
+        // by construction in the SshRemote site (the site resolve step enumerates+
+        // bails on any missing one at load) — nothing to re-check here. The SSH /
+        // remote-binary / reachability /
         // spawn-probe checks are DUT liveness and live in provision_run (ssh-remote
         // .conf: preflight=vars [enforced at load], provision=verify) — the example
         // netns fixture also stands up the tester veth in provision_run. The binary
@@ -1007,7 +1009,7 @@ impl Topology for SshRemote<'_> {
         // live (SSH + remote bins + ICMP + spawn-probe) before any case runs
         // (ssh-remote.conf `_sshremote_verify_dut_live`).
         let iface = self.iface();
-        let dut_ip = self.site.require("dut_ip");
+        let dut_ip = self.site.wire.dut_ip.as_str();
         if !iface_exists(iface) {
             bail!("provision: interface '{iface}' does not exist on this host");
         }
@@ -1015,15 +1017,15 @@ impl Topology for SshRemote<'_> {
         if !self.ssh_ok("true") {
             bail!(
                 "provision: cannot SSH to '{}' non-interactively (key auth + BatchMode required)",
-                self.site.require("ssh_target")
+                self.site.ssh_target
             );
         }
-        let rbin = self.site.require("remote_dut_bin");
+        let rbin = self.site.remote_dut_bin.as_str();
         if !self.ssh_ok(&format!("test -x '{rbin}'")) {
             bail!("provision: remote tc8-dut missing or not executable: {rbin}");
         }
-        let rv = self.site.require("remote_vsomeip_cfg");
-        let rc = self.site.require("remote_capi_cfg");
+        let rv = self.site.remote_vsomeip_cfg.as_str();
+        let rc = self.site.remote_capi_cfg.as_str();
         if !self.ssh_ok(&format!("test -f '{rv}' && test -f '{rc}'")) {
             bail!("provision: remote vsomeip/commonapi config missing: {rv} / {rc}");
         }
@@ -1082,7 +1084,7 @@ impl Topology for SshRemote<'_> {
             println!("orchestrator[ssh-remote]: reaped a stale remote tc8-dut from a previous run");
         }
         host_bring_up_common(self.cfg, w)?;
-        let dut_mac = resolve_dut_mac(self.site.dut_mac.as_deref(), self.iface(), self.site.require("dut_ip"))?;
+        let dut_mac = resolve_dut_mac(self.site.wire.dut_mac.as_deref(), self.iface(), self.site.wire.dut_ip.as_str())?;
         let tester_mac = iface_mac(self.iface())?;
         Ok(WorkerCtx { dut_mac, tester_mac })
     }
@@ -1099,7 +1101,7 @@ impl Topology for SshRemote<'_> {
     }
 
     fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
-        site_secondary_iface(self.site)
+        site_secondary_iface(&self.site.wire)
     }
 
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
@@ -1120,7 +1122,7 @@ impl Topology for SshRemote<'_> {
         // equals remote_vsomeip_cfg's). mkdir + wipe the per-worker remote vsomeip
         // scratch — vsomeip cannot create its base path and fails with a misleading
         // routing-manager error when it is missing.
-        let rv = self.site.require("remote_vsomeip_cfg");
+        let rv = self.site.remote_vsomeip_cfg.as_str();
         let remote_dir = Path::new(rv)
             .parent()
             .map(|p| p.to_string_lossy().into_owned())
@@ -1131,8 +1133,8 @@ impl Topology for SshRemote<'_> {
         } else {
             format!("{remote_dir}/{base}")
         };
-        let rbin = self.site.require("remote_dut_bin");
-        let rcapi = self.site.require("remote_capi_cfg");
+        let rbin = self.site.remote_dut_bin.as_str();
+        let rcapi = self.site.remote_capi_cfg.as_str();
         let wrap = self.site.remote_wrap.as_deref().unwrap_or("");
         let scratch = format!("{REMOTE_VSOMEIP_PREFIX}-{w}");
         let remote_cmd = format!(

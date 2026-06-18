@@ -14,6 +14,12 @@
 //! compatibility: the strangler keeps smoke-test.sh as the SSOT (and the channel
 //! OEM bash confs target) until the S8 cutover, so nothing drives the orchestrator
 //! with a bash fragment yet.
+//!
+//! Two layers, parse-don't-validate: [`SiteConf`] is the permissive TOML boundary
+//! (every field optional, `deny_unknown_fields`); [`SiteConf::resolve`] turns it
+//! into a typed [`TopologyConf`] whose variant carries exactly the fields its
+//! topology consumes. A wire IP under lwip-tap, or a required field absent under
+//! external, is then unrepresentable rather than a runtime `require()` panic.
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -48,33 +54,35 @@ pub struct LwipSpec {
     pub kill_name: Option<String>,
 }
 
-/// Declarative site config for the external / ssh-remote topologies. Every field
-/// is optional at the TOML layer; [`SiteConf::validate`] enforces the per-topology
-/// required set, enumerating every gap at once (bash contract-validation parity,
-/// smoke-test.sh + the per-profile preflight checks).
+/// The raw `--topology-conf` TOML shape — the permissive deserialization boundary.
+/// Every field is optional here; [`SiteConf::resolve`] enforces the per-topology
+/// required set (enumerating every gap at once, bash contract-validation parity)
+/// and moves the survivors into a typed [`TopologyConf`]. Nothing downstream sees
+/// this raw form — they consume the resolved variant, so there is no `require()`
+/// accessor and no stringly-typed field lookup to panic.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SiteConf {
+struct SiteConf {
     // --- common to external + ssh-remote ---
     /// Tester capture/injection NIC facing the DUT.
-    pub iface: Option<String>,
+    iface: Option<String>,
     /// DUT IPv4 on the wire.
-    pub dut_ip: Option<String>,
+    dut_ip: Option<String>,
     /// Tester IPv4 on the wire.
-    pub tester_ip: Option<String>,
+    tester_ip: Option<String>,
     /// DUT MAC; neigh-resolved from the preflight ping when unset.
-    pub dut_mac: Option<String>,
+    dut_mac: Option<String>,
     /// Optional second NIC for TC8 Topology 2 (DHCPv4_CLIENT_USAGE_01); checked
     /// for existence in preflight, consumed when Topology-2 dispatch lands.
-    pub iface_secondary: Option<String>,
+    iface_secondary: Option<String>,
     /// Cold-cache probe-source steering: the source IP the preflight ICMP/UT
     /// probes use, so the warmed DUT ARP entry lands on an address no cold-cache
     /// ARP case references (external.conf TC8_TOPOLOGY_PREFLIGHT_SRC_IP).
-    pub preflight_src_ip: Option<String>,
+    preflight_src_ip: Option<String>,
     /// Promote a failed Upper Tester preflight probe from WARNING to a hard FAIL
     /// (external.conf TC8_TOPOLOGY_REQUIRE_UT).
     #[serde(default)]
-    pub require_ut: bool,
+    require_ut: bool,
     // NOTE: bash also exposes TC8_TOPOLOGY_DUT_ALIAS_IP / TC8_TOPOLOGY_TESTER_ALIAS_IP
     // (UDP_USER_INTERFACE_07/08 against a real external DUT). They are deliberately
     // NOT fields yet: dispatch hardcodes the netns-default aliases (wire::*), and the
@@ -85,49 +93,127 @@ pub struct SiteConf {
 
     // --- ssh-remote only ---
     /// user@host for the DUT machine.
-    pub ssh_target: Option<String>,
+    ssh_target: Option<String>,
     /// Extra ssh options, word-split (e.g. "-p 2222 -i /path/key").
-    pub ssh_opts: Option<String>,
+    ssh_opts: Option<String>,
     /// tc8-dut path on the remote host.
-    pub remote_dut_bin: Option<String>,
+    remote_dut_bin: Option<String>,
     /// vsomeip.json path on the remote host (per-case flavors resolve as siblings).
-    pub remote_vsomeip_cfg: Option<String>,
+    remote_vsomeip_cfg: Option<String>,
     /// commonapi.ini path on the remote host.
-    pub remote_capi_cfg: Option<String>,
+    remote_capi_cfg: Option<String>,
     /// Optional command prefix on the remote side (lab fixtures, taskset, ...).
-    pub remote_wrap: Option<String>,
+    remote_wrap: Option<String>,
 
-    // --- verification fixture ---
-    /// Stand up + tear down an orchestrator-owned verification DUT around the run
-    /// (external/ssh-remote only). The lwIP DUT is the `lwip-tap` topology, not a
-    /// fixture — its config lives in `[lwip]` below.
-    pub fixture: Option<FixtureSpec>,
+    // --- verification fixture (external/ssh-remote only) ---
+    /// Stand up + tear down an orchestrator-owned verification DUT around the run.
+    /// The lwIP DUT is the `lwip-tap` topology, not a fixture — its config lives in
+    /// `[lwip]` below.
+    fixture: Option<FixtureSpec>,
 
     // --- lwip-tap topology ---
     /// Optional overrides for the first-class `lwip-tap` topology (binary / readiness
     /// probe / kill name). Absent = run on the defaults. Valid only under
     /// `--topology lwip-tap`.
-    pub lwip: Option<LwipSpec>,
+    lwip: Option<LwipSpec>,
+}
+
+/// Host-NIC wire identity common to the external and ssh-remote topologies. The
+/// required triple (iface/dut_ip/tester_ip) is a plain `String` — present by
+/// construction, since `resolve` only builds a `WireSite` after proving presence.
+#[derive(Debug)]
+pub struct WireSite {
+    pub iface: String,
+    pub dut_ip: String,
+    pub tester_ip: String,
+    /// DUT MAC; neigh-resolved from the preflight ping when `None`.
+    pub dut_mac: Option<String>,
+    /// Secondary tester NIC (TC8 Topology 2); empty-normalized to `None`.
+    pub iface_secondary: Option<String>,
+    /// Verification fixture to provision (kind compatibility already checked).
+    pub fixture: Option<FixtureSpec>,
+}
+
+/// Resolved config for `--topology external` — a persistent DUT on a host NIC.
+#[derive(Debug)]
+pub struct ExternalSite {
+    pub wire: WireSite,
+    /// Cold-cache probe-source steering for the preflight (empty-normalized).
+    pub preflight_src_ip: Option<String>,
+    /// Make a failed Upper Tester preflight probe fatal rather than a WARNING.
+    pub require_ut: bool,
+}
+
+/// Resolved config for `--topology ssh-remote` — the tester here, a per-case
+/// reference DUT spawned over SSH on a second host. All remote paths present by
+/// construction.
+#[derive(Debug)]
+pub struct SshSite {
+    pub wire: WireSite,
+    pub ssh_target: String,
+    pub ssh_opts: Option<String>,
+    pub remote_dut_bin: String,
+    pub remote_vsomeip_cfg: String,
+    pub remote_capi_cfg: String,
+    pub remote_wrap: Option<String>,
+}
+
+/// The validated, typed site configuration. Each variant carries exactly the
+/// fields its topology consumes, so an absent required field (external/ssh-remote)
+/// or a wire IP under a wire-fixed topology (single-pc/lwip-tap) is unrepresentable
+/// rather than a runtime `require()` panic or a silently-inert flat-struct field.
+#[derive(Debug)]
+pub enum TopologyConf {
+    /// single-pc derives its wire identity from defaults and provisions its own
+    /// netns; a conf may only override the tester/DUT IPs.
+    SinglePc {
+        tester_ip: Option<String>,
+        dut_ip: Option<String>,
+    },
+    External(ExternalSite),
+    SshRemote(SshSite),
+    /// lwip-tap is wire-fixed (tap address + DUT IP are consts), so it carries no
+    /// wire triple — only the `[lwip]` overrides and an optional secondary NIC for
+    /// an OEM Topology-2-on-tap conf (none in-tree, but honored if configured).
+    LwipTap {
+        lwip: LwipSpec,
+        iface_secondary: Option<String>,
+    },
+}
+
+impl TopologyConf {
+    /// Load + parse + env-expand + resolve a `--topology-conf` TOML for `topology`.
+    /// `conf_path` is `None` when no `--topology-conf` was passed: single-pc and
+    /// lwip-tap run zero-conf on their defaults, every other topology requires one
+    /// (its iface / wire IPs / remote paths live there, and sudo strips the env).
+    /// `root` expands `${ROOT}`.
+    pub fn load(conf_path: Option<&Path>, topology: &str, root: &Path) -> Result<TopologyConf> {
+        let raw = match conf_path {
+            Some(path) => {
+                let text = std::fs::read_to_string(path)
+                    .with_context(|| format!("reading --topology-conf {}", path.display()))?;
+                let mut conf: SiteConf = toml::from_str(&text)
+                    .with_context(|| format!("parsing --topology-conf {} as TOML", path.display()))?;
+                conf.expand_all(root)?;
+                conf
+            }
+            None => {
+                if !matches!(topology, "single-pc" | "lwip-tap") {
+                    bail!("--topology {topology} requires --topology-conf (iface/dut_ip/tester_ip live there; sudo strips the environment)");
+                }
+                SiteConf::default()
+            }
+        };
+        raw.resolve(topology)
+    }
 }
 
 impl SiteConf {
-    /// Load + parse + env-expand + validate a `--topology-conf` TOML for `topology`.
-    /// `root` is the orchestrator's resolved repo root, used to expand `${ROOT}`.
-    pub fn load(path: &Path, topology: &str, root: &Path) -> Result<SiteConf> {
-        let text = std::fs::read_to_string(path)
-            .with_context(|| format!("reading --topology-conf {}", path.display()))?;
-        let mut conf: SiteConf = toml::from_str(&text)
-            .with_context(|| format!("parsing --topology-conf {} as TOML", path.display()))?;
-        conf.expand_all(root)?;
-        conf.validate(topology)?;
-        Ok(conf)
-    }
-
     /// Expand `${VAR}` references in every string field. `${ROOT}` resolves to the
     /// orchestrator's repo root (available even under sudo's stripped environment,
     /// unlike a real env var) so the committed example confs stay portable; any
     /// other `${VAR}` resolves from the process environment. Applied before
-    /// validation, so a required field that expands to empty still fails the
+    /// resolution, so a required field that expands to empty still fails the
     /// required-field check.
     fn expand_all(&mut self, root: &Path) -> Result<()> {
         let fields: [&mut Option<String>; 12] = [
@@ -156,98 +242,179 @@ impl SiteConf {
         Ok(())
     }
 
-    /// Enforce the per-topology required field set + fixture/topology compatibility.
-    /// single-pc ignores most of this (it derives its IPs from defaults/env and
-    /// provisions its own netns) — a topology-conf there is an optional IP override.
-    fn validate(&self, topology: &str) -> Result<()> {
-        let present = |o: &Option<String>| o.as_deref().is_some_and(|s| !s.is_empty());
-        let mut missing: Vec<&str> = Vec::new();
-        match topology {
-            "external" => {
-                if !present(&self.iface) {
-                    missing.push("iface");
-                }
-                if !present(&self.dut_ip) {
-                    missing.push("dut_ip");
-                }
-                if !present(&self.tester_ip) {
-                    missing.push("tester_ip");
-                }
-            }
-            "ssh-remote" => {
-                if !present(&self.iface) {
-                    missing.push("iface");
-                }
-                if !present(&self.dut_ip) {
-                    missing.push("dut_ip");
-                }
-                if !present(&self.tester_ip) {
-                    missing.push("tester_ip");
-                }
-                if !present(&self.ssh_target) {
-                    missing.push("ssh_target");
-                }
-                if !present(&self.remote_dut_bin) {
-                    missing.push("remote_dut_bin");
-                }
-                if !present(&self.remote_vsomeip_cfg) {
-                    missing.push("remote_vsomeip_cfg");
-                }
-                if !present(&self.remote_capi_cfg) {
-                    missing.push("remote_capi_cfg");
-                }
-            }
-            _ => {}
-        }
-        if !missing.is_empty() {
-            bail!(
-                "topology '{topology}' requires --topology-conf field(s): {} (sudo strips the environment, so they must come from the TOML file)",
-                missing.join(", ")
-            );
-        }
+    /// Resolve the raw TOML into the typed [`TopologyConf`] for `topology`,
+    /// enforcing the per-topology required set + fixture/topology compatibility and
+    /// moving each surviving field into the variant that consumes it. Consumes self:
+    /// nothing downstream sees the raw form. Empty strings (e.g. a `${VAR}` that
+    /// expanded to "") normalize to absent here, so the consumers no longer carry
+    /// scattered `.filter(|s| !s.is_empty())` guards.
+    fn resolve(self, topology: &str) -> Result<TopologyConf> {
+        let SiteConf {
+            iface,
+            dut_ip,
+            tester_ip,
+            dut_mac,
+            iface_secondary,
+            preflight_src_ip,
+            require_ut,
+            ssh_target,
+            ssh_opts,
+            remote_dut_bin,
+            remote_vsomeip_cfg,
+            remote_capi_cfg,
+            remote_wrap,
+            fixture,
+            lwip,
+        } = self;
+        let ne = |o: Option<String>| o.filter(|s| !s.is_empty());
+        let iface = ne(iface);
+        let dut_ip = ne(dut_ip);
+        let tester_ip = ne(tester_ip);
+        let dut_mac = ne(dut_mac);
+        let iface_secondary = ne(iface_secondary);
+        let preflight_src_ip = ne(preflight_src_ip);
+        let ssh_target = ne(ssh_target);
+        let ssh_opts = ne(ssh_opts);
+        let remote_dut_bin = ne(remote_dut_bin);
+        let remote_vsomeip_cfg = ne(remote_vsomeip_cfg);
+        let remote_capi_cfg = ne(remote_capi_cfg);
+        let remote_wrap = ne(remote_wrap);
 
-        // A fixture provisions topology-specific host state, so it must match the
-        // selected topology — sourcing the netns fixture under the wrong topology
-        // built a "frankenstate" in bash (a documented 2026-06-11 leak); reject it
-        // here before any host state is touched.
-        if let Some(fx) = &self.fixture {
-            let compatible = matches!(
-                (topology, fx.kind.as_str()),
-                ("external", "netns-dut") | ("ssh-remote", "ssh-netns-dut")
-            );
-            if !compatible {
-                bail!(
-                    "fixture kind '{}' is not valid for topology '{topology}' (netns-dut⇒external, ssh-netns-dut⇒ssh-remote)",
-                    fx.kind
-                );
-            }
-        }
-
-        // `[lwip]` configures the lwip-tap topology; under any other topology it is a
-        // misplaced section (the same frankenstate hazard, caught declaratively).
-        if self.lwip.is_some() && topology != "lwip-tap" {
+        // `[lwip]` configures the lwip-tap topology; under any other it is a
+        // misplaced section — the same frankenstate hazard bash hit (a documented
+        // 2026-06-11 cross-topology leak), caught declaratively before host setup.
+        if lwip.is_some() && topology != "lwip-tap" {
             bail!("[lwip] config is only valid for --topology lwip-tap (got '{topology}')");
         }
-        Ok(())
-    }
 
-    /// A required field after validation: panics only on a contract bug (validate
-    /// guarantees presence for the topology). Trims the `Option` for call sites
-    /// that ran `validate` first.
-    pub fn require(&self, field: &str) -> &str {
-        let v = match field {
-            "iface" => &self.iface,
-            "dut_ip" => &self.dut_ip,
-            "tester_ip" => &self.tester_ip,
-            "ssh_target" => &self.ssh_target,
-            "remote_dut_bin" => &self.remote_dut_bin,
-            "remote_vsomeip_cfg" => &self.remote_vsomeip_cfg,
-            "remote_capi_cfg" => &self.remote_capi_cfg,
-            other => panic!("SiteConf::require: unknown field '{other}'"),
-        };
-        v.as_deref()
-            .unwrap_or_else(|| panic!("SiteConf::require('{field}') called before validate, or on the wrong topology"))
+        match topology {
+            "single-pc" => {
+                reject_fixture(&fixture, topology)?;
+                Ok(TopologyConf::SinglePc { tester_ip, dut_ip })
+            }
+            "lwip-tap" => {
+                reject_fixture(&fixture, topology)?;
+                Ok(TopologyConf::LwipTap {
+                    lwip: lwip.unwrap_or_default(),
+                    iface_secondary,
+                })
+            }
+            "external" => {
+                let mut missing: Vec<&str> = Vec::new();
+                if iface.is_none() {
+                    missing.push("iface");
+                }
+                if dut_ip.is_none() {
+                    missing.push("dut_ip");
+                }
+                if tester_ip.is_none() {
+                    missing.push("tester_ip");
+                }
+                bail_missing(topology, missing)?;
+                let fixture = check_fixture(fixture, topology)?;
+                Ok(TopologyConf::External(ExternalSite {
+                    wire: WireSite {
+                        iface: iface.unwrap(),
+                        dut_ip: dut_ip.unwrap(),
+                        tester_ip: tester_ip.unwrap(),
+                        dut_mac,
+                        iface_secondary,
+                        fixture,
+                    },
+                    preflight_src_ip,
+                    require_ut,
+                }))
+            }
+            "ssh-remote" => {
+                let mut missing: Vec<&str> = Vec::new();
+                if iface.is_none() {
+                    missing.push("iface");
+                }
+                if dut_ip.is_none() {
+                    missing.push("dut_ip");
+                }
+                if tester_ip.is_none() {
+                    missing.push("tester_ip");
+                }
+                if ssh_target.is_none() {
+                    missing.push("ssh_target");
+                }
+                if remote_dut_bin.is_none() {
+                    missing.push("remote_dut_bin");
+                }
+                if remote_vsomeip_cfg.is_none() {
+                    missing.push("remote_vsomeip_cfg");
+                }
+                if remote_capi_cfg.is_none() {
+                    missing.push("remote_capi_cfg");
+                }
+                bail_missing(topology, missing)?;
+                let fixture = check_fixture(fixture, topology)?;
+                Ok(TopologyConf::SshRemote(SshSite {
+                    wire: WireSite {
+                        iface: iface.unwrap(),
+                        dut_ip: dut_ip.unwrap(),
+                        tester_ip: tester_ip.unwrap(),
+                        dut_mac,
+                        iface_secondary,
+                        fixture,
+                    },
+                    ssh_target: ssh_target.unwrap(),
+                    ssh_opts,
+                    remote_dut_bin: remote_dut_bin.unwrap(),
+                    remote_vsomeip_cfg: remote_vsomeip_cfg.unwrap(),
+                    remote_capi_cfg: remote_capi_cfg.unwrap(),
+                    remote_wrap,
+                }))
+            }
+            other => bail!("unknown topology '{other}'"),
+        }
     }
+}
+
+/// Bail listing every missing required field at once (one actionable error, not a
+/// fix-one-rerun loop) — bash contract-validation parity.
+fn bail_missing(topology: &str, missing: Vec<&str>) -> Result<()> {
+    if !missing.is_empty() {
+        bail!(
+            "topology '{topology}' requires --topology-conf field(s): {} (sudo strips the environment, so they must come from the TOML file)",
+            missing.join(", ")
+        );
+    }
+    Ok(())
+}
+
+/// A fixture provisions topology-specific host state, so it must match the selected
+/// topology (external⇒netns-dut, ssh-remote⇒ssh-netns-dut). Sourcing the wrong one
+/// built a "frankenstate" in bash (a documented 2026-06-11 leak); reject it here
+/// before any host state is touched.
+fn check_fixture(fixture: Option<FixtureSpec>, topology: &str) -> Result<Option<FixtureSpec>> {
+    if let Some(fx) = &fixture {
+        let compatible = matches!(
+            (topology, fx.kind.as_str()),
+            ("external", "netns-dut") | ("ssh-remote", "ssh-netns-dut")
+        );
+        if !compatible {
+            bail!(
+                "fixture kind '{}' is not valid for topology '{topology}' (netns-dut⇒external, ssh-netns-dut⇒ssh-remote)",
+                fx.kind
+            );
+        }
+    }
+    Ok(fixture)
+}
+
+/// single-pc / lwip-tap own no verification fixture (they self-provision or run
+/// zero-conf), so a `[fixture]` block there is misplaced — reject it loudly rather
+/// than silently ignore.
+fn reject_fixture(fixture: &Option<FixtureSpec>, topology: &str) -> Result<()> {
+    if let Some(fx) = fixture {
+        bail!(
+            "fixture kind '{}' is not valid for topology '{topology}' (fixtures are external/ssh-remote only)",
+            fx.kind
+        );
+    }
+    Ok(())
 }
 
 /// Expand `${VAR}` references. `${ROOT}` resolves to `root` (the orchestrator's
@@ -282,10 +449,18 @@ fn expand_env(s: &str, root: &Path) -> Result<String> {
 mod tests {
     use super::*;
 
+    fn external_triple() -> SiteConf {
+        SiteConf {
+            iface: Some("eth0".into()),
+            dut_ip: Some("172.16.0.2".into()),
+            tester_ip: Some("172.16.0.1".into()),
+            ..SiteConf::default()
+        }
+    }
+
     #[test]
     fn external_requires_core_triple_and_lists_every_gap() {
-        let conf = SiteConf::default();
-        let err = conf.validate("external").unwrap_err().to_string();
+        let err = SiteConf::default().resolve("external").unwrap_err().to_string();
         assert!(err.contains("iface"), "{err}");
         assert!(err.contains("dut_ip"), "{err}");
         assert!(err.contains("tester_ip"), "{err}");
@@ -293,70 +468,100 @@ mod tests {
 
     #[test]
     fn ssh_remote_requires_remote_fields() {
-        let conf = SiteConf {
-            iface: Some("eth0".into()),
-            dut_ip: Some("172.16.0.2".into()),
-            tester_ip: Some("172.16.0.1".into()),
-            ..SiteConf::default()
-        };
-        let err = conf.validate("ssh-remote").unwrap_err().to_string();
+        let err = external_triple().resolve("ssh-remote").unwrap_err().to_string();
         assert!(err.contains("ssh_target"), "{err}");
         assert!(err.contains("remote_dut_bin"), "{err}");
         assert!(err.contains("remote_vsomeip_cfg"), "{err}");
         assert!(err.contains("remote_capi_cfg"), "{err}");
         // iface/dut_ip/tester_ip are present → not reported.
-        assert!(!err.contains("iface,") && !err.contains(" iface"), "{err}");
+        assert!(!err.contains(" iface"), "{err}");
     }
 
     #[test]
-    fn external_triple_present_validates() {
-        let conf = SiteConf {
-            iface: Some("eth0".into()),
-            dut_ip: Some("172.16.0.2".into()),
-            tester_ip: Some("172.16.0.1".into()),
-            ..SiteConf::default()
-        };
-        assert!(conf.validate("external").is_ok());
+    fn external_triple_present_resolves() {
+        match external_triple().resolve("external").unwrap() {
+            TopologyConf::External(e) => {
+                assert_eq!(e.wire.iface, "eth0");
+                assert_eq!(e.wire.dut_ip, "172.16.0.2");
+                assert_eq!(e.wire.tester_ip, "172.16.0.1");
+                assert!(!e.require_ut);
+            }
+            other => panic!("expected External, got {other:?}"),
+        }
     }
 
     #[test]
     fn fixture_topology_mismatch_rejected() {
         let conf = SiteConf {
-            iface: Some("eth0".into()),
-            dut_ip: Some("172.16.0.2".into()),
-            tester_ip: Some("172.16.0.1".into()),
             fixture: Some(FixtureSpec { kind: "ssh-netns-dut".into() }),
-            ..SiteConf::default()
+            ..external_triple()
         };
         // ssh-netns-dut fixture under external → reject.
-        assert!(conf.validate("external").is_err());
+        assert!(conf.resolve("external").is_err());
     }
 
     #[test]
     fn fixture_topology_match_accepted() {
         let conf = SiteConf {
-            iface: Some("eth0".into()),
-            dut_ip: Some("172.16.0.2".into()),
-            tester_ip: Some("172.16.0.1".into()),
             fixture: Some(FixtureSpec { kind: "netns-dut".into() }),
-            ..SiteConf::default()
+            ..external_triple()
         };
-        assert!(conf.validate("external").is_ok());
+        assert!(matches!(conf.resolve("external"), Ok(TopologyConf::External(_))));
     }
 
     #[test]
-    fn lwip_tap_topology_is_zero_conf_and_lwip_section_is_scoped() {
+    fn lwip_tap_is_zero_conf_and_lwip_section_is_scoped() {
         // The lwip-tap topology hardcodes its wire identity, so it needs no fields.
-        assert!(SiteConf::default().validate("lwip-tap").is_ok());
-        // A [lwip] override validates under lwip-tap...
+        assert!(matches!(
+            SiteConf::default().resolve("lwip-tap"),
+            Ok(TopologyConf::LwipTap { .. })
+        ));
         let with_lwip = || SiteConf {
             lwip: Some(LwipSpec { kill_name: Some("tc8-lwip-utm".into()), ..LwipSpec::default() }),
             ..SiteConf::default()
         };
-        assert!(with_lwip().validate("lwip-tap").is_ok());
+        assert!(with_lwip().resolve("lwip-tap").is_ok());
         // ...and is rejected under any other topology (misplaced-section guard).
-        assert!(with_lwip().validate("external").is_err());
-        assert!(with_lwip().validate("single-pc").is_err());
+        assert!(with_lwip().resolve("external").is_err());
+        assert!(with_lwip().resolve("single-pc").is_err());
+    }
+
+    #[test]
+    fn lwip_tap_cannot_carry_a_wire_ip() {
+        // A dut_ip in a lwip-tap conf cannot reach Config: the LwipTap variant has
+        // no wire-IP field to hold it (the flat struct silently let it override the
+        // wire-fixed default — a latent bug this refactor removes structurally).
+        let conf = SiteConf { dut_ip: Some("10.0.0.9".into()), ..SiteConf::default() };
+        assert!(matches!(conf.resolve("lwip-tap"), Ok(TopologyConf::LwipTap { .. })));
+    }
+
+    #[test]
+    fn single_pc_carries_optional_ip_overrides() {
+        let conf = SiteConf {
+            tester_ip: Some("10.0.0.1".into()),
+            dut_ip: Some("10.0.0.2".into()),
+            ..SiteConf::default()
+        };
+        match conf.resolve("single-pc").unwrap() {
+            TopologyConf::SinglePc { tester_ip, dut_ip } => {
+                assert_eq!(tester_ip.as_deref(), Some("10.0.0.1"));
+                assert_eq!(dut_ip.as_deref(), Some("10.0.0.2"));
+            }
+            other => panic!("expected SinglePc, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn empty_string_normalizes_to_absent() {
+        // An expanded-to-empty required field fails the required check (not silently
+        // accepted), and an empty optional drops out.
+        let conf = SiteConf {
+            iface: Some("".into()),
+            dut_ip: Some("172.16.0.2".into()),
+            tester_ip: Some("172.16.0.1".into()),
+            ..SiteConf::default()
+        };
+        assert!(conf.resolve("external").unwrap_err().to_string().contains("iface"));
     }
 
     #[test]
@@ -369,11 +574,15 @@ mod tests {
         "#;
         let mut conf: SiteConf = toml::from_str(toml).unwrap();
         conf.expand_all(Path::new("/repo")).unwrap();
-        conf.validate("lwip-tap").unwrap();
-        let lw = conf.lwip.unwrap();
-        assert_eq!(lw.app.unwrap(), "/repo/build-lwip-dut/tc8-lwip-utm");
-        assert_eq!(lw.ready_probe.unwrap(), "testability");
-        assert_eq!(lw.kill_name.unwrap(), "tc8-lwip-utm");
+        match conf.resolve("lwip-tap").unwrap() {
+            TopologyConf::LwipTap { lwip: lw, iface_secondary } => {
+                assert_eq!(lw.app.unwrap(), "/repo/build-lwip-dut/tc8-lwip-utm");
+                assert_eq!(lw.ready_probe.unwrap(), "testability");
+                assert_eq!(lw.kill_name.unwrap(), "tc8-lwip-utm");
+                assert!(iface_secondary.is_none());
+            }
+            other => panic!("expected LwipTap, got {other:?}"),
+        }
     }
 
     #[test]
@@ -411,9 +620,15 @@ mod tests {
         "#;
         let mut conf: SiteConf = toml::from_str(toml).unwrap();
         conf.expand_all(Path::new("/repo")).unwrap();
-        conf.validate("ssh-remote").unwrap();
-        assert_eq!(conf.require("ssh_target"), "root@172.16.0.2");
-        assert_eq!(conf.fixture.unwrap().kind, "ssh-netns-dut");
+        match conf.resolve("ssh-remote").unwrap() {
+            TopologyConf::SshRemote(s) => {
+                assert_eq!(s.ssh_target, "root@172.16.0.2");
+                assert_eq!(s.ssh_opts.as_deref(), Some("-p 2222"));
+                assert_eq!(s.remote_dut_bin, "/build/tc8-dut");
+                assert_eq!(s.wire.fixture.unwrap().kind, "ssh-netns-dut");
+            }
+            other => panic!("expected SshRemote, got {other:?}"),
+        }
     }
 
     #[test]

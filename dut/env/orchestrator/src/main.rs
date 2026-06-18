@@ -59,7 +59,7 @@ use std::fs;
 use std::path::Path;
 
 use config::Config;
-use site::SiteConf;
+use site::TopologyConf;
 use topology::{External, SinglePc, SshRemote, Topology};
 use worker::WorkerResult;
 
@@ -138,22 +138,29 @@ fn main() -> Result<()> {
     // single-pc and lwip-tap derive their wire identity from fixed defaults and may
     // omit the conf entirely (lwip-tap's optional [lwip] section only overrides the
     // standalone-UTM binary / probe / kill-name).
-    let site = match &cli.topology_conf {
-        Some(path) => SiteConf::load(Path::new(path), topology, &cfg.root)?,
-        None => {
-            if !matches!(topology, "single-pc" | "lwip-tap") {
-                bail!("--topology {topology} requires --topology-conf (iface/dut_ip/tester_ip live there; sudo strips the environment)");
+    let site = TopologyConf::load(cli.topology_conf.as_deref().map(Path::new), topology, &cfg.root)?;
+    // The site's wire IPs override the defaults Config resolved, so expect_args + the
+    // conditioning-skip log see the real tester/DUT addresses. lwip-tap is wire-fixed
+    // — its variant carries no IP field, so it structurally cannot override (the flat
+    // struct used to let a stray lwip-tap dut_ip clobber the default).
+    match &site {
+        TopologyConf::SinglePc { tester_ip, dut_ip } => {
+            if let Some(ip) = tester_ip {
+                cfg.tester_ip4 = ip.clone();
             }
-            SiteConf::default()
+            if let Some(ip) = dut_ip {
+                cfg.dut_ip4 = ip.clone();
+            }
         }
-    };
-    // The site's wire IPs (when present) override the defaults Config resolved, so
-    // expect_args + the conditioning-skip log see the real tester/DUT addresses.
-    if let Some(ip) = &site.tester_ip {
-        cfg.tester_ip4 = ip.clone();
-    }
-    if let Some(ip) = &site.dut_ip {
-        cfg.dut_ip4 = ip.clone();
+        TopologyConf::External(e) => {
+            cfg.tester_ip4 = e.wire.tester_ip.clone();
+            cfg.dut_ip4 = e.wire.dut_ip.clone();
+        }
+        TopologyConf::SshRemote(s) => {
+            cfg.tester_ip4 = s.wire.tester_ip.clone();
+            cfg.dut_ip4 = s.wire.dut_ip.clone();
+        }
+        TopologyConf::LwipTap { .. } => {}
     }
 
     // Build the topology as a trait object so one worker fan-out drives them all.
@@ -161,12 +168,13 @@ fn main() -> Result<()> {
     // needs a fixture-owned per-case respawn (drain → SIGTERM-slot-abort → respawn)
     // a persistent External does not do; it self-provisions the tap + DUT in
     // provision_run and reaps them in teardown_run.
-    let topo: Box<dyn Topology + Sync> = match topology {
-        "single-pc" => Box::new(SinglePc::new(&cfg)),
-        "lwip-tap" => Box::new(fixtures::LwipTap::new(&cfg, &site)),
-        "external" => Box::new(External::new(&cfg, &site)),
-        "ssh-remote" => Box::new(SshRemote::new(&cfg, &site)),
-        _ => unreachable!("topology validated above"),
+    let topo: Box<dyn Topology + Sync> = match &site {
+        TopologyConf::SinglePc { .. } => Box::new(SinglePc::new(&cfg)),
+        TopologyConf::LwipTap { lwip, iface_secondary } => {
+            Box::new(fixtures::LwipTap::new(&cfg, lwip, iface_secondary.as_deref()))
+        }
+        TopologyConf::External(e) => Box::new(External::new(&cfg, e)),
+        TopologyConf::SshRemote(s) => Box::new(SshRemote::new(&cfg, s)),
     };
 
     // --print-expect: dump the resolved per-case-invariant --expect identity and exit
@@ -226,18 +234,20 @@ fn main() -> Result<()> {
     // installing it early is sound. It composes the teardown the per-worker reap
     // cannot do: the ssh-remote remote DUT (owned ssh params — the handler cannot
     // borrow the topology) then the verification fixture.
-    let ssh_reap: Option<(String, Option<String>)> = if topology == "ssh-remote" {
-        Some((site.require("ssh_target").to_string(), site.ssh_opts.clone()))
-    } else {
-        None
+    let ssh_reap: Option<(String, Option<String>)> = match &site {
+        TopologyConf::SshRemote(s) => Some((s.ssh_target.clone(), s.ssh_opts.clone())),
+        _ => None,
     };
-    let fixture_kind: Option<String> = site.fixture.as_ref().map(|f| f.kind.clone());
+    let fixture_kind: Option<String> = match &site {
+        TopologyConf::External(e) => e.wire.fixture.as_ref().map(|f| f.kind.clone()),
+        TopologyConf::SshRemote(s) => s.wire.fixture.as_ref().map(|f| f.kind.clone()),
+        _ => None,
+    };
     // Resolve the lwip-tap kill name HERE (the closure cannot borrow the topology)
     // so the abort path reaps exactly the configured process, not a stale literal.
-    let lwip_signal_kill: Option<String> = if topology == "lwip-tap" {
-        Some(fixtures::lwip_tap::resolve_kill_name(&site))
-    } else {
-        None
+    let lwip_signal_kill: Option<String> = match &site {
+        TopologyConf::LwipTap { lwip, .. } => Some(fixtures::lwip_tap::resolve_kill_name(lwip)),
+        _ => None,
     };
     cleanup::install_signal_handler(&cfg, workers, move || {
         if let Some((target, opts)) = &ssh_reap {
@@ -256,8 +266,13 @@ fn main() -> Result<()> {
     // Drop (normal/panic); the handler installed above covers SIGINT/SIGTERM. The
     // lwip-tap topology needs no fixture: LwipTap self-provisions the tap + DUT in
     // provision_run and reaps them in teardown_run (a `[fixture]` block is
-    // only ever netns-dut/ssh-netns-dut, enforced by SiteConf::validate).
-    let _fixture = match &site.fixture {
+    // only ever netns-dut/ssh-netns-dut, enforced when the site config resolves).
+    let fixture_spec = match &site {
+        TopologyConf::External(e) => e.wire.fixture.as_ref(),
+        TopologyConf::SshRemote(s) => s.wire.fixture.as_ref(),
+        _ => None,
+    };
+    let _fixture = match fixture_spec {
         Some(spec) => Some(fixtures::provision(spec, &cfg)?),
         None => None,
     };

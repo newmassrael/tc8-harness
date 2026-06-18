@@ -105,8 +105,9 @@ impl Drop for FixtureGuard {
     }
 }
 
-/// Provision the fixture named by `spec` (validated compatible with the topology
-/// in [`crate::site::SiteConf::validate`]). Returns a guard whose Drop tears it down.
+/// Provision the fixture named by `spec` (kind already validated compatible with
+/// the topology when the [`crate::site::TopologyConf`] was resolved). Returns a
+/// guard whose Drop tears it down.
 pub fn provision(spec: &FixtureSpec, cfg: &Config) -> Result<FixtureGuard> {
     // provision_* builds incrementally with `?` and the guard is only constructed on
     // success, so a mid-sequence failure would leave partial host state (netns/veth/
@@ -128,7 +129,7 @@ pub fn provision(spec: &FixtureSpec, cfg: &Config) -> Result<FixtureGuard> {
             );
             Ok(FixtureGuard { kind: FixtureKind::SshNetnsDut, dut: None, torn: false })
         }
-        other => bail!("unknown fixture kind '{other}' (SiteConf::validate should have rejected it)"),
+        other => bail!("unknown fixture kind '{other}' (TopologyConf resolution should have rejected it)"),
     }
 }
 
