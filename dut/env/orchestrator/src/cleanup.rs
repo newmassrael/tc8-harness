@@ -13,7 +13,7 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use crate::config::Config;
 use crate::topology;
@@ -97,12 +97,9 @@ fn reap_dead_scratch(prefix: &str, mine: &Path, kill_procs: bool) {
             continue;
         }
         if kill_procs {
-            let _ = Command::new("pkill")
-                .args(["-KILL", "-f"])
-                .arg(format!("{}/", path.display()))
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+            crate::proc::run_quiet(
+                Command::new("pkill").args(["-KILL", "-f"]).arg(format!("{}/", path.display())),
+            );
         }
         let _ = fs::remove_dir_all(&path);
     }

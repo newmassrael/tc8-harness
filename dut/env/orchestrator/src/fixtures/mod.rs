@@ -272,17 +272,15 @@ fn keygen(path: &str) -> Result<()> {
 }
 
 /// SIGKILL every process whose argv contains `pattern` — only ever a fixture-owned
-/// symlink path, so the match is scoped (never a bare comm name).
+/// symlink path, so the match is scoped (never a bare comm name). `-f <path>` row of
+/// the reap-selector matrix (`topology` mod docs).
 fn pkill_path(pattern: &str) {
-    let _ = Command::new("pkill")
-        .args(["-KILL", "-f", pattern])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+    crate::proc::run_quiet(Command::new("pkill").args(["-KILL", "-f", pattern]));
 }
 
 /// SIGKILL the exact PID recorded in `pidfile` (sshd) — never by comm name, which
-/// would also kill the host's system sshd. Best-effort: a missing file is a no-op.
+/// would also kill the host's system sshd. The pidfile row of the reap-selector
+/// matrix (`topology` mod docs). Best-effort: a missing file is a no-op.
 fn kill_pidfile(pidfile: &str) {
     if let Ok(s) = fs::read_to_string(pidfile) {
         let pid = s.trim();

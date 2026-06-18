@@ -19,7 +19,7 @@
 //! See [[project-smoke-rust-rewrite]].
 
 use anyhow::{bail, Context, Result};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use crate::wire;
 
@@ -258,9 +258,5 @@ fn del_link(dev: &str) {
 /// bash `... 2>/dev/null || true` idiom). `pub(crate)` so the fixtures reuse the one
 /// `ip`-quiet helper instead of re-declaring it.
 pub(crate) fn ip_quiet(args: &[&str]) {
-    let _ = Command::new("ip")
-        .args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+    crate::proc::run_quiet(Command::new("ip").args(args));
 }

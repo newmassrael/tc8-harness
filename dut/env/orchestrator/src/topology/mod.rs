@@ -6,13 +6,22 @@
 //! module instead of shelling out to `setup-netns.sh` / `cleanup.sh` (the bash
 //! originals remain the SSOT baseline for smoke-test.sh until the S8 CI cutover).
 //!
-//! Process teardown uses `pkill -f` on the worker-unique symlink path, matching
-//! the bash design. This is the TERMINAL design, not a placeholder: bash
-//! (smoke-test.sh) deliberately rejected PGID-based kill because under
-//! `set -m` `ip netns exec` forks internally and the real binary is reparented
-//! to init, so its PGID is unreliable across iproute2 versions — matching by the
-//! worker-unique argv[0] is the robust approach. The orchestrator's own cmdline
-//! never contains a symlink path, so it is never self-matched.
+//! Reap-selector decision matrix (the SINGLE place this is documented; the four
+//! kill sites below all point here). The rule is: scope the match as narrowly as
+//! the target's identity allows.
+//!
+//! | selector            | site                          | why this one |
+//! |---------------------|-------------------------------|--------------|
+//! | `-f <symlink path>` | `kill_by_marker` (this mod),  | argv[0] is a per-worker / per-fixture UNIQUE path, so the match hits exactly this run's procs; the orchestrator's own cmdline never contains a symlink path → never self-matched. |
+//! |                     | `fixtures::pkill_path`        | |
+//! | `-x <comm>`         | `host::SshRemote` remote reap | runs on the REMOTE DUT host: `-f` would also match the ssh session's own remote shell line, and that host runs exactly one `tc8-dut`, so an exact-comm match is both sufficient and necessary. |
+//! | `-f <kill_name>`    | `lwip_tap` (DUT app name)     | a process NAME, not a unique path — safe ONLY because the lwIP-tap fixture holds a host-wide flock (single-instance), so at most one such DUT exists host-wide and a name match cannot stomp a concurrent fixture. Relaxing that flock invariant would force this back to a path scope. |
+//! | exact PID (pidfile) | `fixtures::kill_pidfile`      | sshd: even a `-x sshd` would hit the host's own system sshd, so kill only the recorded PID. |
+//!
+//! PGID-based kill was deliberately rejected (bash smoke-test.sh, the SSOT
+//! baseline): under `set -m`, `ip netns exec` forks internally and the real binary
+//! is reparented to init, so its PGID is unreliable across iproute2 versions —
+//! matching by the worker-unique argv[0] is the robust, TERMINAL design.
 
 use anyhow::{bail, Context, Result};
 use std::env;
@@ -503,14 +512,7 @@ pub(crate) fn kill_by_marker(marker: &Path) {
     }
     for _ in 0..5 {
         // pgrep exits non-zero when nothing matches → the processes are gone.
-        let gone = Command::new("pgrep")
-            .args(["-f"])
-            .arg(m)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| !s.success())
-            .unwrap_or(true);
+        let gone = !crate::proc::run_ok(Command::new("pgrep").args(["-f"]).arg(m));
         if gone {
             return;
         }
@@ -521,6 +523,13 @@ pub(crate) fn kill_by_marker(marker: &Path) {
         marker.display()
     );
 }
+
+/// The vsomeip runtime artifacts a fresh DUT spawn must not inherit: the routing
+/// UDS sockets (`vsomeip-*`) and the routing lock (`vsomeip.lck`). Single-homed so
+/// the local fs wipe (`wipe_vsomeip_runtime`) and the remote shell wipe
+/// (`host::SshRemote::start_dut`) name one token set and can never drift.
+pub(crate) const VSOMEIP_RT_SOCK_PREFIX: &str = "vsomeip-";
+pub(crate) const VSOMEIP_RT_LOCK: &str = "vsomeip.lck";
 
 /// Remove a worker's stale vsomeip UDS sockets + lock before a fresh DUT spawn
 /// (smoke-test.sh). Scoped to `vsomeip-*` / `vsomeip.lck` — NEVER the
@@ -533,7 +542,7 @@ fn wipe_vsomeip_runtime(base: &Path) {
     };
     for ent in entries.flatten() {
         if let Some(name) = ent.file_name().to_str() {
-            if name.starts_with("vsomeip-") || name == "vsomeip.lck" {
+            if name.starts_with(VSOMEIP_RT_SOCK_PREFIX) || name == VSOMEIP_RT_LOCK {
                 let _ = fs::remove_file(ent.path());
             }
         }

@@ -27,6 +27,7 @@ mod config;
 mod dispatch;
 mod fixtures;
 mod netns;
+mod proc;
 mod site;
 mod topology;
 mod worker;

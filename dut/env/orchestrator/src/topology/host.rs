@@ -19,7 +19,10 @@ use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
 use crate::site::{ExternalSite, SshSite, TopologyKind};
 
-use super::{harness_link, kill_by_marker, symlink_force, Conditioning, Topology, WorkerCtx};
+use super::{
+    harness_link, kill_by_marker, symlink_force, Conditioning, Topology, WorkerCtx,
+    VSOMEIP_RT_LOCK, VSOMEIP_RT_SOCK_PREFIX,
+};
 
 // ===========================================================================
 // external / ssh-remote topologies (S5)
@@ -176,13 +179,7 @@ fn resolve_dut_mac(dut_mac: Option<&str>, iface: &str, dut_ip: &str) -> Result<S
 /// `ping -c1 -W2 -I <src> <dut_ip>` from the host root ns; `src` is a source IP
 /// (cold-cache probe steering) or the iface name. Returns whether the DUT answered.
 fn ping_dut(src: &str, dut_ip: &str) -> bool {
-    Command::new("ping")
-        .args(["-c", "1", "-W", "2", "-I", src, dut_ip])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    crate::proc::run_ok(Command::new("ping").args(["-c", "1", "-W", "2", "-I", src, dut_ip]))
 }
 
 /// `tc8-harness ut-ping --dut-ip <dut_ip> [--source-ip <src>]` — a side-effect-free
@@ -193,11 +190,7 @@ fn ut_ping(harness: &Path, dut_ip: &str, source_ip: Option<&str>) -> bool {
     if let Some(src) = source_ip {
         c.args(["--source-ip", src]);
     }
-    c.stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    crate::proc::run_ok(&mut c)
 }
 
 /// The tester-side host transport every host-NIC topology shares. Holds the
@@ -497,14 +490,7 @@ impl<'a> SshRemote<'a> {
     /// output discarded. Uses the connect-timeout builder so an unreachable host
     /// fails fast.
     fn ssh_ok(&self, remote_cmd: &str) -> bool {
-        self.ssh_command(true)
-            .arg(remote_cmd)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+        crate::proc::run_ok(self.ssh_command(true).arg(remote_cmd).stdin(Stdio::null()))
     }
 }
 
@@ -666,7 +652,7 @@ impl Topology for SshRemote<'_> {
         let wrap = self.site.remote_wrap.as_deref().unwrap_or("");
         let scratch = format!("{REMOTE_VSOMEIP_PREFIX}-{w}");
         let remote_cmd = format!(
-            "mkdir -p {scratch} && rm -f {scratch}/vsomeip-* {scratch}/vsomeip.lck && \
+            "mkdir -p {scratch} && rm -f {scratch}/{VSOMEIP_RT_SOCK_PREFIX}* {scratch}/{VSOMEIP_RT_LOCK} && \
              {wrap} env COMMONAPI_CONFIG='{rcapi}' VSOMEIP_CONFIGURATION='{remote_cfg}' \
              VSOMEIP_APPLICATION_NAME=tc8-dut VSOMEIP_BASE_PATH={scratch}/ '{rbin}'"
         );
@@ -708,6 +694,7 @@ const REMOTE_VSOMEIP_PREFIX: &str = "/tmp/tc8-remote-vsomeip";
 
 /// `pkill -KILL -x <comm>` — reap the remote DUT only (stale-reap at bring-up,
 /// last-resort at tear-down). pkill exits 1 on no match — the normal "already gone".
+/// `-x` (exact comm), not `-f`: reap-selector matrix in `topology` mod docs.
 fn remote_reap_dut() -> String {
     format!("pkill -KILL -x {REMOTE_DUT_COMM}")
 }

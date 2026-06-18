@@ -211,7 +211,7 @@ impl<'a> LwipTap<'a> {
         match self.ready_probe {
             // GET_VERSION lifecycle only (--no-data); no --source-ip (a UTM fixture
             // runs no cold-cache case, so a warm primary-IP ARP entry is harmless).
-            ReadyProbe::Testability => run_ok(
+            ReadyProbe::Testability => crate::proc::run_ok(
                 Command::new(h)
                     .args(["testability-probe", "--dut-ip", DUT_IP, "--timeout", PROBE_TIMEOUT_MS, "--no-data"]),
             ),
@@ -219,7 +219,7 @@ impl<'a> LwipTap<'a> {
             // the DUT ARP-resolves the probe's source and this fixture cannot flush
             // the lwIP ARP table per case, so a primary-IP probe would warm the
             // <172.16.0.1> entry the cold-cache ARP cases assert is absent.
-            ReadyProbe::Opcode => run_ok(Command::new(h).args([
+            ReadyProbe::Opcode => crate::proc::run_ok(Command::new(h).args([
                 "ut-ping", "--dut-ip", DUT_IP, "--timeout", PROBE_TIMEOUT_MS, "--source-ip", wire::TESTER_ALIAS_IP,
             ])),
         }
@@ -249,6 +249,11 @@ impl<'a> LwipTap<'a> {
     /// the wire — so tester-side leaked halves reach CLOSED rather than FIN-WAIT-2;
     /// a userspace stack emits nothing on SIGKILL), SIGKILL backstop with a loud
     /// warning if TERM did not take. Then reap the held child (avoid a zombie).
+    ///
+    /// Selector `-f <kill_name>` is a process NAME, not a unique path (see the
+    /// reap-selector matrix in `topology` mod docs): safe ONLY because `acquire_lock`
+    /// gives this fixture a host-wide flock, so at most one such DUT runs host-wide
+    /// and the name match cannot hit a concurrent fixture's DUT.
     fn kill_dut(&self, held: &mut Option<Child>) {
         pkill(&["-TERM", "-f", &self.kill_name]);
         let mut gone = false;
@@ -373,7 +378,10 @@ impl Topology for LwipTap<'_> {
         // only ever waits on sockets this run created.
         let baseline_socks = socket_snapshot();
         let dut = self.spawn_dut()?;
-        *self.state.lock().unwrap() = Some(LwipState { _lock: lock, dut: Some(dut), baseline_socks });
+        // Poison-tolerant like teardown()/stop_dut(): a worker panic elsewhere must
+        // not wedge the fixture's own teardown behind a poisoned lock.
+        *self.state.lock().unwrap_or_else(|p| p.into_inner()) =
+            Some(LwipState { _lock: lock, dut: Some(dut), baseline_socks });
         self.wait_dut_ready()
     }
 
@@ -543,29 +551,10 @@ fn socket_snapshot() -> BTreeSet<String> {
 
 /// `pkill ARGS` (best-effort, output discarded).
 fn pkill(args: &[&str]) {
-    let _ = Command::new("pkill")
-        .args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+    crate::proc::run_quiet(Command::new("pkill").args(args));
 }
 
 /// `pgrep -f PATTERN` — true if any process matches (pgrep excludes its own pid).
 fn pgrep_alive(pattern: &str) -> bool {
-    Command::new("pgrep")
-        .args(["-f", pattern])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
-/// Run a command with stdio discarded; true on exit 0.
-fn run_ok(cmd: &mut Command) -> bool {
-    cmd.stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    crate::proc::run_ok(Command::new("pgrep").args(["-f", pattern]))
 }
