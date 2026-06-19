@@ -58,7 +58,25 @@ struct TestCaseTraits<cases::SomeipEts034SM> : SomeIpAnyBase<cases::SomeipEts034
         };
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
+
+    // Conformant echoUINT8E2E response: the 17-byte E2E payload echoed
+    // unchanged (len, counter, dataID, crc, value). Case-local SSOT for the
+    // positive assertion (the cond reads expected.payload_view()); --expect
+    // payload= overrides it only for the negative harness, keeping the case
+    // self-contained across all drivers.
+    static void applyExpectedDefaults(::tc8::SomeIpExpected& e) {
+        ::tc8::setExpectedPayload(e, {
+            0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01,
+            0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD, 0xBE, 0xEF, 0x42,
+        });
+    }
 };
+
+// Compile-time guard: the SFINAE detector must see this case's
+// applyExpectedDefaults hook. A name/type drift would silently skip the
+// case-local default at runtime and false-FAIL a conformant positive run.
+static_assert(has_expected_defaults_v<TestCaseTraits<cases::SomeipEts034SM>>,
+              "SOMEIP_ETS_034: applyExpectedDefaults must be detected");
 
 }  // namespace tc8::sce
 

@@ -57,7 +57,31 @@ struct TestCaseTraits<cases::SomeipEts046SM> : SomeIpAnyBase<cases::SomeipEts046
         // [6..7] = 00 00 (UTF-16 null terminator), [8..63] = 0
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
+
+    // Conformant echoUTF16FIXED response: the 64-byte fixed frame echoed
+    // unchanged — BOM (FE FF) + 'h' (00 68) + 'i' (00 69) + UTF-16 null
+    // (00 00) + 56 B zero padding. Case-local SSOT for the positive
+    // assertion (the cond reads expected.payload_view()); --expect payload=
+    // overrides it only for the negative harness, keeping the case
+    // self-contained across all drivers.
+    static void applyExpectedDefaults(::tc8::SomeIpExpected& e) {
+        ::tc8::setExpectedPayload(e, {
+            0xFE, 0xFF, 0x00, 0x68, 0x00, 0x69, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        });
+    }
 };
+
+// Compile-time guard: the SFINAE detector must see this case's
+// applyExpectedDefaults hook. A name/type drift would silently skip the
+// case-local default at runtime and false-FAIL a conformant positive run.
+static_assert(has_expected_defaults_v<TestCaseTraits<cases::SomeipEts046SM>>,
+              "SOMEIP_ETS_046: applyExpectedDefaults must be detected");
 
 }  // namespace tc8::sce
 

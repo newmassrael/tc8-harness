@@ -20,10 +20,16 @@
 
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
     Phase 2 (listening_phase2): Method Response (msg_type 0x80,
-            return_code 0x00) on method_id 0x000B with payload_len == 17
-            and the 17 bytes above -> pass.
+            return_code 0x00) on method_id 0x000B whose payload equals the
+            17 bytes above -> pass.
             Any other Response shape on the same method_id -> fail.
             No Response within the deadline -> fail.
+
+  The expected 17-byte echo is the case-local default set by
+  TestCaseTraits::applyExpectedDefaults (cases/someip_ets_034.h); the cond
+  reads expected.payload_view(). The negative harness overrides it with a
+  flipped-byte `payload=` expect token to drive fail_phase2_e2e_echo_mismatch
+  as an observed_violation. The positive run needs no external value.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -56,10 +62,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x000B and captured.return_code == 0x00 and captured.payload_len == 17 and captured.payload_bytes_eq({0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD, 0xBE, 0xEF, 0x42})"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x000B and captured.return_code == 0x00 and captured.payload_equals(expected.payload_view())"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x000B and captured.message_type == 0x80 and (captured.payload_len != 17 or not captured.payload_bytes_eq({0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0xCA, 0xFE, 0xBA, 0xBE, 0xDE, 0xAD, 0xBE, 0xEF, 0x42}))"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x000B and captured.message_type == 0x80 and !captured.payload_equals(expected.payload_view())"
                 target="fail_phase2_e2e_echo_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response"/>
   </state>

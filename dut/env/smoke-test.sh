@@ -2240,11 +2240,16 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # phase 1 service_id flip pattern as Waves 3-a/b.
         "SOMEIP_ETS_009|payload=03|fail:echo_enum_response_did_not_match_request"
         "SOMEIP_ETS_039|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 3-d §5.1.6 ETS UTF16FIXED + UTF8DYNAMIC + UTF8FIXED cluster —
-        # same SD-side phase 1 service_id flip pattern as Waves 3-a/b/c.
-        "SOMEIP_ETS_046|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        # Wave 3-d §5.1.6 ETS UTF16FIXED + UTF8DYNAMIC + UTF8FIXED cluster.
+        # _046/_053 are full-frame fixed-string echoes: a payload-flip negative
+        # (one byte of the echoed string corrupted) drives their
+        # fail_phase2_*_echo_mismatch (observed_violation), proving the byte
+        # comparison non-vacuous. _048 (UTF8DYNAMIC) keeps the phase 1
+        # service_id flip — its phase-2 verdict is the malformed-input axis,
+        # not a plain echo.
+        "SOMEIP_ETS_046|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
         "SOMEIP_ETS_048|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_053|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_053|payload=EF:BB:BF:68:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf8_fixed_response_did_not_match_request"
         # Wave 3-e §5.1.6 ETS UTF DYNAMIC NEG cluster (length_override +
         # wrong_BOM axes) — same SD-side phase 1 service_id flip pattern.
         # Each phase-2 verdict already covers the malformed-input axis; the
@@ -2256,23 +2261,28 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIP_ETS_049|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_051|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_052|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 3-f §5.1.6 ETS UTF multi-phase + odd-byte cluster (positives
-        # _044/_047 + NEG _043/_041/_050) — same SD-side phase 1 service_id
-        # flip pattern as Waves 3-a..3-e. The flip rebases the OfferService
-        # cond so neither the multi-phase chain nor the lenient verdict is
-        # reached.
+        # Wave 3-f §5.1.6 ETS UTF multi-phase + odd-byte cluster.
+        # _047 (echoUTF16FIXED with a trailing odd byte) is a full-frame echo:
+        # a payload-flip negative drives its
+        # fail_phase2_utf16_fixed_echo_mismatch (observed_violation). _041/_050
+        # are multi-phase malformed-string cases whose verdict is phase-3 DUT
+        # behavior (Error Response vs OK echo), not an expect-comparable value
+        # — a wrong-expect negative cannot fault a conformant DUT, so they keep
+        # the phase 1 service_id flip (vacuous, pass-regression guard only).
+        # _043/_044 (UTF DYNAMIC malformed-input) likewise keep it.
         "SOMEIP_ETS_041|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_043|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_044|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_047|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_047|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
         "SOMEIP_ETS_050|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 4 §5.1.6 ETS datatype axis trio (echoBitfields + echoUNION +
-        # echoUINT8E2E) — same SD-side phase 1 service_id flip pattern.
-        # Each phase-2 verdict already covers its datatype axis; the
-        # phase 1 flip rebases the OfferService cond so the case never
-        # reaches the byte-equality verdict.
+        # Wave 4 §5.1.6 ETS datatype-echo cluster (echoBitfields +
+        # echoCommonDatatypes + echoUINT8E2E + echoUNION). Each is a
+        # full-payload echo, so a payload-flip negative (one byte of the
+        # echoed response corrupted) drives its fail_phase2_*_mismatch
+        # (observed_violation), proving the byte-equality verdict non-vacuous.
         "SOMEIP_ETS_007|payload=01:80:02:1E:6A:2C:49|fail:echo_bitfields_response_did_not_match_reversed_request"
-        "SOMEIP_ETS_034|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_008|payload=3F:F9:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_common_datatypes_response_did_not_match_reversed_echo"
+        "SOMEIP_ETS_034|payload=00:00:00:05:00:00:00:01:CA:FE:BA:BE:DE:AD:BE:EF:43|fail:echo_uint8_e2e_response_did_not_match_request"
         "SOMEIP_ETS_038|payload=00:00:00:01:00:00:00:02:43|fail:echo_union_response_did_not_match_request"
         # Wave 5-a §5.1.6 ETS UNION NEG cluster (length_override + inner-prefix
         # mutations + wrong-type discriminant). Same SD-side flip pattern; the
