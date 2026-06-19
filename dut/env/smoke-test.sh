@@ -2243,14 +2243,13 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIP_ETS_009|payload=03|fail:echo_enum_response_did_not_match_request"
         "SOMEIP_ETS_039|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
         # Wave 3-d §5.1.6 ETS UTF16FIXED + UTF8DYNAMIC + UTF8FIXED cluster.
-        # _046/_053 are full-frame fixed-string echoes: a payload-flip negative
+        # _046/_048/_053 are full-payload string echoes: a payload-flip negative
         # (one byte of the echoed string corrupted) drives their
         # fail_phase2_*_echo_mismatch (observed_violation), proving the byte
-        # comparison non-vacuous. _048 (UTF8DYNAMIC) keeps the phase 1
-        # service_id flip — its phase-2 verdict is the malformed-input axis,
-        # not a plain echo.
+        # comparison non-vacuous. _048's flip keeps length 10 so the byte
+        # comparison (not the length branch) faults.
         "SOMEIP_ETS_046|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
-        "SOMEIP_ETS_048|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_048|payload=00:00:00:06:EF:BB:BF:68:6A:00|fail:echo_utf8_dynamic_response_did_not_match_request"
         "SOMEIP_ETS_053|payload=EF:BB:BF:68:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf8_fixed_response_did_not_match_request"
         # Wave 3-e §5.1.6 ETS UTF DYNAMIC NEG cluster (length_override +
         # wrong_BOM axes) — same SD-side phase 1 service_id flip pattern.
