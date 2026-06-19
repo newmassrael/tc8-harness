@@ -1390,6 +1390,141 @@
           "property": "DUT's ICMP for the closed-port datagram must be Destination Unreachable / Port Unreachable (type 3 code 3); fail iff another type/code"
         }
       ]
+    },
+    "UDP_USER_INTERFACE_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_wrong_payload_bytes",
+          "property": "DUT's UT confirmation must report the expected received payload bytes; fail iff wrong bytes"
+        }
+      ]
+    },
+    "UDP_USER_INTERFACE_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_wrong_src_port_in_confirmation",
+          "property": "DUT's UT confirmation must report the expected source port; fail iff a wrong port"
+        }
+      ]
+    },
+    "UDP_USER_INTERFACE_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_wrong_src_ip_in_confirmation",
+          "property": "DUT's UT confirmation must report the expected source IP; fail iff a wrong IP"
+        }
+      ]
+    },
+    "UDP_DATAGRAMLENGTH_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_length_smaller_than_actual",
+          "property": "DUT must not accept a UDP whose Length is smaller than the actual datagram; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_FIELDS_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_receive_zero_source_port_udp",
+          "property": "DUT must accept a UDP with source port 0; fail iff its UT confirmation reports no receipt"
+        }
+      ]
+    },
+    "UDP_FIELDS_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_truncated_sub_8_byte_udp",
+          "property": "DUT must not accept a sub-8-byte truncated UDP; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_FIELDS_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_zero_length_field",
+          "property": "DUT must not accept a UDP with a zero Length field; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_FIELDS_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_length_greater_than_actual",
+          "property": "DUT must not accept a UDP whose Length exceeds the actual datagram; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_FIELDS_15": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_invalid_checksum",
+          "property": "DUT must not accept a UDP with an invalid checksum; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_FIELDS_16": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_accept_zero_checksum_udp",
+          "property": "DUT must accept a UDP with checksum 0 (disabled); fail iff its UT confirmation reports no receipt"
+        }
+      ]
+    },
+    "UDP_INTRODUCTION_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_directed_broadcast_udp",
+          "property": "DUT must not accept a directed-broadcast UDP on a unicast socket; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_INTRODUCTION_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_all_systems_multicast_udp",
+          "property": "DUT must not accept an all-systems multicast UDP on a unicast socket; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_INVALID_ADDRESSES_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_multicast_src_ip",
+          "property": "DUT must not accept a UDP with a multicast source IP; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_INVALID_ADDRESSES_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_received_udp_with_broadcast_src_ip",
+          "property": "DUT must not accept a UDP with a broadcast source IP; fail iff its UT confirmation reports receipt"
+        }
+      ]
+    },
+    "UDP_MESSAGEFORMAT_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_accept_well_formed_udp",
+          "property": "DUT must accept a well-formed UDP; fail iff its UT confirmation reports no receipt"
+        }
+      ]
     }
   }
 }
