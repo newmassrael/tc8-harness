@@ -17,6 +17,7 @@
     "SOMEIPSRV_RPC_18": "expect-flippable: error response service_id echo checked vs --expect service_id (gate is message_type 0x81); add a service_id-flip sound row and verify on CI smoke",
     "SOMEIPSRV_RPC_20": "expect-flippable: error response interface_version checked vs --expect major_version (gate is message_type 0x81 + service_id); add a major_version-flip sound row and verify on CI smoke",
     "SOMEIPSRV_SD_MESSAGE_04": "expect-flippable: OfferService entry major_version checked vs --expect major_version; add a major_version-flip sound row and verify on CI smoke (precedent SOMEIPSRV_SD_MESSAGE_03)",
-    "SOMEIPSRV_SD_MESSAGE_06": "expect-flippable: OfferService entry minor_version checked vs --expect minor_version; add a minor_version-flip sound row and verify on CI smoke (precedent SOMEIPSRV_SD_MESSAGE_05)"
+    "SOMEIPSRV_SD_MESSAGE_06": "expect-flippable: OfferService entry minor_version checked vs --expect minor_version; add a minor_version-flip sound row and verify on CI smoke (precedent SOMEIPSRV_SD_MESSAGE_05)",
+    "SOMEIP_ETS_021": "needs-parameterise: int8 echo response payload is checked against a compiled constant (0xD6); lift to applyExpectedDefaults + expected.payload like the other ETS echoes (precedent SOMEIP_ETS_027) and add a sound payload-flip row"
   }
 }

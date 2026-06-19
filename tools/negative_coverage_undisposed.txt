@@ -7,7 +7,6 @@
 # --check fails on a new undisposed case or a stale (now-disposed) entry.
 # When this file is empty every positive case is disposed -- the SSOT is
 # proven complete.
-someip_ets_021
 tcp_acknowledgement_02
 tcp_acknowledgement_03
 tcp_acknowledgement_04
