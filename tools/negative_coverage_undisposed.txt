@@ -82,8 +82,6 @@ dhcpv4_client_summary_02
 dhcpv4_client_summary_03
 dhcpv4_client_summary_04
 dhcpv4_client_usage_01
-icmpv4_type_08
-ipv4_addressing_03
 ipv4_autoconf_address_selection_03
 ipv4_autoconf_address_selection_09
 ipv4_autoconf_address_selection_11
@@ -103,14 +101,6 @@ ipv4_autoconf_conflict_11
 ipv4_autoconf_intro_01
 ipv4_autoconf_linklocal_packets_04
 ipv4_autoconf_network_partitions_01
-ipv4_checksum_02
-ipv4_header_02
-ipv4_header_04
-ipv4_header_08
-ipv4_header_09
-ipv4_reassembly_11
-ipv4_reassembly_13
-ipv4_version_04
 someip_ets_021
 someipsrv_basic_01
 someipsrv_basic_02

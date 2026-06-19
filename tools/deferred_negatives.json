@@ -1,4 +1,8 @@
 {
   "doc": "Deferred negatives (debt D7 -- docs/verdict_policy.md Section 6). Positive cases whose verdict guard IS expect-flippable (it compares against an operator-supplied expected value) but which carry no sound NEG_ROW yet, each with an explicit reason. Unlike the conformant-absence registry (DUT-behaviour guards that no --expect can fault), these can and should eventually get a sound expect-flip negative or a parameterisation; the reason records why they don't yet (Linux deviation makes the positive itself fail, the guard checks a compiled constant that must be lifted to applyExpectedDefaults, etc.). Tracked here so the exhaustiveness audit accounts for them rather than letting them fall through. Prefer fixing over deferring.",
-  "cases": {}
+  "cases": {
+    "IPv4_REASSEMBLY_11": "needs-sound-negative: Linux ipfrag_time deviation makes the positive itself land on fail_timeout (no Echo Reply), so an echo_id-flip negative carries zero diagnostic variance",
+    "IPv4_REASSEMBLY_13": "needs-sound-negative: overlapping-fragment reassembly is dropped post-CVE-2018-5391 on Linux, so the positive does not reassemble; deferred with REASSEMBLY_11",
+    "ICMPv4_TYPE_08": "needs-parameterise: echo payload is checked against a compiled constant (kIcmpv4EchoPayloadType08); lift to applyExpectedDefaults + expected.payload like the ETS echoes, then add a sound payload-flip row"
+  }
 }
