@@ -749,7 +749,8 @@ inline constexpr std::uint8_t kSocketTypeActive  = 0x01;
 // `OpStartLLAutoconfBuggy` flavor byte. Each value picks one of the
 // RFC 3927 invariants asserted by §4.5.6.2 ADDRESS_SELECTION cluster A
 // (Probe-shape, 0x01..0x05 + 0x0A), §4.5.6.3 ANNOUNCING (Announce-shape,
-// 0x06..0x09), or defending-Reply-shape (0x0B..0x0C, RFC 3927 §2.5).
+// 0x06..0x09), defending-Reply-shape (0x0B..0x0C, RFC 3927 §2.5), or
+// responder-dispatch (0x0D, RFC 3927 §2.7).
 // Spec invariant ↔ flavor is one-to-one — adding a new
 // flavor without a backing spec invariant is a category violation
 // (`feedback_frozen_spec_is_evidence.md`). The cadence cluster B
@@ -773,6 +774,9 @@ inline constexpr std::uint8_t kFlavorProbeEthDstUnicast            = 0x0A;  // R
 // Defending-Reply-shape flavors for _16 + CONFLICT_11 (RFC 3927 §2.5).
 inline constexpr std::uint8_t kFlavorReplySenderIpWrong           = 0x0B;  // RFC 3927 §2.5   Reply sender_proto_ip=committed LL MUST
 inline constexpr std::uint8_t kFlavorReplyEthDstUnicast           = 0x0C;  // RFC 3927 §2.5   Reply eth_dst=broadcast MUST
+// Responder-dispatch flavor (not a frame-field mutation): makes the
+// post-claim responder answer ARP Requests for unclaimed targets.
+inline constexpr std::uint8_t kFlavorReplyToArbitraryTarget       = 0x0D;  // RFC 3927 §2.7   answer only own claimed LL MUST
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

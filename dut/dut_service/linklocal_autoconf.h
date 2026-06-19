@@ -75,6 +75,11 @@ enum class LinklocalAutoconfFlavor : std::uint8_t {
     // switch-no-default; Probe/Announce builders break passively.
     ReplySenderIpWrong            = 0x0B,
     ReplyEthDstUnicast            = 0x0C,
+    // Responder-dispatch mutation (RFC 3927 §2.7): makes the responder
+    // answer ARP Requests for unclaimed targets. Read by
+    // runArpResponder's target gate, NOT an emit-field mutation, so it
+    // is a passive `break` in all three emit-builder switches.
+    ReplyToArbitraryTarget        = 0x0D,
 };
 
 class LinklocalAutoconf {

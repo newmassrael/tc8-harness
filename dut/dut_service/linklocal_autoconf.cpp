@@ -188,6 +188,7 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
         case LinklocalAutoconfFlavor::AnnounceTargetHwNonzero:
         case LinklocalAutoconfFlavor::ReplySenderIpWrong:
         case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
+        case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
             break;
     }
 
@@ -236,6 +237,7 @@ void LinklocalAutoconf::emitArpAnnounce(std::uint32_t committed_ll_be,
         case LinklocalAutoconfFlavor::ProbeEthDstUnicast:
         case LinklocalAutoconfFlavor::ReplySenderIpWrong:
         case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
+        case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
             break;
         case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
             // RFC 3927 §2.4 / RFC 3927 §2.5 last MUST: ARP packets whose sender_proto_ip
@@ -765,7 +767,19 @@ void LinklocalAutoconf::runArpResponder() {
         // our claimed LL deserves a Reply identifying our hardware
         // address. §4.5.6.2 _16 + §4.5.6.4 CONFLICT_11 verify this.
         if (opcode != 1) continue;
-        if (target_ip_be != committed_be) continue;
+        if (target_ip_be != committed_be) {
+            // RFC 3927 §2.7: the DUT MUST NOT answer ARP Requests for
+            // unclaimed link-local targets. The ReplyToArbitraryTarget
+            // fault-injection flavor relaxes this gate so the responder
+            // answers anyway — driving the LINKLOCAL_PACKETS_04 negative
+            // case onto its violation observation. The reply content is
+            // compliant (flavor None); the violation is replying at all.
+            if (flavor_ == LinklocalAutoconfFlavor::ReplyToArbitraryTarget) {
+                emitArpReply(sender_ip_be, sender_hw,
+                             LinklocalAutoconfFlavor::None);
+            }
+            continue;
+        }
 
         emitArpReply(sender_ip_be, sender_hw, flavor_);
     }
@@ -802,6 +816,9 @@ void LinklocalAutoconf::emitArpReply(
         case LinklocalAutoconfFlavor::AnnounceSenderTargetMismatch:
         case LinklocalAutoconfFlavor::AnnounceSenderHwWrong:
         case LinklocalAutoconfFlavor::AnnounceTargetHwNonzero:
+        // Responder-dispatch flavor: the reply CONTENT stays compliant;
+        // only runArpResponder's target gate is relaxed (RFC 3927 §2.7).
+        case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
             break;
         case LinklocalAutoconfFlavor::ReplySenderIpWrong:
             // RFC 3927 §2.5: the defending Reply's sender_proto_ip MUST

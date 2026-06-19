@@ -1915,15 +1915,6 @@
         }
       ]
     },
-    "IPv4_AUTOCONF_LINKLOCAL_PACKETS_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_arp_reply_for_arbitrary_link_local_target",
-          "property": "DUT must not emit an ARP Reply for an arbitrary link-local target that is not its own claimed address; silence is conformant"
-        }
-      ]
-    },
     "IPv4_AUTOCONF_NETWORK_PARTITIONS_01": {
       "guards": [
         {

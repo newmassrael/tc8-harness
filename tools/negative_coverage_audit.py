@@ -93,7 +93,7 @@ SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 # FAULT_INJECTION proofs only ever grow -- --check floors the count so a _neg case
 # can never silently regress. The REGISTRY set is the work-list (--phase-f). Bump
 # the floor when new _neg cases land.
-FAULT_INJECTION_FLOOR = 14
+FAULT_INJECTION_FLOOR = 15
 
 # A REGISTRY guard is empirically faultable only where the misbehaviour can be
 # produced. Firmware families (tc8-dut / vsomeip app) take a _neg flavor case (the
