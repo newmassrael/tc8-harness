@@ -57,13 +57,17 @@ import argparse
 import json
 import re
 import sys
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verdict_drift_audit import (  # noqa: E402
     REPO,
+    SCE_NS,
     TESTS_DIR,
+    _local,
+    _subst,
     all_case_names,
     extract_donedata,
 )
@@ -203,6 +207,118 @@ def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[s
     return findings
 
 
+# Events that fire on the listen-window expiring with no observation (silence).
+# Deliberately NOT "complete" alone -- that also matches phase-progression
+# signals like `conflicts_complete` (the injected conflicts are done), which is
+# not a silence outcome; the genuine silence-window completions carry "silence".
+_DEADLINE_EVENTS = ("deadline", "timeout", "window", "silence")
+
+# Registry cases whose authored `class` legitimately disagrees with the
+# deadline-target heuristic below: a `prohibited_emission` fail (silence of the
+# forbidden frame is conformant) sits in a case that nonetheless requires a
+# POSITIVE observation to PASS, so its deadline transition reaches `inconclusive`
+# rather than `pass`. The heuristic would read that as incorrect_emission; the
+# authored class is correct. Each entry records why (reviewed, docs/verdict_
+# policy.md Section 6).
+CLASS_STRUCTURE_EXCEPTIONS = {
+    "ARP_22": "prohibited: forbidden UDP to the dropped frame's MAC; PASS requires observing the DUT's own ARP Request, so the deadline reaches inconclusive",
+    "ARP_28": "prohibited: forbidden UDP to the dropped frame's MAC; PASS requires observing the DUT's own ARP Request, so the deadline reaches inconclusive",
+    "ARP_38": "prohibited: forbidden UDP to the dropped frame's MAC; PASS requires observing the DUT's own ARP Request, so the deadline reaches inconclusive",
+    "SOMEIP_ETS_096": "prohibited: forbidden SubscribeAck; PASS requires observing a NACK, so silence reaches inconclusive (not pass)",
+}
+
+
+def _derive_guard_classes(case_lower: str) -> dict[str, set[str]]:
+    """Per `fail` final reason, the class implied by the .scxml silence-semantics.
+    A fail whose source state reaches `pass` on a deadline (silence is a
+    conformant outcome) implies `prohibited_emission`; a deadline reaching
+    `inconclusive` (the DUT must emit, absence is non-conclusive) implies
+    `incorrect_emission`. Reasons whose source state carries no deadline
+    transition (e.g. a stall-watchdog) are omitted — the structure does not
+    determine the class, so nothing is asserted. Template `<sce:use>` bindings
+    are applied so template-backed cases resolve."""
+    scxml = TESTS_DIR / case_lower / f"{case_lower}.scxml"
+    if not scxml.is_file():
+        return {}
+    root = ET.parse(scxml).getroot()
+    done = extract_donedata(scxml)
+    roots = [(root, {})]
+    for el in root.iter():
+        if _local(el.tag) == "use" and el.tag == f"{{{SCE_NS}}}use":
+            tmpl = el.get("template")
+            tp = (scxml.parent / tmpl).resolve() if tmpl else None
+            if tp and tp.is_file():
+                bindings = {k: v for k, v in el.attrib.items() if k != "template"}
+                roots.append((ET.parse(tp).getroot(), bindings))
+    states: dict[str, list[tuple[str, str]]] = {}
+    for r, b in roots:
+        for st in r.iter():
+            if _local(st.tag) != "state":
+                continue
+            sid = _subst(st.get("id", ""), b)
+            rows = [
+                (tr.get("event", "") or "", _subst(tr.get("target", ""), b).lower())
+                for tr in st
+                if _local(tr.tag) == "transition"
+            ]
+            if rows:
+                states.setdefault(sid, []).extend(rows)
+    fail_reason = {fid: rsn for fid, (cls, rsn, _r) in done.items() if cls == "fail"}
+    out: dict[str, set[str]] = {}
+    for fid, reason in fail_reason.items():
+        cls = None
+        for sid, rows in states.items():
+            if not any(tgt == fid for _ev, tgt in rows):
+                continue
+            # Deadline/silence transitions in the fail's source state. The target
+            # is `pass` (silence is the conformant verdict) or an onward progress
+            # state (silence completes a window and the conformant flow continues,
+            # e.g. a rate-limit silence -> re-pick) -> silence is conformant ->
+            # prohibited_emission. A deadline reaching `inconclusive` (the DUT must
+            # emit; absence is non-conclusive) -> incorrect_emission.
+            dl = [
+                (done.get(tgt, ("?", "", ""))[0], tgt)
+                for ev, tgt in rows
+                if any(k in ev for k in _DEADLINE_EVENTS)
+            ]
+            if any(c == "pass" or (c == "?" and t) for c, t in dl):
+                cls = "prohibited_emission"
+                break
+            if any(c == "inconclusive" for c, _t in dl):
+                cls = "incorrect_emission"
+        if cls and reason:
+            out.setdefault(reason, set()).add(cls)
+    return out
+
+
+def check_class_structure(cases: dict[str, dict]) -> list[str]:
+    """Cross-validate each authored guard `class` against the .scxml silence-
+    semantics (docs/verdict_policy.md Section 6). The class is authored because
+    it encodes whether silence is conformant, which is not always mechanically
+    derivable; where the deadline target DOES determine it, the authored class
+    must agree (or the case must be allow-listed in CLASS_STRUCTURE_EXCEPTIONS
+    with a reason). Catches a mislabelled prohibited/incorrect guard, which the
+    structural audit alone would pass."""
+    findings: list[str] = []
+    for case_id, entry in cases.items():
+        if case_id in CLASS_STRUCTURE_EXCEPTIONS:
+            continue
+        derived = _derive_guard_classes(case_id.lower())
+        for g in entry.get("guards", []):
+            cls = g.get("class")
+            reason = g.get("fail_reason")
+            if cls == "liveness" or not reason:
+                continue
+            want = derived.get(reason)
+            if want and cls not in want:
+                findings.append(
+                    f"CLASS_STRUCTURE: {case_id} guard '{reason}' authored {cls} "
+                    f"but .scxml silence-semantics imply {sorted(want)} "
+                    f"(fix the class or allow-list with a reason)"
+                )
+    return findings
+
+
 def load_ledger() -> set[str]:
     if not LEDGER.is_file():
         return set()
@@ -331,6 +447,7 @@ def cross_findings(m: Model) -> list[str]:
             findings.append(f"NEG_NO_FAIL: {base}_neg has no fail final; it cannot catch a fault")
 
     findings.extend(validate_registry(m.registry, m.reg_classes))
+    findings.extend(check_class_structure(m.registry))
     return findings
 
 
