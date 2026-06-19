@@ -124,6 +124,7 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
     // them (and only one) before the frame is serialised, which keeps
     // the negative-case SCXML's verdict mapping unambiguous: every
     // fail_state branch corresponds to a single invariant violation.
+    std::array<std::uint8_t, 6> eth_dst      = kEthBroadcast;
     std::array<std::uint8_t, 6> sender_hw    = dut_mac_;
     std::uint32_t               sender_ip_be = 0;
     std::array<std::uint8_t, 6> target_hw    = kEthZero;
@@ -169,6 +170,14 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
             // false negatives are impossible.
             sender_hw = {0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00};
             break;
+        case LinklocalAutoconfFlavor::ProbeEthDstUnicast:
+            // RFC 3927 §2.1.1: an ARP Probe whose sender_proto_ip is in
+            // 169.254/16 MUST be broadcast. Direct the Ethernet dst at
+            // the DUT iface MAC instead — a unicast no other host on the
+            // link should see (mirrors the Announce-phase
+            // AnnounceEthDstUnicast flavor for the Probe shape).
+            eth_dst = dut_mac_;
+            break;
         // §4.5.6.3 Announce-phase flavors: Probe phase stays
         // compliant (the spec precondition still has to complete so
         // the SCXML reaches its post-claim listening state).
@@ -181,7 +190,7 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
 
     // 14 B Ethernet + 28 B ARP = 42 B
     std::uint8_t f[42] = {};
-    std::memcpy(f + 0, kEthBroadcast.data(), 6);   // Eth dst
+    std::memcpy(f + 0, eth_dst.data(), 6);          // Eth dst (broadcast; flavor mutates)
     std::memcpy(f + 6, dut_mac_.data(), 6);        // Eth src (always DUT)
     writeBe16(f + 12, kEthTypeArp);                 // Ethertype
 
@@ -220,6 +229,7 @@ void LinklocalAutoconf::emitArpAnnounce(std::uint32_t committed_ll_be,
         case LinklocalAutoconfFlavor::TargetInReservedRange:
         case LinklocalAutoconfFlavor::TargetHwNonzero:
         case LinklocalAutoconfFlavor::SenderHwWrong:
+        case LinklocalAutoconfFlavor::ProbeEthDstUnicast:
             break;
         case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
             // RFC 3927 §2.4 / RFC 3927 §2.5 last MUST: ARP packets whose sender_proto_ip

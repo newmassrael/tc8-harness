@@ -39,7 +39,7 @@ namespace tc8::dut {
 // in linklocal_autoconf.cpp to keep tc8-dut self-contained from
 // src/stimulus/ (the harness binary's stimulus library).
 // Fault-injection flavor selector, mapped 1:1 onto §4.5.6.2 cluster A
-// (Probe-shape, 0x01..0x05) and §4.5.6.3 ANNOUNCING (Announce-shape,
+// (Probe-shape, 0x01..0x05 + 0x0A) and §4.5.6.3 ANNOUNCING (Announce-shape,
 // 0x06..0x09) invariants. Wire byte values are pinned by
 // `tc8::ut::kFlavor*` so the protocol header alone is enough to
 // interop with this enum; keep the two in sync. Default (`None`)
@@ -67,6 +67,9 @@ enum class LinklocalAutoconfFlavor : std::uint8_t {
     AnnounceSenderTargetMismatch  = 0x07,
     AnnounceSenderHwWrong         = 0x08,
     AnnounceTargetHwNonzero       = 0x09,
+    // §4.5.6.2 Probe-shape mutation appended at 0x0A to keep the
+    // existing wire values stable (grouped by comment, not by value).
+    ProbeEthDstUnicast            = 0x0A,
 };
 
 class LinklocalAutoconf {

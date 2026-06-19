@@ -1606,6 +1606,10 @@
         {
           "file": "tests/ipv4_autoconf_conflict_11/ipv4_autoconf_conflict_11.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_address_selection_03_neg/ipv4_autoconf_address_selection_03_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

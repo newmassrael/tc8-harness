@@ -1788,15 +1788,6 @@
         }
       ]
     },
-    "IPv4_AUTOCONF_ADDRESS_SELECTION_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_arp_probe_not_eth_broadcast",
-          "property": "DUT's link-local ARP Probe must be sent to the Ethernet broadcast address (RFC 3927 §2.1.1); fail iff a probe carries a non-broadcast Ethernet destination"
-        }
-      ]
-    },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_09": {
       "guards": [
         {
