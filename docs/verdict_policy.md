@@ -182,6 +182,24 @@ non-vacuity is **structural** — the `fail` `<final>` exists, is well-formed, a
 is reachable by a misbehaving DUT — and is **empirical** only on the separate
 DUT-mutation track.
 
+The registry classifies each dut-mutation (and liveness) guard on a single axis —
+the **property type**, i.e. which kind of fault trips its `fail` final — grounded
+in the safety/liveness dichotomy and the four-value semantics of Section 2. Every
+guard sorts by two mechanical questions: *(Q1)* is silence a conformant outcome
+for this stimulus, and if not *(Q2)* does the mandated emission have a wrong-value
+variant?
+
+| registry `class` | conformant outcome | the `fail` fires on | mutant that trips it | examples |
+|------------------|--------------------|--------------------|----------------------|----------|
+| **`prohibited_emission`** (safety) | silence is conformant | a frame the protocol forbids here *appearing* | a DUT that emits the forbidden frame | reject malformed input (no OK echo); decline an invalid/unknown subscribe (no Ack); no emission after stop / in the wrong phase |
+| **`incorrect_emission`** (functional) | a valued emission is mandated | that emission carrying a *wrong value* | a DUT that emits the right frame with a wrong value | ack (not nack) a valid subscribe; monotonic/wrapping session id; response-payload content; post-reset field value |
+| **`liveness`** | an emission is mandated, binary present/absent | nothing — there is no `fail` (absence is `inconclusive`, Section 2 clause 4) | omission only, indistinguishable from slowness → not empirically faultable | DUT must emit an OfferService / a SYN-ACK |
+
+`malformed_rejection` is the named case of `prohibited_emission` where the
+forbidden frame is an OK echo of malformed input; the ISO 9646 stimulus class
+(valid / invalid / inopportune) is descriptive context carried in each entry's
+`property` string, not a separate axis.
+
 Enforcement (`tools/negative_coverage_audit.py`):
 - Every `NEG_ROWS` entry must be a **sound** expect-flip negative: its expected
   `fail:<reason>` resolves to an `observed_violation` final. A row that lands on
