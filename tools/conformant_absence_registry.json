@@ -1588,6 +1588,205 @@
           "property": "DUT must not reply to a datagram whose destination is a loopback address; silence is conformant"
         }
       ]
+    },
+    "ARP_07": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "first_arp_was_not_request",
+          "property": "DUT's first emitted ARP on cache-miss resolution must be a Request (opcode 1, RFC 826); fail iff it carries a non-request opcode"
+        }
+      ]
+    },
+    "ARP_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "hw_type_not_ethernet",
+          "property": "DUT's emitted ARP Request must carry Hardware Type 0x0001 (Ethernet, RFC 826); fail iff another value"
+        }
+      ]
+    },
+    "ARP_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "proto_type_not_ipv4",
+          "property": "DUT's emitted ARP Request must carry Protocol Type 0x0800 (IPv4, RFC 826); fail iff another value"
+        }
+      ]
+    },
+    "ARP_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "hw_addr_len_not_six",
+          "property": "DUT's emitted ARP Request must carry Hardware Address Length 6 (Ethernet, RFC 826); fail iff another value"
+        }
+      ]
+    },
+    "ARP_11": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "proto_addr_len_not_four",
+          "property": "DUT's emitted ARP Request must carry Protocol Address Length 4 (IPv4, RFC 826); fail iff another value"
+        }
+      ]
+    },
+    "ARP_12": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "opcode_not_request",
+          "property": "DUT's emitted ARP Request must carry Operation Code 1 (Request, RFC 826); fail iff another value"
+        }
+      ]
+    },
+    "ARP_16": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ARP Reply (opcode 2, sender_hw = DUT MAC) to a Request whose Target Hardware Address is zeroed; binary present/absent"
+        }
+      ]
+    },
+    "ARP_17": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ARP Reply to a Request whose Target Hardware Address is ff:ff:ff:ff:ff:ff; binary present/absent"
+        }
+      ]
+    },
+    "ARP_18": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ARP Reply to a Request carrying an arbitrary (unresolved) Target Hardware Address; binary present/absent"
+        }
+      ]
+    },
+    "ARP_19": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ARP Reply to a Request whose Target Hardware Address is the DUT MAC carried in a broadcast Ethernet frame; binary present/absent"
+        }
+      ]
+    },
+    "ARP_20": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ARP Reply to a Request carrying the correct Hardware Type (0x0001); binary present/absent"
+        }
+      ]
+    },
+    "ARP_21": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_replied_to_malformed_request",
+          "property": "DUT must not emit an ARP Reply to a Request carrying an unknown Hardware Type (RFC 826 ar$hrd drop); silence is conformant"
+        }
+      ]
+    },
+    "ARP_22": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "udp_eth_dst_matched_dropped_frame_mac",
+          "property": "DUT must drop the malformed gratuitous ARP Response (unknown hw_type) and ARP-resolve before unicast UDP egress; fail iff it emits a UDP to the tester using the dropped frame's MAC (forbidden cache acceptance)"
+        }
+      ]
+    },
+    "ARP_26": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ARP Reply to a Request carrying the correct Protocol Type (0x0800); binary present/absent"
+        }
+      ]
+    },
+    "ARP_27": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_replied_to_malformed_request",
+          "property": "DUT must not emit an ARP Reply to a Request carrying an unknown Protocol Type (RFC 826 ar$pro drop); silence is conformant"
+        }
+      ]
+    },
+    "ARP_28": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "udp_eth_dst_matched_dropped_frame_mac",
+          "property": "DUT must drop the malformed gratuitous ARP Response (unknown proto_type) and ARP-resolve before unicast UDP egress; fail iff it emits a UDP to the tester using the dropped frame's MAC (forbidden cache acceptance)"
+        }
+      ]
+    },
+    "ARP_36": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ARP Reply to a Request whose Target Protocol Address is the DUT's interface IP; binary present/absent"
+        }
+      ]
+    },
+    "ARP_37": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_replied_to_foreign_target_ip",
+          "property": "DUT must not emit an ARP Reply to a Request whose Target Protocol Address is not the DUT's interface IP (RFC 826 target check); silence is conformant"
+        }
+      ]
+    },
+    "ARP_38": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "udp_eth_dst_matched_dropped_frame_mac",
+          "property": "DUT must drop the non-gratuitous ARP Response targeting an unused subnet host and ARP-resolve before unicast UDP egress; fail iff it emits a UDP to the tester using the dropped frame's MAC (forbidden cache acceptance)"
+        }
+      ]
+    },
+    "ARP_41": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must answer a correct ARP Request with a Reply whose opcode is Response (2, RFC 826 opcode swap); binary present/absent"
+        }
+      ]
+    },
+    "ARP_42": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_replied_to_response",
+          "property": "DUT must not emit an ARP Reply to a frame whose opcode is Response (RFC 826 Packet Reception requires opcode=Request); silence is conformant"
+        }
+      ]
+    },
+    "ARP_46": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "reply_hw_type_not_ethernet",
+          "property": "DUT's emitted ARP Reply must carry Hardware Type 0x0001 (Ethernet, RFC 826); fail iff another value"
+        }
+      ]
+    },
+    "ARP_47": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "reply_hw_addr_len_not_six",
+          "property": "DUT's emitted ARP Reply must carry Hardware Address Length 6 (Ethernet, RFC 826); fail iff another value"
+        }
+      ]
     }
   }
 }

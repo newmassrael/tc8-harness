@@ -7,29 +7,6 @@
 # --check fails on a new undisposed case or a stale (now-disposed) entry.
 # When this file is empty every positive case is disposed -- the SSOT is
 # proven complete.
-arp_07
-arp_08
-arp_09
-arp_10
-arp_11
-arp_12
-arp_16
-arp_17
-arp_18
-arp_19
-arp_20
-arp_21
-arp_22
-arp_26
-arp_27
-arp_28
-arp_36
-arp_37
-arp_38
-arp_41
-arp_42
-arp_46
-arp_47
 dhcpv4_client_allocating_01
 dhcpv4_client_allocating_03
 dhcpv4_client_allocating_04
