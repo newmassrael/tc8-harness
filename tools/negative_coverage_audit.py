@@ -88,6 +88,30 @@ _ROW_RE = re.compile(r'"([^"|]+)\|([^"|]*)\|([a-z_]+):([^"]+)"')
 # and are genuine value flips.)
 SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 
+# Phase F (docs/verdict_policy.md Section 6.1): the empirical-verification ratchet.
+# Coverage (undisposed -> 0) is reached; the live metric is now empirical proof.
+# FAULT_INJECTION proofs only ever grow -- --check floors the count so a _neg case
+# can never silently regress. The REGISTRY set is the work-list (--phase-f). Bump
+# the floor when new _neg cases land.
+FAULT_INJECTION_FLOOR = 10
+
+# A REGISTRY guard is empirically faultable only where the misbehaviour can be
+# produced. Firmware families (tc8-dut / vsomeip app) take a _neg flavor case (the
+# realised ipv4_autoconf pattern); kernel-stack families run against the Linux
+# reference, which cannot be made to misbehave -- faultable only on the lwIP DUT,
+# else structural with the reference stack as oracle. Longest-prefix wins
+# (IPV4_AUTOCONF before IPV4).
+FIRMWARE_FAMILIES = ("IPV4_AUTOCONF", "DHCPV4", "SOMEIP_ETS", "SOMEIPSRV", "ARP")
+KERNEL_FAMILIES = ("ICMPV4", "TCP", "UDP", "IPV4")
+
+
+def case_family(case_id: str) -> str:
+    c = case_id.upper()
+    for fam in (*FIRMWARE_FAMILIES, *KERNEL_FAMILIES):
+        if c.startswith(fam):
+            return fam
+    return c.split("_")[0]
+
 
 @dataclass(frozen=True)
 class NegRow:
@@ -448,7 +472,40 @@ def cross_findings(m: Model) -> list[str]:
 
     findings.extend(validate_registry(m.registry, m.reg_classes))
     findings.extend(check_class_structure(m.registry))
+
+    # Phase F empirical-verification ratchet: FAULT_INJECTION proofs only grow.
+    fault_inj = sum(1 for d in m.disposition.values() if d == "FAULT_INJECTION")
+    if fault_inj < FAULT_INJECTION_FLOOR:
+        findings.append(
+            f"PHASE_F_REGRESSION: FAULT_INJECTION {fault_inj} < floor "
+            f"{FAULT_INJECTION_FLOOR}; a _neg case was lost (or bump the floor)"
+        )
     return findings
+
+
+def phase_f_report(m: Model) -> int:
+    """Phase F work-list (docs/verdict_policy.md Section 6.1): which REGISTRY guards
+    are empirically faultable on the firmware DUT (the FAULT_INJECTION target) vs run
+    against the Linux reference stack (structural / lwIP-DUT track only)."""
+    from collections import Counter
+    fault = [c for c, d in m.disposition.items() if d == "FAULT_INJECTION"]
+    registry = sorted(k.lower() for k in m.registry)
+    fw_fams = set(FIRMWARE_FAMILIES)
+    fw = [c for c in registry if case_family(c) in fw_fams]
+    kn = [c for c in registry if case_family(c) not in fw_fams]
+    print("Phase F -- empirical verification (docs/verdict_policy.md Section 6.1)")
+    print("=" * 68)
+    print(f"  verified (FAULT_INJECTION, floor {FAULT_INJECTION_FLOOR}): {len(fault)}")
+    target = len(fw) + len(fault)
+    pct = 100.0 * len(fault) / target if target else 100.0
+    print(f"  firmware-DUT target: {len(fault)}/{target} proven ({pct:.0f}%)")
+    print("  -- firmware-injectable REGISTRY backlog (the work-list) --")
+    for fam, n in sorted(Counter(case_family(c) for c in fw).items(), key=lambda x: -x[1]):
+        print(f"     {fam:14} {n}")
+    print(f"  -- kernel-stack REGISTRY (Linux=oracle; lwIP-DUT track only): {len(kn)} --")
+    for fam, n in sorted(Counter(case_family(c) for c in kn).items(), key=lambda x: -x[1]):
+        print(f"     {fam:14} {n}")
+    return 0
 
 
 def main() -> int:
@@ -457,10 +514,14 @@ def main() -> int:
     )
     ap.add_argument("--check", action="store_true", help="enforce the invariants (gate CI/pre-commit)")
     ap.add_argument("--write-ledger", action="store_true", help="regenerate the exhaustiveness ledger from the current UNDISPOSED set")
+    ap.add_argument("--phase-f", action="store_true", help="print the empirical-verification (fault-injection) work-list")
     args = ap.parse_args()
 
     m = build_model()
     undisposed = {c for c, d in m.disposition.items() if d == "UNDISPOSED"}
+
+    if args.phase_f:
+        return phase_f_report(m)
 
     if args.write_ledger:
         LEDGER.write_text(ledger_text(undisposed), encoding="utf-8")

@@ -237,6 +237,35 @@ dut-mutation guards — a mutant that trips each `fail` — is a distinct track,
 claimed by the `--expect` harness. Listing behavioural guards as `--expect`
 "debt" conflates the two; this section removes that conflation.
 
+### 6.1 Phase F — empirical verification (the standard, and its honest reach)
+
+The exhaustiveness ledger is empty: every positive case carries a disposition, so
+the suite is **covered**. The remaining frontier is **correctness** — proving each
+*structural* (`REGISTRY`) guard actually fires by driving a faulty DUT onto its
+`fail` final. This is mutation analysis / ISO 9646 suite validation, and it is the
+**single** verification standard the suite converges to. The disposition taxonomy
+above (four dispositions, three registry classes) is **frozen**: Phase F is
+execution — producing `_neg` cases — not a re-cut of the model.
+
+A `REGISTRY` guard is empirically faultable only if the misbehaviour can actually
+be produced, which depends on **who implements the protocol under test**:
+
+| DUT | protocols | fault injection | Phase F reach |
+|-----|-----------|-----------------|----------------|
+| **tc8-dut firmware / vsomeip app** | ARP, IPv4 link-local, DHCPv4 client, SOME/IP (ETS + Server) | a `_neg` case drives a firmware flavor enum onto the violation (the realised `ipv4_autoconf` pattern) | **274 guards → `FAULT_INJECTION`** (primary ratchet) |
+| **Linux kernel stack** | TCP, IPv4, ICMPv4, UDP | a conformant kernel cannot be made to misbehave; the reference stack *is* the oracle | **177 guards** — faultable only on the **lwIP DUT** (firmware stack), else structural |
+
+So "every guard `FAULT_INJECTION`" is reachable for the 274 firmware guards and is
+Phase F's primary target; the 177 kernel-stack guards are empirically faultable
+only on the lwIP DUT track, and against Linux remain structural with the reference
+stack as conformance oracle — an honest boundary, not a gap to paper over.
+
+**Ratchet.** The primary metric flips from coverage (`undisposed → 0`, reached) to
+empirical proof: the `FAULT_INJECTION` count is floored by
+`negative_coverage_audit.py --check` and only ever rises as `_neg` cases land; the
+current `REGISTRY` set is the work-list (`--phase-f`). Each `_neg` promotes a case
+`REGISTRY → FAULT_INJECTION`.
+
 ---
 
 ## 7. OEM override & extension
