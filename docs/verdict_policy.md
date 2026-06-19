@@ -247,24 +247,33 @@ the suite is **covered**. The remaining frontier is **correctness** — proving 
 above (four dispositions, three registry classes) is **frozen**: Phase F is
 execution — producing `_neg` cases — not a re-cut of the model.
 
-A `REGISTRY` guard is empirically faultable only if the misbehaviour can actually
-be produced, which depends on **who implements the protocol under test**:
+A `REGISTRY` guard is empirically faultable only when **both** hold: (a) the
+misbehaviour can be *produced* — which depends on **who implements the protocol** —
+and (b) the guard has a *reachable `fail`*. A `liveness` guard (Section 6, the
+`liveness` row) maps absence to `inconclusive`, so it has no `fail` to drive and is
+**never** promotable to `FAULT_INJECTION` on *any* DUT — it stays terminal in
+`REGISTRY` by policy. The registry `class` is the SSOT for (b); `--phase-f` computes
+the live split.
 
-| DUT | protocols | fault injection | Phase F reach |
-|-----|-----------|-----------------|----------------|
-| **tc8-dut firmware / vsomeip app** | ARP, IPv4 link-local, DHCPv4 client, SOME/IP (ETS + Server) | a `_neg` case drives a firmware flavor enum onto the violation (the realised `ipv4_autoconf` pattern) | **274 guards → `FAULT_INJECTION`** (primary ratchet) |
-| **Linux kernel stack** | TCP, IPv4, ICMPv4, UDP | a conformant kernel cannot be made to misbehave; the reference stack *is* the oracle | **177 guards** — faultable only on the **lwIP DUT** (firmware stack), else structural |
+| DUT | protocols | faultable (`prohibited`/`incorrect`) | excluded from the target |
+|-----|-----------|--------------------------------------|--------------------------|
+| **tc8-dut firmware / vsomeip app** | ARP, IPv4 link-local, DHCPv4 client, SOME/IP (ETS + Server) | a `_neg` drives a firmware flavor onto the `fail` (the realised `ipv4_autoconf` pattern) — **the primary ratchet** | its `liveness` guards (no reachable `fail`) |
+| **Linux kernel stack** | TCP, IPv4, ICMPv4, UDP | faultable only on the **lwIP DUT** (firmware stack) | against Linux the reference stack *is* the oracle; `liveness` likewise |
 
-So "every guard `FAULT_INJECTION`" is reachable for the 274 firmware guards and is
-Phase F's primary target; the 177 kernel-stack guards are empirically faultable
-only on the lwIP DUT track, and against Linux remain structural with the reference
-stack as conformance oracle — an honest boundary, not a gap to paper over.
+So the firmware ratchet targets the **faultable** (`prohibited` + `incorrect`)
+guards, **not** every firmware guard: the `liveness` subset has no reachable `fail`
+on any DUT, and counting it would set an unreachable goal. The kernel-stack guards
+are faultable only on the lwIP track; against Linux they remain structural with the
+reference stack as conformance oracle. Both exclusions are honest boundaries, not
+gaps to paper over — `--phase-f` reports the live faultable target, its backlog, and
+the excluded `liveness` and kernel buckets.
 
 **Ratchet.** The primary metric flips from coverage (`undisposed → 0`, reached) to
 empirical proof: the `FAULT_INJECTION` count is floored by
 `negative_coverage_audit.py --check` and only ever rises as `_neg` cases land; the
-current `REGISTRY` set is the work-list (`--phase-f`). Each `_neg` promotes a case
-`REGISTRY → FAULT_INJECTION`.
+current **faultable** `REGISTRY` set (`prohibited`/`incorrect`; `liveness` excluded)
+is the work-list (`--phase-f`). Each `_neg` promotes a case `REGISTRY →
+FAULT_INJECTION`.
 
 ---
 

@@ -483,27 +483,53 @@ def cross_findings(m: Model) -> list[str]:
     return findings
 
 
+def is_liveness_only(entry: dict) -> bool:
+    """A registry case whose every guard is `liveness` has no reachable `fail` final
+    (docs/verdict_policy.md Section 6: absence is `inconclusive`, Section 2 clause 4),
+    so it is structurally NOT empirically faultable and can never be promoted to
+    FAULT_INJECTION. It stays terminal in REGISTRY by policy — excluded from the
+    Phase F faultable target, exactly as the kernel-stack guards are. The registry
+    `class` is the SSOT for faultability."""
+    guards = entry.get("guards", [])
+    return bool(guards) and all(g.get("class") == "liveness" for g in guards)
+
+
 def phase_f_report(m: Model) -> int:
     """Phase F work-list (docs/verdict_policy.md Section 6.1): which REGISTRY guards
-    are empirically faultable on the firmware DUT (the FAULT_INJECTION target) vs run
-    against the Linux reference stack (structural / lwIP-DUT track only)."""
+    are empirically faultable on the firmware DUT (the FAULT_INJECTION target) vs
+    structurally terminal (liveness, no reachable `fail`) vs run against the Linux
+    reference stack (kernel oracle / lwIP-DUT track only)."""
     from collections import Counter
-    fault = [c for c, d in m.disposition.items() if d == "FAULT_INJECTION"]
-    registry = sorted(k.lower() for k in m.registry)
     fw_fams = set(FIRMWARE_FAMILIES)
-    fw = [c for c in registry if case_family(c) in fw_fams]
-    kn = [c for c in registry if case_family(c) not in fw_fams]
+    fault = [c for c, d in m.disposition.items() if d == "FAULT_INJECTION"]
+    # Registry split on two axes: family (who implements it) x faultability (does the
+    # guard have a reachable `fail` — i.e. is it NOT liveness-only). liveness-only
+    # guards are excluded from the target on BOTH families (no `fail` to drive).
+    fw_fault, fw_live, kn_fault, kn_live = [], [], [], []
+    for case_id, entry in m.registry.items():
+        c = case_id.lower()
+        live = is_liveness_only(entry)
+        bucket = (fw_live if live else fw_fault) if case_family(c) in fw_fams \
+            else (kn_live if live else kn_fault)
+        bucket.append(c)
+
+    def by_family(cases):
+        return sorted(Counter(case_family(c) for c in cases).items(), key=lambda x: -x[1])
+
+    target = len(fault) + len(fw_fault)
+    pct = 100.0 * len(fault) / target if target else 100.0
     print("Phase F -- empirical verification (docs/verdict_policy.md Section 6.1)")
     print("=" * 68)
     print(f"  verified (FAULT_INJECTION, floor {FAULT_INJECTION_FLOOR}): {len(fault)}")
-    target = len(fw) + len(fault)
-    pct = 100.0 * len(fault) / target if target else 100.0
-    print(f"  firmware-DUT target: {len(fault)}/{target} proven ({pct:.0f}%)")
-    print("  -- firmware-injectable REGISTRY backlog (the work-list) --")
-    for fam, n in sorted(Counter(case_family(c) for c in fw).items(), key=lambda x: -x[1]):
+    print(f"  firmware faultable target: {len(fault)}/{target} proven ({pct:.0f}%)")
+    print("  -- firmware faultable REGISTRY backlog (the work-list) --")
+    for fam, n in by_family(fw_fault):
         print(f"     {fam:14} {n}")
-    print(f"  -- kernel-stack REGISTRY (Linux=oracle; lwIP-DUT track only): {len(kn)} --")
-    for fam, n in sorted(Counter(case_family(c) for c in kn).items(), key=lambda x: -x[1]):
+    print(f"  -- firmware liveness REGISTRY (no reachable fail; terminal by policy, NOT a target): {len(fw_live)} --")
+    for fam, n in by_family(fw_live):
+        print(f"     {fam:14} {n}")
+    print(f"  -- kernel-stack REGISTRY (Linux=oracle; lwIP-DUT track only): {len(kn_fault)} faultable + {len(kn_live)} liveness --")
+    for fam, n in by_family(kn_fault + kn_live):
         print(f"     {fam:14} {n}")
     return 0
 
