@@ -1787,6 +1787,192 @@
           "property": "DUT's emitted ARP Reply must carry Hardware Address Length 6 (Ethernet, RFC 826); fail iff another value"
         }
       ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_arp_probe_not_eth_broadcast",
+          "property": "DUT's link-local ARP Probe must be sent to the Ethernet broadcast address (RFC 3927 §2.1.1); fail iff a probe carries a non-broadcast Ethernet destination"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_09": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit 3 ARP Probes during the link-local probing phase (RFC 3927 §2.2.1 PROBE_NUM); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_11": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Request (RFC 3927 §2.2.1); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_12": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Reply (RFC 3927 §2.2.1); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_13": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Probe (RFC 3927 §2.2.1 clause b); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_14": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_re_probed_with_stale_link_local_address",
+          "property": "during conflict-driven re-probing the DUT must select a fresh link-local address each cycle; fail iff it re-probes the stale (previous) address"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_arp_during_rate_limit_silence",
+          "property": "DUT must observe the RFC 3927 rate-limit silence window emitting no ARP; fail iff it emits a probe during the silence"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_15": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_re_probed_with_stale_link_local_address",
+          "property": "during conflict-driven re-probing the DUT must select a fresh link-local address each cycle; fail iff it re-probes the stale (previous) address"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_arp_during_first_rate_limit_silence",
+          "property": "DUT must observe the first RFC 3927 rate-limit silence window emitting no ARP; fail iff it emits a probe during the silence"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_arp_during_second_rate_limit_silence",
+          "property": "DUT must observe the second RFC 3927 rate-limit silence window emitting no ARP; fail iff it emits a probe during the silence"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_post_silence_probe_targets_previous_ll",
+          "property": "the DUT's post-silence re-probe must target a fresh link-local address; fail iff it targets the previous link-local address"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_16": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_arp_reply_carried_wrong_sender_or_target_ip",
+          "property": "DUT's defending ARP Reply for its claimed link-local address must carry the correct sender/target protocol IP; fail iff a reply carries wrong fields"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit 2 ARP Announcements after the Probe phase (RFC 3927 §2.4 ANNOUNCE_NUM); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_ANNOUNCING_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "announce_interval_outside_rfc3927_bounds_with_50ms_tolerance",
+          "property": "DUT's ARP Announcement interval must fall within the RFC 3927 §2.4 bounds (50 ms tolerance); fail iff the measured interval is out of bounds"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_CONFLICT_06": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after two conflicting ARP Requests (RFC 3927 §2.5 cease); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_CONFLICT_07": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after two conflicting ARP Replies (RFC 3927 §2.5 cease); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_CONFLICT_08": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after conflicting Request+Reply frames (RFC 3927 §2.5 cease); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_CONFLICT_09": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after conflicting Reply+Request frames (RFC 3927 §2.5 cease); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_CONFLICT_10": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after a single conflicting ARP Reply (RFC 3927 §2.5 immediate cease); binary present/absent"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_CONFLICT_11": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst",
+          "property": "DUT's defending ARP Reply must carry the correct sender/target IP and a broadcast Ethernet destination; fail iff a reply carries wrong fields or a unicast Ethernet destination"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_INTRO_01": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_link_local_arp_probe_despite_routable_lease",
+          "property": "DUT holding a routable DHCP lease must not fall back to link-local ARP probing; silence is conformant"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_LINKLOCAL_PACKETS_04": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_arp_reply_for_arbitrary_link_local_target",
+          "property": "DUT must not emit an ARP Reply for an arbitrary link-local target that is not its own claimed address; silence is conformant"
+        }
+      ]
+    },
+    "IPv4_AUTOCONF_NETWORK_PARTITIONS_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst",
+          "property": "DUT's defending ARP Reply must carry the correct sender/target IP and a broadcast Ethernet destination; fail iff a reply carries wrong fields or a unicast Ethernet destination"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_periodic_gratuitous_arp_for_committed_link_local",
+          "property": "DUT must not emit periodic gratuitous ARP for its committed link-local address; silence is conformant"
+        }
+      ]
     }
   }
 }
