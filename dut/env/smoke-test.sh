@@ -2554,53 +2554,20 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "TCP_CONNECTION_ESTAB_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_for_leg1"
         "TCP_CONNECTION_ESTAB_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_to_tester_fin"
         "TCP_CONNECTION_ESTAB_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_for_leg1"
-        # §4.6 UDP udp_field_check egress consumers: every pass/fail
-        # transition conjuncts `captured.src_ip == expected.dut_iface_ip`
-        # AND `captured.dst_ip == expected.tester_ip`; flipping
-        # ipv4.dut_iface_ip sends both transitions out of reach so the
-        # SCXML lands on fail_timeout. Proves the src_ip conjunct is
-        # load-bearing on every §4.6 egress field-check consumer.
-        # ipv4_udp_ut_presence / udp_ut_received_check consumers gate on
-        # captured.has_ut_response (port-based, not IP-keyed) — no CLI
-        # override flips a pass guard without breaking the stimulus, so
-        # those carry no NEG_ROW (same precedent as ADDRESSING_01/02).
-        "UDP_FIELDS_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        "UDP_FIELDS_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        # §4.6.5.4 UDP_FIELDS_04 Topology 2 phase 1: SCXML phase 1 cond
-        # filters on captured.src_ip == expected.dut_iface_ip; the flip
-        # sends the egress UDP out of reach so SCXML stays in
-        # listening_phase1 → fail_phase1_no_host1_egress at deadline.
-        "UDP_FIELDS_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_to_host1_within_listen_window"
-        # §4.6.5.4 UDP_FIELDS_05 Topology 2 phase 1: SCXML phase 1 cond
-        # filters on captured.ut_recv_src_ip == expected.tester_ip; the
-        # flip lands the UT-Confirmation outside the cond so SCXML
-        # stays in listening_phase1 → fail_phase1_no_host1_receipt.
-        # Distinct override key (tester_ip vs dut_iface_ip) because
-        # FIELDS_05's pass guard reads from the tester axis.
-        "UDP_FIELDS_05|ipv4.tester_ip=10.99.99.99|fail:no_ut_confirmation_for_host1_receipt"
-        "UDP_FIELDS_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        "UDP_FIELDS_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        "UDP_FIELDS_13|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        "UDP_FIELDS_14|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        # §4.6.5.4 UDP_FIELDS_12 max-length: harness's 45-fragment burst
-        # targets cfg.ipv4.dut_iface_ip; flipping it routes the wire
-        # frames past the DUT's IP layer rp_filter (martian dst) so no
-        # reassembled receipt reaches the data listener → ut_received=0
-        # → SCXML hits inconclusive_no_ut_confirmation via udp_ut_received_check.
-        # The broken precondition is a sound non-conclusion (inconclusive), so this
-        # row auto-skips (guard not exercised) and is retained as a
-        # pass-regression guard, mirroring the udp_field_check precondition
-        # negatives above.
-        "UDP_FIELDS_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_ut_confirmation_within_listen_window"
-        # §4.6.5.5 UDP_USER_INTERFACE_01 dynamic ports: harness
-        # OpCreateUdpReceivePorts request goes to cfg.ipv4.dut_iface_ip;
-        # the flip lands the request on a non-routable dst so tc8-dut
-        # never replies → SCXML hits fail_timeout.
-        "UDP_USER_INTERFACE_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_ut_confirmation_for_create_udp_receive_ports"
-        "UDP_USER_INTERFACE_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        "UDP_USER_INTERFACE_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        "UDP_USER_INTERFACE_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        "UDP_USER_INTERFACE_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
+        # §4.6 UDP conformant-absence cases live in
+        # tools/conformant_absence_registry.json (docs/verdict_policy.md
+        # Section 6): no --expect flip can fault them — each guard asserts
+        # DUT behaviour, not a comparison against an operator value.
+        #   incorrect_emission (DUT emits, value must be right):
+        #     UDP_FIELDS_01/02 (src/dst port), UDP_FIELDS_06/07 (Length),
+        #     UDP_FIELDS_12 (§4.6.5.4 UT received length), UDP_FIELDS_13/14
+        #     (pseudo-header checksum), UDP_USER_INTERFACE_01/05/06 (UT port
+        #     count / src / dst port), UDP_Padding_02 (no even-payload
+        #     padding), UDP_INTRODUCTION_03 (§4.6.5.6 ICMP type 3 code 3).
+        #   liveness (must originate UDP, no wrong-value variant):
+        #     UDP_FIELDS_04 (per-host egress), UDP_FIELDS_05 (per-host UT
+        #     receipt).
+        # UI_07/08 below keep sound expect-flip rows (alias-IP axis).
         # §4.6.5.5 UI_07 strict-axis NEG: stimulus pins src_ip override
         # to the conformant DIface-0 alias (kDutAliasIp4Be=172.16.0.5)
         # via a constant in udp_pilot_common.h, so flipping
@@ -2616,12 +2583,6 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # `ipv4.tester_alias_ip` makes SCXML expect a different dst,
         # forcing the cond to land on `fail_wrong_dst_ip`.
         "UDP_USER_INTERFACE_08|ipv4.tester_alias_ip=10.99.99.99|fail:dut_emitted_udp_with_wrong_user_interface_dst_ip"
-        "UDP_Padding_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
-        # §4.6.5.6 UDP_INTRODUCTION_03: SCXML observes ICMP via the
-        # icmp_observed event with `captured.src_ip == expected.dut_iface_ip`
-        # filter; flipping ipv4.dut_iface_ip sends the filter out of reach
-        # → fail_timeout (no_dut_icmp_port_unreachable_within_listen_window).
-        "UDP_INTRODUCTION_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_icmp_port_unreachable_within_listen_window"
     )
     # Filter NEG_ROWS to only those whose case_id appears in the
     # positional CASES array (when the user passed any). Keeps the
