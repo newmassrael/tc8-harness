@@ -2326,62 +2326,24 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # fail_timeout, proving the SCXML's src_addr conjunct is
         # load-bearing.
         "IPv4_CHECKSUM_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        # §4.3.3.2 ICMPv4_TYPE_22: override icmpv4.dut_iface_ip so the
-        # SCXML's `captured.src_ip == expected.dut_iface_ip` conjunct
-        # goes out of reach; the DUT still emits the Echo Reply but
-        # the src_ip comparison rejects it, landing the case on
-        # fail_timeout. Proves the src_ip guard is load-bearing (same
-        # pattern as the IPv4 positive-reply rows above).
-        "ICMPv4_TYPE_22|icmpv4.dut_iface_ip=10.99.99.99|fail:no_echo_reply_within_listen_window"
-        # §4.3.3.2 ICMPv4_TYPE_18: override icmpv4.dut_iface_ip — the
-        # SCXML's pass guard (type=3 AND code=2 AND src_ip match) and
-        # the fail_wrong_code guard (type=3 AND code!=2 AND src_ip
-        # match) both conjunct on src_ip, so both go out of reach.
-        # The DUT still emits Destination Unreachable but the case
-        # lands on fail_timeout.
-        "ICMPv4_TYPE_18|icmpv4.dut_iface_ip=10.99.99.99|fail:no_dest_unreachable_within_listen_window"
-        # §4.3.3.1 ICMPv4_ERROR_02: override icmpv4.dut_iface_ip —
-        # both pass (pointer==22 + src_ip match) and fail_wrong_pointer
-        # (pointer!=22 + src_ip match) guards conjunct on src_ip, so
-        # both go out of reach. The DUT still emits Parameter Problem
-        # but the case lands on fail_timeout. Proves the src_ip guard
-        # is load-bearing. ERROR_03 / TYPE_04 are absence-shape and
-        # have no load-bearing guard that a simple override moves
-        # out of reach without masquerading as pass-on-timeout, so
-        # they carry no negative row (shared limitation with
-        # TYPE_05/10/16 and ERROR_04/05).
-        "ICMPv4_ERROR_02|icmpv4.dut_iface_ip=10.99.99.99|fail:no_parameter_problem_within_listen_window"
-        # §4.3.3.2 ICMPv4_TYPE_11: override icmpv4.dut_iface_ip — pass
-        # and all three fail_* guards (zero_receive / zero_transmit /
-        # wrong_originate) conjunct on src_ip, so flipping the
-        # expectation drives every branch out of reach. The DUT still
-        # emits Timestamp Reply with the correct originate / non-zero
-        # receive+transmit, but the SCXML's src_ip filter rejects it
-        # → fail_timeout. Proves the src_ip filter is load-bearing.
-        # No row for the timestamp-field fail branches: Linux's
-        # icmp_timestamp() unconditionally echoes Originate verbatim
-        # and fills Receive / Transmit via `inet_current_timestamp()`
-        # (always non-zero unless the system clock is exactly midnight
-        # UT to the millisecond — practically unreachable), so
-        # reaching fail_zero_receive / fail_zero_transmit /
-        # fail_wrong_originate requires a non-conformant DUT (same
-        # class as ARP_46/47's RFC-constant guards).
-        "ICMPv4_TYPE_11|icmpv4.dut_iface_ip=10.99.99.99|fail:no_timestamp_reply_within_listen_window"
-        # §4.3.3.2 ICMPv4_TYPE_12: override icmpv4.echo_id — pass
-        # conjuncts on `captured.echo_id == expected.echo_id`, so
-        # flipping the expected value out of band drives the SCXML
-        # into fail_id_mismatch (the explicit mismatch branch fires
-        # before fail_seq_mismatch since the id check has higher
-        # specificity). Proves the identifier-echo invariant the
-        # spec asserts is load-bearing in the SCXML — not just
-        # "any Timestamp Reply".
+        # §4.3 ICMPv4 conformant-absence cases live in
+        # tools/conformant_absence_registry.json (docs/verdict_policy.md
+        # Section 6): no --expect flip can fault them — each guard asserts
+        # DUT behaviour, not a comparison against an operator value.
+        #   incorrect_emission (DUT emits, value must be right):
+        #     ICMPv4_ERROR_02 (§4.3.3.1, Parameter Problem Pointer=22;
+        #     Linux emits 20, RFC-792 latitude), ICMPv4_TYPE_11
+        #     (Timestamp Reply originate/receive/transmit), ICMPv4_TYPE_18
+        #     (Dest Unreachable code=2).
+        #   prohibited_emission (silence conformant, must not emit):
+        #     ICMPv4_ERROR_03/04/05, ICMPv4_TYPE_04/05/10/16.
+        #   liveness (must emit, no wrong-value variant): ICMPv4_TYPE_22.
+        # TYPE_09 / TYPE_12 keep sound expect-flip rows: their echo_id is an
+        # operator-supplied expected value, so flipping icmpv4.echo_id drives
+        # the SCXML into the id-mismatch branch (higher specificity than the
+        # seq branch), proving the identifier-echo conjunct is load-bearing.
+        "ICMPv4_TYPE_09|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch"
         "ICMPv4_TYPE_12|icmpv4.echo_id=0xFFFE|fail:timestamp_reply_identifier_not_echoed"
-        # No row for `parameter_problem_pointer_not_option_or_pointer_byte`:
-        # that fail reason fires only when the DUT's Pointer value is
-        # neither 20 nor 22 — no CLI override flips Linux's pointer
-        # emission off {20}, so reaching that branch requires a non-
-        # conformant DUT (same class as ARP_46/47's hardcoded-constant
-        # guards).
         # §4.4.4.6 IPv4_FRAGMENTS_01: flipping icmpv4.echo_id moves
         # the pass conjunct (echo_id match) out of reach so the SCXML
         # lands on fail_echo_id (the explicit mismatch branch fires

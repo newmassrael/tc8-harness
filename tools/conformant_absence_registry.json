@@ -1030,6 +1030,114 @@
           "property": "DUT must not Ack a subscribe carrying wrong method id; ignore or NACK is conformant"
         }
       ]
+    },
+    "ICMPv4_ERROR_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "parameter_problem_pointer_not_22",
+          "property": "DUT's Parameter Problem must carry Pointer=22 indicating the offending option octet; fail iff a different pointer (the Linux reference DUT emits 20 — RFC 792 latitude — so this final is reached by the reference stack)"
+        }
+      ]
+    },
+    "ICMPv4_TYPE_11": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "timestamp_reply_originate_not_echoed",
+          "property": "DUT's Timestamp Reply must echo the request's Originate timestamp verbatim; fail iff a different value"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "timestamp_reply_receive_field_zero",
+          "property": "DUT's Timestamp Reply must carry a non-zero Receive timestamp; fail iff zero"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "timestamp_reply_transmit_field_zero",
+          "property": "DUT's Timestamp Reply must carry a non-zero Transmit timestamp; fail iff zero"
+        }
+      ]
+    },
+    "ICMPv4_TYPE_18": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_icmp_code_not_protocol_unreachable",
+          "property": "DUT's Destination Unreachable must carry Code=2 (protocol unreachable); fail iff a different code"
+        }
+      ]
+    },
+    "ICMPv4_TYPE_22": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an Echo Reply to the Echo Request; binary present/absent, no wrong-value variant"
+        }
+      ]
+    },
+    "ICMPv4_ERROR_03": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_parameter_problem_to_fragmented_sequence",
+          "property": "DUT must not send a Parameter Problem for a fragmented datagram sequence; silence is conformant"
+        }
+      ]
+    },
+    "ICMPv4_ERROR_04": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_parameter_problem_to_broadcast",
+          "property": "DUT must not send a Parameter Problem in response to a broadcast datagram; silence is conformant"
+        }
+      ]
+    },
+    "ICMPv4_ERROR_05": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_icmp_to_unknown_type",
+          "property": "DUT must not send an ICMP error for an unknown/unsupported ICMP type; silence is conformant"
+        }
+      ]
+    },
+    "ICMPv4_TYPE_04": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_time_exceeded_for_missing_fragment_zero",
+          "property": "DUT must not send a reassembly Time Exceeded when fragment zero never arrives; silence is conformant"
+        }
+      ]
+    },
+    "ICMPv4_TYPE_05": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_replied_to_malformed_ip_options",
+          "property": "DUT must not reply to a datagram carrying malformed IP options; silence is conformant"
+        }
+      ]
+    },
+    "ICMPv4_TYPE_10": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_replied_to_bad_checksum",
+          "property": "DUT must not reply to an Echo Request with a bad IP/ICMP checksum; silence is conformant"
+        }
+      ]
+    },
+    "ICMPv4_TYPE_16": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_information_reply",
+          "property": "DUT must not send an Information Reply (obsolete ICMP message type); silence is conformant"
+        }
+      ]
     }
   }
 }

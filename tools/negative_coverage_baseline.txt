@@ -4,10 +4,6 @@
 # tools/negative_coverage_audit.py --write-baseline. A fix (re-role,
 # parameterize, re-point, or retire) MUST delete the row's line here too;
 # negative_coverage_audit.py --check fails on a stale or new entry.
-ICMPv4_ERROR_02|no_parameter_problem_within_listen_window
-ICMPv4_TYPE_11|no_timestamp_reply_within_listen_window
-ICMPv4_TYPE_18|no_dest_unreachable_within_listen_window
-ICMPv4_TYPE_22|no_echo_reply_within_listen_window
 IPv4_CHECKSUM_05|no_dut_ipv4_packet_within_listen_window
 IPv4_FRAGMENTS_05|no_dut_originated_udp_within_listen_window
 IPv4_HEADER_01|no_dut_ipv4_packet_within_listen_window
