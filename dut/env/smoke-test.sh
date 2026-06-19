@@ -2262,21 +2262,17 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIP_ETS_049|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_051|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_052|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 3-f §5.1.6 ETS UTF DYNAMIC/FIXED odd-byte cluster.
-        # _044 (echoUTF16DYNAMIC) and _047 (echoUTF16FIXED) are echoes: the DUT
-        # strips the trailing odd byte and returns the canonical frame, so a
-        # payload-flip negative drives their fail_phase2_utf16*_echo_mismatch
-        # (observed_violation). _041/_050 are multi-phase malformed-string
-        # cases whose verdict is phase-3 DUT behavior (Error Response vs OK
-        # echo); _043 likewise mandates an Error Response for an odd byte
-        # BEFORE termination. A wrong-expect negative cannot fault a conformant
-        # DUT on these three, so they keep the phase 1 service_id flip
-        # (vacuous, pass-regression guard only).
-        "SOMEIP_ETS_041|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_043|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        # Wave 3-f §5.1.6 ETS UTF DYNAMIC/FIXED odd-byte echoes. _044
+        # (echoUTF16DYNAMIC) and _047 (echoUTF16FIXED): the DUT strips the
+        # trailing odd byte and returns the canonical frame, so a payload-flip
+        # negative drives their fail_phase2_utf16*_echo_mismatch
+        # (observed_violation). The sibling malformed-rejection cases
+        # _041/_043/_050 carry no NEG_ROW: their verdict is DUT behavior (Error
+        # Response vs OK echo), out of scope for an expect flip — recorded in
+        # tools/conformant_absence_registry.json (see docs/verdict_policy.md
+        # Section 6).
         "SOMEIP_ETS_044|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
         "SOMEIP_ETS_047|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
-        "SOMEIP_ETS_050|service_id=0x0000|fail:no_offer_service_within_listen_window"
         # Wave 4 §5.1.6 ETS datatype-echo cluster (echoBitfields +
         # echoCommonDatatypes + echoUINT8E2E + echoUNION). Each is a
         # full-payload echo, so a payload-flip negative (one byte of the

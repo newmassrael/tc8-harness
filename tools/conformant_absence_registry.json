@@ -1,0 +1,25 @@
+{
+  "doc": "Conformant-absence registry (SSOT). Cases whose conformance property is DUT BEHAVIOUR (it must reject malformed input, or must not emit a prohibited frame) rather than a comparison against an operator-supplied expected value. A --expect negative cannot fault a conformant DUT on these, so they carry NO NEG_ROWS entry; their guard's non-vacuity is structural (the named fail final exists and is reachable by a misbehaving DUT) and is empirically provable only on the DUT-mutation track. See docs/verdict_policy.md Section 6. Validated by tools/negative_coverage_audit.py.",
+  "classes": {
+    "malformed_rejection": "DUT must answer malformed input with an Error Response / non-OK return code; the named fail final fires iff the DUT returns an OK echo.",
+    "behavioral_absence": "DUT must NOT exhibit a prohibited behaviour (emit after stop, ack an invalid subscribe, respond on a forbidden window); the named fail final fires iff the behaviour is observed.",
+    "liveness": "DUT must emit an expected frame; its absence over the window is inconclusive and there is no fail final (binary present/absent, no malformed variant to reject)."
+  },
+  "cases": {
+    "SOMEIP_ETS_041": {
+      "class": "malformed_rejection",
+      "fail_reason": "dut_returned_ok_response_for_truncated_inner_string_length",
+      "property": "DUT must answer a UTF-16 request whose inner string-length prefix is truncated with an Error Response, not an OK echo"
+    },
+    "SOMEIP_ETS_043": {
+      "class": "malformed_rejection",
+      "fail_reason": "dut_returned_ok_response_for_odd_byte_before_termination",
+      "property": "DUT must answer a UTF-16 request carrying an odd byte before the null terminator with an Error Response, not an OK echo"
+    },
+    "SOMEIP_ETS_050": {
+      "class": "malformed_rejection",
+      "fail_reason": "dut_returned_ok_response_for_truncated_inner_string_length",
+      "property": "DUT must answer a UTF-8 request whose inner string-length prefix is truncated with an Error Response, not an OK echo"
+    }
+  }
+}

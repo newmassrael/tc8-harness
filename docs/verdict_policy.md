@@ -158,7 +158,50 @@ two harness-synthesised cases; everything else comes from authored donedata.
 
 ---
 
-## 6. OEM override & extension
+## 6. Negative-test strategy (suite self-validation)
+
+A passing positive run shows the IUT *can* conform; it does not show the suite
+would *catch* a non-conforming IUT. That second question — is each guard
+non-vacuous, or does it pass regardless? — is **suite self-validation**, a form
+of mutation analysis. How a guard's non-vacuity is established depends on **what
+the guard compares**, and every case falls into exactly one of three strategies:
+
+| strategy | the guard asserts | non-vacuity established by | recorded in |
+|----------|-------------------|----------------------------|-------------|
+| **expect-flip** | a captured field equals an *operator-supplied* value (`captured.X == expected.X`) | the **reference DUT** run with a deliberately-wrong `--expect` token → the guard must yield `observed_violation` | the curated `NEG_ROWS` set + `tools/negative_coverage_audit.py` |
+| **dut-mutation** | *DUT behaviour* — it must reject malformed input, or must not emit a prohibited frame (`conformant_absence`) | a **faulty DUT** that actually misbehaves → the guard must yield `observed_violation`. No `--expect` flip can fault the conformant reference DUT | `tools/conformant_absence_registry.json` |
+| **liveness** | the DUT must emit Y; Y is binary present/absent, no malformed variant | not applicable — absence is `inconclusive` (Section 2, clause 4); there is no reachable `fail` to validate | the same registry (`class: liveness`) |
+
+The decisive separation: **`--expect` injection validates only expect-flip
+guards.** A dut-mutation guard has no operator value to corrupt — the property is
+a fact about the implementation, not about a configured expectation — so routing
+it through the `--expect` ledger yields a *vacuous* negative: the injection
+merely breaks a precondition and lands `inconclusive` (the `service_id=0x0000`
+anti-pattern). Such a case therefore carries **no `NEG_ROWS` entry**. Its guard's
+non-vacuity is **structural** — the `fail` `<final>` exists, is well-formed, and
+is reachable by a misbehaving DUT — and is **empirical** only on the separate
+DUT-mutation track.
+
+Enforcement (`tools/negative_coverage_audit.py`):
+- Every `NEG_ROWS` entry must be a **sound** expect-flip negative: its expected
+  `fail:<reason>` resolves to an `observed_violation` final. A row that lands on
+  `inconclusive` is a field-check awaiting parameterisation — debt, tracked in
+  `negative_coverage_baseline.txt` until fixed; a new such row is rejected.
+- A case in the conformant-absence registry carries **no** `NEG_ROWS` entry (its
+  vacuous `--expect` negative is removed when the case is triaged).
+- The registry is structurally validated: the case exists; a non-`liveness`
+  entry names a real `fail` final (the structural guard it documents); a
+  `liveness` entry has no `fail` final.
+
+Honesty boundary: the registry records *structural* non-vacuity and the
+behavioural property each guard protects. **Empirical** validation of
+dut-mutation guards — a mutant that trips each `fail` — is a distinct track, not
+claimed by the `--expect` harness. Listing behavioural guards as `--expect`
+"debt" conflates the two; this section removes that conflation.
+
+---
+
+## 7. OEM override & extension
 
 The verdict subsystem is open along the **same compile-time, precedence-layered,
 type-safe seams** the harness already uses for cases, capture filters, and
@@ -183,7 +226,7 @@ conformance evidence credible.
 
 ---
 
-## 7. Migration plan
+## 8. Migration plan
 
 - **Phase 0 — this document.** Policy SSOT fixed and reviewed.
 - **Phase 1 — foundation.** Generate the taxonomy mirrors from `verdict.h`
@@ -200,7 +243,7 @@ conformance evidence credible.
 
 ---
 
-## 8. Authorities
+## 9. Authorities
 
 - ISO/IEC 9646-1, *Conformance testing methodology and framework — General
   concepts* (verdict definitions: pass / fail / inconclusive).

@@ -37,6 +37,17 @@ without blocking CI on the whole backlog, `--check` enforces:
 When the baseline empties, every negative is SOUND and condition 2/3 reduce to
 "no VACUOUS rows at all" — the invariant is then fully enforced (Phase 5).
 
+Conformant-absence (out of scope). Not every guard is expect-flippable: one that
+asserts DUT BEHAVIOUR (must reject malformed input, must not emit a prohibited
+frame) cannot be faulted by any `--expect` value, so an `--expect` negative for
+it is inherently vacuous (docs/verdict_policy.md Section 6). Such cases carry NO
+NEG_ROW; they are recorded in `conformant_absence_registry.json`, reported as
+OUT_OF_SCOPE rather than debt, and their guards' non-vacuity is structural (the
+named `fail` final exists), empirically provable only on the DUT-mutation track.
+`--check` also enforces: every registry entry is structurally valid (case exists,
+names a real `fail` final, or is liveness with none) and a registered case
+carries no NEG_ROW.
+
 Default (no args): print the full census. `--check`: enforce the ratchet (gates
 build-test.yml + .githooks/pre-commit). `--write-baseline`: regenerate the
 ledger from the current VACUOUS set (bootstrap / after a batch of fixes).
@@ -45,6 +56,7 @@ ledger from the current VACUOUS set (bootstrap / after a batch of fixes).
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -59,6 +71,7 @@ from verdict_drift_audit import (  # noqa: E402
 
 SMOKE_SH = REPO / "dut" / "env" / "smoke-test.sh"
 BASELINE = Path(__file__).resolve().parent / "negative_coverage_baseline.txt"
+REGISTRY = Path(__file__).resolve().parent / "conformant_absence_registry.json"
 
 # One `NEG_ROWS` entry: "CASE_ID|wrong_token|<class>:<reason>".
 _ROW_RE = re.compile(r'"([^"|]+)\|([^"|]*)\|([a-z_]+):([^"]+)"')
@@ -106,6 +119,46 @@ def reason_classes(case_id: str) -> dict[str, set[str]] | None:
         if reason:
             out.setdefault(reason, set()).add(cls)
     return out
+
+
+def load_registry() -> tuple[dict[str, dict], dict[str, str]]:
+    """The conformant-absence registry (docs/verdict_policy.md Section 6): cases
+    whose guard is DUT-behaviour (dut-mutation strategy), out of scope for an
+    `--expect` negative. Returns (cases, classes). Empty if the file is absent."""
+    if not REGISTRY.is_file():
+        return {}, {}
+    data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    return data.get("cases", {}), data.get("classes", {})
+
+
+def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[str]:
+    """Structural validation of each registry entry (Section 6): the case exists;
+    a non-`liveness` entry names a real `fail` final; a `liveness` entry has no
+    `fail` final. Semantic correctness (is it *really* conformant-absence?) is a
+    review property — the `property` field documents the justification."""
+    findings: list[str] = []
+    for case_id, entry in cases.items():
+        cls = entry.get("class")
+        if cls not in classes:
+            findings.append(f"REGISTRY_INVALID: {case_id} class '{cls}' is not a declared class")
+            continue
+        rc = reason_classes(case_id)
+        if rc is None:
+            findings.append(f"REGISTRY_INVALID: {case_id} has no registered .scxml")
+            continue
+        has_fail = any("fail" in v for v in rc.values())
+        if cls == "liveness":
+            if entry.get("fail_reason"):
+                findings.append(f"REGISTRY_INVALID: {case_id} is liveness but names a fail_reason")
+            elif has_fail:
+                findings.append(f"REGISTRY_INVALID: {case_id} is liveness but the case has a fail final")
+            continue
+        reason = entry.get("fail_reason")
+        if not reason:
+            findings.append(f"REGISTRY_INVALID: {case_id} ({cls}) must name a structural fail_reason")
+        elif "fail" not in rc.get(reason, set()):
+            findings.append(f"REGISTRY_INVALID: {case_id} fail_reason '{reason}' is not a fail final")
+    return findings
 
 
 def classify(row: NegRow) -> str:
@@ -162,6 +215,11 @@ def main() -> int:
 
     vacuous_keys = {r.key for r in by_class.get("VACUOUS", [])}
 
+    registry, reg_classes = load_registry()
+    registered = set(registry)
+    registry_findings = validate_registry(registry, reg_classes)
+    registered_with_row = sorted({r.case_id for r in rows if r.case_id in registered})
+
     if args.write_baseline:
         BASELINE.write_text(baseline_text(vacuous_keys), encoding="utf-8")
         print(f"wrote {BASELINE.relative_to(REPO)} ({len(vacuous_keys)} entries)")
@@ -174,12 +232,18 @@ def main() -> int:
         print("=" * 64)
         for kind in ("SOUND", "VACUOUS", "STALE", "UNKNOWN", "OTHER"):
             members = by_class.get(kind, [])
-            print(f"  {kind:8} = {len(members)}")
+            print(f"  {kind:12} = {len(members)}")
+        print(f"  {'OUT_OF_SCOPE':12} = {len(registry)}  (conformant-absence registry)")
         print("=" * 64)
         for kind in ("STALE", "UNKNOWN", "OTHER"):
             for r in by_class.get(kind, []):
                 print(f"  {kind}: {r.case_id} -> {r.exp_class}:{r.exp_reason}")
         print(f"  baseline ledger: {len(baseline)} entries  ({BASELINE.relative_to(REPO)})")
+        print(f"  conformant-absence registry: {len(registry)} entries  ({REGISTRY.relative_to(REPO)})")
+        for f in registry_findings:
+            print(f"  {f}")
+        if registered_with_row:
+            print(f"  registered cases that still carry a NEG_ROW (remove): {registered_with_row}")
         new_vac = vacuous_keys - baseline
         gone = baseline - vacuous_keys
         if new_vac:
@@ -198,9 +262,15 @@ def main() -> int:
         findings.append(f"NEW_VACUOUS: {k} lands on inconclusive; author a sound (observed_violation) negative")
     for k in sorted(baseline - vacuous_keys):
         findings.append(f"STALE_BASELINE: {k} is no longer vacuous; remove it from {BASELINE.name}")
+    findings.extend(registry_findings)
+    for cid in registered_with_row:
+        findings.append(f"REGISTERED_WITH_ROW: {cid} is conformant-absence (registry); remove its NEG_ROW")
 
     sound = len(by_class.get("SOUND", []))
-    print(f"negative-coverage: {sound} sound / {len(vacuous_keys)} vacuous (baseline {len(baseline)}) / {len(rows)} rows")
+    print(
+        f"negative-coverage: {sound} sound / {len(vacuous_keys)} vacuous (baseline {len(baseline)}) "
+        f"/ {len(registry)} out-of-scope / {len(rows)} rows"
+    )
     for f in findings:
         print(f"  {f}")
     if findings:
