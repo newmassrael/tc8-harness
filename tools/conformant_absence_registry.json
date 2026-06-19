@@ -3021,6 +3021,1043 @@
           "property": "DUT's Nack must echo the unknown eventgroup id from the rejected Subscribe; fail iff it differs"
         }
       ]
+    },
+    "TCP_ACKNOWLEDGEMENT_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_ack_num_does_not_acknowledge_piggyback_payload",
+          "property": "DUT's ACK must acknowledge the piggybacked payload; fail iff the ack_num does not cover it"
+        }
+      ]
+    },
+    "TCP_ACKNOWLEDGEMENT_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
+          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
+        }
+      ]
+    },
+    "TCP_ACKNOWLEDGEMENT_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_emitted_rst_after_pure_ack",
+          "property": "DUT must continue the connection after a pure ACK; fail iff it emits a RST instead"
+        }
+      ]
+    },
+    "TCP_BASICS_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN,ACK to the tester's SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_reach_established",
+          "property": "DUT must complete the handshake and reach ESTABLISHED for a valid SYN; fail iff it emits a response showing it did not establish"
+        }
+      ]
+    },
+    "TCP_BASICS_03": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ACK to the tester's FIN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_seq_not_zero_after_data",
+          "property": "DUT's RST after data must carry seq=0 per the test's RFC 793 expectation; fail iff non-zero"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_seq_not_zero_after_fin",
+          "property": "DUT's RST after FIN must carry seq=0 per the test's RFC 793 expectation; fail iff non-zero"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_seq_not_zero_after_syn",
+          "property": "DUT's RST after SYN must carry seq=0 per the test's RFC 793 expectation; fail iff non-zero"
+        }
+      ]
+    },
+    "TCP_BASICS_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_seq_not_ack_phase_ack_literal",
+          "property": "DUT's RST seq must equal the acknowledged ACK value (RFC 793); fail iff it differs"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_seq_not_synack_ack_literal",
+          "property": "DUT's RST seq must equal the SYN,ACK's ACK value (RFC 793); fail iff it differs"
+        }
+      ]
+    },
+    "TCP_BASICS_06": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN to open the connection; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_07": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_reach_established",
+          "property": "DUT must complete the handshake and reach ESTABLISHED for a valid SYN; fail iff it emits a response showing it did not establish"
+        }
+      ]
+    },
+    "TCP_BASICS_08": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a FIN when closing from ESTABLISHED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_09": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a FIN entering LAST-ACK; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_10": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a FIN to close the connection; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_11": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_12": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_13": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_14": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_BASICS_17": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_reach_established_after_simultaneous_open",
+          "property": "DUT must reach ESTABLISHED via simultaneous open; fail iff it emits a response showing it did not"
+        }
+      ]
+    },
+    "TCP_CALL_ABORT_02": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CALL_ABORT_03": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CALL_RECEIVE_04": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CALL_RECEIVE_05": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_fin_in_cw_without_close",
+          "property": "Silence is conformant: DUT must not emit a FIN in CLOSE-WAIT before the application closes; fail iff it does"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_rst_in_cw",
+          "property": "Silence is conformant: DUT must not emit a RST in CLOSE-WAIT for this stimulus; fail iff it does"
+        }
+      ]
+    },
+    "TCP_CHECKSUM_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CHECKSUM_02": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_corrupt_checksum_data",
+          "property": "Silence is conformant: DUT must drop a segment with a corrupt checksum; fail iff it ACKs the corrupt data"
+        }
+      ]
+    },
+    "TCP_CHECKSUM_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_emitted_segment_with_invalid_checksum",
+          "property": "DUT's data segment must carry a valid TCP checksum; fail iff the emitted checksum is invalid"
+        }
+      ]
+    },
+    "TCP_CLOSING_03": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_rst_with_data_in_est",
+          "property": "Silence is conformant: DUT must drop a RST-with-data in ESTABLISHED without response; fail iff it emits any reply"
+        }
+      ]
+    },
+    "TCP_CLOSING_06": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CLOSING_07": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_rst_in_fw1",
+          "property": "Silence is conformant: DUT must not emit a RST in FIN-WAIT-1 for this stimulus; fail iff it does"
+        }
+      ]
+    },
+    "TCP_CLOSING_08": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_fin_or_rst_in_fw2",
+          "property": "Silence is conformant: DUT must not emit a FIN or RST in FIN-WAIT-2 for this stimulus; fail iff it does"
+        }
+      ]
+    },
+    "TCP_CLOSING_09": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_fin_or_rst_in_close_wait",
+          "property": "Silence is conformant: DUT must not emit a FIN or RST in CLOSE-WAIT for this stimulus; fail iff it does"
+        }
+      ]
+    },
+    "TCP_CONNECTION_ESTAB_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN,ACK for leg 1; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CONNECTION_ESTAB_02": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN,ACK for leg 1; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CONNECTION_ESTAB_03": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing leg 1's handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CONNECTION_ESTAB_07": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ACK to the tester's FIN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_CONTROL_FLAGS_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_ack_num_does_not_acknowledge_urg_payload",
+          "property": "DUT's ACK must acknowledge the urgent-flagged payload; fail iff the ack_num does not cover it"
+        }
+      ]
+    },
+    "TCP_CONTROL_FLAGS_08": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN,ACK to the first SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_01": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_after_syn_rst_in_listen",
+          "property": "Silence is conformant: DUT must drop a SYN+RST in LISTEN without response; fail iff it emits any reply"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_seq_not_seg_ack_in_listen",
+          "property": "DUT's RST to a segment in LISTEN must carry seq = the segment's ACK (RFC 793); fail iff it differs"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_03": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_ack_rst_with_unacceptable_ack",
+          "property": "Silence is conformant: DUT must drop an ACK-RST with an unacceptable ACK; fail iff it emits any reply"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_04": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_bare_rst_in_syn_sent",
+          "property": "Silence is conformant: DUT must drop a bare RST in SYN-SENT without response; fail iff it emits any reply"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_05": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_did_not_close_on_ack_rst_with_acceptable_ack",
+          "property": "Silence is conformant: DUT must close silently on an ACK-RST with an acceptable ACK; fail iff it emits a response showing it stayed open"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_did_not_close_on_syn_ack_rst_with_acceptable_ack",
+          "property": "Silence is conformant: DUT must close silently on a SYN-ACK-RST with an acceptable ACK; fail iff it emits a response showing it stayed open"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_06": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_ack_with_payload_acceptable_ack",
+          "property": "Silence is conformant: DUT must not respond to a bare ACK-with-payload carrying an acceptable ACK; fail iff it emits a reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_bare_ack_with_acceptable_ack",
+          "property": "Silence is conformant: DUT must not respond to a bare ACK carrying an acceptable ACK; fail iff it emits a reply"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_07": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ACK to the out-of-window SYN in SYN-RECEIVED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_08": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_09": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_10": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_11": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_12": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_13": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_14": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_15": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_closing",
+          "property": "Silence is conformant: an out-of-window RST in CLOSING must be dropped without response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_cw",
+          "property": "Silence is conformant: an out-of-window RST in CLOSE-WAIT must be dropped without response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_est",
+          "property": "Silence is conformant: an out-of-window RST in ESTABLISHED must be dropped without response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_fw1",
+          "property": "Silence is conformant: an out-of-window RST in FIN-WAIT-1 must be dropped without response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_fw2",
+          "property": "Silence is conformant: an out-of-window RST in FIN-WAIT-2 must be dropped without response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_la",
+          "property": "Silence is conformant: an out-of-window RST in LAST-ACK must be dropped without response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_syn_rcvd",
+          "property": "Silence is conformant: an out-of-window RST in SYN-RECEIVED must be dropped without response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_otw_rst_in_tw",
+          "property": "Silence is conformant: an out-of-window RST in TIME-WAIT must be dropped without response; fail iff the DUT emits any reply"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_02": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN,ACK entering SYN-RECEIVED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN,ACK to the prelude SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_06": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_07": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_urg_only_in_closing",
+          "property": "Silence is conformant: a URG-only segment in CLOSING must elicit no response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_urg_only_in_cw",
+          "property": "Silence is conformant: a URG-only segment in CLOSE-WAIT must elicit no response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_urg_only_in_la",
+          "property": "Silence is conformant: a URG-only segment in LAST-ACK must elicit no response; fail iff the DUT emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_urg_only_in_tw",
+          "property": "Silence is conformant: a URG-only segment in TIME-WAIT must elicit no response; fail iff the DUT emits any reply"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_08": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_fin_in_listen",
+          "property": "Silence is conformant: DUT must drop a FIN in LISTEN without response; fail iff it emits any reply"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_fin_in_syn_sent",
+          "property": "Silence is conformant: DUT must drop a FIN in SYN-SENT without response; fail iff it emits any reply"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_seq_not_zero_after_fin_in_closed",
+          "property": "DUT's RST to a FIN in CLOSED must carry seq=0 (RFC 793); fail iff non-zero"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_09": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_rst_after_dup_fin_ack_in_closing",
+          "property": "Silence is conformant: DUT must not emit a RST after a duplicate FIN,ACK in CLOSING; fail iff it does"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_rst_after_dup_fin_ack_in_la",
+          "property": "Silence is conformant: DUT must not emit a RST after a duplicate FIN,ACK in LAST-ACK; fail iff it does"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_state_changed_after_dup_fin_ack_in_cw",
+          "property": "Silence is conformant: DUT must not change state on a duplicate FIN,ACK in CLOSE-WAIT; fail iff it emits a state-change response"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_piggyback_ack_num_does_not_acknowledge_tester_payload",
+          "property": "DUT's piggyback ACK must acknowledge the tester's payload; fail iff the ack_num does not cover it"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_second_segment_before_piggyback_inject",
+          "property": "Silence is conformant: DUT must not emit a second data segment before the tester injects the piggyback ACK; fail iff it does"
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_11": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_duplicate_ack_in_est",
+          "property": "Silence is conformant: DUT must not respond to a duplicate ACK in ESTABLISHED; fail iff it emits a reply"
+        }
+      ]
+    },
+    "TCP_HEADER_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_emitted_segment_with_invalid_header",
+          "property": "DUT's data segment must carry a well-formed TCP header; fail iff a malformed header is emitted"
+        }
+      ]
+    },
+    "TCP_HEADER_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
+          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
+        }
+      ]
+    },
+    "TCP_HEADER_04": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_segment_with_wrong_source_port",
+          "property": "Silence is conformant: DUT must not accept a segment for the wrong source port; fail iff it ACKs it"
+        }
+      ]
+    },
+    "TCP_HEADER_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
+          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
+        }
+      ]
+    },
+    "TCP_HEADER_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
+          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
+        }
+      ]
+    },
+    "TCP_HEADER_07": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_segment_with_invalid_data_offset",
+          "property": "Silence is conformant: DUT must drop a segment with an invalid data offset; fail iff it ACKs it"
+        }
+      ]
+    },
+    "TCP_HEADER_08": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_segment_with_oversize_data_offset",
+          "property": "Silence is conformant: DUT must drop a segment whose data offset exceeds the segment; fail iff it ACKs it"
+        }
+      ]
+    },
+    "TCP_HEADER_09": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_segment_with_zero_checksum",
+          "property": "Silence is conformant: DUT must drop a segment carrying a zero checksum; fail iff it ACKs it"
+        }
+      ]
+    },
+    "TCP_HEADER_11": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_multicast_syn",
+          "property": "Silence is conformant: DUT must not accept a SYN with a multicast source; fail iff it ACKs it"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_reach_established",
+          "property": "DUT must complete the handshake and reach ESTABLISHED for a valid SYN; fail iff it emits a response showing it did not establish"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_reach_established",
+          "property": "DUT must complete the handshake and reach ESTABLISHED for a valid SYN; fail iff it emits a response showing it did not establish"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_reach_established",
+          "property": "DUT must complete the handshake and reach ESTABLISHED for a valid SYN; fail iff it emits a response showing it did not establish"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ACK to the SYN,ACK; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase1_segment_size_not_advertised_mss_200",
+          "property": "DUT's phase-1 data segment must not exceed the advertised MSS of 200; fail iff larger"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase2_segment_size_not_dut_mss_1460",
+          "property": "DUT's phase-2 data segment must respect its own 1460 MSS; fail iff larger"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase1_segment_size_not_advertised_mss_200",
+          "property": "DUT's phase-1 data segment must not exceed the advertised MSS of 200; fail iff larger"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase2_segment_size_not_dut_mss_1460",
+          "property": "DUT's phase-2 data segment must respect its own 1460 MSS; fail iff larger"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_data_segment_size_not_default_536",
+          "property": "DUT's data segment must honour the RFC 1122 default 536 MSS when none is advertised; fail iff oversized"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_11": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN carrying an MSS option; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_MSS_OPTIONS_12": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN advertising a non-default MSS; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_NAGLE_02": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_second_segment_before_ack_nagle_violation",
+          "property": "Silence is conformant: DUT must not emit a second small segment before the first is acknowledged (Nagle); fail iff it does"
+        }
+      ]
+    },
+    "TCP_NAGLE_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_released_small_segment_before_aggregate_nagle_violation",
+          "property": "DUT must aggregate small writes per Nagle; fail iff it releases a small segment with an unacked outstanding segment"
+        }
+      ]
+    },
+    "TCP_OUT_OF_ORDER_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_OUT_OF_ORDER_02": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_OUT_OF_ORDER_03": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_OUT_OF_ORDER_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_PROBING_WINDOWS_02": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_PROBING_WINDOWS_03": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_sent_segment_past_shrunk_window_negative_usable_window_violation",
+          "property": "Silence is conformant: DUT must not emit a segment past a shrunk (negative usable) window; fail iff it does"
+        }
+      ]
+    },
+    "TCP_PROBING_WINDOWS_04": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit its first data segment; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_PROBING_WINDOWS_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit its first data segment; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_PROBING_WINDOWS_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "probe2_delta_not_greater_than_initial_probe_rto",
+          "property": "DUT's second zero-window probe must back off (delta > initial probe RTO); fail iff it does not"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "probe3_delta_not_greater_than_probe2_lower_bound",
+          "property": "DUT's third zero-window probe must back off beyond probe 2; fail iff it does not"
+        }
+      ]
+    },
+    "TCP_SEQUENCE_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_synack_ack_num_does_not_acknowledge_tester_isn",
+          "property": "DUT's SYN,ACK must acknowledge the tester's ISN+1; fail iff the ack_num does not"
+        }
+      ]
+    },
+    "TCP_SEQUENCE_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_ack_num_does_not_acknowledge_tester_isn",
+          "property": "DUT's ACK must acknowledge the tester's ISN+1; fail iff the ack_num does not"
+        }
+      ]
+    },
+    "TCP_SEQUENCE_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_synack_ack_num_not_1_for_zero_isn",
+          "property": "DUT's SYN,ACK must carry ack_num=1 for a tester ISN of 0; fail iff it differs"
+        }
+      ]
+    },
+    "TCP_SEQUENCE_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_synack_ack_num_not_zero_for_max_isn",
+          "property": "DUT's SYN,ACK must wrap ack_num to 0 for a tester ISN of 2^32-1; fail iff it differs"
+        }
+      ]
+    },
+    "TCP_SEQUENCE_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit an ACK for the first data segment; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a SYN,ACK to the first tester SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_02": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_rst_after_unacceptable_rst",
+          "property": "Silence is conformant: DUT must drop an unacceptable RST without emitting a RST; fail iff it emits one"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_03": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a RST to the unacceptable ACK in SYN-RECEIVED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_04": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a RST to a SYN,ACK received in LISTEN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_06": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_07": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a RST to a SYN,ACK received in LISTEN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_08": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a RST to the SYN,ACK carrying an unacceptable ACK; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_09": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rst_to_unacc_ack_finwait2",
+          "property": "DUT's challenge response to an unacceptable ACK in FIN-WAIT-2 must be an ACK not a RST; fail iff it emits a RST"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_11": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_12": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_13": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_14": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
+    },
+    "TCP_URGENT_PTR_04": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+        }
+      ]
     }
   }
 }

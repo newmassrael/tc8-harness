@@ -2381,164 +2381,19 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # ended the case. Proves the phase_a echo_id match is load-
         # bearing on the within-timer reassembly path.
         "IPv4_REASSEMBLY_10|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_phase_a_within_timer"
-        # §4.8.6.1 TCP_BASICS_01..05: every pass/fail branch conjuncts
-        # on `captured.src_ip == expected.dut_iface_ip` so flipping the
-        # expectation to an unreachable 10.99.99.99 sends every guard
-        # out of reach. The DUT still emits the spec-mandated segment
-        # (SYN,ACK for 01/02, ACK for 03, RST for 04/05) but the SCXML
-        # never matches → the FIRST listen window (phase 1 in compound
-        # cases) times out first, landing the case on its phase-1
-        # fail_timeout reason. Proves the src_ip conjunct is load-
-        # bearing across all five new TCP pilot cases.
-        #
-        # BASICS_04 has 3 phases (SYN/FIN/Data) and BASICS_05 has 2
-        # phases (SYN+ACK/ACK); the negative row drives both into
-        # phase-1 timeout (`_after_syn` / `_after_synack`) because
-        # phase 1's pass guard is the first one made unreachable —
-        # phases 2/3 are never entered, so their timeout reasons are
-        # not reachable from this CLI flip. Phase-2/3 reachability is
-        # exercised by ctest unit tests + positive smoke runs.
-        "TCP_BASICS_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_BASICS_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_BASICS_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_to_tester_fin_within_listen_window"
-        "TCP_BASICS_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_after_syn"
-        "TCP_BASICS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_after_synack"
-        "TCP_BASICS_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_within_listen_window"
-        "TCP_BASICS_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_within_listen_window"
-        "TCP_BASICS_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_fin_from_established"
-        "TCP_BASICS_10|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_close_fin_phase1"
-        "TCP_BASICS_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_fin_into_last_ack"
-        # §4.8.6.2 TCP_CHECKSUM_01..03: every pass/fail conjunct gates
-        # on `captured.src_ip == expected.dut_iface_ip`, so flipping
-        # the expectation to 10.99.99.99 sends every guard out of
-        # reach. CHECKSUM_01/02 land on phase-1 timeout
-        # (no_dut_handshake_ack); CHECKSUM_03 lands on the single
-        # listen window's timeout. CHECKSUM_02's absence-pass gets
-        # FLIPPED into a fail by the unreachable phase-1 guard —
-        # without the handshake-consume step the absence-listen never
-        # opens, which is the right diagnostic ("we never even saw the
-        # handshake" beats "we passed by absence due to a fixture
-        # bug").
-        "TCP_CHECKSUM_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
-        "TCP_CHECKSUM_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
-        "TCP_CHECKSUM_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_data_segment_within_listen_window"
-        # §4.8.6.3 UNACCEPTABLE: every pass-guard gates on
-        # `captured.src_ip == expected.dut_iface_ip`, so the IP flip
-        # makes the first listening state unreachable on each case.
-        # Each row's expected fail reason matches the first state's
-        # fail terminal (deadline_first / fail_timeout_phase1 /
-        # fail_no_handshake_ack / fail_p1_no_handshake_ack).
-        "TCP_UNACCEPTABLE_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_to_first_tester_syn"
-        "TCP_UNACCEPTABLE_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_to_first_tester_syn"
-        "TCP_UNACCEPTABLE_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_to_listen_synack"
-        "TCP_UNACCEPTABLE_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_to_listen_synack"
-        "TCP_UNACCEPTABLE_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
-        "TCP_UNACCEPTABLE_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
-        "TCP_UNACCEPTABLE_14|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_UNACCEPTABLE_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_to_unacceptable_ack_in_syn_recv"
-        "TCP_UNACCEPTABLE_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_phase1_synack_with_unacceptable_ack"
-        "TCP_UNACCEPTABLE_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_UNACCEPTABLE_10|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
-        "TCP_UNACCEPTABLE_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        # §4.8.6.6 TCP_FLAGS_INVALID_01/02: every pass / wrong-seq
-        # transition gates on `captured.src_ip == expected.dut_iface_ip`
-        # so the IP flip makes both the SYN+ACK observation (01) and
-        # the DUT-RST observation (02) unreachable. SCXML lands on the
-        # first state's 5 s deadline — fail_timeout_first_synack on 01,
-        # fail_timeout (no_dut_rst_to_syn_ack_in_listen) on 02. Proves
-        # the src_ip conjunct is load-bearing across both LISTEN-state
-        # probes.
-        "TCP_FLAGS_INVALID_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_to_first_tester_syn"
-        "TCP_FLAGS_INVALID_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_to_syn_ack_in_listen"
-        # §4.8 TIME-WAIT cluster (BASICS_11/12/13/14, UNACCEPTABLE_13,
-        # FLAGS_INVALID_14): every state's pass guard gates on
-        # `captured.src_ip == expected.dut_iface_ip`, so the IP flip
-        # uniformly drives the case to its first state's 5 s deadline.
-        # BASICS_11/12 land on no_dut_handshake_ack (their listening
-        # _replay_rst is unreachable without first walking the prelude
-        # observation chain), so the negative path's wall-time is just
-        # ~5 s — far below the positive path's 90 s envelope.
-        "TCP_BASICS_11|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_BASICS_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_BASICS_13|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_BASICS_14|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_UNACCEPTABLE_11|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_UNACCEPTABLE_13|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_14|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_to_otw_seq_syn_in_syn_recv"
-        "TCP_FLAGS_INVALID_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_11|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_10|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_13|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1"
-        "TCP_FLAGS_INVALID_15|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_phase1_syn_rcvd"
-        "TCP_FLAGS_INVALID_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_to_active_open"
-        "TCP_FLAGS_INVALID_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_to_active_open"
-        "TCP_FLAGS_INVALID_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_phase1_syn_ack_rst"
-        "TCP_FLAGS_INVALID_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_phase1_bare_ack"
-        "TCP_HEADER_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_data_segment_within_listen_window"
-        "TCP_HEADER_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_HEADER_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_HEADER_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_HEADER_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_HEADER_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_HEADER_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_HEADER_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_HEADER_11|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_MSS_OPTIONS_11|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_with_mss_option"
-        "TCP_MSS_OPTIONS_12|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_with_non_default_mss"
-        "TCP_MSS_OPTIONS_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_MSS_OPTIONS_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_MSS_OPTIONS_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_MSS_OPTIONS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_to_synack_with_ilen0_mss"
-        "TCP_MSS_OPTIONS_10|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_data_segment_within_listen_window"
-        "TCP_MSS_OPTIONS_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_data_segment_phase1_mv200"
-        "TCP_MSS_OPTIONS_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_data_segment_phase1_mv200"
-        "TCP_BASICS_17|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_to_simultaneous_syn"
-        "TCP_FLAGS_PROCESSING_11|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_FLAGS_PROCESSING_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_FLAGS_PROCESSING_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_rst_to_fin_in_closed"
-        "TCP_FLAGS_PROCESSING_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1_cw"
-        "TCP_FLAGS_PROCESSING_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1_cw"
-        "TCP_FLAGS_PROCESSING_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_to_prelude_syn_phase1"
-        "TCP_FLAGS_PROCESSING_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_phase1_syn_rcvd"
-        "TCP_CLOSING_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CLOSING_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CLOSING_09|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CLOSING_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CLOSING_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CALL_ABORT_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CALL_RECEIVE_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CALL_RECEIVE_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1_est"
-        "TCP_CALL_ABORT_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_phase1_closing"
-        "TCP_ACKNOWLEDGEMENT_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_to_data"
-        "TCP_ACKNOWLEDGEMENT_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_ACKNOWLEDGEMENT_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_NAGLE_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_NAGLE_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_CONTROL_FLAGS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_CONTROL_FLAGS_08|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_to_first_syn"
-        "TCP_URGENT_PTR_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_OUT_OF_ORDER_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_FLAGS_PROCESSING_10|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_OUT_OF_ORDER_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_OUT_OF_ORDER_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_OUT_OF_ORDER_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_PROBING_WINDOWS_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack"
-        "TCP_PROBING_WINDOWS_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_PROBING_WINDOWS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_PROBING_WINDOWS_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_PROBING_WINDOWS_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_SEQUENCE_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_SEQUENCE_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_SEQUENCE_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
-        "TCP_SEQUENCE_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_to_synack_within_listen_window"
-        "TCP_SEQUENCE_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_for_seg1"
-        "TCP_CONNECTION_ESTAB_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_for_leg1"
-        "TCP_CONNECTION_ESTAB_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_for_leg1"
-        "TCP_CONNECTION_ESTAB_07|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ack_to_tester_fin"
-        "TCP_CONNECTION_ESTAB_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_synack_for_leg1"
+        # §4.8 TCP conformant-absence cases live in
+        # tools/conformant_absence_registry.json (docs/verdict_policy.md
+        # Section 6): no --expect flip can fault them — each guard asserts
+        # DUT behaviour (must emit a correct segment, must not emit a
+        # prohibited one, or liveness), not a comparison against an
+        # operator value. The negative coverage for §4.8.6.2
+        # TCP_CHECKSUM_01, §4.8.6.3 TCP_UNACCEPTABLE_01 and §4.8.6.6
+        # TCP_FLAGS_INVALID_01 (and the other §4.8 sub-areas) is now that
+        # registry guard, not a row here. The former ipv4.dut_iface_ip
+        # flip rows only suppressed L3 observation (absence/timeout) and
+        # proved nothing about the guards; the spurious-filter rejection
+        # in tools/negative_coverage_audit.py codifies why they were
+        # removed.
         # §4.6 UDP conformant-absence cases live in
         # tools/conformant_absence_registry.json (docs/verdict_policy.md
         # Section 6): no --expect flip can fault them — each guard asserts
@@ -2571,7 +2426,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
     )
     # Filter NEG_ROWS to only those whose case_id appears in the
     # positional CASES array (when the user passed any). Keeps the
-    # `--negative TCP_HEADER_07` ergonomic for rapid per-case
+    # `--negative SOMEIP_ETS_027` ergonomic for rapid per-case
     # iteration; bare `--negative` (no positional args) still runs
     # the full curated negative set. Default $CASES = SOMEIPSRV_FORMAT_01
     # under the no-arg branch — filter against that single id leaves
