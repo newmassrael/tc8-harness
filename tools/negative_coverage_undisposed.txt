@@ -7,10 +7,3 @@
 # --check fails on a new undisposed case or a stale (now-disposed) entry.
 # When this file is empty every positive case is disposed -- the SSOT is
 # proven complete.
-tcp_checksum_04
-tcp_retransmission_to_03
-tcp_retransmission_to_04
-tcp_retransmission_to_05
-tcp_retransmission_to_06
-tcp_retransmission_to_08
-tcp_retransmission_to_09

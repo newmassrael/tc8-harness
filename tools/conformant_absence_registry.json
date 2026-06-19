@@ -4067,6 +4067,139 @@
           "property": "Silence is conformant: a RST received in CLOSED must be dropped without response; fail iff the DUT emits any reply"
         }
       ]
+    },
+    "TCP_CHECKSUM_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_reused_prior_isn_across_active_opens",
+          "property": "DUT's ISN must differ across successive active opens (RFC 793 clock-driven ISN); fail iff the two captured ISNs are equal"
+        }
+      ]
+    },
+    "TCP_RETRANSMISSION_TO_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_phase1_retransmit_observed_in_kernel",
+          "property": "DUT must retransmit the unacked segment (kernel tcpi_retransmits >= 1); fail iff the kernel observes none"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase1_rto_below_doubled_baseline",
+          "property": "DUT's post-retransmit RTO must be doubled (kernel tcpi_rto >= 350 ms); fail iff below the doubled baseline"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase2_rto_not_doubled_karns_violation",
+          "property": "DUT must preserve the doubled RTO across a Karn-excluded ACK (RFC 6298 5.3); fail iff the RTO collapses"
+        }
+      ]
+    },
+    "TCP_RETRANSMISSION_TO_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_dut_data_retransmit_1",
+          "property": "DUT must retransmit the data segment at least once (kernel count >= 1); fail iff none observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_dut_data_retransmit_2",
+          "property": "DUT must retransmit the data segment at least twice (kernel count >= 2); fail iff fewer observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_dut_data_retransmit_3",
+          "property": "DUT must retransmit the data segment at least three times (kernel count >= 3); fail iff fewer observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase1_rto_below_doubled_baseline",
+          "property": "DUT's post-retransmit RTO must be doubled (kernel tcpi_rto >= 350 ms); fail iff below the doubled baseline"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase2_rto_not_greater_than_phase1",
+          "property": "DUT's RTO must grow on each retransmit (exponential backoff); fail iff phase-2 RTO is not greater than phase-1"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase3_rto_not_greater_than_phase2",
+          "property": "DUT's RTO must grow on each retransmit (exponential backoff); fail iff phase-3 RTO is not greater than phase-2"
+        }
+      ]
+    },
+    "TCP_RETRANSMISSION_TO_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_dut_syn_retransmit_1",
+          "property": "DUT must retransmit the SYN at least once (kernel count >= 1); fail iff none observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_dut_syn_retransmit_2",
+          "property": "DUT must retransmit the SYN at least twice (kernel count >= 2); fail iff fewer observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_dut_syn_retransmit_3",
+          "property": "DUT must retransmit the SYN at least three times (kernel count >= 3); fail iff fewer observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase1_rto_below_doubled_baseline",
+          "property": "DUT's post-retransmit RTO must be doubled (kernel tcpi_rto >= 350 ms); fail iff below the doubled baseline"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase2_rto_not_greater_than_phase1",
+          "property": "DUT's RTO must grow on each retransmit (exponential backoff); fail iff phase-2 RTO is not greater than phase-1"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "phase3_rto_not_greater_than_phase2",
+          "property": "DUT's RTO must grow on each retransmit (exponential backoff); fail iff phase-3 RTO is not greater than phase-2"
+        }
+      ]
+    },
+    "TCP_RETRANSMISSION_TO_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "initial_rto_out_of_rfc6298_window",
+          "property": "DUT's initial SYN-retransmit RTO must fall in the RFC 6298 window; fail iff outside [0.8 s, 1.5 s]"
+        }
+      ]
+    },
+    "TCP_RETRANSMISSION_TO_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_retransmits_observed_in_kernel",
+          "property": "DUT must retransmit until the RTO plateau (kernel tcpi_retransmits >= 1); fail iff none observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s",
+          "property": "DUT's retransmit RTO must plateau at or below 2*MSL (60 s); fail iff it exceeds 2*MSL (the Linux RTO_MAX of 120 s does)"
+        }
+      ]
+    },
+    "TCP_RETRANSMISSION_TO_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_syn_retransmits_observed_in_kernel",
+          "property": "DUT must retransmit the SYN until the RTO plateau (kernel count >= 1); fail iff none observed"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s",
+          "property": "DUT's retransmit RTO must plateau at or below 2*MSL (60 s); fail iff it exceeds 2*MSL (the Linux RTO_MAX of 120 s does)"
+        }
+      ]
     }
   }
 }
