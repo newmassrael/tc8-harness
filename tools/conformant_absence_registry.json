@@ -1866,15 +1866,6 @@
         }
       ]
     },
-    "IPv4_AUTOCONF_ANNOUNCING_06": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "announce_interval_outside_rfc3927_bounds_with_50ms_tolerance",
-          "property": "DUT's ARP Announcement interval must fall within the RFC 3927 §2.4 bounds (50 ms tolerance); fail iff the measured interval is out of bounds"
-        }
-      ]
-    },
     "IPv4_AUTOCONF_CONFLICT_06": {
       "guards": [
         {

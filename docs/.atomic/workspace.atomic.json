@@ -1676,6 +1676,10 @@
         {
           "file": "tests/ipv4_autoconf_announcing_06/ipv4_autoconf_announcing_06.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_announcing_06_neg/ipv4_autoconf_announcing_06_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
