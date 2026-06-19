@@ -218,10 +218,18 @@ fire validates nothing):
 A positive case in none of these is **undisposed**; the exhaustiveness ledger
 (`negative_coverage_undisposed.txt`) grandfathers today's backlog and `--check`
 rejects any new undisposed case or stale ledger entry, forcing it to shrink to
-zero — at which point the rows + registry + `_neg` cases are a proven-complete
-SSOT. The registry is also structurally validated: every `fail` final is covered
-by a guard; a non-`liveness` guard names a real `fail` final; a `liveness` guard
-names none and the case has none.
+zero — at which point every positive case is **covered** (accounted for by a
+disposition). Coverage is not correctness: the gate proves every case *has* a
+disposition, not that each disposition is genuine. It does close one correctness
+hole mechanically — a `SOUND_ROW` must be a real value-flip, so a row that flips
+an L3 source-IP filter (`ipv4`/`icmpv4` `dut_iface_ip`) and lands on an
+absence/timeout `fail` is rejected as **spurious** (observation suppression, not a
+faulted value). The rest is a review/empirical concern: a `REGISTRY` class and
+property are reviewed; a `FAULT_INJECTION` pairing is grounded by the `_neg`
+case's own green run; full empirical correctness is the Phase F track. The registry
+is also structurally validated: every `fail` final is covered by a guard; a
+non-`liveness` guard names a real `fail` final; a `liveness` guard names none and
+the case has none.
 
 Honesty boundary: the registry records *structural* non-vacuity and the
 behavioural property each guard protects. **Empirical** validation of

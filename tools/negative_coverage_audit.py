@@ -24,12 +24,23 @@ A positive case in none of these is UNDISPOSED: its guard's non-vacuity is unpro
 and untracked. The exhaustiveness ledger (negative_coverage_undisposed.txt)
 grandfathers today's UNDISPOSED set so the backlog is retired incrementally; --check
 rejects any NEW undisposed case and forces the ledger to shrink as cases are
-disposed. When the ledger empties, every case is disposed and the rows + registry +
-_neg cases form a proven-complete SSOT — the exhaustiveness invariant is then fully
-enforced (no positive case can silently lack a non-vacuity proof).
+disposed. When the ledger empties, every positive case is *covered* — accounted for
+by a disposition.
+
+Coverage is not correctness. This audit proves every case has a disposition; it does
+NOT prove each disposition is genuine. The correctness of a disposition is a separate
+(largely empirical, Phase F) concern: a REGISTRY entry's class/property is a review
+property; a FAULT_INJECTION pairing is validated by the `_neg` case's own green run;
+and a SOUND_ROW must be a real value-flip, not observation suppression. The one
+correctness hole this audit *does* close mechanically is the last: a "sound" row that
+flips an L3 source-IP filter (ipv4/icmpv4 `dut_iface_ip`) sends every guard out of
+reach and lands on an absence/timeout `fail` — it proves the case timed out, not that
+the guard reacts to a wrong value. Such SPURIOUS rows are rejected, not counted as a
+SOUND_ROW disposition.
 
 `_neg` cases are negative mechanisms, not positive cases; they are excluded from the
-universe, and each must pair with a real base case.
+universe. Each must pair with a real base case and carry a `fail` final (a negative
+that cannot fail catches nothing).
 
 Also enforced: registry structural validity (every `fail` final covered by a guard;
 declared classes; non-empty property; a registry case carries no row and no _neg
@@ -65,6 +76,13 @@ DEFERRED = HERE / "deferred_negatives.json"
 
 # One `NEG_ROWS` entry: "CASE_ID|wrong_token|<class>:<reason>".
 _ROW_RE = re.compile(r'"([^"|]+)\|([^"|]*)\|([a-z_]+):([^"]+)"')
+
+# Token keys that are the L3 source-IP observation filter every guard conjuncts on.
+# Flipping one suppresses observation entirely, so the case lands on an
+# absence/timeout `fail` -- a SPURIOUS "sound" row that validates nothing. (The
+# expected-VALUE keys `dut_iface_ip`/`arp.dut_iface_ip` are a different namespace
+# and are genuine value flips.)
+SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 
 
 @dataclass(frozen=True)
@@ -219,8 +237,9 @@ class Model:
     registry: dict[str, dict]
     reg_classes: dict[str, str]
     deferred: dict[str, str]
-    sound_cases: set[str]             # lower-case cases with a SOUND row
+    sound_cases: set[str]             # lower-case cases with a genuine SOUND row
     vacuous_cases: set[str]           # lower-case cases whose only row(s) are VACUOUS
+    spurious_rows: list[NegRow]       # SOUND-shaped rows that flip an L3 src-IP filter
     disposition: dict[str, str]       # case -> SOUND_ROW/FAULT_INJECTION/REGISTRY/DEFERRED/UNDISPOSED
 
 
@@ -235,12 +254,16 @@ def build_model() -> Model:
     def_lower = {k.lower() for k in deferred}
 
     sound_cases: set[str] = set()
+    spurious_rows: list[NegRow] = []
     case_has_row: set[str] = set()
     for r in rows:
         cid = r.case_id.lower()
         case_has_row.add(cid)
         if row_kind(r) == "SOUND":
-            sound_cases.add(cid)
+            if r.token.split("=", 1)[0] in SPURIOUS_FILTER_KEYS:
+                spurious_rows.append(r)   # observation suppression, not a value flip
+            else:
+                sound_cases.add(cid)
     vacuous_cases = {c for c in case_has_row if c not in sound_cases}
 
     disposition: dict[str, str] = {}
@@ -256,7 +279,7 @@ def build_model() -> Model:
         else:
             disposition[c] = "UNDISPOSED"
     return Model(rows, positives, fault_bases, registry, reg_classes, deferred,
-                 sound_cases, vacuous_cases, disposition)
+                 sound_cases, vacuous_cases, spurious_rows, disposition)
 
 
 def cross_findings(m: Model) -> list[str]:
@@ -290,10 +313,22 @@ def cross_findings(m: Model) -> list[str]:
         elif m.disposition.get(c) != "DEFERRED":
             findings.append(f"DEFERRED_REDUNDANT: {c} is already {m.disposition.get(c)}; drop the deferred entry")
 
-    # Every _neg mechanism must pair with a registered positive base.
+    # A SPURIOUS row flips the L3 src-IP filter and lands on absence/timeout: it
+    # proves nothing and must not masquerade as a SOUND_ROW disposition.
+    for r in m.spurious_rows:
+        findings.append(
+            f"SPURIOUS_SOUND: {r.case_id} flips L3 filter '{r.token}' -> absence "
+            f"fail '{r.exp_reason}'; remove it (the guard is not value-faulted)"
+        )
+
+    # Every _neg mechanism must pair with a registered positive base and be able to
+    # fail (a negative with no `fail` final catches nothing).
     for base in m.fault_bases:
         if base not in pos:
             findings.append(f"ORPHAN_NEG: {base}_neg has no registered positive base case")
+        neg_rc = reason_classes(f"{base}_neg")
+        if neg_rc is not None and not any("fail" in v for v in neg_rc.values()):
+            findings.append(f"NEG_NO_FAIL: {base}_neg has no fail final; it cannot catch a fault")
 
     findings.extend(validate_registry(m.registry, m.reg_classes))
     return findings

@@ -2329,11 +2329,12 @@ if [[ "$NEGATIVE" == "1" ]]; then
         #   prohibited_emission (silence conformant, must not emit):
         #     ICMPv4_ERROR_03/04/05, ICMPv4_TYPE_04/05/10/16.
         #   liveness (must emit, no wrong-value variant): ICMPv4_TYPE_22.
-        # TYPE_09 / TYPE_12 keep sound expect-flip rows: their echo_id is an
-        # operator-supplied expected value, so flipping icmpv4.echo_id drives
-        # the SCXML into the id-mismatch branch (higher specificity than the
-        # seq branch), proving the identifier-echo conjunct is load-bearing.
-        "ICMPv4_TYPE_09|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch"
+        # TYPE_12 keeps a sound expect-flip row: its echo_id is an operator-
+        # supplied expected value, so flipping icmpv4.echo_id drives the SCXML
+        # into the id-mismatch branch (higher specificity than the seq branch),
+        # proving the identifier-echo conjunct is load-bearing. TYPE_09 is the
+        # structural twin but its row was unverified on the wire -- deferred
+        # (deferred_negatives.json) until a smoke run confirms it lands on fail.
         "ICMPv4_TYPE_12|icmpv4.echo_id=0xFFFE|fail:timestamp_reply_identifier_not_echoed"
         # §4.4.4.6 IPv4_FRAGMENTS_01: flipping icmpv4.echo_id moves
         # the pass conjunct (echo_id match) out of reach so the SCXML
@@ -2427,12 +2428,6 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "TCP_CHECKSUM_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
         "TCP_CHECKSUM_02|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_handshake_ack_within_listen_window"
         "TCP_CHECKSUM_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_data_segment_within_listen_window"
-        # TCP_CHECKSUM_04 — IP flip makes the snippet's BPF
-        # `src host <dut_iface_ip>` unreachable on every observed
-        # SYN; both cycle-1 and cycle-2 snippets time out and the
-        # verdict ladder's first cond (`not cycle1_isn_captured`)
-        # short-circuits to `cycle1_syn_capture_timeout`.
-        "TCP_CHECKSUM_04|ipv4.dut_iface_ip=10.99.99.99|fail:cycle1_syn_capture_timeout"
         # §4.8.6.3 UNACCEPTABLE: every pass-guard gates on
         # `captured.src_ip == expected.dut_iface_ip`, so the IP flip
         # makes the first listening state unreachable on each case.
@@ -2541,10 +2536,6 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "TCP_PROBING_WINDOWS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
         "TCP_PROBING_WINDOWS_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
         "TCP_PROBING_WINDOWS_06|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_first_data_segment"
-        "TCP_RETRANSMISSION_TO_06|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
-        "TCP_RETRANSMISSION_TO_05|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
-        "TCP_RETRANSMISSION_TO_04|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
-        "TCP_RETRANSMISSION_TO_03|ipv4.dut_iface_ip=10.99.99.99|fail:dut_handshake_did_not_complete"
         "TCP_SEQUENCE_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
         "TCP_SEQUENCE_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"
         "TCP_SEQUENCE_04|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_syn_ack_within_listen_window"

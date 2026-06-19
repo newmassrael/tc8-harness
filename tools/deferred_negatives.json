@@ -3,6 +3,7 @@
   "cases": {
     "IPv4_REASSEMBLY_11": "needs-sound-negative: Linux ipfrag_time deviation makes the positive itself land on fail_timeout (no Echo Reply), so an echo_id-flip negative carries zero diagnostic variance",
     "IPv4_REASSEMBLY_13": "needs-sound-negative: overlapping-fragment reassembly is dropped post-CVE-2018-5391 on Linux, so the positive does not reassemble; deferred with REASSEMBLY_11",
-    "ICMPv4_TYPE_08": "needs-parameterise: echo payload is checked against a compiled constant (kIcmpv4EchoPayloadType08); lift to applyExpectedDefaults + expected.payload like the ETS echoes, then add a sound payload-flip row"
+    "ICMPv4_TYPE_08": "needs-parameterise: echo payload is checked against a compiled constant (kIcmpv4EchoPayloadType08); lift to applyExpectedDefaults + expected.payload like the ETS echoes, then add a sound payload-flip row",
+    "ICMPv4_TYPE_09": "needs-verification: echo_id-flip negative is structurally sound (twin of the CI-verified TYPE_12) but its own row is unverified on the wire; promote to a SOUND_ROW after a smoke run shows it lands on fail:echo_id_mismatch (not skip)"
   }
 }

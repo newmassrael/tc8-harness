@@ -205,6 +205,7 @@ tcp_call_receive_05
 tcp_checksum_01
 tcp_checksum_02
 tcp_checksum_03
+tcp_checksum_04
 tcp_closing_03
 tcp_closing_06
 tcp_closing_07
@@ -269,6 +270,10 @@ tcp_probing_windows_03
 tcp_probing_windows_04
 tcp_probing_windows_05
 tcp_probing_windows_06
+tcp_retransmission_to_03
+tcp_retransmission_to_04
+tcp_retransmission_to_05
+tcp_retransmission_to_06
 tcp_retransmission_to_08
 tcp_retransmission_to_09
 tcp_sequence_01
