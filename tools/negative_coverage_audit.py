@@ -44,9 +44,12 @@ it is inherently vacuous (docs/verdict_policy.md Section 6). Such cases carry NO
 NEG_ROW; they are recorded in `conformant_absence_registry.json`, reported as
 OUT_OF_SCOPE rather than debt, and their guards' non-vacuity is structural (the
 named `fail` final exists), empirically provable only on the DUT-mutation track.
-`--check` also enforces: every registry entry is structurally valid (case exists,
-names a real `fail` final, or is liveness with none) and a registered case
-carries no NEG_ROW.
+Each registry case lists `guards` — one per `fail` final (the unit a mutant must
+trip) or a single `liveness` guard. `--check` enforces: each guard is structurally
+valid (declared class; non-`liveness` names a real `fail` final; `liveness` names
+none and the case has none; non-empty property); every `fail` final is covered by
+a guard (a mixed-class case cannot be silently under-represented); and a registered
+case carries no NEG_ROW.
 
 Default (no args): print the full census. `--check`: enforce the ratchet (gates
 build-test.yml + .githooks/pre-commit). `--write-baseline`: regenerate the
@@ -132,32 +135,51 @@ def load_registry() -> tuple[dict[str, dict], dict[str, str]]:
 
 
 def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[str]:
-    """Structural validation of each registry entry (Section 6): the case exists;
-    a non-`liveness` entry names a real `fail` final; a `liveness` entry has no
-    `fail` final. Semantic correctness (is it *really* conformant-absence?) is a
-    review property — the `property` field documents the justification."""
+    """Structural validation of each registry entry (Section 6). Each case carries
+    a `guards` list — one guard per `fail` final (the exact unit a DUT-mutation
+    mutant must trip), or a single `liveness` guard for a case with no `fail`
+    final. Per guard: the class is declared; a non-`liveness` guard names a real
+    `fail` final; a `liveness` guard names none and the case has no `fail` final;
+    the `property` is non-empty. Completeness: every `fail` final in the case is
+    covered by a guard (so a case with mixed-class fail finals — e.g. one
+    `prohibited_emission` and one `incorrect_emission` — cannot be silently
+    under-represented by a single entry). Semantic correctness (is the property
+    text accurate?) remains a review property."""
     findings: list[str] = []
     for case_id, entry in cases.items():
-        cls = entry.get("class")
-        if cls not in classes:
-            findings.append(f"REGISTRY_INVALID: {case_id} class '{cls}' is not a declared class")
+        guards = entry.get("guards")
+        if not isinstance(guards, list) or not guards:
+            findings.append(f"REGISTRY_INVALID: {case_id} has no guards list")
             continue
         rc = reason_classes(case_id)
         if rc is None:
             findings.append(f"REGISTRY_INVALID: {case_id} has no registered .scxml")
             continue
-        has_fail = any("fail" in v for v in rc.values())
-        if cls == "liveness":
-            if entry.get("fail_reason"):
-                findings.append(f"REGISTRY_INVALID: {case_id} is liveness but names a fail_reason")
-            elif has_fail:
-                findings.append(f"REGISTRY_INVALID: {case_id} is liveness but the case has a fail final")
-            continue
-        reason = entry.get("fail_reason")
-        if not reason:
-            findings.append(f"REGISTRY_INVALID: {case_id} ({cls}) must name a structural fail_reason")
-        elif "fail" not in rc.get(reason, set()):
-            findings.append(f"REGISTRY_INVALID: {case_id} fail_reason '{reason}' is not a fail final")
+        case_fail_reasons = {r for r, v in rc.items() if "fail" in v}
+        covered: set[str] = set()
+        for g in guards:
+            cls = g.get("class")
+            if cls not in classes:
+                findings.append(f"REGISTRY_INVALID: {case_id} guard class '{cls}' is not a declared class")
+                continue
+            if not g.get("property"):
+                findings.append(f"REGISTRY_INVALID: {case_id} guard ({cls}) has an empty property")
+            if cls == "liveness":
+                if g.get("fail_reason"):
+                    findings.append(f"REGISTRY_INVALID: {case_id} liveness guard names a fail_reason")
+                elif case_fail_reasons:
+                    findings.append(f"REGISTRY_INVALID: {case_id} is liveness but the case has fail finals")
+                continue
+            reason = g.get("fail_reason")
+            if not reason:
+                findings.append(f"REGISTRY_INVALID: {case_id} ({cls}) guard must name a structural fail_reason")
+            elif "fail" not in rc.get(reason, set()):
+                findings.append(f"REGISTRY_INVALID: {case_id} fail_reason '{reason}' is not a fail final")
+            else:
+                covered.add(reason)
+        missing = case_fail_reasons - covered
+        if missing:
+            findings.append(f"REGISTRY_INCOMPLETE: {case_id} fail finals not covered by a guard: {sorted(missing)}")
     return findings
 
 

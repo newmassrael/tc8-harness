@@ -1,5 +1,5 @@
 {
-  "doc": "Conformant-absence registry (SSOT). Cases whose conformance property is DUT BEHAVIOUR (it must emit a correct frame, or must not emit a prohibited one) rather than a comparison against an operator-supplied expected value. A --expect negative cannot fault a conformant DUT on these, so they carry NO NEG_ROWS entry; their guard's non-vacuity is structural (the named fail final exists and is reachable by a misbehaving DUT) and is empirically provable only on the DUT-mutation track. The `class` axis is the property type that determines which fault trips the guard (see docs/verdict_policy.md Section 6), grounded in the safety/liveness dichotomy and the ISO 9646 4-value semantics. Validated by tools/negative_coverage_audit.py.",
+  "doc": "Conformant-absence registry (SSOT). Cases whose conformance property is DUT BEHAVIOUR (it must emit a correct frame, or must not emit a prohibited one) rather than a comparison against an operator-supplied expected value. A --expect negative cannot fault a conformant DUT on these, so they carry NO NEG_ROWS entry. Each case lists `guards` — one guard per `fail` final (the exact unit a DUT-mutation mutant must trip), or a single `liveness` guard when the case has no `fail` final. A guard's non-vacuity is structural (the named fail final exists and is reachable by a misbehaving DUT) and empirically provable only on the DUT-mutation track. The `class` axis is the property type that determines which fault trips the guard (see docs/verdict_policy.md Section 6), grounded in the safety/liveness dichotomy and the ISO 9646 4-value semantics. Validated by tools/negative_coverage_audit.py (every fail final must be covered by a guard).",
   "classes": {
     "prohibited_emission": "Silence (no such emission) is a conformant outcome for this stimulus; the named fail final fires iff the DUT emits a frame the protocol forbids here. A conformant DUT never emits it. Covers rejecting malformed input (no OK echo), declining an invalid/unknown subscribe (no Ack), and emitting in a state that forbids it (after stop, wrong phase).",
     "incorrect_emission": "A conformant DUT does emit such a frame for this stimulus, and it must carry a protocol-mandated value; the named fail final fires iff the emitted frame carries a wrong value. Covers acking (not nacking) a valid subscribe, monotonic/wrapping session ids, response-payload content, and post-reset field values.",
@@ -7,549 +7,1029 @@
   },
   "cases": {
     "SOMEIP_ETS_001": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
-      "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
+          "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_002": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_array_length_too_long",
-      "property": "DUT must not return an OK echo for a request with array length too long; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_array_length_too_long",
+          "property": "DUT must not return an OK echo for a request with array length too long; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_003": {
-      "class": "incorrect_emission",
-      "fail_reason": "dut_response_payload_was_not_stripped_for_short_array_length",
-      "property": "DUT response payload must be stripped to the declared short array length"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_response_payload_was_not_stripped_for_short_array_length",
+          "property": "DUT response payload must be stripped to the declared short array length"
+        }
+      ]
     },
     "SOMEIP_ETS_004": {
-      "class": "liveness",
-      "property": "DUT must respond to every request in burst"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond to every request in burst"
+        }
+      ]
     },
     "SOMEIP_ETS_033": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_too_short_array",
-      "property": "DUT must not return an OK echo for a request with too short array; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_too_short_array",
+          "property": "DUT must not return an OK echo for a request with too short array; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_037": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_tore_down_tcp_reliable_connection_on_reset_interface",
-      "property": "DUT must not tear down the reliable TCP connection on ResetInterface"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_tore_down_tcp_reliable_connection_on_reset_interface",
+          "property": "DUT must not tear down the reliable TCP connection on ResetInterface"
+        }
+      ]
     },
     "SOMEIP_ETS_040": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
-      "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
+          "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_041": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_truncated_inner_string_length",
-      "property": "DUT must not return an OK echo to a UTF-16 request whose inner string-length prefix is truncated (Error Response or silent drop is conformant)"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_truncated_inner_string_length",
+          "property": "DUT must not return an OK echo to a UTF-16 request whose inner string-length prefix is truncated (Error Response or silent drop is conformant)"
+        }
+      ]
     },
     "SOMEIP_ETS_042": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_undersized_length_field",
-      "property": "DUT must not return an OK echo for a request with undersized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_undersized_length_field",
+          "property": "DUT must not return an OK echo for a request with undersized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_043": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_odd_byte_before_termination",
-      "property": "DUT must not return an OK echo to a UTF-16 request carrying an odd byte before the null terminator (Error Response or silent drop is conformant)"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_odd_byte_before_termination",
+          "property": "DUT must not return an OK echo to a UTF-16 request carrying an odd byte before the null terminator (Error Response or silent drop is conformant)"
+        }
+      ]
     },
     "SOMEIP_ETS_045": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_wrong_utf16_bom",
-      "property": "DUT must not return an OK echo for a request with wrong utf16 bom; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_wrong_utf16_bom",
+          "property": "DUT must not return an OK echo for a request with wrong utf16 bom; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_049": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
-      "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
+          "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_050": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_truncated_inner_string_length",
-      "property": "DUT must not return an OK echo to a UTF-8 request whose inner string-length prefix is truncated (Error Response or silent drop is conformant)"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_truncated_inner_string_length",
+          "property": "DUT must not return an OK echo to a UTF-8 request whose inner string-length prefix is truncated (Error Response or silent drop is conformant)"
+        }
+      ]
     },
     "SOMEIP_ETS_051": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_undersized_length_field",
-      "property": "DUT must not return an OK echo for a request with undersized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_undersized_length_field",
+          "property": "DUT must not return an OK echo for a request with undersized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_052": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_wrong_utf8_bom",
-      "property": "DUT must not return an OK echo for a request with wrong utf8 bom; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_wrong_utf8_bom",
+          "property": "DUT must not return an OK echo for a request with wrong utf8 bom; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_054": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_zero_length_field",
-      "property": "DUT must not return an OK echo for a request with zero length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_zero_length_field",
+          "property": "DUT must not return an OK echo for a request with zero length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_055": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_undersized_length_field",
-      "property": "DUT must not return an OK echo for a request with undersized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_undersized_length_field",
+          "property": "DUT must not return an OK echo for a request with undersized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_058": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
-      "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
+          "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_059": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_emitted_response_to_wrong_interface_version_fire_forget",
-      "property": "DUT must not emit a response to a fire-and-forget request carrying a wrong interface version"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_wrong_interface_version_fire_forget",
+          "property": "DUT must not emit a response to a fire-and-forget request carrying a wrong interface version"
+        }
+      ]
     },
     "SOMEIP_ETS_060": {
-      "class": "liveness",
-      "property": "DUT must emit offer service with udp and tcp endpoints"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit offer service with udp and tcp endpoints"
+        }
+      ]
     },
     "SOMEIP_ETS_061": {
-      "class": "liveness",
-      "property": "DUT must respond to every message in bundle"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond to every message in bundle"
+        }
+      ]
     },
     "SOMEIP_ETS_063": {
-      "class": "liveness",
-      "property": "DUT must emit a method response for oversized utf16 fixed"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a method response for oversized utf16 fixed"
+        }
+      ]
     },
     "SOMEIP_ETS_064": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_undersized_utf16_fixed",
-      "property": "DUT must not return an OK echo for a request with undersized utf16 fixed; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_undersized_utf16_fixed",
+          "property": "DUT must not return an OK echo for a request with undersized utf16 fixed; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_065": {
-      "class": "liveness",
-      "property": "DUT must emit a method response for oversized utf8 fixed"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a method response for oversized utf8 fixed"
+        }
+      ]
     },
     "SOMEIP_ETS_066": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_undersized_utf8_fixed",
-      "property": "DUT must not return an OK echo for a request with undersized utf8 fixed; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_undersized_utf8_fixed",
+          "property": "DUT must not return an OK echo for a request with undersized utf8 fixed; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_067": {
-      "class": "incorrect_emission",
-      "fail_reason": "dut_response_payload_was_not_empty_array",
-      "property": "DUT response payload must be an empty array for a zero-length array request"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_response_payload_was_not_empty_array",
+          "property": "DUT response payload must be an empty array for a zero-length array request"
+        }
+      ]
     },
     "SOMEIP_ETS_068": {
-      "class": "liveness",
-      "property": "DUT must respond to every message in tcp bundle"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond to every message in tcp bundle"
+        }
+      ]
     },
     "SOMEIP_ETS_069": {
-      "class": "liveness",
-      "property": "DUT must respond to every message in bundle"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond to every message in bundle"
+        }
+      ]
     },
     "SOMEIP_ETS_070": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
-      "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_oversized_length_field",
+          "property": "DUT must not return an OK echo for a request with oversized length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_071": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_corrupt_union_length_field",
-      "property": "DUT must not return an OK echo for a request with corrupt union length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_corrupt_union_length_field",
+          "property": "DUT must not return an OK echo for a request with corrupt union length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_072": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_zero_union_length_field",
-      "property": "DUT must not return an OK echo for a request with zero union length field; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_zero_union_length_field",
+          "property": "DUT must not return an OK echo for a request with zero union length field; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_073": {
-      "class": "liveness",
-      "property": "DUT must emit a method response for wrong union type"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a method response for wrong union type"
+        }
+      ]
     },
     "SOMEIP_ETS_074": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_wrong_interface_version",
-      "property": "DUT must not return an OK echo for a request with wrong interface version; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_wrong_interface_version",
+          "property": "DUT must not return an OK echo for a request with wrong interface version; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_075": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_wrong_message_type",
-      "property": "DUT must not return an OK echo for a request with wrong message type; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_wrong_message_type",
+          "property": "DUT must not return an OK echo for a request with wrong message type; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_076": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_wrong_method_id",
-      "property": "DUT must not return an OK echo for a request with wrong method id; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_wrong_method_id",
+          "property": "DUT must not return an OK echo for a request with wrong method id; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_077": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_wrong_service_id",
-      "property": "DUT must not return an OK echo for a request with wrong service id; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_wrong_service_id",
+          "property": "DUT must not return an OK echo for a request with wrong service id; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_078": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_returned_ok_response_for_wrong_protocol_version",
-      "property": "DUT must not return an OK echo for a request with wrong protocol version; Error Response or silent drop is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_ok_response_for_wrong_protocol_version",
+          "property": "DUT must not return an OK echo for a request with wrong protocol version; Error Response or silent drop is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_081": {
-      "class": "liveness",
-      "property": "DUT must renew tcp connection after simulated server reboot"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must subscribe with a TCP option then renew the TCP connection after a simulated server reboot"
+        }
+      ]
     },
     "SOMEIP_ETS_082": {
-      "class": "liveness",
-      "property": "DUT must re subscribe after simulated server reboot"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must subscribe with a UDP option then re-subscribe after a simulated server reboot"
+        }
+      ]
     },
     "SOMEIP_ETS_084": {
-      "class": "liveness",
-      "property": "DUT must emit stop subscribe for ets3"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must subscribe then stop-subscribe for the activated service"
+        }
+      ]
     },
     "SOMEIP_ETS_086": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_087": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_088": {
-      "class": "liveness",
-      "property": "DUT must emit offer service with ipv4 endpoint"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit offer service with ipv4 endpoint"
+        }
+      ]
     },
     "SOMEIP_ETS_089": {
-      "class": "liveness",
-      "property": "DUT must emit resume offer service"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must offer, stop-offer, then resume offering the service across SuspendInterface"
+        }
+      ]
     },
     "SOMEIP_ETS_091": {
-      "class": "incorrect_emission",
-      "fail_reason": "offer_service_session_id_did_not_increment",
-      "property": "DUT cyclic OfferService must increment the SD session id between messages"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "offer_service_session_id_did_not_increment",
+          "property": "DUT cyclic OfferService must increment the SD session id between messages"
+        }
+      ]
     },
     "SOMEIP_ETS_092": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_emitted_subscribe_response_for_ttl_zero_request",
-      "property": "DUT must not emit a SubscribeEventgroupAck for a ttl=0 (Stop) request"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_subscribe_response_for_ttl_zero_request",
+          "property": "DUT must not emit a SubscribeEventgroupAck for a ttl=0 (Stop) request"
+        }
+      ]
     },
     "SOMEIP_ETS_093": {
-      "class": "incorrect_emission",
-      "fail_reason": "first_subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack the first valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "first_subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack the first valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "second_subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack the second valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "reboot_subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack the post-reboot valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_094": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "test_event_uint8_observed_after_simulated_reboot",
+          "property": "DUT must not emit the test event after a simulated reboot dropped the subscription"
+        }
+      ]
     },
     "SOMEIP_ETS_095": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_emitted_event_after_subscription_ttl_expired",
-      "property": "DUT must not emit an event after the subscription ttl expired"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_event_after_subscription_ttl_expired",
+          "property": "DUT must not emit an event after the subscription ttl expired"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_096": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_tcp_subscribe_without_pre_established_connection",
-      "property": "DUT must not Ack a subscribe carrying tcp subscribe without pre established connection; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_tcp_subscribe_without_pre_established_connection",
+          "property": "DUT must not Ack a subscribe carrying tcp subscribe without pre established connection; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_097": {
-      "class": "liveness",
-      "property": "DUT must emit subscribe with tcp option"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must subscribe with a TCP option then complete the TCP handshake after the second offer"
+        }
+      ]
     },
     "SOMEIP_ETS_098": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_emitted_subscribe_without_explicit_trigger",
-      "property": "DUT must not emit a Subscribe without an explicit trigger"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_subscribe_without_explicit_trigger",
+          "property": "DUT must not emit a Subscribe without an explicit trigger"
+        }
+      ]
     },
     "SOMEIP_ETS_099": {
-      "class": "liveness",
-      "property": "DUT must emit findservice for service id 2"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit findservice for service id 2"
+        }
+      ]
     },
     "SOMEIP_ETS_100": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_findservice_observed_during_main_phase",
-      "property": "DUT must not emit a FindService during the main phase"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_findservice_observed_during_main_phase",
+          "property": "DUT must not emit a FindService during the main phase"
+        }
+      ]
     },
     "SOMEIP_ETS_101": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_findservice_after_stop_offer_service",
-      "property": "DUT must not emit a FindService after StopOfferService"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_findservice_after_stop_offer_service",
+          "property": "DUT must not emit a FindService after StopOfferService"
+        }
+      ]
     },
     "SOMEIP_ETS_103": {
-      "class": "incorrect_emission",
-      "fail_reason": "tcp_get_last_value_not_08",
-      "property": "GetLastValueOfEvent over TCP must return the last emitted event value"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "tcp_get_last_value_not_08",
+          "property": "GetLastValueOfEvent over TCP must return the last emitted event value"
+        }
+      ]
     },
     "SOMEIP_ETS_104": {
-      "class": "incorrect_emission",
-      "fail_reason": "udp_multicast_get_last_value_not_08",
-      "property": "GetLastValueOfEvent over UDP multicast must return the last emitted event value"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "udp_multicast_get_last_value_not_08",
+          "property": "GetLastValueOfEvent over UDP multicast must return the last emitted event value"
+        }
+      ]
     },
     "SOMEIP_ETS_105": {
-      "class": "incorrect_emission",
-      "fail_reason": "udp_unicast_get_last_value_not_08",
-      "property": "GetLastValueOfEvent over UDP unicast must return the last emitted event value"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "udp_unicast_get_last_value_not_08",
+          "property": "GetLastValueOfEvent over UDP unicast must return the last emitted event value"
+        }
+      ]
     },
     "SOMEIP_ETS_106": {
-      "class": "liveness",
-      "property": "DUT must emit subscribe"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit subscribe"
+        }
+      ]
     },
     "SOMEIP_ETS_107": {
-      "class": "liveness",
-      "property": "DUT must emit first subscribe ack"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the first SubscribeEventgroupAck and the resubscribe Ack in order"
+        }
+      ]
     },
     "SOMEIP_ETS_108": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_broadcast_event_after_stop_subscribe",
-      "property": "DUT must not broadcast an event after StopSubscribe"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_broadcast_event_after_stop_subscribe",
+          "property": "DUT must not broadcast an event after StopSubscribe"
+        }
+      ]
     },
     "SOMEIP_ETS_109": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_zero_port_endpoint",
-      "property": "DUT must not Ack a subscribe carrying zero port endpoint; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_zero_port_endpoint",
+          "property": "DUT must not Ack a subscribe carrying zero port endpoint; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_110": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_invalid_ipv4_endpoint",
-      "property": "DUT must not Ack a subscribe carrying invalid ipv4 endpoint; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_invalid_ipv4_endpoint",
+          "property": "DUT must not Ack a subscribe carrying invalid ipv4 endpoint; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_111": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_responded_to_zero_entries",
-      "property": "DUT must not respond to a SubscribeEventgroup carrying zero entries"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_responded_to_zero_entries",
+          "property": "DUT must not respond to a SubscribeEventgroup carrying zero entries"
+        }
+      ]
     },
     "SOMEIP_ETS_112": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_zero_option_length",
-      "property": "DUT must not Ack a subscribe carrying zero option length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_zero_option_length",
+          "property": "DUT must not Ack a subscribe carrying zero option length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_113": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_empty_options_array",
-      "property": "DUT must not Ack a subscribe carrying empty options array; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_empty_options_array",
+          "property": "DUT must not Ack a subscribe carrying empty options array; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_114": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_entries_length",
-      "property": "DUT must not Ack a subscribe carrying malformed entries length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_entries_length",
+          "property": "DUT must not Ack a subscribe carrying malformed entries length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_115": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_overcount_option_refs",
-      "property": "DUT must not Ack a subscribe carrying overcount option refs; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_overcount_option_refs",
+          "property": "DUT must not Ack a subscribe carrying overcount option refs; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_116": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_unknown_option_type",
-      "property": "DUT must not Ack a subscribe carrying unknown option type; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_unknown_option_type",
+          "property": "DUT must not Ack a subscribe carrying unknown option type; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_117": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_subscribe",
-      "property": "DUT must not Ack a subscribe carrying malformed subscribe; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_subscribe",
+          "property": "DUT must not Ack a subscribe carrying malformed subscribe; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_118": {
-      "class": "liveness",
-      "property": "DUT must emit offer service"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit offer service"
+        }
+      ]
     },
     "SOMEIP_ETS_119": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_wrong_l4proto_endpoint",
-      "property": "DUT must not Ack a subscribe carrying wrong l4proto endpoint; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_wrong_l4proto_endpoint",
+          "property": "DUT must not Ack a subscribe carrying wrong l4proto endpoint; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_120": {
-      "class": "liveness",
-      "property": "DUT must emit subscribe ack"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit subscribe ack"
+        }
+      ]
     },
     "SOMEIP_ETS_121": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_122": {
-      "class": "liveness",
-      "property": "DUT must emit a method response for interface version getter"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a method response for interface version getter"
+        }
+      ]
     },
     "SOMEIP_ETS_123": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_entries_array_length",
-      "property": "DUT must not Ack a subscribe carrying malformed entries array length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_entries_array_length",
+          "property": "DUT must not Ack a subscribe carrying malformed entries array length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_124": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_entries_array_length",
-      "property": "DUT must not Ack a subscribe carrying malformed entries array length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_entries_array_length",
+          "property": "DUT must not Ack a subscribe carrying malformed entries array length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_125": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_entries_array_length",
-      "property": "DUT must not Ack a subscribe carrying malformed entries array length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_entries_array_length",
+          "property": "DUT must not Ack a subscribe carrying malformed entries array length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_127": {
-      "class": "liveness",
-      "property": "DUT must emit offer service"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit offer service"
+        }
+      ]
     },
     "SOMEIP_ETS_128": {
-      "class": "liveness",
-      "property": "DUT must emit offer service phase2"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit offer service phase2"
+        }
+      ]
     },
     "SOMEIP_ETS_130": {
-      "class": "liveness",
-      "property": "DUT must emit offer service"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit offer service"
+        }
+      ]
     },
     "SOMEIP_ETS_134": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_options_array_length",
-      "property": "DUT must not Ack a subscribe carrying malformed options array length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_options_array_length",
+          "property": "DUT must not Ack a subscribe carrying malformed options array length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_135": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_options_array_length",
-      "property": "DUT must not Ack a subscribe carrying malformed options array length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_options_array_length",
+          "property": "DUT must not Ack a subscribe carrying malformed options array length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_136": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_option_body_length",
-      "property": "DUT must not Ack a subscribe carrying malformed option body length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_option_body_length",
+          "property": "DUT must not Ack a subscribe carrying malformed option body length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_137": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_misaligned_two_option_subscribe",
-      "property": "DUT must not Ack a subscribe carrying misaligned two option subscribe; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_misaligned_two_option_subscribe",
+          "property": "DUT must not Ack a subscribe carrying misaligned two option subscribe; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_138": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_nacked_on_oversized_options_array_length",
-      "property": "DUT must not NACK a SubscribeEventgroup whose OptionsLen exceeds the message; Ack or silent ignore is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_nacked_on_oversized_options_array_length",
+          "property": "DUT must not NACK a SubscribeEventgroup whose OptionsLen exceeds the message; Ack or silent ignore is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_139": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_truncated_options_array",
-      "property": "DUT must not Ack a subscribe carrying truncated options array; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_truncated_options_array",
+          "property": "DUT must not Ack a subscribe carrying truncated options array; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_140": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_subscribe_for_unknown_eventgroup_id",
-      "property": "DUT must not Ack a subscribe for unknown eventgroup id; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_subscribe_for_unknown_eventgroup_id",
+          "property": "DUT must not Ack a subscribe for unknown eventgroup id; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_141": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_subscribe_for_unknown_instance_id",
-      "property": "DUT must not Ack a subscribe for unknown instance id; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_subscribe_for_unknown_instance_id",
+          "property": "DUT must not Ack a subscribe for unknown instance id; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_142": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_subscribe_for_unknown_major_version",
-      "property": "DUT must not Ack a subscribe for unknown major version; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_subscribe_for_unknown_major_version",
+          "property": "DUT must not Ack a subscribe for unknown major version; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_143": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_subscribe_for_unknown_service_id",
-      "property": "DUT must not Ack a subscribe for unknown service id; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_subscribe_for_unknown_service_id",
+          "property": "DUT must not Ack a subscribe for unknown service id; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_144": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_nacked_subscribe_for_reserved_endpoint_option_bytes",
-      "property": "DUT must not NACK a SubscribeEventgroup with reserved endpoint-option bytes set; Ack or silent ignore is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_nacked_subscribe_for_reserved_endpoint_option_bytes",
+          "property": "DUT must not NACK a SubscribeEventgroup with reserved endpoint-option bytes set; Ack or silent ignore is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_146": {
-      "class": "incorrect_emission",
-      "fail_reason": "post_reset_get_field_still_returns_aa",
-      "property": "after ResetInterface the field getter must not return the pre-reset value"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "post_reset_get_field_still_returns_aa",
+          "property": "after ResetInterface the field getter must not return the pre-reset value"
+        }
+      ]
     },
     "SOMEIP_ETS_147": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_148": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_149": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_150": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_151": {
-      "class": "incorrect_emission",
-      "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
-      "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
     },
     "SOMEIP_ETS_152": {
-      "class": "incorrect_emission",
-      "fail_reason": "session_id_wrapped_to_zero",
-      "property": "DUT SD session id must wrap from 0xFFFF to 1, never to 0"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "session_id_wrapped_to_zero",
+          "property": "DUT SD session id must wrap from 0xFFFF to 1, never to 0"
+        }
+      ]
     },
     "SOMEIP_ETS_153": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_malformed_someip_length",
-      "property": "DUT must not Ack a subscribe carrying malformed someip length; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_malformed_someip_length",
+          "property": "DUT must not Ack a subscribe carrying malformed someip length; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_154": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_invalid_endpoint_ipv4",
-      "property": "DUT must not Ack a subscribe carrying invalid endpoint ipv4; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_invalid_endpoint_ipv4",
+          "property": "DUT must not Ack a subscribe carrying invalid endpoint ipv4; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_155": {
-      "class": "liveness",
-      "property": "DUT must emit second subscribe ack after stop"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the first SubscribeEventgroupAck and a second Ack after StopSubscribe"
+        }
+      ]
     },
     "SOMEIP_ETS_162": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_unallowed_endpoint_ipv4",
-      "property": "DUT must not Ack a subscribe carrying unallowed endpoint ipv4; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_unallowed_endpoint_ipv4",
+          "property": "DUT must not Ack a subscribe carrying unallowed endpoint ipv4; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_163": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_unallowed_endpoint_ipv4",
-      "property": "DUT must not Ack a subscribe carrying unallowed endpoint ipv4; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_unallowed_endpoint_ipv4",
+          "property": "DUT must not Ack a subscribe carrying unallowed endpoint ipv4; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_164": {
-      "class": "liveness",
-      "property": "DUT must emit stop offer service"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must answer set-field and get-field and stop/resume offering across SuspendInterface"
+        }
+      ]
     },
     "SOMEIP_ETS_166": {
-      "class": "incorrect_emission",
-      "fail_reason": "post_set_get_field_value_not_55",
-      "property": "after SetField the field getter must return the set value"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "post_set_get_field_value_not_55",
+          "property": "after SetField the field getter must return the set value"
+        }
+      ]
     },
     "SOMEIP_ETS_167": {
-      "class": "incorrect_emission",
-      "fail_reason": "post_set_get_array_value_mismatch",
-      "property": "after SetField the array-field getter must return the set value"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "post_set_get_array_value_mismatch",
+          "property": "after SetField the array-field getter must return the set value"
+        }
+      ]
     },
     "SOMEIP_ETS_168": {
-      "class": "incorrect_emission",
-      "fail_reason": "post_set_get_reliable_value_not_99",
-      "property": "after SetField the reliable field getter must return the set value"
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "post_set_get_reliable_value_not_99",
+          "property": "after SetField the reliable field getter must return the set value"
+        }
+      ]
     },
     "SOMEIP_ETS_171": {
-      "class": "liveness",
-      "property": "DUT must emit offer service"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit offer service"
+        }
+      ]
     },
     "SOMEIP_ETS_173": {
-      "class": "liveness",
-      "property": "DUT must emit second subscribe ack"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the first and second unicast SubscribeEventgroupAck"
+        }
+      ]
     },
     "SOMEIP_ETS_174": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_unknown_option_type",
-      "property": "DUT must not Ack a subscribe carrying unknown option type; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_unknown_option_type",
+          "property": "DUT must not Ack a subscribe carrying unknown option type; ignore or NACK is conformant"
+        }
+      ]
     },
     "SOMEIP_ETS_175": {
-      "class": "liveness",
-      "property": "DUT must emit subscribe ack"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit subscribe ack"
+        }
+      ]
     },
     "SOMEIP_ETS_176": {
-      "class": "liveness",
-      "property": "DUT must emit second subscribe ack"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit the first and second SubscribeEventgroupAck"
+        }
+      ]
     },
     "SOMEIP_ETS_177": {
-      "class": "liveness",
-      "property": "DUT must emit subscribe ack"
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit subscribe ack"
+        }
+      ]
     },
     "SOMEIP_ETS_178": {
-      "class": "prohibited_emission",
-      "fail_reason": "dut_acked_wrong_method_id",
-      "property": "DUT must not Ack a subscribe carrying wrong method id; ignore or NACK is conformant"
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_acked_wrong_method_id",
+          "property": "DUT must not Ack a subscribe carrying wrong method id; ignore or NACK is conformant"
+        }
+      ]
     }
   }
 }
