@@ -2426,6 +2426,601 @@
           "property": "DUT's per-interface DHCPDISCOVER must carry a distinct chaddr per interface (Topology 2); fail iff two interfaces share the same chaddr"
         }
       ]
+    },
+    "SOMEIPSRV_BASIC_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must offer its service identified by the configured Service-ID (SOME/IP-SD OfferService); binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_BASIC_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "offer_instance_id_is_reserved_all",
+          "property": "DUT's OfferService entry instance id must not be the reserved all-ones (0xFFFF) value; fail iff 0xFFFF"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "offer_instance_id_is_reserved_zero",
+          "property": "DUT's OfferService entry instance id must not be the reserved zero value; fail iff 0x0000"
+        }
+      ]
+    },
+    "SOMEIPSRV_BASIC_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "client_id_nonzero",
+          "property": "DUT's SD message client id must be 0x0000; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "session_id_not_0x0001",
+          "property": "DUT's first SD message session id must be 0x0001; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "protocol_version_not_0x01",
+          "property": "DUT's SD message protocol version must be 0x01; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "interface_version_not_0x01",
+          "property": "DUT's SD message interface version must be 0x01; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "message_type_not_0x02",
+          "property": "DUT's SD message type must be 0x02 (NOTIFICATION); fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "return_code_not_0x00",
+          "property": "DUT's SD message return code must be 0x00 (E_OK); fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_07": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "reboot_flag_not_set",
+          "property": "DUT's initial SD message must set the Reboot flag; fail iff clear"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "unicast_flag_not_set",
+          "property": "DUT's SD message must set the Unicast flag; fail iff clear"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "undefined_flag_bits_nonzero",
+          "property": "DUT's SD message must leave the undefined flag bits zero; fail iff any are set"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "sd_reserved_bits_nonzero",
+          "property": "DUT's SD message reserved field must be zero; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_11": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "entry_type_or_length_unexpected",
+          "property": "DUT's SD entry must carry the expected entry type and length; fail iff an unexpected type or length is observed"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_12": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "entry_index_first_option_run_nonzero",
+          "property": "DUT's OfferService entry Index First Option Run must be 0; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_13": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "entry_number_of_opt1_zero",
+          "property": "DUT's OfferService entry Number of Option 1 must be non-zero; fail iff zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_19": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond to a SubscribeEventgroup with a Type-2 entry (SubscribeEventgroupAck or Nack); binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_20": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a Type-2 SD entry (16-byte entry length) in its SD response; binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_21": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "entry_index_first_option_run_nonzero",
+          "property": "DUT's SubscribeAck entry Index First Option Run must be 0; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_FORMAT_27": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "entry_reserved_bits_nonzero",
+          "property": "DUT's SubscribeAck entry reserved bits must be zero; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "response_method_id_top_bit_set",
+          "property": "DUT's method response must clear the top bit of the Method ID (a method, not an event); fail iff set"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "response_request_id_did_not_echo_request",
+          "property": "DUT's response must echo the request's Request ID (client_id 0xCAFE, session_id 0x1234); fail iff it differs"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_04": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond to a request that reuses the same Request ID (client_id 0xCAFE, session_id 0x1234); binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "response_protocol_version_not_0x01",
+          "property": "DUT's response protocol version must be 0x01; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_07": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "response_return_code_not_e_ok",
+          "property": "DUT's successful method response return code must be E_OK (0x00); fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "error_return_code_not_e_unknown_service",
+          "property": "DUT's error response to an unknown service must carry return code E_UNKNOWN_SERVICE; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_11": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "response_return_code_not_e_ok",
+          "property": "DUT's successful method response return code must be E_OK (0x00); fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_ONWIRE_12": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "error_return_code_not_e_unknown_method",
+          "property": "DUT's error response to an unknown method must carry return code E_UNKNOWN_METHOD; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "ipv4_endpoint_length_not_0009",
+          "property": "DUT's IPv4 Endpoint Option length must be 0x0009; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "non_ipv4_endpoint_option_present_in_offer",
+          "property": "DUT's OfferService must carry only IPv4 Endpoint options; fail iff a non-IPv4 endpoint option is present"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "ipv4_endpoint_first_reserved_nonzero",
+          "property": "DUT's IPv4 Endpoint Option first reserved byte must be zero; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "ipv4_endpoint_second_reserved_nonzero",
+          "property": "DUT's IPv4 Endpoint Option second reserved byte must be zero; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_ipv4_endpoint_option_with_udp_l4",
+          "property": "DUT's OfferService carrying a UDP L4-Proto must include an IPv4 Endpoint Option; fail iff absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "ipv4_multicast_option_length_mismatch",
+          "property": "DUT's IPv4 Multicast Option length must match the spec value; fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_ipv4_multicast_option_with_type_0x14",
+          "property": "DUT's multicast eventgroup must carry an IPv4 Multicast Option (type 0x14); fail iff absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "ipv4_multicast_first_reserved_nonzero",
+          "property": "DUT's IPv4 Multicast Option first reserved byte must be zero; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_12": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "ipv4_multicast_second_reserved_nonzero",
+          "property": "DUT's IPv4 Multicast Option second reserved byte must be zero; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_OPTIONS_13": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "no_ipv4_multicast_option_with_udp_l4",
+          "property": "DUT's IPv4 Multicast Option must carry a UDP L4-Proto; fail iff absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must serve all methods of a service instance over a single shared TCP/UDP transport; binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_03": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must answer a field getter (empty-payload request) with the field value; binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_04": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_responded_to_fire_and_forget_request",
+          "property": "DUT must not emit a response to a fire-and-forget request; silence is conformant"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_05": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_error_for_fire_and_forget_unknown_method",
+          "property": "DUT must not emit an error response to a fire-and-forget request for an unknown method; silence is conformant"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "error_return_code_top_two_bits_set",
+          "property": "DUT's error response return code must leave the top two bits clear; fail iff set"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_07": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "response_return_code_not_e_ok",
+          "property": "DUT's successful method response return code must be E_OK (0x00); fail iff another value"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_08": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_error_for_request_already_carrying_error",
+          "property": "DUT must not emit an error response to a request that already carries an error message type; silence is conformant"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "error_message_carried_payload",
+          "property": "DUT's error response must carry an empty payload; fail iff the payload length is non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_10": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_returned_error_for_wrong_message_type_to_fire_and_forget_method",
+          "property": "DUT must not emit an error response to a wrong-message-type request for a fire-and-forget method; silence is conformant"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_11": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "setter_response_payload_did_not_echo_set_value",
+          "property": "DUT's field setter response payload must echo the value set by the request; fail iff it differs"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_13": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "two_services_advertise_distinct_udp_ports_not_shared",
+          "property": "DUT's two offered services must advertise distinct UDP ports, not a shared one; fail iff they share a port"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_14": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond from instance 1 on its distinct UDP transport when Number Of Instances = 2; binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_17": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must respond from instance 1 on its own TCP connection when configured with multiple instances; binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_RPC_19": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "error_message_did_not_echo_request_id",
+          "property": "DUT's error response must echo the request's Request ID (client_id 0xCAFE, session_id 0x1234); fail iff it differs"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_BEHAVIOR_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "repetition_phase_gap_not_within_2x_rep_base_delay_tolerance",
+          "property": "DUT's OfferService repetition-phase gap must double the repetition base delay within tolerance; fail iff out of tolerance"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_BEHAVIOR_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "cyclic_offer_gap_not_within_cyclic_offer_delay_tolerance",
+          "property": "DUT's cyclic OfferService gap must match the cyclic offer delay within tolerance; fail iff out of tolerance"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_BEHAVIOR_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "offer_dst_ip_not_multicast_after_unicast_find",
+          "property": "DUT's OfferService after a unicast FindService must be sent to the SD multicast address; fail iff a non-multicast destination"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_BEHAVIOR_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "offer_dst_ip_not_multicast_after_multicast_find",
+          "property": "DUT's OfferService after a multicast FindService must be sent to the SD multicast address; fail iff a non-multicast destination"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "offer_service_entries_not_two_distinct_instances",
+          "property": "DUT's OfferService must carry two entries for two distinct service instances; fail iff not two distinct instances"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_02": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must reply to a FindService carrying a specific Service Instance ID with a matching two-entry OfferService; binary present/absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "offer_carries_no_ipv4_endpoint_option",
+          "property": "DUT's OfferService must carry an IPv4 Endpoint Option; fail iff absent"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "notification_src_port_does_not_match_offer_endpoint_port",
+          "property": "DUT's event notification source port must match its offered endpoint port; fail iff it differs"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_14": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "nack_entry_ttl_not_zero",
+          "property": "DUT's SubscribeEventgroupNack entry TTL must be zero; fail iff non-zero"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_16": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "nack_entry_service_id_not_unknown_sentinel",
+          "property": "DUT's Nack must echo the unknown service id from the rejected Subscribe; fail iff it differs"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_17": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "nack_entry_instance_id_not_unknown_plus_one",
+          "property": "DUT's Nack must echo the unknown instance id from the rejected Subscribe; fail iff it differs"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_18": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "nack_entry_major_version_not_unknown_plus_one",
+          "property": "DUT's Nack must echo the unknown major version from the rejected Subscribe; fail iff it differs"
+        }
+      ]
+    },
+    "SOMEIPSRV_SD_MESSAGE_19": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "nack_entry_eventgroup_id_not_unknown_sentinel",
+          "property": "DUT's Nack must echo the unknown eventgroup id from the rejected Subscribe; fail iff it differs"
+        }
+      ]
     }
   }
 }

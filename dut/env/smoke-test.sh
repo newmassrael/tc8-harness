@@ -2189,21 +2189,15 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIPSRV_SD_MESSAGE_07|ttl=99|fail:offer_entry_ttl_mismatch"
         "SOMEIPSRV_SD_MESSAGE_11|service_id=0x0000|fail:ack_entry_service_id_mismatch"
         "SOMEIPSRV_SD_MESSAGE_15|instance_id=0xFFFE|fail:nack_entry_echo_fields_mismatch"
-        # SD_MESSAGE_02 phase 1 cond gates entries[0/1].service_id ==
-        # expected.service_id (instance_id is extracted from the 2-entry
-        # OfferService and compared against the captured slot in phase
-        # 2/3, so an expected.instance_id flip is no longer load-bearing
-        # after the spec-literal extraction refactor). Flip service_id
-        # so phase 1 conjunct fails → 2-entry Find never matches →
-        # listen window expires on fail_phase1_no_two_entry_offer.
-        # RPC_14/_17 phase 2/3 read expected.service_id; flipping it
-        # forces phase 2 to time out before the real Response can match.
-        # SD_MESSAGE_01 + RPC_01/_02/_13 omitted — their conds rely
-        # on captured-only invariants (entry-count + 0xF4E8 literal +
-        # SSOT in someipsrv_si2::*) so an expect flip can't fault them.
-        "SOMEIPSRV_SD_MESSAGE_02|service_id=0x0000|fail:no_two_entry_offer_for_findservice_any_within_listen_window"
-        "SOMEIPSRV_RPC_14|service_id=0x0000|fail:no_response_from_instance_1_udp_port_30502"
-        "SOMEIPSRV_RPC_17|service_id=0x0000|fail:no_response_from_instance_1_tcp_port_30501"
+        # SD_MESSAGE_02 + RPC_14/_17: count/liveness cases whose sole
+        # fail is precondition-break (the old service_id=0x0000 rows just
+        # timed the gate out before the real observation — vacuous, so
+        # removed). They are liveness guards in
+        # tools/conformant_absence_registry.json, alongside the former
+        # "omitted" captured-only cases (SD_MESSAGE_01, RPC_01/_02/_13).
+        # Expect-flippable cases with no verified sound row yet
+        # (SD_MESSAGE_04/_06) are in tools/deferred_negatives.json.
+        # See docs/verdict_policy.md Section 6.
         # §5.1.6 SOMEIP_ETS sound expect-flip negatives. Each is a stateless
         # echo whose conformant payload is the case-local applyExpectedDefaults
         # SSOT; the payload= (or tcp_port=) token flips it so a conformant DUT's
