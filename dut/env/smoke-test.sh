@@ -2204,325 +2204,35 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIPSRV_SD_MESSAGE_02|service_id=0x0000|fail:no_two_entry_offer_for_findservice_any_within_listen_window"
         "SOMEIPSRV_RPC_14|service_id=0x0000|fail:no_response_from_instance_1_udp_port_30502"
         "SOMEIPSRV_RPC_17|service_id=0x0000|fail:no_response_from_instance_1_tcp_port_30501"
-        # §5.1.6 SOMEIP_ETS NEG rows — _005/_027 cover the SD-side phase 1
-        # expectation (service_id flip → phase 1 OfferService cond never
-        # matches → timeout). _035 covers the response-side TCP src_port
-        # axis the case adds on top of the ETS_027 echo shape.
+        # §5.1.6 SOMEIP_ETS sound expect-flip negatives. Each is a stateless
+        # echo whose conformant payload is the case-local applyExpectedDefaults
+        # SSOT; the payload= (or tcp_port=) token flips it so a conformant DUT's
+        # correct echo lands fail_phase2_*_mismatch (observed_violation),
+        # proving the byte-equality guard non-vacuous. The §5.1.6 dut-mutation
+        # and liveness guards (former service_id=0x0000 precondition-break rows)
+        # are in tools/conformant_absence_registry.json (docs/verdict_policy.md
+        # Section 6).
         "SOMEIP_ETS_005|payload=00:00:34:69|fail:check_byte_order_response_did_not_match_expected_uint32_sum"
         "SOMEIP_ETS_027|payload=43|fail:echo_uint8_response_payload_did_not_match_request"
         "SOMEIP_ETS_035|tcp_port=12345|fail:echo_uint8_reliable_response_did_not_match_request_or_wrong_tcp_src_port"
-        # Wave 2 §5.1.6 ETS rows — SD-side phase 1 expectation flip
-        # rebases the OfferService cond so the malformed-cluster cases
-        # never reach their phase 2 verdicts (which themselves cover
-        # the malformed-input axis). ETS_037 also flips phase 1 →
-        # the post-reset TCP_INFO observation never executes.
-        "SOMEIP_ETS_001|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_002|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_003|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_004|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_037|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 3-a §5.1.6 ETS Array length-prefix cluster — same SD-side
-        # phase 1 service_id flip pattern as Wave 2 (_001..004/_037).
-        # _033 reuses the malformed-length axis (length_override) since
-        # CommonAPI-SOMEIP on Linux does not enforce SomeIpArrayMinLength
-        # when length-width != 0; the same NEG token rebases its phase 1.
         "SOMEIP_ETS_028|payload=00:00:00:03:42:43:45|fail:echo_array_response_did_not_match_request"
         "SOMEIP_ETS_029|payload=00:03:42:43:45|fail:echo_array16_response_did_not_match_request"
         "SOMEIP_ETS_031|payload=03:42:43:45|fail:echo_array8_response_did_not_match_request"
         "SOMEIP_ETS_032|payload=00:00:00:04:10:11:12:14|fail:echo_arraymin_response_did_not_match_request"
-        "SOMEIP_ETS_033|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 3-b §5.1.6 ETS Array-family + FLOAT64 cluster — same SD-side
-        # phase 1 service_id flip pattern as Wave 3-a.
         "SOMEIP_ETS_019|payload=3F:F8:00:00:00:00:00:01|fail:echo_float64_response_did_not_match_request"
         "SOMEIP_ETS_022|payload=10:11:12:13:15|fail:echo_static_array_response_did_not_match_request"
         "SOMEIP_ETS_030|payload=00:00:00:0A:00:00:00:01:42:00:00:00:01:44|fail:echo_array2dim_response_did_not_match_request"
-        # Wave 3-c §5.1.6 ETS ENUM + UTF16DYNAMIC cluster. _009/_039 are
-        # full-payload echoes: a payload-flip negative drives their
-        # fail_phase2_*_mismatch (observed_violation). _039's flip keeps the
-        # length 12 so the byte comparison (not the length branch) faults.
         "SOMEIP_ETS_009|payload=03|fail:echo_enum_response_did_not_match_request"
         "SOMEIP_ETS_039|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
-        # Wave 3-d §5.1.6 ETS UTF16FIXED + UTF8DYNAMIC + UTF8FIXED cluster.
-        # _046/_048/_053 are full-payload string echoes: a payload-flip negative
-        # (one byte of the echoed string corrupted) drives their
-        # fail_phase2_*_echo_mismatch (observed_violation), proving the byte
-        # comparison non-vacuous. _048's flip keeps length 10 so the byte
-        # comparison (not the length branch) faults.
         "SOMEIP_ETS_046|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
         "SOMEIP_ETS_048|payload=00:00:00:06:EF:BB:BF:68:6A:00|fail:echo_utf8_dynamic_response_did_not_match_request"
         "SOMEIP_ETS_053|payload=EF:BB:BF:68:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf8_fixed_response_did_not_match_request"
-        # Wave 3-e §5.1.6 ETS UTF DYNAMIC NEG cluster (length_override +
-        # wrong_BOM axes) — same SD-side phase 1 service_id flip pattern.
-        # Each phase-2 verdict already covers the malformed-input axis; the
-        # phase 1 flip rebases the OfferService cond so the case never
-        # reaches the (lenient) phase-2 verdict.
-        "SOMEIP_ETS_040|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_042|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_045|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_049|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_051|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_052|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 3-f §5.1.6 ETS UTF DYNAMIC/FIXED odd-byte echoes. _044
-        # (echoUTF16DYNAMIC) and _047 (echoUTF16FIXED): the DUT strips the
-        # trailing odd byte and returns the canonical frame, so a payload-flip
-        # negative drives their fail_phase2_utf16*_echo_mismatch
-        # (observed_violation). The sibling malformed-rejection cases
-        # _041/_043/_050 carry no NEG_ROW: their verdict is DUT behavior (Error
-        # Response vs OK echo), out of scope for an expect flip — recorded in
-        # tools/conformant_absence_registry.json (see docs/verdict_policy.md
-        # Section 6).
         "SOMEIP_ETS_044|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
         "SOMEIP_ETS_047|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
-        # Wave 4 §5.1.6 ETS datatype-echo cluster (echoBitfields +
-        # echoCommonDatatypes + echoUINT8E2E + echoUNION). Each is a
-        # full-payload echo, so a payload-flip negative (one byte of the
-        # echoed response corrupted) drives its fail_phase2_*_mismatch
-        # (observed_violation), proving the byte-equality verdict non-vacuous.
         "SOMEIP_ETS_007|payload=01:80:02:1E:6A:2C:49|fail:echo_bitfields_response_did_not_match_reversed_request"
         "SOMEIP_ETS_008|payload=3F:F9:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_common_datatypes_response_did_not_match_reversed_echo"
         "SOMEIP_ETS_034|payload=00:00:00:05:00:00:00:01:CA:FE:BA:BE:DE:AD:BE:EF:43|fail:echo_uint8_e2e_response_did_not_match_request"
         "SOMEIP_ETS_038|payload=00:00:00:01:00:00:00:02:43|fail:echo_union_response_did_not_match_request"
-        # Wave 5-a §5.1.6 ETS UNION NEG cluster (length_override + inner-prefix
-        # mutations + wrong-type discriminant). Same SD-side flip pattern; the
-        # phase 1 timeout rebases the OfferService cond before any of the
-        # phase-2 union-axis verdicts can fire.
-        "SOMEIP_ETS_070|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_071|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_072|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_073|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-b §5.1.6 ETS Event/Field cluster — Subscribe→Ack→
-        # Notification chain on eventgroups 0x02 (_086) / 0x05 (_087).
-        # Phase 1 cond requires sd_ipv4_endpoint_count >= 1; service_id
-        # flip never matches the BASIC_03-shape phase 1 transition, so
-        # phase 1 deadline lands on the with-endpoint failure reason.
-        "SOMEIP_ETS_086|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        "SOMEIP_ETS_087|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        # Wave 5-k §5.1.6 ETS_121 mirrors _087's Subscribe(eg 0x05) wire
-        # shape; phase 1 cond requires sd_ipv4_endpoint_count >= 1 so
-        # service_id flip lands the with-endpoint failure reason.
-        "SOMEIP_ETS_121|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        # Wave 5-k §5.1.6 ETS_122 InterfaceVersion Getter Method Request
-        # (method_id 0x25). Phase 1 cond uses the bare-OfferService
-        # shape (no endpoint dependency); service_id flip lands the
-        # standard no-offer failure reason.
-        "SOMEIP_ETS_122|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k §5.1.6 ETS_123/_124/_125 SubscribeEventgroup with
-        # EntriesLen mutations (too long beyond message, too long but
-        # within message, too short). All three use the bare-OfferService
-        # phase 1 shape; service_id flip lands the standard no-offer
-        # failure reason before the malformed Subscribe even reaches DUT.
-        "SOMEIP_ETS_123|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_124|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_125|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # ETS_127 lenient verdict: any OfferService for SERVICE-ID-1.
-        # service_id flip lands on the standard no-offer reason.
-        "SOMEIP_ETS_127|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_128|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_130|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k batch 2 §5.1.6 ETS_134..144 SubscribeEventgroup wire-shape
-        # mutations (Length / OptionsLen / option-body-Length / non-existing
-        # IDs / reserved fields). All share the bare-OfferService phase 1
-        # shape (lift from _123..125), so service_id flip lands the standard
-        # no-offer reason before the malformed Subscribe reaches DUT.
-        "SOMEIP_ETS_134|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_135|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_136|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_137|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_138|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_139|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_140|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_141|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_142|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_143|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_144|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k batch 3 §5.1.6 ETS_153 SubscribeEventgroup SOME/IP Length
-        # lies smaller than actual; same bare-OfferService phase 1 shape.
-        "SOMEIP_ETS_153|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k batch 3 §5.1.6 ETS_154 SubscribeEventgroup with invalid
-        # IPv4 endpoint (255.255.255.255); same bare-OfferService phase 1 shape.
-        "SOMEIP_ETS_154|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-l §5.1.6 ETS_162/_163 SubscribeEventgroup with unallowed
-        # Endpoint IPv4 (DUT self / 111.111.111.111); same bare-OfferService
-        # phase 1 shape — service_id flip lands the no-offer reason.
-        "SOMEIP_ETS_162|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_163|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-m §5.1.6 ETS_109/_110/_111/_112/_113/_119 Subscribe wire-shape
-        # mutations (port=0 / IP=32.0.0.0 / Length-cut / IPv4Option Length=0 /
-        # OptionsLen=0 / wrong l4proto). Same bare-OfferService phase 1.
-        "SOMEIP_ETS_109|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_110|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_111|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_112|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_113|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_119|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-m + 5-l §5.1.6 ETS_115/_116/_174/_178 Subscribe wire-shape
-        # mutations (#Opt1 overcount / unknown option type ×2 / wrong Method ID).
-        "SOMEIP_ETS_115|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_116|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_174|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_178|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-l §5.1.6 ETS_171 unicast FindService — service_id flip
-        # changes the OfferService observation cond so it never matches.
-        "SOMEIP_ETS_171|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-l §5.1.6 ETS_176/_177 trailing-payload Subscribes —
-        # service_id flip lands phase 1 OfferService gate.
-        "SOMEIP_ETS_176|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_177|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-l + 5-m §5.1.6 ETS_117/_118/_173/_175 multi-option / FindService-with-option /
-        # unicast Subscribe ×2 / unreferenced Configuration Option.
-        "SOMEIP_ETS_117|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_118|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_173|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_175|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-m §5.1.6 ETS_107/_108/_114/_120 multi-entry SD / Stop+absence /
-        # shortened EntriesLen / alternate-IPs Subscribe.
-        "SOMEIP_ETS_107|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_108|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_114|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_120|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-l §5.1.6 ETS_166 TestFieldUINT8 get/set/get — service_id flip
-        # lands phase 1 OfferService gate before any RPC.
-        "SOMEIP_ETS_166|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-m §5.1.6 ETS_106 ClientServiceSubscribe — service_id flip
-        # lands phase 1 OfferService gate before any client-mode chain.
-        "SOMEIP_ETS_106|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-l §5.1.6 ETS_164 SuspendInterface — service_id flip lands
-        # phase 1 OfferService gate before any field/suspend RPC.
-        "SOMEIP_ETS_164|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-l §5.1.6 ETS_167/_168 TestFieldUINT8Array / Reliable.
-        "SOMEIP_ETS_167|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_168|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-m §5.1.6 ETS_103/_104/_105 GetLastValueOfEvent* — service_id
-        # flip lands phase 1 OfferService gate before any client-mode chain.
-        "SOMEIP_ETS_103|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_104|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_105|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k batch 3 §5.1.6 ETS_155 Subscribe-Stop-Subscribe chain;
-        # service_id flip lands phase 1 OfferService gate before any Subscribe.
-        "SOMEIP_ETS_155|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k batch 3 §5.1.6 ETS_152 SD session_id wrap; service_id flip
-        # lands phase 1 OfferService gate at 6 s deadline before the burst
-        # has any chance to elicit Acks. Background-thread stimulus keeps
-        # emitting on the failure path but no Acks come back.
-        "SOMEIP_ETS_152|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k batch 3 §5.1.6 ETS_146 ResetInterface field-axis chain;
-        # service_id flip lands phase 1 OfferService gate before any RPC.
-        "SOMEIP_ETS_146|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-k batch 3 §5.1.6 ETS_147 Subscribe eg 0x02 + cyclic event
-        # observation; phase 1 uses with-endpoint OfferService cond per _086.
-        "SOMEIP_ETS_147|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        # Wave 5-k batch 3 §5.1.6 ETS_148/_149/_150/_151 mirror _147 wire
-        # shape (Subscribe + cyclic event observation). _150 swaps to eg 0x06.
-        "SOMEIP_ETS_148|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        "SOMEIP_ETS_149|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        "SOMEIP_ETS_150|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        "SOMEIP_ETS_151|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        # Wave 5-c §5.1.6 ETS length-axis NEG cluster — SOME/IP Length
-        # mutations (0x00 / 0x04 / 0x10000) on echoUINT8 method 0x08;
-        # same SD-side phase 1 service_id flip pattern as Wave 5-a.
-        # The flip rebases the OfferService cond before the lenient
-        # phase 2 length verdict can fire.
-        "SOMEIP_ETS_054|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_055|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_058|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-d §5.1.6 ETS UTF FIXED NEG cluster — too_long /
-        # too_short payloads on echoUTF16FIXED (Method 0x14) +
-        # echoUTF8FIXED (Method 0x13). Same SD-side flip pattern; the
-        # phase 1 timeout rebases the OfferService cond before any of
-        # the phase-2 verdicts (lenient-positive for _063/_065,
-        # 4-path for _064/_066) can fire.
-        "SOMEIP_ETS_063|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_064|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_065|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_066|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-f §5.1.6 ETS Array cluster — _067 zero-length array
-        # (positive lenient: empty echoed payload), _068/_069 unaligned
-        # 3-message bundles over TCP/UDP. All three flip phase 1
-        # service_id so the OfferService cond never matches → phase 1
-        # timeout, before any of the phase-2 echo verdicts fire.
-        "SOMEIP_ETS_067|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_068|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_069|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-e §5.1.6 ETS Subscribe extensions — _088 multi-entry
-        # bundled Subscribe (eg 0x02/0x05/0x06), _092 ttl=0 silence,
-        # _095 ttl-expiry absence. _088/_095 phase 1 cond requires
-        # sd_ipv4_endpoint_count >= 1 (BASIC_03 shape) so service_id
-        # flip lands the with-endpoint failure reason; _092 uses the
-        # same shape so all three flip cleanly to phase 1 timeout.
-        "SOMEIP_ETS_088|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        "SOMEIP_ETS_092|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        "SOMEIP_ETS_095|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        # Wave 5-g §5.1.6 ETS wrong-header cluster — single SOME/IP
-        # header field corruption on echoUINT8 (Method 0x08). Same
-        # SD-side flip pattern as Waves 2..5-d; phase 1 deadline
-        # rebases the OfferService cond before the lenient phase 2
-        # verdict can fire.
-        "SOMEIP_ETS_074|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_075|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_076|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_077|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_078|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-h §5.1.6 ETS — _059 resetInterface wrong-iface-version
-        # Fire&Forget silence (absence verdict), _060 multicast
-        # FindService → unicast OfferService UDP+TCP endpoints, _061
-        # 2-message UDP bundle (echoUINT8 + echoENUM). _059/_061 flip
-        # phase 1 service_id → standard no_offer reason; _060's phase 1
-        # cond also requires both UDP and TCP IPv4 Endpoint Options so
-        # the service_id flip lands the per-case with-endpoints reason.
-        "SOMEIP_ETS_059|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_060|service_id=0x0000|fail:no_offer_service_with_udp_and_tcp_endpoints_within_listen_window"
-        "SOMEIP_ETS_061|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-i §5.1.6 ETS Client-Mode subset — _098 absence-of-Subscribe,
-        # _099 FindService observed for SERVICE-ID-2, _100 FindService bounded
-        # to Start-Up Phase, _101 StopOfferService stops further FindService.
-        # All four are gated through Phase 1 OfferService observation on
-        # SERVICE-ID-1, so a service_id flip lands the standard no-offer reason.
-        "SOMEIP_ETS_098|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_099|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_100|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_101|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 5-j §5.1.6 ETS — _096 SubscribeEventgroup carrying TCP
-        # IPv4 Endpoint option without a pre-established TCP connection;
-        # phase 1 cond requires sd_ipv4_endpoint_count >= 1 (BASIC_03
-        # shape) so service_id flip lands the with-endpoint failure
-        # reason. _091 cyclic OfferService session_id increment shares
-        # the same with-endpoint phase 1 gate.
-        "SOMEIP_ETS_096|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        "SOMEIP_ETS_091|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        # §5.1.6 SOMEIP_ETS_097 NEG: phase 1 SERVICE-ID-1 OfferService gate
-        # uses the standard no-endpoint shape; service_id flip lands the
-        # bare-OfferService failure reason. The TCP refuse-then-accept path
-        # never reaches phase 2 so the wire-side stimulus cost is unchanged.
-        "SOMEIP_ETS_097|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # §5.1.6 SOMEIP_ETS_094 NEG: phase 1 OfferService cond uses the
-        # with-endpoint shape (mirrors ETS_086/087 base — same
-        # SubscribeEventgroup chain), so service_id flip lands the
-        # with-endpoint failure reason before the reboot-detection
-        # chain has any effect.
-        "SOMEIP_ETS_094|service_id=0x0000|fail:no_offer_service_with_ipv4_endpoint_within_listen_window"
-        # §5.1.6 SOMEIP_ETS_084 NEG: phase 1 SERVICE-ID-1 OfferService gate
-        # uses the standard no-endpoint shape (same as _097); service_id
-        # flip lands the bare-OfferService failure reason before the
-        # client-mode subscribe/unsubscribe chain matters.
-        "SOMEIP_ETS_084|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # §5.1.6 SOMEIP_ETS_081 NEG: phase 1 SERVICE-ID-1 OfferService gate
-        # uses the standard no-endpoint shape (same as _084/_097); service_id
-        # flip lands the bare-OfferService failure reason before the
-        # server-reboot TCP renewal chain matters.
-        "SOMEIP_ETS_081|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # §5.1.6 SOMEIP_ETS_082 NEG: same phase 1 SERVICE-ID-1 OfferService
-        # gate (no-endpoint shape) lands before the UDP re-subscribe chain.
-        "SOMEIP_ETS_082|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # §5.1.6 SOMEIP_ETS_093 NEG: phase 1 SERVICE-ID-1 OfferService gate
-        # uses the standard no-endpoint shape; service_id flip lands the
-        # bare-OfferService failure reason before the per-channel reboot
-        # tracker Subscribe chain matters.
-        "SOMEIP_ETS_093|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # §5.1.6 SOMEIP_ETS_089 NEG: phase 1 SERVICE-ID-1 OfferService gate
-        # uses the standard no-endpoint shape; service_id flip lands the
-        # bare-OfferService failure reason before the suspendInterface
-        # stimulus matters.
-        "SOMEIP_ETS_089|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "ARP_13|arp.dut_iface_mac=de:ad:be:ef:00:00|fail:sender_hw_addr_not_dut_iface"
         "ARP_14|arp.dut_iface_ip=10.99.99.99|fail:sender_proto_ip_not_dut_iface"
         "ARP_15|arp.tester_ip=10.99.99.99|fail:target_proto_ip_not_tester"
