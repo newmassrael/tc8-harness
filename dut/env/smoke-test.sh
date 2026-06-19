@@ -2236,10 +2236,12 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIP_ETS_019|payload=3F:F8:00:00:00:00:00:01|fail:echo_float64_response_did_not_match_request"
         "SOMEIP_ETS_022|payload=10:11:12:13:15|fail:echo_static_array_response_did_not_match_request"
         "SOMEIP_ETS_030|payload=00:00:00:0A:00:00:00:01:42:00:00:00:01:44|fail:echo_array2dim_response_did_not_match_request"
-        # Wave 3-c §5.1.6 ETS ENUM + UTF16DYNAMIC cluster — same SD-side
-        # phase 1 service_id flip pattern as Waves 3-a/b.
+        # Wave 3-c §5.1.6 ETS ENUM + UTF16DYNAMIC cluster. _009/_039 are
+        # full-payload echoes: a payload-flip negative drives their
+        # fail_phase2_*_mismatch (observed_violation). _039's flip keeps the
+        # length 12 so the byte comparison (not the length branch) faults.
         "SOMEIP_ETS_009|payload=03|fail:echo_enum_response_did_not_match_request"
-        "SOMEIP_ETS_039|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_039|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
         # Wave 3-d §5.1.6 ETS UTF16FIXED + UTF8DYNAMIC + UTF8FIXED cluster.
         # _046/_053 are full-frame fixed-string echoes: a payload-flip negative
         # (one byte of the echoed string corrupted) drives their
@@ -2261,18 +2263,19 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "SOMEIP_ETS_049|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_051|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_052|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        # Wave 3-f §5.1.6 ETS UTF multi-phase + odd-byte cluster.
-        # _047 (echoUTF16FIXED with a trailing odd byte) is a full-frame echo:
-        # a payload-flip negative drives its
-        # fail_phase2_utf16_fixed_echo_mismatch (observed_violation). _041/_050
-        # are multi-phase malformed-string cases whose verdict is phase-3 DUT
-        # behavior (Error Response vs OK echo), not an expect-comparable value
-        # — a wrong-expect negative cannot fault a conformant DUT, so they keep
-        # the phase 1 service_id flip (vacuous, pass-regression guard only).
-        # _043/_044 (UTF DYNAMIC malformed-input) likewise keep it.
+        # Wave 3-f §5.1.6 ETS UTF DYNAMIC/FIXED odd-byte cluster.
+        # _044 (echoUTF16DYNAMIC) and _047 (echoUTF16FIXED) are echoes: the DUT
+        # strips the trailing odd byte and returns the canonical frame, so a
+        # payload-flip negative drives their fail_phase2_utf16*_echo_mismatch
+        # (observed_violation). _041/_050 are multi-phase malformed-string
+        # cases whose verdict is phase-3 DUT behavior (Error Response vs OK
+        # echo); _043 likewise mandates an Error Response for an odd byte
+        # BEFORE termination. A wrong-expect negative cannot fault a conformant
+        # DUT on these three, so they keep the phase 1 service_id flip
+        # (vacuous, pass-regression guard only).
         "SOMEIP_ETS_041|service_id=0x0000|fail:no_offer_service_within_listen_window"
         "SOMEIP_ETS_043|service_id=0x0000|fail:no_offer_service_within_listen_window"
-        "SOMEIP_ETS_044|service_id=0x0000|fail:no_offer_service_within_listen_window"
+        "SOMEIP_ETS_044|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
         "SOMEIP_ETS_047|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
         "SOMEIP_ETS_050|service_id=0x0000|fail:no_offer_service_within_listen_window"
         # Wave 4 §5.1.6 ETS datatype-echo cluster (echoBitfields +

@@ -57,7 +57,30 @@ struct TestCaseTraits<cases::SomeipEts044SM> : SomeIpAnyBase<cases::SomeipEts044
         };
         ::tc8::stimulus::emitMethodRequestAfter(iface, target);
     }
+
+    // Conformant echoUTF16DYNAMIC response: the DUT strips the trailing odd
+    // byte and re-serialises "hi" to the canonical 12-byte echo — 4-byte BE
+    // length prefix (8) + BOM (FE FF) + 'h' (00 68) + 'i' (00 69) + UTF-16
+    // null (00 00), identical to ETS_039. Case-local SSOT for the positive
+    // assertion (the cond reads expected.payload_view()); --expect payload=
+    // overrides it only for the negative harness, keeping the case
+    // self-contained across all drivers.
+    static void applyExpectedDefaults(::tc8::SomeIpExpected& e) {
+        ::tc8::setExpectedPayload(e, {
+            0x00, 0x00, 0x00, 0x08,  // length prefix (BE) = 8
+            0xFE, 0xFF,              // BOM
+            0x00, 0x68,              // 'h'
+            0x00, 0x69,              // 'i'
+            0x00, 0x00,              // UTF-16 null terminator
+        });
+    }
 };
+
+// Compile-time guard: the SFINAE detector must see this case's
+// applyExpectedDefaults hook. A name/type drift would silently skip the
+// case-local default at runtime and false-FAIL a conformant positive run.
+static_assert(has_expected_defaults_v<TestCaseTraits<cases::SomeipEts044SM>>,
+              "SOMEIP_ETS_044: applyExpectedDefaults must be detected");
 
 }  // namespace tc8::sce
 
