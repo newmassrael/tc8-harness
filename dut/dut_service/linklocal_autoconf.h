@@ -9,6 +9,7 @@
 #include <thread>
 
 #include "tc8/rfc3927_constants.h"
+#include "tc8/upper_tester_protocol.h"
 
 namespace tc8::dut {
 
@@ -39,10 +40,11 @@ namespace tc8::dut {
 // in linklocal_autoconf.cpp to keep tc8-dut self-contained from
 // src/stimulus/ (the harness binary's stimulus library).
 // Fault-injection flavor selector, mapped 1:1 onto §4.5.6.2 cluster A
-// (Probe-shape, 0x01..0x05 + 0x0A) and §4.5.6.3 ANNOUNCING (Announce-shape,
-// 0x06..0x09) invariants. Wire byte values are pinned by
-// `tc8::ut::kFlavor*` so the protocol header alone is enough to
-// interop with this enum; keep the two in sync. Default (`None`)
+// (Probe-shape) and §4.5.6.3 ANNOUNCING (Announce-shape) invariants.
+// Each enumerator's wire byte is **derived** from the single source of
+// truth `tc8::ut::kFlavor*` (the protocol header the harness and this
+// firmware both consume), so the two can never silently diverge — a
+// renumber in the header flows here at compile time. Default (`None`)
 // emits a fully-compliant Probe + Announce — a buggy caller that
 // forgets to set `Params::flavor` falls through to the conformant
 // path rather than silently injecting a fault, which is what the
@@ -55,31 +57,31 @@ namespace tc8::dut {
 // considered in ALL THREE — preventing a future Probe/Announce/Reply
 // flavor that silently leaks a mutation into the wrong frame shape.
 enum class LinklocalAutoconfFlavor : std::uint8_t {
-    None                          = 0x00,
+    None                          = ::tc8::ut::kFlavorNone,
     // §4.5.6.2 Probe-shape mutations.
-    SenderIpNonzero               = 0x01,
-    TargetOutsidePrefix           = 0x02,
-    TargetInReservedRange         = 0x03,
-    TargetHwNonzero               = 0x04,
-    SenderHwWrong                 = 0x05,
+    SenderIpNonzero               = ::tc8::ut::kFlavorSenderIpNonzero,
+    TargetOutsidePrefix           = ::tc8::ut::kFlavorTargetOutsidePrefix,
+    TargetInReservedRange         = ::tc8::ut::kFlavorTargetInReservedRange,
+    TargetHwNonzero               = ::tc8::ut::kFlavorTargetHwNonzero,
+    SenderHwWrong                 = ::tc8::ut::kFlavorSenderHwWrong,
     // §4.5.6.3 Announce-shape mutations.
-    AnnounceEthDstUnicast         = 0x06,
-    AnnounceSenderTargetMismatch  = 0x07,
-    AnnounceSenderHwWrong         = 0x08,
-    AnnounceTargetHwNonzero       = 0x09,
-    // §4.5.6.2 Probe-shape mutation appended at 0x0A to keep the
-    // existing wire values stable (grouped by comment, not by value).
-    ProbeEthDstUnicast            = 0x0A,
+    AnnounceEthDstUnicast         = ::tc8::ut::kFlavorAnnounceEthDstUnicast,
+    AnnounceSenderTargetMismatch  = ::tc8::ut::kFlavorAnnounceSenderTargetMismatch,
+    AnnounceSenderHwWrong         = ::tc8::ut::kFlavorAnnounceSenderHwWrong,
+    AnnounceTargetHwNonzero       = ::tc8::ut::kFlavorAnnounceTargetHwNonzero,
+    // §4.5.6.2 Probe-shape mutation (header appends its wire byte after
+    // the Announce block to keep existing values stable).
+    ProbeEthDstUnicast            = ::tc8::ut::kFlavorProbeEthDstUnicast,
     // §4.5.6.2 _16 / §4.5.6.4 CONFLICT_11 defending-Reply-shape
     // mutations (RFC 3927 §2.5). emitArpReply does its own
     // switch-no-default; Probe/Announce builders break passively.
-    ReplySenderIpWrong            = 0x0B,
-    ReplyEthDstUnicast            = 0x0C,
+    ReplySenderIpWrong            = ::tc8::ut::kFlavorReplySenderIpWrong,
+    ReplyEthDstUnicast            = ::tc8::ut::kFlavorReplyEthDstUnicast,
     // Responder-dispatch mutation (RFC 3927 §2.7): makes the responder
     // answer ARP Requests for unclaimed targets. Read by
     // runArpResponder's target gate, NOT an emit-field mutation, so it
     // is a passive `break` in all three emit-builder switches.
-    ReplyToArbitraryTarget        = 0x0D,
+    ReplyToArbitraryTarget        = ::tc8::ut::kFlavorReplyToArbitraryTarget,
 };
 
 class LinklocalAutoconf {
