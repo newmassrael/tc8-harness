@@ -1973,6 +1973,459 @@
           "property": "DUT must not emit periodic gratuitous ARP for its committed link-local address; silence is conformant"
         }
       ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_dst_ip_not_broadcast",
+          "property": "DUT's DHCPDISCOVER must be sent to the limited broadcast address (RFC 2131 §3.1); fail iff a non-broadcast destination"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_server_id_mismatch_offer",
+          "property": "DUT's selecting DHCPREQUEST Option 54 (Server Identifier) must echo the chosen OFFER's server id; fail iff it mismatches"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_secs_mismatch_discover",
+          "property": "DUT's DHCPREQUEST secs field must match the preceding DHCPDISCOVER's secs; fail iff it differs"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_dst_ip_not_broadcast",
+          "property": "DUT's selecting DHCPREQUEST must be sent to the limited broadcast address (RFC 2131 §3.1); fail iff a non-broadcast destination"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_06": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must retransmit DHCPDISCOVER when no DHCPOFFER arrives (RFC 2131 §3.1); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_07": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must send a DHCPDECLINE and restart configuration when ARP detects the offered address in use (RFC 2131 §3.1); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_08": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must wait at least ten seconds before restarting configuration after a DHCPDECLINE (RFC 2131 §3.1); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_ALLOCATING_09": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must restart the configuration process on receiving a DHCPNAK (RFC 2131 §3.1); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_last_option_not_end",
+          "property": "DUT's DHCPDISCOVER option block must terminate with the End option (255, RFC 2132); fail iff the last option is not End"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_renewing_request_dst_not_server_id",
+          "property": "DUT's RENEWING DHCPREQUEST must be unicast to the server identifier (RFC 2131 §4.3.6); fail iff the destination is not the server id"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_source_ip_not_zero",
+          "property": "DUT's DHCPDISCOVER source IP must be 0.0.0.0 (RFC 2131 §4.1); fail iff non-zero"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_src_ip_not_zero",
+          "property": "DUT's selecting DHCPREQUEST source IP must be 0.0.0.0 (RFC 2131 §4.1); fail iff non-zero"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must parse the sname field when Option Overload is present and complete configuration (RFC 2132 §9.3); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_06": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must parse the file field when Option Overload is present and complete configuration (RFC 2132 §9.3); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_12": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_retx_interval_exceeds_cap",
+          "property": "DUT's DHCPDISCOVER retransmission interval must not exceed the RFC 2131 §4.1 cap; fail iff it exceeds the cap"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_first_retx_interval_out_of_range",
+          "property": "DUT's first DHCPDISCOVER retransmission interval must lie within the RFC 2131 §4.1 backoff range; fail iff out of range"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_second_retx_interval_out_of_range",
+          "property": "DUT's second DHCPDISCOVER retransmission interval must lie within the RFC 2131 §4.1 backoff range; fail iff out of range"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_nak_to_discover_outside_1_to_11_seconds",
+          "property": "DUT's DHCPDISCOVER retransmission after a DHCPNAK must occur within 1-11 seconds (RFC 2131 §3.1); fail iff outside the window"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_ciaddr_not_zero",
+          "property": "DUT's DHCPDISCOVER ciaddr must be 0.0.0.0 (RFC 2131 §4.4.1); fail iff non-zero"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_chaddr_mismatch",
+          "property": "DUT's DHCPDISCOVER chaddr must carry the DUT interface MAC (RFC 2131 §4.1); fail iff it mismatches"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_04": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_dhcp_request_after_mismatched_xid_offer",
+          "property": "DUT must not send a DHCPREQUEST after an OFFER whose xid does not match its DISCOVER; silence is conformant"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_05": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_dhcp_request_after_lone_ack",
+          "property": "DUT must not send a DHCPREQUEST after a lone DHCPACK with no preceding OFFER; silence is conformant"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_xid_mismatch",
+          "property": "DUT's DHCPREQUEST xid must match its DHCPDISCOVER xid (RFC 2131 §4.1); fail iff it mismatches"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_arp_probe_field_mismatch",
+          "property": "DUT's ARP Probe for the offered address must carry the correct probe fields (RFC 2131 §4.4.1 duplicate detection); fail iff a probe's fields mismatch"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_09": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must send a DHCPDECLINE when the offered network address appears to be in use (RFC 2131 §4.4.1); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must broadcast a gratuitous ARP announcing its new IP address after binding (RFC 2131 §4.4.1); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_PARAMETERS_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_option55_mismatch_discover",
+          "property": "DUT's DHCPREQUEST Option 55 (Parameter Request List) must match its DHCPDISCOVER's (RFC 2131 §4.4.1); fail iff it differs"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_PROTOCOL_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_missing_magic_cookie",
+          "property": "DUT's DHCPDISCOVER must carry the BOOTP magic cookie (RFC 2131 §3); fail iff absent or invalid"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_PROTOCOL_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_missing_message_type_option",
+          "property": "DUT's DHCPDISCOVER must carry the DHCP Message Type option (RFC 2131 §3); fail iff absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_PROTOCOL_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_missing_message_type_option",
+          "property": "DUT's DHCPREQUEST must carry the DHCP Message Type option (RFC 2131 §3); fail iff absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_renewing_request_dst_not_server_id",
+          "property": "DUT's RENEWING DHCPREQUEST must be unicast to the server identifier (RFC 2131 §4.4.5); fail iff the destination is not the server id"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rebinding_request_dst_not_broadcast",
+          "property": "DUT's REBINDING DHCPREQUEST must be broadcast (RFC 2131 §4.4.5); fail iff not broadcast"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_03": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_renewing_request_t1_interval_out_of_bounds",
+          "property": "DUT's RENEWING DHCPREQUEST must be sent within the T1 interval bounds (RFC 2131 §4.4.5); fail iff out of bounds"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rebinding_request_t2_interval_out_of_bounds",
+          "property": "DUT's REBINDING DHCPREQUEST must be sent within the T2 interval bounds (RFC 2131 §4.4.5); fail iff out of bounds"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_05": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_renewing_retx_interval_out_of_bounds",
+          "property": "DUT's RENEWING DHCPREQUEST retransmission interval must lie within the RFC 2131 §4.4.5 bounds; fail iff out of bounds"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rebinding_retx_interval_out_of_bounds",
+          "property": "DUT's REBINDING DHCPREQUEST retransmission interval must lie within the RFC 2131 §4.4.5 bounds; fail iff out of bounds"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_07": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_kept_released_ip_after_lease_expiry",
+          "property": "DUT must not send a DHCPREQUEST reclaiming the released IP after the lease expires (it must re-DISCOVER); silence is conformant"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REACQUISITION_08": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must move to INIT and restart network initialization if the lease expires before a DHCPACK (RFC 2131 §4.4.5); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_ciaddr_not_zero",
+          "property": "DUT's selecting DHCPREQUEST ciaddr must be 0.0.0.0 (RFC 2131 §4.3.2); fail iff non-zero"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_option50_mismatch_offer_yiaddr",
+          "property": "DUT's selecting DHCPREQUEST Option 50 (Requested IP) must echo the OFFER's yiaddr (RFC 2131 §4.3.2); fail iff it mismatches"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_06": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_renewing_request_carries_server_id",
+          "property": "DUT's RENEWING DHCPREQUEST must omit Option 54 (Server Identifier) (RFC 2131 §4.3.2); fail iff it is present"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_07": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_renewing_request_carries_requested_ip",
+          "property": "DUT's RENEWING DHCPREQUEST must omit Option 50 (Requested IP) (RFC 2131 §4.3.2); fail iff it is present"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_08": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_renewing_request_ciaddr_mismatch",
+          "property": "DUT's RENEWING DHCPREQUEST ciaddr must carry the bound IP address (RFC 2131 §4.3.2); fail iff it mismatches"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_09": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rebinding_request_carries_server_id",
+          "property": "DUT's REBINDING DHCPREQUEST must omit Option 54 (Server Identifier) (RFC 2131 §4.3.2); fail iff it is present"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_10": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rebinding_request_carries_requested_ip",
+          "property": "DUT's REBINDING DHCPREQUEST must omit Option 50 (Requested IP) (RFC 2131 §4.3.2); fail iff it is present"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_11": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rebinding_request_ciaddr_mismatch",
+          "property": "DUT's REBINDING DHCPREQUEST ciaddr must carry the bound IP address (RFC 2131 §4.3.2); fail iff it mismatches"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_REQUEST_12": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_rebinding_request_dst_not_broadcast",
+          "property": "DUT's REBINDING DHCPREQUEST must be broadcast (RFC 2131 §4.3.2); fail iff not broadcast"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_SUMMARY_01": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must emit a DHCPDISCOVER and a DHCPREQUEST as a DHCP client on UDP port 68 (RFC 2131 §4.1); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_SUMMARY_02": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_request_did_not_select_second_server",
+          "property": "DUT's DHCPREQUEST Option 54 must select the second (matched-xid) server (RFC 2131 §4.3.2); fail iff it selects another server"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_SUMMARY_03": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must accept DHCP messages with an options field of at least 312 octets (576-octet total) (RFC 2131 §2); binary present/absent"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_SUMMARY_04": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_dhcp_discover_reserved_flags_nonzero",
+          "property": "DUT's DHCPDISCOVER reserved flags bits must be zero (RFC 2131 §4.1); fail iff any reserved flag is set"
+        }
+      ]
+    },
+    "DHCPv4_CLIENT_USAGE_01": {
+      "guards": [
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "diface_0_and_diface_1_share_same_chaddr",
+          "property": "DUT's per-interface DHCPDISCOVER must carry a distinct chaddr per interface (Topology 2); fail iff two interfaces share the same chaddr"
+        }
+      ]
     }
   }
 }
