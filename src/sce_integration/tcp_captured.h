@@ -469,6 +469,7 @@ inline void appendCapturedJson(std::string &out, const TcpCaptured &c) {
     if (c.ut_established != 0xFF) {
         ::tc8::sce::appendUintJson(out, ",\"ut_established\":", c.ut_established);
     }
+    ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
 }
 

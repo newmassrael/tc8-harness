@@ -289,6 +289,7 @@ inline void appendCapturedJson(std::string &out, const UdpCaptured &c) {
         ::tc8::sce::appendUintJson(out, ",\"ut_req_id\":", c.ut_req_id);
         ::tc8::sce::appendUintJson(out, ",\"ut_status\":", c.ut_status);
     }
+    ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
 }
 

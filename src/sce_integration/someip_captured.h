@@ -629,6 +629,7 @@ inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
         ::tc8::sce::appendUintJson(out, ",\"sd_entry_count\":", c.sd_entry_count);
         ::tc8::sce::appendUintJson(out, ",\"sd_option_count\":", c.sd_option_count);
     }
+    ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
 }
 

@@ -276,6 +276,7 @@ inline void appendCapturedJson(std::string &out, const ArpCaptured &c) {
         out.append(",\"observed_udp_eth_dst\":");
         ::tc8::sce::appendMacJson(out, c.observed_udp_eth_dst);
     }
+    ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
 }
 

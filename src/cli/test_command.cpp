@@ -630,6 +630,16 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
     const std::string verdict_str = verdict.str();
     std::printf("verdict  : %s\n", verdict_str.c_str());
+    // Surface the witnessing evidence on any non-pass verdict so a
+    // value-comparison failure (e.g. a timing-window flake like
+    // dut_*_interval_out_of_range) is self-diagnosing in the conformance
+    // gate without a pcap re-run. Reuses the Evidence-Export transition
+    // trace (the single observation SSOT, frame_delta_us et al. carried in
+    // each step's captured_json); a passing run needs no evidence and stays
+    // quiet, keeping the gate output clean.
+    if (verdict.cls != ::tc8::sce::VerdictClass::Pass) {
+        std::printf("evidence : %s\n", runner->dumpTraceJson().c_str());
+    }
     if (dumper != nullptr) {
         pcap_dump_close(dumper);
     }

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 
@@ -119,6 +120,27 @@ inline void appendUintJson(std::string &out, const char *key, unsigned v) {
     out.append(key);
     std::snprintf(buf, sizeof(buf), "%u", v);
     out.append(buf);
+}
+
+// Signed 64-bit emitter — timing slots (microsecond timestamps / deltas)
+// overflow the 32-bit `appendUintJson`.
+inline void appendI64Json(std::string &out, const char *key, std::int64_t v) {
+    char buf[24];
+    out.append(key);
+    std::snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(v));
+    out.append(buf);
+}
+
+// Append the universal inter-frame timing observation
+// ``,"observed_ts_us":N,"frame_delta_us":N`` shared by every Named Context
+// that derives from `CapturedFrameTiming`. Surfacing `frame_delta_us()` is
+// what makes a timing-window verdict (e.g. `dut_*_interval_out_of_range`)
+// self-diagnosing: the witnessing inter-frame delta rides the trace, so a
+// failure no longer needs a pcap re-run to read the measured value. Leading
+// comma — callers append it after the family's own fields.
+inline void appendTimingJson(std::string &out, const ::tc8::CapturedFrameTiming &t) {
+    appendI64Json(out, ",\"observed_ts_us\":", t.observed_ts_us);
+    appendI64Json(out, ",\"frame_delta_us\":", t.frame_delta_us());
 }
 
 // Append the L3 endpoint pair as ``"src_ip":<ip>,"dst_ip":<ip>`` — no

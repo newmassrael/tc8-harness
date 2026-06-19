@@ -149,6 +149,7 @@ inline void appendCapturedJson(std::string &out, const Icmpv4Captured &c) {
         ::tc8::sce::appendUintJson(out, ",\"icmp_pointer\":", c.icmp_pointer);
     }
     ::tc8::sce::appendUintJson(out, ",\"payload_len\":", c.payload_len);
+    ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
 }
 

@@ -151,6 +151,7 @@ inline void appendCapturedJson(std::string &out, const Ipv4Captured &c) {
     ::tc8::sce::appendIpv4Json(out, c.src_addr);
     out.append(",\"dst_addr\":");
     ::tc8::sce::appendIpv4Json(out, c.dst_addr);
+    ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
 }
 

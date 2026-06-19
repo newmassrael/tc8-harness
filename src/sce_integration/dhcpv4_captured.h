@@ -592,6 +592,7 @@ inline void appendCapturedJson(std::string &out, const Dhcpv4Captured &c) {
     ::tc8::sce::appendMacJson(out, c.eth_src);
     out.append(",\"eth_dst\":");
     ::tc8::sce::appendMacJson(out, c.eth_dst);
+    ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
 }
 
