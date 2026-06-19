@@ -178,13 +178,16 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
             // AnnounceEthDstUnicast flavor for the Probe shape).
             eth_dst = dut_mac_;
             break;
-        // §4.5.6.3 Announce-phase flavors: Probe phase stays
-        // compliant (the spec precondition still has to complete so
-        // the SCXML reaches its post-claim listening state).
+        // §4.5.6.3 Announce-phase + RFC 3927 §2.5 Reply-phase
+        // flavors: Probe phase stays compliant (the spec precondition
+        // still has to complete so the SCXML reaches its post-claim
+        // listening state).
         case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
         case LinklocalAutoconfFlavor::AnnounceSenderTargetMismatch:
         case LinklocalAutoconfFlavor::AnnounceSenderHwWrong:
         case LinklocalAutoconfFlavor::AnnounceTargetHwNonzero:
+        case LinklocalAutoconfFlavor::ReplySenderIpWrong:
+        case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
             break;
     }
 
@@ -223,13 +226,16 @@ void LinklocalAutoconf::emitArpAnnounce(std::uint32_t committed_ll_be,
 
     switch (flavor) {
         case LinklocalAutoconfFlavor::None:
-        // §4.5.6.2 Probe-phase flavors: Announce stays compliant.
+        // §4.5.6.2 Probe-phase + RFC 3927 §2.5 Reply-phase flavors:
+        // Announce stays compliant.
         case LinklocalAutoconfFlavor::SenderIpNonzero:
         case LinklocalAutoconfFlavor::TargetOutsidePrefix:
         case LinklocalAutoconfFlavor::TargetInReservedRange:
         case LinklocalAutoconfFlavor::TargetHwNonzero:
         case LinklocalAutoconfFlavor::SenderHwWrong:
         case LinklocalAutoconfFlavor::ProbeEthDstUnicast:
+        case LinklocalAutoconfFlavor::ReplySenderIpWrong:
+        case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
             break;
         case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
             // RFC 3927 §2.4 / RFC 3927 §2.5 last MUST: ARP packets whose sender_proto_ip
@@ -360,6 +366,11 @@ void LinklocalAutoconf::emitDhcpDiscover() {
 }
 
 void LinklocalAutoconf::runLoop(Params params) {
+    // Publish the fault-injection flavor for the responder thread's
+    // defending Reply before any thread is spawned (the spawn is the
+    // happens-before barrier; flavor_ is read-only thereafter).
+    flavor_ = params.flavor;
+
     auto sleepInterruptible = [&](std::chrono::milliseconds dur) {
         const auto deadline = std::chrono::steady_clock::now() + dur;
         while (!stop_requested_.load()) {
@@ -756,20 +767,56 @@ void LinklocalAutoconf::runArpResponder() {
         if (opcode != 1) continue;
         if (target_ip_be != committed_be) continue;
 
-        emitArpReply(sender_ip_be, sender_hw);
+        emitArpReply(sender_ip_be, sender_hw, flavor_);
     }
     ::close(sk);
 }
 
 void LinklocalAutoconf::emitArpReply(
     std::uint32_t target_ip_be,
-    const std::array<std::uint8_t, 6>& target_hw) {
+    const std::array<std::uint8_t, 6>& target_hw,
+    LinklocalAutoconfFlavor flavor) {
     std::uint32_t sender_ip_be = 0;
     {
         std::lock_guard<std::mutex> lk(address_mu_);
         sender_ip_be = committed_address_be_;
     }
     if (sender_ip_be == 0) return;
+
+    // Compliant defending-Reply shape per RFC 3927 §2.5. `flavor`
+    // mutates exactly one field (and only one): Reply-shape flavors
+    // are active here, every Probe/Announce flavor is a passive
+    // `break` so -Wswitch forces all-three-builder consideration.
+    std::array<std::uint8_t, 6> eth_dst = kEthBroadcast;
+    switch (flavor) {
+        case LinklocalAutoconfFlavor::None:
+        // Probe- and Announce-phase flavors: the defending Reply stays
+        // compliant.
+        case LinklocalAutoconfFlavor::SenderIpNonzero:
+        case LinklocalAutoconfFlavor::TargetOutsidePrefix:
+        case LinklocalAutoconfFlavor::TargetInReservedRange:
+        case LinklocalAutoconfFlavor::TargetHwNonzero:
+        case LinklocalAutoconfFlavor::SenderHwWrong:
+        case LinklocalAutoconfFlavor::ProbeEthDstUnicast:
+        case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
+        case LinklocalAutoconfFlavor::AnnounceSenderTargetMismatch:
+        case LinklocalAutoconfFlavor::AnnounceSenderHwWrong:
+        case LinklocalAutoconfFlavor::AnnounceTargetHwNonzero:
+            break;
+        case LinklocalAutoconfFlavor::ReplySenderIpWrong:
+            // RFC 3927 §2.5: the defending Reply's sender_proto_ip MUST
+            // be the committed LL. Drive it to the DUT iface IP (a
+            // routable, non-LL value distinguishable on capture).
+            sender_ip_be = dut_iface_ip_be_;
+            break;
+        case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
+            // RFC 3927 §2.5 last MUST: a Reply whose sender_proto_ip is
+            // in 169.254/16 MUST be broadcast. Direct the Ethernet dst
+            // at the asker's MAC (the RFC 826 default unicast a
+            // non-conformant DUT might emit).
+            eth_dst = target_hw;
+            break;
+    }
 
     // 14 B Ethernet + 28 B ARP. RFC 3927 §2.5 last MUST: any ARP
     // packet whose sender_proto_ip is in 169.254/16 — including
@@ -780,7 +827,7 @@ void LinklocalAutoconf::emitArpReply(
     // is unchanged (the L3-level reply identity is independent of
     // L2 framing).
     std::uint8_t f[42] = {};
-    std::memcpy(f + 0, kEthBroadcast.data(), 6);    // Eth dst = broadcast
+    std::memcpy(f + 0, eth_dst.data(), 6);          // Eth dst (broadcast; flavor mutates)
     std::memcpy(f + 6, dut_mac_.data(), 6);         // Eth src = DUT
     writeBe16(f + 12, kEthTypeArp);
 

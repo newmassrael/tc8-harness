@@ -748,8 +748,9 @@ inline constexpr std::uint8_t kSocketTypeActive  = 0x01;
 
 // `OpStartLLAutoconfBuggy` flavor byte. Each value picks one of the
 // RFC 3927 invariants asserted by §4.5.6.2 ADDRESS_SELECTION cluster A
-// (Probe-shape, 0x01..0x05 + 0x0A) or §4.5.6.3 ANNOUNCING (Announce-shape,
-// 0x06..0x09). Spec invariant ↔ flavor is one-to-one — adding a new
+// (Probe-shape, 0x01..0x05 + 0x0A), §4.5.6.3 ANNOUNCING (Announce-shape,
+// 0x06..0x09), or defending-Reply-shape (0x0B..0x0C, RFC 3927 §2.5).
+// Spec invariant ↔ flavor is one-to-one — adding a new
 // flavor without a backing spec invariant is a category violation
 // (`feedback_frozen_spec_is_evidence.md`). The cadence cluster B
 // (_09/_10 / _05/_06) does NOT need a flavor: the existing six timing
@@ -769,6 +770,9 @@ inline constexpr std::uint8_t kFlavorAnnounceTargetHwNonzero       = 0x09;  // R
 // Probe-shape flavor appended at 0x0A (after the Announce block) so the
 // existing wire values stay stable; flavor grouping is by comment, not value.
 inline constexpr std::uint8_t kFlavorProbeEthDstUnicast            = 0x0A;  // RFC 3927 §2.1.1 Probe eth_dst=broadcast MUST
+// Defending-Reply-shape flavors for _16 + CONFLICT_11 (RFC 3927 §2.5).
+inline constexpr std::uint8_t kFlavorReplySenderIpWrong           = 0x0B;  // RFC 3927 §2.5   Reply sender_proto_ip=committed LL MUST
+inline constexpr std::uint8_t kFlavorReplyEthDstUnicast           = 0x0C;  // RFC 3927 §2.5   Reply eth_dst=broadcast MUST
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

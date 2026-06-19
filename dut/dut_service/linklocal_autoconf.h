@@ -48,12 +48,12 @@ namespace tc8::dut {
 // path rather than silently injecting a fault, which is what the
 // negative-case self-validation needs.
 //
-// Each emit builder (`emitArpProbe`, `emitArpAnnounce`) does a
-// switch-no-default over this enum. Probe-phase flavors are
-// passive `break` cases inside `emitArpAnnounce` and vice-versa, so
+// Each emit builder (`emitArpProbe`, `emitArpAnnounce`,
+// `emitArpReply`) does a switch-no-default over this enum. A flavor
+// active in one builder is a passive `break` in the other two, so
 // `-Wswitch` makes the compiler force every new flavor to be
-// considered in BOTH phases — preventing a future Probe-flavor that
-// silently leaks Announce-shape mutation, or vice-versa.
+// considered in ALL THREE — preventing a future Probe/Announce/Reply
+// flavor that silently leaks a mutation into the wrong frame shape.
 enum class LinklocalAutoconfFlavor : std::uint8_t {
     None                          = 0x00,
     // §4.5.6.2 Probe-shape mutations.
@@ -70,6 +70,11 @@ enum class LinklocalAutoconfFlavor : std::uint8_t {
     // §4.5.6.2 Probe-shape mutation appended at 0x0A to keep the
     // existing wire values stable (grouped by comment, not by value).
     ProbeEthDstUnicast            = 0x0A,
+    // §4.5.6.2 _16 / §4.5.6.4 CONFLICT_11 defending-Reply-shape
+    // mutations (RFC 3927 §2.5). emitArpReply does its own
+    // switch-no-default; Probe/Announce builders break passively.
+    ReplySenderIpWrong            = 0x0B,
+    ReplyEthDstUnicast            = 0x0C,
 };
 
 class LinklocalAutoconf {
@@ -193,12 +198,23 @@ private:
     void runArpResponder();
     void startArpResponder();
     void stopArpResponder();
+    // `flavor` mutates exactly one Reply field per fault-injection
+    // variant (RFC 3927 §2.5); `None` and Probe/Announce-phase flavors
+    // emit the spec-compliant broadcast Reply. Sourced from `flavor_`
+    // by the responder thread (set once in runLoop before spawn).
     void emitArpReply(std::uint32_t target_ip_be,
-                      const std::array<std::uint8_t, 6>& target_hw);
+                      const std::array<std::uint8_t, 6>& target_hw,
+                      LinklocalAutoconfFlavor flavor);
 
     std::string iface_;
     std::array<std::uint8_t, 6> dut_mac_{};
     std::uint32_t dut_iface_ip_be_ = 0;
+
+    // Fault-injection flavor for the responder thread's defending
+    // Reply. Set once at the top of runLoop (before the responder is
+    // spawned, which is the happens-before barrier) and read-only
+    // thereafter, so a plain member is race-free.
+    LinklocalAutoconfFlavor flavor_ = LinklocalAutoconfFlavor::None;
 
     mutable std::mutex address_mu_;
     std::uint32_t committed_address_be_ = 0;
