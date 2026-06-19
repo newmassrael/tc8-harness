@@ -79,13 +79,13 @@
 
   <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_active_open_did_not_initiate","role":"observed_violation"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_active_open_did_not_initiate","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"tcp_info_query_failed","role":"observed_violation"}</content>
+      <content>{"verdict":"error","reason":"tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
@@ -103,7 +103,7 @@
 
   <final id="fail_rto_below_2msl_cap">
     <donedata>
-      <content>{"verdict":"fail","reason":"rto_below_2_msl_did_not_plateau_within_observation_budget","role":"observed_violation"}</content>
+      <content>{"verdict":"inconclusive","reason":"rto_below_2_msl_did_not_plateau_within_observation_budget","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>

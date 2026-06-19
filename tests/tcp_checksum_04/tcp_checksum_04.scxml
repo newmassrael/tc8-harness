@@ -108,13 +108,13 @@
 
   <final id="fail_no_cycle1_isn">
     <donedata>
-      <content>{"verdict":"fail","reason":"cycle1_syn_capture_timeout","role":"observed_violation"}</content>
+      <content>{"verdict":"inconclusive","reason":"cycle1_syn_capture_timeout","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_no_cycle2_isn">
     <donedata>
-      <content>{"verdict":"fail","reason":"cycle2_syn_capture_timeout","role":"observed_violation"}</content>
+      <content>{"verdict":"inconclusive","reason":"cycle2_syn_capture_timeout","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 

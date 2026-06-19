@@ -129,25 +129,25 @@
 
   <final id="fail_handshake_did_not_complete">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_handshake_did_not_complete","role":"observed_violation"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_handshake_did_not_complete","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase1_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase1_tcp_info_query_failed","role":"observed_violation"}</content>
+      <content>{"verdict":"error","reason":"phase1_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase2_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase2_tcp_info_query_failed","role":"observed_violation"}</content>
+      <content>{"verdict":"error","reason":"phase2_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
   <final id="fail_phase3_query_failed">
     <donedata>
-      <content>{"verdict":"fail","reason":"phase3_tcp_info_query_failed","role":"observed_violation"}</content>
+      <content>{"verdict":"error","reason":"phase3_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
