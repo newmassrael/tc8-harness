@@ -75,6 +75,9 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0028 and captured.message_type == 0x80 and captured.payload_len == 8 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x00 and captured.payload_snapshot[3] == 0x04 and captured.payload_snapshot[4] == 0x11 and captured.payload_snapshot[5] == 0x22 and captured.payload_snapshot[6] == 0x33 and captured.payload_snapshot[7] == 0x44"
                 target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0028 and captured.message_type == 0x80 and not (captured.payload_len == 8 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x00 and captured.payload_snapshot[3] == 0x04 and captured.payload_snapshot[4] == 0x11 and captured.payload_snapshot[5] == 0x22 and captured.payload_snapshot[6] == 0x33 and captured.payload_snapshot[7] == 0x44)"
+                target="fail_phase4_wrong_post_set_get"/>
     <transition event="phase4_deadline_exceeded" target="inconclusive_phase4_no_post_set_get"/>
   </state>
 
@@ -105,6 +108,12 @@
   <final id="inconclusive_phase4_no_post_set_get">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"no_post_set_get_array_response","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_wrong_post_set_get">
+    <donedata>
+      <content>{"verdict":"fail","reason":"post_set_get_array_value_mismatch","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

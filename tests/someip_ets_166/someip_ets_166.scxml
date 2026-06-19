@@ -71,6 +71,9 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0x55"
                 target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0040 and captured.message_type == 0x80 and captured.payload_snapshot[0] != 0x55"
+                target="fail_phase4_wrong_post_set_get"/>
     <transition event="phase4_deadline_exceeded" target="inconclusive_phase4_no_post_set_get"/>
   </state>
 
@@ -101,6 +104,12 @@
   <final id="inconclusive_phase4_no_post_set_get">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"no_post_set_get_field_response","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_wrong_post_set_get">
+    <donedata>
+      <content>{"verdict":"fail","reason":"post_set_get_field_value_not_55","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>
