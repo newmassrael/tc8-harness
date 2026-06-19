@@ -48,6 +48,9 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x003C and captured.message_type == 0x80 and captured.payload_snapshot[0] == 0x08"
                 target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x003C and captured.message_type == 0x80 and captured.payload_snapshot[0] != 0x08"
+                target="fail_phase2_wrong_get_last_value"/>
     <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_get_last_response"/>
   </state>
 
@@ -66,6 +69,12 @@
   <final id="inconclusive_phase2_no_get_last_response">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"no_get_last_value_udp_unicast_response","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_wrong_get_last_value">
+    <donedata>
+      <content>{"verdict":"fail","reason":"udp_unicast_get_last_value_not_08","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>
