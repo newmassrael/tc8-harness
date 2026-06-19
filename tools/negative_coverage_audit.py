@@ -1,59 +1,43 @@
 #!/usr/bin/env python3
-"""Enforce negative-test soundness (docs/verdict_policy.md §6, debt D7).
+"""Enforce negative-coverage EXHAUSTIVENESS + soundness (docs/verdict_policy.md
+Section 6, debt D7).
 
-A negative test proves a positive guard is *non-vacuous*: that if the IUT were
-non-conformant the case would land on `fail` (observed_violation). The harness
-runs the (conformant) reference DUT with a deliberately-WRONG `--expect` token
-and asserts the verdict is the expected `fail:<reason>` (dut/env/smoke-test.sh
-`run_negative_case`). The curated set lives in the `NEG_ROWS` array there.
+Every registered positive conformance case must carry a non-vacuity DISPOSITION
+that proves its verdict guard is checkable — that a non-conformant DUT would land
+on `fail`. ISO 9646 suite validation / mutation analysis: a test whose guard can
+never fire is vacuous and validates nothing. The four terminal dispositions are:
 
-The 4-value verdict migration correctly reclassified "awaited observation absent
-over a finite window" as `inconclusive` (not `fail`) — see docs/verdict_policy.md
-§2 clause 4. The side effect: a negative whose injection merely *suppresses* the
-awaited observation now lands on `inconclusive`, which `run_negative_case` routes
-to the skip ledger. Such a row no longer verifies anything via `fail` — it is
-VACUOUS. A sound negative must drive an *observed* violation.
+  SOUND_ROW        a NEG_ROW lands the conformant DUT on a `fail` final via a
+                   deliberately-wrong --expect token (expect-flip negative;
+                   dut/env/smoke-test.sh run_negative_case).
+  FAULT_INJECTION  a `<case>_neg` registered case drives a faulty DUT flavour to
+                   `fail` (empirically verified — the Phase F north star, realised).
+  REGISTRY         conformant_absence_registry.json — the guard asserts DUT
+                   BEHAVIOUR (must emit a correct frame / must not emit a
+                   prohibited one), which no --expect can fault; non-vacuity is
+                   structural, awaiting a fault-injection negative.
+  DEFERRED         deferred_negatives.json — an expect-flippable guard with no
+                   sound negative yet, each carrying an explicit reason (Linux
+                   deviation, needs-parameterise) until fixed.
 
-This tool is the mechanical guard for that property. For every `NEG_ROWS` row it
-resolves the case's donedata (reusing the template-aware extractor from
-verdict_drift_audit) and classifies the row's expected `fail:<reason>` against
-the case's finals:
+A positive case in none of these is UNDISPOSED: its guard's non-vacuity is unproven
+and untracked. The exhaustiveness ledger (negative_coverage_undisposed.txt)
+grandfathers today's UNDISPOSED set so the backlog is retired incrementally; --check
+rejects any NEW undisposed case and forces the ledger to shrink as cases are
+disposed. When the ledger empties, every case is disposed and the rows + registry +
+_neg cases form a proven-complete SSOT — the exhaustiveness invariant is then fully
+enforced (no positive case can silently lack a non-vacuity proof).
 
-  SOUND     the reason maps to a `fail`/observed_violation final  -> verify-via-fail intact
-  VACUOUS   the reason maps to an `inconclusive` final            -> lands on skip, proves nothing
-  STALE     the reason does not exist as any final in the case    -> dead row (typo/drift)
-  UNKNOWN   the case_id has no registered .scxml
+`_neg` cases are negative mechanisms, not positive cases; they are excluded from the
+universe, and each must pair with a real base case.
 
-Ratchet (the `negative_coverage_baseline.txt` ledger). The VACUOUS set is large
-today (debt D7 is being retired phase-by-phase). To be drift-proof from day one
-without blocking CI on the whole backlog, `--check` enforces:
+Also enforced: registry structural validity (every `fail` final covered by a guard;
+declared classes; non-empty property; a registry case carries no row and no _neg
+sibling) and NEG_ROW integrity (no STALE row whose reason is not a final).
 
-  1. STALE == 0 always (a row pointing at a non-existent reason is never ok).
-  2. No VACUOUS row whose `case_id|reason` is absent from the baseline (a NEW
-     vacuous negative is a regression — author a sound one instead).
-  3. No baseline entry that is no longer VACUOUS (forces the ledger to shrink as
-     cases are fixed: a fix commit removes the row's baseline entry too).
-
-When the baseline empties, every negative is SOUND and condition 2/3 reduce to
-"no VACUOUS rows at all" — the invariant is then fully enforced (Phase 5).
-
-Conformant-absence (out of scope). Not every guard is expect-flippable: one that
-asserts DUT BEHAVIOUR (must reject malformed input, must not emit a prohibited
-frame) cannot be faulted by any `--expect` value, so an `--expect` negative for
-it is inherently vacuous (docs/verdict_policy.md Section 6). Such cases carry NO
-NEG_ROW; they are recorded in `conformant_absence_registry.json`, reported as
-OUT_OF_SCOPE rather than debt, and their guards' non-vacuity is structural (the
-named `fail` final exists), empirically provable only on the DUT-mutation track.
-Each registry case lists `guards` — one per `fail` final (the unit a mutant must
-trip) or a single `liveness` guard. `--check` enforces: each guard is structurally
-valid (declared class; non-`liveness` names a real `fail` final; `liveness` names
-none and the case has none; non-empty property); every `fail` final is covered by
-a guard (a mixed-class case cannot be silently under-represented); and a registered
-case carries no NEG_ROW.
-
-Default (no args): print the full census. `--check`: enforce the ratchet (gates
-build-test.yml + .githooks/pre-commit). `--write-baseline`: regenerate the
-ledger from the current VACUOUS set (bootstrap / after a batch of fixes).
+Default (no args): print the census. --check: enforce the invariants (gates
+build-test.yml + pre-commit). --write-ledger: regenerate the exhaustiveness ledger
+from the current UNDISPOSED set (bootstrap / after a batch of dispositions).
 """
 
 from __future__ import annotations
@@ -69,12 +53,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verdict_drift_audit import (  # noqa: E402
     REPO,
     TESTS_DIR,
+    all_case_names,
     extract_donedata,
 )
 
 SMOKE_SH = REPO / "dut" / "env" / "smoke-test.sh"
-BASELINE = Path(__file__).resolve().parent / "negative_coverage_baseline.txt"
-REGISTRY = Path(__file__).resolve().parent / "conformant_absence_registry.json"
+HERE = Path(__file__).resolve().parent
+LEDGER = HERE / "negative_coverage_undisposed.txt"
+REGISTRY = HERE / "conformant_absence_registry.json"
+DEFERRED = HERE / "deferred_negatives.json"
 
 # One `NEG_ROWS` entry: "CASE_ID|wrong_token|<class>:<reason>".
 _ROW_RE = re.compile(r'"([^"|]+)\|([^"|]*)\|([a-z_]+):([^"]+)"')
@@ -87,14 +74,10 @@ class NegRow:
     exp_class: str
     exp_reason: str
 
-    @property
-    def key(self) -> str:
-        return f"{self.case_id}|{self.exp_reason}"
-
 
 def parse_neg_rows(smoke_path: Path) -> list[NegRow]:
-    """Extract the `NEG_ROWS=( ... )` array (the negative-set SSOT). Lines that
-    are commented out (leading `#`) are skipped so example rows don't count."""
+    """Extract the `NEG_ROWS=( ... )` array (the negative-set SSOT). Commented-out
+    lines (leading `#`) are skipped so example rows don't count."""
     text = smoke_path.read_text(encoding="utf-8")
     m = re.search(r"\n\s*NEG_ROWS=\(\n(.*?)\n\s*\)\n", text, re.S)
     if not m:
@@ -111,10 +94,10 @@ def parse_neg_rows(smoke_path: Path) -> list[NegRow]:
     return rows
 
 
-def reason_classes(case_id: str) -> dict[str, set[str]] | None:
-    """reason -> {verdict classes that final carries}. None if no .scxml."""
-    name = case_id.lower()
-    scxml = TESTS_DIR / name / f"{name}.scxml"
+def reason_classes(case: str) -> dict[str, set[str]] | None:
+    """reason -> {verdict classes that final carries}. None if no .scxml. `case` is
+    the lower-case directory/case name."""
+    scxml = TESTS_DIR / case / f"{case}.scxml"
     if not scxml.is_file():
         return None
     out: dict[str, set[str]] = {}
@@ -124,34 +107,53 @@ def reason_classes(case_id: str) -> dict[str, set[str]] | None:
     return out
 
 
+def row_kind(row: NegRow) -> str:
+    """Classify a NEG_ROW against its case's finals: SOUND (reason -> fail),
+    VACUOUS (reason -> inconclusive), STALE (reason is not a final), UNKNOWN."""
+    rc = reason_classes(row.case_id.lower())
+    if rc is None:
+        return "UNKNOWN"
+    classes = rc.get(row.exp_reason)
+    if classes is None:
+        return "STALE"
+    if "fail" in classes:
+        return "SOUND"
+    if "inconclusive" in classes:
+        return "VACUOUS"
+    return "OTHER"
+
+
 def load_registry() -> tuple[dict[str, dict], dict[str, str]]:
-    """The conformant-absence registry (docs/verdict_policy.md Section 6): cases
-    whose guard is DUT-behaviour (dut-mutation strategy), out of scope for an
-    `--expect` negative. Returns (cases, classes). Empty if the file is absent."""
     if not REGISTRY.is_file():
         return {}, {}
     data = json.loads(REGISTRY.read_text(encoding="utf-8"))
     return data.get("cases", {}), data.get("classes", {})
 
 
+def load_deferred() -> dict[str, str]:
+    """deferred_negatives.json: case_id -> reason. An expect-flippable guard with no
+    sound negative yet (Linux deviation, needs-parameterise). Empty if absent."""
+    if not DEFERRED.is_file():
+        return {}
+    data = json.loads(DEFERRED.read_text(encoding="utf-8"))
+    return data.get("cases", {})
+
+
 def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[str]:
-    """Structural validation of each registry entry (Section 6). Each case carries
-    a `guards` list — one guard per `fail` final (the exact unit a DUT-mutation
-    mutant must trip), or a single `liveness` guard for a case with no `fail`
-    final. Per guard: the class is declared; a non-`liveness` guard names a real
-    `fail` final; a `liveness` guard names none and the case has no `fail` final;
-    the `property` is non-empty. Completeness: every `fail` final in the case is
-    covered by a guard (so a case with mixed-class fail finals — e.g. one
-    `prohibited_emission` and one `incorrect_emission` — cannot be silently
-    under-represented by a single entry). Semantic correctness (is the property
-    text accurate?) remains a review property."""
+    """Structural validation of each registry entry (docs/verdict_policy.md Section
+    6). Each case carries a `guards` list — one guard per `fail` final (the exact
+    unit a DUT-mutation mutant must trip), or a single `liveness` guard for a case
+    with no `fail` final. Per guard: the class is declared; a non-`liveness` guard
+    names a real `fail` final; a `liveness` guard names none and the case has no
+    `fail` final; the `property` is non-empty. Completeness: every `fail` final is
+    covered by a guard."""
     findings: list[str] = []
     for case_id, entry in cases.items():
         guards = entry.get("guards")
         if not isinstance(guards, list) or not guards:
             findings.append(f"REGISTRY_INVALID: {case_id} has no guards list")
             continue
-        rc = reason_classes(case_id)
+        rc = reason_classes(case_id.lower())
         if rc is None:
             findings.append(f"REGISTRY_INVALID: {case_id} has no registered .scxml")
             continue
@@ -183,115 +185,172 @@ def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[s
     return findings
 
 
-def classify(row: NegRow) -> str:
-    rc = reason_classes(row.case_id)
-    if rc is None:
-        return "UNKNOWN"
-    classes = rc.get(row.exp_reason)
-    if classes is None:
-        return "STALE"
-    if "fail" in classes:
-        return "SOUND"
-    if "inconclusive" in classes:
-        return "VACUOUS"
-    return "OTHER"
-
-
-def load_baseline() -> set[str]:
-    if not BASELINE.is_file():
+def load_ledger() -> set[str]:
+    if not LEDGER.is_file():
         return set()
     out = set()
-    for line in BASELINE.read_text(encoding="utf-8").splitlines():
+    for line in LEDGER.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             out.add(line)
     return out
 
 
-def baseline_text(keys: set[str]) -> str:
+def ledger_text(cases: set[str]) -> str:
     header = (
-        "# negative-coverage baseline ledger (debt D7 — docs/verdict_policy.md §6).\n"
-        "# Each line is a `CASE_ID|reason` whose NEG_ROW currently lands on\n"
-        "# `inconclusive` (VACUOUS — proves nothing via fail). Generated by\n"
-        "# tools/negative_coverage_audit.py --write-baseline. A fix (re-role,\n"
-        "# parameterize, re-point, or retire) MUST delete the row's line here too;\n"
-        "# negative_coverage_audit.py --check fails on a stale or new entry.\n"
+        "# negative-coverage exhaustiveness ledger (debt D7 -- docs/verdict_policy.md\n"
+        "# Section 6). Each line is a positive case_id whose verdict guard has NO\n"
+        "# non-vacuity disposition yet (not SOUND_ROW / FAULT_INJECTION / REGISTRY /\n"
+        "# DEFERRED). Generated by tools/negative_coverage_audit.py --write-ledger.\n"
+        "# Disposing a case (add a sound NEG_ROW, register it, add a _neg case, or\n"
+        "# track it in deferred_negatives.json) MUST delete its line here too;\n"
+        "# --check fails on a new undisposed case or a stale (now-disposed) entry.\n"
+        "# When this file is empty every positive case is disposed -- the SSOT is\n"
+        "# proven complete.\n"
     )
-    return header + "".join(f"{k}\n" for k in sorted(keys))
+    return header + "".join(f"{c}\n" for c in sorted(cases))
+
+
+@dataclass
+class Model:
+    rows: list[NegRow]
+    positives: list[str]              # lower-case case names (non-_neg)
+    fault_bases: set[str]             # lower-case bases that have a _neg sibling
+    registry: dict[str, dict]
+    reg_classes: dict[str, str]
+    deferred: dict[str, str]
+    sound_cases: set[str]             # lower-case cases with a SOUND row
+    vacuous_cases: set[str]           # lower-case cases whose only row(s) are VACUOUS
+    disposition: dict[str, str]       # case -> SOUND_ROW/FAULT_INJECTION/REGISTRY/DEFERRED/UNDISPOSED
+
+
+def build_model() -> Model:
+    rows = parse_neg_rows(SMOKE_SH)
+    names = all_case_names()
+    positives = [n for n in names if not n.endswith("_neg")]
+    fault_bases = {n[:-4] for n in names if n.endswith("_neg")}
+    registry, reg_classes = load_registry()
+    deferred = load_deferred()
+    reg_lower = {k.lower() for k in registry}
+    def_lower = {k.lower() for k in deferred}
+
+    sound_cases: set[str] = set()
+    case_has_row: set[str] = set()
+    for r in rows:
+        cid = r.case_id.lower()
+        case_has_row.add(cid)
+        if row_kind(r) == "SOUND":
+            sound_cases.add(cid)
+    vacuous_cases = {c for c in case_has_row if c not in sound_cases}
+
+    disposition: dict[str, str] = {}
+    for c in positives:
+        if c in sound_cases:
+            disposition[c] = "SOUND_ROW"
+        elif c in fault_bases:
+            disposition[c] = "FAULT_INJECTION"
+        elif c in reg_lower:
+            disposition[c] = "REGISTRY"
+        elif c in def_lower:
+            disposition[c] = "DEFERRED"
+        else:
+            disposition[c] = "UNDISPOSED"
+    return Model(rows, positives, fault_bases, registry, reg_classes, deferred,
+                 sound_cases, vacuous_cases, disposition)
+
+
+def cross_findings(m: Model) -> list[str]:
+    """Invariants that must always hold (independent of the ratchet)."""
+    findings: list[str] = []
+    reg_lower = {k.lower() for k in m.registry}
+    def_lower = {k.lower() for k in m.deferred}
+    pos = set(m.positives)
+
+    # STALE rows: a row whose reason is not a final in the case.
+    for r in m.rows:
+        if row_kind(r) == "STALE":
+            findings.append(f"STALE: {r.case_id} NEG_ROW reason '{r.exp_reason}' is not a final in the case")
+        if row_kind(r) == "UNKNOWN":
+            findings.append(f"UNKNOWN: {r.case_id} has no registered .scxml")
+
+    # A registry case must carry no NEG_ROW and no _neg sibling, and be a positive.
+    row_cases = {r.case_id.lower() for r in m.rows}
+    for c in reg_lower:
+        if c in row_cases:
+            findings.append(f"REGISTERED_WITH_ROW: {c} is conformant-absence (registry); remove its NEG_ROW")
+        if c in m.fault_bases:
+            findings.append(f"REGISTRY_AND_FAULT: {c} has a _neg case (FAULT_INJECTION); drop the registry entry")
+        if c not in pos:
+            findings.append(f"REGISTRY_NOT_POSITIVE: {c} is not a registered positive case")
+
+    # A deferred case must not also be disposed elsewhere, and must be a positive.
+    for c in def_lower:
+        if c not in pos:
+            findings.append(f"DEFERRED_NOT_POSITIVE: {c} is not a registered positive case")
+        elif m.disposition.get(c) != "DEFERRED":
+            findings.append(f"DEFERRED_REDUNDANT: {c} is already {m.disposition.get(c)}; drop the deferred entry")
+
+    # Every _neg mechanism must pair with a registered positive base.
+    for base in m.fault_bases:
+        if base not in pos:
+            findings.append(f"ORPHAN_NEG: {base}_neg has no registered positive base case")
+
+    findings.extend(validate_registry(m.registry, m.reg_classes))
+    return findings
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--check", action="store_true", help="enforce the ratchet (gate CI/pre-commit)")
-    ap.add_argument(
-        "--write-baseline", action="store_true", help="regenerate the baseline ledger from current VACUOUS set"
-    )
+    ap.add_argument("--check", action="store_true", help="enforce the invariants (gate CI/pre-commit)")
+    ap.add_argument("--write-ledger", action="store_true", help="regenerate the exhaustiveness ledger from the current UNDISPOSED set")
     args = ap.parse_args()
 
-    rows = parse_neg_rows(SMOKE_SH)
-    by_class: dict[str, list[NegRow]] = {}
-    for row in rows:
-        by_class.setdefault(classify(row), []).append(row)
+    m = build_model()
+    undisposed = {c for c, d in m.disposition.items() if d == "UNDISPOSED"}
 
-    vacuous_keys = {r.key for r in by_class.get("VACUOUS", [])}
-
-    registry, reg_classes = load_registry()
-    registered = set(registry)
-    registry_findings = validate_registry(registry, reg_classes)
-    registered_with_row = sorted({r.case_id for r in rows if r.case_id in registered})
-
-    if args.write_baseline:
-        BASELINE.write_text(baseline_text(vacuous_keys), encoding="utf-8")
-        print(f"wrote {BASELINE.relative_to(REPO)} ({len(vacuous_keys)} entries)")
+    if args.write_ledger:
+        LEDGER.write_text(ledger_text(undisposed), encoding="utf-8")
+        print(f"wrote {LEDGER.relative_to(REPO)} ({len(undisposed)} undisposed)")
         return 0
 
-    baseline = load_baseline()
+    ledger = load_ledger()
+    counts: dict[str, int] = {}
+    for d in m.disposition.values():
+        counts[d] = counts.get(d, 0) + 1
 
     if not args.check:
-        print("negative-coverage census (NEG_ROWS = {} rows)".format(len(rows)))
+        print(f"negative-coverage exhaustiveness ({len(m.positives)} positive cases)")
         print("=" * 64)
-        for kind in ("SOUND", "VACUOUS", "STALE", "UNKNOWN", "OTHER"):
-            members = by_class.get(kind, [])
-            print(f"  {kind:12} = {len(members)}")
-        print(f"  {'OUT_OF_SCOPE':12} = {len(registry)}  (conformant-absence registry)")
+        for kind in ("SOUND_ROW", "FAULT_INJECTION", "REGISTRY", "DEFERRED", "UNDISPOSED"):
+            print(f"  {kind:16} = {counts.get(kind, 0)}")
         print("=" * 64)
-        for kind in ("STALE", "UNKNOWN", "OTHER"):
-            for r in by_class.get(kind, []):
-                print(f"  {kind}: {r.case_id} -> {r.exp_class}:{r.exp_reason}")
-        print(f"  baseline ledger: {len(baseline)} entries  ({BASELINE.relative_to(REPO)})")
-        print(f"  conformant-absence registry: {len(registry)} entries  ({REGISTRY.relative_to(REPO)})")
-        for f in registry_findings:
+        print(f"  NEG_ROWS: {len(m.rows)} ({len(m.sound_cases)} sound cases, "
+              f"{len(m.vacuous_cases)} cases with only vacuous rows)")
+        print(f"  registry: {len(m.registry)} | deferred: {len(m.deferred)} | "
+              f"_neg mechanisms: {len(m.fault_bases)}")
+        print(f"  exhaustiveness ledger: {len(ledger)} entries  ({LEDGER.relative_to(REPO)})")
+        for f in cross_findings(m):
             print(f"  {f}")
-        if registered_with_row:
-            print(f"  registered cases that still carry a NEG_ROW (remove): {registered_with_row}")
-        new_vac = vacuous_keys - baseline
-        gone = baseline - vacuous_keys
-        if new_vac:
-            print(f"  NEW vacuous (not in baseline): {len(new_vac)} -> {sorted(new_vac)}")
+        new_debt = undisposed - ledger
+        gone = ledger - undisposed
+        if new_debt:
+            print(f"  NEW undisposed (not in ledger): {len(new_debt)} -> {sorted(new_debt)[:20]}")
         if gone:
-            print(f"  baseline entries no longer vacuous (remove them): {len(gone)} -> {sorted(gone)}")
+            print(f"  ledger entries now disposed (remove them): {len(gone)} -> {sorted(gone)[:20]}")
         return 0
 
-    # --check: enforce the ratchet.
-    findings: list[str] = []
-    for r in by_class.get("STALE", []):
-        findings.append(f"STALE: {r.case_id} NEG_ROW reason '{r.exp_reason}' is not a final in the case")
-    for r in by_class.get("UNKNOWN", []):
-        findings.append(f"UNKNOWN: {r.case_id} has no registered .scxml")
-    for k in sorted(vacuous_keys - baseline):
-        findings.append(f"NEW_VACUOUS: {k} lands on inconclusive; author a sound (observed_violation) negative")
-    for k in sorted(baseline - vacuous_keys):
-        findings.append(f"STALE_BASELINE: {k} is no longer vacuous; remove it from {BASELINE.name}")
-    findings.extend(registry_findings)
-    for cid in registered_with_row:
-        findings.append(f"REGISTERED_WITH_ROW: {cid} is conformant-absence (registry); remove its NEG_ROW")
+    findings = cross_findings(m)
+    for c in sorted(undisposed - ledger):
+        findings.append(f"NEW_UNDISPOSED: {c} has no non-vacuity disposition; add a sound row, register, _neg, or defer")
+    for c in sorted(ledger - undisposed):
+        findings.append(f"STALE_LEDGER: {c} is now disposed; remove it from {LEDGER.name}")
 
-    sound = len(by_class.get("SOUND", []))
     print(
-        f"negative-coverage: {sound} sound / {len(vacuous_keys)} vacuous (baseline {len(baseline)}) "
-        f"/ {len(registry)} out-of-scope / {len(rows)} rows"
+        f"exhaustiveness: {counts.get('SOUND_ROW',0)} sound / {counts.get('FAULT_INJECTION',0)} fault-inj / "
+        f"{counts.get('REGISTRY',0)} registry / {counts.get('DEFERRED',0)} deferred / "
+        f"{len(undisposed)} undisposed (ledger {len(ledger)}) / {len(m.positives)} positive"
     )
     for f in findings:
         print(f"  {f}")

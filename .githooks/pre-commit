@@ -46,9 +46,9 @@ if ! python3 "$HERE/../tools/verdict_drift_audit.py" --summary >/dev/null; then
     exit 1
 fi
 
-# Negative-coverage ratchet: a negative test must drive an observed violation
-# (fail), not suppress an awaited observation (inconclusive = vacuous). Blocks a
-# new vacuous negative or a stale debt-ledger entry (tools/negative_coverage_baseline.txt).
+# Negative-coverage exhaustiveness: every positive case must carry a non-vacuity
+# disposition (sound row / fault-injection _neg / registry / deferred). Blocks a
+# new undisposed case or a stale ledger entry (tools/negative_coverage_undisposed.txt).
 if ! python3 "$HERE/../tools/negative_coverage_audit.py" --check >/dev/null; then
     echo "pre-commit: negative-coverage ratchet FAILED — details:" >&2
     python3 "$HERE/../tools/negative_coverage_audit.py" --check >&2

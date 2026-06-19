@@ -200,16 +200,28 @@ forbidden frame is an OK echo of malformed input; the ISO 9646 stimulus class
 (valid / invalid / inopportune) is descriptive context carried in each entry's
 `property` string, not a separate axis.
 
-Enforcement (`tools/negative_coverage_audit.py`):
-- Every `NEG_ROWS` entry must be a **sound** expect-flip negative: its expected
-  `fail:<reason>` resolves to an `observed_violation` final. A row that lands on
-  `inconclusive` is a field-check awaiting parameterisation — debt, tracked in
-  `negative_coverage_baseline.txt` until fixed; a new such row is rejected.
-- A case in the conformant-absence registry carries **no** `NEG_ROWS` entry (its
-  vacuous `--expect` negative is removed when the case is triaged).
-- The registry is structurally validated: the case exists; a non-`liveness`
-  entry names a real `fail` final (the structural guard it documents); a
-  `liveness` entry has no `fail` final.
+Enforcement (`tools/negative_coverage_audit.py`) — **exhaustiveness**. Every
+registered positive case must carry exactly one non-vacuity *disposition* that
+proves its guard is checkable (ISO 9646 suite validation: a guard that can never
+fire validates nothing):
+- **`SOUND_ROW`** — a `NEG_ROWS` expect-flip negative whose expected `fail:<reason>`
+  resolves to an `observed_violation` final (a conformant DUT, run with the wrong
+  `--expect`, lands on `fail`).
+- **`FAULT_INJECTION`** — a `<case>_neg` registered case drives a faulty DUT flavour
+  to `fail` (the empirical DUT-mutation track, realised).
+- **`REGISTRY`** — a `conformant_absence_registry.json` entry (a dut-behaviour
+  guard, structurally non-vacuous, awaiting fault injection). Such a case carries
+  **no** `NEG_ROWS` entry and no `_neg` sibling.
+- **`DEFERRED`** — a `deferred_negatives.json` entry: an expect-flippable guard
+  with no sound negative yet, each with an explicit reason (prefer fixing).
+
+A positive case in none of these is **undisposed**; the exhaustiveness ledger
+(`negative_coverage_undisposed.txt`) grandfathers today's backlog and `--check`
+rejects any new undisposed case or stale ledger entry, forcing it to shrink to
+zero — at which point the rows + registry + `_neg` cases are a proven-complete
+SSOT. The registry is also structurally validated: every `fail` final is covered
+by a guard; a non-`liveness` guard names a real `fail` final; a `liveness` guard
+names none and the case has none.
 
 Honesty boundary: the registry records *structural* non-vacuity and the
 behavioural property each guard protects. **Empirical** validation of
