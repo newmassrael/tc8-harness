@@ -4058,6 +4058,15 @@
           "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
         }
       ]
+    },
+    "TCP_CLOSING_13": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_rst_in_closed",
+          "property": "Silence is conformant: a RST received in CLOSED must be dropped without response; fail iff the DUT emits any reply"
+        }
+      ]
     }
   }
 }

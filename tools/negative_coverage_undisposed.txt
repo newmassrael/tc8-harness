@@ -8,7 +8,6 @@
 # When this file is empty every positive case is disposed -- the SSOT is
 # proven complete.
 tcp_checksum_04
-tcp_closing_13
 tcp_retransmission_to_03
 tcp_retransmission_to_04
 tcp_retransmission_to_05
