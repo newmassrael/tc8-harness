@@ -4,15 +4,6 @@
 # tools/negative_coverage_audit.py --write-baseline. A fix (re-role,
 # parameterize, re-point, or retire) MUST delete the row's line here too;
 # negative_coverage_audit.py --check fails on a stale or new entry.
-IPv4_CHECKSUM_05|no_dut_ipv4_packet_within_listen_window
-IPv4_FRAGMENTS_05|no_dut_originated_udp_within_listen_window
-IPv4_HEADER_01|no_dut_ipv4_packet_within_listen_window
-IPv4_HEADER_03|no_dut_ipv4_packet_with_expected_source_address
-IPv4_HEADER_05|no_echo_reply_for_576_byte_datagram
-IPv4_TTL_01|no_dut_ipv4_packet_within_listen_window
-IPv4_TTL_05|no_dut_ipv4_packet_with_expected_source_address
-IPv4_VERSION_01|no_dut_ipv4_packet_with_expected_source_address
-IPv4_VERSION_03|no_dut_ipv4_packet_within_listen_window
 SOMEIPSRV_RPC_14|no_response_from_instance_1_udp_port_30502
 SOMEIPSRV_RPC_17|no_response_from_instance_1_tcp_port_30501
 SOMEIPSRV_SD_MESSAGE_02|no_two_entry_offer_for_findservice_any_within_listen_window

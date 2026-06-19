@@ -2303,29 +2303,20 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # ARP_46/47 still closed: guards check hardcoded RFC constants
         # (hw_type=1, hw_addr_len=6) with no `expected.*` override knob.
         # Reaching those fail branches requires a non-conformant DUT.
-        # §4.4 IPv4 positive-field cases (HEADER_01, HEADER_03,
-        # VERSION_03, TTL_01): override `ipv4.dut_iface_ip` to a value
-        # the DUT never emits. Every pass-guard conjuncts
-        # `captured.src_addr == expected.dut_iface_ip` so the pass path
-        # goes out of reach and the case lands on the no-DUT-packet
-        # inconclusive, which auto-skips as a sound non-conclusion. Proves the src_addr
-        # filter is load-bearing — without it, SOME/IP SD multicast and
-        # tester-originated frames would both false-pass.
-        "IPv4_HEADER_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        "IPv4_HEADER_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
-        "IPv4_VERSION_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        "IPv4_TTL_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
-        # IPv4_VERSION_01 / TTL_05 share ipv4_positive_reply's error
-        # reason (same as HEADER_03's timeout string). Also override
-        # dut_iface_ip to force the pass path out of reach; the broken
-        # precondition lands on inconclusive_no_dut_ipv4_packet (auto-skips).
-        "IPv4_VERSION_01|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
-        "IPv4_TTL_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_with_expected_source_address"
-        # IPv4_CHECKSUM_05: overriding dut_iface_ip takes the pass+fail
-        # branches (both gated on src_addr match) out of reach; lands on
-        # fail_timeout, proving the SCXML's src_addr conjunct is
-        # load-bearing.
-        "IPv4_CHECKSUM_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_ipv4_packet_within_listen_window"
+        # §4.4 IPv4 conformant-absence cases live in
+        # tools/conformant_absence_registry.json (docs/verdict_policy.md
+        # Section 6): no --expect flip can fault them — each guard asserts
+        # DUT behaviour, not a comparison against an operator value.
+        #   incorrect_emission (DUT emits, value must be right):
+        #     IPv4_HEADER_01 (Total Length >= RFC 791 min), IPv4_VERSION_03
+        #     (Version=4), IPv4_TTL_01 (TTL != 0), IPv4_CHECKSUM_05 (valid
+        #     header checksum), IPv4_FRAGMENTS_05 (egress UDP MF/offset=0),
+        #     IPv4_ADDRESSING_01/02 (UT received-count), IPv4_HEADER_05
+        #     (§4.4.4.1, 576-byte Echo Reply payload).
+        #   liveness (must emit an IPv4 packet, no wrong-value variant):
+        #     IPv4_HEADER_03, IPv4_VERSION_01, IPv4_TTL_05.
+        #   prohibited_emission (silence conformant, must not emit):
+        #     IPv4_REASSEMBLY_06/07/09.
         # §4.3 ICMPv4 conformant-absence cases live in
         # tools/conformant_absence_registry.json (docs/verdict_policy.md
         # Section 6): no --expect flip can fault them — each guard asserts
@@ -2363,18 +2354,6 @@ if [[ "$NEGATIVE" == "1" ]]; then
         "IPv4_FRAGMENTS_02|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_id_retry"
         "IPv4_FRAGMENTS_03|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_src_retry"
         "IPv4_FRAGMENTS_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_protocol_retry"
-        # §4.4.4.6 IPv4_FRAGMENTS_05: override ipv4.dut_iface_ip so the
-        # SCXML pass-guard conjunct `captured.src_ip ==
-        # expected.dut_iface_ip` goes out of reach. The DUT still emits
-        # the UDP via TriggerSendUdp (ut.status==Ok) but the observed
-        # src_ip never matches the 10.99.99.99 expectation → listen
-        # window expires → fail_timeout. Proves the src_ip match is
-        # load-bearing (not just "any UDP on the wire"). ADDRESSING_01/
-        # 02 carry no negative row: their SCXML guards read only
-        # captured.ut_* fields which have no --expect backing, so no
-        # CLI override flips a pass guard without also breaking the
-        # stimulus.
-        "IPv4_FRAGMENTS_05|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_originated_udp_within_listen_window"
         # §4.4.4.7 IPv4_REASSEMBLY_04: flipping icmpv4.echo_id moves the
         # pass conjunct (echo_id match on the unordered-reassembly Echo
         # Reply) out of reach. The DUT still reassembles by offset key
@@ -2383,9 +2362,7 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # with the unordered-reassembly reason string. Proves the
         # echo_id match is load-bearing on the out-of-order path —
         # complements FRAGMENTS_01's same-axis check on the in-order
-        # 2-fragment path. _06/_07/_09 (pure absence) carry no negative
-        # row — their SCXML guards have no flippable conjunct, see the
-        # ICMPv4_TYPE_10/16 precedent.
+        # 2-fragment path.
         "IPv4_REASSEMBLY_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_unordered_reassembly"
         # §4.4.4.7 IPv4_REASSEMBLY_12: same axis as REASSEMBLY_04 —
         # flipping icmpv4.echo_id sends the pass conjunct out of reach
@@ -2398,9 +2375,8 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # (ipfrag_time=2 dut_ns toggle + 3 s inter-fragment wait =
         # bucket expired before frag 1, no Echo Reply). An echo_id
         # flip would land on the same fail_timeout, providing zero
-        # diagnostic variance. Same precedent as _13 (overlap drop)
-        # and _06/_07/_09 (pure absence): no flippable conjunct that
-        # can be observed when no reply lands.
+        # diagnostic variance. Same precedent as _13 (overlap drop):
+        # no flippable conjunct that can be observed when no reply lands.
         # §4.4.4.7 IPv4_REASSEMBLY_10: flipping icmpv4.echo_id sends
         # phase_a's pass conjunct out of reach. The DUT reassembles
         # Phase A (inside ipfrag_time=2 s) and emits Echo Reply with
@@ -2646,11 +2622,6 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # filter; flipping ipv4.dut_iface_ip sends the filter out of reach
         # → fail_timeout (no_dut_icmp_port_unreachable_within_listen_window).
         "UDP_INTRODUCTION_03|ipv4.dut_iface_ip=10.99.99.99|fail:no_dut_icmp_port_unreachable_within_listen_window"
-        # §4.4.4.1 IPv4_HEADER_05: per-case SCXML conjuncts on
-        # `expected.dut_iface_ip` for src_ip filtering; flipping
-        # icmpv4.dut_iface_ip sends every transition out of reach →
-        # fail_timeout. Proves the src_ip filter is load-bearing.
-        "IPv4_HEADER_05|icmpv4.dut_iface_ip=10.99.99.99|fail:no_echo_reply_for_576_byte_datagram"
     )
     # Filter NEG_ROWS to only those whose case_id appears in the
     # positional CASES array (when the user passed any). Keeps the
