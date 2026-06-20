@@ -45,6 +45,14 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     RequestCiaddrNonzero       = ::tc8::ut::kDhcpFlavorRequestCiaddrNonzero,
     RequestServerIdCorrupt     = ::tc8::ut::kDhcpFlavorRequestServerIdCorrupt,
     RequestRequestedIpCorrupt  = ::tc8::ut::kDhcpFlavorRequestRequestedIpCorrupt,
+    // §4.7 RENEWING/REBINDING (reacquisition) REQUEST mutants — gated to
+    // the reacquisition REQUEST (ciaddr != 0) in emitDhcpMessage. The
+    // include mutants serve both RENEWING and REBINDING (one RFC 2131
+    // §4.3.6 table 5 invariant); the dst mutant is RENEWING-specific.
+    ReacqRequestIncludeServerId    = ::tc8::ut::kDhcpFlavorReacqRequestIncludeServerId,
+    ReacqRequestIncludeRequestedIp = ::tc8::ut::kDhcpFlavorReacqRequestIncludeRequestedIp,
+    ReacqRequestCiaddrWrong        = ::tc8::ut::kDhcpFlavorReacqRequestCiaddrWrong,
+    RenewingRequestDstWrong        = ::tc8::ut::kDhcpFlavorRenewingRequestDstWrong,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

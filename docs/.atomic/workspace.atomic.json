@@ -2784,6 +2784,10 @@
         {
           "file": "tests/dhcpv4_client_constructing_messages_04_neg/dhcpv4_client_constructing_messages_04_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_02_neg/dhcpv4_client_constructing_messages_02_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -2917,6 +2921,34 @@
         },
         {
           "file": "tests/dhcpv4_client_request_02_neg/dhcpv4_client_request_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_reacquisition_01_neg/dhcpv4_client_reacquisition_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_06_neg/dhcpv4_client_request_06_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_07_neg/dhcpv4_client_request_07_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_08_neg/dhcpv4_client_request_08_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_09_neg/dhcpv4_client_request_09_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_10_neg/dhcpv4_client_request_10_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_11_neg/dhcpv4_client_request_11_neg.scxml",
           "kind": "implements"
         }
       ]

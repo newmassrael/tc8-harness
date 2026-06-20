@@ -256,14 +256,121 @@ int Dhcpv4Client::sendRaw(const std::uint8_t* frame, std::size_t len) {
 }
 
 void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
+    // §4.7 Phase F fault injection — decoded FIRST because force-including
+    // an otherwise-omitted option (RENEWING/REBINDING leak mutants) grows
+    // the options length, which the opts_len math below must see. Each
+    // flavor mutates exactly one DUT-emitted field so the matching §4.7
+    // _neg case's guard (dead against a conformant client) becomes
+    // reachable. switch-no-default: -Werror=switch forces every future
+    // flavor to declare its emit-side disposition here. None and the
+    // post-BOUND LeakLinkLocalAfterBind flavor leave the wire conformant.
+    //
+    // Effective field values start from the spec and are overridden per
+    // flavor; the option-include + length math reads the effective
+    // requested_addr_be / server_id_be so a forced option grows opts_len.
+    std::uint32_t l3_src_be         = spec.l3_src_be;
+    std::uint32_t l3_dst_be         = spec.l3_dst_be;
+    std::uint32_t ciaddr_be         = spec.ciaddr_be;
+    std::uint32_t requested_addr_be = spec.requested_addr_be;
+    std::uint32_t server_id_be      = spec.server_id_be;
+    bool corrupt_magic_cookie       = false;
+    bool omit_message_type_option   = false;
+    bool set_reserved_flag_bit      = false;
+    bool drop_end_option            = false;
+
+    // Lifecycle phase, derived from the ORIGINAL spec (before mutation) so
+    // a flavor that rewrites ciaddr/dst cannot perturb the detection:
+    //   SELECTING REQUEST : ciaddr == 0
+    //   RENEWING  REQUEST : ciaddr != 0, dst != broadcast (unicast to server)
+    //   REBINDING REQUEST : ciaddr != 0, dst == broadcast
+    // SELECTING mutants gate on `is_request` (the preceding DISCOVER stays
+    // conformant so the OFFER matches); RENEWING/REBINDING mutants gate on
+    // `is_reacq` (DISCOVER + SELECTING REQUEST stay conformant so the
+    // lifecycle reaches BOUND and the reacquisition REQUEST under test).
+    constexpr std::uint32_t kBroadcastBe = 0xFFFFFFFFU;
+    const bool is_request  = (spec.msg_type == kDhcpRequest);
+    const bool is_reacq    = is_request && spec.ciaddr_be != 0U;
+    const bool is_renewing = is_reacq && spec.l3_dst_be != kBroadcastBe;
+    // §4.7 sentinel mutation values (RFC 5737 TEST-NET-1, visibly wrong).
+    constexpr std::uint32_t kSentinelDst    = 192U | (2U << 16) | (1U  << 24);  // 192.0.2.1
+    constexpr std::uint32_t kSentinelSrc    = 192U | (2U << 16) | (2U  << 24);  // 192.0.2.2
+    constexpr std::uint32_t kSentinelOpt50  = 192U | (2U << 16) | (50U << 24);  // 192.0.2.50
+    constexpr std::uint32_t kSentinelOpt54  = 192U | (2U << 16) | (54U << 24);  // 192.0.2.54
+    constexpr std::uint32_t kSentinelCiaddr = 192U | (2U << 16) | (11U << 24);  // 192.0.2.11
+    constexpr std::uint32_t kSentinelRenDst = 192U | (2U << 16) | (9U  << 24);  // 192.0.2.9
+    switch (flavor_) {
+        case Dhcpv4ClientFlavor::None:
+        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
+            break;  // conformant emit (leak acts post-BOUND, not here)
+        case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
+            corrupt_magic_cookie = true;
+            break;
+        case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
+            omit_message_type_option = true;
+            break;
+        case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
+            set_reserved_flag_bit = true;
+            break;
+        case Dhcpv4ClientFlavor::DiscoverDstUnicast:
+            l3_dst_be = kSentinelDst;  // not the limited broadcast
+            break;
+        case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
+            l3_src_be = kSentinelSrc;  // non-zero pre-bind src
+            break;
+        case Dhcpv4ClientFlavor::DiscoverDropEnd:
+            drop_end_option = true;
+            break;
+        case Dhcpv4ClientFlavor::RequestSrcNonzero:
+            // §4.7.6.7 CM_04: non-zero source on the SELECTING REQUEST.
+            if (is_request) l3_src_be = kSentinelSrc;
+            break;
+        case Dhcpv4ClientFlavor::RequestDstUnicast:
+            // §4.7.6.3 ALLOCATING_05: unicast the SELECTING REQUEST.
+            if (is_request) l3_dst_be = kSentinelDst;
+            break;
+        case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
+            // §4.7.6.8 REQUEST_01: fill ciaddr (RFC 2131 §4.3.2 -> 0).
+            if (is_request) ciaddr_be = spec.requested_addr_be;
+            break;
+        case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
+            // §4.7.6.3 ALLOCATING_03: wrong Option 54 server-id echo.
+            if (is_request) server_id_be = kSentinelOpt54;
+            break;
+        case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
+            // §4.7.6.8 REQUEST_02: wrong Option 50 requested-IP echo.
+            if (is_request) requested_addr_be = kSentinelOpt50;
+            break;
+        case Dhcpv4ClientFlavor::ReacqRequestIncludeServerId:
+            // §4.7.6.8 REQUEST_06/_09: RENEWING/REBINDING REQUEST MUST NOT
+            // carry Option 54 (RFC 2131 §4.3.6 table 5). Force-include it
+            // (server_id_be was 0 -> opt54 omitted on the conformant path).
+            if (is_reacq) server_id_be = kSentinelOpt54;
+            break;
+        case Dhcpv4ClientFlavor::ReacqRequestIncludeRequestedIp:
+            // §4.7.6.8 REQUEST_07/_10: reacquisition REQUEST MUST NOT carry
+            // Option 50. Force-include it.
+            if (is_reacq) requested_addr_be = kSentinelOpt50;
+            break;
+        case Dhcpv4ClientFlavor::ReacqRequestCiaddrWrong:
+            // §4.7.6.8 REQUEST_08/_11: reacquisition ciaddr MUST equal the
+            // bound IP; write a wrong address.
+            if (is_reacq) ciaddr_be = kSentinelCiaddr;
+            break;
+        case Dhcpv4ClientFlavor::RenewingRequestDstWrong:
+            // §4.7.6.7 CM_02 / §4.7.6.8 REACQUISITION_01: the RENEWING
+            // REQUEST MUST be unicast to the server-id; send it elsewhere.
+            if (is_renewing) l3_dst_be = kSentinelRenDst;
+            break;
+    }
+
     // Options layout (in spec order, with conditional inclusion):
     //   Option 53 (Message Type)        always           — 3 B
-    //   Option 50 (Requested IP)        spec.requested  — 6 B (4 B value + 2 B TLV header)
-    //   Option 54 (Server Identifier)   spec.server_id  — 6 B
+    //   Option 50 (Requested IP)        requested_addr  — 6 B (4 B value + 2 B TLV header)
+    //   Option 54 (Server Identifier)   server_id       — 6 B
     //   Option 55 (Parameter Request)   always           — 2 + N B
     //   END (0xFF)                      always           — 1 B
-    const bool include_opt50 = (spec.requested_addr_be != 0U);
-    const bool include_opt54 = (spec.server_id_be != 0U);
+    const bool include_opt50 = (requested_addr_be != 0U);
+    const bool include_opt54 = (server_id_be != 0U);
     const std::size_t opts_len =
         3 +
         (include_opt50 ? 6 : 0) +
@@ -282,73 +389,6 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
         // resizing the buffer would silently corrupt the stack. Bail
         // before that happens.
         return;
-    }
-
-    // §4.7 Phase F DISCOVER field-shape fault injection. Each flavor
-    // mutates exactly one DUT-emitted field so the matching §4.7 _neg
-    // case's guard (dead against a conformant client) becomes reachable.
-    // switch-no-default: -Werror=switch forces every future flavor to
-    // declare its emit-side disposition here. None and the post-BOUND
-    // LeakLinkLocalAfterBind flavor leave the wire shape conformant.
-    std::uint32_t l3_src_be       = spec.l3_src_be;
-    std::uint32_t l3_dst_be       = spec.l3_dst_be;
-    std::uint32_t ciaddr_be       = spec.ciaddr_be;
-    bool corrupt_magic_cookie     = false;
-    bool omit_message_type_option = false;
-    bool set_reserved_flag_bit    = false;
-    bool drop_end_option          = false;
-    bool corrupt_opt50_value      = false;
-    bool corrupt_opt54_value      = false;
-    // §4.7 SELECTING REQUEST mutants gate on msg_type so the preceding
-    // DISCOVER stays conformant (the harness OFFER matches it on xid +
-    // chaddr and the lifecycle reaches the REQUEST under test).
-    const bool is_request = (spec.msg_type == kDhcpRequest);
-    switch (flavor_) {
-        case Dhcpv4ClientFlavor::None:
-        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
-            break;  // conformant emit (leak acts post-BOUND, not here)
-        case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
-            corrupt_magic_cookie = true;
-            break;
-        case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
-            omit_message_type_option = true;
-            break;
-        case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
-            set_reserved_flag_bit = true;
-            break;
-        case Dhcpv4ClientFlavor::DiscoverDstUnicast:
-            // 192.0.2.1 — RFC 5737 TEST-NET-1 documentation address;
-            // visibly not the limited broadcast. Wire bytes C0 00 02 01.
-            l3_dst_be = 192U | (0U << 8) | (2U << 16) | (1U << 24);
-            break;
-        case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
-            // 192.0.2.2 — RFC 5737 TEST-NET-1; a non-zero pre-bind src.
-            l3_src_be = 192U | (0U << 8) | (2U << 16) | (2U << 24);
-            break;
-        case Dhcpv4ClientFlavor::DiscoverDropEnd:
-            drop_end_option = true;
-            break;
-        case Dhcpv4ClientFlavor::RequestSrcNonzero:
-            // §4.7.6.7 CM_04: non-zero source on the SELECTING REQUEST.
-            if (is_request) l3_src_be = 192U | (0U << 8) | (2U << 16) | (2U << 24);
-            break;
-        case Dhcpv4ClientFlavor::RequestDstUnicast:
-            // §4.7.6.3 ALLOCATING_05: unicast the SELECTING REQUEST.
-            if (is_request) l3_dst_be = 192U | (0U << 8) | (2U << 16) | (1U << 24);
-            break;
-        case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
-            // §4.7.6.8 REQUEST_01: fill ciaddr with the requested address
-            // (RFC 2131 §4.3.2 mandates ciaddr=0 in REQUESTING state).
-            if (is_request) ciaddr_be = spec.requested_addr_be;
-            break;
-        case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
-            // §4.7.6.3 ALLOCATING_03: wrong Option 54 server-id echo.
-            if (is_request) corrupt_opt54_value = true;
-            break;
-        case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
-            // §4.7.6.8 REQUEST_02: wrong Option 50 requested-IP echo.
-            if (is_request) corrupt_opt50_value = true;
-            break;
     }
 
     std::memcpy(f + 0, kEthBroadcast.data(), 6);
@@ -421,27 +461,23 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     }
 
     if (include_opt50) {
-        // Option 50 (Requested IP Address). §4.7.6.8 REQUEST_02 fault:
-        // write 192.0.2.50 (RFC 5737 TEST-NET-1) instead of the offered
-        // IP so option_be32_equals(50, offered_ip) fails.
-        const std::uint32_t opt50_be = corrupt_opt50_value
-            ? (192U | (0U << 8) | (2U << 16) | (50U << 24))
-            : spec.requested_addr_be;
+        // Option 50 (Requested IP Address). Value is the effective
+        // requested_addr_be — the offered IP on the conformant path, or a
+        // sentinel under the §4.7.6.8 REQUEST_02 corrupt / REQUEST_07/_10
+        // force-include mutants.
         opts[i++] = 50;
         opts[i++] = 4;
-        std::memcpy(opts + i, &opt50_be, 4);
+        std::memcpy(opts + i, &requested_addr_be, 4);
         i += 4;
     }
     if (include_opt54) {
-        // Option 54 (Server Identifier). §4.7.6.3 ALLOCATING_03 fault:
-        // write 192.0.2.54 instead of the OFFER's server-id so
-        // option_be32_equals(54, server_id) fails.
-        const std::uint32_t opt54_be = corrupt_opt54_value
-            ? (192U | (0U << 8) | (2U << 16) | (54U << 24))
-            : spec.server_id_be;
+        // Option 54 (Server Identifier). Value is the effective
+        // server_id_be — the OFFER server-id on the conformant path, or a
+        // sentinel under the §4.7.6.3 ALLOCATING_03 corrupt / REQUEST_06/_09
+        // force-include mutants.
         opts[i++] = 54;
         opts[i++] = 4;
-        std::memcpy(opts + i, &opt54_be, 4);
+        std::memcpy(opts + i, &server_id_be, 4);
         i += 4;
     }
 

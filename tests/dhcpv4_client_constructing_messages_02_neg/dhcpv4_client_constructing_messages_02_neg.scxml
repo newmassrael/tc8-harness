@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.7 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02 negative — the
+  RENEWING DHCPREQUEST MUST be IP-unicast to the server identified by
+  Option 54 of the prior ACK (RFC 2131 §4.4.5). The positive's
+  dst-not-server-id branch is unreachable against a conformant tc8-dut.
+
+  Fault injection is a real firmware mutant: the
+  kDhcpFlavorRenewingRequestDstWrong flavor (gated to the RENEWING
+  REQUEST) sends it to a wrong destination (192.0.2.9). A conformant
+  client (flavor None) unicasts to the server-id, so this negative's
+  fail_compliant branch is the live conformant-DUT outcome.
+
+  Reuses the dhcpv4_renewing_request_field template with pass_expr
+  inverted (pass = wrong destination observed).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_constructing_messages_02_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_renewing_request_field.sce-template.xml"
+           pass_expr="!captured.dst_ip_equals(expected.server_id_be)"
+           fail_state="fail_compliant"
+           fail_reason="dut_renewing_request_unicast_to_server_despite_dst_wrong_flavor"/>
+</scxml>

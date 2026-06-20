@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REQUEST_06 negative — RENEWING DHCPREQUEST
+  MUST NOT carry Option 54 (Server Identifier) per RFC 2131 §4.3.6 table
+  5. The positive's server-id-present branch is unreachable against a
+  conformant tc8-dut, which omits Option 54 in RENEWING.
+
+  Fault injection is a real firmware mutant: the stimulus drives the DHCP
+  client with the kDhcpFlavorReacqRequestIncludeServerId flavor (gated to
+  the reacquisition REQUEST so DISCOVER + SELECTING REQUEST stay
+  conformant and the lifecycle reaches RENEWING at T1). tc8-dut then
+  force-includes Option 54 in the RENEWING REQUEST. A conformant client
+  (flavor None) omits it, so this negative's fail_compliant branch is the
+  live conformant-DUT outcome.
+
+  Reuses the positive's dhcpv4_renewing_request_field template with
+  pass_expr inverted (pass = Option 54 present observed).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_request_06_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_renewing_request_field.sce-template.xml"
+           pass_expr="!captured.option_absent(54)"
+           fail_state="fail_compliant"
+           fail_reason="dut_renewing_request_omitted_server_id_despite_include_flavor"/>
+</scxml>

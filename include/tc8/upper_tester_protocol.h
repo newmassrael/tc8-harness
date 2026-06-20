@@ -873,6 +873,27 @@ inline constexpr std::uint8_t kDhcpFlavorRequestServerIdCorrupt     = 0x0B;
 // Mutant writes a wrong requested IP. (§4.7.6.8 REQUEST_02)
 inline constexpr std::uint8_t kDhcpFlavorRequestRequestedIpCorrupt  = 0x0C;
 
+// §4.7 RENEWING/REBINDING (reacquisition) DHCPREQUEST field-shape mutants
+// (Phase F). Gated to the reacquisition REQUEST (ciaddr != 0) so the
+// preceding DISCOVER + SELECTING REQUEST stay conformant and the
+// lifecycle reaches BOUND. RFC 2131 §4.3.6 table 5 forbids Option 50 +
+// Option 54 in RENEWING and REBINDING REQUESTs alike (one invariant),
+// so the include mutants serve both phases.
+//
+// RFC 2131 §4.3.6 table 5: reacquisition REQUEST MUST NOT carry Option 54
+// (Server Identifier). Mutant force-includes it. (§4.7.6.8 REQUEST_06/_09)
+inline constexpr std::uint8_t kDhcpFlavorReacqRequestIncludeServerId    = 0x0D;
+// RFC 2131 §4.3.6 table 5: reacquisition REQUEST MUST NOT carry Option 50
+// (Requested IP). Mutant force-includes it. (§4.7.6.8 REQUEST_07/_10)
+inline constexpr std::uint8_t kDhcpFlavorReacqRequestIncludeRequestedIp = 0x0E;
+// RFC 2131 §4.4.5: reacquisition REQUEST 'ciaddr' MUST equal the bound IP.
+// Mutant writes a wrong ciaddr. (§4.7.6.8 REQUEST_08/_11)
+inline constexpr std::uint8_t kDhcpFlavorReacqRequestCiaddrWrong        = 0x0F;
+// RFC 2131 §4.4.5: the RENEWING REQUEST MUST be unicast to the server-id.
+// Mutant sends it to a wrong destination. (§4.7.6.7 CM_02 / §4.7.6.8
+// REACQUISITION_01)
+inline constexpr std::uint8_t kDhcpFlavorRenewingRequestDstWrong        = 0x10;
+
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:

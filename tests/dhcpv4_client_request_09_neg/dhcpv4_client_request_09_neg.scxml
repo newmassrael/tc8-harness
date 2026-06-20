@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REQUEST_09 negative — REBINDING DHCPREQUEST
+  MUST NOT carry Option 54 (Server Identifier) per RFC 2131 §4.3.6 table
+  5. The positive's server-id-present branch is unreachable against a
+  conformant tc8-dut.
+
+  Fault injection is a real firmware mutant: the
+  kDhcpFlavorReacqRequestIncludeServerId flavor (gated to the
+  reacquisition REQUEST) force-includes Option 54. The shared flavor also
+  marks the preceding RENEWING REQUEST, which stays unicast-to-server so
+  the rebinding template's state-3 still advances; the REBINDING REQUEST
+  (broadcast) carries the leaked Option 54. A conformant client (flavor
+  None) omits it, so this negative's fail_compliant branch is the live
+  conformant-DUT outcome.
+
+  Reuses the dhcpv4_rebinding_request_field template with pass_expr
+  inverted (pass = Option 54 present observed).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_request_09_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_rebinding_request_field.sce-template.xml"
+           pass_expr="!captured.option_absent(54)"
+           fail_state="fail_compliant"
+           fail_reason="dut_rebinding_request_omitted_server_id_despite_include_flavor"/>
+</scxml>

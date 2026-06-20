@@ -1909,15 +1909,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_renewing_request_dst_not_server_id",
-          "property": "DUT's RENEWING DHCPREQUEST must be unicast to the server identifier (RFC 2131 §4.3.6); fail iff the destination is not the server id"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05": {
       "guards": [
         {
@@ -2054,15 +2045,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_REACQUISITION_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_renewing_request_dst_not_server_id",
-          "property": "DUT's RENEWING DHCPREQUEST must be unicast to the server identifier (RFC 2131 §4.4.5); fail iff the destination is not the server id"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_REACQUISITION_02": {
       "guards": [
         {
@@ -2125,66 +2107,12 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_REQUEST_06": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_renewing_request_carries_server_id",
-          "property": "DUT's RENEWING DHCPREQUEST must omit Option 54 (Server Identifier) (RFC 2131 §4.3.2); fail iff it is present"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REQUEST_07": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_renewing_request_carries_requested_ip",
-          "property": "DUT's RENEWING DHCPREQUEST must omit Option 50 (Requested IP) (RFC 2131 §4.3.2); fail iff it is present"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REQUEST_08": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_renewing_request_ciaddr_mismatch",
-          "property": "DUT's RENEWING DHCPREQUEST ciaddr must carry the bound IP address (RFC 2131 §4.3.2); fail iff it mismatches"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REQUEST_09": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rebinding_request_carries_server_id",
-          "property": "DUT's REBINDING DHCPREQUEST must omit Option 54 (Server Identifier) (RFC 2131 §4.3.2); fail iff it is present"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REQUEST_10": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rebinding_request_carries_requested_ip",
-          "property": "DUT's REBINDING DHCPREQUEST must omit Option 50 (Requested IP) (RFC 2131 §4.3.2); fail iff it is present"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REQUEST_11": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rebinding_request_ciaddr_mismatch",
-          "property": "DUT's REBINDING DHCPREQUEST ciaddr must carry the bound IP address (RFC 2131 §4.3.2); fail iff it mismatches"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_REQUEST_12": {
       "guards": [
         {
           "class": "incorrect_emission",
           "fail_reason": "dut_rebinding_request_dst_not_broadcast",
-          "property": "DUT's REBINDING DHCPREQUEST must be broadcast (RFC 2131 §4.3.2); fail iff not broadcast"
+          "property": "DUT's REBINDING DHCPREQUEST must be broadcast (RFC 2131 §4.3.2); fail iff not broadcast. Phase F deferred: a non-broadcast REBINDING is wire-indistinguishable from a RENEWING retransmit (same ciaddr / no Option 50,54 / msg_type=REQUEST); the rebinding template's state-3->4 gate uses dst_ip_is_broadcast() to separate them, so a unicast REBINDING cannot be observed without a sentinel-dst disambiguator."
         }
       ]
     },
