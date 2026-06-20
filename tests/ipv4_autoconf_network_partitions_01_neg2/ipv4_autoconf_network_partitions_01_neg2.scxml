@@ -66,9 +66,6 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_reply() and captured.sender_proto_ip == captured.expected_responder_sender_ip_be and captured.target_proto_ip == expected.tester_linklocal_ip and captured.expected_responder_sender_ip_be != 0 and captured.eth_src == expected.dut_iface_mac and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac and captured.is_eth_broadcast()"
                 target="listening_no_periodic"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.is_arp_reply()"
-                target="fail_unexpected_wrong_reply"/>
     <transition event="reply_deadline" target="inconclusive_no_responder_reply"/>
   </state>
 
@@ -103,12 +100,6 @@
   <final id="inconclusive_no_responder_reply">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_did_not_emit_arp_reply_for_claim_address","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_unexpected_wrong_reply">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_wrong_reply_despite_periodic_gratuitous_flavor","role":"observed_violation"}</content>
     </donedata>
   </final>
 

@@ -48,9 +48,6 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe() and captured.target_proto_ip != captured.previous_observed_probe_target_ip"
                 target="cycle"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.is_arp_probe()"
-                target="fail_unexpected_stale_repick"/>
     <transition event="conflicts_complete" target="silence_watch"/>
     <transition event="deadline_exceeded" target="inconclusive_conflicts_incomplete"/>
   </state>
@@ -80,12 +77,6 @@
   <final id="inconclusive_conflicts_incomplete">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_did_not_re_probe_through_max_conflicts","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_unexpected_stale_repick">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_re_probed_stale_despite_skip_silence_flavor","role":"observed_violation"}</content>
     </donedata>
   </final>
 

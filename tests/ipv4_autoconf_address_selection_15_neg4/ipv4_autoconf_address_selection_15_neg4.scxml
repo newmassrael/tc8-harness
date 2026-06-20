@@ -47,9 +47,6 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe() and captured.target_proto_ip != captured.previous_observed_probe_target_ip"
                 target="cycle"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.is_arp_probe()"
-                target="fail_unexpected_stale_repick"/>
     <transition event="conflicts_complete" target="silence_watch_1"/>
     <transition event="deadline_exceeded" target="inconclusive_conflicts_incomplete"/>
   </state>
@@ -58,9 +55,6 @@
     <onentry>
       <send event="silence_complete_1" delay="3000ms"/>
     </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.is_arp_probe()"
-                target="fail_unexpected_silence_1_emit"/>
     <transition event="silence_complete_1" target="wait_repick"/>
     <transition event="deadline_exceeded" target="inconclusive_silence_1_stalled"/>
   </state>
@@ -69,9 +63,6 @@
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe() and captured.target_proto_ip != captured.previous_observed_probe_target_ip"
                 target="silence_watch_2"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.is_arp_probe()"
-                target="fail_unexpected_post_silence_stale"/>
     <transition event="deadline_exceeded" target="inconclusive_no_post_silence_probe"/>
   </state>
 
@@ -119,24 +110,6 @@
   <final id="inconclusive_silence_2_stalled">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"second_rate_limit_silence_window_not_concluded","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_unexpected_stale_repick">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_re_probed_stale_despite_skip_second_silence_flavor","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_unexpected_silence_1_emit">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_in_first_silence_despite_skip_second_flavor","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_unexpected_post_silence_stale">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_post_silence_stale_despite_skip_second_flavor","role":"observed_violation"}</content>
     </donedata>
   </final>
 

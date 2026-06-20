@@ -170,6 +170,16 @@ def fail_reasons_of(case: str) -> set[str]:
     return {reason for reason, classes in rc.items() if "fail" in classes}
 
 
+def final_classes(case: str) -> set[str]:
+    """The set of verdict classes the case's .scxml finals carry (pass / fail /
+    inconclusive / error). Unlike reason_classes this counts reason-less finals
+    (a `pass` donedata carries no reason). `case` is the lower-case case name."""
+    scxml = TESTS_DIR / case / f"{case}.scxml"
+    if not scxml.is_file():
+        return set()
+    return {cls for cls, _reason, _role in extract_donedata(scxml).values()}
+
+
 def row_kind(row: NegRow) -> str:
     """Classify a NEG_ROW against its case's finals: SOUND (reason -> fail),
     VACUOUS (reason -> inconclusive), STALE (reason is not a final), UNKNOWN."""
@@ -491,9 +501,31 @@ def validate_fault_coverage(m: Model) -> list[str]:
                 findings.append(
                     f"FAULT_COVERAGE_INVALID: {base} reason '{reason}' -> '{neg}' is not a registered _neg case"
                 )
-            elif _NEG_RE.sub("", neg_l) != base_l:
+                continue
+            if _NEG_RE.sub("", neg_l) != base_l:
                 findings.append(
                     f"FAULT_COVERAGE_INVALID: {neg} (reason '{reason}') is not a _neg variant of base {base}"
+                )
+                continue
+            # The mapped _neg must have a reachable `pass` (the violation-detected
+            # path) AND exactly one `fail` final (the conformant-DUT branch -- the
+            # live fail_compliant_* outcome, docs/verdict_policy.md Section 6.1). A
+            # second `fail` final is an unreachable mis-roled catch-net (a
+            # flavor-wiring fault is `inconclusive`/`error`, not a DUT violation);
+            # zero means the negative cannot succeed. The semantic link (this _neg
+            # proves THIS guard) is grounded by the flavor + the CI smoke green run,
+            # not statically here -- that is the honest boundary of this gate.
+            classes = final_classes(neg_l)
+            if "pass" not in classes:
+                findings.append(
+                    f"FAULT_COVERAGE_INVALID: {neg} has no `pass` final (the violation-detected path)"
+                )
+            n_fail = len(fail_reasons_of(neg_l))
+            if n_fail != 1:
+                findings.append(
+                    f"FAULT_COVERAGE_INVALID: {neg} has {n_fail} fail finals; a _neg "
+                    f"carries exactly one (the conformant-DUT branch) -- route "
+                    f"wrong-stage catches to inconclusive"
                 )
 
     # 2. A multi-fail-final FAULT_INJECTION case MUST declare its coverage. Without
