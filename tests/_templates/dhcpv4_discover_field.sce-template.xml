@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7 DHCPv4 client DHCPDISCOVER shape-invariant cluster — the single
+  source of truth for cases that assert one wire-shape invariant on the
+  DUT-emitted DHCPDISCOVER. Both the positive cases (which assert the
+  invariant holds) and their `_neg` self-validation siblings (which drive
+  a firmware mutant and assert the invariant is violated) consume this
+  template; only the `pass_expr` / `fail_state` / `fail_reason` params
+  differ. Same 3-param shape as `dhcpv4_request_field`.
+
+  Filter:  is_dhcp_discover() and chaddr_matches_dut_mac(expected.dut_iface_mac).
+  Pass:    filter and ({$pass_expr})  -> pass
+  Fail:    filter and !({$pass_expr}) -> {$fail_state}
+  Timeout: deadline_exceeded          -> inconclusive_no_discover
+
+  Positive use: pass_expr is the RFC-compliance predicate (e.g.
+    captured.dst_ip_is_broadcast()); fail_state names the violation.
+  Negative use: pass_expr is the inverted (violation) predicate (e.g.
+    !captured.dst_ip_is_broadcast()); fail_state = fail_compliant, fired
+    when a conformant client emits the correct shape despite the flavor.
+
+  NOT for PROTOCOL_01/02: a corrupted magic cookie or missing Option 53
+  makes is_dhcp_discover() false (it requires a valid cookie + Option 53 =
+  1), so those two cases gate on the BOOTP fixed fields directly and stay
+  standalone.
+
+  Textual SCE substitution preserves `!`, `(`, `)`; compound predicates
+  that would smuggle `<` belong as Dhcpv4Captured member methods.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_discover_field">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+</sce:template>

@@ -2,21 +2,17 @@
 <!--
   TC8 §4.7.6.7 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_01 negative — closes
   the self-reference trap on the positive _01 case (the last option MUST
-  always be the END option 0xFF, RFC 2131 §4.1). The positive's
+  be the END option 0xFF, RFC 2131 §4.1). The positive's
   fail_last_option_not_end branch is unreachable against a conformant
-  tc8-dut, which always terminates its options blob on 0xFF.
+  tc8-dut.
 
-  Fault injection is a real firmware mutant: the stimulus drives the DHCP
-  client with the kDhcpFlavorDiscoverDropEnd flavor, which makes
-  tc8-dut's emitDhcpMessage emit a PAD (0x00) in place of the trailing
-  END option, so the options walk runs off the blob without seeing END.
-  A conformant DUT (flavor None) ends on 0xFF, so this negative
-  distinguishes a buggy client from a conformant one.
+  Fault injection is a real firmware mutant: the
+  kDhcpFlavorDiscoverDropEnd flavor emits a PAD (0x00) in place of the
+  trailing END. A conformant client (flavor None) ends on 0xFF, so
+  fail_compliant is the live conformant-DUT outcome.
 
-  Pass = the missing END IS observed (ends_with_end_option false on a
-  DUT-emitted DISCOVER). fail_compliant = the client terminated on END
-  despite the flavor — the live conformant-DUT outcome and a
-  flavor-wiring regression catch.
+  Reuses the dhcpv4_discover_field template with pass_expr inverted
+  (pass = missing END observed).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -25,47 +21,8 @@
        name="dhcpv4_client_constructing_messages_01_neg"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::Dhcpv4Captured"
-               cpp:include="sce_integration/dhcpv4_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::Dhcpv4Expected"
-               cpp:include="sce_integration/dhcpv4_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="4s"/>
-    </onentry>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.is_dhcp_discover()
-                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
-                      and !captured.ends_with_end_option()"
-                target="pass"/>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.is_dhcp_discover()
-                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
-                      and captured.ends_with_end_option()"
-                target="fail_compliant"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_compliant">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_discover_ended_with_end_option_despite_drop_end_flavor","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_discover">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/dhcpv4_discover_field.sce-template.xml"
+           pass_expr="!captured.ends_with_end_option()"
+           fail_state="fail_compliant"
+           fail_reason="dut_dhcp_discover_ended_with_end_option_despite_drop_end_flavor"/>
 </scxml>

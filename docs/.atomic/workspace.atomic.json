@@ -2312,6 +2312,10 @@
         {
           "file": "dut/dut_service/dhcpv4_client.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/dhcpv4_discover_field.sce-template.xml",
+          "kind": "references"
         }
       ]
     },
@@ -2648,15 +2652,7 @@
       "intent": "TC8 §4.7.6.6 — DHCPv4 Client — Constructing Messages / Request. 17 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "tests/dhcpv4_client_constructing_messages_01/dhcpv4_client_constructing_messages_01.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_constructing_messages_02/dhcpv4_client_constructing_messages_02.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/dhcpv4_client_constructing_messages_03/dhcpv4_client_constructing_messages_03.scxml",
           "kind": "implements"
         },
         {
@@ -2787,6 +2783,14 @@
         },
         {
           "file": "tests/dhcpv4_client_constructing_messages_02_neg/dhcpv4_client_constructing_messages_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_01/dhcpv4_client_constructing_messages_01.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_03/dhcpv4_client_constructing_messages_03.scxml",
           "kind": "implements"
         }
       ]
