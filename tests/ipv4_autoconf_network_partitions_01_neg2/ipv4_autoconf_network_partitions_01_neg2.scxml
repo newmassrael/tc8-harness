@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.6 IPv4_AUTOCONF_NETWORK_PARTITIONS_01 negative (guard 2 of
+  2) — closes the self-reference trap on the positive case's
+  fail_periodic_gratuitous_arp branch. tc8-dut runs the LL claim via
+  OpStartLLAutoconfBuggy(flavor=EmitPeriodicGratuitous): after committing
+  and defending its address with a compliant Reply, its steady-state
+  loop re-emits the Announce-shaped gratuitous ARP (opcode 1,
+  sender_ip == target_ip == committed LL) on a ~1 s cadence — the
+  RFC 3927 §4 SHOULD NOT a conformant host never does.
+
+  Guard 1 (defending-Reply fields) is proven separately by the NEG
+  (guard 1) variant. The flavor here keeps the Reply compliant on
+  purpose, so the run passes post_claim normally and reaches the
+  no-periodic window where the gratuitous is witnessed.
+  tools/fault_injection_coverage.json is the SSOT for which guard each
+  variant proves.
+
+  Two-Announce gating (mirrors the positive): the no-periodic filter is
+  "opcode 1 AND sender_ip == target_ip == committed LL" — exactly the
+  Announce shape. The SCXML waits through both Announces before entering
+  listening_no_periodic so a legitimate Announce 2 cannot false-pass.
+
+  Pass = a gratuitous ARP IS observed after the claim (the violation is
+  detected). fail_compliant_silence = no gratuitous arrived in the
+  window, i.e. tc8-dut did NOT honour the flavor — the live
+  conformant-DUT outcome and a flavor-wiring regression catch.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_network_partitions_01_neg2"
+       datamodel="null"
+       initial="listening_pre_announce_1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening_pre_announce_1">
+    <onentry>
+      <send event="claim_deadline" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce() and captured.eth_src == expected.dut_iface_mac"
+                target="listening_pre_announce_2"/>
+    <transition event="claim_deadline" target="inconclusive_no_claim_observed"/>
+  </state>
+
+  <state id="listening_pre_announce_2">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce() and captured.eth_src == expected.dut_iface_mac"
+                target="listening_post_claim"/>
+    <transition event="claim_deadline" target="inconclusive_only_one_announce"/>
+  </state>
+
+  <state id="listening_post_claim">
+    <onentry>
+      <send event="reply_deadline" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_reply() and captured.sender_proto_ip == captured.expected_responder_sender_ip_be and captured.target_proto_ip == expected.tester_linklocal_ip and captured.expected_responder_sender_ip_be != 0 and captured.eth_src == expected.dut_iface_mac and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac and captured.is_eth_broadcast()"
+                target="listening_no_periodic"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_reply()"
+                target="fail_unexpected_wrong_reply"/>
+    <transition event="reply_deadline" target="inconclusive_no_responder_reply"/>
+  </state>
+
+  <state id="listening_no_periodic">
+    <onentry>
+      <send event="periodic_window_deadline" delay="3s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.eth_src == expected.dut_iface_mac and captured.sender_proto_ip == captured.expected_responder_sender_ip_be and captured.target_proto_ip == captured.expected_responder_sender_ip_be and captured.expected_responder_sender_ip_be != 0"
+                target="pass"/>
+    <transition event="periodic_window_deadline" target="fail_compliant_silence"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_claim_observed">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_announce_committed_link_local_address","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_only_one_announce">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"fewer_than_2_arp_announces_within_deadline","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_responder_reply">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_emit_arp_reply_for_claim_address","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_wrong_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_wrong_reply_despite_periodic_gratuitous_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_silence">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_no_periodic_gratuitous_despite_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -189,6 +189,7 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
         case LinklocalAutoconfFlavor::ReplySenderIpWrong:
         case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
         case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
+        case LinklocalAutoconfFlavor::EmitPeriodicGratuitous:
             break;
     }
 
@@ -238,6 +239,7 @@ void LinklocalAutoconf::emitArpAnnounce(std::uint32_t committed_ll_be,
         case LinklocalAutoconfFlavor::ReplySenderIpWrong:
         case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
         case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
+        case LinklocalAutoconfFlavor::EmitPeriodicGratuitous:
             break;
         case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
             // RFC 3927 §2.4 / RFC 3927 §2.5 last MUST: ARP packets whose sender_proto_ip
@@ -555,8 +557,29 @@ void LinklocalAutoconf::runLoop(Params params) {
         // responder thread on a conflicting ARP per RFC 3927 §2.5).
         // 50 ms tick matches the responder's poll cadence so the
         // worker reacts to a cease signal within one tick.
+        //
+        // §4.5.6.6 NETWORK_PARTITIONS_01 fault-injection (Phase F): the
+        // EmitPeriodicGratuitous flavor re-emits the Announce-shaped
+        // gratuitous ARP (opcode 1, sender_ip == target_ip == committed
+        // LL) on a fixed cadence — the RFC 3927 §4 SHOULD NOT a
+        // conformant host never does. Re-using emitArpAnnounce keeps the
+        // gratuitous shape identical to the spec Announce (which is why
+        // §4.5.6.6's positive gates through both Announces). None (every
+        // positive case) just ticks waiting for a cease.
+        // ~1 s cadence: a conformant DUT emits zero gratuitous ARPs in
+        // the negative's 3 s post-Reply window; the mutant emits ~3, so
+        // NETWORK_PARTITIONS_01_NEG2 reliably witnesses at least one.
+        constexpr auto kPeriodicGratuitousIntervalMs =
+            std::chrono::milliseconds(1000);
+        const bool emit_periodic =
+            params.flavor == LinklocalAutoconfFlavor::EmitPeriodicGratuitous;
         while (!stop_requested_.load() && !cease_requested_.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            if (emit_periodic) {
+                emitArpAnnounce(tentative_ll_be, LinklocalAutoconfFlavor::None);
+                sleepInterruptible(kPeriodicGratuitousIntervalMs);
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
         }
         if (stop_requested_.load()) return;
 
@@ -819,6 +842,9 @@ void LinklocalAutoconf::emitArpReply(
         // Responder-dispatch flavor: the reply CONTENT stays compliant;
         // only runArpResponder's target gate is relaxed (RFC 3927 §2.7).
         case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
+        // Steady-state cadence flavor: the reply stays compliant; only
+        // runLoop's defend loop re-emits the gratuitous ARP (RFC 3927 §4).
+        case LinklocalAutoconfFlavor::EmitPeriodicGratuitous:
             break;
         case LinklocalAutoconfFlavor::ReplySenderIpWrong:
             // RFC 3927 §2.5: the defending Reply's sender_proto_ip MUST

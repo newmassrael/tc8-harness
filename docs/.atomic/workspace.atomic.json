@@ -1802,6 +1802,22 @@
         {
           "file": "tests/ipv4_autoconf_network_partitions_01/ipv4_autoconf_network_partitions_01.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_network_partitions_01_neg/ipv4_autoconf_network_partitions_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_network_partitions_01_neg2/ipv4_autoconf_network_partitions_01_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/linklocal_autoconf.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/linklocal_autoconf.cpp",
+          "kind": "implements"
         }
       ]
     },

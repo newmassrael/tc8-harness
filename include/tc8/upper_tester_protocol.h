@@ -758,8 +758,9 @@ inline constexpr std::uint8_t kSocketTypeActive  = 0x01;
 // `OpStartLLAutoconfBuggy` flavor byte. Each value picks one of the
 // RFC 3927 invariants asserted by §4.5.6.2 ADDRESS_SELECTION cluster A
 // (Probe-shape, 0x01..0x05 + 0x0A), §4.5.6.3 ANNOUNCING (Announce-shape,
-// 0x06..0x09), defending-Reply-shape (0x0B..0x0C, RFC 3927 §2.5), or
-// responder-dispatch (0x0D, RFC 3927 §2.7).
+// 0x06..0x09), defending-Reply-shape (0x0B..0x0C, RFC 3927 §2.5),
+// responder-dispatch (0x0D, RFC 3927 §2.7), or steady-state cadence
+// (0x0E, RFC 3927 §4 SHOULD NOT periodic gratuitous).
 // Spec invariant ↔ flavor is one-to-one — adding a new
 // flavor without a backing spec invariant is a category violation
 // (`feedback_frozen_spec_is_evidence.md`). The cadence cluster B
@@ -786,6 +787,9 @@ inline constexpr std::uint8_t kFlavorReplyEthDstUnicast           = 0x0C;  // RF
 // Responder-dispatch flavor (not a frame-field mutation): makes the
 // post-claim responder answer ARP Requests for unclaimed targets.
 inline constexpr std::uint8_t kFlavorReplyToArbitraryTarget       = 0x0D;  // RFC 3927 §2.7   answer only own claimed LL MUST
+// Steady-state behavioral flavor (not a frame-field mutation): makes the
+// committed host re-emit the Announce-shaped gratuitous ARP on a cadence.
+inline constexpr std::uint8_t kFlavorEmitPeriodicGratuitous       = 0x0E;  // RFC 3927 §4     no periodic gratuitous ARP SHOULD NOT
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

@@ -63,6 +63,9 @@ TEST(IsWellFormedCaseId, AcceptsKnownVariantTags) {
     // with a positive case under the same category.
     EXPECT_TRUE(isWellFormedCaseId("IPV4_AUTOCONF_ADDRESS_SELECTION_06_NEG"));
     EXPECT_TRUE(isWellFormedCaseId("ARP_49_NEG"));
+    // Multi-guard cases carry one _NEG<n> variant per fail-final.
+    EXPECT_TRUE(isWellFormedCaseId("IPV4_AUTOCONF_NETWORK_PARTITIONS_01_NEG2"));
+    EXPECT_TRUE(isWellFormedCaseId("IPV4_AUTOCONF_ADDRESS_SELECTION_15_NEG4"));
 }
 
 TEST(IsWellFormedCaseId, RejectsMalformedIds) {
@@ -90,6 +93,12 @@ TEST(DeriveCategory, IgnoresKnownVariantTag) {
     // Positive and negative share a category — the variant tag does
     // not split the group.
     EXPECT_EQ(deriveCategory("ARP_49_NEG"), deriveCategory("ARP_49"));
+    // Every _NEG<n> variant of a multi-guard case derives the same
+    // category + number as the positive base.
+    EXPECT_EQ(deriveCategory("IPV4_AUTOCONF_NETWORK_PARTITIONS_01_NEG2"),
+              deriveCategory("IPV4_AUTOCONF_NETWORK_PARTITIONS_01"));
+    EXPECT_EQ(deriveCategory("IPV4_AUTOCONF_ADDRESS_SELECTION_15_NEG4"),
+              deriveCategory("IPV4_AUTOCONF_ADDRESS_SELECTION_15"));
 }
 
 TEST(CaseRegistry, AddFind) {

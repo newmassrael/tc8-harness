@@ -80,14 +80,26 @@ private:
 // surface entirely.
 //
 // Known variant tags:
-//   _NEG — fault-injection self-validation case paired with a
-//          positive case under the same category. Drives the
-//          negative-path SCXML branches that conformant DUT emit
-//          can never reach (`reference_dut_fault_injection_pattern.md`).
+//   _NEG             — fault-injection self-validation case paired with
+//                      a positive case under the same category. Drives a
+//                      negative-path SCXML branch that conformant DUT
+//                      emit can never reach
+//                      (`reference_dut_fault_injection_pattern.md`).
+//   _NEG2 / 3 / 4    — additional fault-injection variants of the SAME
+//                      positive case, one per fail-final, for a
+//                      multi-guard case whose guards are mutually
+//                      exclusive in a single run (e.g. a stale-re-probe
+//                      that terminates before the rate-limit silence
+//                      window). All map to the same base category +
+//                      number; `tools/fault_injection_coverage.json`
+//                      is the SSOT for which fail-final each proves.
 //
 // Adding a new variant tag is a deliberate one-line addition to
-// `kKnownVariantTags`; the function shape stays unchanged.
-inline constexpr std::string_view kKnownVariantTags[] = {"_NEG"};
+// `kKnownVariantTags`; the function shape stays unchanged. The numeric
+// suffix keeps the case id a pure identity — the guard each variant
+// proves lives in the coverage SSOT, not the file name.
+inline constexpr std::string_view kKnownVariantTags[] = {
+    "_NEG", "_NEG2", "_NEG3", "_NEG4"};
 
 constexpr std::string_view stripVariantTag(std::string_view id) {
     for (auto tag : kKnownVariantTags) {

@@ -77,6 +77,13 @@ HERE = Path(__file__).resolve().parent
 LEDGER = HERE / "negative_coverage_undisposed.txt"
 REGISTRY = HERE / "conformant_absence_registry.json"
 DEFERRED = HERE / "deferred_negatives.json"
+FAULT_COVERAGE = HERE / "fault_injection_coverage.json"
+
+# A `_neg` case-name suffix: `_neg` for a single-guard case, or `_neg<n>`
+# (`_neg2`, `_neg3`, ...) for one of several fault-injection variants of a
+# multi-guard case (one per fail-final). Used to split positives from negatives
+# and to derive the positive base a `_neg<n>` validates.
+_NEG_RE = re.compile(r"_neg\d*$")
 
 # One `NEG_ROWS` entry: "CASE_ID|wrong_token|<class>:<reason>".
 _ROW_RE = re.compile(r'"([^"|]+)\|([^"|]*)\|([a-z_]+):([^"]+)"')
@@ -93,7 +100,7 @@ SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 # FAULT_INJECTION proofs only ever grow -- --check floors the count so a _neg case
 # can never silently regress. The REGISTRY set is the work-list (--phase-f). Bump
 # the floor when new _neg cases land.
-FAULT_INJECTION_FLOOR = 16
+FAULT_INJECTION_FLOOR = 17
 
 # A REGISTRY guard is empirically faultable only where the misbehaviour can be
 # produced. Firmware families (tc8-dut / vsomeip app) take a _neg flavor case (the
@@ -153,6 +160,16 @@ def reason_classes(case: str) -> dict[str, set[str]] | None:
     return out
 
 
+def fail_reasons_of(case: str) -> set[str]:
+    """The set of `fail`-final reasons a positive case's .scxml carries -- the
+    guards that a FAULT_INJECTION promotion must each prove reachable. `case` is the
+    lower-case directory/case name. Empty if no .scxml or no fail finals."""
+    rc = reason_classes(case)
+    if rc is None:
+        return set()
+    return {reason for reason, classes in rc.items() if "fail" in classes}
+
+
 def row_kind(row: NegRow) -> str:
     """Classify a NEG_ROW against its case's finals: SOUND (reason -> fail),
     VACUOUS (reason -> inconclusive), STALE (reason is not a final), UNKNOWN."""
@@ -182,6 +199,17 @@ def load_deferred() -> dict[str, str]:
     if not DEFERRED.is_file():
         return {}
     data = json.loads(DEFERRED.read_text(encoding="utf-8"))
+    return data.get("cases", {})
+
+
+def load_fault_coverage() -> dict[str, dict[str, str]]:
+    """fault_injection_coverage.json: base_case_id -> {fail_reason: neg_case_id}.
+    The per-fail-final SSOT for a MULTI-GUARD case whose guards cannot all be proven
+    by one `_neg` (one run reaches one final). A single-guard case needs no entry --
+    its lone `_neg` covers its lone fail-final. Empty if absent."""
+    if not FAULT_COVERAGE.is_file():
+        return {}
+    data = json.loads(FAULT_COVERAGE.read_text(encoding="utf-8"))
     return data.get("cases", {})
 
 
@@ -373,10 +401,12 @@ def ledger_text(cases: set[str]) -> str:
 class Model:
     rows: list[NegRow]
     positives: list[str]              # lower-case case names (non-_neg)
+    neg_names: list[str]              # lower-case _neg / _neg<n> case names
     fault_bases: set[str]             # lower-case bases that have a _neg sibling
     registry: dict[str, dict]
     reg_classes: dict[str, str]
     deferred: dict[str, str]
+    fault_coverage: dict[str, dict[str, str]]  # base -> {fail_reason: neg_case_id}
     sound_cases: set[str]             # lower-case cases with a genuine SOUND row
     vacuous_cases: set[str]           # lower-case cases whose only row(s) are VACUOUS
     spurious_rows: list[NegRow]       # SOUND-shaped rows that flip an L3 src-IP filter
@@ -386,10 +416,12 @@ class Model:
 def build_model() -> Model:
     rows = parse_neg_rows(SMOKE_SH)
     names = all_case_names()
-    positives = [n for n in names if not n.endswith("_neg")]
-    fault_bases = {n[:-4] for n in names if n.endswith("_neg")}
+    neg_names = [n for n in names if _NEG_RE.search(n)]
+    positives = [n for n in names if not _NEG_RE.search(n)]
+    fault_bases = {_NEG_RE.sub("", n) for n in neg_names}
     registry, reg_classes = load_registry()
     deferred = load_deferred()
+    fault_coverage = load_fault_coverage()
     reg_lower = {k.lower() for k in registry}
     def_lower = {k.lower() for k in deferred}
 
@@ -418,8 +450,67 @@ def build_model() -> Model:
             disposition[c] = "DEFERRED"
         else:
             disposition[c] = "UNDISPOSED"
-    return Model(rows, positives, fault_bases, registry, reg_classes, deferred,
-                 sound_cases, vacuous_cases, spurious_rows, disposition)
+    return Model(rows, positives, neg_names, fault_bases, registry, reg_classes,
+                 deferred, fault_coverage, sound_cases, vacuous_cases, spurious_rows,
+                 disposition)
+
+
+def validate_fault_coverage(m: Model) -> list[str]:
+    """Per-fail-final coverage for FAULT_INJECTION cases (docs/verdict_policy.md
+    Section 6.1). A `_neg` run reaches ONE final, so a multi-guard case (>1 `fail`
+    final) cannot be honestly promoted by a single `_neg` -- partial promotion would
+    silently drop the unproven guards from the registry. Enforce that:
+
+      * every multi-fail-final FAULT_INJECTION case has a fault_injection_coverage
+        entry whose keys EXACTLY cover its .scxml fail-finals (no uncovered guard,
+        no stale reason), and
+      * every declared neg_case_id is a real `_neg<n>` sibling of that base.
+
+    A single-fail-final case needs no entry: its lone `_neg` covers its lone guard.
+    """
+    findings: list[str] = []
+    pos = set(m.positives)
+    neg_set = set(m.neg_names)
+
+    # 1. Structural validity of each declared coverage entry.
+    for base, mapping in m.fault_coverage.items():
+        base_l = base.lower()
+        if base_l not in pos:
+            findings.append(f"FAULT_COVERAGE_INVALID: {base} is not a registered positive case")
+            continue
+        declared = set(mapping.keys())
+        actual = fail_reasons_of(base_l)
+        if declared != actual:
+            findings.append(
+                f"FAULT_COVERAGE_INCOMPLETE: {base} coverage keys {sorted(declared)} "
+                f"!= .scxml fail-finals {sorted(actual)} (cover every guard, drop stale)"
+            )
+        for reason, neg in mapping.items():
+            neg_l = neg.lower()
+            if neg_l not in neg_set:
+                findings.append(
+                    f"FAULT_COVERAGE_INVALID: {base} reason '{reason}' -> '{neg}' is not a registered _neg case"
+                )
+            elif _NEG_RE.sub("", neg_l) != base_l:
+                findings.append(
+                    f"FAULT_COVERAGE_INVALID: {neg} (reason '{reason}') is not a _neg variant of base {base}"
+                )
+
+    # 2. A multi-fail-final FAULT_INJECTION case MUST declare its coverage. Without
+    #    an entry a single `_neg` would silently promote the case while proving only
+    #    one of its guards.
+    cov_lower = {b.lower() for b in m.fault_coverage}
+    for case, disp in m.disposition.items():
+        if disp != "FAULT_INJECTION":
+            continue
+        reasons = fail_reasons_of(case)
+        if len(reasons) > 1 and case not in cov_lower:
+            findings.append(
+                f"PARTIAL_FAULT_INJECTION: {case} has {len(reasons)} fail-finals "
+                f"{sorted(reasons)} but no fault_injection_coverage.json entry; one "
+                f"_neg proves one final"
+            )
+    return findings
 
 
 def cross_findings(m: Model) -> list[str]:
@@ -461,17 +552,19 @@ def cross_findings(m: Model) -> list[str]:
             f"fail '{r.exp_reason}'; remove it (the guard is not value-faulted)"
         )
 
-    # Every _neg mechanism must pair with a registered positive base and be able to
-    # fail (a negative with no `fail` final catches nothing).
-    for base in m.fault_bases:
+    # Every _neg / _neg<n> mechanism must pair with a registered positive base and be
+    # able to fail (a negative with no `fail` final catches nothing).
+    for neg in m.neg_names:
+        base = _NEG_RE.sub("", neg)
         if base not in pos:
-            findings.append(f"ORPHAN_NEG: {base}_neg has no registered positive base case")
-        neg_rc = reason_classes(f"{base}_neg")
+            findings.append(f"ORPHAN_NEG: {neg} has no registered positive base case")
+        neg_rc = reason_classes(neg)
         if neg_rc is not None and not any("fail" in v for v in neg_rc.values()):
-            findings.append(f"NEG_NO_FAIL: {base}_neg has no fail final; it cannot catch a fault")
+            findings.append(f"NEG_NO_FAIL: {neg} has no fail final; it cannot catch a fault")
 
     findings.extend(validate_registry(m.registry, m.reg_classes))
     findings.extend(check_class_structure(m.registry))
+    findings.extend(validate_fault_coverage(m))
 
     # Phase F empirical-verification ratchet: FAULT_INJECTION proofs only grow.
     fault_inj = sum(1 for d in m.disposition.values() if d == "FAULT_INJECTION")
@@ -568,7 +661,7 @@ def main() -> int:
         print(f"  NEG_ROWS: {len(m.rows)} ({len(m.sound_cases)} sound cases, "
               f"{len(m.vacuous_cases)} cases with only vacuous rows)")
         print(f"  registry: {len(m.registry)} | deferred: {len(m.deferred)} | "
-              f"_neg mechanisms: {len(m.fault_bases)}")
+              f"_neg mechanisms: {len(m.neg_names)} over {len(m.fault_bases)} bases")
         print(f"  exhaustiveness ledger: {len(ledger)} entries  ({LEDGER.relative_to(REPO)})")
         for f in cross_findings(m):
             print(f"  {f}")

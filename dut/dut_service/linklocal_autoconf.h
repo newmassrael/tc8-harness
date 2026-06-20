@@ -82,6 +82,12 @@ enum class LinklocalAutoconfFlavor : std::uint8_t {
     // runArpResponder's target gate, NOT an emit-field mutation, so it
     // is a passive `break` in all three emit-builder switches.
     ReplyToArbitraryTarget        = ::tc8::ut::kFlavorReplyToArbitraryTarget,
+    // Steady-state cadence mutation (RFC 3927 §4 SHOULD NOT): makes the
+    // committed host re-emit the Announce-shaped gratuitous ARP on a
+    // cadence. Read by runLoop's steady-state defend loop, NOT an
+    // emit-field mutation, so it is a passive `break` in all three
+    // emit-builder switches. §4.5.6.6 NETWORK_PARTITIONS_01_NEG2.
+    EmitPeriodicGratuitous        = ::tc8::ut::kFlavorEmitPeriodicGratuitous,
 };
 
 class LinklocalAutoconf {
