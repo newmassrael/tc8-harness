@@ -1,7 +1,10 @@
 #pragma once
 
+#include <string_view>
+
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
+#include "tc8/rfc3927_constants.h"
 
 #include "sce_integration/ipv4_linklocal_common.h"
 #include "sce_integration/test_case_traits.h"
@@ -20,15 +23,23 @@
 //                                        need the first probe target_ip
 //                                        captured for a subsequent
 //                                        Conflict injection cycle.
+//   - LinklocalRepeatedConflictBase<SM>  4-arg iface-aware
+//                                        dispatchArpFrameWithRepeatedConflictEmit
+//                                        (per-frame Conflict injection
+//                                        cycle), used by ADDRESS_SELECTION_14/_15
+//                                        and their _neg variants. The
+//                                        post-silence branch (_15's second
+//                                        window) is a per-case dispatch
+//                                        override.
 //
-// Both bases pin kBpfGroup=Arp because §4.5 observes the wire-level ARP
-// frames emitted by the DUT's autoconfiguration state machine.
+// All three bases pin kBpfGroup=Arp because §4.5 observes the wire-level
+// ARP frames emitted by the DUT's autoconfiguration state machine. A base
+// PROVIDING the 4-arg dispatch is detected by `has_iface_dispatch_v` through
+// inheritance (name lookup resolves `Traits::dispatch` to the inherited
+// member), so the repeated-conflict cluster inherits it rather than
+// copy-pasting the spec into every trait.
 //
 // Cases NOT migrated onto these bases:
-//   - ADDRESS_SELECTION_14/_15: 4-arg iface-aware dispatch with
-//     RepeatedConflictDispatchSpec (per-frame Conflict injection cycle);
-//     keep verbatim — `has_iface_dispatch_v` SFINAE detects the 4-arg
-//     form, base would shadow that detection.
 //   - INTRO_01: cross-protocol kBpfGroup=ArpAndDhcpv4 +
 //     dispatchArpAndDhcpv4Frame helper; keep verbatim.
 //
@@ -66,6 +77,38 @@ struct LinklocalProbeSnapshotBase : LinklocalAutoconfBase<StateMachine> {
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::linklocal::dispatchArpFrameWithFirstProbeSnapshot<SM>(c, sm, ev);
+    }
+};
+
+// §4.5.6.2 ADDRESS_SELECTION_14/_15 (+ _neg variants): the per-frame
+// Conflict injection cycle. Provides the standard cycle dispatch spec
+// (cycle state + Conflicts_complete event, MAX_CONFLICTS cap, no
+// post-silence branch). A case that needs the post-silence branch (the
+// _15 second-window cases) overrides `dispatch` with the 7-field spec.
+// Stimulus is per-case (the timing envelope / buggy flavor differs).
+template <typename StateMachine>
+struct LinklocalRepeatedConflictBase {
+    using SM       = StateMachine;
+    using State    = typename StateMachine::PolicyType::State;
+    using Event    = typename StateMachine::PolicyType::Event;
+    using Captured = typename StateMachine::CapturedType;
+    using Expected = typename StateMachine::ExpectedType;
+
+    static constexpr bool             kDeprecated = false;
+    static constexpr int              kTopology   = 1;
+    static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Arp;
+
+    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev,
+                         std::string_view iface) {
+        ::tc8::sce::linklocal::RepeatedConflictDispatchSpec<SM> spec{
+            iface,
+            static_cast<int>(State::Cycle),
+            Event::Conflicts_complete,
+            ::tc8::sce::linklocal::ConflictArpVariant::Request,
+            ::tc8::rfc3927::kMaxConflicts,
+        };
+        ::tc8::sce::linklocal::dispatchArpFrameWithRepeatedConflictEmit<SM>(
+            c, sm, ev, spec);
     }
 };
 
