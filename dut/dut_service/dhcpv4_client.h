@@ -198,11 +198,27 @@ private:
     // it to `emitDhcpMessage`. Option 55 (Parameter Request List) is
     // always emitted — RFC 2131 §4.3.6 table 5 permits the echo in every
     // BOOTREQUEST and §4.7.6.5 PARAMETERS_04 verifies it.
+    // Lifecycle phase of the message being built. Set authoritatively by
+    // each emit helper (it knows which message it is emitting) and read by
+    // emitDhcpMessage's fault-injection switch to gate each flavor on the
+    // exact phase it targets. Carrying the phase explicitly avoids
+    // re-deriving it from field values (ciaddr/dst), which would couple the
+    // fault logic to the conformant field conventions — fragile precisely
+    // because the flavors deliberately violate those conventions.
+    enum class DhcpPhase : std::uint8_t {
+        Discover,    // initial DHCPDISCOVER
+        Selecting,   // SELECTING-state DHCPREQUEST (post-OFFER)
+        Renewing,    // RENEWING-state DHCPREQUEST (T1, unicast to server)
+        Rebinding,   // REBINDING-state DHCPREQUEST (T2, broadcast)
+        Decline,     // DHCPDECLINE
+    };
+
     struct DhcpEmitSpec {
+        DhcpPhase     phase;
         std::uint8_t  msg_type;             // 1 = DISCOVER, 3 = REQUEST
         std::uint32_t xid_be;
         std::uint32_t l3_src_be;            // 0 in SELECTING phases
-        std::uint32_t l3_dst_be;            // server IP (RENEWING) / 0xFFFFFFFF
+        std::uint32_t l3_dst_be;            // server IP (RENEWING) / broadcast
         std::uint32_t ciaddr_be;            // bound IP in RENEWING/REBINDING, 0 otherwise
         std::uint32_t requested_addr_be;    // 0 = omit Option 50
         std::uint32_t server_id_be;         // 0 = omit Option 54
@@ -375,8 +391,9 @@ private:
     std::array<std::uint8_t, 6> dut_mac_{};
 
     // §4.7 Phase F emit-side fault selector. Copied from `Params::flavor`
-    // at runLoop entry and read by `emitDhcpMessage` to apply a
-    // DISCOVER field-shape mutation (None = conformant). Worker-thread
+    // at runLoop entry and read by `emitDhcpMessage` to apply a phase-gated
+    // field-shape mutation (DISCOVER / SELECTING / reacquisition REQUEST;
+    // None = conformant). Worker-thread
     // local: written once before any emit, read on the same thread, so
     // no synchronisation is needed (unlike `committed_lease_be_`, which
     // abort() reads from the foreign caller thread).

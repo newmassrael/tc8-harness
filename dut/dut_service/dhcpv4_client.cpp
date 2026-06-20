@@ -42,6 +42,37 @@ constexpr std::size_t kBootpFixedLen = 240;  // op..options-magic
 constexpr std::uint16_t kUdpClientPort = 68;
 constexpr std::uint16_t kUdpServerPort = 67;
 
+// RFC 2131 §3.1 limited broadcast destination (255.255.255.255). Single
+// source of truth for every DHCP message the client broadcasts.
+constexpr std::uint32_t kLimitedBroadcastBe = 0xFFFFFFFFU;
+
+// §4.7 Phase F fault-injection sentinel addresses (RFC 5737 TEST-NET-1,
+// 192.0.2.0/24 — documentation range, visibly distinct from the dev-netns
+// server 172.16.0.10 / offered 172.16.0.50 so a mutated field is
+// unmistakable on the wire and never collides with a conformant value).
+// Firmware-internal: these are mutation values the DUT emits, not harness
+// configuration, so they stay here rather than in the harness endpoint
+// SSOT. Built like `kLeakLinkLocalProbeTargetBe` below (explicit per-octet
+// shift). Each names the field its flavor corrupts.
+constexpr std::uint32_t kFaultSentinelDstBe =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(1) << 24);   // 192.0.2.1
+constexpr std::uint32_t kFaultSentinelSrcBe =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(2) << 24);   // 192.0.2.2
+constexpr std::uint32_t kFaultSentinelRenewingDstBe =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(9) << 24);   // 192.0.2.9
+constexpr std::uint32_t kFaultSentinelCiaddrBe =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(11) << 24);  // 192.0.2.11
+constexpr std::uint32_t kFaultSentinelOpt50Be =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(50) << 24);  // 192.0.2.50
+constexpr std::uint32_t kFaultSentinelOpt54Be =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(54) << 24);  // 192.0.2.54
+
 // §4.7.6.5 PARAMETERS_04 / RFC 2132 §9.8: clients MAY include Option 55
 // (Parameter Request List) in DISCOVER, and MUST repeat the same list in
 // any subsequent REQUEST. The four codes match what every common DHCP
@@ -278,88 +309,80 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     bool set_reserved_flag_bit      = false;
     bool drop_end_option            = false;
 
-    // Lifecycle phase, derived from the ORIGINAL spec (before mutation) so
-    // a flavor that rewrites ciaddr/dst cannot perturb the detection:
-    //   SELECTING REQUEST : ciaddr == 0
-    //   RENEWING  REQUEST : ciaddr != 0, dst != broadcast (unicast to server)
-    //   REBINDING REQUEST : ciaddr != 0, dst == broadcast
-    // SELECTING mutants gate on `is_request` (the preceding DISCOVER stays
-    // conformant so the OFFER matches); RENEWING/REBINDING mutants gate on
-    // `is_reacq` (DISCOVER + SELECTING REQUEST stay conformant so the
-    // lifecycle reaches BOUND and the reacquisition REQUEST under test).
-    constexpr std::uint32_t kBroadcastBe = 0xFFFFFFFFU;
-    const bool is_request  = (spec.msg_type == kDhcpRequest);
-    const bool is_reacq    = is_request && spec.ciaddr_be != 0U;
-    const bool is_renewing = is_reacq && spec.l3_dst_be != kBroadcastBe;
-    // §4.7 sentinel mutation values (RFC 5737 TEST-NET-1, visibly wrong).
-    constexpr std::uint32_t kSentinelDst    = 192U | (2U << 16) | (1U  << 24);  // 192.0.2.1
-    constexpr std::uint32_t kSentinelSrc    = 192U | (2U << 16) | (2U  << 24);  // 192.0.2.2
-    constexpr std::uint32_t kSentinelOpt50  = 192U | (2U << 16) | (50U << 24);  // 192.0.2.50
-    constexpr std::uint32_t kSentinelOpt54  = 192U | (2U << 16) | (54U << 24);  // 192.0.2.54
-    constexpr std::uint32_t kSentinelCiaddr = 192U | (2U << 16) | (11U << 24);  // 192.0.2.11
-    constexpr std::uint32_t kSentinelRenDst = 192U | (2U << 16) | (9U  << 24);  // 192.0.2.9
+    // Each mutant gates on the EXPLICIT lifecycle phase carried by the spec
+    // (set by the emit helper that knows which message it is building), so a
+    // SELECTING mutant fires only on the SELECTING REQUEST and a
+    // reacquisition mutant only on the RENEWING/REBINDING REQUEST — the
+    // preceding messages of the lifecycle stay conformant (the OFFER/ACK
+    // match and the client reaches the phase under test). `is_reacq` covers
+    // both RENEWING and REBINDING because RFC 2131 §4.3.6 table 5 forbids
+    // Option 50/54 in both alike (one invariant, shared mutants).
+    const bool is_selecting = (spec.phase == DhcpPhase::Selecting);
+    const bool is_reacq     = (spec.phase == DhcpPhase::Renewing ||
+                              spec.phase == DhcpPhase::Rebinding);
+    const bool is_renewing  = (spec.phase == DhcpPhase::Renewing);
     switch (flavor_) {
         case Dhcpv4ClientFlavor::None:
         case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
             break;  // conformant emit (leak acts post-BOUND, not here)
         case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
-            corrupt_magic_cookie = true;
+            if (spec.phase == DhcpPhase::Discover) corrupt_magic_cookie = true;
             break;
         case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
-            omit_message_type_option = true;
+            if (spec.phase == DhcpPhase::Discover) omit_message_type_option = true;
             break;
         case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
-            set_reserved_flag_bit = true;
+            if (spec.phase == DhcpPhase::Discover) set_reserved_flag_bit = true;
             break;
         case Dhcpv4ClientFlavor::DiscoverDstUnicast:
-            l3_dst_be = kSentinelDst;  // not the limited broadcast
+            if (spec.phase == DhcpPhase::Discover) l3_dst_be = kFaultSentinelDstBe;
             break;
         case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
-            l3_src_be = kSentinelSrc;  // non-zero pre-bind src
+            if (spec.phase == DhcpPhase::Discover) l3_src_be = kFaultSentinelSrcBe;
             break;
         case Dhcpv4ClientFlavor::DiscoverDropEnd:
-            drop_end_option = true;
+            if (spec.phase == DhcpPhase::Discover) drop_end_option = true;
             break;
         case Dhcpv4ClientFlavor::RequestSrcNonzero:
             // §4.7.6.7 CM_04: non-zero source on the SELECTING REQUEST.
-            if (is_request) l3_src_be = kSentinelSrc;
+            if (is_selecting) l3_src_be = kFaultSentinelSrcBe;
             break;
         case Dhcpv4ClientFlavor::RequestDstUnicast:
             // §4.7.6.3 ALLOCATING_05: unicast the SELECTING REQUEST.
-            if (is_request) l3_dst_be = kSentinelDst;
+            if (is_selecting) l3_dst_be = kFaultSentinelDstBe;
             break;
         case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
             // §4.7.6.8 REQUEST_01: fill ciaddr (RFC 2131 §4.3.2 -> 0).
-            if (is_request) ciaddr_be = spec.requested_addr_be;
+            if (is_selecting) ciaddr_be = spec.requested_addr_be;
             break;
         case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
             // §4.7.6.3 ALLOCATING_03: wrong Option 54 server-id echo.
-            if (is_request) server_id_be = kSentinelOpt54;
+            if (is_selecting) server_id_be = kFaultSentinelOpt54Be;
             break;
         case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
             // §4.7.6.8 REQUEST_02: wrong Option 50 requested-IP echo.
-            if (is_request) requested_addr_be = kSentinelOpt50;
+            if (is_selecting) requested_addr_be = kFaultSentinelOpt50Be;
             break;
         case Dhcpv4ClientFlavor::ReacqRequestIncludeServerId:
             // §4.7.6.8 REQUEST_06/_09: RENEWING/REBINDING REQUEST MUST NOT
             // carry Option 54 (RFC 2131 §4.3.6 table 5). Force-include it
             // (server_id_be was 0 -> opt54 omitted on the conformant path).
-            if (is_reacq) server_id_be = kSentinelOpt54;
+            if (is_reacq) server_id_be = kFaultSentinelOpt54Be;
             break;
         case Dhcpv4ClientFlavor::ReacqRequestIncludeRequestedIp:
             // §4.7.6.8 REQUEST_07/_10: reacquisition REQUEST MUST NOT carry
             // Option 50. Force-include it.
-            if (is_reacq) requested_addr_be = kSentinelOpt50;
+            if (is_reacq) requested_addr_be = kFaultSentinelOpt50Be;
             break;
         case Dhcpv4ClientFlavor::ReacqRequestCiaddrWrong:
             // §4.7.6.8 REQUEST_08/_11: reacquisition ciaddr MUST equal the
             // bound IP; write a wrong address.
-            if (is_reacq) ciaddr_be = kSentinelCiaddr;
+            if (is_reacq) ciaddr_be = kFaultSentinelCiaddrBe;
             break;
         case Dhcpv4ClientFlavor::RenewingRequestDstWrong:
             // §4.7.6.7 CM_02 / §4.7.6.8 REACQUISITION_01: the RENEWING
             // REQUEST MUST be unicast to the server-id; send it elsewhere.
-            if (is_renewing) l3_dst_be = kSentinelRenDst;
+            if (is_renewing) l3_dst_be = kFaultSentinelRenewingDstBe;
             break;
     }
 
@@ -501,10 +524,11 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
 
 void Dhcpv4Client::emitDhcpDiscover(std::uint32_t xid_be) {
     emitDhcpMessage(DhcpEmitSpec{
+        /*phase=*/            DhcpPhase::Discover,
         /*msg_type=*/         kDhcpDiscover,
         /*xid_be=*/           xid_be,
         /*l3_src_be=*/        0x00000000U,
-        /*l3_dst_be=*/        0xFFFFFFFFU,
+        /*l3_dst_be=*/        kLimitedBroadcastBe,
         /*ciaddr_be=*/        0U,
         /*requested_addr_be=*/0U,
         /*server_id_be=*/     0U,
@@ -518,10 +542,11 @@ void Dhcpv4Client::emitDhcpRequest(std::uint32_t xid_be,
     // (the client has not yet bound the offered address). Option 50
     // carries the requested IP; Option 54 echoes the chosen server.
     emitDhcpMessage(DhcpEmitSpec{
+        /*phase=*/            DhcpPhase::Selecting,
         /*msg_type=*/         kDhcpRequest,
         /*xid_be=*/           xid_be,
         /*l3_src_be=*/        0x00000000U,
-        /*l3_dst_be=*/        0xFFFFFFFFU,
+        /*l3_dst_be=*/        kLimitedBroadcastBe,
         /*ciaddr_be=*/        0U,
         /*requested_addr_be=*/requested_addr_be,
         /*server_id_be=*/     server_id_be,
@@ -536,6 +561,7 @@ void Dhcpv4Client::emitDhcpRequestRenewing(std::uint32_t xid_be,
     // Encoded by the spec's `requested_addr_be` / `server_id_be` zero
     // sentinels which suppress those options inside `emitDhcpMessage`.
     emitDhcpMessage(DhcpEmitSpec{
+        /*phase=*/            DhcpPhase::Renewing,
         /*msg_type=*/         kDhcpRequest,
         /*xid_be=*/           xid_be,
         /*l3_src_be=*/        client_addr_be,
@@ -551,10 +577,11 @@ void Dhcpv4Client::emitDhcpRequestRebinding(std::uint32_t xid_be,
     // RFC 2131 §4.4.5 REBINDING: broadcast variant of the RENEWING
     // REQUEST after the unicast attempt fails. Same option constraints.
     emitDhcpMessage(DhcpEmitSpec{
+        /*phase=*/            DhcpPhase::Rebinding,
         /*msg_type=*/         kDhcpRequest,
         /*xid_be=*/           xid_be,
         /*l3_src_be=*/        client_addr_be,
-        /*l3_dst_be=*/        0xFFFFFFFFU,
+        /*l3_dst_be=*/        kLimitedBroadcastBe,
         /*ciaddr_be=*/        client_addr_be,
         /*requested_addr_be=*/0U,
         /*server_id_be=*/     0U,
@@ -569,10 +596,11 @@ void Dhcpv4Client::emitDhcpDecline(std::uint32_t xid_be,
     // declined IP carried in Option 50 + the originating server in
     // Option 54.
     emitDhcpMessage(DhcpEmitSpec{
+        /*phase=*/            DhcpPhase::Decline,
         /*msg_type=*/         kDhcpDecline,
         /*xid_be=*/           xid_be,
         /*l3_src_be=*/        0x00000000U,
-        /*l3_dst_be=*/        0xFFFFFFFFU,
+        /*l3_dst_be=*/        kLimitedBroadcastBe,
         /*ciaddr_be=*/        0U,
         /*requested_addr_be=*/declined_addr_be,
         /*server_id_be=*/     server_id_be,
@@ -878,8 +906,9 @@ bool Dhcpv4Client::pollForReply(int                        sk,
 
 void Dhcpv4Client::runLoop(Params params) {
     // §4.7 Phase F: latch the emit-side fault selector before any emit so
-    // emitDhcpMessage applies the DISCOVER field mutation. None (every
-    // positive case) leaves the wire shape conformant.
+    // emitDhcpMessage applies the phase-gated field mutation (DISCOVER /
+    // SELECTING / reacquisition REQUEST). None (every positive case) leaves
+    // the wire shape conformant.
     flavor_ = params.flavor;
 
     std::random_device rd;
