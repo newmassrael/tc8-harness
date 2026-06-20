@@ -53,6 +53,7 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     ReacqRequestIncludeRequestedIp = ::tc8::ut::kDhcpFlavorReacqRequestIncludeRequestedIp,
     ReacqRequestCiaddrWrong        = ::tc8::ut::kDhcpFlavorReacqRequestCiaddrWrong,
     RenewingRequestDstWrong        = ::tc8::ut::kDhcpFlavorRenewingRequestDstWrong,
+    RebindingDstUnicast            = ::tc8::ut::kDhcpFlavorRebindingDstUnicast,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

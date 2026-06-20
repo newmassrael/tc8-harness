@@ -893,6 +893,12 @@ inline constexpr std::uint8_t kDhcpFlavorReacqRequestCiaddrWrong        = 0x0F;
 // Mutant sends it to a wrong destination. (§4.7.6.7 CM_02 / §4.7.6.8
 // REACQUISITION_01)
 inline constexpr std::uint8_t kDhcpFlavorRenewingRequestDstWrong        = 0x10;
+// RFC 2131 §4.4.5: the REBINDING REQUEST MUST be broadcast. Mutant
+// unicasts it to a sentinel distinct from both the broadcast and the
+// server-id, so the harness can tell a unicast REBINDING apart from a
+// RENEWING retransmission (which is unicast to the server). (§4.7.6.8
+// REQUEST_12)
+inline constexpr std::uint8_t kDhcpFlavorRebindingDstUnicast            = 0x11;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

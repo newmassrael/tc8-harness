@@ -2107,15 +2107,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_REQUEST_12": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rebinding_request_dst_not_broadcast",
-          "property": "DUT's REBINDING DHCPREQUEST must be broadcast (RFC 2131 §4.3.2); fail iff not broadcast. Phase F deferred: a non-broadcast REBINDING is wire-indistinguishable from a RENEWING retransmit (same ciaddr / no Option 50,54 / msg_type=REQUEST); the rebinding template's state-3->4 gate uses dst_ip_is_broadcast() to separate them, so a unicast REBINDING cannot be observed without a sentinel-dst disambiguator."
-        }
-      ]
-    },
     "DHCPv4_CLIENT_SUMMARY_01": {
       "guards": [
         {

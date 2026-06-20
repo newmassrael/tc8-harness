@@ -72,6 +72,9 @@ constexpr std::uint32_t kFaultSentinelOpt50Be =
 constexpr std::uint32_t kFaultSentinelOpt54Be =
     static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
     (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(54) << 24);  // 192.0.2.54
+constexpr std::uint32_t kFaultSentinelRebindingDstBe =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(12) << 24);  // 192.0.2.12
 
 // §4.7.6.5 PARAMETERS_04 / RFC 2132 §9.8: clients MAY include Option 55
 // (Parameter Request List) in DISCOVER, and MUST repeat the same list in
@@ -383,6 +386,13 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
             // §4.7.6.7 CM_02 / §4.7.6.8 REACQUISITION_01: the RENEWING
             // REQUEST MUST be unicast to the server-id; send it elsewhere.
             if (is_renewing) l3_dst_be = kFaultSentinelRenewingDstBe;
+            break;
+        case Dhcpv4ClientFlavor::RebindingDstUnicast:
+            // §4.7.6.8 REQUEST_12: the REBINDING REQUEST MUST be broadcast;
+            // unicast it to a sentinel distinct from both the broadcast and
+            // the server-id (so the _neg can tell it from a RENEWING retx).
+            if (spec.phase == DhcpPhase::Rebinding)
+                l3_dst_be = kFaultSentinelRebindingDstBe;
             break;
     }
 
