@@ -117,10 +117,15 @@ SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 # produced. Firmware families (tc8-dut / vsomeip app) take a _neg flavor case (the
 # realised ipv4_autoconf pattern); kernel-stack families run against the Linux
 # reference, which cannot be made to misbehave -- faultable only on the lwIP DUT,
-# else structural with the reference stack as oracle. Longest-prefix wins
-# (IPV4_AUTOCONF before IPV4).
-FIRMWARE_FAMILIES = ("IPV4_AUTOCONF", "DHCPV4", "SOMEIP_ETS", "SOMEIPSRV", "ARP")
-KERNEL_FAMILIES = ("ICMPV4", "TCP", "UDP", "IPV4")
+# else structural with the reference stack as oracle. ARP is a kernel-stack family:
+# the §4.2 ARP_xx guards observe frames the DUT's Linux neighbour layer emits
+# (OpTriggerSendUdp provokes a cache-miss resolution; the kernel auto-replies for
+# the DUT IP) -- tc8-dut builds no §4.2 ARP frame, so there is no flavor to inject.
+# The only firmware ARP lives inside the link-local and DHCP-DAD flows, which are
+# the IPV4_AUTOCONF / DHCPV4 families; §4.2 ARP is faultable only on the lwIP etharp
+# stack. Longest-prefix wins (IPV4_AUTOCONF before IPV4).
+FIRMWARE_FAMILIES = ("IPV4_AUTOCONF", "DHCPV4", "SOMEIP_ETS", "SOMEIPSRV")
+KERNEL_FAMILIES = ("ICMPV4", "TCP", "UDP", "IPV4", "ARP")
 
 
 def case_family(case_id: str) -> str:

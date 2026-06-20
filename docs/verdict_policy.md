@@ -254,19 +254,26 @@ misbehaviour can be *produced* — which depends on **who implements the protoco
 and (b) the guard has a *reachable `fail`*. A `liveness` guard (Section 6, the
 `liveness` row) maps absence to `inconclusive`, so it has no `fail` to drive and is
 **never** promotable to `FAULT_INJECTION` on *any* DUT — it stays terminal in
-`REGISTRY` by policy. The registry `class` is the SSOT for (b); `--phase-f` computes
-the live split.
+`REGISTRY` by policy. The registry `class` is the SSOT for (b); the family→DUT
+mapping (a) lives in `negative_coverage_audit.py`
+(`FIRMWARE_FAMILIES`/`KERNEL_FAMILIES`), which the table below only mirrors;
+`--phase-f` computes the live split and is authoritative.
 
 | DUT | protocols | faultable (`prohibited`/`incorrect`) | excluded from the target |
 |-----|-----------|--------------------------------------|--------------------------|
-| **tc8-dut firmware / vsomeip app** | ARP, IPv4 link-local, DHCPv4 client, SOME/IP (ETS + Server) | a `_neg` drives a firmware flavor onto the `fail` (the realised `ipv4_autoconf` pattern) — **the primary ratchet** | its `liveness` guards (no reachable `fail`) |
-| **Linux kernel stack** | TCP, IPv4, ICMPv4, UDP | faultable only on the **lwIP DUT** (firmware stack) | against Linux the reference stack *is* the oracle; `liveness` likewise |
+| **tc8-dut firmware / vsomeip app** | IPv4 link-local, DHCPv4 client, SOME/IP (ETS + Server) | a `_neg` drives a firmware flavor onto the `fail` (the realised `ipv4_autoconf` pattern) — **the primary ratchet** | its `liveness` guards (no reachable `fail`) |
+| **Linux kernel stack** | TCP, IPv4, ICMPv4, UDP, ARP (§4.2) | faultable only on the **lwIP DUT** (firmware stack) | against Linux the reference stack *is* the oracle; `liveness` likewise |
 
 So the firmware ratchet targets the **faultable** (`prohibited` + `incorrect`)
 guards, **not** every firmware guard: the `liveness` subset has no reachable `fail`
 on any DUT, and counting it would set an unreachable goal. The kernel-stack guards
 are faultable only on the lwIP track; against Linux they remain structural with the
-reference stack as conformance oracle. Both exclusions are honest boundaries, not
+reference stack as conformance oracle. **§4.2 ARP** sits in this kernel-stack row,
+not with the firmware families: the DUT emits no §4.2 ARP frame itself —
+`OpTriggerSendUdp` provokes a cache-miss the Linux neighbour layer resolves, and the
+kernel auto-replies for the DUT IP, so there is no tc8-dut flavor to inject. The
+firmware ARP the DUT *does* build belongs to the link-local and DHCP-DAD flows,
+counted under those families. Both exclusions are honest boundaries, not
 gaps to paper over — `--phase-f` reports the live faultable target, its backlog, and
 the excluded `liveness` and kernel buckets.
 
