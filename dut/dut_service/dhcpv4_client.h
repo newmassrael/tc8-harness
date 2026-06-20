@@ -37,6 +37,14 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     DiscoverDstUnicast         = ::tc8::ut::kDhcpFlavorDiscoverDstUnicast,
     DiscoverDropEnd            = ::tc8::ut::kDhcpFlavorDiscoverDropEnd,
     DiscoverSrcNonzero         = ::tc8::ut::kDhcpFlavorDiscoverSrcNonzero,
+    // §4.7 SELECTING DHCPREQUEST field-shape mutants — gated to the
+    // post-OFFER REQUEST (msg_type=3) in emitDhcpMessage so the preceding
+    // DISCOVER stays conformant and the OFFER lifecycle still completes.
+    RequestSrcNonzero          = ::tc8::ut::kDhcpFlavorRequestSrcNonzero,
+    RequestDstUnicast          = ::tc8::ut::kDhcpFlavorRequestDstUnicast,
+    RequestCiaddrNonzero       = ::tc8::ut::kDhcpFlavorRequestCiaddrNonzero,
+    RequestServerIdCorrupt     = ::tc8::ut::kDhcpFlavorRequestServerIdCorrupt,
+    RequestRequestedIpCorrupt  = ::tc8::ut::kDhcpFlavorRequestRequestedIpCorrupt,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

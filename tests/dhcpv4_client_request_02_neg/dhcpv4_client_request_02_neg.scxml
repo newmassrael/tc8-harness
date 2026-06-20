@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REQUEST_02 negative — closes the
+  self-reference trap on the positive _02 case (DHCPREQUEST MUST advertise
+  the offered IP via Option 50 matching the OFFER yiaddr, RFC 2131
+  §4.3.2). The positive's option50-mismatch branch is unreachable against
+  a conformant tc8-dut.
+
+  Fault injection is a real firmware mutant: the stimulus drives the DHCP
+  client with the kDhcpFlavorRequestRequestedIpCorrupt flavor (gated to
+  the post-OFFER REQUEST). tc8-dut writes a wrong Option 50 value
+  (192.0.2.50) in the REQUEST. A conformant client (flavor None) echoes
+  the offered IP, so this negative's fail_compliant branch is the live
+  conformant-DUT outcome.
+
+  Reuses the dhcpv4_request_field template with pass_expr inverted
+  (pass = Option 50 mismatch observed).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_request_02_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
+           pass_expr="!captured.option_be32_equals(50, expected.offered_ip_be)"
+           fail_state="fail_compliant"
+           fail_reason="dut_dhcp_request_echoed_offered_ip_despite_opt50_corrupt_flavor"/>
+</scxml>

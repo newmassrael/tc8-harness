@@ -2568,6 +2568,14 @@
         {
           "file": "tests/dhcpv4_client_allocating_01_neg/dhcpv4_client_allocating_01_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_allocating_03_neg/dhcpv4_client_allocating_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_allocating_05_neg/dhcpv4_client_allocating_05_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -2772,6 +2780,10 @@
         {
           "file": "tests/dhcpv4_client_constructing_messages_03_neg/dhcpv4_client_constructing_messages_03_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_04_neg/dhcpv4_client_constructing_messages_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -2889,6 +2901,22 @@
         },
         {
           "file": "tests/dhcpv4_client_request_12/dhcpv4_client_request_12.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/dhcpv4_client.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_01_neg/dhcpv4_client_request_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_request_02_neg/dhcpv4_client_request_02_neg.scxml",
           "kind": "implements"
         }
       ]

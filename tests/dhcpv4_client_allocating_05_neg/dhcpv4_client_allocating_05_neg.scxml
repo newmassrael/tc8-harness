@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_05 negative — closes the
+  self-reference trap on the positive _05 case (the SELECTING DHCPREQUEST
+  destination IP MUST be the limited broadcast 255.255.255.255, RFC 2131
+  §3.1). The positive's dst-not-broadcast branch is unreachable against a
+  conformant tc8-dut.
+
+  Fault injection is a real firmware mutant: the stimulus drives the DHCP
+  client with the kDhcpFlavorRequestDstUnicast flavor (gated to the
+  post-OFFER REQUEST). tc8-dut unicasts the REQUEST to 192.0.2.1. A
+  conformant client (flavor None) broadcasts, so this negative's
+  fail_compliant branch is the live conformant-DUT outcome.
+
+  Reuses the dhcpv4_request_field template with pass_expr inverted
+  (pass = unicast destination observed).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_allocating_05_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
+           pass_expr="!captured.dst_ip_is_broadcast()"
+           fail_state="fail_compliant"
+           fail_reason="dut_dhcp_request_dst_broadcast_despite_unicast_flavor"/>
+</scxml>

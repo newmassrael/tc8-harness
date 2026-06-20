@@ -1868,30 +1868,12 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_ALLOCATING_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_server_id_mismatch_offer",
-          "property": "DUT's selecting DHCPREQUEST Option 54 (Server Identifier) must echo the chosen OFFER's server id; fail iff it mismatches"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_ALLOCATING_04": {
       "guards": [
         {
           "class": "incorrect_emission",
           "fail_reason": "dut_dhcp_request_secs_mismatch_discover",
           "property": "DUT's DHCPREQUEST secs field must match the preceding DHCPDISCOVER's secs; fail iff it differs"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_ALLOCATING_05": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_dst_ip_not_broadcast",
-          "property": "DUT's selecting DHCPREQUEST must be sent to the limited broadcast address (RFC 2131 §3.1); fail iff a non-broadcast destination"
         }
       ]
     },
@@ -1933,15 +1915,6 @@
           "class": "incorrect_emission",
           "fail_reason": "dut_renewing_request_dst_not_server_id",
           "property": "DUT's RENEWING DHCPREQUEST must be unicast to the server identifier (RFC 2131 §4.3.6); fail iff the destination is not the server id"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_src_ip_not_zero",
-          "property": "DUT's selecting DHCPREQUEST source IP must be 0.0.0.0 (RFC 2131 §4.1); fail iff non-zero"
         }
       ]
     },
@@ -2149,24 +2122,6 @@
         {
           "class": "liveness",
           "property": "DUT must move to INIT and restart network initialization if the lease expires before a DHCPACK (RFC 2131 §4.4.5); binary present/absent"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REQUEST_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_ciaddr_not_zero",
-          "property": "DUT's selecting DHCPREQUEST ciaddr must be 0.0.0.0 (RFC 2131 §4.3.2); fail iff non-zero"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REQUEST_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_option50_mismatch_offer_yiaddr",
-          "property": "DUT's selecting DHCPREQUEST Option 50 (Requested IP) must echo the OFFER's yiaddr (RFC 2131 §4.3.2); fail iff it mismatches"
         }
       ]
     },

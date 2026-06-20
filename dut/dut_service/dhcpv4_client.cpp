@@ -292,10 +292,17 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     // LeakLinkLocalAfterBind flavor leave the wire shape conformant.
     std::uint32_t l3_src_be       = spec.l3_src_be;
     std::uint32_t l3_dst_be       = spec.l3_dst_be;
+    std::uint32_t ciaddr_be       = spec.ciaddr_be;
     bool corrupt_magic_cookie     = false;
     bool omit_message_type_option = false;
     bool set_reserved_flag_bit    = false;
     bool drop_end_option          = false;
+    bool corrupt_opt50_value      = false;
+    bool corrupt_opt54_value      = false;
+    // §4.7 SELECTING REQUEST mutants gate on msg_type so the preceding
+    // DISCOVER stays conformant (the harness OFFER matches it on xid +
+    // chaddr and the lifecycle reaches the REQUEST under test).
+    const bool is_request = (spec.msg_type == kDhcpRequest);
     switch (flavor_) {
         case Dhcpv4ClientFlavor::None:
         case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
@@ -320,6 +327,27 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
             break;
         case Dhcpv4ClientFlavor::DiscoverDropEnd:
             drop_end_option = true;
+            break;
+        case Dhcpv4ClientFlavor::RequestSrcNonzero:
+            // §4.7.6.7 CM_04: non-zero source on the SELECTING REQUEST.
+            if (is_request) l3_src_be = 192U | (0U << 8) | (2U << 16) | (2U << 24);
+            break;
+        case Dhcpv4ClientFlavor::RequestDstUnicast:
+            // §4.7.6.3 ALLOCATING_05: unicast the SELECTING REQUEST.
+            if (is_request) l3_dst_be = 192U | (0U << 8) | (2U << 16) | (1U << 24);
+            break;
+        case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
+            // §4.7.6.8 REQUEST_01: fill ciaddr with the requested address
+            // (RFC 2131 §4.3.2 mandates ciaddr=0 in REQUESTING state).
+            if (is_request) ciaddr_be = spec.requested_addr_be;
+            break;
+        case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
+            // §4.7.6.3 ALLOCATING_03: wrong Option 54 server-id echo.
+            if (is_request) corrupt_opt54_value = true;
+            break;
+        case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
+            // §4.7.6.8 REQUEST_02: wrong Option 50 requested-IP echo.
+            if (is_request) corrupt_opt50_value = true;
             break;
     }
 
@@ -355,7 +383,7 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     // ciaddr per RFC 2131 §4.3.2 (zero in SELECTING) / §4.4.5 (filled
     // with bound IP in RENEWING/REBINDING). Other BOOTP address fields
     // (yiaddr/siaddr/giaddr) stay zero.
-    std::memcpy(bp + 12, &spec.ciaddr_be, 4);
+    std::memcpy(bp + 12, &ciaddr_be, 4);
     std::memcpy(bp + 28, dut_mac_.data(), 6);
     if (set_reserved_flag_bit) {
         // §4.7.6.1 SUMMARY_04: set 'flags' reserved bit 1 (the BROADCAST
@@ -393,17 +421,27 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     }
 
     if (include_opt50) {
-        // Option 50 (Requested IP Address)
+        // Option 50 (Requested IP Address). §4.7.6.8 REQUEST_02 fault:
+        // write 192.0.2.50 (RFC 5737 TEST-NET-1) instead of the offered
+        // IP so option_be32_equals(50, offered_ip) fails.
+        const std::uint32_t opt50_be = corrupt_opt50_value
+            ? (192U | (0U << 8) | (2U << 16) | (50U << 24))
+            : spec.requested_addr_be;
         opts[i++] = 50;
         opts[i++] = 4;
-        std::memcpy(opts + i, &spec.requested_addr_be, 4);
+        std::memcpy(opts + i, &opt50_be, 4);
         i += 4;
     }
     if (include_opt54) {
-        // Option 54 (Server Identifier)
+        // Option 54 (Server Identifier). §4.7.6.3 ALLOCATING_03 fault:
+        // write 192.0.2.54 instead of the OFFER's server-id so
+        // option_be32_equals(54, server_id) fails.
+        const std::uint32_t opt54_be = corrupt_opt54_value
+            ? (192U | (0U << 8) | (2U << 16) | (54U << 24))
+            : spec.server_id_be;
         opts[i++] = 54;
         opts[i++] = 4;
-        std::memcpy(opts + i, &spec.server_id_be, 4);
+        std::memcpy(opts + i, &opt54_be, 4);
         i += 4;
     }
 

@@ -850,6 +850,29 @@ inline constexpr std::uint8_t kDhcpFlavorDiscoverDropEnd            = 0x06;
 // sources it from a non-zero IP. (§4.7.6.7 CONSTRUCTING_MESSAGES_03)
 inline constexpr std::uint8_t kDhcpFlavorDiscoverSrcNonzero         = 0x07;
 
+// §4.7 SELECTING DHCPREQUEST field-shape mutants (Phase F). Like the
+// Discover* family but gated to the post-OFFER DHCPREQUEST so the
+// preceding DHCPDISCOVER stays conformant (the harness OFFER still
+// matches it and the lifecycle reaches REQUEST). Each makes the
+// emitted REQUEST violate one §4.7 invariant; the conformant client
+// (None) satisfies them all.
+//
+// RFC 2131 §4.1: the REQUEST source IP is 0 in REQUESTING state.
+// Mutant sources it from a non-zero IP. (§4.7.6.7 CM_04)
+inline constexpr std::uint8_t kDhcpFlavorRequestSrcNonzero          = 0x08;
+// RFC 2131 §3.1: the SELECTING REQUEST is broadcast. Mutant unicasts
+// it. (§4.7.6.3 ALLOCATING_05)
+inline constexpr std::uint8_t kDhcpFlavorRequestDstUnicast          = 0x09;
+// RFC 2131 §4.3.2: the REQUEST 'ciaddr' is 0 in REQUESTING state.
+// Mutant fills it with the requested address. (§4.7.6.8 REQUEST_01)
+inline constexpr std::uint8_t kDhcpFlavorRequestCiaddrNonzero       = 0x0A;
+// RFC 2131 §3.1: the REQUEST echoes the OFFER's server-id in Option 54.
+// Mutant writes a wrong server-id. (§4.7.6.3 ALLOCATING_03)
+inline constexpr std::uint8_t kDhcpFlavorRequestServerIdCorrupt     = 0x0B;
+// RFC 2131 §4.3.2: the REQUEST carries the offered IP in Option 50.
+// Mutant writes a wrong requested IP. (§4.7.6.8 REQUEST_02)
+inline constexpr std::uint8_t kDhcpFlavorRequestRequestedIpCorrupt  = 0x0C;
+
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:
