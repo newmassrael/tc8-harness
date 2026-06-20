@@ -49,6 +49,8 @@ sibling) and NEG_ROW integrity (no STALE row whose reason is not a final).
 Default (no args): print the census. --check: enforce the invariants (gates
 build-test.yml + pre-commit). --write-ledger: regenerate the exhaustiveness ledger
 from the current UNDISPOSED set (bootstrap / after a batch of dispositions).
+--write-floor: record the current FAULT_INJECTION count as the Phase F high-water
+mark (raise-only; run after a _neg lands).
 """
 
 from __future__ import annotations
@@ -78,6 +80,7 @@ LEDGER = HERE / "negative_coverage_undisposed.txt"
 REGISTRY = HERE / "conformant_absence_registry.json"
 DEFERRED = HERE / "deferred_negatives.json"
 FAULT_COVERAGE = HERE / "fault_injection_coverage.json"
+FLOOR_LEDGER = HERE / "fault_injection_floor.txt"
 
 # A `_neg` case-name suffix: `_neg` for a single-guard case, or `_neg<n>`
 # (`_neg2`, `_neg3`, ...) for one of several fault-injection variants of a
@@ -105,10 +108,10 @@ SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 
 # Phase F (docs/verdict_policy.md Section 6.1): the empirical-verification ratchet.
 # Coverage (undisposed -> 0) is reached; the live metric is now empirical proof.
-# FAULT_INJECTION proofs only ever grow -- --check floors the count so a _neg case
-# can never silently regress. The REGISTRY set is the work-list (--phase-f). Bump
-# the floor when new _neg cases land.
-FAULT_INJECTION_FLOOR = 50
+# FAULT_INJECTION proofs only ever grow. The high-water mark is committed to
+# FLOOR_LEDGER (a one-line file, not a hand-edited constant) and loaded by
+# load_floor(); --check pins the live count to it exactly, and --write-floor
+# records a new peak (raise-only). The REGISTRY set is the work-list (--phase-f).
 
 # A REGISTRY guard is empirically faultable only where the misbehaviour can be
 # produced. Firmware families (tc8-dut / vsomeip app) take a _neg flavor case (the
@@ -243,6 +246,31 @@ def load_fault_coverage() -> dict[str, dict[str, str]]:
         return {}
     data = json.loads(FAULT_COVERAGE.read_text(encoding="utf-8"))
     return data.get("cases", {})
+
+
+def load_floor() -> int:
+    """The committed Phase F FAULT_INJECTION high-water mark (0 if FLOOR_LEDGER is
+    absent). One non-comment line holding the integer peak."""
+    if not FLOOR_LEDGER.is_file():
+        return 0
+    for line in FLOOR_LEDGER.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            return int(line)
+    return 0
+
+
+def floor_ledger_text(high_water: int) -> str:
+    return (
+        "# Phase F empirical-verification high-water mark (docs/verdict_policy.md\n"
+        "# Section 6.1): the peak count of FAULT_INJECTION-disposed positive cases\n"
+        "# committed so far. negative_coverage_audit.py --check fails if the live\n"
+        "# count drops below this (a _neg was lost -- fix it) OR rises above it (a\n"
+        "# _neg landed -- run `--write-floor` to record the new peak and commit).\n"
+        "# Monotonic: --write-floor only ever raises it, so a regression cannot be\n"
+        "# masked by re-running it.\n"
+        f"{high_water}\n"
+    )
 
 
 def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[str]:
@@ -630,12 +658,21 @@ def cross_findings(m: Model) -> list[str]:
     findings.extend(check_class_structure(m.registry))
     findings.extend(validate_fault_coverage(m))
 
-    # Phase F empirical-verification ratchet: FAULT_INJECTION proofs only grow.
+    # Phase F empirical-verification ratchet: the live FAULT_INJECTION count is
+    # pinned to the committed high-water mark. Below it = a _neg was lost (fix the
+    # code); above it = a _neg landed but the peak was not recorded (run
+    # --write-floor). Either way --check is red until ledger and count agree.
     fault_inj = sum(1 for d in m.disposition.values() if d == "FAULT_INJECTION")
-    if fault_inj < FAULT_INJECTION_FLOOR:
+    high_water = load_floor()
+    if fault_inj < high_water:
         findings.append(
-            f"PHASE_F_REGRESSION: FAULT_INJECTION {fault_inj} < floor "
-            f"{FAULT_INJECTION_FLOOR}; a _neg case was lost (or bump the floor)"
+            f"PHASE_F_REGRESSION: FAULT_INJECTION {fault_inj} < high-water "
+            f"{high_water}; a _neg case was lost (fix it, do NOT lower the ledger)"
+        )
+    elif fault_inj > high_water:
+        findings.append(
+            f"PHASE_F_FLOOR_BEHIND: FAULT_INJECTION {fault_inj} > high-water "
+            f"{high_water}; a _neg landed -- run --write-floor and commit the ledger"
         )
     return findings
 
@@ -677,7 +714,7 @@ def phase_f_report(m: Model) -> int:
     pct = 100.0 * len(fault) / target if target else 100.0
     print("Phase F -- empirical verification (docs/verdict_policy.md Section 6.1)")
     print("=" * 68)
-    print(f"  verified (FAULT_INJECTION, floor {FAULT_INJECTION_FLOOR}): {len(fault)}")
+    print(f"  verified (FAULT_INJECTION, high-water {load_floor()}): {len(fault)}")
     print(f"  firmware faultable target: {len(fault)}/{target} proven ({pct:.0f}%)")
     print("  -- firmware faultable REGISTRY backlog (the work-list) --")
     for fam, n in by_family(fw_fault):
@@ -697,6 +734,7 @@ def main() -> int:
     )
     ap.add_argument("--check", action="store_true", help="enforce the invariants (gate CI/pre-commit)")
     ap.add_argument("--write-ledger", action="store_true", help="regenerate the exhaustiveness ledger from the current UNDISPOSED set")
+    ap.add_argument("--write-floor", action="store_true", help="record the current FAULT_INJECTION count as the Phase F high-water mark (raise-only)")
     ap.add_argument("--phase-f", action="store_true", help="print the empirical-verification (fault-injection) work-list")
     args = ap.parse_args()
 
@@ -709,6 +747,19 @@ def main() -> int:
     if args.write_ledger:
         LEDGER.write_text(ledger_text(undisposed), encoding="utf-8")
         print(f"wrote {LEDGER.relative_to(REPO)} ({len(undisposed)} undisposed)")
+        return 0
+
+    if args.write_floor:
+        fault_inj = sum(1 for d in m.disposition.values() if d == "FAULT_INJECTION")
+        high_water = load_floor()
+        if fault_inj < high_water:
+            print(
+                f"refusing to lower the high-water {high_water} -> {fault_inj}: a "
+                f"FAULT_INJECTION drop is a regression to fix, not to record"
+            )
+            return 1
+        FLOOR_LEDGER.write_text(floor_ledger_text(fault_inj), encoding="utf-8")
+        print(f"wrote {FLOOR_LEDGER.relative_to(REPO)} (high-water {fault_inj})")
         return 0
 
     ledger = load_ledger()

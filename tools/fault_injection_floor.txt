@@ -1,0 +1,8 @@
+# Phase F empirical-verification high-water mark (docs/verdict_policy.md
+# Section 6.1): the peak count of FAULT_INJECTION-disposed positive cases
+# committed so far. negative_coverage_audit.py --check fails if the live
+# count drops below this (a _neg was lost -- fix it) OR rises above it (a
+# _neg landed -- run `--write-floor` to record the new peak and commit).
+# Monotonic: --write-floor only ever raises it, so a regression cannot be
+# masked by re-running it.
+50
