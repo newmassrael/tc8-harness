@@ -204,16 +204,22 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
             iface_index = p[23];
         }
         // §4.5.6.1 / §4.7.6.9 Phase F DHCP-client fault-injection slot. The
-        // single flavor byte selects EITHER a DHCP-message / behavioural
-        // mutant (Dhcpv4ClientFlavor) OR an ARP-frame mutant (Dhcpv4ArpFlavor)
-        // — route by value so each firmware emit builder switches over only
-        // its own domain. Unknown bytes leave both at None (compliant), so a
-        // zero-padded legacy request can never inject a fault.
+        // single flavor byte selects EXACTLY ONE of: an ARP-frame field mutant
+        // (Dhcpv4ArpFlavor), a behavioural mutant (Dhcpv4BehaviorFlavor:
+        // post-BOUND leak / reply-acceptance bypass), or a DHCP-message field
+        // mutant (Dhcpv4ClientFlavor) — route by value so each firmware
+        // dispatch site switches over only its own domain. Unknown bytes leave
+        // all three at None (compliant), so a zero-padded legacy request can
+        // never inject a fault.
         if (n >= 25) {
             const std::uint8_t fb = p[24];
             if (fb == ut::kDhcpFlavorProbeSenderIpNonzero ||
                 fb == ut::kDhcpFlavorAnnounceSenderIpWrong) {
                 params.arp_flavor = static_cast<Dhcpv4ArpFlavor>(fb);
+            } else if (fb == ut::kDhcpFlavorLeakLinkLocalAfterBind ||
+                       fb == ut::kDhcpFlavorAcceptMismatchedXidOffer ||
+                       fb == ut::kDhcpFlavorProceedOnLoneAck) {
+                params.behavior_flavor = static_cast<Dhcpv4BehaviorFlavor>(fb);
             } else {
                 params.flavor = static_cast<Dhcpv4ClientFlavor>(fb);
             }

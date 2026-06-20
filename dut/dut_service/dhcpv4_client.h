@@ -12,20 +12,19 @@
 
 namespace tc8::dut {
 
-// Fault-injection flavor for the DHCP client lifecycle, mapped 1:1 onto
-// the §4.5.6.1 / §4.7 negative-case invariants. Each enumerator's wire
-// byte is **derived** from the single source of truth
-// `tc8::ut::kDhcpFlavor*` (the protocol header the harness and this
-// firmware both consume), so a renumber in the header flows here at
-// compile time. Default (`None`) runs the fully-compliant lifecycle — a
-// caller that omits the flavor slot falls through to the conformant
-// path, which is what the §4.7 positive cases need (and what makes the
-// negative cases' compliant-silence branch a live conformant outcome).
+// §4.7 DHCP-message field-shape mutant selector for the DHCP client. Each
+// enumerator corrupts exactly one DUT-emitted DHCP-message field and is
+// applied in emitDhcpMessage (switch-no-default, -Werror=switch). Its wire
+// byte is **derived** from the single source of truth `tc8::ut::kDhcpFlavor*`
+// (the protocol header the harness and this firmware both consume), so a
+// renumber in the header flows here at compile time. Default (`None`) emits
+// the fully-compliant message — what the §4.7 positive cases need, and what
+// makes the negative cases' compliant branch a live conformant outcome.
+// Behavioural mutants (the post-BOUND link-local leak, the pollForReply
+// input-validation bypasses) live in Dhcpv4BehaviorFlavor below, not here —
+// emitDhcpMessage would otherwise carry them as no-op passive breaks.
 enum class Dhcpv4ClientFlavor : std::uint8_t {
     None                  = ::tc8::ut::kDhcpFlavorNone,
-    // RFC 3927 §1.9: emit one prohibited 169.254/16 ARP Probe after the
-    // lease binds. §4.5.6.1 INTRO_01_NEG drives this.
-    LeakLinkLocalAfterBind = ::tc8::ut::kDhcpFlavorLeakLinkLocalAfterBind,
     // §4.7 DHCPDISCOVER field-shape mutants — each corrupts exactly one
     // DUT-emitted field so the matching §4.7 positive case's
     // field-violation branch becomes reachable. Applied in
@@ -74,26 +73,38 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     DiscoverCiaddrNonzero          = ::tc8::ut::kDhcpFlavorDiscoverCiaddrNonzero,
     DiscoverChaddrMismatch         = ::tc8::ut::kDhcpFlavorDiscoverChaddrMismatch,
     RequestOmitMessageType         = ::tc8::ut::kDhcpFlavorRequestOmitMessageType,
-    // §4.7 SELECTING-phase input-validation mutants — behavioural (not
-    // emit-field): each relaxes one pollForReply acceptance gate so the
-    // client wrongly proceeds to DHCPREQUEST on a reply RFC 2131 §4.4.1
-    // requires it to silently discard. emitDhcpMessage emits conformantly.
-    AcceptMismatchedXidOffer       = ::tc8::ut::kDhcpFlavorAcceptMismatchedXidOffer,
-    ProceedOnLoneAck               = ::tc8::ut::kDhcpFlavorProceedOnLoneAck,
 };
 
 // §4.7.6.9 INIT_ALLOC_08/_10 ARP-frame field mutants. Split out from
-// Dhcpv4ClientFlavor (which carries the DHCP-message mutations + the
-// post-BOUND link-local leak) so emitArpProbe / emitArpAnnounce do their
-// switch-no-default over ONLY the ARP-emit domain instead of enumerating
-// every DHCP-message flavor as a passive break. Same single
-// OpStartDhcpClient flavor byte (kDhcpFlavor* is the wire SSOT); the UT
-// server routes the byte to this enum or Dhcpv4ClientFlavor by value, so a
-// run carries a mutant in exactly one of the two.
+// Dhcpv4ClientFlavor (DHCP-message field mutations) so emitArpProbe /
+// emitArpAnnounce do their switch-no-default over ONLY the ARP-emit domain
+// instead of enumerating every DHCP-message flavor as a passive break.
 enum class Dhcpv4ArpFlavor : std::uint8_t {
     None                  = ::tc8::ut::kDhcpFlavorNone,
     ProbeSenderIpNonzero  = ::tc8::ut::kDhcpFlavorProbeSenderIpNonzero,
     AnnounceSenderIpWrong = ::tc8::ut::kDhcpFlavorAnnounceSenderIpWrong,
+};
+
+// §4.5.6.1 / §4.7 BEHAVIOURAL mutants — these change the client's runtime
+// behaviour (post-BOUND emit, reply acceptance) rather than the shape of a
+// single emitted message, so they are dispatched in runLoop / pollForReply,
+// NOT in emitDhcpMessage. Kept in their own enum (the Dhcpv4ArpFlavor split
+// rationale, applied to the behavioural axis) so each behavioural dispatch
+// site switches over this small domain under -Werror=switch — a new
+// behavioural flavor forgotten at a dispatch site then fails to compile
+// instead of silently never firing (a vacuous _neg). All three flavor enums
+// share the single OpStartDhcpClient flavor byte (kDhcpFlavor* is the wire
+// SSOT); the UT server routes the byte to exactly one of them by value.
+enum class Dhcpv4BehaviorFlavor : std::uint8_t {
+    None                  = ::tc8::ut::kDhcpFlavorNone,
+    // RFC 3927 §1.9: emit one prohibited 169.254/16 ARP Probe after the
+    // lease binds (runLoop). §4.5.6.1 INTRO_01_NEG drives this.
+    LeakLinkLocalAfterBind = ::tc8::ut::kDhcpFlavorLeakLinkLocalAfterBind,
+    // §4.7.6.9 INIT_ALLOC_04/_05: relax one pollForReply acceptance gate so
+    // the client wrongly proceeds to DHCPREQUEST on a reply RFC 2131 §4.4.1
+    // requires it to silently discard. Scoped to the SELECTING OFFER wait.
+    AcceptMismatchedXidOffer = ::tc8::ut::kDhcpFlavorAcceptMismatchedXidOffer,
+    ProceedOnLoneAck         = ::tc8::ut::kDhcpFlavorProceedOnLoneAck,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.
@@ -201,13 +212,15 @@ public:
         std::chrono::milliseconds retx_jitter_ms{0};
 
         // §4.5.6.1 / §4.7 fault-injection selector. Set only by the
-        // trailing flavor byte of OpStartDhcpClient (param offset 24);
-        // the compliant path leaves it at `None` so positive cases see
-        // no behavioural change. The byte selects EITHER a DHCP-message /
-        // behavioural mutant (`flavor`) OR an ARP-frame mutant (`arp_flavor`)
-        // — the UT server sets exactly one; the other stays None.
-        Dhcpv4ClientFlavor flavor{Dhcpv4ClientFlavor::None};
-        Dhcpv4ArpFlavor    arp_flavor{Dhcpv4ArpFlavor::None};
+        // trailing flavor byte of OpStartDhcpClient (param offset 24); the
+        // compliant path leaves all three at `None` so positive cases see no
+        // behavioural change. The byte selects EXACTLY ONE of: a DHCP-message
+        // field mutant (`flavor`), an ARP-frame field mutant (`arp_flavor`),
+        // or a behavioural mutant (`behavior_flavor`) — the UT server routes
+        // by value; the other two stay None.
+        Dhcpv4ClientFlavor   flavor{Dhcpv4ClientFlavor::None};
+        Dhcpv4ArpFlavor      arp_flavor{Dhcpv4ArpFlavor::None};
+        Dhcpv4BehaviorFlavor behavior_flavor{Dhcpv4BehaviorFlavor::None};
     };
 
     Dhcpv4Client();
@@ -434,16 +447,18 @@ private:
     std::string iface_;
     std::array<std::uint8_t, 6> dut_mac_{};
 
-    // §4.7 Phase F emit-side fault selectors. Copied from `Params` at
-    // runLoop entry. `flavor_` is read by `emitDhcpMessage` (DISCOVER /
-    // SELECTING / reacquisition REQUEST / DECLINE field mutants) and by
-    // `runLoop` (the post-BOUND link-local leak); `arp_flavor_` is read by
-    // `emitArpProbe` / `emitArpAnnounce`. None = conformant. Worker-thread
-    // local: written once before any emit, read on the same thread, so
-    // no synchronisation is needed (unlike `committed_lease_be_`, which
-    // abort() reads from the foreign caller thread).
-    Dhcpv4ClientFlavor flavor_     = Dhcpv4ClientFlavor::None;
-    Dhcpv4ArpFlavor    arp_flavor_ = Dhcpv4ArpFlavor::None;
+    // §4.7 Phase F fault selectors. Copied from `Params` at runLoop entry.
+    // `flavor_` is read by `emitDhcpMessage` (DISCOVER / SELECTING /
+    // reacquisition REQUEST / DECLINE field mutants); `arp_flavor_` by
+    // `emitArpProbe` / `emitArpAnnounce`; `behavior_flavor_` by `runLoop`
+    // (post-BOUND link-local leak) and `pollForReply` (reply-acceptance
+    // bypasses). None = conformant. Worker-thread local: written once before
+    // any emit, read on the same thread, so no synchronisation is needed
+    // (unlike `committed_lease_be_`, which abort() reads from the foreign
+    // caller thread).
+    Dhcpv4ClientFlavor   flavor_          = Dhcpv4ClientFlavor::None;
+    Dhcpv4ArpFlavor      arp_flavor_      = Dhcpv4ArpFlavor::None;
+    Dhcpv4BehaviorFlavor behavior_flavor_ = Dhcpv4BehaviorFlavor::None;
 
     mutable std::mutex lease_mu_;
     std::uint32_t      committed_lease_be_ = 0;

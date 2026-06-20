@@ -101,6 +101,11 @@ constexpr std::uint32_t kFaultRequestXidFlipMask = 0xA5A5A5A5U;
 // conformant list {1, 3, 6, 15} contains, so the REQUEST's list no longer
 // matches the DISCOVER's snapshot (same length, one differing byte).
 constexpr std::uint8_t kFaultSentinelParamRequestByte = 0xFEU;
+// §4.7.6.9 INIT_ALLOC_03: XOR mask applied to the first DHCPDISCOVER chaddr
+// byte. XOR guarantees the byte differs from the real client MAC regardless
+// of its value, so chaddr_matches_dut_mac() fails (parallel to
+// kFaultRequestXidFlipMask).
+constexpr std::uint8_t kFaultChaddrFlipMask = 0xFFU;
 
 // §4.7.6.5 PARAMETERS_04 / RFC 2132 §9.8: clients MAY include Option 55
 // (Parameter Request List) in DISCOVER, and MUST repeat the same list in
@@ -356,11 +361,8 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     const bool is_renewing  = (spec.phase == DhcpPhase::Renewing);
     switch (flavor_) {
         case Dhcpv4ClientFlavor::None:
-        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
-        case Dhcpv4ClientFlavor::AcceptMismatchedXidOffer:
-        case Dhcpv4ClientFlavor::ProceedOnLoneAck:
-            break;  // conformant emit (behavioural flavors act in
-                    // pollForReply / runLoop, not on the emitted wire shape)
+            break;  // conformant emit (behavioural flavors live in
+                    // Dhcpv4BehaviorFlavor, dispatched in pollForReply/runLoop)
         case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
             if (spec.phase == DhcpPhase::Discover) corrupt_magic_cookie = true;
             break;
@@ -545,7 +547,7 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
         // chaddr no longer equals the client MAC (the conformant path wrote
         // dut_mac_). The L2 source MAC stays the real one, so is_dhcp_discover
         // still identifies the frame; only chaddr_matches_dut_mac diverges.
-        bp[28] ^= 0xFF;
+        bp[28] ^= kFaultChaddrFlipMask;
     }
     if (set_reserved_flag_bit) {
         // §4.7.6.1 SUMMARY_04: set 'flags' reserved bit 1 (the BROADCAST
@@ -568,11 +570,12 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
 
     // Option 53 (DHCP Message Type)
     if (omit_message_type_option) {
-        // §4.7.6.2 PROTOCOL_02: emit NO Option 53 — three PAD bytes
-        // occupy the slot so option offsets and the IP/UDP length fields
-        // stay valid; the message simply lacks the mandatory DHCP Message
-        // Type option (the options walk skips PAD and never sets
-        // message_type_option_present).
+        // §4.7.6.2 PROTOCOL_02 (DISCOVER, DiscoverOmitMessageType) and
+        // PROTOCOL_03 (SELECTING REQUEST, RequestOmitMessageType) share this
+        // path: emit NO Option 53 — three PAD bytes occupy the slot so option
+        // offsets and the IP/UDP length fields stay valid; the message simply
+        // lacks the mandatory DHCP Message Type option (the options walk skips
+        // PAD and never sets message_type_option_present).
         opts[i++] = 0x00;
         opts[i++] = 0x00;
         opts[i++] = 0x00;
@@ -917,6 +920,29 @@ bool Dhcpv4Client::pollForReply(int                        sk,
                                  std::uint32_t*             out_router_be) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
 
+    // §4.7.6.9 INIT_ALLOC_04/_05 behavioural fault injection. The mutants
+    // relax exactly one acceptance gate, and ONLY in the SELECTING OFFER wait
+    // (expected_msg_type == 2) — the property under test is "the client
+    // wrongly proceeds from a bad OFFER", so the ACK wait and the BOUND/
+    // reacquisition poll (other expected_msg_type values) stay strict. The
+    // switch-no-default makes a future Dhcpv4BehaviorFlavor declare its
+    // pollForReply disposition here (so it can never silently no-op).
+    bool relax_xid_gate     = false;
+    bool relax_msgtype_gate = false;
+    if (expected_msg_type == 2U) {
+        switch (behavior_flavor_) {
+            case Dhcpv4BehaviorFlavor::AcceptMismatchedXidOffer:
+                relax_xid_gate = true;
+                break;
+            case Dhcpv4BehaviorFlavor::ProceedOnLoneAck:
+                relax_msgtype_gate = true;
+                break;
+            case Dhcpv4BehaviorFlavor::None:
+            case Dhcpv4BehaviorFlavor::LeakLinkLocalAfterBind:
+                break;  // not a reply-acceptance mutant
+        }
+    }
+
     while (!stop_requested_.load()) {
         const auto now = std::chrono::steady_clock::now();
         if (now >= deadline) break;
@@ -946,12 +972,10 @@ bool Dhcpv4Client::pollForReply(int                        sk,
 
         std::uint32_t xid_be = 0;
         std::memcpy(&xid_be, bp + 4, 4);
-        // §4.7.6.9 INIT_ALLOC_04: RFC 2131 §4.4.1 requires discarding a reply
-        // whose xid does not match the most recent DISCOVER. The
-        // AcceptMismatchedXidOffer mutant relaxes this gate so the buggy
-        // client proceeds on a mismatched-xid OFFER.
-        if (xid_be != expected_xid_be &&
-            flavor_ != Dhcpv4ClientFlavor::AcceptMismatchedXidOffer) continue;
+        // RFC 2131 §4.4.1 requires discarding a reply whose xid does not match
+        // the most recent DISCOVER; relax_xid_gate (INIT_ALLOC_04 mutant,
+        // SELECTING OFFER wait only) lets the buggy client accept it.
+        if (xid_be != expected_xid_be && !relax_xid_gate) continue;
 
         if (std::memcmp(bp + 28, dut_mac_.data(), 6) != 0) continue;
 
@@ -969,12 +993,11 @@ bool Dhcpv4Client::pollForReply(int                        sk,
         std::size_t   mt_len   = sizeof(msg_type);
         if (!findDhcpOption(opts, opts_len, 53, &msg_type, &mt_len) ||
             mt_len != 1) continue;
-        // §4.7.6.9 INIT_ALLOC_05: RFC 2131 §4.4.1 requires discarding a stray
-        // DHCPACK arriving before an OFFER is accepted. The ProceedOnLoneAck
-        // mutant relaxes the message-type gate so the buggy client accepts a
-        // lone ACK in the SELECTING OFFER wait and proceeds to DHCPREQUEST.
+        // RFC 2131 §4.4.1 requires discarding a stray DHCPACK arriving before
+        // an OFFER is accepted; relax_msgtype_gate (INIT_ALLOC_05 mutant,
+        // SELECTING OFFER wait only) lets the buggy client accept the lone ACK.
         if (expected_msg_type != 0U && msg_type != expected_msg_type &&
-            flavor_ != Dhcpv4ClientFlavor::ProceedOnLoneAck) continue;
+            !relax_msgtype_gate) continue;
 
         // yiaddr from BOOTP body (offsets 16..19).
         std::uint32_t yiaddr_be = 0;
@@ -1049,13 +1072,15 @@ bool Dhcpv4Client::pollForReply(int                        sk,
 }
 
 void Dhcpv4Client::runLoop(Params params) {
-    // §4.7 Phase F: latch the emit-side fault selector before any emit so
-    // emitDhcpMessage applies the phase-gated field mutation (DISCOVER /
-    // SELECTING / reacquisition REQUEST). None (every positive case) leaves
-    // the wire shape conformant. `arp_flavor_` is the ARP-emit counterpart
-    // read by emitArpProbe / emitArpAnnounce.
+    // §4.7 Phase F: latch the fault selectors before any emit/poll. `flavor_`
+    // drives emitDhcpMessage's phase-gated field mutation (DISCOVER /
+    // SELECTING / reacquisition REQUEST); `arp_flavor_` drives emitArpProbe /
+    // emitArpAnnounce; `behavior_flavor_` drives the post-BOUND link-local
+    // leak below and pollForReply's reply-acceptance bypasses. None (every
+    // positive case) leaves both the wire shape and the behaviour conformant.
     flavor_ = params.flavor;
     arp_flavor_ = params.arp_flavor;
+    behavior_flavor_ = params.behavior_flavor;
 
     std::random_device rd;
     std::mt19937 rng(rd());
@@ -1183,7 +1208,7 @@ void Dhcpv4Client::runLoop(Params params) {
         // positive case) stays silent — the leak is a real firmware
         // code path, not a harness-injected frame.
         if (bound &&
-            params.flavor == Dhcpv4ClientFlavor::LeakLinkLocalAfterBind &&
+            behavior_flavor_ == Dhcpv4BehaviorFlavor::LeakLinkLocalAfterBind &&
             !stop_requested_.load()) {
             // 169.254.13.37 — a valid RFC 3927 link-local address (third
             // octet in [1,254]); wire bytes A9 FE 0D 25. is_arp_probe()
