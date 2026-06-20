@@ -247,6 +247,25 @@ struct Dhcpv4Captured : CapturedFrameTiming, CapturedL3Endpoints,
         return false;
     }
 
+    // Snapshot-aware mismatch complements, used as the `_neg` (INIT_ALLOC_06 /
+    // ALLOCATING_04 / PARAMETERS_04) pass predicates. The naive negation
+    // `!X_matches_discover()` is also true when the DISCOVER snapshot was never
+    // armed (matches_discover() returns false on a missing snapshot), which
+    // would let a `_neg` pass WITHOUT the firmware mutant firing (a false
+    // green). These require `discover_snapshot_taken`, so a missing snapshot
+    // fails closed (the template routes a false pass predicate to
+    // fail_compliant, redding the gate) rather than silently passing.
+    bool xid_mismatches_discover() const noexcept {
+        return discover_snapshot_taken && xid != discover_xid;
+    }
+    bool secs_mismatches_discover() const noexcept {
+        return discover_snapshot_taken && secs != discover_secs;
+    }
+    bool option_param_request_list_mismatches_discover() const noexcept {
+        return discover_snapshot_taken &&
+               !option_param_request_list_matches_discover();
+    }
+
     // State-entry observer hook. Invoked when the SM transitions into
     // listening_for_request — copies the DISCOVER field surface (just
     // populated by `fillDhcpv4CapturedFromFrame` on the DISCOVER-driven

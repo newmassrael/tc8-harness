@@ -30,7 +30,7 @@
        datamodel="null"
        initial="listening_for_discover">
   <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
-           pass_expr="!captured.option_param_request_list_matches_discover()"
+           pass_expr="captured.option_param_request_list_mismatches_discover()"
            fail_state="fail_compliant"
            fail_reason="dut_dhcp_request_echoed_discover_param_list_despite_param_list_mismatch_flavor"/>
 </scxml>
