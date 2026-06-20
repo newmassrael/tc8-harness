@@ -1868,15 +1868,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_ALLOCATING_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_dst_ip_not_broadcast",
-          "property": "DUT's DHCPDISCOVER must be sent to the limited broadcast address (RFC 2131 §3.1); fail iff a non-broadcast destination"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_ALLOCATING_03": {
       "guards": [
         {
@@ -1936,30 +1927,12 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_last_option_not_end",
-          "property": "DUT's DHCPDISCOVER option block must terminate with the End option (255, RFC 2132); fail iff the last option is not End"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02": {
       "guards": [
         {
           "class": "incorrect_emission",
           "fail_reason": "dut_renewing_request_dst_not_server_id",
           "property": "DUT's RENEWING DHCPREQUEST must be unicast to the server identifier (RFC 2131 §4.3.6); fail iff the destination is not the server id"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_source_ip_not_zero",
-          "property": "DUT's DHCPDISCOVER source IP must be 0.0.0.0 (RFC 2131 §4.1); fail iff non-zero"
         }
       ]
     },
@@ -2096,24 +2069,6 @@
           "class": "incorrect_emission",
           "fail_reason": "dut_dhcp_request_option55_mismatch_discover",
           "property": "DUT's DHCPREQUEST Option 55 (Parameter Request List) must match its DHCPDISCOVER's (RFC 2131 §4.4.1); fail iff it differs"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_PROTOCOL_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_missing_magic_cookie",
-          "property": "DUT's DHCPDISCOVER must carry the BOOTP magic cookie (RFC 2131 §3); fail iff absent or invalid"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_PROTOCOL_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_missing_message_type_option",
-          "property": "DUT's DHCPDISCOVER must carry the DHCP Message Type option (RFC 2131 §3); fail iff absent"
         }
       ]
     },
@@ -2300,15 +2255,6 @@
         {
           "class": "liveness",
           "property": "DUT must accept DHCP messages with an options field of at least 312 octets (576-octet total) (RFC 2131 §2); binary present/absent"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_SUMMARY_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_reserved_flags_nonzero",
-          "property": "DUT's DHCPDISCOVER reserved flags bits must be zero (RFC 2131 §4.1); fail iff any reserved flag is set"
         }
       ]
     },

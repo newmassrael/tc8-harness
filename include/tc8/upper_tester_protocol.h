@@ -819,6 +819,37 @@ inline constexpr std::uint8_t kDhcpFlavorNone                     = 0x00;
 // live conformant-DUT outcome, not an infra-only dead branch.
 inline constexpr std::uint8_t kDhcpFlavorLeakLinkLocalAfterBind   = 0x01;
 
+// §4.7 DHCPDISCOVER field-shape mutants (Phase F). Each value makes the
+// Dhcpv4Client emit one deliberately non-conformant field on its
+// DUT-emitted messages so the matching §4.7 positive case's
+// otherwise-dead field-violation branch becomes reachable, proving the
+// guard catches a buggy client (mutation testing). Conformant emit
+// (None) satisfies every invariant, so each negative's fail_compliant_*
+// branch is a live conformant-DUT outcome, not an infra-only dead path.
+// RFC clauses cited per value; see dut/dut_service/dhcpv4_client.cpp
+// emitDhcpMessage for the wire-level mutation.
+//
+// RFC 2131 §3 / RFC 1497: the first four 'options' octets MUST be the
+// magic cookie 99,130,83,99. Mutant corrupts the first cookie byte.
+// (§4.7.6.2 PROTOCOL_01)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverMagicCookieCorrupt = 0x02;
+// RFC 2131 §3: every DHCP message MUST carry Option 53 (DHCP Message
+// Type). Mutant replaces the Option 53 TLV with PAD bytes.
+// (§4.7.6.2 PROTOCOL_02)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverOmitMessageType    = 0x03;
+// RFC 2131 §2: the reserved bits of the 'flags' field MUST be zero.
+// Mutant sets a reserved bit. (§4.7.6.1 SUMMARY_04)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverReservedFlagsSet   = 0x04;
+// RFC 2131 §3.1: the client broadcasts DHCPDISCOVER — IPv4 destination
+// MUST be 255.255.255.255. Mutant unicasts it. (§4.7.6.3 ALLOCATING_01)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverDstUnicast         = 0x05;
+// RFC 2131 §4.1: the last option MUST be the END option (0xFF). Mutant
+// replaces END with a PAD byte. (§4.7.6.7 CONSTRUCTING_MESSAGES_01)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverDropEnd            = 0x06;
+// RFC 2131 §4.1: a pre-binding DHCPDISCOVER has IP source = 0. Mutant
+// sources it from a non-zero IP. (§4.7.6.7 CONSTRUCTING_MESSAGES_03)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverSrcNonzero         = 0x07;
+
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:

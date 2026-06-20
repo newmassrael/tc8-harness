@@ -2308,6 +2308,10 @@
         {
           "file": "dut/dut_service/dut_main.cpp",
           "kind": "references"
+        },
+        {
+          "file": "dut/dut_service/dhcpv4_client.cpp",
+          "kind": "implements"
         }
       ]
     },
@@ -2428,6 +2432,14 @@
         {
           "file": "tests/dhcpv4_client_summary_04/dhcpv4_client_summary_04.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/dhcpv4_client.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_summary_04_neg/dhcpv4_client_summary_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -2449,6 +2461,22 @@
         },
         {
           "file": "tests/dhcpv4_client_protocol_03/dhcpv4_client_protocol_03.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/dhcpv4_client.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_protocol_01_neg/dhcpv4_client_protocol_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_protocol_02_neg/dhcpv4_client_protocol_02_neg.scxml",
           "kind": "implements"
         }
       ]
@@ -2531,6 +2559,14 @@
         },
         {
           "file": "tests/dhcpv4_client_allocating_10/dhcpv4_client_allocating_10.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_allocating_01_neg/dhcpv4_client_allocating_01_neg.scxml",
           "kind": "implements"
         }
       ]
@@ -2723,6 +2759,18 @@
         },
         {
           "file": "dut/dut_service/posix_ut_extensions.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_01_neg/dhcpv4_client_constructing_messages_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_03_neg/dhcpv4_client_constructing_messages_03_neg.scxml",
           "kind": "implements"
         }
       ]

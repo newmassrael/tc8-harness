@@ -26,6 +26,17 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     // RFC 3927 §1.9: emit one prohibited 169.254/16 ARP Probe after the
     // lease binds. §4.5.6.1 INTRO_01_NEG drives this.
     LeakLinkLocalAfterBind = ::tc8::ut::kDhcpFlavorLeakLinkLocalAfterBind,
+    // §4.7 DHCPDISCOVER field-shape mutants — each corrupts exactly one
+    // DUT-emitted field so the matching §4.7 positive case's
+    // field-violation branch becomes reachable. Applied in
+    // emitDhcpMessage (switch-no-default). See kDhcpFlavor* for the RFC
+    // clause each violates.
+    DiscoverMagicCookieCorrupt = ::tc8::ut::kDhcpFlavorDiscoverMagicCookieCorrupt,
+    DiscoverOmitMessageType    = ::tc8::ut::kDhcpFlavorDiscoverOmitMessageType,
+    DiscoverReservedFlagsSet   = ::tc8::ut::kDhcpFlavorDiscoverReservedFlagsSet,
+    DiscoverDstUnicast         = ::tc8::ut::kDhcpFlavorDiscoverDstUnicast,
+    DiscoverDropEnd            = ::tc8::ut::kDhcpFlavorDiscoverDropEnd,
+    DiscoverSrcNonzero         = ::tc8::ut::kDhcpFlavorDiscoverSrcNonzero,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.
@@ -346,6 +357,14 @@ private:
 
     std::string iface_;
     std::array<std::uint8_t, 6> dut_mac_{};
+
+    // §4.7 Phase F emit-side fault selector. Copied from `Params::flavor`
+    // at runLoop entry and read by `emitDhcpMessage` to apply a
+    // DISCOVER field-shape mutation (None = conformant). Worker-thread
+    // local: written once before any emit, read on the same thread, so
+    // no synchronisation is needed (unlike `committed_lease_be_`, which
+    // abort() reads from the foreign caller thread).
+    Dhcpv4ClientFlavor flavor_ = Dhcpv4ClientFlavor::None;
 
     mutable std::mutex lease_mu_;
     std::uint32_t      committed_lease_be_ = 0;

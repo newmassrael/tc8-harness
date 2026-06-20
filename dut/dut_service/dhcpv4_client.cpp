@@ -284,6 +284,45 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
         return;
     }
 
+    // §4.7 Phase F DISCOVER field-shape fault injection. Each flavor
+    // mutates exactly one DUT-emitted field so the matching §4.7 _neg
+    // case's guard (dead against a conformant client) becomes reachable.
+    // switch-no-default: -Werror=switch forces every future flavor to
+    // declare its emit-side disposition here. None and the post-BOUND
+    // LeakLinkLocalAfterBind flavor leave the wire shape conformant.
+    std::uint32_t l3_src_be       = spec.l3_src_be;
+    std::uint32_t l3_dst_be       = spec.l3_dst_be;
+    bool corrupt_magic_cookie     = false;
+    bool omit_message_type_option = false;
+    bool set_reserved_flag_bit    = false;
+    bool drop_end_option          = false;
+    switch (flavor_) {
+        case Dhcpv4ClientFlavor::None:
+        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
+            break;  // conformant emit (leak acts post-BOUND, not here)
+        case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
+            corrupt_magic_cookie = true;
+            break;
+        case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
+            omit_message_type_option = true;
+            break;
+        case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
+            set_reserved_flag_bit = true;
+            break;
+        case Dhcpv4ClientFlavor::DiscoverDstUnicast:
+            // 192.0.2.1 — RFC 5737 TEST-NET-1 documentation address;
+            // visibly not the limited broadcast. Wire bytes C0 00 02 01.
+            l3_dst_be = 192U | (0U << 8) | (2U << 16) | (1U << 24);
+            break;
+        case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
+            // 192.0.2.2 — RFC 5737 TEST-NET-1; a non-zero pre-bind src.
+            l3_src_be = 192U | (0U << 8) | (2U << 16) | (2U << 24);
+            break;
+        case Dhcpv4ClientFlavor::DiscoverDropEnd:
+            drop_end_option = true;
+            break;
+    }
+
     std::memcpy(f + 0, kEthBroadcast.data(), 6);
     std::memcpy(f + 6, dut_mac_.data(), 6);
     writeBe16(f + 12, kEthTypeIp4);
@@ -297,8 +336,8 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     ip[8] = 64;
     ip[9] = 0x11;
     writeBe16(ip + 10, 0);
-    std::memcpy(ip + 12, &spec.l3_src_be, 4);
-    std::memcpy(ip + 16, &spec.l3_dst_be, 4);
+    std::memcpy(ip + 12, &l3_src_be, 4);
+    std::memcpy(ip + 16, &l3_dst_be, 4);
     writeBe16(ip + 10, inetChecksum(ip, 20));
 
     std::uint8_t* udp = ip + 20;
@@ -318,18 +357,40 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     // (yiaddr/siaddr/giaddr) stay zero.
     std::memcpy(bp + 12, &spec.ciaddr_be, 4);
     std::memcpy(bp + 28, dut_mac_.data(), 6);
+    if (set_reserved_flag_bit) {
+        // §4.7.6.1 SUMMARY_04: set 'flags' reserved bit 1 (the BROADCAST
+        // flag is bit 0; bits 1..15 MUST be zero per RFC 2131 §2).
+        // bp[10]/bp[11] are zero by buffer init on the conformant path.
+        bp[11] = 0x02;
+    }
     bp[236] = 0x63;
     bp[237] = 0x82;
     bp[238] = 0x53;
     bp[239] = 0x63;
+    if (corrupt_magic_cookie) {
+        // §4.7.6.2 PROTOCOL_01: zero the first cookie byte so the
+        // captured frame's magic_cookie_valid predicate is false.
+        bp[236] = 0x00;
+    }
 
     std::uint8_t* opts = bp + 240;
     std::size_t i = 0;
 
     // Option 53 (DHCP Message Type)
-    opts[i++] = 53;
-    opts[i++] = 1;
-    opts[i++] = spec.msg_type;
+    if (omit_message_type_option) {
+        // §4.7.6.2 PROTOCOL_02: emit NO Option 53 — three PAD bytes
+        // occupy the slot so option offsets and the IP/UDP length fields
+        // stay valid; the message simply lacks the mandatory DHCP Message
+        // Type option (the options walk skips PAD and never sets
+        // message_type_option_present).
+        opts[i++] = 0x00;
+        opts[i++] = 0x00;
+        opts[i++] = 0x00;
+    } else {
+        opts[i++] = 53;
+        opts[i++] = 1;
+        opts[i++] = spec.msg_type;
+    }
 
     if (include_opt50) {
         // Option 50 (Requested IP Address)
@@ -355,9 +416,12 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
                 kParameterRequestList.size());
     i += kParameterRequestList.size();
 
-    opts[i++] = 0xFF;  // END
+    // §4.7.6.7 CONSTRUCTING_MESSAGES_01: under DropEnd the END (0xFF) is
+    // replaced by a PAD (0x00) so the options walk runs off the blob
+    // without seeing END → last_option_is_end is false.
+    opts[i++] = drop_end_option ? 0x00 : 0xFF;  // END (PAD if mutated)
 
-    writeBe16(udp + 6, udpChecksum(spec.l3_src_be, spec.l3_dst_be, udp, udp_len));
+    writeBe16(udp + 6, udpChecksum(l3_src_be, l3_dst_be, udp, udp_len));
     sendRaw(f, frame_len);
 }
 
@@ -739,6 +803,11 @@ bool Dhcpv4Client::pollForReply(int                        sk,
 }
 
 void Dhcpv4Client::runLoop(Params params) {
+    // §4.7 Phase F: latch the emit-side fault selector before any emit so
+    // emitDhcpMessage applies the DISCOVER field mutation. None (every
+    // positive case) leaves the wire shape conformant.
+    flavor_ = params.flavor;
+
     std::random_device rd;
     std::mt19937 rng(rd());
     std::uniform_int_distribution<std::uint32_t> xid_dist(1, 0xFFFFFFFFU);
