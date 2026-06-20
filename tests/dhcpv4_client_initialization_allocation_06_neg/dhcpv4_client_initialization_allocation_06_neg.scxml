@@ -33,5 +33,6 @@
   <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
            pass_expr="captured.xid_mismatches_discover()"
            fail_state="fail_compliant"
-           fail_reason="dut_dhcp_request_echoed_discover_xid_despite_xid_mismatch_flavor"/>
+           fail_reason="dut_dhcp_request_echoed_discover_xid_despite_xid_mismatch_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

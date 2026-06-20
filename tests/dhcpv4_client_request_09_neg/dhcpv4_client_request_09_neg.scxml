@@ -27,5 +27,6 @@
   <sce:use template="../_templates/dhcpv4_rebinding_request_field.sce-template.xml"
            pass_expr="!captured.option_absent(54)"
            fail_state="fail_compliant"
-           fail_reason="dut_rebinding_request_omitted_server_id_despite_include_flavor"/>
+           fail_reason="dut_rebinding_request_omitted_server_id_despite_include_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

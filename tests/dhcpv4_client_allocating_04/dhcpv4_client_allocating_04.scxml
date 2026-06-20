@@ -24,5 +24,6 @@
   <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
            pass_expr="captured.secs_matches_discover()"
            fail_state="fail_request_secs_mismatch"
-           fail_reason="dut_dhcp_request_secs_mismatch_discover"/>
+           fail_reason="dut_dhcp_request_secs_mismatch_discover"
+           fail_role="observed_violation"/>
 </scxml>

@@ -30,5 +30,6 @@
   <sce:use template="../_templates/dhcpv4_rebinding_request_field.sce-template.xml"
            pass_expr="captured.ack_to_request_within_us(4250000, 6250000)"
            fail_state="fail_rebinding_request_t2_out_of_bounds"
-           fail_reason="dut_rebinding_request_t2_interval_out_of_bounds"/>
+           fail_reason="dut_rebinding_request_t2_interval_out_of_bounds"
+           fail_role="observed_violation"/>
 </scxml>

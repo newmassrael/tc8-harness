@@ -24,5 +24,6 @@
   <sce:use template="../_templates/dhcpv4_discover_field.sce-template.xml"
            pass_expr="!captured.ends_with_end_option()"
            fail_state="fail_compliant"
-           fail_reason="dut_dhcp_discover_ended_with_end_option_despite_drop_end_flavor"/>
+           fail_reason="dut_dhcp_discover_ended_with_end_option_despite_drop_end_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

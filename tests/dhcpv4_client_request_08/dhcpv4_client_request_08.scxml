@@ -30,5 +30,6 @@
   <sce:use template="../_templates/dhcpv4_renewing_request_field.sce-template.xml"
            pass_expr="captured.ciaddr_equals(expected.offered_ip_be)"
            fail_state="fail_renewing_request_ciaddr_mismatch"
-           fail_reason="dut_renewing_request_ciaddr_mismatch"/>
+           fail_reason="dut_renewing_request_ciaddr_mismatch"
+           fail_role="observed_violation"/>
 </scxml>

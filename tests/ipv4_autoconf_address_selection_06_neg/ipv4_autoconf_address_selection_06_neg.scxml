@@ -19,5 +19,6 @@
   <sce:use template="../_templates/ipv4_linklocal_probe_field.sce-template.xml"
            pass_expr="captured.sender_proto_ip != 0"
            fail_state="fail_compliant_emit"
-           fail_reason="dut_emitted_compliant_probe_despite_sender_ip_nonzero_flavor"/>
+           fail_reason="dut_emitted_compliant_probe_despite_sender_ip_nonzero_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

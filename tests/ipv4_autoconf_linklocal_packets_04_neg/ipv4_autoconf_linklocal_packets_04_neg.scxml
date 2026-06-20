@@ -82,7 +82,7 @@
 
   <final id="fail_compliant_silence">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_stayed_silent_despite_reply_to_arbitrary_target_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_stayed_silent_despite_reply_to_arbitrary_target_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </scxml>

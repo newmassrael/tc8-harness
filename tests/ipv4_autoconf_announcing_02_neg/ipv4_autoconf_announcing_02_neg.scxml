@@ -21,5 +21,6 @@
   <sce:use template="../_templates/ipv4_linklocal_announce_field.sce-template.xml"
            pass_expr="!(captured.sender_proto_ip == captured.target_proto_ip and captured.target_proto_ip_in_link_local_prefix())"
            fail_state="fail_compliant_emit"
-           fail_reason="dut_emitted_compliant_announce_despite_sender_target_mismatch_flavor"/>
+           fail_reason="dut_emitted_compliant_announce_despite_sender_target_mismatch_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

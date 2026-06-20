@@ -24,5 +24,6 @@
   <sce:use template="../_templates/dhcpv4_discover_field.sce-template.xml"
            pass_expr="!captured.flags_reserved_bits_zero()"
            fail_state="fail_compliant"
-           fail_reason="dut_dhcp_discover_reserved_flags_zero_despite_reserved_flag_flavor"/>
+           fail_reason="dut_dhcp_discover_reserved_flags_zero_despite_reserved_flag_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

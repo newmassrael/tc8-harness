@@ -24,5 +24,6 @@
   <sce:use template="../_templates/dhcpv4_discover_field.sce-template.xml"
            pass_expr="!captured.source_ip_is_zero()"
            fail_state="fail_compliant"
-           fail_reason="dut_dhcp_discover_source_ip_zero_despite_src_nonzero_flavor"/>
+           fail_reason="dut_dhcp_discover_source_ip_zero_despite_src_nonzero_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

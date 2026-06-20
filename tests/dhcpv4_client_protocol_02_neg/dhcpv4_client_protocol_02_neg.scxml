@@ -59,7 +59,7 @@
 
   <final id="fail_compliant">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_discover_carried_message_type_option_despite_omit_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_carried_message_type_option_despite_omit_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 

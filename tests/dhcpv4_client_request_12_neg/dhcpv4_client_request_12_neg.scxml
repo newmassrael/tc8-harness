@@ -115,7 +115,7 @@
 
   <final id="fail_compliant">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_rebinding_request_broadcast_despite_dst_unicast_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_rebinding_request_broadcast_despite_dst_unicast_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </scxml>

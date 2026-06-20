@@ -23,5 +23,6 @@
   <sce:use template="../_templates/dhcpv4_init_alloc_arp_probe.sce-template.xml"
            pass_expr="!captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
            fail_state="fail_compliant"
-           fail_reason="dut_arp_probe_carried_zero_sender_ip_despite_nonzero_flavor"/>
+           fail_reason="dut_arp_probe_carried_zero_sender_ip_despite_nonzero_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

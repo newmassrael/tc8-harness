@@ -24,5 +24,6 @@
   <sce:use template="../_templates/dhcpv4_init_alloc_decline.sce-template.xml"
            pass_expr="captured.dhcpv4.option_be32_equals(50, expected.dhcpv4.offered_ip_be)"
            fail_state="fail_decline_wrong_requested_ip"
-           fail_reason="dut_dhcp_decline_option50_mismatch"/>
+           fail_reason="dut_dhcp_decline_option50_mismatch"
+           fail_role="observed_violation"/>
 </scxml>

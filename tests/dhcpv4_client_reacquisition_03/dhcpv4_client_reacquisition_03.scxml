@@ -31,5 +31,6 @@
   <sce:use template="../_templates/dhcpv4_renewing_request_field.sce-template.xml"
            pass_expr="captured.ack_to_request_within_us(2000000, 4000000)"
            fail_state="fail_renewing_request_t1_out_of_bounds"
-           fail_reason="dut_renewing_request_t1_interval_out_of_bounds"/>
+           fail_reason="dut_renewing_request_t1_interval_out_of_bounds"
+           fail_role="observed_violation"/>
 </scxml>

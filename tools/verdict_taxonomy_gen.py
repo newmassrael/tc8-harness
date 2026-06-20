@@ -5,12 +5,13 @@
 # role -> verdict class (docs/verdict_policy.md). The class is a pure
 # function of the role; the audit enforces donedata class == ROLE_POLICY[role].
 ROLE_POLICY = {
-    "conformant":          "pass",
-    "conformant_absence":  "pass",
-    "observed_violation":  "fail",
-    "precondition_unmet":  "inconclusive",
-    "property_unobserved": "inconclusive",
-    "test_system_fault":   "error",
+    "conformant":            "pass",
+    "conformant_absence":    "pass",
+    "observed_violation":    "fail",
+    "fault_injection_inert": "fail",
+    "precondition_unmet":    "inconclusive",
+    "property_unobserved":   "inconclusive",
+    "test_system_fault":     "error",
 }
 
 # The classes a donedata verdict may carry (the runtime-only

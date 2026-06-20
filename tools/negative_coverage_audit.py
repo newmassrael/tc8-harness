@@ -85,6 +85,14 @@ FAULT_COVERAGE = HERE / "fault_injection_coverage.json"
 # and to derive the positive base a `_neg<n>` validates.
 _NEG_RE = re.compile(r"_neg\d*$")
 
+# The role every `_neg` fail final MUST carry. A `_neg` lands on `fail` only when
+# the conformant DUT did NOT change behaviour under the injected fault — the fault
+# was inert, a test-suite (fault-wiring) regression, NOT a DUT conformance
+# violation. `observed_violation` would mislabel that as an IUT defect; the audit
+# pins the honest role so a re-tagged or new `_neg` cannot silently regress it
+# (docs/verdict_policy.md Section 6.1; verdict_taxonomy.def).
+NEG_FAIL_ROLE = "fault_injection_inert"
+
 # One `NEG_ROWS` entry: "CASE_ID|wrong_token|<class>:<reason>".
 _ROW_RE = re.compile(r'"([^"|]+)\|([^"|]*)\|([a-z_]+):([^"]+)"')
 
@@ -168,6 +176,20 @@ def fail_reasons_of(case: str) -> set[str]:
     if rc is None:
         return set()
     return {reason for reason, classes in rc.items() if "fail" in classes}
+
+
+def fail_final_roles(case: str) -> dict[str, str]:
+    """fail-final id (lowercased) -> declared role, for a case's .scxml
+    (template-resolved exactly as codegen substitutes). Empty if no .scxml. Used
+    to pin the role of `_neg` fail finals to NEG_FAIL_ROLE."""
+    scxml = TESTS_DIR / case / f"{case}.scxml"
+    if not scxml.is_file():
+        return {}
+    return {
+        fid: role
+        for fid, (cls, _reason, role) in extract_donedata(scxml).items()
+        if cls == "fail"
+    }
 
 
 def final_classes(case: str) -> set[str]:
@@ -593,6 +615,16 @@ def cross_findings(m: Model) -> list[str]:
         neg_rc = reason_classes(neg)
         if neg_rc is not None and not any("fail" in v for v in neg_rc.values()):
             findings.append(f"NEG_NO_FAIL: {neg} has no fail final; it cannot catch a fault")
+        # A _neg fail is the conformant-DUT branch (the fault was inert), not a DUT
+        # violation: pin its role to NEG_FAIL_ROLE so the honest taxonomy cannot
+        # silently regress to observed_violation.
+        for fid, role in fail_final_roles(neg).items():
+            if role != NEG_FAIL_ROLE:
+                findings.append(
+                    f"NEG_FAIL_ROLE: {neg} fail final '{fid}' role "
+                    f"'{role or '(none)'}' must be '{NEG_FAIL_ROLE}' "
+                    f"(a _neg fail is fault-injection-inert, not a DUT violation)"
+                )
 
     findings.extend(validate_registry(m.registry, m.reg_classes))
     findings.extend(check_class_structure(m.registry))

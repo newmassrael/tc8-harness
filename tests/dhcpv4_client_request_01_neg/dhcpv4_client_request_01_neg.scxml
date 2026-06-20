@@ -26,5 +26,6 @@
   <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
            pass_expr="!captured.ciaddr_is_zero()"
            fail_state="fail_compliant"
-           fail_reason="dut_dhcp_request_ciaddr_zero_despite_ciaddr_nonzero_flavor"/>
+           fail_reason="dut_dhcp_request_ciaddr_zero_despite_ciaddr_nonzero_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

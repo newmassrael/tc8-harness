@@ -24,5 +24,6 @@
   <sce:use template="../_templates/dhcpv4_renewing_request_field.sce-template.xml"
            pass_expr="!captured.dst_ip_equals(expected.server_id_be)"
            fail_state="fail_compliant"
-           fail_reason="dut_renewing_request_unicast_to_server_despite_dst_wrong_flavor"/>
+           fail_reason="dut_renewing_request_unicast_to_server_despite_dst_wrong_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

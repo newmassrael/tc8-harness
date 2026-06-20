@@ -78,7 +78,7 @@
 
   <final id="fail_compliant_emit">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_broadcast_reply_despite_reply_eth_dst_unicast_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_broadcast_reply_despite_reply_eth_dst_unicast_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </scxml>

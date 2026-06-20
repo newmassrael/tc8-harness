@@ -22,5 +22,6 @@
   <sce:use template="../_templates/ipv4_linklocal_announce_field.sce-template.xml"
            pass_expr="!(captured.is_eth_broadcast())"
            fail_state="fail_compliant_emit"
-           fail_reason="dut_emitted_compliant_announce_despite_eth_dst_unicast_flavor"/>
+           fail_reason="dut_emitted_compliant_announce_despite_eth_dst_unicast_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

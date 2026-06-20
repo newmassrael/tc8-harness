@@ -63,7 +63,7 @@
 
   <final id="fail_compliant">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_discover_carried_valid_magic_cookie_despite_corrupt_cookie_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_carried_valid_magic_cookie_despite_corrupt_cookie_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 

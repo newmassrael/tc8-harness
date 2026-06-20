@@ -25,5 +25,6 @@
   <sce:use template="../_templates/ipv4_linklocal_announce_field.sce-template.xml"
            pass_expr="captured.sender_hw == expected.dut_iface_mac"
            fail_state="fail_announce_sender_hw_not_dut_mac"
-           fail_reason="dut_arp_announce_sender_hw_not_dut_iface_mac"/>
+           fail_reason="dut_arp_announce_sender_hw_not_dut_iface_mac"
+           fail_role="observed_violation"/>
 </scxml>

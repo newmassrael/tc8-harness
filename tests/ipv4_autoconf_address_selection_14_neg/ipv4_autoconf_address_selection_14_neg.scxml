@@ -75,7 +75,7 @@
 
   <final id="fail_compliant_fresh_repick">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_re_probed_fresh_despite_stale_cycle_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_re_probed_fresh_despite_stale_cycle_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </scxml>

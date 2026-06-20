@@ -57,7 +57,7 @@
 
   <final id="fail_compliant">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_discover_chaddr_matched_dut_mac_despite_chaddr_mismatch_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_chaddr_matched_dut_mac_despite_chaddr_mismatch_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 

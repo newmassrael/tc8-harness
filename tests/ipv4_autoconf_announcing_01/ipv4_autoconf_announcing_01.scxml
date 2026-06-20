@@ -23,5 +23,6 @@
   <sce:use template="../_templates/ipv4_linklocal_announce_field.sce-template.xml"
            pass_expr="captured.is_eth_broadcast()"
            fail_state="fail_announce_eth_dst_not_broadcast"
-           fail_reason="dut_arp_announce_eth_dst_not_broadcast"/>
+           fail_reason="dut_arp_announce_eth_dst_not_broadcast"
+           fail_role="observed_violation"/>
 </scxml>

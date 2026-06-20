@@ -26,5 +26,6 @@
   <sce:use template="../_templates/dhcpv4_init_alloc_arp_announce.sce-template.xml"
            pass_expr="!captured.arp.is_dhcp_arp_announce(expected.dhcpv4.offered_ip_be)"
            fail_state="fail_compliant"
-           fail_reason="dut_arp_announce_carried_committed_ip_despite_wrong_sender_flavor"/>
+           fail_reason="dut_arp_announce_carried_committed_ip_despite_wrong_sender_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

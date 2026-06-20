@@ -105,7 +105,7 @@
 
   <final id="fail_compliant_silence">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_no_periodic_gratuitous_despite_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_no_periodic_gratuitous_despite_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </scxml>

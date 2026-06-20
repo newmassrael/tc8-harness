@@ -23,5 +23,6 @@
   <sce:use template="../_templates/ipv4_linklocal_probe_field.sce-template.xml"
            pass_expr="captured.sender_hw == expected.dut_iface_mac"
            fail_state="fail_sender_hw_not_dut_iface_mac"
-           fail_reason="arp_probe_sender_hw_mismatch_dut_iface_mac"/>
+           fail_reason="arp_probe_sender_hw_mismatch_dut_iface_mac"
+           fail_role="observed_violation"/>
 </scxml>

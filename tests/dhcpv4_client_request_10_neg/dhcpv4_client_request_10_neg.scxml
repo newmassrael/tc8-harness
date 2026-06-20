@@ -24,5 +24,6 @@
   <sce:use template="../_templates/dhcpv4_rebinding_request_field.sce-template.xml"
            pass_expr="!captured.option_absent(50)"
            fail_state="fail_compliant"
-           fail_reason="dut_rebinding_request_omitted_requested_ip_despite_include_flavor"/>
+           fail_reason="dut_rebinding_request_omitted_requested_ip_despite_include_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

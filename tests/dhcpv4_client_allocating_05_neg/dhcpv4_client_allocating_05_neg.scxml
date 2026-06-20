@@ -25,5 +25,6 @@
   <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
            pass_expr="!captured.dst_ip_is_broadcast()"
            fail_state="fail_compliant"
-           fail_reason="dut_dhcp_request_dst_broadcast_despite_unicast_flavor"/>
+           fail_reason="dut_dhcp_request_dst_broadcast_despite_unicast_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

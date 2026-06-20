@@ -41,6 +41,7 @@
   <sce:param name="pass_expr"   required="true"/>
   <sce:param name="fail_state"  required="true"/>
   <sce:param name="fail_reason" required="true"/>
+  <sce:param name="fail_role"   required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::ArpAndDhcpv4Captured"
@@ -107,7 +108,7 @@
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"{$fail_role}"}</content>
     </donedata>
   </final>
 

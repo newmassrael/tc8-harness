@@ -21,9 +21,17 @@ TC8_VERDICT_CLASS(Inconclusive, "inconclusive", 2)
 TC8_VERDICT_CLASS(Error,        "error",        3)
 TC8_VERDICT_CLASS(Running,      "running",      1)
 
-TC8_VERDICT_ROLE("conformant",          Pass)
-TC8_VERDICT_ROLE("conformant_absence",  Pass)
-TC8_VERDICT_ROLE("observed_violation",  Fail)
-TC8_VERDICT_ROLE("precondition_unmet",  Inconclusive)
-TC8_VERDICT_ROLE("property_unobserved", Inconclusive)
-TC8_VERDICT_ROLE("test_system_fault",   Error)
+// Two roles share the `fail` class but carry distinct meaning.
+// `observed_violation` is an IUT conformance violation — the DUT did the
+// prohibited thing or omitted the required one. `fault_injection_inert` is a
+// `_neg` self-validation landing on its conformant-DUT branch: the injected
+// firmware fault did NOT change the observable behaviour, so the negative
+// caught nothing. That is gate-red (a fault-wiring / test-suite regression)
+// but NOT a DUT defect — see docs/verdict_policy.md Section 6.1.
+TC8_VERDICT_ROLE("conformant",            Pass)
+TC8_VERDICT_ROLE("conformant_absence",    Pass)
+TC8_VERDICT_ROLE("observed_violation",    Fail)
+TC8_VERDICT_ROLE("fault_injection_inert", Fail)
+TC8_VERDICT_ROLE("precondition_unmet",    Inconclusive)
+TC8_VERDICT_ROLE("property_unobserved",   Inconclusive)
+TC8_VERDICT_ROLE("test_system_fault",     Error)

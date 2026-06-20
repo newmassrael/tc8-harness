@@ -97,7 +97,7 @@
 
   <final id="fail_compliant_fresh_post_silence">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_post_silence_fresh_despite_stale_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_post_silence_fresh_despite_stale_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </scxml>

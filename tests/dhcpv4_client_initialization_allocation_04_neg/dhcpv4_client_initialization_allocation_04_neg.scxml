@@ -65,7 +65,7 @@
 
   <final id="fail_compliant_silence">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_silently_discarded_mismatched_xid_offer_despite_accept_flavor","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_silently_discarded_mismatched_xid_offer_despite_accept_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 

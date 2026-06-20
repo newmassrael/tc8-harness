@@ -26,5 +26,6 @@
   <sce:use template="../_templates/ipv4_linklocal_probe_field.sce-template.xml"
            pass_expr="!captured.target_proto_ip_in_valid_ll_range()"
            fail_state="fail_compliant_emit"
-           fail_reason="dut_emitted_compliant_probe_despite_target_in_reserved_range_flavor"/>
+           fail_reason="dut_emitted_compliant_probe_despite_target_in_reserved_range_flavor"
+           fail_role="fault_injection_inert"/>
 </scxml>

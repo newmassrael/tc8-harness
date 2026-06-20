@@ -78,6 +78,7 @@ below by `tools/gen_verdict_taxonomy.py` (CI fails if it drifts):
 | `conformant` | `pass` |
 | `conformant_absence` | `pass` |
 | `observed_violation` | `fail` |
+| `fault_injection_inert` | `fail` |
 | `precondition_unmet` | `inconclusive` |
 | `property_unobserved` | `inconclusive` |
 | `test_system_fault` | `error` |
@@ -86,7 +87,8 @@ below by `tools/gen_verdict_taxonomy.py` (CI fails if it drifts):
 Role meanings:
 - **`conformant`** — required behaviour observed (role optional; `pass` is unambiguous).
 - **`conformant_absence`** — "must NOT occur" assertion held: window elapsed, no prohibited event.
-- **`observed_violation`** — a captured frame/behaviour violates a MUST requirement.
+- **`observed_violation`** — a captured frame/behaviour violates a MUST requirement (the IUT is non-conformant).
+- **`fault_injection_inert`** — a `_neg` self-validation case landed on its conformant-DUT (`fail_compliant*`) branch: the injected firmware fault produced no observable change, so the negative caught nothing. Same `fail` class (gate-red) as `observed_violation` but a distinct meaning — a fault-wiring / test-suite regression, **not** a DUT defect. See Section 6.1.
 - **`precondition_unmet`** — the IUT never reached the testable state: preamble incomplete (no OfferService, no initial ARP probe, no DUT-originated packet, no UT confirmation).
 - **`property_unobserved`** — the IUT reached the testable state (liveness shown), but the targeted frame/reaction was not observed within the window (**includes a mandated reaction that was not seen**).
 - **`test_system_fault`** — the harness could not drive/observe: stimulus send failure, capture/socket failure, SCXML interpreter error, operator interruption.
@@ -274,6 +276,17 @@ empirical proof: the `FAULT_INJECTION` count is floored by
 current **faultable** `REGISTRY` set (`prohibited`/`incorrect`; `liveness` excluded)
 is the work-list (`--phase-f`). Each `_neg` promotes a case `REGISTRY →
 FAULT_INJECTION`.
+
+**The `_neg` fail role.** A `_neg` reaches `pass` when it *observes the violation*
+the injected fault produces, and `fail` (its `fail_compliant*` final) only when the
+conformant DUT showed the correct behaviour **despite** the fault — i.e. the fault
+was inert. That `fail` is gate-red, but it is **not** a DUT conformance violation:
+it signals that the fault wiring (flavor plumbing, predicate, or stimulus) has
+regressed and the negative no longer validates anything. Its role is therefore
+`fault_injection_inert`, **not** `observed_violation` (which is reserved for an
+actual IUT defect on a positive case). `negative_coverage_audit.py` pins every
+`_neg` fail final to `fault_injection_inert` so this honest distinction cannot
+silently regress.
 
 ---
 

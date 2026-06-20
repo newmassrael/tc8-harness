@@ -80,7 +80,7 @@
 
   <final id="fail_compliant_cadence">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_compliant_cadence_despite_100ms_probe_min_max","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"dut_emitted_compliant_cadence_despite_100ms_probe_min_max","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </scxml>
