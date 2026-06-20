@@ -856,6 +856,29 @@ void Dhcpv4Client::runLoop(Params params) {
             break;
         }
 
+        // §4.5.6.1 IPv4_AUTOCONF_INTRO_01 fault-injection (Phase F): a
+        // host with an operable routable lease MUST NOT also assign an
+        // IPv4 Link-Local address (RFC 3927 §1.9 SHOULD NOT). The
+        // LeakLinkLocalAfterBind flavor makes this otherwise-compliant
+        // DHCP client emit one prohibited 169.254/16 ARP Probe right
+        // after BOUND so INTRO_01_NEG can witness the leak. None (every
+        // positive case) stays silent — the leak is a real firmware
+        // code path, not a harness-injected frame.
+        if (bound &&
+            params.flavor == Dhcpv4ClientFlavor::LeakLinkLocalAfterBind &&
+            !stop_requested_.load()) {
+            // 169.254.13.37 — a valid RFC 3927 link-local address (third
+            // octet in [1,254]); wire bytes A9 FE 0D 25. is_arp_probe()
+            // gates target_proto_ip on the 169.254/16 prefix, so only a
+            // link-local-targeted probe trips the INTRO_01 guard.
+            constexpr std::uint32_t kLeakLinkLocalProbeTargetBe =
+                static_cast<std::uint32_t>(169U)         |
+                (static_cast<std::uint32_t>(254U) << 8)  |
+                (static_cast<std::uint32_t>(13U)  << 16) |
+                (static_cast<std::uint32_t>(37U)  << 24);
+            emitArpProbe(kLeakLinkLocalProbeTargetBe);
+        }
+
         // §4.7.6.9 INIT_ALLOC_08/_09/_10 / RFC 2131 §4.4.1: post-BOUND
         // ARP Probe sequence — emit Probe, listen for conflict, then
         // either DECLINE (return to INIT) or Announce (BOUND maintained

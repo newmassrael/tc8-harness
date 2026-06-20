@@ -1460,6 +1460,30 @@
         {
           "file": "tests/ipv4_autoconf_intro_01/ipv4_autoconf_intro_01.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_intro_01_neg/ipv4_autoconf_intro_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/dhcpv4_client.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/dhcpv4_client.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/posix_ut_extensions.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/dhcpv4_pilot_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },

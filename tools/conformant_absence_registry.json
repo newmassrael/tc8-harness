@@ -1906,15 +1906,6 @@
         }
       ]
     },
-    "IPv4_AUTOCONF_INTRO_01": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_link_local_arp_probe_despite_routable_lease",
-          "property": "DUT holding a routable DHCP lease must not fall back to link-local ARP probing; silence is conformant"
-        }
-      ]
-    },
     "IPv4_AUTOCONF_NETWORK_PARTITIONS_01": {
       "guards": [
         {

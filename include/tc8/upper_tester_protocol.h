@@ -488,12 +488,21 @@ enum Opcode : std::uint8_t {
     //     [<retx_first_ms:u16>              <retx_cap_ms:u16>
     //      <retx_jitter_ms:u16>]
     //     [<iface_index:u8>]
+    //     [<flavor:u8>]
     //   Response params: (none beyond the status byte)
     //
-    // Wire size grows 9 → 13 → 15 → 19 → 25 → 26 bytes across
-    // S2..S6b/S9/S10/S12/S13. Legacy callers default every later slot to 0,
-    // preserving instant-restart, skip-Probe, instant-restart-after-DECLINE,
-    // flat-retry, and primary-iface (index=0) behaviour.
+    // Wire size grows 9 → 13 → 15 → 19 → 25 → 26 → 27 bytes across
+    // S2..S6b/S9/S10/S12/S13 + Phase F. Legacy callers default every later
+    // slot to 0, preserving instant-restart, skip-Probe,
+    // instant-restart-after-DECLINE, flat-retry, primary-iface (index=0),
+    // and compliant (kDhcpFlavorNone) behaviour.
+    //
+    // The trailing `flavor` byte (param offset 24, present only at >= 25
+    // param bytes) is fault-injection-only: it selects a deliberately
+    // non-conformant Dhcpv4Client code path for the §4.5.6.1 / §4.7
+    // negative cases. Positive cases omit it; the handler defaults to
+    // kDhcpFlavorNone so their wire shape and behaviour are unchanged.
+    // See kDhcpFlavor* below.
     //
     // §4.7.6.5 USAGE_01 / RFC 2131 §3.6 MUST: a client with multiple
     // network interfaces uses DHCP through each interface independently.
@@ -777,6 +786,24 @@ inline constexpr std::uint8_t kFlavorReplyEthDstUnicast           = 0x0C;  // RF
 // Responder-dispatch flavor (not a frame-field mutation): makes the
 // post-claim responder answer ARP Requests for unclaimed targets.
 inline constexpr std::uint8_t kFlavorReplyToArbitraryTarget       = 0x0D;  // RFC 3927 §2.7   answer only own claimed LL MUST
+
+// `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
+// at param offset 24). A separate family from kFlavor* (which is the LL
+// machine's frame-shape selector): these values name deliberately
+// non-conformant Dhcpv4Client lifecycle code paths the §4.7 / §4.5.6.1
+// negative cases drive. Like kFlavor*, the firmware enum is derived 1:1
+// from these constants (single source of truth) and unknown values fall
+// through to kDhcpFlavorNone, so a short or zero-padded request from an
+// older caller can never accidentally inject a fault.
+inline constexpr std::uint8_t kDhcpFlavorNone                     = 0x00;
+// RFC 3927 §1.9 SHOULD NOT: a host with an operable routable address
+// (here a bound DHCP lease) must not also assign an IPv4 Link-Local
+// address on the same interface. This flavor makes tc8-dut's DHCP
+// client emit one prohibited 169.254/16 ARP Probe after reaching BOUND
+// — the leak §4.5.6.1 INTRO_01 guards against. Conformant emit (None)
+// stays silent, so the negative case's compliant-silence branch is a
+// live conformant-DUT outcome, not an infra-only dead branch.
+inline constexpr std::uint8_t kDhcpFlavorLeakLinkLocalAfterBind   = 0x01;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

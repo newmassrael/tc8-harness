@@ -306,6 +306,38 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     return req;
 }
 
+std::vector<std::uint8_t> buildStartDhcpClientBuggyRequest(
+    std::uint8_t  req_id,
+    std::uint16_t offer_wait_ms,
+    std::uint16_t ack_wait_ms,
+    std::uint8_t  retry_count,
+    std::uint16_t retry_interval_ms,
+    std::uint8_t  flavor) {
+    std::vector<std::uint8_t> req;
+    req.reserve(27);
+    req.push_back(static_cast<std::uint8_t>(ut::OpStartDhcpClient));
+    req.push_back(req_id);
+    appendBe16(req, offer_wait_ms);
+    appendBe16(req, ack_wait_ms);
+    req.push_back(retry_count);
+    appendBe16(req, retry_interval_ms);
+    // Zero-fill the DHCP advanced slots (nak / arp-probe / decline / retx)
+    // and iface_index so `flavor` lands at param offset 24 — the handler's
+    // n >= 25 gate. INTRO_01_NEG drives only the basic SELECTING timing
+    // plus the leak flavor.
+    appendBe16(req, 0);  // nak_to_discover_min
+    appendBe16(req, 0);  // nak_to_discover_max
+    appendBe16(req, 0);  // arp_probe_listen
+    appendBe16(req, 0);  // decline_to_discover_min
+    appendBe16(req, 0);  // decline_to_discover_max
+    appendBe16(req, 0);  // retx_first
+    appendBe16(req, 0);  // retx_cap
+    appendBe16(req, 0);  // retx_jitter
+    req.push_back(0);    // iface_index (primary)
+    req.push_back(flavor);
+    return req;
+}
+
 std::vector<std::uint8_t> buildQueryDhcpLeaseRequest(std::uint8_t req_id) {
     std::vector<std::uint8_t> req;
     req.reserve(2);

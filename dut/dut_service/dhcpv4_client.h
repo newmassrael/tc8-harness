@@ -8,7 +8,25 @@
 #include <string>
 #include <thread>
 
+#include "tc8/upper_tester_protocol.h"
+
 namespace tc8::dut {
+
+// Fault-injection flavor for the DHCP client lifecycle, mapped 1:1 onto
+// the §4.5.6.1 / §4.7 negative-case invariants. Each enumerator's wire
+// byte is **derived** from the single source of truth
+// `tc8::ut::kDhcpFlavor*` (the protocol header the harness and this
+// firmware both consume), so a renumber in the header flows here at
+// compile time. Default (`None`) runs the fully-compliant lifecycle — a
+// caller that omits the flavor slot falls through to the conformant
+// path, which is what the §4.7 positive cases need (and what makes the
+// negative cases' compliant-silence branch a live conformant outcome).
+enum class Dhcpv4ClientFlavor : std::uint8_t {
+    None                  = ::tc8::ut::kDhcpFlavorNone,
+    // RFC 3927 §1.9: emit one prohibited 169.254/16 ARP Probe after the
+    // lease binds. §4.5.6.1 INTRO_01_NEG drives this.
+    LeakLinkLocalAfterBind = ::tc8::ut::kDhcpFlavorLeakLinkLocalAfterBind,
+};
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.
 //
@@ -113,6 +131,12 @@ public:
         std::chrono::milliseconds retx_first_ms{0};
         std::chrono::milliseconds retx_cap_ms{0};
         std::chrono::milliseconds retx_jitter_ms{0};
+
+        // §4.5.6.1 / §4.7 fault-injection selector. Set only by the
+        // trailing flavor byte of OpStartDhcpClient (param offset 24);
+        // the compliant path leaves it at `None` so positive cases see
+        // no behavioural change.
+        Dhcpv4ClientFlavor flavor{Dhcpv4ClientFlavor::None};
     };
 
     Dhcpv4Client();

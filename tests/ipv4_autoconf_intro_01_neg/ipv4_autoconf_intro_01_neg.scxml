@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.1 IPv4_AUTOCONF_INTRO_01 negative — closes the
+  self-reference trap on the positive _01 case. The positive asserts
+  that a DUT holding an operable routable DHCP lease MUST NOT also fall
+  back to IPv4 Link-Local ARP probing (RFC 3927 §1.9 SHOULD NOT). Its
+  fail_dut_emitted_ll_probe branch is unreachable through normal
+  stimulus because the conformant tc8-dut firmware has no link-local
+  fallback wired into its DHCP client — without a fault injection the
+  guard is dead code and the harness silently accepts a leaking DUT.
+
+  Fault injection is a real firmware mutant, not a harness-composed
+  frame: the stimulus drives the ordinary DHCP lifecycle with the
+  kDhcpFlavorLeakLinkLocalAfterBind flavor. tc8-dut's DHCP client binds
+  the lease (DISCOVER -> OFFER -> REQUEST -> ACK) and then, gated on the
+  flavor, AUTONOMOUSLY emits one prohibited 169.254/16 ARP Probe — the
+  RFC 3927 §1.9 leak. A conformant DUT (flavor None, every positive
+  case) never emits it, so this negative actually distinguishes a
+  buggy DUT from a conformant one.
+
+  Pass = the prohibited link-local Probe IS observed (the leak is
+  detected). fail_compliant_silence = the DHCP client stayed silent
+  after BOUND, i.e. the firmware did NOT honour the leak flavor — the
+  live conformant-DUT outcome and a flavor-wiring regression catch, not
+  an infra-only dead branch.
+
+  Standalone SCXML mirroring the positive _01 (ArpAndDhcpv4Captured) —
+  only the post-ACK state's verdict polarity is inverted.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_intro_01_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpAndDhcpv4Captured"
+               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpAndDhcpv4Expected"
+               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.op == 1
+                      and captured.dhcpv4.message_type == 3
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_ll_probe"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_request"/>
+  </state>
+
+  <state id="listening_for_ll_probe">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.is_arp_probe()"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_compliant_silence"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_silence">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_no_link_local_probe_despite_leak_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+</scxml>

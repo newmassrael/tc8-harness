@@ -203,6 +203,12 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
         if (n >= 24) {
             iface_index = p[23];
         }
+        // §4.5.6.1 Phase F DHCP-client fault-injection slot. Unknown bytes cast
+        // to a flavor the runLoop does not act on (compliant), so a
+        // zero-padded legacy request can never inject a fault.
+        if (n >= 25) {
+            params.flavor = static_cast<Dhcpv4ClientFlavor>(p[24]);
+        }
         // Out-of-range index is a tester bug worth surfacing, not a transport
         // mismatch worth tolerating (no silent fallback to 0).
         if (iface_index >= dhcpv4_clients_.size()) {

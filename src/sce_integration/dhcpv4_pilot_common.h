@@ -90,6 +90,33 @@ inline void emitStartDhcpClient(const ::tc8::TestConfig& cfg,
         /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
 }
 
+// §4.5.6.1 / §4.7 Phase F fault-injection variant: issue OpStartDhcpClient
+// carrying the trailing `flavor` byte so tc8-dut's DHCP client runs a
+// deliberately non-conformant lifecycle path. Same fast envelope as
+// emitStartDhcpClient (2 s OFFER / 2 s ACK / single attempt); only the
+// flavor differs. Used by the §4.5.6.1 INTRO_01_NEG case so its
+// fail_dut_emitted_ll_probe branch is reached by a real firmware mutant
+// (the leak) rather than a harness-composed frame.
+inline void emitStartDhcpClientBuggy(const ::tc8::TestConfig& cfg,
+                                     std::string_view iface,
+                                     const std::array<std::uint8_t, 6>& dut_mac,
+                                     std::uint8_t flavor,
+                                     bool apply_initial_wait = true) {
+    if (apply_initial_wait) {
+        std::this_thread::sleep_for(kDhcpv4PilotInitialWait);
+    }
+    const auto req = ::tc8::stimulus::buildStartDhcpClientBuggyRequest(
+        /*req_id=*/1,
+        /*offer_wait_ms=*/2000,
+        /*ack_wait_ms=*/2000,
+        /*retry_count=*/1,
+        /*retry_interval_ms=*/1000,
+        flavor);
+    ::tc8::stimulus::sendUpperTesterRequest(
+        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
+}
+
 // §4.7.6.8 RENEWING REQUEST cluster trait helper. Schedules:
 //   * OFFER (msg_type=2) on Listening_for_first_request entry
 //   * ACK   (msg_type=5) on Listening_for_renewing_request entry
