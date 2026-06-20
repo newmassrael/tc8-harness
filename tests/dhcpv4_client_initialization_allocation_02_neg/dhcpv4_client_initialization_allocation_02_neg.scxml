@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02 negative — closes
+  the self-reference trap on the positive _02 case (the DHCPDISCOVER's BOOTP
+  'ciaddr' MUST be 0 in INIT state, RFC 2131 §4.4.1). The positive's
+  ciaddr-nonzero branch is unreachable against a conformant tc8-dut, which
+  zeroes ciaddr by construction.
+
+  Fault injection is a real firmware mutant: the stimulus drives the DHCP
+  client with the kDhcpFlavorDiscoverCiaddrNonzero flavor, which makes
+  tc8-dut write a nonzero ciaddr in the DHCPDISCOVER. The mutation leaves
+  is_dhcp_discover() and chaddr_matches_dut_mac() intact (only ciaddr
+  changes), so the dhcpv4_discover_field template's identity filter still
+  matches. A conformant client (flavor None) emits ciaddr=0, so this
+  negative's fail_compliant branch is the live conformant-DUT outcome.
+
+  Reuses the positive's dhcpv4_discover_field template with pass_expr
+  inverted (pass = nonzero ciaddr observed); fail_compliant fires when the
+  client zeroed ciaddr despite the flavor.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_02_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/dhcpv4_discover_field.sce-template.xml"
+           pass_expr="!captured.ciaddr_is_zero()"
+           fail_state="fail_compliant"
+           fail_reason="dut_dhcp_discover_zeroed_ciaddr_despite_ciaddr_nonzero_flavor"/>
+</scxml>

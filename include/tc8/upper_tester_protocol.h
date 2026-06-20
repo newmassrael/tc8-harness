@@ -944,6 +944,22 @@ inline constexpr std::uint8_t kDhcpFlavorRequestXidMismatch             = 0x16;
 // one list byte. (§4.7.6.5 PARAMETERS_04)
 inline constexpr std::uint8_t kDhcpFlavorRequestParamListMismatch       = 0x17;
 
+// §4.7 DHCPDISCOVER / SELECTING REQUEST identity-field mutants (Phase F).
+// Each corrupts exactly one BOOTP identity field the DUT emits, gated to
+// its phase in emitDhcpMessage; the conformant path (kDhcpFlavorNone)
+// emits the correct shape, which is the _neg's live fail_compliant outcome.
+//
+// RFC 2131 §4.4.1: the DHCPDISCOVER's 'ciaddr' MUST be 0 in INIT state.
+// Mutant writes a nonzero ciaddr. (§4.7.6.9 INIT_ALLOC_02)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverCiaddrNonzero          = 0x18;
+// RFC 2131 §4.4.1: the DHCPDISCOVER's 'chaddr' MUST be the client's
+// hardware address. Mutant writes a different chaddr (the L2 source MAC
+// stays the real one). (§4.7.6.9 INIT_ALLOC_03)
+inline constexpr std::uint8_t kDhcpFlavorDiscoverChaddrMismatch         = 0x19;
+// RFC 2131 §3: every DHCP message MUST carry Option 53 (Message Type).
+// Mutant drops Option 53 from the SELECTING REQUEST. (§4.7.6.2 PROTOCOL_03)
+inline constexpr std::uint8_t kDhcpFlavorRequestOmitMessageType         = 0x1A;
+
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:

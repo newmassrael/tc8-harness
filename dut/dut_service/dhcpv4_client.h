@@ -68,6 +68,12 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     RequestSecsMismatch            = ::tc8::ut::kDhcpFlavorRequestSecsMismatch,
     RequestXidMismatch             = ::tc8::ut::kDhcpFlavorRequestXidMismatch,
     RequestParamListMismatch       = ::tc8::ut::kDhcpFlavorRequestParamListMismatch,
+    // §4.7 DHCPDISCOVER / SELECTING REQUEST identity-field mutants — each
+    // corrupts one BOOTP identity field, gated to its phase in
+    // emitDhcpMessage. See kDhcpFlavor* for the RFC clause each violates.
+    DiscoverCiaddrNonzero          = ::tc8::ut::kDhcpFlavorDiscoverCiaddrNonzero,
+    DiscoverChaddrMismatch         = ::tc8::ut::kDhcpFlavorDiscoverChaddrMismatch,
+    RequestOmitMessageType         = ::tc8::ut::kDhcpFlavorRequestOmitMessageType,
 };
 
 // §4.7.6.9 INIT_ALLOC_08/_10 ARP-frame field mutants. Split out from

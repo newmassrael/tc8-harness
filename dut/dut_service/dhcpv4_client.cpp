@@ -340,6 +340,7 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     bool drop_end_option            = false;
     bool set_request_secs_mismatch  = false;
     bool mutate_param_request_list  = false;
+    bool set_discover_chaddr_mismatch = false;
 
     // Each mutant gates on the EXPLICIT lifecycle phase carried by the spec
     // (set by the emit helper that knows which message it is building), so a
@@ -448,6 +449,23 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
             // one list byte below.
             if (is_selecting) mutate_param_request_list = true;
             break;
+        case Dhcpv4ClientFlavor::DiscoverCiaddrNonzero:
+            // §4.7.6.9 INIT_ALLOC_02: the DHCPDISCOVER's ciaddr MUST be 0 in
+            // INIT state (RFC 2131 §4.4.1); write a nonzero sentinel.
+            if (spec.phase == DhcpPhase::Discover)
+                ciaddr_be = kFaultSentinelCiaddrBe;
+            break;
+        case Dhcpv4ClientFlavor::DiscoverChaddrMismatch:
+            // §4.7.6.9 INIT_ALLOC_03: the DHCPDISCOVER's chaddr MUST be the
+            // client MAC (RFC 2131 §4.4.1); flip the first chaddr byte below.
+            if (spec.phase == DhcpPhase::Discover)
+                set_discover_chaddr_mismatch = true;
+            break;
+        case Dhcpv4ClientFlavor::RequestOmitMessageType:
+            // §4.7.6.2 PROTOCOL_03: the SELECTING REQUEST MUST carry Option
+            // 53 (RFC 2131 §3); drop it (message_type option absent).
+            if (is_selecting) omit_message_type_option = true;
+            break;
     }
 
     // Options layout (in spec order, with conditional inclusion):
@@ -519,6 +537,13 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     // (yiaddr/siaddr/giaddr) stay zero.
     std::memcpy(bp + 12, &ciaddr_be, 4);
     std::memcpy(bp + 28, dut_mac_.data(), 6);
+    if (set_discover_chaddr_mismatch) {
+        // §4.7.6.9 INIT_ALLOC_03: flip the first chaddr byte so the emitted
+        // chaddr no longer equals the client MAC (the conformant path wrote
+        // dut_mac_). The L2 source MAC stays the real one, so is_dhcp_discover
+        // still identifies the frame; only chaddr_matches_dut_mac diverges.
+        bp[28] ^= 0xFF;
+    }
     if (set_reserved_flag_bit) {
         // §4.7.6.1 SUMMARY_04: set 'flags' reserved bit 1 (the BROADCAST
         // flag is bit 0; bits 1..15 MUST be zero per RFC 2131 §2).

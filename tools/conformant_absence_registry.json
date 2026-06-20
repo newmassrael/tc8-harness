@@ -1948,24 +1948,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_ciaddr_not_zero",
-          "property": "DUT's DHCPDISCOVER ciaddr must be 0.0.0.0 (RFC 2131 §4.4.1); fail iff non-zero"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_chaddr_mismatch",
-          "property": "DUT's DHCPDISCOVER chaddr must carry the DUT interface MAC (RFC 2131 §4.1); fail iff it mismatches"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_04": {
       "guards": [
         {
@@ -1981,15 +1963,6 @@
           "class": "prohibited_emission",
           "fail_reason": "dut_dhcp_request_after_lone_ack",
           "property": "DUT must not send a DHCPREQUEST after a lone DHCPACK with no preceding OFFER; silence is conformant"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_PROTOCOL_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_missing_message_type_option",
-          "property": "DUT's DHCPREQUEST must carry the DHCP Message Type option (RFC 2131 §3); fail iff absent"
         }
       ]
     },

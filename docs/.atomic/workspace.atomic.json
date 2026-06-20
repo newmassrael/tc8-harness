@@ -2482,6 +2482,10 @@
         {
           "file": "tests/dhcpv4_client_protocol_02_neg/dhcpv4_client_protocol_02_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_protocol_03_neg/dhcpv4_client_protocol_03_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -3079,6 +3083,14 @@
         },
         {
           "file": "tests/dhcpv4_client_initialization_allocation_06_neg/dhcpv4_client_initialization_allocation_06_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_02_neg/dhcpv4_client_initialization_allocation_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_03_neg/dhcpv4_client_initialization_allocation_03_neg.scxml",
           "kind": "implements"
         }
       ]

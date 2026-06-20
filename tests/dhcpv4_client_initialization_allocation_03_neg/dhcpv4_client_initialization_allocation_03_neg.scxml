@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03 negative — closes
+  the self-reference trap on the positive _03 case (the DHCPDISCOVER's BOOTP
+  'chaddr' MUST equal the client's hardware address, RFC 2131 §4.4.1). The
+  positive's chaddr-mismatch branch is unreachable against a conformant
+  tc8-dut, which writes its iface MAC into chaddr.
+
+  Fault injection is a real firmware mutant: the stimulus drives the DHCP
+  client with the kDhcpFlavorDiscoverChaddrMismatch flavor, which flips the
+  first chaddr byte. The L2 source MAC stays the real one, so is_dhcp_discover()
+  still identifies the frame and only chaddr_matches_dut_mac() diverges,
+  which is why this case cannot reuse the dhcpv4_discover_field template
+  (whose identity filter gates on chaddr_matches_dut_mac, exactly the field
+  under test). A conformant client (flavor None) writes the matching chaddr,
+  so this negative's fail_compliant branch is the live conformant-DUT outcome.
+
+  Pass = the chaddr mismatch IS observed; fail_compliant = the client wrote
+  the matching chaddr despite the flavor (a flavor-wiring regression catch).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_03_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and !captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_chaddr_matched_dut_mac_despite_chaddr_mismatch_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>
