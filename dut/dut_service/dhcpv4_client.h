@@ -74,6 +74,12 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     DiscoverCiaddrNonzero          = ::tc8::ut::kDhcpFlavorDiscoverCiaddrNonzero,
     DiscoverChaddrMismatch         = ::tc8::ut::kDhcpFlavorDiscoverChaddrMismatch,
     RequestOmitMessageType         = ::tc8::ut::kDhcpFlavorRequestOmitMessageType,
+    // §4.7 SELECTING-phase input-validation mutants — behavioural (not
+    // emit-field): each relaxes one pollForReply acceptance gate so the
+    // client wrongly proceeds to DHCPREQUEST on a reply RFC 2131 §4.4.1
+    // requires it to silently discard. emitDhcpMessage emits conformantly.
+    AcceptMismatchedXidOffer       = ::tc8::ut::kDhcpFlavorAcceptMismatchedXidOffer,
+    ProceedOnLoneAck               = ::tc8::ut::kDhcpFlavorProceedOnLoneAck,
 };
 
 // §4.7.6.9 INIT_ALLOC_08/_10 ARP-frame field mutants. Split out from

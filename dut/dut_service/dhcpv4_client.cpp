@@ -357,7 +357,10 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     switch (flavor_) {
         case Dhcpv4ClientFlavor::None:
         case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
-            break;  // conformant emit (leak acts post-BOUND, not here)
+        case Dhcpv4ClientFlavor::AcceptMismatchedXidOffer:
+        case Dhcpv4ClientFlavor::ProceedOnLoneAck:
+            break;  // conformant emit (behavioural flavors act in
+                    // pollForReply / runLoop, not on the emitted wire shape)
         case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
             if (spec.phase == DhcpPhase::Discover) corrupt_magic_cookie = true;
             break;
@@ -943,7 +946,12 @@ bool Dhcpv4Client::pollForReply(int                        sk,
 
         std::uint32_t xid_be = 0;
         std::memcpy(&xid_be, bp + 4, 4);
-        if (xid_be != expected_xid_be) continue;
+        // §4.7.6.9 INIT_ALLOC_04: RFC 2131 §4.4.1 requires discarding a reply
+        // whose xid does not match the most recent DISCOVER. The
+        // AcceptMismatchedXidOffer mutant relaxes this gate so the buggy
+        // client proceeds on a mismatched-xid OFFER.
+        if (xid_be != expected_xid_be &&
+            flavor_ != Dhcpv4ClientFlavor::AcceptMismatchedXidOffer) continue;
 
         if (std::memcmp(bp + 28, dut_mac_.data(), 6) != 0) continue;
 
@@ -961,7 +969,12 @@ bool Dhcpv4Client::pollForReply(int                        sk,
         std::size_t   mt_len   = sizeof(msg_type);
         if (!findDhcpOption(opts, opts_len, 53, &msg_type, &mt_len) ||
             mt_len != 1) continue;
-        if (expected_msg_type != 0U && msg_type != expected_msg_type) continue;
+        // §4.7.6.9 INIT_ALLOC_05: RFC 2131 §4.4.1 requires discarding a stray
+        // DHCPACK arriving before an OFFER is accepted. The ProceedOnLoneAck
+        // mutant relaxes the message-type gate so the buggy client accepts a
+        // lone ACK in the SELECTING OFFER wait and proceeds to DHCPREQUEST.
+        if (expected_msg_type != 0U && msg_type != expected_msg_type &&
+            flavor_ != Dhcpv4ClientFlavor::ProceedOnLoneAck) continue;
 
         // yiaddr from BOOTP body (offsets 16..19).
         std::uint32_t yiaddr_be = 0;

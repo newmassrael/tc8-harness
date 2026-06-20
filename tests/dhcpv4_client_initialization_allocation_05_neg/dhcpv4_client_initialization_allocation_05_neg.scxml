@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_05 negative — closes
+  the self-reference trap on the positive _05 case (a DHCPACK arriving in the
+  INIT/SELECTING phase, with no accepted OFFER, MUST be silently discarded,
+  RFC 2131 §4.4.1). The positive's fail_unexpected_request branch is
+  unreachable against a conformant tc8-dut, whose SELECTING pollForReply
+  filters on message_type=2 (OFFER) and drops the stray ACK.
+
+  Fault injection is a real firmware mutant: the stimulus drives the DHCP
+  client with the kDhcpFlavorProceedOnLoneAck flavor, which relaxes
+  pollForReply's message-type gate. The tester injects a single lone DHCPACK
+  (message_type=5, no preceding OFFER); the buggy client accepts it in the
+  OFFER wait and emits a DHCPREQUEST. A conformant client (flavor None) stays
+  silent, so this negative's fail_compliant_silence branch is the live
+  conformant-DUT outcome.
+
+  Inverts the positive's absence window: pass = the prohibited DHCPREQUEST IS
+  observed; fail_compliant_silence = the DUT stayed silent despite the flavor.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_05_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_request"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="pass"/>
+    <transition event="s2_deadline" target="fail_compliant_silence"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_silence">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silently_discarded_lone_ack_despite_proceed_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

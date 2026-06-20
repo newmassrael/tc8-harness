@@ -1948,24 +1948,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_dhcp_request_after_mismatched_xid_offer",
-          "property": "DUT must not send a DHCPREQUEST after an OFFER whose xid does not match its DISCOVER; silence is conformant"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_05": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_dhcp_request_after_lone_ack",
-          "property": "DUT must not send a DHCPREQUEST after a lone DHCPACK with no preceding OFFER; silence is conformant"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_REACQUISITION_02": {
       "guards": [
         {

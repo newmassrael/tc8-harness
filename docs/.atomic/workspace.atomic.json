@@ -3092,6 +3092,14 @@
         {
           "file": "tests/dhcpv4_client_initialization_allocation_03_neg/dhcpv4_client_initialization_allocation_03_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_04_neg/dhcpv4_client_initialization_allocation_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_05_neg/dhcpv4_client_initialization_allocation_05_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

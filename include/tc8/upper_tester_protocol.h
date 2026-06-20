@@ -960,6 +960,21 @@ inline constexpr std::uint8_t kDhcpFlavorDiscoverChaddrMismatch         = 0x19;
 // Mutant drops Option 53 from the SELECTING REQUEST. (§4.7.6.2 PROTOCOL_03)
 inline constexpr std::uint8_t kDhcpFlavorRequestOmitMessageType         = 0x1A;
 
+// §4.7 SELECTING-phase input-validation mutants (Phase F, prohibited).
+// RFC 2131 §4.4.1 requires the client to silently discard a reply that
+// fails validation; a conformant client therefore stays silent (no
+// DHCPREQUEST), which is the _neg's live fail_compliant outcome. Each
+// mutant relaxes one pollForReply acceptance gate so the buggy client
+// wrongly proceeds to DHCPREQUEST. Behavioural (no emitted-field change):
+// emitDhcpMessage treats them as conformant emits.
+//
+// RFC 2131 §4.4.1: a DHCPOFFER whose 'xid' does not match the most recent
+// DHCPDISCOVER MUST be silently discarded. Mutant accepts it. (INIT_ALLOC_04)
+inline constexpr std::uint8_t kDhcpFlavorAcceptMismatchedXidOffer       = 0x1B;
+// RFC 2131 §4.4.1: a DHCPACK arriving in INIT/SELECTING (no accepted
+// OFFER) MUST be silently discarded. Mutant proceeds on it. (INIT_ALLOC_05)
+inline constexpr std::uint8_t kDhcpFlavorProceedOnLoneAck               = 0x1C;
+
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:
