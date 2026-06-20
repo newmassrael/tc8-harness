@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_15 negative (guard 3 of
+  4) — closes the self-reference trap on fail_post_silence_repeat.
+  tc8-dut runs the conflict sequence via OpStartLLAutoconfBuggy(flavor=
+  ReprobeStalePostSilence): it picks fresh through all 10 conflicts,
+  honours the first RATE_LIMIT_INTERVAL silence, then its post-silence
+  re-probe targets the PREVIOUS LL instead of a fresh one (RFC 3927
+  §2.2.1 step 58 MUST). The other three guards are proven by the NEG /
+  NEG2 / NEG4 variants; tools/fault_injection_coverage.json is the SSOT.
+
+  Pass = the post-silence Probe targets the previous LL.
+  fail_compliant_fresh_post_silence = the DUT picked a fresh LL (the
+  live conformant-DUT outcome).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_address_selection_15_neg3"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="15s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="cycle"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_initial_probe"/>
+  </state>
+
+  <state id="cycle">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe() and captured.target_proto_ip != captured.previous_observed_probe_target_ip"
+                target="cycle"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="fail_unexpected_stale_repick"/>
+    <transition event="conflicts_complete" target="silence_watch_1"/>
+    <transition event="deadline_exceeded" target="inconclusive_conflicts_incomplete"/>
+  </state>
+
+  <state id="silence_watch_1">
+    <onentry>
+      <send event="silence_complete_1" delay="3000ms"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="fail_unexpected_silence_1_emit"/>
+    <transition event="silence_complete_1" target="wait_repick"/>
+    <transition event="deadline_exceeded" target="inconclusive_silence_1_stalled"/>
+  </state>
+
+  <state id="wait_repick">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe() and captured.target_proto_ip == captured.previous_observed_probe_target_ip"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="fail_compliant_fresh_post_silence"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_post_silence_probe"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_initial_probe">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_arp_probe_after_ll_start","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_conflicts_incomplete">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_re_probe_through_max_conflicts","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_silence_1_stalled">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"first_rate_limit_silence_window_not_concluded","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_post_silence_probe">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_emit_arp_after_rate_limit_recovery","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_stale_repick">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_re_probed_stale_despite_post_silence_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_unexpected_silence_1_emit">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_in_silence_despite_post_silence_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_fresh_post_silence">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_post_silence_fresh_despite_stale_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+</scxml>

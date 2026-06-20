@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_14 negative (guard 1 of
+  2) — closes the self-reference trap on the positive case's
+  fail_cycle_repeat branch. tc8-dut runs the conflict sequence via
+  OpStartLLAutoconfBuggy(flavor=ReprobeStaleCycle): on each conflict it
+  re-probes the SAME (stale) link-local address instead of selecting a
+  fresh one, violating RFC 3927 §2.2.1 (step 11 MUST pick a new
+  pseudo-random address on conflict).
+
+  Guard 2 (Probe emitted during the rate-limit silence) is proven
+  separately by the NEG2 variant. tools/fault_injection_coverage.json
+  is the SSOT for which guard each variant proves.
+
+  Same conflict-injection dispatch wiring as the positive _14
+  (dispatchArpFrameWithRepeatedConflictEmit). Pass = a re-probe targets
+  the previous LL (the stale re-probe is detected). conflicts_complete
+  -> fail_compliant_fresh_repick = tc8-dut picked a fresh address every
+  cycle despite the flavor (the live conformant-DUT outcome).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_autoconf_address_selection_14_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="12s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="cycle"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_initial_probe"/>
+  </state>
+
+  <state id="cycle">
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe() and captured.target_proto_ip == captured.previous_observed_probe_target_ip"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe()"
+                target="cycle"/>
+    <transition event="conflicts_complete" target="fail_compliant_fresh_repick"/>
+    <transition event="deadline_exceeded" target="inconclusive_conflicts_incomplete"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_initial_probe">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_arp_probe_after_ll_start","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_conflicts_incomplete">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_re_probe_through_max_conflicts","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_fresh_repick">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_re_probed_fresh_despite_stale_cycle_flavor","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+</scxml>

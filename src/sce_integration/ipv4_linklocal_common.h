@@ -207,6 +207,33 @@ inline void emitStartLLAutoconfBuggy(
         /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
 }
 
+// §4.5.6.2 _14/_15 fault-injection variant: OpStartLLAutoconfBuggy with
+// the fast-conflict envelope (rate_limit_interval = 3 s, matching the
+// positive _14/_15's emitStartLLAutoconfFastConflict) plus the `flavor`
+// byte that drives tc8-dut's rate-limit conflict mutation. The 3 s
+// silence window fits the _14/_15 SCXML 12-15 s deadline; the 60 s
+// default would overrun it.
+inline void emitStartLLAutoconfBuggyConflict(
+        const ::tc8::TestConfig& cfg,
+        std::string_view iface,
+        const std::array<std::uint8_t, 6>& dut_mac,
+        std::uint8_t flavor,
+        std::chrono::milliseconds initial_wait = kLLPilotInitialWait) {
+    if (initial_wait.count() > 0) {
+        std::this_thread::sleep_for(initial_wait);
+    }
+    const auto req = ::tc8::stimulus::buildStartLLAutoconfBuggyRequest(
+        /*req_id=*/1,
+        kFastDhcpTimeoutMs, kFastProbeWaitMs,
+        kFastProbeMinMs,    kFastProbeMaxMs,
+        kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
+        kFastRateLimitMs,
+        flavor);
+    ::tc8::stimulus::sendUpperTesterRequest(
+        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
+        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
+}
+
 // §4.5.6.2 cadence-violation helper for IPv4_AUTOCONF_ADDRESS_SELECTION_10_NEG.
 // Re-uses the standard 0x0C OpStartLLAutoconf opcode — cadence
 // violation is a parameter (probe_min/max), not a code path, so

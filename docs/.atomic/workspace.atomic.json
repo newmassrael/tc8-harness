@@ -1638,6 +1638,30 @@
         {
           "file": "tests/ipv4_autoconf_address_selection_16_neg/ipv4_autoconf_address_selection_16_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_address_selection_14_neg/ipv4_autoconf_address_selection_14_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_address_selection_14_neg2/ipv4_autoconf_address_selection_14_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_address_selection_15_neg/ipv4_autoconf_address_selection_15_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_address_selection_15_neg2/ipv4_autoconf_address_selection_15_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_address_selection_15_neg3/ipv4_autoconf_address_selection_15_neg3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_autoconf_address_selection_15_neg4/ipv4_autoconf_address_selection_15_neg4.scxml",
+          "kind": "implements"
         }
       ]
     },

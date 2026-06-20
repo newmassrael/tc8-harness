@@ -190,6 +190,10 @@ void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,
         case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
         case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
         case LinklocalAutoconfFlavor::EmitPeriodicGratuitous:
+        case LinklocalAutoconfFlavor::ReprobeStaleCycle:
+        case LinklocalAutoconfFlavor::SkipFirstRateLimitSilence:
+        case LinklocalAutoconfFlavor::ReprobeStalePostSilence:
+        case LinklocalAutoconfFlavor::SkipSecondRateLimitSilence:
             break;
     }
 
@@ -240,6 +244,10 @@ void LinklocalAutoconf::emitArpAnnounce(std::uint32_t committed_ll_be,
         case LinklocalAutoconfFlavor::ReplyEthDstUnicast:
         case LinklocalAutoconfFlavor::ReplyToArbitraryTarget:
         case LinklocalAutoconfFlavor::EmitPeriodicGratuitous:
+        case LinklocalAutoconfFlavor::ReprobeStaleCycle:
+        case LinklocalAutoconfFlavor::SkipFirstRateLimitSilence:
+        case LinklocalAutoconfFlavor::ReprobeStalePostSilence:
+        case LinklocalAutoconfFlavor::SkipSecondRateLimitSilence:
             break;
         case LinklocalAutoconfFlavor::AnnounceEthDstUnicast:
             // RFC 3927 §2.4 / RFC 3927 §2.5 last MUST: ARP packets whose sender_proto_ip
@@ -433,15 +441,46 @@ void LinklocalAutoconf::runLoop(Params params) {
         // RFC 3927's interpretation that MAX_CONFLICTS counts
         // probing-window collisions, not steady-state defenses.
         std::uint32_t tentative_ll_be = 0;
-        int conflict_count = 0;
+        std::uint32_t previous_ll_be  = 0;
+        int conflict_count    = 0;
+        int rate_limit_sleeps = 0;
         bool rate_limit_active = false;
         while (true) {
             if (rate_limit_active) {
-                sleepInterruptible(params.rate_limit_interval_ms);
-                if (stop_requested_.load()) return;
+                // §4.5.6.2 _14/_15 RATE_LIMIT_INTERVAL silence (RFC 3927
+                // §2.2.1 MUST). SkipFirst/SecondRateLimitSilence emit a
+                // Probe DURING the targeted window by skipping the
+                // mandated sleep on that occurrence; the other window is
+                // honored, so the run is conformant up to its guard.
+                const bool skip_silence =
+                    (params.flavor ==
+                         LinklocalAutoconfFlavor::SkipFirstRateLimitSilence &&
+                     rate_limit_sleeps == 0) ||
+                    (params.flavor ==
+                         LinklocalAutoconfFlavor::SkipSecondRateLimitSilence &&
+                     rate_limit_sleeps == 1);
+                if (!skip_silence) {
+                    sleepInterruptible(params.rate_limit_interval_ms);
+                    if (stop_requested_.load()) return;
+                }
+                ++rate_limit_sleeps;
             }
 
-            tentative_ll_be = pickLLAddress();
+            // §4.5.6.2 _14/_15 fresh-address selection (RFC 3927 §2.2.1
+            // step 11 / step 58 MUST). ReprobeStaleCycle re-probes the
+            // previous address during the conflict cycle;
+            // ReprobeStalePostSilence re-probes it at the post-rate-limit
+            // re-probe. None (every positive case) picks fresh each time.
+            const bool reprobe_stale =
+                previous_ll_be != 0 &&
+                ((params.flavor ==
+                      LinklocalAutoconfFlavor::ReprobeStaleCycle &&
+                  !rate_limit_active) ||
+                 (params.flavor ==
+                      LinklocalAutoconfFlavor::ReprobeStalePostSilence &&
+                  rate_limit_active));
+            tentative_ll_be = reprobe_stale ? previous_ll_be : pickLLAddress();
+            previous_ll_be = tentative_ll_be;
             startConflictListener(tentative_ll_be);
 
             sleepInterruptible(params.probe_wait_ms);
@@ -845,6 +884,13 @@ void LinklocalAutoconf::emitArpReply(
         // Steady-state cadence flavor: the reply stays compliant; only
         // runLoop's defend loop re-emits the gratuitous ARP (RFC 3927 §4).
         case LinklocalAutoconfFlavor::EmitPeriodicGratuitous:
+        // Conflict-resolution rate-limit flavors: the reply stays
+        // compliant; only runLoop's conflict loop is mutated (RFC 3927
+        // §2.2.1).
+        case LinklocalAutoconfFlavor::ReprobeStaleCycle:
+        case LinklocalAutoconfFlavor::SkipFirstRateLimitSilence:
+        case LinklocalAutoconfFlavor::ReprobeStalePostSilence:
+        case LinklocalAutoconfFlavor::SkipSecondRateLimitSilence:
             break;
         case LinklocalAutoconfFlavor::ReplySenderIpWrong:
             // RFC 3927 §2.5: the defending Reply's sender_proto_ip MUST

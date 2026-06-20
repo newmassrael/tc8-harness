@@ -759,8 +759,9 @@ inline constexpr std::uint8_t kSocketTypeActive  = 0x01;
 // RFC 3927 invariants asserted by §4.5.6.2 ADDRESS_SELECTION cluster A
 // (Probe-shape, 0x01..0x05 + 0x0A), §4.5.6.3 ANNOUNCING (Announce-shape,
 // 0x06..0x09), defending-Reply-shape (0x0B..0x0C, RFC 3927 §2.5),
-// responder-dispatch (0x0D, RFC 3927 §2.7), or steady-state cadence
-// (0x0E, RFC 3927 §4 SHOULD NOT periodic gratuitous).
+// responder-dispatch (0x0D, RFC 3927 §2.7), steady-state cadence
+// (0x0E, RFC 3927 §4 SHOULD NOT periodic gratuitous), or conflict-
+// resolution rate-limit (0x0F..0x12, RFC 3927 §2.2.1).
 // Spec invariant ↔ flavor is one-to-one — adding a new
 // flavor without a backing spec invariant is a category violation
 // (`feedback_frozen_spec_is_evidence.md`). The cadence cluster B
@@ -790,6 +791,15 @@ inline constexpr std::uint8_t kFlavorReplyToArbitraryTarget       = 0x0D;  // RF
 // Steady-state behavioral flavor (not a frame-field mutation): makes the
 // committed host re-emit the Announce-shaped gratuitous ARP on a cadence.
 inline constexpr std::uint8_t kFlavorEmitPeriodicGratuitous       = 0x0E;  // RFC 3927 §4     no periodic gratuitous ARP SHOULD NOT
+// Conflict-resolution behavioral flavors (not frame-field mutations): each
+// violates one RFC 3927 §2.2.1 rate-limit invariant at a specific point in
+// the §4.5.6.2 _14/_15 conflict sequence, so the run is conformant up to
+// that guard and violates exactly there. Read by runLoop's conflict loop, a
+// passive break in all three emit-builder switches.
+inline constexpr std::uint8_t kFlavorReprobeStaleCycle            = 0x0F;  // RFC 3927 §2.2.1 step 11 fresh address each conflict cycle MUST
+inline constexpr std::uint8_t kFlavorSkipFirstRateLimitSilence    = 0x10;  // RFC 3927 §2.2.1 silent through 1st RATE_LIMIT_INTERVAL MUST
+inline constexpr std::uint8_t kFlavorReprobeStalePostSilence      = 0x11;  // RFC 3927 §2.2.1 step 58 fresh post-rate-limit re-probe MUST
+inline constexpr std::uint8_t kFlavorSkipSecondRateLimitSilence   = 0x12;  // RFC 3927 §2.2.1 rate-limit persists into 2nd window MUST
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

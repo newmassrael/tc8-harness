@@ -1820,44 +1820,6 @@
         }
       ]
     },
-    "IPv4_AUTOCONF_ADDRESS_SELECTION_14": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_re_probed_with_stale_link_local_address",
-          "property": "during conflict-driven re-probing the DUT must select a fresh link-local address each cycle; fail iff it re-probes the stale (previous) address"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_arp_during_rate_limit_silence",
-          "property": "DUT must observe the RFC 3927 rate-limit silence window emitting no ARP; fail iff it emits a probe during the silence"
-        }
-      ]
-    },
-    "IPv4_AUTOCONF_ADDRESS_SELECTION_15": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_re_probed_with_stale_link_local_address",
-          "property": "during conflict-driven re-probing the DUT must select a fresh link-local address each cycle; fail iff it re-probes the stale (previous) address"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_arp_during_first_rate_limit_silence",
-          "property": "DUT must observe the first RFC 3927 rate-limit silence window emitting no ARP; fail iff it emits a probe during the silence"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_arp_during_second_rate_limit_silence",
-          "property": "DUT must observe the second RFC 3927 rate-limit silence window emitting no ARP; fail iff it emits a probe during the silence"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_post_silence_probe_targets_previous_ll",
-          "property": "the DUT's post-silence re-probe must target a fresh link-local address; fail iff it targets the previous link-local address"
-        }
-      ]
-    },
     "IPv4_AUTOCONF_ANNOUNCING_05": {
       "guards": [
         {

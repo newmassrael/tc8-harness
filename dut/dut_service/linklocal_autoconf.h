@@ -88,6 +88,15 @@ enum class LinklocalAutoconfFlavor : std::uint8_t {
     // emit-field mutation, so it is a passive `break` in all three
     // emit-builder switches. §4.5.6.6 NETWORK_PARTITIONS_01_NEG2.
     EmitPeriodicGratuitous        = ::tc8::ut::kFlavorEmitPeriodicGratuitous,
+    // §4.5.6.2 _14/_15 conflict-resolution rate-limit mutations
+    // (RFC 3927 §2.2.1). Each violates one rate-limit invariant at a
+    // specific point in the conflict sequence (the run is conformant up
+    // to that guard). Read by runLoop's conflict loop, NOT emit-field
+    // mutations, so all four are passive `break`s in the emit builders.
+    ReprobeStaleCycle             = ::tc8::ut::kFlavorReprobeStaleCycle,
+    SkipFirstRateLimitSilence     = ::tc8::ut::kFlavorSkipFirstRateLimitSilence,
+    ReprobeStalePostSilence       = ::tc8::ut::kFlavorReprobeStalePostSilence,
+    SkipSecondRateLimitSilence    = ::tc8::ut::kFlavorSkipSecondRateLimitSilence,
 };
 
 class LinklocalAutoconf {

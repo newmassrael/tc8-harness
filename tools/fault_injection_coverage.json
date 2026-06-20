@@ -4,6 +4,16 @@
     "IPv4_AUTOCONF_NETWORK_PARTITIONS_01": {
       "dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG",
       "dut_emitted_periodic_gratuitous_arp_for_committed_link_local": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG2"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_14": {
+      "dut_re_probed_with_stale_link_local_address": "IPv4_AUTOCONF_ADDRESS_SELECTION_14_NEG",
+      "dut_emitted_arp_during_rate_limit_silence": "IPv4_AUTOCONF_ADDRESS_SELECTION_14_NEG2"
+    },
+    "IPv4_AUTOCONF_ADDRESS_SELECTION_15": {
+      "dut_re_probed_with_stale_link_local_address": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG",
+      "dut_emitted_arp_during_first_rate_limit_silence": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG2",
+      "dut_post_silence_probe_targets_previous_ll": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG3",
+      "dut_emitted_arp_during_second_rate_limit_silence": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG4"
     }
   }
 }
