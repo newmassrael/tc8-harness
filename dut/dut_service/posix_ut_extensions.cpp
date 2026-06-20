@@ -203,11 +203,20 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
         if (n >= 24) {
             iface_index = p[23];
         }
-        // §4.5.6.1 Phase F DHCP-client fault-injection slot. Unknown bytes cast
-        // to a flavor the runLoop does not act on (compliant), so a
+        // §4.5.6.1 / §4.7.6.9 Phase F DHCP-client fault-injection slot. The
+        // single flavor byte selects EITHER a DHCP-message / behavioural
+        // mutant (Dhcpv4ClientFlavor) OR an ARP-frame mutant (Dhcpv4ArpFlavor)
+        // — route by value so each firmware emit builder switches over only
+        // its own domain. Unknown bytes leave both at None (compliant), so a
         // zero-padded legacy request can never inject a fault.
         if (n >= 25) {
-            params.flavor = static_cast<Dhcpv4ClientFlavor>(p[24]);
+            const std::uint8_t fb = p[24];
+            if (fb == ut::kDhcpFlavorProbeSenderIpNonzero ||
+                fb == ut::kDhcpFlavorAnnounceSenderIpWrong) {
+                params.arp_flavor = static_cast<Dhcpv4ArpFlavor>(fb);
+            } else {
+                params.flavor = static_cast<Dhcpv4ClientFlavor>(fb);
+            }
         }
         // Out-of-range index is a tester bug worth surfacing, not a transport
         // mismatch worth tolerating (no silent fallback to 0).

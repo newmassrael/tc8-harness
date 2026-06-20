@@ -413,11 +413,6 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
             if (spec.phase == DhcpPhase::Decline)
                 requested_addr_be = kFaultSentinelOpt50Be;
             break;
-        case Dhcpv4ClientFlavor::ProbeSenderIpNonzero:
-        case Dhcpv4ClientFlavor::AnnounceSenderIpWrong:
-            // §4.7.6.9 INIT_ALLOC_08/_10: ARP-frame mutants — applied in
-            // emitArpProbe / emitArpAnnounce, conformant on every DHCP message.
-            break;
     }
 
     // Options layout (in spec order, with conditional inclusion):
@@ -663,34 +658,16 @@ void Dhcpv4Client::emitArpProbe(std::uint32_t target_ip_be) {
     std::memcpy(f + 22, dut_mac_.data(), 6);
     // §4.7.6.9 INIT_ALLOC_08 fault injection: the conformant Probe carries
     // sender_proto_ip = 0 (RFC 2131 §4.4.1 / RFC 5227 §2.1.1). switch-no-
-    // default so -Werror=switch forces every future flavor to declare its
-    // Probe-side disposition; the DHCP-message + Announce + Decline flavors
-    // are conformant on the Probe (passive break).
+    // default over the ARP-emit flavor domain so -Werror=switch forces every
+    // future ARP flavor to declare its Probe-side disposition; the Announce
+    // mutant is conformant on the Probe (passive break).
     std::uint32_t sender_ip_be = 0;
-    switch (flavor_) {
-        case Dhcpv4ClientFlavor::ProbeSenderIpNonzero:
+    switch (arp_flavor_) {
+        case Dhcpv4ArpFlavor::ProbeSenderIpNonzero:
             sender_ip_be = kFaultSentinelProbeSenderBe;
             break;
-        case Dhcpv4ClientFlavor::None:
-        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
-        case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
-        case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
-        case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
-        case Dhcpv4ClientFlavor::DiscoverDstUnicast:
-        case Dhcpv4ClientFlavor::DiscoverDropEnd:
-        case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
-        case Dhcpv4ClientFlavor::RequestSrcNonzero:
-        case Dhcpv4ClientFlavor::RequestDstUnicast:
-        case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
-        case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
-        case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
-        case Dhcpv4ClientFlavor::ReacqRequestIncludeServerId:
-        case Dhcpv4ClientFlavor::ReacqRequestIncludeRequestedIp:
-        case Dhcpv4ClientFlavor::ReacqRequestCiaddrWrong:
-        case Dhcpv4ClientFlavor::RenewingRequestDstWrong:
-        case Dhcpv4ClientFlavor::RebindingDstUnicast:
-        case Dhcpv4ClientFlavor::DeclineRequestedIpWrong:
-        case Dhcpv4ClientFlavor::AnnounceSenderIpWrong:
+        case Dhcpv4ArpFlavor::None:
+        case Dhcpv4ArpFlavor::AnnounceSenderIpWrong:
             break;  // conformant Probe — sender_proto_ip stays 0
     }
     std::memcpy(f + 28, &sender_ip_be, 4);
@@ -718,36 +695,18 @@ void Dhcpv4Client::emitArpAnnounce(std::uint32_t committed_ip_be) {
 
     std::memcpy(f + 22, dut_mac_.data(), 6);
     // §4.7.6.9 INIT_ALLOC_10 fault injection: the conformant Announce carries
-    // sender_proto_ip = committed IP (RFC 2131 §4.4.1). switch-no-default so
-    // -Werror=switch forces every future flavor to declare its Announce-side
-    // disposition; the DHCP-message + Probe + Decline flavors are conformant
-    // here (passive break). target_proto_ip (f+38) stays the committed IP —
-    // is_dhcp_arp_announce keys on sender_proto_ip alone.
+    // sender_proto_ip = committed IP (RFC 2131 §4.4.1). switch-no-default over
+    // the ARP-emit flavor domain so -Werror=switch forces every future ARP
+    // flavor to declare its Announce-side disposition; the Probe mutant is
+    // conformant here (passive break). target_proto_ip (f+38) stays the
+    // committed IP — is_dhcp_arp_announce keys on sender_proto_ip alone.
     std::uint32_t sender_ip_be = committed_ip_be;
-    switch (flavor_) {
-        case Dhcpv4ClientFlavor::AnnounceSenderIpWrong:
+    switch (arp_flavor_) {
+        case Dhcpv4ArpFlavor::AnnounceSenderIpWrong:
             sender_ip_be = kFaultSentinelAnnounceSenderBe;
             break;
-        case Dhcpv4ClientFlavor::None:
-        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
-        case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
-        case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
-        case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
-        case Dhcpv4ClientFlavor::DiscoverDstUnicast:
-        case Dhcpv4ClientFlavor::DiscoverDropEnd:
-        case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
-        case Dhcpv4ClientFlavor::RequestSrcNonzero:
-        case Dhcpv4ClientFlavor::RequestDstUnicast:
-        case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
-        case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
-        case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
-        case Dhcpv4ClientFlavor::ReacqRequestIncludeServerId:
-        case Dhcpv4ClientFlavor::ReacqRequestIncludeRequestedIp:
-        case Dhcpv4ClientFlavor::ReacqRequestCiaddrWrong:
-        case Dhcpv4ClientFlavor::RenewingRequestDstWrong:
-        case Dhcpv4ClientFlavor::RebindingDstUnicast:
-        case Dhcpv4ClientFlavor::DeclineRequestedIpWrong:
-        case Dhcpv4ClientFlavor::ProbeSenderIpNonzero:
+        case Dhcpv4ArpFlavor::None:
+        case Dhcpv4ArpFlavor::ProbeSenderIpNonzero:
             break;  // conformant Announce — sender_proto_ip stays committed
     }
     std::memcpy(f + 28, &sender_ip_be, 4);
@@ -1006,8 +965,10 @@ void Dhcpv4Client::runLoop(Params params) {
     // §4.7 Phase F: latch the emit-side fault selector before any emit so
     // emitDhcpMessage applies the phase-gated field mutation (DISCOVER /
     // SELECTING / reacquisition REQUEST). None (every positive case) leaves
-    // the wire shape conformant.
+    // the wire shape conformant. `arp_flavor_` is the ARP-emit counterpart
+    // read by emitArpProbe / emitArpAnnounce.
     flavor_ = params.flavor;
+    arp_flavor_ = params.arp_flavor;
 
     std::random_device rd;
     std::mt19937 rng(rd());
