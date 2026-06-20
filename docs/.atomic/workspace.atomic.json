@@ -3056,6 +3056,18 @@
         {
           "file": "dut/dut_service/posix_ut_extensions.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/dhcpv4_init_alloc_arp_probe.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/dhcpv4_init_alloc_arp_announce.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/dhcpv4_init_alloc_decline.sce-template.xml",
+          "kind": "implements"
         }
       ]
     },

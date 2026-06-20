@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.9 INIT_ALLOC_10 post-Probe gratuitous ARP Announce shape template.
+
+  DUT reaches BOUND, emits a (conformant) ARP Probe, observes no conflict,
+  then broadcasts a gratuitous ARP Reply announcing the committed yiaddr
+  (RFC 2131 §4.4.1 SHOULD). Shared by the positive _10 case and its _10_neg
+  firmware-mutant sibling — only the terminal Announce predicate diverges,
+  via the pass_expr / fail_state / fail_reason params.
+
+  Lifecycle (state count = 4):
+    listening_for_discover (s1_deadline 6 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_first_request
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_arp_probe
+    listening_for_arp_probe (ACK injected on entry, s3_deadline 6 s)
+      on arp_observed: is_dhcp_arp_probe(offered_ip_be) → listening_for_arp_announce
+      (the Announce mutant leaves the Probe conformant, so the passthrough
+       holds for both the positive and the _neg)
+    listening_for_arp_announce (s4_deadline 4 s)
+      on arp_observed: opcode==2 and ({$pass_expr})  → pass
+      on arp_observed: opcode==2 and !({$pass_expr}) → {$fail_state}
+      on s4_deadline → inconclusive_no_announce
+
+  Param contract:
+    * pass_expr   — terminal Announce predicate. Positive binds the
+                    conformant shape (is_dhcp_arp_announce); _neg its negation.
+    * fail_state  — final reached on opcode==2 and !pass_expr.
+    * fail_reason — JSON `reason` string for the fail final.
+
+  The trait wires the DHCP server emul (OFFER on s2 entry, ACK on s3 entry)
+  with no conflict injection, so the listener times out and the DUT emits
+  the Announce.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_init_alloc_arp_announce">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpAndDhcpv4Captured"
+               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpAndDhcpv4Expected"
+               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_request()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_arp_probe"/>
+    <transition event="s2_deadline" target="inconclusive_no_request"/>
+  </state>
+
+  <state id="listening_for_arp_probe">
+    <onentry>
+      <send event="s3_deadline" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
+                target="listening_for_arp_announce"/>
+    <transition event="s3_deadline" target="inconclusive_no_arp_probe"/>
+  </state>
+
+  <state id="listening_for_arp_announce">
+    <onentry>
+      <send event="s4_deadline" delay="4s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.opcode == 2 and ({$pass_expr})"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.opcode == 2 and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="s4_deadline" target="inconclusive_no_announce"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_arp_probe">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_arp_probe_after_bound","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_announce">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_arp_reply_announce_after_probe","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+</sce:template>

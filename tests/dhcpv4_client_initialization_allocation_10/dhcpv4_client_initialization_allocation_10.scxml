@@ -1,31 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10:
-    "The client SHOULD broadcast an ARP reply to announce the client's
-     new IP address and clear any outdated ARP cache entries in hosts
-     on the client's subnet" (RFC 2131 §4.4.1).
+    After the conflict-free Probe window, the DUT broadcasts a gratuitous
+    ARP Reply (Announce) carrying sender_hw = DUT MAC and sender_ip =
+    committed yiaddr (RFC 2131 §4.4.1 SHOULD). Pass Criteria step 7 verifies
+    the Announce fields; a present-but-malformed Announce is a fail (not the
+    deadline's inconclusive).
 
-  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_10):
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. TESTER cause DUT to BOUND.
-    5.   TESTER:DHCP Server Listens.
-    6.   DUT: Sends ARP Response Message.
-    7.   TESTER: Verify ARP Response contains:
-            - Sender MAC = DUT iface MAC
-            - Sender IP  = SERVER1-IP-POOL-0-0 (= committed yiaddr)
-  Pass: 6 + 7.
-
-  Same firmware path as INIT_ALLOC_08 (post-BOUND ARP Probe with
-  arp_probe_listen_ms=1500), but with no tester-side conflict
-  injection — the listener times out, runLoop emits the gratuitous
-  ARP Reply (Announce) per RFC 2131 §4.4.1 SHOULD before falling
-  through to the BOUND phase machine. State 4 deadline 4 s covers
-  the listener timeout (1500 ms) + Announce emit (~50 ms) margin.
-
-  fail_arp_announce_shape_mismatch: an Announce (opcode 2) whose Sender
-  IP does not carry the committed yiaddr (Pass Criteria step 7) is a fail,
-  not the deadline's inconclusive — mirrors fail_arp_probe_shape_mismatch
-  in INIT_ALLOC_08. True absence still falls through to inconclusive.
+  Reuses dhcpv4_init_alloc_arp_announce with the conformant predicate; the
+  _10_neg sibling binds its negation against the AnnounceSenderIpWrong
+  firmware mutant. Same firmware path as _08 (arp_probe_listen_ms=1500) but
+  with no conflict injection — the listener times out and the DUT announces.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -34,94 +19,8 @@
        name="dhcpv4_client_initialization_allocation_10"
        datamodel="null"
        initial="listening_for_discover">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpAndDhcpv4Captured"
-               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpAndDhcpv4Expected"
-               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
-
-  <state id="listening_for_discover">
-    <onentry>
-      <send event="s1_deadline" delay="6s"/>
-    </onentry>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.dhcpv4.is_dhcp_discover()
-                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
-                target="listening_for_first_request"/>
-    <transition event="s1_deadline" target="inconclusive_no_discover"/>
-  </state>
-
-  <state id="listening_for_first_request">
-    <onentry>
-      <send event="s2_deadline" delay="4s"/>
-    </onentry>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.dhcpv4.is_dhcp_request()
-                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
-                target="listening_for_arp_probe"/>
-    <transition event="s2_deadline" target="inconclusive_no_request"/>
-  </state>
-
-  <state id="listening_for_arp_probe">
-    <onentry>
-      <send event="s3_deadline" delay="6s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
-                target="listening_for_arp_announce"/>
-    <transition event="s3_deadline" target="inconclusive_no_arp_probe"/>
-  </state>
-
-  <state id="listening_for_arp_announce">
-    <onentry>
-      <send event="s4_deadline" delay="4s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.arp.is_dhcp_arp_announce(expected.dhcpv4.offered_ip_be)"
-                target="pass"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.arp.opcode == 2
-                      and !captured.arp.is_dhcp_arp_announce(expected.dhcpv4.offered_ip_be)"
-                target="fail_arp_announce_shape_mismatch"/>
-    <transition event="s4_deadline" target="inconclusive_no_announce"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_arp_announce_shape_mismatch">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_arp_announce_field_mismatch","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_discover">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_request">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_arp_probe">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_arp_probe_after_bound","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_announce">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_arp_reply_announce_after_probe","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/dhcpv4_init_alloc_arp_announce.sce-template.xml"
+           pass_expr="captured.arp.is_dhcp_arp_announce(expected.dhcpv4.offered_ip_be)"
+           fail_state="fail_arp_announce_shape_mismatch"
+           fail_reason="dut_arp_announce_field_mismatch"/>
 </scxml>

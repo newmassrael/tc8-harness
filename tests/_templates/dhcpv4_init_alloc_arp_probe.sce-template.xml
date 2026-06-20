@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.9 INIT_ALLOC_08 post-BOUND ARP Probe shape template.
+
+  DUT reaches BOUND, then emits the duplicate-address-detection ARP Probe
+  for the offered yiaddr (RFC 2131 §4.4.1 / RFC 5227 §2.1.1). Shared by the
+  positive _08 case and its _08_neg firmware-mutant sibling — the only
+  divergence is the terminal predicate, supplied via the pass_expr /
+  fail_state / fail_reason params (same contract as dhcpv4_request_field).
+
+  Lifecycle (state count = 3):
+    listening_for_discover (s1_deadline 6 s)
+      on dhcp_observed: is_discover + chaddr_match → listening_for_first_request
+    listening_for_first_request (OFFER injected on entry, s2_deadline 4 s)
+      on dhcp_observed: is_request + chaddr_match → listening_for_arp_probe
+    listening_for_arp_probe (ACK injected on entry, s3_deadline 8 s)
+      on arp_observed: opcode==1 and ({$pass_expr})  → pass
+      on arp_observed: opcode==1 and !({$pass_expr}) → {$fail_state}
+      on s3_deadline → inconclusive_no_arp_probe
+
+  Filter `captured.arp.opcode == 1` admits only ARP Requests, so the
+  injected OFFER/ACK DHCP frames never satisfy the terminal transitions.
+
+  Param contract:
+    * pass_expr   — terminal Probe predicate. Positive binds the conformant
+                    shape (is_dhcp_arp_probe); _neg binds its negation.
+    * fail_state  — final reached on opcode==1 and !pass_expr.
+    * fail_reason — JSON `reason` string for the fail final.
+
+  The trait wires the DHCP server emul (OFFER on s2 entry, ACK on s3 entry);
+  no stimulus is injected on the probe-observation state.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_init_alloc_arp_probe">
+
+  <sce:param name="pass_expr"   required="true"/>
+  <sce:param name="fail_state"  required="true"/>
+  <sce:param name="fail_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpAndDhcpv4Captured"
+               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpAndDhcpv4Expected"
+               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_discover()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_request()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
+                target="listening_for_arp_probe"/>
+    <transition event="s2_deadline" target="inconclusive_no_request"/>
+  </state>
+
+  <state id="listening_for_arp_probe">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.opcode == 1 and ({$pass_expr})"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.arp.opcode == 1 and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="s3_deadline" target="inconclusive_no_arp_probe"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_arp_probe">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_arp_probe_after_bound","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+</sce:template>

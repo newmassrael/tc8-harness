@@ -1,35 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_09:
-    "If the network address appears to be in use, the client MUST send
-     a DHCPDECLINE message to the server" (RFC 2131 §4.4.1, MUST).
+    When the post-Probe ARP conflict reply asserts the offered address is in
+    use, the DUT MUST send a DHCPDECLINE (RFC 2131 §4.4.1). The TC8 Pass
+    Criteria check only DECLINE presence (step 10), but a conformant DECLINE
+    MUST carry the declined address in Option 50 (RFC 2131 §4.4.4 / table 5);
+    the harness asserts that RFC-well-formedness the same way it requires the
+    chaddr to match, so a present-but-malformed Option 50 is a fail and only
+    true absence falls through to inconclusive.
 
-  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_09):
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. TESTER cause DUT to BOUND.
-    5.   TESTER:DHCP Server Listens.
-    6.   DUT: Sends ARP Request Message.
-    7.   TESTER: Verify ARP Request target_proto_ip = SERVER1-IP-POOL-0-0.
-    8.   TESTER: Sends ARP Response with sender_mac = MAC-UNUSED,
-                  sender_ip = SERVER1-IP-POOL-0-0 (conflict assertion).
-    9.   TESTER: Listens.
-    10.  DUT: Sends DHCPDECLINE Message.
-  Pass: 6 + 7 + 10.
-
-  ARP conflict injection on `listening_for_decline` entry — fired only
-  after the DUT's ARP Probe is observed. The DUT's runArpProbeListener
-  observes the conflict reply, returns true, and runLoop emits
-  DHCPDECLINE (msg_type=4, ciaddr=0, Option 50=offered, Option 54=server_id).
-
-  fail_decline_wrong_requested_ip: a DECLINE that IS emitted but whose
-  Option 50 (Requested IP Address) does not echo the declined address is a
-  fail, not the deadline's inconclusive. The TC8 Pass Criteria check only
-  DECLINE presence (step 10), but a conformant DECLINE MUST carry the
-  declined address in Option 50 (RFC 2131 §4.4.4 / table 5); the harness
-  asserts that RFC-well-formedness the same way it already requires the
-  chaddr to match — so a present-but-malformed DECLINE is caught here, and
-  only true absence falls through to inconclusive. Mirrors the
-  fail_arp_probe_shape_mismatch branch in INIT_ALLOC_08.
+  Reuses dhcpv4_init_alloc_decline with the conformant Option-50 predicate;
+  the _09_neg sibling binds its negation against the DeclineRequestedIpWrong
+  firmware mutant. The trait injects OFFER + ACK + the ARP conflict reply
+  (arp_probe_listen_ms=1500).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -38,97 +21,8 @@
        name="dhcpv4_client_initialization_allocation_09"
        datamodel="null"
        initial="listening_for_discover">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpAndDhcpv4Captured"
-               cpp:include="sce_integration/arp_and_dhcpv4_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpAndDhcpv4Expected"
-               cpp:include="sce_integration/arp_and_dhcpv4_expected.h"/>
-
-  <state id="listening_for_discover">
-    <onentry>
-      <send event="s1_deadline" delay="6s"/>
-    </onentry>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.dhcpv4.is_dhcp_discover()
-                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
-                target="listening_for_first_request"/>
-    <transition event="s1_deadline" target="inconclusive_no_discover"/>
-  </state>
-
-  <state id="listening_for_first_request">
-    <onentry>
-      <send event="s2_deadline" delay="4s"/>
-    </onentry>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.dhcpv4.is_dhcp_request()
-                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
-                target="listening_for_arp_probe"/>
-    <transition event="s2_deadline" target="inconclusive_no_request"/>
-  </state>
-
-  <state id="listening_for_arp_probe">
-    <onentry>
-      <send event="s3_deadline" delay="6s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.arp.is_dhcp_arp_probe(expected.dhcpv4.offered_ip_be)"
-                target="listening_for_decline"/>
-    <transition event="s3_deadline" target="inconclusive_no_arp_probe"/>
-  </state>
-
-  <state id="listening_for_decline">
-    <onentry>
-      <send event="s4_deadline" delay="4s"/>
-    </onentry>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.dhcpv4.is_dhcp_decline()
-                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)
-                      and captured.dhcpv4.option_be32_equals(50, expected.dhcpv4.offered_ip_be)"
-                target="pass"/>
-    <transition event="dhcp_observed"
-                cond="cpp:captured.dhcpv4.is_dhcp_decline()
-                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)
-                      and !captured.dhcpv4.option_be32_equals(50, expected.dhcpv4.offered_ip_be)"
-                target="fail_decline_wrong_requested_ip"/>
-    <transition event="s4_deadline" target="inconclusive_no_decline"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_decline_wrong_requested_ip">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_dhcp_decline_option50_mismatch","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_discover">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_request">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_arp_probe">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_arp_probe_after_bound","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_decline">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_decline_after_arp_conflict","role":"property_unobserved"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/dhcpv4_init_alloc_decline.sce-template.xml"
+           pass_expr="captured.dhcpv4.option_be32_equals(50, expected.dhcpv4.offered_ip_be)"
+           fail_state="fail_decline_wrong_requested_ip"
+           fail_reason="dut_dhcp_decline_option50_mismatch"/>
 </scxml>
