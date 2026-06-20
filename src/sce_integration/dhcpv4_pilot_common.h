@@ -101,7 +101,8 @@ inline void emitStartDhcpClientBuggy(const ::tc8::TestConfig& cfg,
                                      std::string_view iface,
                                      const std::array<std::uint8_t, 6>& dut_mac,
                                      std::uint8_t flavor,
-                                     bool apply_initial_wait = true) {
+                                     bool apply_initial_wait = true,
+                                     std::uint16_t arp_probe_listen_ms = 0) {
     if (apply_initial_wait) {
         std::this_thread::sleep_for(kDhcpv4PilotInitialWait);
     }
@@ -111,7 +112,8 @@ inline void emitStartDhcpClientBuggy(const ::tc8::TestConfig& cfg,
         /*ack_wait_ms=*/2000,
         /*retry_count=*/1,
         /*retry_interval_ms=*/1000,
-        flavor);
+        flavor,
+        arp_probe_listen_ms);
     ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
         /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);

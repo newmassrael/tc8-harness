@@ -372,23 +372,25 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     std::uint8_t  iface_index                = 0);
 
 // §4.5.6.1 / §4.7 Phase F fault-injection variant of the 0x10
-// OpStartDhcpClient request: the same opcode plus the trailing `flavor`
-// byte at param offset 24 (the handler's >= 25 gate). Zero-fills the
-// advanced §4.7 slots (nak / arp-probe / decline / retx) and iface_index
-// so only the basic SELECTING timing + the flavor are carried — enough
-// for INTRO_01_NEG; grow this builder when a DHCP flavor needs the
-// advanced slots. Positive cases keep buildStartDhcpClientRequest (no
-// flavor slot) so their wire shape is unchanged. `flavor` is a
-// kDhcpFlavor* value; kDhcpFlavorNone makes the firmware run the fully
-// compliant lifecycle (used to prove the negative's compliant-silence
-// branch is live).
+// OpStartDhcpClient request: the canonical buildStartDhcpClientRequest
+// param block (single source of the wire layout) plus the trailing
+// `flavor` byte at param offset 24 (the handler's >= 25 gate). The basic
+// SELECTING-timing _neg cases (INTRO_01_NEG, DISCOVER / SELECTING
+// clusters) leave `arp_probe_listen_ms` at 0; the §4.7.6.9 INIT_ALLOC
+// _neg cases pass 1500 so the firmware runs the post-BOUND ARP Probe ->
+// conflict-listen -> Announce | DECLINE sequence the ARP-shape mutants
+// target. Positive cases keep buildStartDhcpClientRequest (no flavor
+// slot) so their wire shape is unchanged. `flavor` is a kDhcpFlavor*
+// value; kDhcpFlavorNone makes the firmware run the fully compliant
+// lifecycle (used to prove the negative's compliant branch is live).
 std::vector<std::uint8_t> buildStartDhcpClientBuggyRequest(
     std::uint8_t  req_id,
     std::uint16_t offer_wait_ms,
     std::uint16_t ack_wait_ms,
     std::uint8_t  retry_count,
     std::uint16_t retry_interval_ms,
-    std::uint8_t  flavor);
+    std::uint8_t  flavor,
+    std::uint16_t arp_probe_listen_ms = 0);
 
 // Build a 0x11 QueryDhcpLease request. tc8-dut replies with the bound
 // IPv4 address (yiaddr from the matched ACK) or 0 if not yet bound.

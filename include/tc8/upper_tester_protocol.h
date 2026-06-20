@@ -900,6 +900,28 @@ inline constexpr std::uint8_t kDhcpFlavorRenewingRequestDstWrong        = 0x10;
 // REQUEST_12)
 inline constexpr std::uint8_t kDhcpFlavorRebindingDstUnicast            = 0x11;
 
+// §4.7.6.9 INIT_ALLOC duplicate-address-detection (DAD) reaction mutants
+// (Phase F). The post-BOUND DAD sequence (ARP Probe -> conflict-listen ->
+// DHCPDECLINE | gratuitous ARP Announce) carries a checkable field shape;
+// each mutant corrupts exactly one field of one reaction so the matching
+// _neg case's violation guard becomes reachable. Applied in emitArpProbe /
+// emitArpAnnounce / emitDhcpMessage (Decline phase); the conformant path
+// (kDhcpFlavorNone) emits the correct shape, which is the _neg's live
+// fail_compliant outcome.
+//
+// RFC 2131 §4.4.1 / RFC 5227 §2.1.1: the ARP Probe MUST carry
+// sender_proto_ip = 0 (the client has not yet claimed the address).
+// Mutant writes a non-zero sender IP. (INIT_ALLOC_08)
+inline constexpr std::uint8_t kDhcpFlavorProbeSenderIpNonzero           = 0x12;
+// RFC 2131 §4.4.1 / table 5: the DHCPDECLINE MUST carry the declined
+// address in Option 50 (Requested IP Address). Mutant writes a wrong
+// Option 50 value. (INIT_ALLOC_09)
+inline constexpr std::uint8_t kDhcpFlavorDeclineRequestedIpWrong        = 0x13;
+// RFC 2131 §4.4.1: the gratuitous ARP Announce MUST carry the committed
+// (bound) IP as sender_proto_ip. Mutant writes a wrong sender IP.
+// (INIT_ALLOC_10)
+inline constexpr std::uint8_t kDhcpFlavorAnnounceSenderIpWrong          = 0x14;
+
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:

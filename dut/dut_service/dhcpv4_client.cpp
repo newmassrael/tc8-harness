@@ -75,6 +75,18 @@ constexpr std::uint32_t kFaultSentinelOpt54Be =
 constexpr std::uint32_t kFaultSentinelRebindingDstBe =
     static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
     (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(12) << 24);  // 192.0.2.12
+// §4.7.6.9 INIT_ALLOC_08: non-zero ARP Probe sender IP (the conformant
+// probe carries 0). Distinct from the offered yiaddr so the mutated frame
+// is unmistakable and never matches is_dhcp_arp_probe.
+constexpr std::uint32_t kFaultSentinelProbeSenderBe =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(8) << 24);   // 192.0.2.8
+// §4.7.6.9 INIT_ALLOC_10: wrong gratuitous-ARP Announce sender IP (the
+// conformant announce carries the committed yiaddr). Distinct from the
+// offered/committed address so is_dhcp_arp_announce(committed) fails.
+constexpr std::uint32_t kFaultSentinelAnnounceSenderBe =
+    static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
+    (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(10) << 24);  // 192.0.2.10
 
 // §4.7.6.5 PARAMETERS_04 / RFC 2132 §9.8: clients MAY include Option 55
 // (Parameter Request List) in DISCOVER, and MUST repeat the same list in
@@ -394,6 +406,18 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
             if (spec.phase == DhcpPhase::Rebinding)
                 l3_dst_be = kFaultSentinelRebindingDstBe;
             break;
+        case Dhcpv4ClientFlavor::DeclineRequestedIpWrong:
+            // §4.7.6.9 INIT_ALLOC_09: the DHCPDECLINE MUST carry the declined
+            // address in Option 50 (RFC 2131 §4.4.1 / table 5); write a wrong
+            // requested-IP so option_be32_equals(50, declined) fails.
+            if (spec.phase == DhcpPhase::Decline)
+                requested_addr_be = kFaultSentinelOpt50Be;
+            break;
+        case Dhcpv4ClientFlavor::ProbeSenderIpNonzero:
+        case Dhcpv4ClientFlavor::AnnounceSenderIpWrong:
+            // §4.7.6.9 INIT_ALLOC_08/_10: ARP-frame mutants — applied in
+            // emitArpProbe / emitArpAnnounce, conformant on every DHCP message.
+            break;
     }
 
     // Options layout (in spec order, with conditional inclusion):
@@ -637,7 +661,38 @@ void Dhcpv4Client::emitArpProbe(std::uint32_t target_ip_be) {
     writeBe16(f + 20, 0x0001);            // opcode = Request
 
     std::memcpy(f + 22, dut_mac_.data(), 6);
-    const std::uint32_t sender_ip_be = 0;
+    // §4.7.6.9 INIT_ALLOC_08 fault injection: the conformant Probe carries
+    // sender_proto_ip = 0 (RFC 2131 §4.4.1 / RFC 5227 §2.1.1). switch-no-
+    // default so -Werror=switch forces every future flavor to declare its
+    // Probe-side disposition; the DHCP-message + Announce + Decline flavors
+    // are conformant on the Probe (passive break).
+    std::uint32_t sender_ip_be = 0;
+    switch (flavor_) {
+        case Dhcpv4ClientFlavor::ProbeSenderIpNonzero:
+            sender_ip_be = kFaultSentinelProbeSenderBe;
+            break;
+        case Dhcpv4ClientFlavor::None:
+        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
+        case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
+        case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
+        case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
+        case Dhcpv4ClientFlavor::DiscoverDstUnicast:
+        case Dhcpv4ClientFlavor::DiscoverDropEnd:
+        case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
+        case Dhcpv4ClientFlavor::RequestSrcNonzero:
+        case Dhcpv4ClientFlavor::RequestDstUnicast:
+        case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
+        case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
+        case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
+        case Dhcpv4ClientFlavor::ReacqRequestIncludeServerId:
+        case Dhcpv4ClientFlavor::ReacqRequestIncludeRequestedIp:
+        case Dhcpv4ClientFlavor::ReacqRequestCiaddrWrong:
+        case Dhcpv4ClientFlavor::RenewingRequestDstWrong:
+        case Dhcpv4ClientFlavor::RebindingDstUnicast:
+        case Dhcpv4ClientFlavor::DeclineRequestedIpWrong:
+        case Dhcpv4ClientFlavor::AnnounceSenderIpWrong:
+            break;  // conformant Probe — sender_proto_ip stays 0
+    }
     std::memcpy(f + 28, &sender_ip_be, 4);
     std::memcpy(f + 32, kEthZero.data(), 6);
     std::memcpy(f + 38, &target_ip_be, 4);
@@ -662,7 +717,40 @@ void Dhcpv4Client::emitArpAnnounce(std::uint32_t committed_ip_be) {
     writeBe16(f + 20, 0x0002);            // opcode = Reply
 
     std::memcpy(f + 22, dut_mac_.data(), 6);
-    std::memcpy(f + 28, &committed_ip_be, 4);
+    // §4.7.6.9 INIT_ALLOC_10 fault injection: the conformant Announce carries
+    // sender_proto_ip = committed IP (RFC 2131 §4.4.1). switch-no-default so
+    // -Werror=switch forces every future flavor to declare its Announce-side
+    // disposition; the DHCP-message + Probe + Decline flavors are conformant
+    // here (passive break). target_proto_ip (f+38) stays the committed IP —
+    // is_dhcp_arp_announce keys on sender_proto_ip alone.
+    std::uint32_t sender_ip_be = committed_ip_be;
+    switch (flavor_) {
+        case Dhcpv4ClientFlavor::AnnounceSenderIpWrong:
+            sender_ip_be = kFaultSentinelAnnounceSenderBe;
+            break;
+        case Dhcpv4ClientFlavor::None:
+        case Dhcpv4ClientFlavor::LeakLinkLocalAfterBind:
+        case Dhcpv4ClientFlavor::DiscoverMagicCookieCorrupt:
+        case Dhcpv4ClientFlavor::DiscoverOmitMessageType:
+        case Dhcpv4ClientFlavor::DiscoverReservedFlagsSet:
+        case Dhcpv4ClientFlavor::DiscoverDstUnicast:
+        case Dhcpv4ClientFlavor::DiscoverDropEnd:
+        case Dhcpv4ClientFlavor::DiscoverSrcNonzero:
+        case Dhcpv4ClientFlavor::RequestSrcNonzero:
+        case Dhcpv4ClientFlavor::RequestDstUnicast:
+        case Dhcpv4ClientFlavor::RequestCiaddrNonzero:
+        case Dhcpv4ClientFlavor::RequestServerIdCorrupt:
+        case Dhcpv4ClientFlavor::RequestRequestedIpCorrupt:
+        case Dhcpv4ClientFlavor::ReacqRequestIncludeServerId:
+        case Dhcpv4ClientFlavor::ReacqRequestIncludeRequestedIp:
+        case Dhcpv4ClientFlavor::ReacqRequestCiaddrWrong:
+        case Dhcpv4ClientFlavor::RenewingRequestDstWrong:
+        case Dhcpv4ClientFlavor::RebindingDstUnicast:
+        case Dhcpv4ClientFlavor::DeclineRequestedIpWrong:
+        case Dhcpv4ClientFlavor::ProbeSenderIpNonzero:
+            break;  // conformant Announce — sender_proto_ip stays committed
+    }
+    std::memcpy(f + 28, &sender_ip_be, 4);
     std::memcpy(f + 32, dut_mac_.data(), 6);
     std::memcpy(f + 38, &committed_ip_be, 4);
 

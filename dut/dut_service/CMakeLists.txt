@@ -49,5 +49,13 @@ target_include_directories(tc8-dut PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/src
 )
+# tc8-dut is excluded from the full strict-warning set (its vsomeip /
+# CommonAPI generated sources trip -Wall noise), but the firmware
+# fault-injection dispatch relies on switch-no-default exhaustiveness to
+# force every new Dhcpv4ClientFlavor / LinklocalAutoconfFlavor to declare
+# its per-builder disposition. Promote ONLY -Wswitch to an error so a
+# missing flavor branch fails the build (a silently-ignored flavor is a
+# Phase F coverage hole) without pulling in the broader -Wall cascade.
+target_compile_options(tc8-dut PRIVATE -Werror=switch)
 target_link_options(tc8-dut PRIVATE -Wl,--no-as-needed)
 target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server tc8_upper_tester_server)

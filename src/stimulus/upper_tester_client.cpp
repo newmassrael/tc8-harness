@@ -312,28 +312,23 @@ std::vector<std::uint8_t> buildStartDhcpClientBuggyRequest(
     std::uint16_t ack_wait_ms,
     std::uint8_t  retry_count,
     std::uint16_t retry_interval_ms,
-    std::uint8_t  flavor) {
-    std::vector<std::uint8_t> req;
-    req.reserve(27);
-    req.push_back(static_cast<std::uint8_t>(ut::OpStartDhcpClient));
-    req.push_back(req_id);
-    appendBe16(req, offer_wait_ms);
-    appendBe16(req, ack_wait_ms);
-    req.push_back(retry_count);
-    appendBe16(req, retry_interval_ms);
-    // Zero-fill the DHCP advanced slots (nak / arp-probe / decline / retx)
-    // and iface_index so `flavor` lands at param offset 24 — the handler's
-    // n >= 25 gate. INTRO_01_NEG drives only the basic SELECTING timing
-    // plus the leak flavor.
-    appendBe16(req, 0);  // nak_to_discover_min
-    appendBe16(req, 0);  // nak_to_discover_max
-    appendBe16(req, 0);  // arp_probe_listen
-    appendBe16(req, 0);  // decline_to_discover_min
-    appendBe16(req, 0);  // decline_to_discover_max
-    appendBe16(req, 0);  // retx_first
-    appendBe16(req, 0);  // retx_cap
-    appendBe16(req, 0);  // retx_jitter
-    req.push_back(0);    // iface_index (primary)
+    std::uint8_t  flavor,
+    std::uint16_t arp_probe_listen_ms) {
+    // Reuse the canonical builder for the 25-byte param block (single source
+    // of the tester-side wire layout — a future slot is added in one place;
+    // the DUT-side reader in posix_ut_extensions.cpp keeps its own offset map)
+    // and append
+    // the trailing `flavor` byte at param offset 24, the handler's n >= 25
+    // gate. `arp_probe_listen_ms` (slot p+11) is the only advanced slot a
+    // _neg drives today (§4.7.6.9 INIT_ALLOC ARP-shape mutants); the rest
+    // stay 0 — the SELECTING-only _neg cases leave it 0 too.
+    auto req = buildStartDhcpClientRequest(
+        req_id, offer_wait_ms, ack_wait_ms, retry_count, retry_interval_ms,
+        /*nak_to_discover_min_ms=*/0, /*nak_to_discover_max_ms=*/0,
+        arp_probe_listen_ms,
+        /*decline_to_discover_min_ms=*/0, /*decline_to_discover_max_ms=*/0,
+        /*retx_first_ms=*/0, /*retx_cap_ms=*/0, /*retx_jitter_ms=*/0,
+        /*iface_index=*/0);
     req.push_back(flavor);
     return req;
 }

@@ -54,6 +54,13 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     ReacqRequestCiaddrWrong        = ::tc8::ut::kDhcpFlavorReacqRequestCiaddrWrong,
     RenewingRequestDstWrong        = ::tc8::ut::kDhcpFlavorRenewingRequestDstWrong,
     RebindingDstUnicast            = ::tc8::ut::kDhcpFlavorRebindingDstUnicast,
+    // §4.7.6.9 INIT_ALLOC ARP-shape mutants — the post-BOUND
+    // duplicate-address-detection reactions. ProbeSenderIpNonzero applies in
+    // emitArpProbe, AnnounceSenderIpWrong in emitArpAnnounce, and
+    // DeclineRequestedIpWrong in emitDhcpMessage gated to the Decline phase.
+    ProbeSenderIpNonzero           = ::tc8::ut::kDhcpFlavorProbeSenderIpNonzero,
+    DeclineRequestedIpWrong        = ::tc8::ut::kDhcpFlavorDeclineRequestedIpWrong,
+    AnnounceSenderIpWrong          = ::tc8::ut::kDhcpFlavorAnnounceSenderIpWrong,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

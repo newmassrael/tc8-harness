@@ -2002,31 +2002,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_08": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_arp_probe_field_mismatch",
-          "property": "DUT's ARP Probe for the offered address must carry the correct probe fields (RFC 2131 §4.4.1 duplicate detection); fail iff a probe's fields mismatch"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_09": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must send a DHCPDECLINE when the offered network address appears to be in use (RFC 2131 §4.4.1); binary present/absent"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must broadcast a gratuitous ARP announcing its new IP address after binding (RFC 2131 §4.4.1); binary present/absent"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_PARAMETERS_04": {
       "guards": [
         {

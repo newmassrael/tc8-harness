@@ -20,6 +20,16 @@
   after the DUT's ARP Probe is observed. The DUT's runArpProbeListener
   observes the conflict reply, returns true, and runLoop emits
   DHCPDECLINE (msg_type=4, ciaddr=0, Option 50=offered, Option 54=server_id).
+
+  fail_decline_wrong_requested_ip: a DECLINE that IS emitted but whose
+  Option 50 (Requested IP Address) does not echo the declined address is a
+  fail, not the deadline's inconclusive. The TC8 Pass Criteria check only
+  DECLINE presence (step 10), but a conformant DECLINE MUST carry the
+  declined address in Option 50 (RFC 2131 §4.4.4 / table 5); the harness
+  asserts that RFC-well-formedness the same way it already requires the
+  chaddr to match — so a present-but-malformed DECLINE is caught here, and
+  only true absence falls through to inconclusive. Mirrors the
+  fail_arp_probe_shape_mismatch branch in INIT_ALLOC_08.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -78,12 +88,23 @@
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)
                       and captured.dhcpv4.option_be32_equals(50, expected.dhcpv4.offered_ip_be)"
                 target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.dhcpv4.is_dhcp_decline()
+                      and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)
+                      and !captured.dhcpv4.option_be32_equals(50, expected.dhcpv4.offered_ip_be)"
+                target="fail_decline_wrong_requested_ip"/>
     <transition event="s4_deadline" target="inconclusive_no_decline"/>
   </state>
 
   <final id="pass">
     <donedata>
       <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_decline_wrong_requested_ip">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_decline_option50_mismatch","role":"observed_violation"}</content>
     </donedata>
   </final>
 

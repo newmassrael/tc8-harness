@@ -3032,6 +3032,26 @@
         {
           "file": "tests/dhcpv4_client_initialization_allocation_10/dhcpv4_client_initialization_allocation_10.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_08_neg/dhcpv4_client_initialization_allocation_08_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_09_neg/dhcpv4_client_initialization_allocation_09_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_10_neg/dhcpv4_client_initialization_allocation_10_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
