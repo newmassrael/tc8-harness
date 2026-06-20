@@ -87,6 +87,20 @@ constexpr std::uint32_t kFaultSentinelProbeSenderBe =
 constexpr std::uint32_t kFaultSentinelAnnounceSenderBe =
     static_cast<std::uint32_t>(192) | (static_cast<std::uint32_t>(0) << 8) |
     (static_cast<std::uint32_t>(2) << 16) | (static_cast<std::uint32_t>(10) << 24);  // 192.0.2.10
+// §4.7.6.3 ALLOCATING_04: nonzero BOOTP 'secs' for the SELECTING REQUEST.
+// The conformant tc8-dut leaves 'secs' at 0 in both DISCOVER and REQUEST,
+// so any nonzero value makes Dhcpv4Captured::secs_matches_discover() fail.
+constexpr std::uint16_t kFaultSentinelRequestSecs = 0x4242;
+// §4.7.6.9 INIT_ALLOC_06: XOR mask applied to the SELECTING REQUEST's xid.
+// XOR (not assignment) guarantees the emitted xid differs from the randomly
+// drawn DISCOVER xid on every run — a fixed-value sentinel could collide
+// (1-in-2^32) with the real xid and silently pass the continuity check.
+constexpr std::uint32_t kFaultRequestXidFlipMask = 0xA5A5A5A5U;
+// §4.7.6.5 PARAMETERS_04: replacement for the first Option 55 (Parameter
+// Request List) byte in the SELECTING REQUEST. 0xFE is not a code the
+// conformant list {1, 3, 6, 15} contains, so the REQUEST's list no longer
+// matches the DISCOVER's snapshot (same length, one differing byte).
+constexpr std::uint8_t kFaultSentinelParamRequestByte = 0xFEU;
 
 // §4.7.6.5 PARAMETERS_04 / RFC 2132 §9.8: clients MAY include Option 55
 // (Parameter Request List) in DISCOVER, and MUST repeat the same list in
@@ -317,12 +331,15 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     std::uint32_t l3_src_be         = spec.l3_src_be;
     std::uint32_t l3_dst_be         = spec.l3_dst_be;
     std::uint32_t ciaddr_be         = spec.ciaddr_be;
+    std::uint32_t xid_be            = spec.xid_be;
     std::uint32_t requested_addr_be = spec.requested_addr_be;
     std::uint32_t server_id_be      = spec.server_id_be;
     bool corrupt_magic_cookie       = false;
     bool omit_message_type_option   = false;
     bool set_reserved_flag_bit      = false;
     bool drop_end_option            = false;
+    bool set_request_secs_mismatch  = false;
+    bool mutate_param_request_list  = false;
 
     // Each mutant gates on the EXPLICIT lifecycle phase carried by the spec
     // (set by the emit helper that knows which message it is building), so a
@@ -413,6 +430,24 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
             if (spec.phase == DhcpPhase::Decline)
                 requested_addr_be = kFaultSentinelOpt50Be;
             break;
+        case Dhcpv4ClientFlavor::RequestSecsMismatch:
+            // §4.7.6.3 ALLOCATING_04: the SELECTING REQUEST's 'secs' MUST
+            // equal the DISCOVER's (RFC 2131 §4.3.2); write a nonzero secs
+            // (conformant path leaves both at 0) so the continuity check fails.
+            if (is_selecting) set_request_secs_mismatch = true;
+            break;
+        case Dhcpv4ClientFlavor::RequestXidMismatch:
+            // §4.7.6.9 INIT_ALLOC_06: the SELECTING REQUEST MUST echo the
+            // DISCOVER's 'xid' (RFC 2131 §4.3.2); XOR a fixed mask so the
+            // emitted xid is guaranteed-distinct from the DISCOVER's.
+            if (is_selecting) xid_be ^= kFaultRequestXidFlipMask;
+            break;
+        case Dhcpv4ClientFlavor::RequestParamListMismatch:
+            // §4.7.6.5 PARAMETERS_04: the SELECTING REQUEST MUST repeat the
+            // DISCOVER's Option 55 byte sequence (RFC 2131 §4.3.6); corrupt
+            // one list byte below.
+            if (is_selecting) mutate_param_request_list = true;
+            break;
     }
 
     // Options layout (in spec order, with conditional inclusion):
@@ -471,7 +506,14 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     bp[1] = 1;       // htype = Ethernet
     bp[2] = 6;       // hlen
     bp[3] = 0;       // hops
-    std::memcpy(bp + 4, &spec.xid_be, 4);
+    std::memcpy(bp + 4, &xid_be, 4);
+    if (set_request_secs_mismatch) {
+        // §4.7.6.3 ALLOCATING_04: write a nonzero BOOTP 'secs' (the
+        // conformant path leaves bp[8]/bp[9] zero by buffer init in both
+        // DISCOVER and REQUEST). The snapshot of the conformant DISCOVER's
+        // secs is 0, so secs_matches_discover() fails against this REQUEST.
+        writeBe16(bp + 8, kFaultSentinelRequestSecs);
+    }
     // ciaddr per RFC 2131 §4.3.2 (zero in SELECTING) / §4.4.5 (filled
     // with bound IP in RENEWING/REBINDING). Other BOOTP address fields
     // (yiaddr/siaddr/giaddr) stay zero.
@@ -540,6 +582,13 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     opts[i++] = static_cast<std::uint8_t>(kParameterRequestList.size());
     std::memcpy(opts + i, kParameterRequestList.data(),
                 kParameterRequestList.size());
+    if (mutate_param_request_list) {
+        // §4.7.6.5 PARAMETERS_04: corrupt the first list byte so the
+        // REQUEST's Option 55 no longer matches the DISCOVER's. Length is
+        // unchanged (still kParameterRequestList.size()), so the option
+        // framing and the opts_len math above stay valid.
+        opts[i] = kFaultSentinelParamRequestByte;
+    }
     i += kParameterRequestList.size();
 
     // §4.7.6.7 CONSTRUCTING_MESSAGES_01: under DropEnd the END (0xFF) is

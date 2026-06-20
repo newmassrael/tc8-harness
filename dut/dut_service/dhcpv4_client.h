@@ -60,6 +60,14 @@ enum class Dhcpv4ClientFlavor : std::uint8_t {
     // ARP emit builders switch over their own small domain, not the whole
     // DHCP-message flavor set.)
     DeclineRequestedIpWrong        = ::tc8::ut::kDhcpFlavorDeclineRequestedIpWrong,
+    // §4.7 SELECTING REQUEST ↔ DISCOVER continuity mutants — each corrupts
+    // one field the post-OFFER REQUEST must echo from the DISCOVER (gated to
+    // the SELECTING phase in emitDhcpMessage so the DISCOVER stays conformant
+    // and the OFFER lifecycle still completes). See kDhcpFlavor* for the RFC
+    // clause each violates.
+    RequestSecsMismatch            = ::tc8::ut::kDhcpFlavorRequestSecsMismatch,
+    RequestXidMismatch             = ::tc8::ut::kDhcpFlavorRequestXidMismatch,
+    RequestParamListMismatch       = ::tc8::ut::kDhcpFlavorRequestParamListMismatch,
 };
 
 // §4.7.6.9 INIT_ALLOC_08/_10 ARP-frame field mutants. Split out from

@@ -2580,6 +2580,10 @@
         {
           "file": "tests/dhcpv4_client_allocating_05_neg/dhcpv4_client_allocating_05_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_allocating_04_neg/dhcpv4_client_allocating_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -2643,6 +2647,10 @@
         },
         {
           "file": "dut/dut_service/posix_ut_extensions.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_parameters_04_neg/dhcpv4_client_parameters_04_neg.scxml",
           "kind": "implements"
         }
       ]
@@ -3067,6 +3075,10 @@
         },
         {
           "file": "tests/_templates/dhcpv4_init_alloc_decline.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_initialization_allocation_06_neg/dhcpv4_client_initialization_allocation_06_neg.scxml",
           "kind": "implements"
         }
       ]

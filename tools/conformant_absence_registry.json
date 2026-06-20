@@ -1868,15 +1868,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_ALLOCATING_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_secs_mismatch_discover",
-          "property": "DUT's DHCPREQUEST secs field must match the preceding DHCPDISCOVER's secs; fail iff it differs"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_ALLOCATING_06": {
       "guards": [
         {
@@ -1990,24 +1981,6 @@
           "class": "prohibited_emission",
           "fail_reason": "dut_dhcp_request_after_lone_ack",
           "property": "DUT must not send a DHCPREQUEST after a lone DHCPACK with no preceding OFFER; silence is conformant"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_06": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_xid_mismatch",
-          "property": "DUT's DHCPREQUEST xid must match its DHCPDISCOVER xid (RFC 2131 §4.1); fail iff it mismatches"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_PARAMETERS_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_option55_mismatch_discover",
-          "property": "DUT's DHCPREQUEST Option 55 (Parameter Request List) must match its DHCPDISCOVER's (RFC 2131 §4.4.1); fail iff it differs"
         }
       ]
     },

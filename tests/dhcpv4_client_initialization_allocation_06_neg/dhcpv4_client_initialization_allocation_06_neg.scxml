@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_06 negative — closes
+  the self-reference trap on the positive _06 case (the SELECTING
+  DHCPREQUEST MUST echo the originating DHCPDISCOVER's 'xid', which the OFFER
+  also carries, RFC 2131 §4.4.1). The positive's xid-mismatch branch is
+  unreachable against a conformant tc8-dut, which persists the xid across
+  DISCOVER -> REQUEST.
+
+  Fault injection is a real firmware mutant: the stimulus drives the DHCP
+  client with the kDhcpFlavorRequestXidMismatch flavor, gated to the
+  post-OFFER SELECTING REQUEST (the DISCOVER stays conformant so the OFFER
+  still matches DISCOVER.xid and the lifecycle reaches REQUEST). tc8-dut then
+  XORs the REQUEST's xid with a fixed mask while the DISCOVER snapshot holds
+  the original, so xid_matches_discover() is false. A conformant client
+  (flavor None) echoes the xid, so this negative's fail_compliant branch is
+  the live conformant-DUT outcome.
+
+  Reuses the positive _04 cluster's dhcpv4_request_field template (the _06
+  positive is an equivalent standalone lifecycle) with pass_expr inverted
+  (pass = xid mismatch observed); fail_compliant fires when the client
+  echoed the DISCOVER's xid despite the flavor. The trait arms
+  scheduleDiscoverSnapshotOnStateEntry so the guard can compare against the
+  DISCOVER snapshot.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_06_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_request_field.sce-template.xml"
+           pass_expr="!captured.xid_matches_discover()"
+           fail_state="fail_compliant"
+           fail_reason="dut_dhcp_request_echoed_discover_xid_despite_xid_mismatch_flavor"/>
+</scxml>

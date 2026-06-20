@@ -922,6 +922,28 @@ inline constexpr std::uint8_t kDhcpFlavorDeclineRequestedIpWrong        = 0x13;
 // (INIT_ALLOC_10)
 inline constexpr std::uint8_t kDhcpFlavorAnnounceSenderIpWrong          = 0x14;
 
+// §4.7 SELECTING DHCPREQUEST ↔ DISCOVER continuity mutants (Phase F). RFC
+// 2131 requires the post-OFFER REQUEST to carry the same identifying field
+// values the originating DISCOVER did. Each mutant corrupts exactly one of
+// those fields on the SELECTING REQUEST (gated to DhcpPhase::Selecting in
+// emitDhcpMessage), leaving the DISCOVER conformant so the OFFER still
+// matches and the lifecycle reaches the REQUEST under test. The conformant
+// path (kDhcpFlavorNone) echoes the DISCOVER's values, which is the _neg's
+// live fail_compliant outcome.
+//
+// RFC 2131 §4.3.2: the REQUEST's BOOTP 'secs' MUST equal the DISCOVER's.
+// Mutant writes a nonzero 'secs' (the conformant client emits 0 in both).
+// (§4.7.6.3 ALLOCATING_04)
+inline constexpr std::uint8_t kDhcpFlavorRequestSecsMismatch            = 0x15;
+// RFC 2131 §4.3.2 / §4.4.1: the REQUEST MUST echo the DISCOVER's 'xid'
+// (which the OFFER carries). Mutant emits a different xid. (§4.7.6.9
+// INIT_ALLOC_06)
+inline constexpr std::uint8_t kDhcpFlavorRequestXidMismatch             = 0x16;
+// RFC 2131 §4.3.6: if the DISCOVER carries Option 55 (Parameter Request
+// List), the REQUEST MUST repeat the same byte sequence. Mutant corrupts
+// one list byte. (§4.7.6.5 PARAMETERS_04)
+inline constexpr std::uint8_t kDhcpFlavorRequestParamListMismatch       = 0x17;
+
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:
