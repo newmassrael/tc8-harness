@@ -367,9 +367,6 @@ _DEADLINE_EVENTS = ("deadline", "timeout", "window", "silence")
 # authored class is correct. Each entry records why (reviewed, docs/verdict_
 # policy.md Section 6).
 CLASS_STRUCTURE_EXCEPTIONS = {
-    "ARP_22": "prohibited: forbidden UDP to the dropped frame's MAC; PASS requires observing the DUT's own ARP Request, so the deadline reaches inconclusive",
-    "ARP_28": "prohibited: forbidden UDP to the dropped frame's MAC; PASS requires observing the DUT's own ARP Request, so the deadline reaches inconclusive",
-    "ARP_38": "prohibited: forbidden UDP to the dropped frame's MAC; PASS requires observing the DUT's own ARP Request, so the deadline reaches inconclusive",
     "SOMEIP_ETS_096": "prohibited: forbidden SubscribeAck; PASS requires observing a NACK, so silence reaches inconclusive (not pass)",
 }
 

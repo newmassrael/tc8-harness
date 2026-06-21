@@ -1629,15 +1629,6 @@
         }
       ]
     },
-    "ARP_22": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "udp_eth_dst_matched_dropped_frame_mac",
-          "property": "DUT must drop the malformed gratuitous ARP Response (unknown hw_type) and ARP-resolve before unicast UDP egress; fail iff it emits a UDP to the tester using the dropped frame's MAC (forbidden cache acceptance)"
-        }
-      ]
-    },
     "ARP_26": {
       "guards": [
         {
@@ -1646,29 +1637,11 @@
         }
       ]
     },
-    "ARP_28": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "udp_eth_dst_matched_dropped_frame_mac",
-          "property": "DUT must drop the malformed gratuitous ARP Response (unknown proto_type) and ARP-resolve before unicast UDP egress; fail iff it emits a UDP to the tester using the dropped frame's MAC (forbidden cache acceptance)"
-        }
-      ]
-    },
     "ARP_36": {
       "guards": [
         {
           "class": "liveness",
           "property": "DUT must emit an ARP Reply to a Request whose Target Protocol Address is the DUT's interface IP; binary present/absent"
-        }
-      ]
-    },
-    "ARP_38": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "udp_eth_dst_matched_dropped_frame_mac",
-          "property": "DUT must drop the non-gratuitous ARP Response targeting an unused subnet host and ARP-resolve before unicast UDP egress; fail iff it emits a UDP to the tester using the dropped frame's MAC (forbidden cache acceptance)"
         }
       ]
     },

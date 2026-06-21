@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_28 negative — lwIP ingress-fault self-validation of the
+  positive _28 drop-and-emit guard. The trait injects a gratuitous ARP Response
+  with an unknown Protocol Type (the frame the DUT MUST drop), arms
+  kArpFaultLearnFromDropFrame, then provokes UDP egress. The lwIP netif input hook
+  forces the dropped Response's address into the ARP table, so the DUT's UDP uses
+  the injected MAC. Pass = that UDP observed; fail_compliant = DUT emitted its own
+  ARP Request despite the flavor (fault inert). lwIP-only (capability-gated on
+  kCapArpFlavor). Envelope: arp_group_c_drop_and_emit_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_28_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_group_c_drop_and_emit_neg.sce-template.xml"/>
+</scxml>

@@ -836,8 +836,9 @@ inline constexpr std::uint8_t kArpFaultProtoTypeWrong  = 0x03;  // RFC 826 ptype
 inline constexpr std::uint8_t kArpFaultHwLenWrong      = 0x04;  // RFC 826 hlen:   ARP_10/ARP_47 (MUST be 6)
 inline constexpr std::uint8_t kArpFaultProtoLenWrong   = 0x05;  // RFC 826 plen:   ARP_11 (MUST be 4)
 // INGRESS prohibited-emission flavors:
-inline constexpr std::uint8_t kArpFaultReplyToDropFrame = 0x06;  // §4.2.4.2 reply-absence: ARP_21/27/37/42 (reply to a frame the DUT must drop)
-inline constexpr std::uint8_t kArpFaultMax             = kArpFaultReplyToDropFrame;
+inline constexpr std::uint8_t kArpFaultReplyToDropFrame  = 0x06;  // §4.2.4.2 reply-absence: ARP_21/27/37/42 (reply to a frame the DUT must drop)
+inline constexpr std::uint8_t kArpFaultLearnFromDropFrame = 0x07;  // §4.2.4.2 drop-and-emit: ARP_22/28/38 (learn the dropped Response's address)
+inline constexpr std::uint8_t kArpFaultMax             = kArpFaultLearnFromDropFrame;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

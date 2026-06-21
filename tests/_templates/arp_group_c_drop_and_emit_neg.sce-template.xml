@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.2 drop-and-emit `_NEG` body: the lwIP ingress-fault self-validation of
+  the positive ARP_22/28/38 guards. The positive injects a malformed/foreign ARP
+  Response the conformant DUT MUST drop (cache not populated), so on the follow-up
+  UT 0x02 provocation it emits its OWN ARP Request before the unicast UDP. Its
+  `_NEG` arms kArpFaultLearnFromDropFrame, so the lwIP netif input hook forces the
+  dropped Response's (sender_ip -> sender_hw) into the ARP table as a static entry.
+
+    Pass:    the DUT's UDP egress to the tester carries eth_dst == the injected
+             (dropped frame's) MAC — the forbidden cache acceptance the positive
+             guard fires on.
+    Fail:    a DUT-originated ARP Request (opcode == 1, sender_hw == dut_iface_mac)
+             -> fail_compliant — the DUT resolved the MAC itself despite the flavor
+             (the fault was inert: a flavor-wiring regression, NOT a DUT conformance
+             violation; role fault_injection_inert).
+    Timeout: deadline_exceeded -> inconclusive — neither emission seen.
+
+  Mirror of arp_group_c_drop_and_emit with the pass/fail transitions swapped;
+  param-less, shared by ARP_22/28/38_NEG. 5 s deadline matches the §4.2.4.2 `_NEG`
+  cluster.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_group_c_drop_and_emit_neg">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="inconclusive"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_own_arp_request_despite_learn_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_udp_or_arp_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</sce:template>

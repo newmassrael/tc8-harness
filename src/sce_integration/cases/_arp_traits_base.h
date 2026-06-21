@@ -30,12 +30,12 @@
 //                             Event::Udp_observed on UdpFrame; the SCXML
 //                             guards discriminate.
 //
-// Every §4.2 case — the positives AND the lwIP egress-fault `_neg`
-// self-validation siblings — is covered by these two DISPATCH shapes; no third
-// dispatch shape is needed. (ArpFaultNegBase below is NOT a third shape: it
-// inherits ArpAnyBase's dispatch and only adds a capability declaration.)
-// Stated by shape, not a frozen case count, so the claim survives the `_neg`
-// track and future §4.2 additions.
+// Every §4.2 case — the positives AND the lwIP fault `_neg` self-validation
+// siblings — is covered by these two DISPATCH shapes; no third dispatch shape is
+// needed. (The ArpFaultNeg*Base mixins below are NOT third shapes: each inherits
+// one of these two dispatches and only adds a capability declaration.) Stated by
+// shape, not a frozen case count, so the claim survives the `_neg` track and
+// future §4.2 additions.
 //
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
 // own per-case stimulus (ARP-learning probe, UT egress provocation, ...)
@@ -168,6 +168,16 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
 // a fail) on the kernel-stack reference DUT, with no per-case inventory entry.
 template <typename StateMachine>
 struct ArpFaultNegBase : ArpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapArpFlavor;
+};
+
+// Same capability mixin over the ArpFrame+UdpFrame dispatch shape (#2), for the
+// §4.2.4.2 drop-and-emit `_NEG` cases (ARP_22/28/38) whose pass path observes a
+// UDP carrier. Not a third dispatch shape — it inherits ArpAndUdpBase's dispatch
+// and only adds the kCapArpFlavor declaration (the sibling of ArpFaultNegBase).
+template <typename StateMachine>
+struct ArpFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapArpFlavor;
 };

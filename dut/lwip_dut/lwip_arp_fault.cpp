@@ -4,9 +4,10 @@
 //   * EGRESS field-corruption — the netif link-output wrapper rewrites one header
 //     field of a DUT-emitted ARP frame (the §4.2 ARP field cases).
 //   * INGRESS prohibited-emission — the netif input wrapper makes a buggy DUT
-//     produce the emission a §4.2.4.2 reception case proves absent (synthesize the
-//     forbidden ARP Reply), since the conformant DUT drops the frame and emits
-//     nothing to corrupt.
+//     produce the behaviour a §4.2.4.2 reception case proves absent, since the
+//     conformant DUT drops the frame and emits nothing to corrupt: synthesize the
+//     forbidden ARP Reply (reply-absence), or wrongly learn the dropped Response's
+//     address into the ARP table (drop-and-emit) so a later UDP egress uses it.
 // Carries the ARP-over-Ethernet field offsets, the deterministic wrong-value
 // sentinels, and both netif wrappers.
 #include "lwip_arp_fault.h"
@@ -16,8 +17,10 @@
 #include <cstring>
 
 #include "lwip/err.h"
+#include "lwip/etharp.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
+#include "lwip/tcpip.h"
 
 #include "tc8/upper_tester_protocol.h"
 
@@ -64,6 +67,10 @@ constexpr std::uint16_t kWrongOpcode = 0x0009;  // neither request (1) nor reply
 void put16(std::uint8_t *f, std::uint16_t off, std::uint16_t v) {
     f[off] = static_cast<std::uint8_t>(v >> 8);
     f[off + 1] = static_cast<std::uint8_t>(v & 0xFF);
+}
+
+std::uint16_t get16(const std::uint8_t *f, std::uint16_t off) {
+    return static_cast<std::uint16_t>(f[off] << 8) | f[off + 1];
 }
 
 bool isArp(const std::uint8_t *f) {
@@ -133,13 +140,35 @@ void emitProhibitedArpReply(struct netif *nif, const std::uint8_t *rx) {
     pbuf_free(p);
 }
 
+// kArpFaultLearnFromDropFrame: a buggy DUT that wrongly accepted a malformed/foreign
+// ARP Response it should have dropped (§4.2.4.2 ARP_22/28/38 drop-and-emit). `rx`
+// points at the inbound frame; its (sender_ip -> sender_hw) is forced into the ARP
+// table as a static entry, so the DUT's subsequent UT-provoked UDP egress resolves
+// straight to the dropped frame's MAC instead of emitting its own ARP Request — the
+// exact violation the positive guard forbids. Under the core lock: this rx thread is
+// not the tcpip thread, so it must hold it to touch the ARP table.
+void learnDropFrameAddress(const std::uint8_t *rx) {
+    ip4_addr_t ip;
+    std::memcpy(&ip.addr, rx + kArpSenderIp, 4);  // network order, as ip4_addr_t stores it
+    struct eth_addr mac;
+    std::memcpy(mac.addr, rx + kArpSenderHw, 6);
+    LOCK_TCPIP_CORE();
+    etharp_add_static_entry(&ip, &mac);
+    UNLOCK_TCPIP_CORE();
+}
+
 err_t arpFaultIngressInput(struct pbuf *p, struct netif *nif) {
     const std::uint8_t flavor = g_arp_fault_flavor.load(std::memory_order_relaxed);
-    if (flavor == ut::kArpFaultReplyToDropFrame && p != nullptr &&
-        p->payload != nullptr && p->len >= kArpFrameLen) {
+    if (flavor != ut::kArpFaultNone && p != nullptr && p->payload != nullptr &&
+        p->len >= kArpFrameLen) {
         const auto *f = static_cast<const std::uint8_t *>(p->payload);
         if (isArp(f)) {
-            emitProhibitedArpReply(nif, f);
+            if (flavor == ut::kArpFaultReplyToDropFrame) {
+                emitProhibitedArpReply(nif, f);
+            } else if (flavor == ut::kArpFaultLearnFromDropFrame &&
+                       get16(f, kArpOpcode) == 0x0002) {  // learn only from a Response
+                learnDropFrameAddress(f);
+            }
         }
     }
     return g_orig_input(p, nif);

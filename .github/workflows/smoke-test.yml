@@ -193,11 +193,16 @@ jobs:
       # only here (capability-skipped on Linux via OpQueryCapabilities);
       # the per-case DUT respawn + MAX_WORKERS=1 keep the process-global
       # flavor from leaking into the positive ARP_07 or the next case.
-      # Finally the §4.2.4.2 reply-absence INGRESS cluster
+      # Then the §4.2.4.2 reply-absence INGRESS cluster
       # (ARP_21/27/37/42_NEG, kArpFaultReplyToDropFrame): the conformant DUT
       # drops the injected malformed/foreign frame and emits nothing, so the
       # netif INPUT hook synthesizes the prohibited ARP Reply — the _neg
-      # passes only when that reply is observed. ~5 min.
+      # passes only when that reply is observed. Finally the §4.2.4.2
+      # drop-and-emit INGRESS cluster (ARP_22/28/38_NEG,
+      # kArpFaultLearnFromDropFrame): the input hook forces the dropped
+      # Response's address into the ARP table as a static entry, so the DUT's
+      # UT-provoked UDP egress uses the injected MAC — the _neg passes only
+      # when that UDP is observed. ~5 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -216,7 +221,8 @@ jobs:
             ARP_07 \
             ARP_07_NEG ARP_08_NEG ARP_09_NEG ARP_10_NEG ARP_11_NEG ARP_12_NEG \
             ARP_46_NEG ARP_47_NEG \
-            ARP_21_NEG ARP_27_NEG ARP_37_NEG ARP_42_NEG
+            ARP_21_NEG ARP_27_NEG ARP_37_NEG ARP_42_NEG \
+            ARP_22_NEG ARP_28_NEG ARP_38_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

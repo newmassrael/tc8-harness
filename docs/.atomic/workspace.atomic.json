@@ -652,6 +652,26 @@
         {
           "file": "tests/arp_42_neg/arp_42_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwipopts.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/arp_group_c_drop_and_emit_neg.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_22_neg/arp_22_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_28_neg/arp_28_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_38_neg/arp_38_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
