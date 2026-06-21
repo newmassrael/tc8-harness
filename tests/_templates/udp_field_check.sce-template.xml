@@ -2,7 +2,11 @@
 <!--
   §4.6 UDP field-check shape: TESTER causes DUT to emit a UDP datagram
   (via §4.8.5 OpTriggerSendUdp) and observes one or more fields of the
-  resulting wire frame.
+  resulting wire frame. Shared by the positive cases AND their lwIP egress-fault
+  `_NEG` self-validation siblings: the positive binds the conformant predicate to
+  `{$pass_expr}` with `{$fail_role}` = observed_violation; the `_NEG` binds the
+  NEGATION (pass = the injected violation observed) with `{$fail_role}` =
+  fault_injection_inert (the conformant-DUT branch — the fault was inert).
 
   Conformance verdict model (ISO/IEC 9646 / TTCN-3, same as SOMEIP_ETS_152).
   The verdict is SOUND: it FAILs only on an observed field violation, never
@@ -58,6 +62,7 @@
   <sce:param name="pass_expr"   required="true"/>
   <sce:param name="fail_state"  required="true"/>
   <sce:param name="fail_reason" required="true"/>
+  <sce:param name="fail_role"   required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::UdpCaptured"
@@ -104,7 +109,7 @@
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"{$fail_role}"}</content>
     </donedata>
   </final>
 

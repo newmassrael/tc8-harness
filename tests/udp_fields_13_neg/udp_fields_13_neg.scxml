@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_FIELDS_13 negative — lwIP egress-fault self-validation of the
+  positive _13 checksum guard. The trait arms kUdpFaultChecksumWrong, so the lwIP
+  netif link-output hook invalidates the UDP checksum field of the DUT's data egress.
+  Pass = an invalid checksum observed; fail_compliant = DUT emitted a valid checksum
+  despite the flavor (fault inert). lwIP-only (capability-gated on kCapEgressFault).
+  Envelope: udp_field_check.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_fields_13_neg"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="!(captured.dst_port == 20000 and captured.checksum != 0 and captured.pseudo_header_checksum_valid())"
+           fail_state="fail_compliant"
+           fail_reason="dut_emitted_valid_checksum_despite_flavor"
+           fail_role="fault_injection_inert"/>
+</scxml>

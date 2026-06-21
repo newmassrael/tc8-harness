@@ -3,6 +3,7 @@
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
+#include "sce_integration/dut_capabilities.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/udp_pilot_common.h"
 
@@ -43,6 +44,18 @@ struct UdpAnyBase {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::udp::dispatchUdpFrame<SM>(c, sm, ev);
     }
+};
+
+// Base for the §4.6.5.4 UDP EGRESS field-fault `_NEG` cases (UDP_FIELDS_01/02/06/
+// 07/13/14). Same UDP dispatch as UdpAnyBase, plus the one declaration every such
+// case shares: it requires the DUT to implement OpSetEgressFlavor (kCapEgressFault).
+// The DUT is the SSOT for that (OpQueryCapabilities 0x16), so the Tier-2 gate runs
+// these only on the lwIP fixture and capability-skips them (N/A) on the kernel-stack
+// reference DUT — the sibling of ArpEgressFaultNegBase on the UDP dispatch.
+template <typename StateMachine>
+struct UdpEgressFaultNegBase : UdpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEgressFault;
 };
 
 }  // namespace tc8::sce

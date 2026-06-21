@@ -652,6 +652,10 @@
         {
           "file": "dut/lwip_dut/CMakeLists.txt",
           "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/cases/_fault_flavor_arm.h",
+          "kind": "references"
         }
       ]
     },
@@ -1536,7 +1540,7 @@
           "kind": "references"
         },
         {
-          "file": "src/sce_integration/cases/_arp_traits_base.h",
+          "file": "src/sce_integration/cases/_fault_flavor_arm.h",
           "kind": "references"
         }
       ]
@@ -2159,6 +2163,42 @@
         },
         {
           "file": "dut/lwip_dut/lwip_stack_probe.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_udp_traits_base.h",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_fields_01_neg/udp_fields_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_fields_02_neg/udp_fields_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_fields_06_neg/udp_fields_06_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_fields_07_neg/udp_fields_07_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_fields_13_neg/udp_fields_13_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_fields_14_neg/udp_fields_14_neg.scxml",
           "kind": "implements"
         }
       ]

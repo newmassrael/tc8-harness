@@ -1267,24 +1267,6 @@
         }
       ]
     },
-    "UDP_FIELDS_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_with_wrong_src_port",
-          "property": "DUT's egress UDP must carry the expected source port; fail iff a wrong port"
-        }
-      ]
-    },
-    "UDP_FIELDS_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_with_wrong_dst_port",
-          "property": "DUT's egress UDP must carry the expected destination port; fail iff a wrong port"
-        }
-      ]
-    },
     "UDP_FIELDS_04": {
       "guards": [
         {
@@ -1301,48 +1283,12 @@
         }
       ]
     },
-    "UDP_FIELDS_06": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_length_not_8_plus_data",
-          "property": "DUT's egress UDP Length must equal 8 + payload bytes; fail iff another value"
-        }
-      ]
-    },
-    "UDP_FIELDS_07": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_zero_data_udp_with_length_not_8",
-          "property": "DUT's zero-payload egress UDP Length must equal 8; fail iff another value"
-        }
-      ]
-    },
     "UDP_FIELDS_12": {
       "guards": [
         {
           "class": "incorrect_emission",
           "fail_reason": "dut_received_udp_with_unexpected_payload_length",
           "property": "DUT's UT confirmation must report the expected received payload length; fail iff another value"
-        }
-      ]
-    },
-    "UDP_FIELDS_13": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_with_invalid_pseudo_header_checksum_on_padded_payload",
-          "property": "DUT's egress UDP (padded payload) must carry a valid pseudo-header checksum; fail iff invalid"
-        }
-      ]
-    },
-    "UDP_FIELDS_14": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_with_invalid_pseudo_header_checksum_on_unpadded_payload",
-          "property": "DUT's egress UDP (unpadded payload) must carry a valid pseudo-header checksum; fail iff invalid"
         }
       ]
     },

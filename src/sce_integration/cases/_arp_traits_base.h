@@ -9,6 +9,7 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/arp_captured.h"
+#include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/dut_capabilities.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_config.h"
@@ -77,37 +78,9 @@ inline int emitArpCacheConditioning(const ::tc8::TestConfig &cfg, std::string_vi
                                                   action, param);
 }
 
-// Fixture-fault arming for the §4.2 ARP `_neg` clusters. Pays the boot bring-up
-// wait BEFORE the one-shot arm lands — the lwIP UT server must be listening or the
-// raw-injected arm is lost (mirroring `emitStartLLAutoconfBuggy`, the §4.5 analog).
-// lwIP-only: the kernel-backed reference DUT has no fixture seam and answers either
-// flavor opcode with kStatusUnknownOpcode, so the cluster capability-skips on Linux.
-// Same UT-envelope identity rules as `emitArpCacheConditioning` above: TOPOLOGY
-// values, never the SCXML-expectation knobs.
-//
-// emitEgressFlavorArm (UT 0x18): the ARP_07..12 / ARP_46/47 egress field cluster —
-// a non-None flavor makes the netif link-output hook corrupt one RFC 826 header
-// field of the next DUT-emitted ARP frame.
-inline void emitEgressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
-                                std::uint8_t flavor) {
-    if (cfg.stimulus_timing.initial_wait.count() > 0) {
-        std::this_thread::sleep_for(cfg.stimulus_timing.initial_wait);
-    }
-    ::tc8::stimulus::emitSetEgressFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
-                                         cfg.dut.mac, flavor);
-}
-
-// emitIngressFlavorArm (UT 0x19): the §4.2.4.2 reply-absence (ARP_21/27/37/42) and
-// drop-and-emit (ARP_22/28/38) clusters — a non-None flavor makes the netif input
-// hook reply to / learn from the frame the DUT must drop.
-inline void emitIngressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
-                                 std::uint8_t flavor) {
-    if (cfg.stimulus_timing.initial_wait.count() > 0) {
-        std::this_thread::sleep_for(cfg.stimulus_timing.initial_wait);
-    }
-    ::tc8::stimulus::emitSetIngressFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
-                                          cfg.dut.mac, flavor);
-}
+// emitEgressFlavorArm / emitIngressFlavorArm (the generic UT 0x18 / 0x19 arming)
+// live in _fault_flavor_arm.h — they are mechanism-generic (ARP egress 07..12 /
+// 46/47 and ingress 21/27/37/42 + 22/28/38 here; UDP and beyond elsewhere).
 
 // Request-shape egress _neg stimulus (ARP_07..12): arm the egress fault, then drive
 // the same UT 0x02 egress provocation the positive case uses so the lwIP DUT emits a

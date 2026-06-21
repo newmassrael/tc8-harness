@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_FIELDS_01 negative — lwIP egress-fault self-validation of the
+  positive _01 Source Port guard. The trait arms kUdpFaultSrcPortWrong, so the lwIP
+  netif link-output hook rewrites the Source Port of the DUT's data egress (and
+  recomputes the UDP checksum). Pass = the corrupted src port observed
+  (src_port != 20001); fail_compliant = DUT emitted 20001 despite the flavor (fault
+  inert). lwIP-only (capability-gated on kCapEgressFault). Envelope: udp_field_check.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_fields_01_neg"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="!(captured.src_port == 20001)"
+           fail_state="fail_compliant"
+           fail_reason="dut_emitted_correct_src_port_despite_flavor"
+           fail_role="fault_injection_inert"/>
+</scxml>

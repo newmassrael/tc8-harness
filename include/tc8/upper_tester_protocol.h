@@ -838,7 +838,14 @@ inline constexpr std::uint8_t kArpFaultHwTypeWrong     = 0x02;  // RFC 826 htype
 inline constexpr std::uint8_t kArpFaultProtoTypeWrong  = 0x03;  // RFC 826 ptype:  ARP_09 (MUST be 0x0800, IPv4)
 inline constexpr std::uint8_t kArpFaultHwLenWrong      = 0x04;  // RFC 826 hlen:   ARP_10/ARP_47 (MUST be 6)
 inline constexpr std::uint8_t kArpFaultProtoLenWrong   = 0x05;  // RFC 826 plen:   ARP_11 (MUST be 4)
-inline constexpr std::uint8_t kEgressFaultMax         = kArpFaultProtoLenWrong;
+// IPv4/UDP (the egress hook rewrites the named field; the resulting checksum
+// mismatch is immaterial — each guard reads the field, and the checksum flavor
+// invalidates the checksum field directly):
+inline constexpr std::uint8_t kUdpFaultSrcPortWrong    = 0x06;  // RFC 768 src port:  §4.6.5.4 UDP_FIELDS_01
+inline constexpr std::uint8_t kUdpFaultDstPortWrong    = 0x07;  // RFC 768 dst port:  §4.6.5.4 UDP_FIELDS_02
+inline constexpr std::uint8_t kUdpFaultLengthWrong     = 0x08;  // RFC 768 length:    §4.6.5.4 UDP_FIELDS_06/07
+inline constexpr std::uint8_t kUdpFaultChecksumWrong   = 0x09;  // RFC 768 checksum:  §4.6.5.4 UDP_FIELDS_13/14
+inline constexpr std::uint8_t kEgressFaultMax         = kUdpFaultChecksumWrong;
 
 // `OpSetIngressFlavor` prohibited-emission catalog (lwIP fixture input hook). The
 // §4.2.4.2 reception cases where a conformant DUT emits NOTHING (it drops a

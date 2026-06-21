@@ -222,7 +222,9 @@ jobs:
             ARP_07_NEG ARP_08_NEG ARP_09_NEG ARP_10_NEG ARP_11_NEG ARP_12_NEG \
             ARP_46_NEG ARP_47_NEG \
             ARP_21_NEG ARP_27_NEG ARP_37_NEG ARP_42_NEG \
-            ARP_22_NEG ARP_28_NEG ARP_38_NEG
+            ARP_22_NEG ARP_28_NEG ARP_38_NEG \
+            UDP_FIELDS_01_NEG UDP_FIELDS_02_NEG UDP_FIELDS_06_NEG \
+            UDP_FIELDS_07_NEG UDP_FIELDS_13_NEG UDP_FIELDS_14_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

@@ -19,5 +19,6 @@
   <sce:use template="../_templates/udp_field_check.sce-template.xml"
            pass_expr="captured.src_port == 20003 and captured.dst_port == 20000 and captured.length == 8"
            fail_state="fail_wrong_length"
-           fail_reason="dut_emitted_zero_data_udp_with_length_not_8"/>
+           fail_reason="dut_emitted_zero_data_udp_with_length_not_8"
+           fail_role="observed_violation"/>
 </scxml>

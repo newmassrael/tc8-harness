@@ -29,5 +29,6 @@
   <sce:use template="../_templates/udp_field_check.sce-template.xml"
            pass_expr="captured.dst_port == 20000 and captured.checksum != 0 and captured.pseudo_header_checksum_valid()"
            fail_state="fail_invalid_checksum"
-           fail_reason="dut_emitted_udp_with_invalid_pseudo_header_checksum_on_padded_payload"/>
+           fail_reason="dut_emitted_udp_with_invalid_pseudo_header_checksum_on_padded_payload"
+           fail_role="observed_violation"/>
 </scxml>
