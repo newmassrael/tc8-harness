@@ -31,12 +31,12 @@
 //                             guards discriminate.
 //
 // Every §4.2 case is covered by these two ArpFrame dispatch shapes, plus one
-// narrowing for the drop-and-emit `_neg`: ArpFaultNegBase (ARP-only, the reply
-// cases) just adds a capability declaration over ArpAnyBase; ArpFaultNegUdpBase
-// (the §4.2.4.2 drop-and-emit cases) narrows ArpAndUdpBase to a UDP-ONLY dispatch
-// because it must ignore the DUT's conformant control-plane ARP resolution (see
-// the base below). Stated by shape, not a frozen case count, so the claim survives
-// the `_neg` track and future §4.2 additions.
+// narrowing for the drop-and-emit `_neg`: the ArpEgressFaultNegBase /
+// ArpIngressFaultNegBase mixins just add a capability declaration over ArpAnyBase;
+// ArpIngressFaultNegUdpBase (the §4.2.4.2 drop-and-emit cases) narrows ArpAndUdpBase
+// to a UDP-ONLY dispatch because it must ignore the DUT's conformant control-plane
+// ARP resolution (see the base below). Stated by shape, not a frozen case count, so
+// the claim survives the `_neg` track and future §4.2 additions.
 //
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
 // own per-case stimulus (ARP-learning probe, UT egress provocation, ...)
@@ -77,37 +77,49 @@ inline int emitArpCacheConditioning(const ::tc8::TestConfig &cfg, std::string_vi
                                                   action, param);
 }
 
-// §4.2 ARP egress-fault arming (UT 0x18) for the ARP_07..12 / ARP_46/47 _neg
-// self-validation cluster. Pays the boot bring-up wait BEFORE the one-shot arm
-// lands — the lwIP UT server must be listening or the raw-injected arm is lost
-// (mirroring `emitStartLLAutoconfBuggy`, the §4.5 analog). A non-None `flavor`
-// makes the lwIP netif egress hook corrupt one RFC 826 header field of the next
-// DUT-emitted ARP frame. lwIP-only: the kernel-backed reference DUT answers
-// OpSetArpFlavor with kStatusUnknownOpcode, so the flavor stays inert and the
-// cluster is expected:false on Linux (docs/spec/inventory_overrides.json).
+// Fixture-fault arming for the §4.2 ARP `_neg` clusters. Pays the boot bring-up
+// wait BEFORE the one-shot arm lands — the lwIP UT server must be listening or the
+// raw-injected arm is lost (mirroring `emitStartLLAutoconfBuggy`, the §4.5 analog).
+// lwIP-only: the kernel-backed reference DUT has no fixture seam and answers either
+// flavor opcode with kStatusUnknownOpcode, so the cluster capability-skips on Linux.
 // Same UT-envelope identity rules as `emitArpCacheConditioning` above: TOPOLOGY
 // values, never the SCXML-expectation knobs.
-inline void emitArpFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
-                             std::uint8_t flavor) {
+//
+// emitEgressFlavorArm (UT 0x18): the ARP_07..12 / ARP_46/47 egress field cluster —
+// a non-None flavor makes the netif link-output hook corrupt one RFC 826 header
+// field of the next DUT-emitted ARP frame.
+inline void emitEgressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                std::uint8_t flavor) {
     if (cfg.stimulus_timing.initial_wait.count() > 0) {
         std::this_thread::sleep_for(cfg.stimulus_timing.initial_wait);
     }
-    ::tc8::stimulus::emitSetArpFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
-                                      cfg.dut.mac, flavor);
+    ::tc8::stimulus::emitSetEgressFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
+                                         cfg.dut.mac, flavor);
 }
 
-// Request-shape _neg stimulus (ARP_07..12): arm the egress fault, then drive the
-// same UT 0x02 egress provocation the positive case uses so the lwIP DUT emits a
-// cache-miss ARP Request the hook corrupts. The provocation's own bring-up wait
-// is suppressed — `emitArpFlavorArm` already paid it, and the UT server is now
-// proven up — so the two emits do not double the pause. The deadline does not
-// arm until kickStimulus returns (test_runner.h), so this whole block runs
-// before the listen window opens and the corrupted Request is captured either
-// way.
-inline void emitArpFlavorRequestProvocation(const ::tc8::TestConfig &cfg,
-                                            std::string_view iface,
-                                            std::uint8_t flavor) {
-    emitArpFlavorArm(cfg, iface, flavor);
+// emitIngressFlavorArm (UT 0x19): the §4.2.4.2 reply-absence (ARP_21/27/37/42) and
+// drop-and-emit (ARP_22/28/38) clusters — a non-None flavor makes the netif input
+// hook reply to / learn from the frame the DUT must drop.
+inline void emitIngressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                 std::uint8_t flavor) {
+    if (cfg.stimulus_timing.initial_wait.count() > 0) {
+        std::this_thread::sleep_for(cfg.stimulus_timing.initial_wait);
+    }
+    ::tc8::stimulus::emitSetIngressFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
+                                          cfg.dut.mac, flavor);
+}
+
+// Request-shape egress _neg stimulus (ARP_07..12): arm the egress fault, then drive
+// the same UT 0x02 egress provocation the positive case uses so the lwIP DUT emits a
+// cache-miss ARP Request the hook corrupts. The provocation's own bring-up wait is
+// suppressed — `emitEgressFlavorArm` already paid it, and the UT server is now
+// proven up — so the two emits do not double the pause. The deadline does not arm
+// until kickStimulus returns (test_runner.h), so this whole block runs before the
+// listen window opens and the corrupted Request is captured either way.
+inline void emitEgressFlavorRequestProvocation(const ::tc8::TestConfig &cfg,
+                                               std::string_view iface,
+                                               std::uint8_t flavor) {
+    emitEgressFlavorArm(cfg, iface, flavor);
     ::tc8::stimulus::BootTiming timing = cfg.stimulus_timing;
     timing.initial_wait = std::chrono::milliseconds{0};
     emitArpEgressProvocation(cfg, iface, timing);
@@ -160,39 +172,47 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
     }
 };
 
-// Base for the §4.2 ARP egress-fault `_NEG` self-validation cases (ARP_07..12 /
-// 46/47). Adds the one declaration every such case shares: it requires the DUT
-// to implement OpSetArpFlavor (kCapArpFlavor). The DUT is the SSOT for that —
-// OpcodeUtControl::capabilities() derives kCapArpFlavor from the DUT's
-// OpQueryCapabilities (0x16) bitmap — so the Tier-2 gate runs these only where
-// the fault seam exists (the lwIP fixture) and capability-skips them (N/A, not
-// a fail) on the kernel-stack reference DUT, with no per-case inventory entry.
+// Base for the §4.2 ARP EGRESS field-fault `_NEG` cases (ARP_07..12 / 46/47). Adds
+// the one declaration every such case shares: it requires the DUT to implement
+// OpSetEgressFlavor (kCapEgressFault). The DUT is the SSOT for that —
+// OpcodeUtControl::capabilities() derives kCapEgressFault from the DUT's
+// OpQueryCapabilities (0x16) bitmap — so the Tier-2 gate runs these only where the
+// fault seam exists (the lwIP fixture) and capability-skips them (N/A, not a fail)
+// on the kernel-stack reference DUT, with no per-case inventory entry.
 template <typename StateMachine>
-struct ArpFaultNegBase : ArpAnyBase<StateMachine> {
+struct ArpEgressFaultNegBase : ArpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapArpFlavor;
+        ::tc8::sce::kCapEgressFault;
 };
 
-// Capability mixin for the §4.2.4.2 drop-and-emit `_NEG` cases (ARP_22/28/38).
-// These observe ONLY the UDP egress MAC, so they dispatch UdpFrame alone: on the
-// lwIP fixture the DUT ARP-resolves the tester for its own UT control-plane ACKs
-// (no DUT-side neigh pin, unlike the Linux reference DUT), and that opcode-1 ARP
-// Request is conformant traffic indistinguishable from a conformant egress
-// resolution — useless as a discriminator. Only the egress that adopted the
-// injected MAC proves the fault took. Inherits ArpAndUdpBase for the constants +
-// aliases (kBpfGroup stays ArpAndUdp so the ARP frames are still captured for the
-// pcap/evidence) and OVERRIDES dispatch to UDP-only; the base's ArpFrame dispatch
-// is never odr-used, so its Arp_observed reference is never instantiated. Adds the
-// kCapArpFlavor declaration (the sibling of ArpFaultNegBase).
+// Base for the §4.2.4.2 reply-absence INGRESS `_NEG` cases (ARP_21/27/37/42). Same
+// ArpFrame dispatch as the egress base, but requires the ingress seam
+// (kCapIngressFault ↔ OpSetIngressFlavor) instead.
 template <typename StateMachine>
-struct ArpFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
+struct ArpIngressFaultNegBase : ArpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault;
+};
+
+// Base for the §4.2.4.2 drop-and-emit INGRESS `_NEG` cases (ARP_22/28/38). These
+// observe ONLY the UDP egress MAC, so they dispatch UdpFrame alone: on the lwIP
+// fixture the DUT ARP-resolves the tester for its own UT control-plane ACKs (no
+// DUT-side neigh pin, unlike the Linux reference DUT), and that opcode-1 ARP Request
+// is conformant traffic indistinguishable from a conformant egress resolution —
+// useless as a discriminator. Only the egress that adopted the injected MAC proves
+// the fault took. Inherits ArpAndUdpBase for the constants + aliases (kBpfGroup
+// stays ArpAndUdp so the ARP frames are still captured for the pcap/evidence) and
+// OVERRIDES dispatch to UDP-only; the base's ArpFrame dispatch is never odr-used, so
+// its Arp_observed reference is never instantiated. Requires kCapIngressFault.
+template <typename StateMachine>
+struct ArpIngressFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
     using Base = ArpAndUdpBase<StateMachine>;
     using typename Base::SM;
     using typename Base::Event;
     using typename Base::Captured;
 
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapArpFlavor;
+        ::tc8::sce::kCapIngressFault;
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         if (const auto* u = std::get_if<::tc8::UdpFrame>(&ev)) {

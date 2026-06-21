@@ -472,9 +472,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // into CaseEntry). If the selected backend / DUT lacks any of them the case
     // cannot run meaningfully there — the standard AUTOSAR testability backend
     // exposes no kernel state-probe SP, and the kernel-stack reference DUT
-    // implements no §4.2 ARP egress fault seam (its OpQueryCapabilities bitmap
-    // omits OpSetArpFlavor, so capabilities() omits kCapArpFlavor and the ARP
-    // `_NEG` cases skip here). Emit a skip verdict (NOT a fail) and a distinct
+    // implements no fixture fault seam (its OpQueryCapabilities bitmap omits
+    // OpSetEgressFlavor / OpSetIngressFlavor, so capabilities() omits
+    // kCapEgressFault / kCapIngressFault and the `_NEG` cases skip here). Emit a
+    // skip verdict (NOT a fail) and a distinct
     // exit code so smoke-test.sh routes it to the existing conditioning-skip
     // ledger. Only consulted for a case that declares a requirement: capabilities()
     // may probe the DUT (OpQueryCapabilities) to resolve DUT-derived fault caps,

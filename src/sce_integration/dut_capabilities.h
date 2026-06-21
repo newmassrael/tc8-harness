@@ -14,10 +14,10 @@ namespace tc8::sce {
 //       implements the UT fault opcode a `_NEG` self-validation case drives.
 //       The DUT reports its implemented opcodes via OpQueryCapabilities (0x16,
 //       the single source of truth), so a fault cap is DUT-DERIVED, not
-//       backend-static: the kernel-stack reference DUT has no §4.2 ARP egress
-//       fault seam and omits OpSetArpFlavor, so kCapArpFlavor is absent there
-//       and the ARP `_NEG` cases capability-skip (N/A); the lwIP fixture
-//       implements it and they run.
+//       backend-static: the kernel-stack reference DUT has no fixture fault seam
+//       and omits OpSetEgressFlavor / OpSetIngressFlavor, so kCapEgressFault /
+//       kCapIngressFault are absent there and the `_NEG` cases capability-skip
+//       (N/A); the lwIP fixture implements them and they run.
 // A case queries the bit it needs and is capability-skipped (N/A, not a fail)
 // when the selected backend / DUT lacks it (test_command.cpp Tier-2 gate). When
 // a DUT-derived bit is missing the gate distinguishes "DUT answered, seam
@@ -42,7 +42,8 @@ enum DutCapability : std::uint32_t {
     kCapLinkLocalControl = 1u << 4,  // link-local autoconf control (opcode only)
     kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing (opcode only)
     kCapTcpRecvOob = 1u << 6,        // out-of-band (urgent) TCP receive (opcode only)
-    kCapArpFlavor = 1u << 7,         // §4.2 ARP egress fault (OpSetArpFlavor) — DUT-derived
+    kCapEgressFault = 1u << 7,       // egress field fault (OpSetEgressFlavor) — DUT-derived
+    kCapIngressFault = 1u << 8,      // ingress prohibited-emission fault (OpSetIngressFlavor) — DUT-derived
 };
 using DutCapabilities = std::uint32_t;
 
@@ -50,13 +51,14 @@ using DutCapabilities = std::uint32_t;
 // one of these can only be gated after the DUT's OpQueryCapabilities bitmap is
 // resolved; if that resolution fails the gate surfaces an error rather than a
 // silent N/A skip. Extend alongside every DUT-derived bit added above. The
-// dedicated-fault-opcode shape (kCapArpFlavor ↔ OpSetArpFlavor 0x18) is the
-// clean case: a 0x16 per-opcode bit is a 1:1 proxy. A flavor-byte fault on a
+// dedicated-fault-opcode shape (kCapEgressFault ↔ OpSetEgressFlavor 0x18,
+// kCapIngressFault ↔ OpSetIngressFlavor 0x19) is the clean case: a 0x16 per-opcode
+// bit is a 1:1 proxy for the whole mechanism. A flavor-byte fault on a
 // SHARED opcode (e.g. the DHCPv4 `_neg` flavors on OpStartDhcpClient 0x10) maps
 // to its host opcode's presence — sound for applicability (a DUT lacking the
 // opcode entirely, like the lwIP fixture for DHCP, correctly skips) but it
 // cannot distinguish a DUT that implements the opcode yet ignores the flavor;
 // that residual is out of scope until such a DUT exists.
-inline constexpr DutCapabilities kDutDerivedCaps = kCapArpFlavor;
+inline constexpr DutCapabilities kDutDerivedCaps = kCapEgressFault | kCapIngressFault;
 
 }  // namespace tc8::sce

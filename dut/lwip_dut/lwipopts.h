@@ -141,7 +141,7 @@ void sys_check_core_locking(void);
 #define ARP_QUEUEING               1
 
 /* The §4.2.4.2 drop-and-emit `_NEG` track (ARP_22/28/38) injects a static ARP
- * entry from the fixture's ingress fault hook (lwip_arp_fault.cpp,
+ * entry from the fixture's ingress fault hook (lwip_arp_ingress_fault.cpp,
  * kArpFaultLearnFromDropFrame) to model a buggy DUT that wrongly learned the
  * dropped Response's address. etharp_add_static_entry needs this opt; no positive
  * case uses static entries, so enabling it does not alter conformant behaviour. */

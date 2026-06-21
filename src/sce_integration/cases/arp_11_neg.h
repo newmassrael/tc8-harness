@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp11NegSM>
-    : ArpFaultNegBase<cases::Arp11NegSM> {
+    : ArpEgressFaultNegBase<cases::Arp11NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_11_NEG";
     static constexpr std::string_view kSpecSection = "4.2.4.1";
     static constexpr std::string_view kDescription =
@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::Arp11NegSM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        emitArpFlavorRequestProvocation(cfg, iface, ::tc8::ut::kArpFaultProtoLenWrong);
+        emitEgressFlavorRequestProvocation(cfg, iface, ::tc8::ut::kArpFaultProtoLenWrong);
     }
 };
 

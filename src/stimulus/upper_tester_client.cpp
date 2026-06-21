@@ -389,12 +389,13 @@ std::vector<std::uint8_t> buildConditionArpCacheRequest(
     return req;
 }
 
-std::vector<std::uint8_t> buildSetArpFlavorRequest(
+std::vector<std::uint8_t> buildSetFlavorRequest(
+    std::uint8_t opcode,
     std::uint8_t req_id,
     std::uint8_t flavor) {
     std::vector<std::uint8_t> req;
     req.reserve(3);
-    req.push_back(static_cast<std::uint8_t>(ut::OpSetArpFlavor));
+    req.push_back(opcode);
     req.push_back(req_id);
     req.push_back(flavor);
     return req;
@@ -601,12 +602,22 @@ int emitConditionArpCache(std::string_view iface,
                                   ut::kTesterSrcPort, req);
 }
 
-int emitSetArpFlavor(std::string_view iface,
-                     std::uint32_t tester_ip_be,
-                     std::uint32_t dut_ip_be,
-                     const std::array<std::uint8_t, 6> &dut_mac,
-                     std::uint8_t flavor) {
-    const auto req = buildSetArpFlavorRequest(0x01, flavor);
+int emitSetEgressFlavor(std::string_view iface,
+                        std::uint32_t tester_ip_be,
+                        std::uint32_t dut_ip_be,
+                        const std::array<std::uint8_t, 6> &dut_mac,
+                        std::uint8_t flavor) {
+    const auto req = buildSetFlavorRequest(ut::OpSetEgressFlavor, 0x01, flavor);
+    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                  ut::kTesterSrcPort, req);
+}
+
+int emitSetIngressFlavor(std::string_view iface,
+                         std::uint32_t tester_ip_be,
+                         std::uint32_t dut_ip_be,
+                         const std::array<std::uint8_t, 6> &dut_mac,
+                         std::uint8_t flavor) {
+    const auto req = buildSetFlavorRequest(ut::OpSetIngressFlavor, 0x01, flavor);
     return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
 }

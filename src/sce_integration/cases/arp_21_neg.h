@@ -21,7 +21,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp21NegSM>
-    : ArpFaultNegBase<cases::Arp21NegSM> {
+    : ArpIngressFaultNegBase<cases::Arp21NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_21_NEG";
     static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::Arp21NegSM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        emitArpFlavorArm(cfg, iface, ::tc8::ut::kArpFaultReplyToDropFrame);
+        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kArpFaultReplyToDropFrame);
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;

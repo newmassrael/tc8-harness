@@ -10,7 +10,8 @@
 
 #include "tc8/upper_tester_protocol.h"
 
-#include "lwip_arp_fault.h"
+#include "lwip_arp_ingress_fault.h"
+#include "lwip_egress_fault.h"
 
 namespace tc8::lwip_dut {
 namespace {
@@ -69,19 +70,34 @@ void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server) {
         });
 
     server.registerOpcode(
-        ut::OpSetArpFlavor,
+        ut::OpSetEgressFlavor,
         [](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
            std::vector<std::uint8_t> & /*body*/) {
-            // Params: <flavor:u8>. Arms the §4.2 ARP egress fault: the netif
-            // link-output hook (installed at bring-up) corrupts the matching header
-            // field on the DUT's next emitted ARP (request or reply). An
-            // out-of-range flavor is malformed — a surfaced error beats a silently
-            // inert negative that would time out with a misleading verdict.
-            if (len < 1 || params[0] > ut::kArpFaultMax) {
+            // Params: <flavor:u8>. Arms the egress field fault: the netif link-output
+            // hook (installed at bring-up) corrupts the matching header field on the
+            // DUT's next emitted frame. An out-of-range flavor is malformed — a
+            // surfaced error beats a silently inert negative that would time out with
+            // a misleading verdict.
+            if (len < 1 || params[0] > ut::kEgressFaultMax) {
                 status = ut::kStatusMalformed;
                 return;
             }
-            setArpFaultFlavor(params[0]);
+            setEgressFaultFlavor(params[0]);
+            status = ut::kStatusOk;
+        });
+
+    server.registerOpcode(
+        ut::OpSetIngressFlavor,
+        [](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
+           std::vector<std::uint8_t> & /*body*/) {
+            // Params: <flavor:u8>. Arms the §4.2.4.2 ARP ingress prohibited-emission
+            // fault: the netif input hook makes the buggy DUT reply to / learn from a
+            // frame it must drop. An out-of-range flavor is malformed.
+            if (len < 1 || params[0] > ut::kIngressFaultMax) {
+                status = ut::kStatusMalformed;
+                return;
+            }
+            setIngressFaultFlavor(params[0]);
             status = ut::kStatusOk;
         });
 }

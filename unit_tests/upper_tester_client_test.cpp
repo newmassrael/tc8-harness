@@ -386,7 +386,7 @@ TEST(UpperTesterClient, PingRequestLayout) {
     // opcode without the bump would size the capability bitmap too
     // small for the new bit.
     EXPECT_EQ(ut::kMaxProtocolOpcode,
-              static_cast<std::uint8_t>(ut::OpSetArpFlavor));
+              static_cast<std::uint8_t>(ut::OpSetIngressFlavor));
 }
 
 
@@ -419,17 +419,26 @@ TEST(UpperTesterClient, ConditionArpCacheRequestLayout) {
 }
 
 
-TEST(UpperTesterClient, SetArpFlavorRequestLayout) {
-    // Wire format: <opcode:u8=0x18> <req_id:u8> <flavor:u8>. Arms the
-    // lwIP §4.2 ARP egress fault for the ARP_07..12 / 46/47 _NEG
-    // self-validation cluster.
-    const auto req = buildSetArpFlavorRequest(0x09, ut::kArpFaultOpcodeWrong);
-    ASSERT_EQ(req.size(), 3u);
-    EXPECT_EQ(req[0], static_cast<std::uint8_t>(ut::OpSetArpFlavor));
-    EXPECT_EQ(req[0], 0x18U);  // opcode lock-in (response = 0x98)
-    EXPECT_EQ(req[1], 0x09U);
-    EXPECT_EQ(req[2], ut::kArpFaultOpcodeWrong);
-    EXPECT_EQ(ut::OpSetArpFlavor & ut::kResponseBit, 0u);
+TEST(UpperTesterClient, SetFlavorRequestLayout) {
+    // Wire format: <opcode:u8> <req_id:u8> <flavor:u8>, shared by the egress
+    // (0x18) and ingress (0x19) fault-arming opcodes.
+    const auto egress = buildSetFlavorRequest(ut::OpSetEgressFlavor, 0x09,
+                                              ut::kArpFaultOpcodeWrong);
+    ASSERT_EQ(egress.size(), 3u);
+    EXPECT_EQ(egress[0], static_cast<std::uint8_t>(ut::OpSetEgressFlavor));
+    EXPECT_EQ(egress[0], 0x18U);  // opcode lock-in (response = 0x98)
+    EXPECT_EQ(egress[1], 0x09U);
+    EXPECT_EQ(egress[2], ut::kArpFaultOpcodeWrong);
+    EXPECT_EQ(ut::OpSetEgressFlavor & ut::kResponseBit, 0u);
+
+    const auto ingress = buildSetFlavorRequest(ut::OpSetIngressFlavor, 0x0A,
+                                               ut::kArpFaultReplyToDropFrame);
+    ASSERT_EQ(ingress.size(), 3u);
+    EXPECT_EQ(ingress[0], static_cast<std::uint8_t>(ut::OpSetIngressFlavor));
+    EXPECT_EQ(ingress[0], 0x19U);  // opcode lock-in (response = 0x99)
+    EXPECT_EQ(ingress[1], 0x0AU);
+    EXPECT_EQ(ingress[2], ut::kArpFaultReplyToDropFrame);
+    EXPECT_EQ(ut::OpSetIngressFlavor & ut::kResponseBit, 0u);
 }
 
 

@@ -170,36 +170,8 @@
           "kind": "references"
         },
         {
-          "file": "dut/lwip_dut/lwip_arp_fault.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/lwip_dut/lwip_ut_extensions.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/lwip_dut/lwip_stack_bringup.cpp",
-          "kind": "references"
-        },
-        {
-          "file": "dut/lwip_dut/CMakeLists.txt",
-          "kind": "references"
-        },
-        {
-          "file": "dut/lwip_dut/lwip_arp_fault.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/arp_field_check.sce-template.xml",
           "kind": "implements"
-        },
-        {
-          "file": "src/cli/test_command.cpp",
-          "kind": "references"
-        },
-        {
-          "file": "src/sce_integration/dut_capabilities.h",
-          "kind": "references"
         },
         {
           "file": "src/sce_integration/dut_control.h",
@@ -208,6 +180,14 @@
         {
           "file": "src/sce_integration/dut_control_factory.cpp",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.h",
+          "kind": "implements"
         }
       ]
     },
@@ -401,10 +381,6 @@
         },
         {
           "file": "tests/arp_12_neg/arp_12_neg.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
         {
@@ -626,14 +602,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/lwip_dut/lwip_arp_fault.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/lwip_dut/lwip_arp_fault.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/arp_reply_neg.sce-template.xml",
           "kind": "implements"
         },
@@ -672,6 +640,18 @@
         {
           "file": "tests/arp_38_neg/arp_38_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_arp_ingress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_arp_ingress_fault.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/CMakeLists.txt",
+          "kind": "references"
         }
       ]
     },

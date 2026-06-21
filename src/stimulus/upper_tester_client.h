@@ -460,18 +460,18 @@ std::vector<std::uint8_t> buildConditionArpCacheRequest(
     std::uint8_t  action,
     std::uint16_t param);
 
-// Build a 0x18 SetArpFlavor request. TC8 §4.2.4.1 / §4.2.4.2 ARP_07..12 /
-// ARP_46/47 _neg self-validation: arms the lwIP fixture's ARP egress fault so
-// the next DUT-emitted ARP frame (request or reply) carries one corrupted
-// RFC 826 header field. lwIP-only — the kernel-backed reference DUT emits §4.2
-// ARP from its neighbour layer (no firmware seam) and answers this opcode with
-// kStatusUnknownOpcode, so the matching _neg cases are expected:false on Linux.
+// Build a SetEgressFlavor (0x18) or SetIngressFlavor (0x19) request — both share
+// the `<opcode:u8> <req_id:u8> <flavor:u8>` shape. Arms the lwIP fixture's egress
+// field fault or ingress prohibited-emission fault; lwIP-only — the kernel-backed
+// reference DUT has no fixture seam and answers either opcode with
+// kStatusUnknownOpcode, so the matching _neg cases capability-skip on Linux.
 //
-//   <opcode:u8=0x18> <req_id:u8> <flavor:u8>
+//   <opcode:u8> <req_id:u8> <flavor:u8>
 //
-// `flavor` is one of `ut::kArpFault*`; kArpFaultNone disarms. Fixed wire size:
-// 1 + 1 + 1 = 3 bytes.
-std::vector<std::uint8_t> buildSetArpFlavorRequest(
+// `flavor` is one of the matching catalog (`ut::k*Fault*`); the catalog's None
+// value disarms. Fixed wire size: 1 + 1 + 1 = 3 bytes.
+std::vector<std::uint8_t> buildSetFlavorRequest(
+    std::uint8_t opcode,
     std::uint8_t req_id,
     std::uint8_t flavor);
 
@@ -633,17 +633,23 @@ int emitConditionArpCache(std::string_view iface,
                           std::uint8_t action,
                           std::uint16_t param);
 
-// One-shot UT 0x18 SetArpFlavor injection via AF_PACKET SOCK_RAW — arms the
-// lwIP fixture's §4.2 ARP egress fault for the ARP_07..12 / ARP_46/47 _neg
-// self-validation cluster. Same transport + identity rules as
-// `emitConditionArpCache` (raw-injected, TOPOLOGY values: see
+// One-shot UT SetEgressFlavor (0x18) / SetIngressFlavor (0x19) injection via
+// AF_PACKET SOCK_RAW — arms the lwIP fixture's egress field fault / ingress
+// prohibited-emission fault for the matching `_neg` cluster. Same transport +
+// identity rules as `emitConditionArpCache` (raw-injected, TOPOLOGY values: see
 // `emitTriggerSendUdpBoot`). No boot cadence of its own — the caller
-// (`emitArpFlavorArm`) pays the bring-up wait before this lands so the arm is
-// not lost on a cold UT server. Returns `sendUpperTesterRequest`'s result.
-int emitSetArpFlavor(std::string_view iface,
-                     std::uint32_t tester_ip_be,
-                     std::uint32_t dut_ip_be,
-                     const std::array<std::uint8_t, 6> &dut_mac,
-                     std::uint8_t flavor);
+// (`emit{Egress,Ingress}FlavorArm`) pays the bring-up wait before this lands so the
+// arm is not lost on a cold UT server. Returns `sendUpperTesterRequest`'s result.
+int emitSetEgressFlavor(std::string_view iface,
+                        std::uint32_t tester_ip_be,
+                        std::uint32_t dut_ip_be,
+                        const std::array<std::uint8_t, 6> &dut_mac,
+                        std::uint8_t flavor);
+
+int emitSetIngressFlavor(std::string_view iface,
+                         std::uint32_t tester_ip_be,
+                         std::uint32_t dut_ip_be,
+                         const std::array<std::uint8_t, 6> &dut_mac,
+                         std::uint8_t flavor);
 
 }  // namespace tc8::stimulus

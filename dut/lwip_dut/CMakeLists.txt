@@ -68,9 +68,12 @@ include(${LWIP_CONTRIB_DIR}/ports/unix/Filelists.cmake)
 set(_tc8_lwip_common_srcs
     lwip_stack_bringup.cpp
     lwip_socket_backend.cpp
-    # §4.2 ARP egress fault hook installed by lwip_stack_bringup (inert until an
-    # OpSetArpFlavor arms it), so it links into both binaries via the bring-up TU.
-    lwip_arp_fault.cpp
+    # Fixture fault seams installed by lwip_stack_bringup (inert until armed): the
+    # generic egress field-fault hook (OpSetEgressFlavor) and the §4.2.4.2 ARP
+    # ingress prohibited-emission hook (OpSetIngressFlavor). Both link into both
+    # binaries via the bring-up TU.
+    lwip_egress_fault.cpp
+    lwip_arp_ingress_fault.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/testability/protocol_server.cpp
     # tc8::wire (icmp echo body + ip checksum): syscall-free, shared with the
     # harness/Linux tc8-dut.

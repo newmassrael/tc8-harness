@@ -707,16 +707,27 @@ enum Opcode : std::uint8_t {
     // short request or an unknown action byte.
     OpConditionArpCache = 0x17,
 
-    // Set the active §4.2 ARP egress fault flavor (kArpFault* below) on the lwIP
-    // fixture. lwIP-specific, like OpConditionArpCache: the kernel-backed tc8-dut
-    // emits §4.2 ARP from its neighbour layer (no firmware seam), so the matching
-    // `_neg` cases are expected:false on Linux. While a non-None flavor is set, the
-    // fixture's netif link-output corrupts one ARP header field of the DUT-emitted
-    // frame (request or reply) — the lwIP analog of a tc8-dut emit-flavor.
+    // Arm an EGRESS field-fault flavor (kEgressFault* / k*Fault* catalog below) on
+    // the lwIP fixture. lwIP-specific, like OpConditionArpCache: the kernel-backed
+    // tc8-dut faults nothing here (no fixture seam), so the matching `_neg` cases
+    // capability-skip on Linux. While a non-None flavor is set, the fixture's netif
+    // link-output corrupts one header field of the DUT-emitted frame and recomputes
+    // the affected checksum — the lwIP analog of a tc8-dut emit-flavor, generic over
+    // protocol (ARP today; IPv4/UDP/TCP/ICMP join the same catalog).
     //
     // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
     // or an unknown flavor byte.
-    OpSetArpFlavor = 0x18,
+    OpSetEgressFlavor = 0x18,
+
+    // Arm an INGRESS prohibited-emission flavor (kIngressFault* catalog below) on
+    // the lwIP fixture: the netif input hook makes a buggy DUT produce the emission
+    // a §4.2.4.2 reception case proves absent (synthesize the forbidden ARP Reply,
+    // or wrongly learn the dropped frame's address). A separate mechanism from
+    // egress field-corruption (different hook point), hence its own opcode + cap.
+    //
+    // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
+    // or an unknown flavor byte.
+    OpSetIngressFlavor = 0x19,
 };
 
 // Top of the protocol's opcode value space — the highest opcode this
@@ -727,7 +738,7 @@ enum Opcode : std::uint8_t {
 // OpQueryCapabilities with their exact implemented set — the
 // reference DUT itself skips OpConditionArpCache, whose §4.2 cache
 // conditioning rides netns sysctls instead).
-inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetArpFlavor;
+inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetIngressFlavor;
 
 // Wire encoding of the OpQueryTcpInfo `state` byte — the single source
 // of truth for every producer and consumer. Values equal the Linux
@@ -812,33 +823,31 @@ inline constexpr std::uint8_t kFlavorSkipFirstRateLimitSilence    = 0x10;  // RF
 inline constexpr std::uint8_t kFlavorReprobeStalePostSilence      = 0x11;  // RFC 3927 §2.2.1 step 58 fresh post-rate-limit re-probe MUST
 inline constexpr std::uint8_t kFlavorSkipSecondRateLimitSilence   = 0x12;  // RFC 3927 §2.2.1 rate-limit persists into 2nd window MUST
 
-// `OpSetArpFlavor` fault-injection flavor byte (lwIP §4.2 ARP fixture). Distinct
-// from the §4.5 link-local autoconf kFlavor* above (OpStartLLAutoconfBuggy). Two
-// fault kinds share this one byte (and one armed-flavor atomic), routed by the
-// lwIP fixture glue, never by lwIP itself:
-//
-//   EGRESS field-corruption (0x01..0x05) — the DUT emits a §4.2 ARP frame
-//     legitimately (cache-miss Request, or Reply to a valid Request) and the
-//     netif link-output hook rewrites one RFC 826 header field on the way out.
-//     One flavor per field; a field shared by a request-shape and a reply-shape
-//     case (htype, hlen) uses ONE flavor for both — the offset is identical and
-//     the case's provocation selects request vs reply.
-//
-//   INGRESS prohibited-emission (0x06..) — the §4.2.4.2 reception cases where a
-//     conformant DUT emits NOTHING (it drops a malformed/foreign frame), so there
-//     is no egress frame to corrupt. The netif input hook makes the buggy DUT
-//     produce the forbidden emission the positive case proves absent: synthesize
-//     the prohibited ARP Reply, or wrongly learn the dropped frame's address.
-inline constexpr std::uint8_t kArpFaultNone            = 0x00;
+// `OpSetEgressFlavor` field-fault catalog (lwIP fixture egress hook). Distinct from
+// the §4.5 link-local autoconf kFlavor* above (OpStartLLAutoconfBuggy). The DUT
+// emits a frame legitimately and the netif link-output hook rewrites ONE header
+// field on the way out (recomputing the affected checksum), routed by the lwIP
+// fixture glue, never by lwIP itself. One contiguous catalog across protocols; the
+// flavor name carries the protocol+field. A field shared by a request-shape and a
+// reply-shape case (htype, hlen) uses ONE flavor — the offset is identical and the
+// case's provocation selects which frame.
+inline constexpr std::uint8_t kEgressFaultNone        = 0x00;
+// ARP-over-Ethernet (no checksum):
 inline constexpr std::uint8_t kArpFaultOpcodeWrong     = 0x01;  // RFC 826 opcode: ARP_07/ARP_12 (request MUST be 1)
 inline constexpr std::uint8_t kArpFaultHwTypeWrong     = 0x02;  // RFC 826 htype:  ARP_08/ARP_46 (MUST be 1, Ethernet)
 inline constexpr std::uint8_t kArpFaultProtoTypeWrong  = 0x03;  // RFC 826 ptype:  ARP_09 (MUST be 0x0800, IPv4)
 inline constexpr std::uint8_t kArpFaultHwLenWrong      = 0x04;  // RFC 826 hlen:   ARP_10/ARP_47 (MUST be 6)
 inline constexpr std::uint8_t kArpFaultProtoLenWrong   = 0x05;  // RFC 826 plen:   ARP_11 (MUST be 4)
-// INGRESS prohibited-emission flavors:
-inline constexpr std::uint8_t kArpFaultReplyToDropFrame  = 0x06;  // §4.2.4.2 reply-absence: ARP_21/27/37/42 (reply to a frame the DUT must drop)
-inline constexpr std::uint8_t kArpFaultLearnFromDropFrame = 0x07;  // §4.2.4.2 drop-and-emit: ARP_22/28/38 (learn the dropped Response's address)
-inline constexpr std::uint8_t kArpFaultMax             = kArpFaultLearnFromDropFrame;
+inline constexpr std::uint8_t kEgressFaultMax         = kArpFaultProtoLenWrong;
+
+// `OpSetIngressFlavor` prohibited-emission catalog (lwIP fixture input hook). The
+// §4.2.4.2 reception cases where a conformant DUT emits NOTHING (it drops a
+// malformed/foreign frame), so there is no egress to corrupt: the input hook makes
+// the buggy DUT produce the forbidden emission the positive case proves absent.
+inline constexpr std::uint8_t kIngressFaultNone          = 0x00;
+inline constexpr std::uint8_t kArpFaultReplyToDropFrame  = 0x01;  // §4.2.4.2 reply-absence: ARP_21/27/37/42 (reply to a frame the DUT must drop)
+inline constexpr std::uint8_t kArpFaultLearnFromDropFrame = 0x02;  // §4.2.4.2 drop-and-emit: ARP_22/28/38 (learn the dropped Response's address)
+inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultLearnFromDropFrame;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

@@ -517,8 +517,9 @@ private:
                 continue;  // transport failure: a dropped datagram — retry
             }
             caps16_resolved_ = c->supported;  // false = pre-0x16 DUT (definitive)
-            if (c->supported && c->supports(ut::OpSetArpFlavor)) {
-                fault_caps_ |= kCapArpFlavor;
+            if (c->supported) {
+                if (c->supports(ut::OpSetEgressFlavor))  fault_caps_ |= kCapEgressFault;
+                if (c->supports(ut::OpSetIngressFlavor)) fault_caps_ |= kCapIngressFault;
             }
             return;
         }
