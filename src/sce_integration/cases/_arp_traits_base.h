@@ -30,12 +30,13 @@
 //                             Event::Udp_observed on UdpFrame; the SCXML
 //                             guards discriminate.
 //
-// Every §4.2 case — the positives AND the lwIP fault `_neg` self-validation
-// siblings — is covered by these two DISPATCH shapes; no third dispatch shape is
-// needed. (The ArpFaultNeg*Base mixins below are NOT third shapes: each inherits
-// one of these two dispatches and only adds a capability declaration.) Stated by
-// shape, not a frozen case count, so the claim survives the `_neg` track and
-// future §4.2 additions.
+// Every §4.2 case is covered by these two ArpFrame dispatch shapes, plus one
+// narrowing for the drop-and-emit `_neg`: ArpFaultNegBase (ARP-only, the reply
+// cases) just adds a capability declaration over ArpAnyBase; ArpFaultNegUdpBase
+// (the §4.2.4.2 drop-and-emit cases) narrows ArpAndUdpBase to a UDP-ONLY dispatch
+// because it must ignore the DUT's conformant control-plane ARP resolution (see
+// the base below). Stated by shape, not a frozen case count, so the claim survives
+// the `_neg` track and future §4.2 additions.
 //
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
 // own per-case stimulus (ARP-learning probe, UT egress provocation, ...)
@@ -172,14 +173,34 @@ struct ArpFaultNegBase : ArpAnyBase<StateMachine> {
         ::tc8::sce::kCapArpFlavor;
 };
 
-// Same capability mixin over the ArpFrame+UdpFrame dispatch shape (#2), for the
-// §4.2.4.2 drop-and-emit `_NEG` cases (ARP_22/28/38) whose pass path observes a
-// UDP carrier. Not a third dispatch shape — it inherits ArpAndUdpBase's dispatch
-// and only adds the kCapArpFlavor declaration (the sibling of ArpFaultNegBase).
+// Capability mixin for the §4.2.4.2 drop-and-emit `_NEG` cases (ARP_22/28/38).
+// These observe ONLY the UDP egress MAC, so they dispatch UdpFrame alone: on the
+// lwIP fixture the DUT ARP-resolves the tester for its own UT control-plane ACKs
+// (no DUT-side neigh pin, unlike the Linux reference DUT), and that opcode-1 ARP
+// Request is conformant traffic indistinguishable from a conformant egress
+// resolution — useless as a discriminator. Only the egress that adopted the
+// injected MAC proves the fault took. Inherits ArpAndUdpBase for the constants +
+// aliases (kBpfGroup stays ArpAndUdp so the ARP frames are still captured for the
+// pcap/evidence) and OVERRIDES dispatch to UDP-only; the base's ArpFrame dispatch
+// is never odr-used, so its Arp_observed reference is never instantiated. Adds the
+// kCapArpFlavor declaration (the sibling of ArpFaultNegBase).
 template <typename StateMachine>
 struct ArpFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
+    using Base = ArpAndUdpBase<StateMachine>;
+    using typename Base::SM;
+    using typename Base::Event;
+    using typename Base::Captured;
+
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapArpFlavor;
+
+    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
+        if (const auto* u = std::get_if<::tc8::UdpFrame>(&ev)) {
+            ::tc8::fillArpCapturedFromUdpFrame(c, *u);
+            sm.raiseExternal(Event::Udp_observed);
+            sm.step();
+        }
+    }
 };
 
 }  // namespace tc8::sce

@@ -9,16 +9,20 @@
 
     Pass:    the DUT's UDP egress to the tester carries eth_dst == the injected
              (dropped frame's) MAC — the forbidden cache acceptance the positive
-             guard fires on.
-    Fail:    a DUT-originated ARP Request (opcode == 1, sender_hw == dut_iface_mac)
-             -> fail_compliant — the DUT resolved the MAC itself despite the flavor
-             (the fault was inert: a flavor-wiring regression, NOT a DUT conformance
-             violation; role fault_injection_inert).
-    Timeout: deadline_exceeded -> inconclusive — neither emission seen.
+             guard fires on, present here because the fault took.
+    Fail:    deadline_exceeded -> fail_compliant — no such UDP within the window:
+             the DUT never used the dropped frame's MAC (the fault was inert: a
+             flavor-wiring regression, NOT a DUT conformance violation; role
+             fault_injection_inert).
 
-  Mirror of arp_group_c_drop_and_emit with the pass/fail transitions swapped;
-  param-less, shared by ARP_22/28/38_NEG. 5 s deadline matches the §4.2.4.2 `_NEG`
-  cluster.
+  Keyed on the UDP egress MAC, NOT on a DUT-emitted ARP Request: on the lwIP
+  fixture the DUT ARP-resolves the tester for its own UT control-plane ACKs (no
+  DUT-side neigh pin, unlike the Linux reference DUT), emitting an opcode-1 ARP
+  Request that is conformant control-plane traffic, not the §4.2.4.2 behaviour
+  under test. The UT-ACK UDPs go to the tester's real MAC (!= injected), so only the
+  provoked egress that adopted the injected MAC trips `pass`. Mirror of the
+  reply-absence `_NEG` shape (arp_reply_neg); param-less, shared by ARP_22/28/38.
+  5 s deadline matches the §4.2.4.2 `_NEG` cluster.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
@@ -40,10 +44,7 @@
     <transition event="udp_observed"
                 cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
                 target="pass"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
-                target="fail_compliant"/>
-    <transition event="deadline_exceeded" target="inconclusive"/>
+    <transition event="deadline_exceeded" target="fail_compliant"/>
   </state>
 
   <final id="pass">
@@ -54,13 +55,7 @@
 
   <final id="fail_compliant">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_own_arp_request_despite_learn_flavor","role":"fault_injection_inert"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_udp_or_arp_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"dut_did_not_use_dropped_frame_mac_despite_learn_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </sce:template>
