@@ -123,14 +123,25 @@ SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 # the DUT IP) -- tc8-dut builds no §4.2 ARP frame, so there is no flavor to inject.
 # The only firmware ARP lives inside the link-local and DHCP-DAD flows, which are
 # the IPV4_AUTOCONF / DHCPV4 families; §4.2 ARP is faultable only on the lwIP etharp
-# stack. Longest-prefix wins (IPV4_AUTOCONF before IPV4).
+# stack. case_family matches the LONGEST family prefix (so IPV4_AUTOCONF beats the
+# IPV4 prefix), independent of tuple order.
 FIRMWARE_FAMILIES = ("IPV4_AUTOCONF", "DHCPV4", "SOMEIP_ETS", "SOMEIPSRV")
 KERNEL_FAMILIES = ("ICMPV4", "TCP", "UDP", "IPV4", "ARP")
+
+# Families longest-first so `c.startswith(fam)` resolves the most specific prefix
+# (IPV4_AUTOCONF before IPV4) regardless of how the tuples above are ordered.
+_FAMILIES_BY_LEN = tuple(sorted((*FIRMWARE_FAMILIES, *KERNEL_FAMILIES), key=len, reverse=True))
+
+# The fault DUT-layers (Phase F ratchet keys), in ledger + report order: a tc8-dut
+# firmware flavor mutant (FIRMWARE_FAMILIES) vs the lwIP fixture (KERNEL_FAMILIES).
+# One named set so the floor round-trip, the --check lanes, and the report all
+# iterate the SAME order.
+FAULT_DUT_LAYERS = ("tc8_dut", "lwip")
 
 
 def case_family(case_id: str) -> str:
     c = case_id.upper()
-    for fam in (*FIRMWARE_FAMILIES, *KERNEL_FAMILIES):
+    for fam in _FAMILIES_BY_LEN:
         if c.startswith(fam):
             return fam
     return c.split("_")[0]
@@ -257,7 +268,7 @@ def load_floors() -> dict[str, int]:
     """The committed Phase F high-water marks, one per fault DUT-layer: `tc8_dut`
     (firmware families, faulted by a tc8-dut flavor) and `lwip` (kernel families,
     faulted on the lwIP fixture). Missing key / absent file -> 0."""
-    out = {"tc8_dut": 0, "lwip": 0}
+    out = {d: 0 for d in FAULT_DUT_LAYERS}
     if not FLOOR_LEDGER.is_file():
         return out
     for line in FLOOR_LEDGER.read_text(encoding="utf-8").splitlines():
@@ -279,8 +290,7 @@ def floor_ledger_text(marks: dict[str, int]) -> str:
         "# below its mark (a _neg was lost -- fix it) OR rises above it (a _neg landed --\n"
         "# run `--write-floor`). Monotonic: --write-floor only raises, never lowers, so a\n"
         "# regression on one DUT cannot be masked by a gain on the other.\n"
-        f"tc8_dut {marks['tc8_dut']}\n"
-        f"lwip {marks['lwip']}\n"
+        + "".join(f"{d} {marks[d]}\n" for d in FAULT_DUT_LAYERS)
     )
 
 
@@ -290,7 +300,7 @@ def fault_by_dut(m: Model) -> dict[str, int]:
     families -> `lwip` (faulted on the lwIP fixture; the Linux reference is an
     oracle). Mirrors the FIRMWARE_FAMILIES / KERNEL_FAMILIES split."""
     fw = set(FIRMWARE_FAMILIES)
-    out = {"tc8_dut": 0, "lwip": 0}
+    out = {d: 0 for d in FAULT_DUT_LAYERS}
     for c, d in m.disposition.items():
         if d == "FAULT_INJECTION":
             out["tc8_dut" if case_family(c) in fw else "lwip"] += 1
@@ -688,7 +698,7 @@ def cross_findings(m: Model) -> list[str]:
     # regression on one (tc8_dut) being masked by a gain on the other (lwip).
     counts = fault_by_dut(m)
     floors = load_floors()
-    for dut in ("tc8_dut", "lwip"):
+    for dut in FAULT_DUT_LAYERS:
         live, mark = counts[dut], floors[dut]
         if live < mark:
             findings.append(
@@ -744,12 +754,12 @@ def phase_f_report(m: Model) -> int:
     def ratchet(label, verified, backlog, mark):
         tgt = verified + len(backlog)
         pct = 100.0 * verified / tgt if tgt else 100.0
-        print(f"  {label} (high-water {mark}): {verified}/{tgt} proven ({pct:.0f}%)")
+        print(f"  {label:38} (high-water {mark}): {verified}/{tgt} proven ({pct:.0f}%)")
         for fam, n in by_family(backlog):
             print(f"       {fam:14} {n}")
 
-    ratchet("tc8-dut firmware [flavor mutant]   ", counts["tc8_dut"], fw_fault, floors["tc8_dut"])
-    ratchet("lwIP firmware    [etharp/stack fixture]", counts["lwip"], kn_fault, floors["lwip"])
+    ratchet("tc8-dut firmware [flavor mutant]", counts["tc8_dut"], fw_fault, floors["tc8_dut"])
+    ratchet("lwIP firmware [etharp/stack fixture]", counts["lwip"], kn_fault, floors["lwip"])
     print(f"  -- liveness REGISTRY (no reachable fail; terminal by policy, NOT a target): "
           f"firmware {len(fw_live)} + kernel/lwIP {len(kn_live)} --")
     for fam, n in by_family(fw_live + kn_live):
@@ -781,7 +791,7 @@ def main() -> int:
     if args.write_floor:
         counts = fault_by_dut(m)
         floors = load_floors()
-        lowered = [d for d in ("tc8_dut", "lwip") if counts[d] < floors[d]]
+        lowered = [d for d in FAULT_DUT_LAYERS if counts[d] < floors[d]]
         if lowered:
             detail = ", ".join(f"{d} {floors[d]}->{counts[d]}" for d in lowered)
             print(
