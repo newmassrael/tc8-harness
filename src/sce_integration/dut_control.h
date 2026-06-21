@@ -429,9 +429,15 @@ private:
 // OpcodeUdpControl.
 class OpcodeUtControl final : public IDutControl {
 public:
+    // `cap_probe_src_ip_be` sources the OpQueryCapabilities (0x16) probe only —
+    // the tester ALIAS, so the probe's UT response is answerable from the DUT's
+    // already-warm alias ARP entry and the §4.2 cold-cache primary stays cold
+    // (see makeDutControl). 0 = kernel-chosen, like the data-plane src.
     explicit OpcodeUtControl(std::uint32_t dut_ip_be, std::uint16_t port = ut::kPort,
-                             std::uint32_t src_ip_be = 0, int timeout_ms = 1000)
+                             std::uint32_t src_ip_be = 0, int timeout_ms = 1000,
+                             std::uint32_t cap_probe_src_ip_be = 0)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
+          cap_probe_src_ip_be_(cap_probe_src_ip_be),
           tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
           state_probe_(dut_ip_be, port, src_ip_be,
                        timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
@@ -501,8 +507,12 @@ private:
         }
         caps16_done_ = true;
         for (int attempt = 0; attempt < kCapQueryAttempts; ++attempt) {
+            // Sourced from the ALIAS (cap_probe_src_ip_be_), not the primary
+            // tester IP, so the probe's UT response is answerable from the DUT's
+            // warm alias entry and emits no ARP — keeping the §4.2 cold-cache
+            // primary entry absent (see makeDutControl / OpcodeUtControl ctor).
             const auto c = stimulus::queryUpperTesterCapabilities(
-                dut_ip_be_, port_, timeout_ms_, src_ip_be_);
+                dut_ip_be_, port_, timeout_ms_, cap_probe_src_ip_be_);
             if (!c) {
                 continue;  // transport failure: a dropped datagram — retry
             }
@@ -520,6 +530,7 @@ private:
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
+    std::uint32_t cap_probe_src_ip_be_;  // alias source for the 0x16 cap probe
     // DUT-derived fault caps (axis 2) + resolution state, lazily filled by
     // resolveCaps16() and cached.
     mutable bool caps16_done_ = false;       // resolution attempted

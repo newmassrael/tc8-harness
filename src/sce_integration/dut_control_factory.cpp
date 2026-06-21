@@ -27,7 +27,17 @@ std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, int ti
         case DutControlBackend::kOpcode:
             break;
     }
-    return std::make_unique<OpcodeUtControl>(dut_ip_be, ut::kPort, /*src_ip_be=*/0, timeout_ms);
+    // The OpQueryCapabilities (0x16) probe that resolves DUT-derived fault caps
+    // is sourced from the tester ALIAS, not the (kernel-chosen) primary tester
+    // IP: §4.2 cold-cache cases require the DUT's primary-IP ARP entry to be
+    // ABSENT when the case starts, but the cap probe's UT response would make the
+    // DUT ARP-resolve its source. The fixture readiness probe already warms the
+    // alias (and no §4.2 assertion references it — see lwip-tap.conf), so probing
+    // from the alias lets the DUT answer from a cached entry, emitting no ARP and
+    // leaving the cold-cache premise intact. 0 (no alias configured) falls back to
+    // kernel-chosen, harmless on backends/DUTs where no `_NEG` runs.
+    return std::make_unique<OpcodeUtControl>(dut_ip_be, ut::kPort, /*src_ip_be=*/0, timeout_ms,
+                                             /*cap_probe_src_ip_be=*/cfg.ipv4.tester_alias_ip);
 }
 
 }  // namespace tc8::sce

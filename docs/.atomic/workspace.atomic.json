@@ -200,6 +200,14 @@
         {
           "file": "src/sce_integration/dut_capabilities.h",
           "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/dut_control.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/dut_control_factory.cpp",
+          "kind": "references"
         }
       ]
     },
