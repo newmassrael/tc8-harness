@@ -49,8 +49,8 @@ sibling) and NEG_ROW integrity (no STALE row whose reason is not a final).
 Default (no args): print the census. --check: enforce the invariants (gates
 build-test.yml + pre-commit). --write-ledger: regenerate the exhaustiveness ledger
 from the current UNDISPOSED set (bootstrap / after a batch of dispositions).
---write-floor: record the current FAULT_INJECTION count as the Phase F high-water
-mark (raise-only; run after a _neg lands).
+--write-floor: record the current FAULT_INJECTION counts as the Phase F high-water
+marks, one per fault DUT-layer (raise-only; run after a _neg lands).
 """
 
 from __future__ import annotations
@@ -108,10 +108,10 @@ SPURIOUS_FILTER_KEYS = {"ipv4.dut_iface_ip", "icmpv4.dut_iface_ip"}
 
 # Phase F (docs/verdict_policy.md Section 6.1): the empirical-verification ratchet.
 # Coverage (undisposed -> 0) is reached; the live metric is now empirical proof.
-# FAULT_INJECTION proofs only ever grow. The high-water mark is committed to
-# FLOOR_LEDGER (a one-line file, not a hand-edited constant) and loaded by
-# load_floor(); --check pins the live count to it exactly, and --write-floor
-# records a new peak (raise-only). The REGISTRY set is the work-list (--phase-f).
+# FAULT_INJECTION proofs only ever grow. The per-DUT-layer high-water marks are
+# committed to FLOOR_LEDGER (not a hand-edited constant) and loaded by
+# load_floors(); --check pins each live count to its mark, and --write-floor
+# records new peaks (raise-only). The REGISTRY set is the work-list (--phase-f).
 
 # A REGISTRY guard is empirically faultable only where the misbehaviour can be
 # produced. Firmware families (tc8-dut / vsomeip app) take a _neg flavor case (the
@@ -253,29 +253,48 @@ def load_fault_coverage() -> dict[str, dict[str, str]]:
     return data.get("cases", {})
 
 
-def load_floor() -> int:
-    """The committed Phase F FAULT_INJECTION high-water mark (0 if FLOOR_LEDGER is
-    absent). One non-comment line holding the integer peak."""
+def load_floors() -> dict[str, int]:
+    """The committed Phase F high-water marks, one per fault DUT-layer: `tc8_dut`
+    (firmware families, faulted by a tc8-dut flavor) and `lwip` (kernel families,
+    faulted on the lwIP fixture). Missing key / absent file -> 0."""
+    out = {"tc8_dut": 0, "lwip": 0}
     if not FLOOR_LEDGER.is_file():
-        return 0
+        return out
     for line in FLOOR_LEDGER.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if line and not line.startswith("#"):
-            return int(line)
-    return 0
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) == 2 and parts[0] in out:
+            out[parts[0]] = int(parts[1])
+    return out
 
 
-def floor_ledger_text(high_water: int) -> str:
+def floor_ledger_text(marks: dict[str, int]) -> str:
     return (
-        "# Phase F empirical-verification high-water mark (docs/verdict_policy.md\n"
-        "# Section 6.1): the peak count of FAULT_INJECTION-disposed positive cases\n"
-        "# committed so far. negative_coverage_audit.py --check fails if the live\n"
-        "# count drops below this (a _neg was lost -- fix it) OR rises above it (a\n"
-        "# _neg landed -- run `--write-floor` to record the new peak and commit).\n"
-        "# Monotonic: --write-floor only ever raises it, so a regression cannot be\n"
-        "# masked by re-running it.\n"
-        f"{high_water}\n"
+        "# Phase F empirical-verification high-water marks (docs/verdict_policy.md\n"
+        "# Section 6.1), one per fault DUT-layer: `tc8_dut` (firmware families, faulted\n"
+        "# by a tc8-dut flavor) and `lwip` (kernel families, faulted on the lwIP etharp/\n"
+        "# stack fixture). negative_coverage_audit.py --check fails if a live count drops\n"
+        "# below its mark (a _neg was lost -- fix it) OR rises above it (a _neg landed --\n"
+        "# run `--write-floor`). Monotonic: --write-floor only raises, never lowers, so a\n"
+        "# regression on one DUT cannot be masked by a gain on the other.\n"
+        f"tc8_dut {marks['tc8_dut']}\n"
+        f"lwip {marks['lwip']}\n"
     )
+
+
+def fault_by_dut(m: Model) -> dict[str, int]:
+    """FAULT_INJECTION count split by the DUT-layer the fault is injected on:
+    firmware families -> `tc8_dut` (a tc8-dut flavor drives the mutant), kernel
+    families -> `lwip` (faulted on the lwIP fixture; the Linux reference is an
+    oracle). Mirrors the FIRMWARE_FAMILIES / KERNEL_FAMILIES split."""
+    fw = set(FIRMWARE_FAMILIES)
+    out = {"tc8_dut": 0, "lwip": 0}
+    for c, d in m.disposition.items():
+        if d == "FAULT_INJECTION":
+            out["tc8_dut" if case_family(c) in fw else "lwip"] += 1
+    return out
 
 
 def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[str]:
@@ -663,22 +682,24 @@ def cross_findings(m: Model) -> list[str]:
     findings.extend(check_class_structure(m.registry))
     findings.extend(validate_fault_coverage(m))
 
-    # Phase F empirical-verification ratchet: the live FAULT_INJECTION count is
-    # pinned to the committed high-water mark. Below it = a _neg was lost (fix the
-    # code); above it = a _neg landed but the peak was not recorded (run
-    # --write-floor). Either way --check is red until ledger and count agree.
-    fault_inj = sum(1 for d in m.disposition.values() if d == "FAULT_INJECTION")
-    high_water = load_floor()
-    if fault_inj < high_water:
-        findings.append(
-            f"PHASE_F_REGRESSION: FAULT_INJECTION {fault_inj} < high-water "
-            f"{high_water}; a _neg case was lost (fix it, do NOT lower the ledger)"
-        )
-    elif fault_inj > high_water:
-        findings.append(
-            f"PHASE_F_FLOOR_BEHIND: FAULT_INJECTION {fault_inj} > high-water "
-            f"{high_water}; a _neg landed -- run --write-floor and commit the ledger"
-        )
+    # Phase F ratchet, per fault DUT-layer: each live FAULT_INJECTION count is pinned
+    # to its committed high-water. Below = a _neg was lost (fix the code); above = a
+    # _neg landed, peak not recorded (run --write-floor). Splitting by DUT stops a
+    # regression on one (tc8_dut) being masked by a gain on the other (lwip).
+    counts = fault_by_dut(m)
+    floors = load_floors()
+    for dut in ("tc8_dut", "lwip"):
+        live, mark = counts[dut], floors[dut]
+        if live < mark:
+            findings.append(
+                f"PHASE_F_REGRESSION: {dut} FAULT_INJECTION {live} < high-water "
+                f"{mark}; a _neg case was lost (fix it, do NOT lower the ledger)"
+            )
+        elif live > mark:
+            findings.append(
+                f"PHASE_F_FLOOR_BEHIND: {dut} FAULT_INJECTION {live} > high-water "
+                f"{mark}; a _neg landed -- run --write-floor and commit the ledger"
+            )
     return findings
 
 
@@ -694,13 +715,13 @@ def is_liveness_only(entry: dict) -> bool:
 
 
 def phase_f_report(m: Model) -> int:
-    """Phase F work-list (docs/verdict_policy.md Section 6.1): which REGISTRY guards
-    are empirically faultable on the firmware DUT (the FAULT_INJECTION target) vs
-    structurally terminal (liveness, no reachable `fail`) vs run against the Linux
-    reference stack (kernel oracle / lwIP-DUT track only)."""
+    """Phase F work-list (docs/verdict_policy.md Section 6.1): the two empirical-
+    verification ratchets, one per fault DUT-layer. tc8-dut firmware (FIRMWARE_
+    FAMILIES) is faulted by a flavor mutant; lwIP firmware (KERNEL_FAMILIES, where
+    Linux is only an oracle) is faulted on the lwIP fixture. liveness guards (no
+    reachable `fail`) are terminal by policy on both and excluded from the targets."""
     from collections import Counter
     fw_fams = set(FIRMWARE_FAMILIES)
-    fault = [c for c, d in m.disposition.items() if d == "FAULT_INJECTION"]
     # Registry split on two axes: family (who implements it) x faultability (does the
     # guard have a reachable `fail` — i.e. is it NOT liveness-only). liveness-only
     # guards are excluded from the target on BOTH families (no `fail` to drive).
@@ -715,21 +736,24 @@ def phase_f_report(m: Model) -> int:
     def by_family(cases):
         return sorted(Counter(case_family(c) for c in cases).items(), key=lambda x: -x[1])
 
-    target = len(fault) + len(fw_fault)
-    pct = 100.0 * len(fault) / target if target else 100.0
+    counts = fault_by_dut(m)
+    floors = load_floors()
     print("Phase F -- empirical verification (docs/verdict_policy.md Section 6.1)")
     print("=" * 68)
-    print(f"  verified (FAULT_INJECTION, high-water {load_floor()}): {len(fault)}")
-    print(f"  firmware faultable target: {len(fault)}/{target} proven ({pct:.0f}%)")
-    print("  -- firmware faultable REGISTRY backlog (the work-list) --")
-    for fam, n in by_family(fw_fault):
-        print(f"     {fam:14} {n}")
-    print(f"  -- firmware liveness REGISTRY (no reachable fail; terminal by policy, NOT a target): {len(fw_live)} --")
-    for fam, n in by_family(fw_live):
-        print(f"     {fam:14} {n}")
-    print(f"  -- kernel-stack REGISTRY (Linux=oracle; lwIP-DUT track only): {len(kn_fault)} faultable + {len(kn_live)} liveness --")
-    for fam, n in by_family(kn_fault + kn_live):
-        print(f"     {fam:14} {n}")
+
+    def ratchet(label, verified, backlog, mark):
+        tgt = verified + len(backlog)
+        pct = 100.0 * verified / tgt if tgt else 100.0
+        print(f"  {label} (high-water {mark}): {verified}/{tgt} proven ({pct:.0f}%)")
+        for fam, n in by_family(backlog):
+            print(f"       {fam:14} {n}")
+
+    ratchet("tc8-dut firmware [flavor mutant]   ", counts["tc8_dut"], fw_fault, floors["tc8_dut"])
+    ratchet("lwIP firmware    [etharp/stack fixture]", counts["lwip"], kn_fault, floors["lwip"])
+    print(f"  -- liveness REGISTRY (no reachable fail; terminal by policy, NOT a target): "
+          f"firmware {len(fw_live)} + kernel/lwIP {len(kn_live)} --")
+    for fam, n in by_family(fw_live + kn_live):
+        print(f"       {fam:14} {n}")
     return 0
 
 
@@ -755,16 +779,19 @@ def main() -> int:
         return 0
 
     if args.write_floor:
-        fault_inj = sum(1 for d in m.disposition.values() if d == "FAULT_INJECTION")
-        high_water = load_floor()
-        if fault_inj < high_water:
+        counts = fault_by_dut(m)
+        floors = load_floors()
+        lowered = [d for d in ("tc8_dut", "lwip") if counts[d] < floors[d]]
+        if lowered:
+            detail = ", ".join(f"{d} {floors[d]}->{counts[d]}" for d in lowered)
             print(
-                f"refusing to lower the high-water {high_water} -> {fault_inj}: a "
-                f"FAULT_INJECTION drop is a regression to fix, not to record"
+                f"refusing to lower the high-water ({detail}): a FAULT_INJECTION "
+                f"drop is a regression to fix, not to record"
             )
             return 1
-        FLOOR_LEDGER.write_text(floor_ledger_text(fault_inj), encoding="utf-8")
-        print(f"wrote {FLOOR_LEDGER.relative_to(REPO)} (high-water {fault_inj})")
+        FLOOR_LEDGER.write_text(floor_ledger_text(counts), encoding="utf-8")
+        print(f"wrote {FLOOR_LEDGER.relative_to(REPO)} "
+              f"(tc8_dut {counts['tc8_dut']}, lwip {counts['lwip']})")
         return 0
 
     ledger = load_ledger()

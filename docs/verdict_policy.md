@@ -282,7 +282,13 @@ empirical proof: the `FAULT_INJECTION` count is floored by
 `negative_coverage_audit.py --check` and only ever rises as `_neg` cases land; the
 current **faultable** `REGISTRY` set (`prohibited`/`incorrect`; `liveness` excluded)
 is the work-list (`--phase-f`). Each `_neg` promotes a case `REGISTRY →
-FAULT_INJECTION`.
+FAULT_INJECTION`. The ratchet is **per fault DUT-layer** — one high-water for
+`tc8_dut` (firmware families, a flavor mutant) and one for `lwip` (kernel families,
+faulted on the lwIP fixture), committed to `tools/fault_injection_floor.txt`. They
+are floored independently so a regression on one cannot be masked by a gain on the
+other, and `--write-floor` only ever raises a mark, never lowers it (a drop is a
+regression to fix, not to record). `--phase-f` reports both ratchets and their
+backlogs.
 
 **The `_neg` fail role.** A `_neg` reaches `pass` when it *observes the violation*
 the injected fault produces, and `fail` (its `fail_compliant*` final) only when the
