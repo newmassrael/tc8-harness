@@ -63,6 +63,12 @@ void mutateArp(std::uint8_t *f, std::uint8_t flavor) {
 constexpr std::uint16_t kWrongPort      = 0xDEAD;  // != any per-case spec port
 constexpr std::uint16_t kWrongUdpLength = 0x0007;  // < 8, never == 8 + payload
 
+// Checksum-invalidation sentinel shared by the UDP and TCP checksum faults: XOR
+// guarantees the checksum changes (a fixed value could collide with the correct one).
+// The only edge — a valid 0xFFFF folding to 0x0000 — is caught by the positive
+// guard's `checksum != 0` conjunct, so the _neg still passes.
+constexpr std::uint16_t kChecksumFlip   = 0xFFFF;
+
 void mutateUdp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t udp) {
     // Never the DUT's own UT Confirmation (src_port == ut::kPort) — only its
     // spec-provoked data egress carries a per-case source port.
@@ -79,12 +85,8 @@ void mutateUdp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t udp) {
         case ut::kUdpFaultSrcPortWrong:  put16(f, udp + kUdpSrcPort, kWrongPort);     break;
         case ut::kUdpFaultDstPortWrong:  put16(f, udp + kUdpDstPort, kWrongPort);     break;
         case ut::kUdpFaultLengthWrong:   put16(f, udp + kUdpLength, kWrongUdpLength); break;
-        // XOR guarantees the checksum changes (a fixed sentinel could collide with
-        // the correct value); the only edge, a valid 0xFFFF folding to 0x0000, is
-        // caught by the positive guard's `checksum != 0` conjunct, so the _neg still
-        // passes.
         case ut::kUdpFaultChecksumWrong: put16(f, udp + kUdpChecksum,
-                                               get16(f, udp + kUdpChecksum) ^ 0xFFFF); break;
+                                               get16(f, udp + kUdpChecksum) ^ kChecksumFlip); break;
         default:                         break;  // None / non-UDP flavor: no-op
     }
 }
@@ -112,7 +114,7 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
         // still reaches ESTABLISHED to emit the observed data segment.
         case ut::kTcpFaultDataChecksumWrong:
             if (tcpHasPayload(f, tcp)) put16(f, tcp + kTcpChecksumOff,
-                                             get16(f, tcp + kTcpChecksumOff) ^ 0xFFFF);
+                                             get16(f, tcp + kTcpChecksumOff) ^ kChecksumFlip);
             break;
         default: break;  // None / non-TCP flavor: no-op
     }

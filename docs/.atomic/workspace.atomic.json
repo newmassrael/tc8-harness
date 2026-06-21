@@ -3426,6 +3426,10 @@
         {
           "file": "dut/lwip_dut/lwip_wire.h",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },
