@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.2.4.1 ARP_07 negative — lwIP egress-fault self-validation of the
-  positive _07 opcode guard. emitArpFlavorArm(kArpFaultOpcodeWrong) makes
+  positive _07 opcode guard. emitEgressFlavorArm(kArpFaultOpcodeWrong) makes
   the lwIP netif link-output hook rewrite the Operation Code of the DUT's
   emitted Request. Pass = corrupted opcode observed (opcode != 1);
   fail_compliant = DUT emitted opcode 1 despite the flavor (fault inert).

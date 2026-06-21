@@ -2,7 +2,7 @@
 <!--
   TC8 §4.2.4.2 ARP_47 negative — lwIP egress-fault self-validation of the
   positive _47 Reply Hardware Address Length guard.
-  emitArpFlavorArm(kArpFaultHwLenWrong) rewrites the hlen of the DUT's
+  emitEgressFlavorArm(kArpFaultHwLenWrong) rewrites the hlen of the DUT's
   Reply (opcode left at 2; same flavor as the _10 Request mutant). Pass =
   corrupted hw_addr_len observed; fail_compliant = DUT emitted 6 despite
   the flavor (fault inert). lwIP-only. Envelope: arp_field_check.

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.2.4.1 ARP_10 negative — lwIP egress-fault self-validation of the
-  positive _10 Hardware Address Length guard. emitArpFlavorArm(kArpFaultHwLenWrong)
+  positive _10 Hardware Address Length guard. emitEgressFlavorArm(kArpFaultHwLenWrong)
   rewrites the hlen of the DUT's Request (opcode left at 1; the 6-byte
   address fields keep their layout). Pass = corrupted hw_addr_len observed;
   fail_compliant = DUT emitted 6 despite the flavor (fault inert).

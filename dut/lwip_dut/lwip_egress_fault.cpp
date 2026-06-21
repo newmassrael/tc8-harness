@@ -1,11 +1,11 @@
 // Egress field-fault injection for the lwIP fixture — the generic seam the field-
 // shape `_NEG` self-validation cases drive via UT 0x18 OpSetEgressFlavor. The netif
-// link-output wrapper rewrites one header field of a DUT-emitted frame (and
-// recomputes the affected checksum), routed by the armed flavor; lwIP itself is
-// untouched. Protocol-generic over one flavor catalog: the §4.2 ARP-over-Ethernet
-// fields and the §4.6.5.4 UDP fields today, with TCP/IPv4/ICMP joining the same
-// hook. A field rewrite leaves the frame's checksum mismatched — immaterial, since
-// every guard reads the mutated field, not cross-field consistency.
+// link-output wrapper rewrites one header field of a DUT-emitted frame, routed by
+// the armed flavor; lwIP itself is untouched. Protocol-generic over one flavor
+// catalog: the §4.2 ARP-over-Ethernet fields and the §4.6.5.4 UDP fields today, with
+// TCP/IPv4/ICMP adding a dispatch branch on the same hook. A field rewrite leaves
+// the frame's checksum mismatched — immaterial, since every guard reads the mutated
+// field, not cross-field consistency.
 #include "lwip_egress_fault.h"
 
 #include <atomic>
@@ -54,10 +54,9 @@ void mutateArp(std::uint8_t *f, std::uint8_t flavor) {
     }
 }
 
-// IPv4/UDP field offsets (Ethernet(14) + IPv4 header; the IPv4 IHL is read so an
-// options-bearing header still lands the UDP offset correctly). UDP offsets are
-// relative to the UDP start.
-constexpr std::uint16_t kEthHdrLen   = 14;
+// IPv4/UDP field offsets (kEthHdrLen from lwip_arp_wire.h + IPv4 header; the IPv4
+// IHL is read so an options-bearing header still lands the UDP offset correctly).
+// UDP offsets are relative to the UDP start.
 constexpr std::uint16_t kIpProtoOff  = kEthHdrLen + 9;   // IPv4 protocol byte
 constexpr std::uint8_t  kIpProtoUdp  = 17;
 constexpr std::uint16_t kUdpSrcPort  = 0;
@@ -91,6 +90,10 @@ void mutateUdp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t udp) {
         case ut::kUdpFaultSrcPortWrong:  put16(f, udp + kUdpSrcPort, kWrongPort);     break;
         case ut::kUdpFaultDstPortWrong:  put16(f, udp + kUdpDstPort, kWrongPort);     break;
         case ut::kUdpFaultLengthWrong:   put16(f, udp + kUdpLength, kWrongUdpLength); break;
+        // XOR guarantees the checksum changes (a fixed sentinel could collide with
+        // the correct value); the only edge, a valid 0xFFFF folding to 0x0000, is
+        // caught by the positive guard's `checksum != 0` conjunct, so the _neg still
+        // passes.
         case ut::kUdpFaultChecksumWrong: put16(f, udp + kUdpChecksum,
                                                get16(f, udp + kUdpChecksum) ^ 0xFFFF); break;
         default:                         break;  // None / non-UDP flavor: no-op

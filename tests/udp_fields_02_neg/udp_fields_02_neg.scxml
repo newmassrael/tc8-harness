@@ -2,8 +2,8 @@
 <!--
   TC8 §4.6.5.4 UDP_FIELDS_02 negative — lwIP egress-fault self-validation of the
   positive _02 Destination Port guard. The trait arms kUdpFaultDstPortWrong, so the
-  lwIP netif link-output hook rewrites the Destination Port of the DUT's data egress
-  (and recomputes the UDP checksum). Pass = the corrupted dst port observed;
+  lwIP netif link-output hook rewrites the Destination Port of the DUT's data
+  egress. Pass = the corrupted dst port observed;
   fail_compliant = DUT emitted the correct ports despite the flavor (fault inert).
   lwIP-only (capability-gated on kCapEgressFault). Envelope: udp_field_check.
 -->

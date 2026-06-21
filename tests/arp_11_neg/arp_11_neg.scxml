@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.2.4.1 ARP_11 negative — lwIP egress-fault self-validation of the
-  positive _11 Protocol Address Length guard. emitArpFlavorArm(kArpFaultProtoLenWrong)
+  positive _11 Protocol Address Length guard. emitEgressFlavorArm(kArpFaultProtoLenWrong)
   rewrites the plen of the DUT's Request (opcode left at 1; the 4-byte
   address fields keep their layout). Pass = corrupted proto_addr_len
   observed; fail_compliant = DUT emitted 4 despite the flavor (fault

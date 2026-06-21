@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.2.4.1 ARP_09 negative — lwIP egress-fault self-validation of the
-  positive _09 Protocol Type guard. emitArpFlavorArm(kArpFaultProtoTypeWrong)
+  positive _09 Protocol Type guard. emitEgressFlavorArm(kArpFaultProtoTypeWrong)
   rewrites the ptype of the DUT's Request (opcode left at 1). Pass =
   corrupted proto_type observed; fail_compliant = DUT emitted 0x0800
   despite the flavor (fault inert). lwIP-only. Envelope: arp_field_check.

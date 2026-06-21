@@ -14,11 +14,12 @@ void setEgressFaultFlavor(std::uint8_t flavor);
 
 // Install the egress field-fault hook on the netif: wraps netif->linkoutput so
 // that, while a non-None flavor is active, the DUT-emitted frame has the matching
-// header field corrupted (and the affected checksum recomputed) before it leaves on
-// the tap. lwIP itself is untouched — the fault lives in the fixture's own
-// link-output glue, the lwIP analog of a tc8-dut emit-flavor. Generic over protocol
-// (the §4.2 ARP fields today; IPv4/UDP/TCP/ICMP join the same hook). Idempotent;
-// call once after the netif is up.
+// header field corrupted before it leaves on the tap (the resulting checksum
+// mismatch is immaterial — each guard reads the field). lwIP itself is untouched —
+// the fault lives in the fixture's own link-output glue, the lwIP analog of a
+// tc8-dut emit-flavor. Generic over protocol (the §4.2 ARP + §4.6.5.4 UDP fields
+// today; TCP/IPv4/ICMP add a dispatch branch). Idempotent; call once after the
+// netif is up.
 void installEgressFaultHook(struct netif *nif);
 
 }  // namespace tc8::lwip_dut

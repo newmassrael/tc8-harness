@@ -2200,6 +2200,10 @@
         {
           "file": "tests/udp_fields_14_neg/udp_fields_14_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.h",
+          "kind": "implements"
         }
       ]
     },

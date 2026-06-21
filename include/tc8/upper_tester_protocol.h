@@ -711,9 +711,10 @@ enum Opcode : std::uint8_t {
     // the lwIP fixture. lwIP-specific, like OpConditionArpCache: the kernel-backed
     // tc8-dut faults nothing here (no fixture seam), so the matching `_neg` cases
     // capability-skip on Linux. While a non-None flavor is set, the fixture's netif
-    // link-output corrupts one header field of the DUT-emitted frame and recomputes
-    // the affected checksum — the lwIP analog of a tc8-dut emit-flavor, generic over
-    // protocol (ARP today; IPv4/UDP/TCP/ICMP join the same catalog).
+    // link-output corrupts one header field of the DUT-emitted frame — the lwIP
+    // analog of a tc8-dut emit-flavor, generic over protocol (ARP + UDP today;
+    // TCP/IPv4/ICMP add a dispatch branch on the same catalog). The resulting
+    // checksum mismatch is immaterial — each guard reads the mutated field.
     //
     // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
     // or an unknown flavor byte.

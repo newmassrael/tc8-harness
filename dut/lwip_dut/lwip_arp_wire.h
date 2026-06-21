@@ -12,6 +12,7 @@ namespace tc8::lwip_dut {
 
 // Ethernet(14) + ARP field offsets within a link-output / link-input frame.
 constexpr std::uint16_t kEthTypeOff  = 12;  // u16 ethertype       (0x0806 == ARP)
+constexpr std::uint16_t kEthHdrLen   = kEthTypeOff + 2;  // 14 — Ethernet header (SSOT for both seams)
 constexpr std::uint16_t kArpHType    = 14;  // u16 hardware type   (1 = Ethernet)
 constexpr std::uint16_t kArpPType    = 16;  // u16 protocol type   (0x0800 = IPv4)
 constexpr std::uint16_t kArpHLen     = 18;  // u8  hw addr length  (6)

@@ -5,7 +5,7 @@
   Protocol Type (the frame the DUT MUST drop) and arms kArpFaultReplyToDropFrame,
   so the lwIP netif input hook synthesizes the prohibited ARP Reply. Pass = that
   Reply observed; fail_compliant = DUT stayed silent despite the flavor (fault
-  inert). lwIP-only (capability-gated on kCapArpFlavor). Envelope: arp_reply_neg.
+  inert). lwIP-only (capability-gated on kCapIngressFault). Envelope: arp_reply_neg.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
