@@ -186,20 +186,20 @@
           "kind": "references"
         },
         {
-          "file": "src/cli/test_command.cpp",
-          "kind": "references"
-        },
-        {
-          "file": "src/sce_integration/spec_inventory.h",
-          "kind": "references"
-        },
-        {
           "file": "dut/lwip_dut/lwip_arp_fault.cpp",
           "kind": "implements"
         },
         {
           "file": "tests/_templates/arp_field_check.sce-template.xml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/dut_control.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/cli/test_command.cpp",
+          "kind": "references"
         }
       ]
     },

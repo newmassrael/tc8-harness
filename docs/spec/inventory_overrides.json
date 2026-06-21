@@ -1,31 +1,7 @@
 {
-  "schema_version": 5,
-  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Four independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage; (4) `neg_expected:false` (+ `neg_reason`) marks the case's harness-only `_NEG` self-validation sibling as inapplicable on this DUT WITHOUT deferring the positive base — `--exclude-deferred` drops only the registered case whose id ends in `_NEG`. Needed because a `_NEG` mutation test is meaningful only where the fault can be injected: the §4.2 ARP negatives drive an lwIP egress flavor (UT 0x18 OpSetArpFlavor), inert on the Linux kernel's seam-less ARP path. The base `expected` axis cannot express this (base and `_NEG` share one canonical SpecCase, so deferring it would drop the passing positive too). The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis; v5 added the fourth (neg_expected) axis.",
+  "schema_version": 4,
+  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Three independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage. The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis. (A `_NEG` self-validation case's per-DUT applicability is NOT an inventory axis: it is derived from the DUT's own OpQueryCapabilities (0x16) bitmap via the case's `kRequiredCapabilities` + the Tier-2 capability-skip gate — the DUT is the SSOT for what it can fault.)",
   "overrides": {
-    "ARP_07": {
-      "neg_expected": false,
-      "neg_reason": "ARP_07_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultOpcodeWrong). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_07 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
-    },
-    "ARP_08": {
-      "neg_expected": false,
-      "neg_reason": "ARP_08_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultHwTypeWrong). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_08 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
-    },
-    "ARP_09": {
-      "neg_expected": false,
-      "neg_reason": "ARP_09_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultProtoTypeWrong). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_09 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
-    },
-    "ARP_10": {
-      "neg_expected": false,
-      "neg_reason": "ARP_10_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultHwLenWrong). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_10 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
-    },
-    "ARP_11": {
-      "neg_expected": false,
-      "neg_reason": "ARP_11_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultProtoLenWrong). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_11 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
-    },
-    "ARP_12": {
-      "neg_expected": false,
-      "neg_reason": "ARP_12_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultOpcodeWrong). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_12 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
-    },
     "ARP_33": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
@@ -33,14 +9,6 @@
     "ARP_34": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
-    },
-    "ARP_46": {
-      "neg_expected": false,
-      "neg_reason": "ARP_46_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultHwTypeWrong on the DUT-emitted Reply). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_46 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
-    },
-    "ARP_47": {
-      "neg_expected": false,
-      "neg_reason": "ARP_47_NEG drives the lwIP egress fault (UT 0x18 OpSetArpFlavor / kArpFaultHwLenWrong on the DUT-emitted Reply). On the Linux reference DUT the kernel emits §4.2 ARP with no firmware seam, so the arm is inert (answered kStatusUnknownOpcode) and the negative would land on fail_compliant. Excludes only the negative; the positive ARP_47 still runs and passes on Linux. Active on dut/lwip_dut/inventory_overrides.json (memory/project_conformance_verdict_model.md)"
     },
     "DHCPV4_CLIENT_ALLOCATING_08": {
       "timing_serial": true,

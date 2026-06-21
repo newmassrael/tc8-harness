@@ -47,22 +47,6 @@ struct SpecCase {
     // away from the parallel lane via `--exclude-serial`.
     bool timing_serial = false;
     std::string timing_serial_ref;
-    // Fourth (independent) axis: `neg_expected:false` (+ `reason`) marks the
-    // case's harness-only `_NEG` self-validation sibling as inapplicable on the
-    // overrides file's target DUT, WITHOUT deferring the positive base case. It
-    // exists because a `_NEG` mutation test is only meaningful where the fault
-    // can be injected: the §4.2 ARP `_NEG` cases drive an lwIP-fixture egress
-    // flavor (UT 0x18 OpSetArpFlavor), so on the Linux reference DUT — whose
-    // kernel emits §4.2 ARP with no fault seam — the arm is inert and the
-    // negative would land on its fail_compliant branch. The base `expected`
-    // axis cannot express this: `expected` lives on the canonical (base) id, so
-    // `ARP_07` and `ARP_07_NEG` share one SpecCase and deferring it would drop
-    // the passing positive too. `neg_expected` is consulted by `--list-cases`
-    // ONLY for a registered case whose id ends in `_NEG`; the positive base is
-    // unaffected and stays in coverage. Defaults true (the autoconf / DHCPv4
-    // `_NEG` cases are firmware-faulted on tc8-dut, so they run on Linux).
-    bool neg_expected = true;
-    std::string neg_reason;
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json

@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp07NegSM>
-    : ArpAnyBase<cases::Arp07NegSM> {
+    : ArpFaultNegBase<cases::Arp07NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_07_NEG";
     static constexpr std::string_view kSpecSection = "4.2.4.1";
     static constexpr std::string_view kDescription =

@@ -171,18 +171,7 @@ int TestCommand::runListCases() const {
                 continue;
             }
             if (sc != nullptr) {
-                // A `_NEG` self-validation case is dropped by --exclude-deferred
-                // when its base is deferred (the long-standing behaviour — the
-                // base and its negative share one SpecCase) OR when the base
-                // carries `neg_expected:false` (the negative is inapplicable on
-                // this DUT but the positive base still runs — e.g. the §4.2 ARP
-                // negatives are faultable only on the lwIP fixture). The positive
-                // base is never dropped by neg_expected. The variant tag is owned
-                // by `case_registry.h::stripVariantTag` (the single SSOT for the
-                // `_NEG`/`_NEG2..` set) — never re-literalise it here.
-                const bool is_neg = sce::stripVariantTag(e->id) != e->id;
-                if (exclude_deferred_ &&
-                    (!sc->expected || (is_neg && !sc->neg_expected))) {
+                if (exclude_deferred_ && !sc->expected) {
                     continue;
                 }
                 if (exclude_platform_known_fail_ && sc->platform_known_fail) {
@@ -480,18 +469,24 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
 
     // Tier-2 2b#4 capability-skip gate. A case may declare the DUT-control
     // capabilities it needs (TestCaseTraits<>::kRequiredCapabilities, mirrored
-    // into CaseEntry). If the selected --dut-control backend lacks any of them
-    // the case cannot run meaningfully there — the standard AUTOSAR testability
-    // backend, for one, exposes no kernel state-probe SP. Emit a skip verdict
-    // (NOT a fail) and a distinct exit code so smoke-test.sh routes it to the
-    // existing conditioning-skip ledger, honestly surfacing the standard's
-    // limit instead of a misleading timeout failure. Checked before the capture
-    // pipeline and stimulus are set up, so a skipped case does no I/O.
-    if (const std::uint32_t missing = entry->required_capabilities & ~dut_control->capabilities();
-        missing != 0U) {
-        std::printf("verdict  : skip:requires_capability_0x%x_unavailable_on_%s\n",
-                    static_cast<unsigned>(missing), dut_control->backendName());
-        return 2;  // distinct from 0 (pass) / 1 (fail): capability-skip
+    // into CaseEntry). If the selected backend / DUT lacks any of them the case
+    // cannot run meaningfully there — the standard AUTOSAR testability backend
+    // exposes no kernel state-probe SP, and the kernel-stack reference DUT
+    // implements no §4.2 ARP egress fault seam (its OpQueryCapabilities bitmap
+    // omits OpSetArpFlavor, so capabilities() omits kCapArpFlavor and the ARP
+    // `_NEG` cases skip here). Emit a skip verdict (NOT a fail) and a distinct
+    // exit code so smoke-test.sh routes it to the existing conditioning-skip
+    // ledger. Only consulted for a case that declares a requirement: capabilities()
+    // may probe the DUT (OpQueryCapabilities) to resolve DUT-derived fault caps,
+    // so a case needing nothing pays no extra I/O and is never gated.
+    if (entry->required_capabilities != 0U) {
+        if (const std::uint32_t missing =
+                entry->required_capabilities & ~dut_control->capabilities();
+            missing != 0U) {
+            std::printf("verdict  : skip:requires_capability_0x%x_unavailable_on_%s\n",
+                        static_cast<unsigned>(missing), dut_control->backendName());
+            return 2;  // distinct from 0 (pass) / 1 (fail): capability-skip
+        }
     }
 
     dissect::PacketPipeline pipeline([&runner](const ::tc8::CapturedEvent &ev) { runner->onCaptured(ev); });

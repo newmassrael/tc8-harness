@@ -446,11 +446,6 @@ std::optional<SpecInventory> SpecInventory::load(
                 findBoolField(body, "timing_serial", false);
             std::string timing_serial_ref =
                 findStringField(body, "timing_serial_ref");
-            // Fourth axis: the `_NEG` sibling's per-DUT applicability, independent
-            // of the base `expected`. Defaults true so an entry that omits it
-            // leaves a firmware-faulted negative runnable on this platform.
-            const bool neg_expected = findBoolField(body, "neg_expected", true);
-            std::string neg_reason = findStringField(body, "neg_reason");
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
@@ -459,8 +454,6 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.platform_known_fail_ref = std::move(platform_known_fail_ref);
                     sc.timing_serial = timing_serial;
                     sc.timing_serial_ref = std::move(timing_serial_ref);
-                    sc.neg_expected = neg_expected;
-                    sc.neg_reason = std::move(neg_reason);
                     break;
                 }
             }

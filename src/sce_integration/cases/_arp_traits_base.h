@@ -9,6 +9,7 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/arp_captured.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_config.h"
 #include "stimulus/upper_tester_client.h"
@@ -154,6 +155,19 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
             return;
         }
     }
+};
+
+// Base for the §4.2 ARP egress-fault `_NEG` self-validation cases (ARP_07..12 /
+// 46/47). Adds the one declaration every such case shares: it requires the DUT
+// to implement OpSetArpFlavor (kCapArpFlavor). The DUT is the SSOT for that —
+// OpcodeUtControl::capabilities() derives kCapArpFlavor from the DUT's
+// OpQueryCapabilities (0x16) bitmap — so the Tier-2 gate runs these only where
+// the fault seam exists (the lwIP fixture) and capability-skips them (N/A, not
+// a fail) on the kernel-stack reference DUT, with no per-case inventory entry.
+template <typename StateMachine>
+struct ArpFaultNegBase : ArpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapArpFlavor;
 };
 
 }  // namespace tc8::sce
