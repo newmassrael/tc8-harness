@@ -115,8 +115,8 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                     flavor == ut::kUdpFaultRejectValid) &&
                    p->len >= kIpProtoOff + 1 && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoUdp &&
-                   p->len >= udpRegionOffset(f) + kUdpHdrLen) {
-            const std::uint16_t udp = udpRegionOffset(f);
+                   p->len >= l4RegionOffset(f) + kUdpHdrLen) {
+            const std::uint16_t udp = l4RegionOffset(f);
             if (get16(f, udp + kUdpDstPort) == ut::kDataPort) {
                 if (flavor == ut::kUdpFaultRejectValid) {
                     pbuf_free(p);     // swallow — the DUT wrongly drops a frame it must accept

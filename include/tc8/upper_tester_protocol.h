@@ -827,11 +827,14 @@ inline constexpr std::uint8_t kFlavorSkipSecondRateLimitSilence   = 0x12;  // RF
 // `OpSetEgressFlavor` field-fault catalog (lwIP fixture egress hook). Distinct from
 // the §4.5 link-local autoconf kFlavor* above (OpStartLLAutoconfBuggy). The DUT
 // emits a frame legitimately and the netif link-output hook rewrites ONE header
-// field on the way out (recomputing the affected checksum), routed by the lwIP
-// fixture glue, never by lwIP itself. One contiguous catalog across protocols; the
-// flavor name carries the protocol+field. A field shared by a request-shape and a
+// field on the way out (NOT recomputing the checksum — each guard reads the mutated
+// field, and libpcap delivers the checksum-stale frame regardless), routed by the
+// lwIP fixture glue, never by lwIP itself. One contiguous catalog across protocols;
+// the flavor name carries the protocol+field. A field shared by a request-shape and a
 // reply-shape case (htype, hlen) uses ONE flavor — the offset is identical and the
-// case's provocation selects which frame.
+// case's provocation selects which frame. TCP being stateful, its flavors are
+// segment-selective (gated on the segment the case observes) so the fault never
+// breaks the handshake the observed segment depends on.
 inline constexpr std::uint8_t kEgressFaultNone        = 0x00;
 // ARP-over-Ethernet (no checksum):
 inline constexpr std::uint8_t kArpFaultOpcodeWrong     = 0x01;  // RFC 826 opcode: ARP_07/ARP_12 (request MUST be 1)
@@ -846,7 +849,10 @@ inline constexpr std::uint8_t kUdpFaultSrcPortWrong    = 0x06;  // RFC 768 src p
 inline constexpr std::uint8_t kUdpFaultDstPortWrong    = 0x07;  // RFC 768 dst port:  §4.6.5.4 UDP_FIELDS_02
 inline constexpr std::uint8_t kUdpFaultLengthWrong     = 0x08;  // RFC 768 length:    §4.6.5.4 UDP_FIELDS_06/07
 inline constexpr std::uint8_t kUdpFaultChecksumWrong   = 0x09;  // RFC 768 checksum:  §4.6.5.4 UDP_FIELDS_13/14
-inline constexpr std::uint8_t kEgressFaultMax         = kUdpFaultChecksumWrong;
+// TCP (segment-selective; the flavor names the field + the segment it targets):
+inline constexpr std::uint8_t kTcpFaultSynAckAckWrong   = 0x0A;  // RFC 793 ack num:  §4.8 TCP_SEQUENCE_01 (SYN,ACK acks tester ISN+1)
+inline constexpr std::uint8_t kTcpFaultDataChecksumWrong = 0x0B; // RFC 793 checksum: §4.8 TCP_CHECKSUM_03 (data segment)
+inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultDataChecksumWrong;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself

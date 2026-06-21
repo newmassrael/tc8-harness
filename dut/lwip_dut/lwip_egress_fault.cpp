@@ -2,10 +2,11 @@
 // shape `_NEG` self-validation cases drive via UT 0x18 OpSetEgressFlavor. The netif
 // link-output wrapper rewrites one header field of a DUT-emitted frame, routed by
 // the armed flavor; lwIP itself is untouched. Protocol-generic over one flavor
-// catalog: the §4.2 ARP-over-Ethernet fields and the §4.6.5.4 UDP fields today, with
-// TCP/IPv4/ICMP adding a dispatch branch on the same hook. A field rewrite leaves
-// the frame's checksum mismatched — immaterial, since every guard reads the mutated
-// field, not cross-field consistency.
+// catalog: the §4.2 ARP-over-Ethernet, §4.6.5.4 UDP, and §4.8 TCP fields today, with
+// IPv4/ICMP adding a dispatch branch on the same hook. A field rewrite leaves the
+// frame's checksum mismatched — immaterial, since every guard reads the mutated
+// field, not cross-field consistency. TCP faults are segment-selective (the hook sees
+// every DUT segment, so each is gated on the one the case observes).
 #include "lwip_egress_fault.h"
 
 #include <atomic>
@@ -54,8 +55,8 @@ void mutateArp(std::uint8_t *f, std::uint8_t flavor) {
     }
 }
 
-// IPv4/UDP field offsets + isIpv4/udpRegionOffset come from lwip_wire.h (the SSOT
-// both fault seams read).
+// IPv4/UDP/TCP field offsets + isIpv4/l4RegionOffset/tcpHasPayload come from
+// lwip_wire.h (the SSOT both fault seams read).
 
 // Deterministic non-conformant UDP sentinels (the guard tests the field, so the
 // exact wrong value is immaterial; these are unambiguous and != the spec values).
@@ -88,6 +89,35 @@ void mutateUdp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t udp) {
     }
 }
 
+// XOR sentinel for the 32-bit TCP seq/ack fields: guarantees the field changes (a
+// fixed value could collide with the correct one).
+constexpr std::uint32_t kTcpSeqAckFlip = 0xA5A5A5A5;
+
+// TCP is stateful, so unlike ARP/UDP each fault is gated on the SPECIFIC segment the
+// matching case observes — corrupting every DUT segment would break the handshake the
+// observed segment depends on. The tester's guard reads the mutated field, not the
+// checksum, and libpcap delivers the (now checksum-stale) segment regardless.
+void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
+    const std::uint8_t flags = f[tcp + kTcpFlagsOff];
+    const bool is_syn_ack = (flags & kTcpFlagSyn) && (flags & kTcpFlagAck);
+    switch (flavor) {
+        // TCP_SEQUENCE_01: flip the SYN,ACK acknowledgment so it no longer equals
+        // tester_isn + 1. Flags stay SYN,ACK so the case guard still selects it.
+        case ut::kTcpFaultSynAckAckWrong:
+            if (is_syn_ack) put32(f, tcp + kTcpAckNumOff,
+                                  get32(f, tcp + kTcpAckNumOff) ^ kTcpSeqAckFlip);
+            break;
+        // TCP_CHECKSUM_03: XOR-invalidate a DATA segment's checksum. Gated on payload
+        // so the handshake's control segments keep valid checksums and the connection
+        // still reaches ESTABLISHED to emit the observed data segment.
+        case ut::kTcpFaultDataChecksumWrong:
+            if (tcpHasPayload(f, tcp)) put16(f, tcp + kTcpChecksumOff,
+                                             get16(f, tcp + kTcpChecksumOff) ^ 0xFFFF);
+            break;
+        default: break;  // None / non-TCP flavor: no-op
+    }
+}
+
 err_t egressFaultLinkoutput(struct netif *nif, struct pbuf *p) {
     const std::uint8_t flavor = g_egress_flavor.load(std::memory_order_relaxed);
     if (flavor != ut::kEgressFaultNone && p != nullptr && p->payload != nullptr) {
@@ -95,9 +125,14 @@ err_t egressFaultLinkoutput(struct netif *nif, struct pbuf *p) {
         if (p->len >= kArpMinLen && isArp(f)) {
             mutateArp(f, flavor);
         } else if (p->len >= kIpProtoOff + 1 && isIpv4(f) && f[kIpProtoOff] == kIpProtoUdp) {
-            const std::uint16_t udp = udpRegionOffset(f);
+            const std::uint16_t udp = l4RegionOffset(f);
             if (p->len >= udp + kUdpHdrLen) {
                 mutateUdp(f, flavor, udp);
+            }
+        } else if (p->len >= kIpProtoOff + 1 && isIpv4(f) && f[kIpProtoOff] == kIpProtoTcp) {
+            const std::uint16_t tcp = l4RegionOffset(f);
+            if (p->len >= tcp + kTcpMinHdrLen) {
+                mutateTcp(f, flavor, tcp);
             }
         }
     }

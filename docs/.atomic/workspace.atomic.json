@@ -3418,6 +3418,14 @@
         {
           "file": "src/capture/bpf_filter.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_wire.h",
+          "kind": "references"
         }
       ]
     },
@@ -3916,6 +3924,10 @@
         {
           "file": "tests/tcp_sequence_05/tcp_sequence_05.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_sequence_01_neg/tcp_sequence_01_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -4025,6 +4037,10 @@
         },
         {
           "file": "dut/dut_service/posix_ut_extensions.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_checksum_03_neg/tcp_checksum_03_neg.scxml",
           "kind": "implements"
         }
       ]

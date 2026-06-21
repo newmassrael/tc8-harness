@@ -3,6 +3,7 @@
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
+#include "sce_integration/dut_capabilities.h"
 #include "sce_integration/tcp_pilot_common.h"
 #include "sce_integration/test_case_traits.h"
 
@@ -39,6 +40,18 @@ struct TcpAnyBase {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::tcp::dispatchTcpFrame<SM>(c, sm, ev);
     }
+};
+
+// Base for the §4.8 TCP EGRESS field-fault `_NEG` cases. Same TCP dispatch as
+// TcpAnyBase, plus the one declaration every such case shares: it requires the DUT to
+// implement OpSetEgressFlavor (kCapEgressFault). The Tier-2 gate runs these only on
+// the lwIP fixture and capability-skips them (N/A) on the kernel-stack reference DUT —
+// the TCP sibling of UdpEgressFaultNegBase. The armed flavor corrupts one field of a
+// specific DUT-emitted segment (segment-selective; see lwip_egress_fault.cpp).
+template <typename StateMachine>
+struct TcpEgressFaultNegBase : TcpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEgressFault;
 };
 
 }  // namespace tc8::sce

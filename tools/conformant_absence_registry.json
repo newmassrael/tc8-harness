@@ -2618,15 +2618,6 @@
         }
       ]
     },
-    "TCP_CHECKSUM_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_segment_with_invalid_checksum",
-          "property": "DUT's data segment must carry a valid TCP checksum; fail iff the emitted checksum is invalid"
-        }
-      ]
-    },
     "TCP_CLOSING_03": {
       "guards": [
         {
@@ -3264,15 +3255,6 @@
           "class": "incorrect_emission",
           "fail_reason": "probe3_delta_not_greater_than_probe2_lower_bound",
           "property": "DUT's third zero-window probe must back off beyond probe 2; fail iff it does not"
-        }
-      ]
-    },
-    "TCP_SEQUENCE_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_synack_ack_num_does_not_acknowledge_tester_isn",
-          "property": "DUT's SYN,ACK must acknowledge the tester's ISN+1; fail iff the ack_num does not"
         }
       ]
     },
