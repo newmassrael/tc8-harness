@@ -1,3 +1,8 @@
+// TC8 §4.2 ARP egress fault injection for the lwIP fixture. Carries the
+// ARP-over-Ethernet field offsets, the deterministic wrong-value sentinels,
+// and the netif link-output wrapper that rewrites one header field of a
+// DUT-emitted ARP frame — the load-bearing wire-mutation logic the §4.2 ARP
+// `_NEG` self-validation cases drive via UT 0x18 OpSetArpFlavor.
 #include "lwip_arp_fault.h"
 
 #include <atomic>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 / §4.2.4.2 ARP egress field-shape envelope. A DUT-emitted
+  ARP frame (Request on §4.2.4.1, Reply on §4.2.4.2) must carry the RFC 826
+  value in one header field; each consumer asserts a single field while
+  reusing this listening-state envelope. Shared by the positive cases AND
+  their `_NEG` self-validation siblings (the lwIP egress-fault mutation
+  tests) — the verdict differs only by the bound expressions, not the
+  envelope, so there is one SSOT for the guard shape.
+
+  Filter:  {$filter}  — the "this is the DUT-emitted ARP of the right
+           shape" gate, shared by the pass and fail transitions. Field
+           cases (§4.2.4.1 ARP_08..11, §4.2.4.2 ARP_46/47) gate on
+           `opcode == N and sender_hw == dut_iface_mac`; the operation-code
+           cases (ARP_07/12) gate on `sender_hw == dut_iface_mac` alone and
+           carry the opcode test in {$pass_expr}.
+  Pass:    filter and  ({$pass_expr})            ->  pass
+  Fail:    filter and !({$pass_expr})            ->  {$fail_state}
+  Timeout: deadline_exceeded                     ->  inconclusive
+           (no DUT-emitted frame at all: precondition not reached)
+
+  Positive consumer binds the conformant predicate to {$pass_expr} and a
+  field-specific {$fail_state}/{$fail_reason} with role observed_violation.
+  Negative consumer binds the NEGATION to {$pass_expr} (pass = the injected
+  violation is observed), fail_state=fail_compliant with role
+  fault_injection_inert (the fault was inert — a flavor-wiring regression,
+  not a DUT violation). Single `{$pass_expr}` per the ipv4_field_check
+  precedent: XML attribute values can't carry a raw `<`, so dual pass/fail
+  exprs would re-parse-fail; `!({$pass_expr})` is robust because `!`, `(`,
+  `)` survive the lexical paste, and compound predicates ride ArpCaptured
+  member methods (reference_sce_captured_arg.md).
+
+  5 s deadline matches the §4.2 positive cluster: the UT-provoked egress
+  (or tester ARP Request for the reply cases) lands well within the window.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_field_check">
+
+  <sce:param name="filter"              required="true"/>
+  <sce:param name="pass_expr"           required="true"/>
+  <sce:param name="fail_state"          required="true"/>
+  <sce:param name="fail_reason"         required="true"/>
+  <sce:param name="fail_role"           required="true"/>
+  <sce:param name="inconclusive_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:({$filter}) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:({$filter}) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="inconclusive"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"{$fail_role}"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"{$inconclusive_reason}","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</sce:template>

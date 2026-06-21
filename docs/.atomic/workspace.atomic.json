@@ -192,6 +192,14 @@
         {
           "file": "src/sce_integration/spec_inventory.h",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_arp_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/arp_field_check.sce-template.xml",
+          "kind": "implements"
         }
       ]
     },
@@ -389,6 +397,10 @@
         },
         {
           "file": "src/stimulus/upper_tester_client.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/arp_field_check.sce-template.xml",
           "kind": "implements"
         }
       ]
@@ -599,6 +611,10 @@
         },
         {
           "file": "tests/arp_47_neg/arp_47_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/arp_field_check.sce-template.xml",
           "kind": "implements"
         }
       ]

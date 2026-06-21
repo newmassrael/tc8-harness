@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.2.4.1 ARP_12: ARP request sending (Operation Code check). The
-  DUT's emitted ARP Request must carry Operation Code = 1
-  (OPERATION_REQUEST per RFC 826). ARP_07 verifies the same opcode at
-  the "did the DUT emit a request" level; ARP_12 phrases the check as
-  a field-level conformance. The UT 0x02 egress-provocation stimulus
-  forces a DUT unicast reply and therefore an ARP Request — see
-  arp_07.scxml for the rationale.
+  TC8 §4.2.4.1 ARP_12: ARP request Operation Code field shall carry
+  OPERATION_REQUEST (1) per RFC 826 — the field-level phrasing of ARP_07.
+  UT 0x02 egress provocation forces the DUT Request — see arp_07.scxml.
+  Envelope: arp_field_check (opcode case: filter gates on sender_hw only).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -15,43 +12,11 @@
        name="arp_12"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpCaptured"
-               cpp:include="sce_integration/arp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpExpected"
-               cpp:include="sce_integration/arp_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
-                target="pass"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode != 1 and captured.sender_hw == expected.dut_iface_mac"
-                target="fail_opcode"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_opcode">
-    <donedata>
-      <content>{"verdict":"fail","reason":"opcode_not_request","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_timeout">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/arp_field_check.sce-template.xml"
+           filter="captured.sender_hw == expected.dut_iface_mac"
+           pass_expr="captured.opcode == 1"
+           fail_state="fail_opcode"
+           fail_reason="opcode_not_request"
+           fail_role="observed_violation"
+           inconclusive_reason="no_arp_request_within_listen_window"/>
 </scxml>

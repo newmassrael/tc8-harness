@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.2.4.1 ARP_08: ARP request sending (Hardware Type check). The
-  DUT's emitted ARP Request must carry Hardware Type = 0x0001 (Ethernet,
-  ARP_HARDWARE_ETHERNET per RFC 826). The UT 0x02 egress-provocation
-  stimulus forces a DUT unicast reply and therefore an ARP Request — see
-  arp_07.scxml for the rationale.
+  TC8 §4.2.4.1 ARP_08: ARP request Hardware Type field shall carry
+  ARP_HARDWARE_ETHERNET (0x0001) per RFC 826. UT 0x02 egress provocation
+  forces the DUT Request — see arp_07.scxml. Envelope: arp_field_check.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -13,43 +11,11 @@
        name="arp_08"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpCaptured"
-               cpp:include="sce_integration/arp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpExpected"
-               cpp:include="sce_integration/arp_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.hw_type == 0x0001"
-                target="pass"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.hw_type != 0x0001"
-                target="fail_hw_type"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_hw_type">
-    <donedata>
-      <content>{"verdict":"fail","reason":"hw_type_not_ethernet","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_timeout">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/arp_field_check.sce-template.xml"
+           filter="captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+           pass_expr="captured.hw_type == 0x0001"
+           fail_state="fail_hw_type"
+           fail_reason="hw_type_not_ethernet"
+           fail_role="observed_violation"
+           inconclusive_reason="no_arp_request_within_listen_window"/>
 </scxml>

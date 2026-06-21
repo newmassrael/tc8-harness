@@ -177,9 +177,10 @@ int TestCommand::runListCases() const {
                 // carries `neg_expected:false` (the negative is inapplicable on
                 // this DUT but the positive base still runs — e.g. the §4.2 ARP
                 // negatives are faultable only on the lwIP fixture). The positive
-                // base is never dropped by neg_expected.
-                const bool is_neg = e->id.size() >= 4 &&
-                    e->id.compare(e->id.size() - 4, 4, "_NEG") == 0;
+                // base is never dropped by neg_expected. The variant tag is owned
+                // by `case_registry.h::stripVariantTag` (the single SSOT for the
+                // `_NEG`/`_NEG2..` set) — never re-literalise it here.
+                const bool is_neg = sce::stripVariantTag(e->id) != e->id;
                 if (exclude_deferred_ &&
                     (!sc->expected || (is_neg && !sc->neg_expected))) {
                     continue;

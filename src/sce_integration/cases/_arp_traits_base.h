@@ -16,21 +16,23 @@
 // Shared §4.2 ARP trait bases. Two siblings cover the two dispatch
 // shapes that recur across the cluster:
 //
-//   - ArpAnyBase<SM>          ArpFrame-only dispatch — 26 cases observe
-//                             only DUT-emitted ARP frames (kBpfGroup=Arp)
-//                             plus 2 cases (ARP_03/_05) that share the
-//                             ArpFrame-only dispatch but capture UDP
-//                             stimulus alongside (kBpfGroup=ArpAndUdp,
-//                             shadowed in the derived struct).
-//   - ArpAndUdpBase<SM>       ArpFrame + UdpFrame dispatch — 13 cases
-//                             observe both DUT-emitted ARP and the
-//                             UDP carriers downstream (kBpfGroup=
-//                             ArpAndUdp). Raises Event::Arp_observed
-//                             on ArpFrame and Event::Udp_observed on
-//                             UdpFrame; the SCXML guards discriminate.
+//   - ArpAnyBase<SM>          ArpFrame-only dispatch — cases that observe
+//                             only DUT-emitted ARP frames (kBpfGroup=Arp);
+//                             a few (ARP_03/_05) share the ArpFrame-only
+//                             dispatch but capture UDP stimulus alongside
+//                             (kBpfGroup=ArpAndUdp, shadowed in the derived
+//                             struct).
+//   - ArpAndUdpBase<SM>       ArpFrame + UdpFrame dispatch — cases that
+//                             observe both DUT-emitted ARP and the UDP
+//                             carriers downstream (kBpfGroup=ArpAndUdp).
+//                             Raises Event::Arp_observed on ArpFrame and
+//                             Event::Udp_observed on UdpFrame; the SCXML
+//                             guards discriminate.
 //
-// The 41st case (verified via `--list-cases`) is covered by these two
-// shapes — no third base needed.
+// Every §4.2 case — the positives AND the lwIP egress-fault `_neg`
+// self-validation siblings — is covered by these two dispatch shapes; no
+// third base is needed. Stated by shape, not a frozen case count, so the
+// claim survives the `_neg` track and future §4.2 additions.
 //
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
 // own per-case stimulus (ARP-learning probe, UT egress provocation, ...)

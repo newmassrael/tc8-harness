@@ -1,24 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.2.4.1 ARP_09 negative — closes the self-reference trap on the
-  positive _09 (the DUT's emitted ARP Request must carry Protocol Type
-  0x0800, IPv4, RFC 826). The positive's fail_proto_type branch is
-  unreachable against a conformant DUT, so without a fault injection the
-  guard is dead code.
-
-  Fault injection is a real lwIP firmware mutant: emitArpFlavorArm arms the
-  kArpFaultProtoTypeWrong egress flavor over UT 0x18, so the lwIP netif
-  link-output hook rewrites the Protocol Type of the DUT's emitted ARP
-  Request (the Operation Code is left at 1, so the frame is still a
-  Request — only the ptype field is corrupted). A conformant DUT (flavor
-  None — every positive case, and the kernel-backed reference DUT, which
-  has no such seam) emits 0x0800, so this negative distinguishes a buggy
-  emitter from a conformant one. lwIP-only: expected:false on Linux.
-
-  Pass = the corrupted proto_type IS observed (proto_type != 0x0800 on a
-  DUT-sourced Request). fail_compliant = the DUT emitted 0x0800 despite the
-  flavor, i.e. the fault was inert — a flavor-wiring regression catch, not
-  a DUT violation (role fault_injection_inert).
+  TC8 §4.2.4.1 ARP_09 negative — lwIP egress-fault self-validation of the
+  positive _09 Protocol Type guard. emitArpFlavorArm(kArpFaultProtoTypeWrong)
+  rewrites the ptype of the DUT's Request (opcode left at 1). Pass =
+  corrupted proto_type observed; fail_compliant = DUT emitted 0x0800
+  despite the flavor (fault inert). lwIP-only. Envelope: arp_field_check.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -27,43 +13,11 @@
        name="arp_09_neg"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpCaptured"
-               cpp:include="sce_integration/arp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpExpected"
-               cpp:include="sce_integration/arp_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.proto_type != 0x0800"
-                target="pass"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.proto_type == 0x0800"
-                target="fail_compliant"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_compliant">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_arp_request_proto_type_ipv4_despite_proto_type_wrong_flavor","role":"fault_injection_inert"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_timeout">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/arp_field_check.sce-template.xml"
+           filter="captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+           pass_expr="captured.proto_type != 0x0800"
+           fail_state="fail_compliant"
+           fail_reason="dut_arp_request_proto_type_ipv4_despite_proto_type_wrong_flavor"
+           fail_role="fault_injection_inert"
+           inconclusive_reason="no_arp_request_within_listen_window"/>
 </scxml>

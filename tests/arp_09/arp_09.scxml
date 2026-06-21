@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.2.4.1 ARP_09: ARP request sending (Protocol Type check). The
-  DUT's emitted ARP Request must carry Protocol Type = 0x0800 (IPv4,
-  ARP_PROTOCOL_IP per RFC 826). The UT 0x02 egress-provocation
-  stimulus forces a DUT unicast reply and therefore an ARP Request — see
-  arp_07.scxml for the rationale.
+  TC8 §4.2.4.1 ARP_09: ARP request Protocol Type field shall carry
+  ARP_PROTOCOL_IP (0x0800) per RFC 826. UT 0x02 egress provocation forces
+  the DUT Request — see arp_07.scxml. Envelope: arp_field_check.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -13,43 +11,11 @@
        name="arp_09"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpCaptured"
-               cpp:include="sce_integration/arp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpExpected"
-               cpp:include="sce_integration/arp_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.proto_type == 0x0800"
-                target="pass"/>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.proto_type != 0x0800"
-                target="fail_proto_type"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_proto_type">
-    <donedata>
-      <content>{"verdict":"fail","reason":"proto_type_not_ipv4","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_timeout">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/arp_field_check.sce-template.xml"
+           filter="captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+           pass_expr="captured.proto_type == 0x0800"
+           fail_state="fail_proto_type"
+           fail_reason="proto_type_not_ipv4"
+           fail_role="observed_violation"
+           inconclusive_reason="no_arp_request_within_listen_window"/>
 </scxml>
