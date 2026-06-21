@@ -460,6 +460,21 @@ std::vector<std::uint8_t> buildConditionArpCacheRequest(
     std::uint8_t  action,
     std::uint16_t param);
 
+// Build a 0x18 SetArpFlavor request. TC8 §4.2.4.1 / §4.2.4.2 ARP_07..12 /
+// ARP_46/47 _neg self-validation: arms the lwIP fixture's ARP egress fault so
+// the next DUT-emitted ARP frame (request or reply) carries one corrupted
+// RFC 826 header field. lwIP-only — the kernel-backed reference DUT emits §4.2
+// ARP from its neighbour layer (no firmware seam) and answers this opcode with
+// kStatusUnknownOpcode, so the matching _neg cases are expected:false on Linux.
+//
+//   <opcode:u8=0x18> <req_id:u8> <flavor:u8>
+//
+// `flavor` is one of `ut::kArpFault*`; kArpFaultNone disarms. Fixed wire size:
+// 1 + 1 + 1 = 3 bytes.
+std::vector<std::uint8_t> buildSetArpFlavorRequest(
+    std::uint8_t req_id,
+    std::uint8_t flavor);
+
 // Result of a successful OpPing round trip.
 struct UtPingResult {
     // Highest UT opcode the DUT firmware implements (kMaxImplementedOpcode
@@ -617,5 +632,18 @@ int emitConditionArpCache(std::string_view iface,
                           const std::array<std::uint8_t, 6> &dut_mac,
                           std::uint8_t action,
                           std::uint16_t param);
+
+// One-shot UT 0x18 SetArpFlavor injection via AF_PACKET SOCK_RAW — arms the
+// lwIP fixture's §4.2 ARP egress fault for the ARP_07..12 / ARP_46/47 _neg
+// self-validation cluster. Same transport + identity rules as
+// `emitConditionArpCache` (raw-injected, TOPOLOGY values: see
+// `emitTriggerSendUdpBoot`). No boot cadence of its own — the caller
+// (`emitArpFlavorArm`) pays the bring-up wait before this lands so the arm is
+// not lost on a cold UT server. Returns `sendUpperTesterRequest`'s result.
+int emitSetArpFlavor(std::string_view iface,
+                     std::uint32_t tester_ip_be,
+                     std::uint32_t dut_ip_be,
+                     const std::array<std::uint8_t, 6> &dut_mac,
+                     std::uint8_t flavor);
 
 }  // namespace tc8::stimulus

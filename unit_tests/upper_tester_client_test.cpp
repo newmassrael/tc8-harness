@@ -386,7 +386,7 @@ TEST(UpperTesterClient, PingRequestLayout) {
     // opcode without the bump would size the capability bitmap too
     // small for the new bit.
     EXPECT_EQ(ut::kMaxProtocolOpcode,
-              static_cast<std::uint8_t>(ut::OpConditionArpCache));
+              static_cast<std::uint8_t>(ut::OpSetArpFlavor));
 }
 
 
@@ -416,6 +416,20 @@ TEST(UpperTesterClient, ConditionArpCacheRequestLayout) {
     EXPECT_EQ(req[3], 0x01U);
     EXPECT_EQ(req[4], 0x2CU);
     EXPECT_EQ(ut::OpConditionArpCache & ut::kResponseBit, 0u);
+}
+
+
+TEST(UpperTesterClient, SetArpFlavorRequestLayout) {
+    // Wire format: <opcode:u8=0x18> <req_id:u8> <flavor:u8>. Arms the
+    // lwIP §4.2 ARP egress fault for the ARP_07..12 / 46/47 _NEG
+    // self-validation cluster.
+    const auto req = buildSetArpFlavorRequest(0x09, ut::kArpFaultOpcodeWrong);
+    ASSERT_EQ(req.size(), 3u);
+    EXPECT_EQ(req[0], static_cast<std::uint8_t>(ut::OpSetArpFlavor));
+    EXPECT_EQ(req[0], 0x18U);  // opcode lock-in (response = 0x98)
+    EXPECT_EQ(req[1], 0x09U);
+    EXPECT_EQ(req[2], ut::kArpFaultOpcodeWrong);
+    EXPECT_EQ(ut::OpSetArpFlavor & ut::kResponseBit, 0u);
 }
 
 

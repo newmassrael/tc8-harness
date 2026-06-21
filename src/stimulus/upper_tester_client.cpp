@@ -389,6 +389,17 @@ std::vector<std::uint8_t> buildConditionArpCacheRequest(
     return req;
 }
 
+std::vector<std::uint8_t> buildSetArpFlavorRequest(
+    std::uint8_t req_id,
+    std::uint8_t flavor) {
+    std::vector<std::uint8_t> req;
+    req.reserve(3);
+    req.push_back(static_cast<std::uint8_t>(ut::OpSetArpFlavor));
+    req.push_back(req_id);
+    req.push_back(flavor);
+    return req;
+}
+
 std::vector<std::uint8_t> buildStartLLAutoconfBuggyRequest(
     std::uint8_t  req_id,
     std::uint16_t dhcp_timeout_ms,
@@ -586,6 +597,16 @@ int emitConditionArpCache(std::string_view iface,
                           std::uint8_t action,
                           std::uint16_t param) {
     const auto req = buildConditionArpCacheRequest(0x01, action, param);
+    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                  ut::kTesterSrcPort, req);
+}
+
+int emitSetArpFlavor(std::string_view iface,
+                     std::uint32_t tester_ip_be,
+                     std::uint32_t dut_ip_be,
+                     const std::array<std::uint8_t, 6> &dut_mac,
+                     std::uint8_t flavor) {
+    const auto req = buildSetArpFlavorRequest(0x01, flavor);
     return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
 }

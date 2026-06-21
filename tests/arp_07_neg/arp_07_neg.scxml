@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_07 negative — closes the self-reference trap on the
+  positive _07 (the DUT's first emitted ARP on cache-miss resolution must
+  be a Request, opcode 1, RFC 826). The positive's fail_opcode branch is
+  unreachable against a conformant DUT, which always emits opcode 1, so
+  without a fault injection the guard is dead code and the harness would
+  silently accept a buggy emitter.
+
+  Fault injection is a real lwIP firmware mutant, not a harness-composed
+  frame: emitArpFlavorArm arms the kArpFaultOpcodeWrong egress flavor over
+  UT 0x18, so the lwIP netif link-output hook rewrites the Operation Code
+  of the DUT's emitted ARP. A conformant DUT (flavor None — every positive
+  case, and the kernel-backed reference DUT, which has no such seam) emits
+  opcode 1, so this negative distinguishes a buggy emitter from a
+  conformant one. lwIP-only: expected:false on the Linux reference.
+
+  Pass = the corrupted opcode IS observed (opcode != 1 on a DUT-sourced
+  ARP). fail_compliant = the DUT emitted a Request despite the flavor, i.e.
+  the fault was inert — a flavor-wiring regression catch, not a DUT
+  violation (role fault_injection_inert).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_07_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode != 1 and captured.sender_hw == expected.dut_iface_mac"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_arp_request_despite_opcode_wrong_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

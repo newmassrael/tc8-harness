@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_11 negative — closes the self-reference trap on the
+  positive _11 (the DUT's emitted ARP Request must carry Protocol Address
+  Length 4, IPv4, RFC 826). The positive's fail_proto_addr_len branch is
+  unreachable against a conformant DUT, so without a fault injection the
+  guard is dead code.
+
+  Fault injection is a real lwIP firmware mutant: emitArpFlavorArm arms the
+  kArpFaultProtoLenWrong egress flavor over UT 0x18, so the lwIP netif
+  link-output hook rewrites the Protocol Address Length of the DUT's
+  emitted ARP Request (the Operation Code is left at 1, so the frame is
+  still a Request — only the plen field is corrupted; the 4-byte address
+  fields keep their fixed layout). A conformant DUT (flavor None — every
+  positive case, and the kernel-backed reference DUT, which has no such
+  seam) emits 4, so this negative distinguishes a buggy emitter from a
+  conformant one. lwIP-only: expected:false on Linux.
+
+  Pass = the corrupted proto_addr_len IS observed (proto_addr_len != 4 on a
+  DUT-sourced Request). fail_compliant = the DUT emitted 4 despite the
+  flavor, i.e. the fault was inert — a flavor-wiring regression catch, not
+  a DUT violation (role fault_injection_inert).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_11_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.proto_addr_len != 4"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac and captured.proto_addr_len == 4"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_arp_request_proto_addr_len_four_despite_proto_len_wrong_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_arp_request_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

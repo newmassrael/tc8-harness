@@ -1,6 +1,8 @@
 #pragma once
 
+#include <chrono>
 #include <string_view>
+#include <thread>
 #include <variant>
 
 #include "tc8/bpf_group.h"
@@ -67,6 +69,42 @@ inline int emitArpCacheConditioning(const ::tc8::TestConfig &cfg, std::string_vi
                                                   cfg.dut.ip,
                                                   cfg.dut.mac,
                                                   action, param);
+}
+
+// §4.2 ARP egress-fault arming (UT 0x18) for the ARP_07..12 / ARP_46/47 _neg
+// self-validation cluster. Pays the boot bring-up wait BEFORE the one-shot arm
+// lands — the lwIP UT server must be listening or the raw-injected arm is lost
+// (mirroring `emitStartLLAutoconfBuggy`, the §4.5 analog). A non-None `flavor`
+// makes the lwIP netif egress hook corrupt one RFC 826 header field of the next
+// DUT-emitted ARP frame. lwIP-only: the kernel-backed reference DUT answers
+// OpSetArpFlavor with kStatusUnknownOpcode, so the flavor stays inert and the
+// cluster is expected:false on Linux (docs/spec/inventory_overrides.json).
+// Same UT-envelope identity rules as `emitArpCacheConditioning` above: TOPOLOGY
+// values, never the SCXML-expectation knobs.
+inline void emitArpFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
+                             std::uint8_t flavor) {
+    if (cfg.stimulus_timing.initial_wait.count() > 0) {
+        std::this_thread::sleep_for(cfg.stimulus_timing.initial_wait);
+    }
+    ::tc8::stimulus::emitSetArpFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
+                                      cfg.dut.mac, flavor);
+}
+
+// Request-shape _neg stimulus (ARP_07..12): arm the egress fault, then drive the
+// same UT 0x02 egress provocation the positive case uses so the lwIP DUT emits a
+// cache-miss ARP Request the hook corrupts. The provocation's own bring-up wait
+// is suppressed — `emitArpFlavorArm` already paid it, and the UT server is now
+// proven up — so the two emits do not double the pause. The deadline does not
+// arm until kickStimulus returns (test_runner.h), so this whole block runs
+// before the listen window opens and the corrupted Request is captured either
+// way.
+inline void emitArpFlavorRequestProvocation(const ::tc8::TestConfig &cfg,
+                                            std::string_view iface,
+                                            std::uint8_t flavor) {
+    emitArpFlavorArm(cfg, iface, flavor);
+    ::tc8::stimulus::BootTiming timing = cfg.stimulus_timing;
+    timing.initial_wait = std::chrono::milliseconds{0};
+    emitArpEgressProvocation(cfg, iface, timing);
 }
 
 template <typename StateMachine>

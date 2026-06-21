@@ -19,6 +19,8 @@ extern "C" {
 }
 #include "tcp_isn.h"
 
+#include "lwip_arp_fault.h"
+
 // lwipopts.h routes LWIP_PLATFORM_ASSERT here: loud + fatal, because a tripped
 // stack invariant means every verdict after it is untrustworthy. Defined once
 // here so every binary that links this bring-up TU gets the sink (the core
@@ -88,6 +90,10 @@ ip4_addr_t BringUpLwipStack() {
     init_default_netif(&addr, &mask, &gw);
     netif_set_up(netif_default);
     netif_set_link_up(netif_default);
+    // Wrap the tap link-output with the §4.2 ARP egress fault hook (inert until an
+    // OpSetArpFlavor sets a non-None flavor). Under the core lock with the rest of
+    // the netif setup, before any frame can leave.
+    installArpFaultEgressHook(netif_default);
     UNLOCK_TCPIP_CORE();
 
     return addr;

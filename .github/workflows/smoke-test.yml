@@ -183,7 +183,16 @@ jobs:
       # §4.2 cold-cache premise — the ut-ping preflight's --source-ip
       # alias pin keeps the primary tester IP unresolved so the DUT's
       # UT-provoked egress must emit its own ARP Request (ARP_07).
-      # ~4 min.
+      # Finally the §4.2 ARP egress-fault self-validation cluster
+      # (ARP_07/08/09/10/11/12/46/47_NEG, UT 0x18 OpSetArpFlavor): each
+      # arms one kArpFault* flavor so the lwIP netif link-output hook
+      # corrupts a single RFC 826 header field of the DUT-emitted Request
+      # (07..12) or Reply (46/47), and the _neg passes only when that
+      # violation is observed — the empirical proof the Phase F lwIP
+      # ratchet (tools/fault_injection_floor.txt: lwip) counts. Faultable
+      # only here (expected:false on Linux); the per-case DUT respawn +
+      # MAX_WORKERS=1 keep the process-global flavor from leaking into the
+      # positive ARP_07 or the next case. ~5 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -199,7 +208,9 @@ jobs:
             TCP_CALL_ABORT_02 TCP_CLOSING_07 TCP_MSS_OPTIONS_02 \
             IPv4_REASSEMBLY_10 TCP_FLAGS_INVALID_09 \
             IPv4_ADDRESSING_02 UDP_USER_INTERFACE_01 UDP_USER_INTERFACE_07 \
-            ARP_07
+            ARP_07 \
+            ARP_07_NEG ARP_08_NEG ARP_09_NEG ARP_10_NEG ARP_11_NEG ARP_12_NEG \
+            ARP_46_NEG ARP_47_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

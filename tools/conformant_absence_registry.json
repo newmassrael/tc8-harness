@@ -1589,60 +1589,6 @@
         }
       ]
     },
-    "ARP_07": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "first_arp_was_not_request",
-          "property": "DUT's first emitted ARP on cache-miss resolution must be a Request (opcode 1, RFC 826); fail iff it carries a non-request opcode"
-        }
-      ]
-    },
-    "ARP_08": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "hw_type_not_ethernet",
-          "property": "DUT's emitted ARP Request must carry Hardware Type 0x0001 (Ethernet, RFC 826); fail iff another value"
-        }
-      ]
-    },
-    "ARP_09": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "proto_type_not_ipv4",
-          "property": "DUT's emitted ARP Request must carry Protocol Type 0x0800 (IPv4, RFC 826); fail iff another value"
-        }
-      ]
-    },
-    "ARP_10": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "hw_addr_len_not_six",
-          "property": "DUT's emitted ARP Request must carry Hardware Address Length 6 (Ethernet, RFC 826); fail iff another value"
-        }
-      ]
-    },
-    "ARP_11": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "proto_addr_len_not_four",
-          "property": "DUT's emitted ARP Request must carry Protocol Address Length 4 (IPv4, RFC 826); fail iff another value"
-        }
-      ]
-    },
-    "ARP_12": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "opcode_not_request",
-          "property": "DUT's emitted ARP Request must carry Operation Code 1 (Request, RFC 826); fail iff another value"
-        }
-      ]
-    },
     "ARP_16": {
       "guards": [
         {
@@ -1767,24 +1713,6 @@
           "class": "prohibited_emission",
           "fail_reason": "dut_replied_to_response",
           "property": "DUT must not emit an ARP Reply to a frame whose opcode is Response (RFC 826 Packet Reception requires opcode=Request); silence is conformant"
-        }
-      ]
-    },
-    "ARP_46": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "reply_hw_type_not_ethernet",
-          "property": "DUT's emitted ARP Reply must carry Hardware Type 0x0001 (Ethernet, RFC 826); fail iff another value"
-        }
-      ]
-    },
-    "ARP_47": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "reply_hw_addr_len_not_six",
-          "property": "DUT's emitted ARP Reply must carry Hardware Address Length 6 (Ethernet, RFC 826); fail iff another value"
         }
       ]
     },

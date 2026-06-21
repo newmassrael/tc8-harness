@@ -168,6 +168,30 @@
         {
           "file": "dut/env/topology.d/lwip-tap.conf",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_arp_fault.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ut_extensions.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_stack_bringup.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/CMakeLists.txt",
+          "kind": "references"
+        },
+        {
+          "file": "src/cli/test_command.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/spec_inventory.h",
+          "kind": "references"
         }
       ]
     },
@@ -337,6 +361,34 @@
         },
         {
           "file": "tests/tcp_checksum_02/tcp_checksum_02.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_07_neg/arp_07_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_08_neg/arp_08_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_09_neg/arp_09_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_10_neg/arp_10_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_11_neg/arp_11_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_12_neg/arp_12_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -539,6 +591,14 @@
         },
         {
           "file": "dut/env/topology.d/lwip-tap.conf",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_46_neg/arp_46_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_47_neg/arp_47_neg.scxml",
           "kind": "implements"
         }
       ]
@@ -1421,6 +1481,10 @@
         },
         {
           "file": "dut/dut_service/dut_main.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/cases/_arp_traits_base.h",
           "kind": "references"
         }
       ]

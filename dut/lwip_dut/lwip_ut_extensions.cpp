@@ -10,6 +10,8 @@
 
 #include "tc8/upper_tester_protocol.h"
 
+#include "lwip_arp_fault.h"
+
 namespace tc8::lwip_dut {
 namespace {
 
@@ -63,6 +65,23 @@ void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server) {
                 status = ut::kStatusMalformed;
                 return;
             }
+            status = ut::kStatusOk;
+        });
+
+    server.registerOpcode(
+        ut::OpSetArpFlavor,
+        [](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
+           std::vector<std::uint8_t> & /*body*/) {
+            // Params: <flavor:u8>. Arms the §4.2 ARP egress fault: the netif
+            // link-output hook (installed at bring-up) corrupts the matching header
+            // field on the DUT's next emitted ARP (request or reply). An
+            // out-of-range flavor is malformed — a surfaced error beats a silently
+            // inert negative that would time out with a misleading verdict.
+            if (len < 1 || params[0] > ut::kArpFaultMax) {
+                status = ut::kStatusMalformed;
+                return;
+            }
+            setArpFaultFlavor(params[0]);
             status = ut::kStatusOk;
         });
 }

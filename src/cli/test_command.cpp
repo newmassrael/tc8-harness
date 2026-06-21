@@ -171,7 +171,17 @@ int TestCommand::runListCases() const {
                 continue;
             }
             if (sc != nullptr) {
-                if (exclude_deferred_ && !sc->expected) {
+                // A `_NEG` self-validation case is dropped by --exclude-deferred
+                // when its base is deferred (the long-standing behaviour — the
+                // base and its negative share one SpecCase) OR when the base
+                // carries `neg_expected:false` (the negative is inapplicable on
+                // this DUT but the positive base still runs — e.g. the §4.2 ARP
+                // negatives are faultable only on the lwIP fixture). The positive
+                // base is never dropped by neg_expected.
+                const bool is_neg = e->id.size() >= 4 &&
+                    e->id.compare(e->id.size() - 4, 4, "_NEG") == 0;
+                if (exclude_deferred_ &&
+                    (!sc->expected || (is_neg && !sc->neg_expected))) {
                     continue;
                 }
                 if (exclude_platform_known_fail_ && sc->platform_known_fail) {

@@ -706,6 +706,17 @@ enum Opcode : std::uint8_t {
     // Status codes: kStatusOk on success; kStatusMalformed for a
     // short request or an unknown action byte.
     OpConditionArpCache = 0x17,
+
+    // Set the active §4.2 ARP egress fault flavor (kArpFault* below) on the lwIP
+    // fixture. lwIP-specific, like OpConditionArpCache: the kernel-backed tc8-dut
+    // emits §4.2 ARP from its neighbour layer (no firmware seam), so the matching
+    // `_neg` cases are expected:false on Linux. While a non-None flavor is set, the
+    // fixture's netif link-output corrupts one ARP header field of the DUT-emitted
+    // frame (request or reply) — the lwIP analog of a tc8-dut emit-flavor.
+    //
+    // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
+    // or an unknown flavor byte.
+    OpSetArpFlavor = 0x18,
 };
 
 // Top of the protocol's opcode value space — the highest opcode this
@@ -716,7 +727,7 @@ enum Opcode : std::uint8_t {
 // OpQueryCapabilities with their exact implemented set — the
 // reference DUT itself skips OpConditionArpCache, whose §4.2 cache
 // conditioning rides netns sysctls instead).
-inline constexpr std::uint8_t kMaxProtocolOpcode = OpConditionArpCache;
+inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetArpFlavor;
 
 // Wire encoding of the OpQueryTcpInfo `state` byte — the single source
 // of truth for every producer and consumer. Values equal the Linux
@@ -800,6 +811,20 @@ inline constexpr std::uint8_t kFlavorReprobeStaleCycle            = 0x0F;  // RF
 inline constexpr std::uint8_t kFlavorSkipFirstRateLimitSilence    = 0x10;  // RFC 3927 §2.2.1 silent through 1st RATE_LIMIT_INTERVAL MUST
 inline constexpr std::uint8_t kFlavorReprobeStalePostSilence      = 0x11;  // RFC 3927 §2.2.1 step 58 fresh post-rate-limit re-probe MUST
 inline constexpr std::uint8_t kFlavorSkipSecondRateLimitSilence   = 0x12;  // RFC 3927 §2.2.1 rate-limit persists into 2nd window MUST
+
+// `OpSetArpFlavor` fault-injection flavor byte (lwIP §4.2 ARP fixture). Distinct
+// from the §4.5 link-local autoconf kFlavor* above (OpStartLLAutoconfBuggy): these
+// corrupt one header field of a general §4.2 ARP frame the DUT emits, applied by the
+// lwIP netif egress hook. One flavor per ARP header field; a field shared by a
+// request-shape and a reply-shape case (htype, hlen) uses ONE flavor for both — the
+// offset is identical and the case's provocation selects request vs reply.
+inline constexpr std::uint8_t kArpFaultNone           = 0x00;
+inline constexpr std::uint8_t kArpFaultOpcodeWrong    = 0x01;  // RFC 826 opcode: ARP_07/ARP_12 (request MUST be 1)
+inline constexpr std::uint8_t kArpFaultHwTypeWrong    = 0x02;  // RFC 826 htype:  ARP_08/ARP_46 (MUST be 1, Ethernet)
+inline constexpr std::uint8_t kArpFaultProtoTypeWrong = 0x03;  // RFC 826 ptype:  ARP_09 (MUST be 0x0800, IPv4)
+inline constexpr std::uint8_t kArpFaultHwLenWrong     = 0x04;  // RFC 826 hlen:   ARP_10/ARP_47 (MUST be 6)
+inline constexpr std::uint8_t kArpFaultProtoLenWrong  = 0x05;  // RFC 826 plen:   ARP_11 (MUST be 4)
+inline constexpr std::uint8_t kArpFaultMax            = kArpFaultProtoLenWrong;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL
