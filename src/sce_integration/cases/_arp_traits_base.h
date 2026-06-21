@@ -9,7 +9,7 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/arp_captured.h"
-#include "sce_integration/dut_control.h"
+#include "sce_integration/dut_capabilities.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_config.h"
 #include "stimulus/upper_tester_client.h"
@@ -31,9 +31,11 @@
 //                             guards discriminate.
 //
 // Every §4.2 case — the positives AND the lwIP egress-fault `_neg`
-// self-validation siblings — is covered by these two dispatch shapes; no
-// third base is needed. Stated by shape, not a frozen case count, so the
-// claim survives the `_neg` track and future §4.2 additions.
+// self-validation siblings — is covered by these two DISPATCH shapes; no third
+// dispatch shape is needed. (ArpFaultNegBase below is NOT a third shape: it
+// inherits ArpAnyBase's dispatch and only adds a capability declaration.)
+// Stated by shape, not a frozen case count, so the claim survives the `_neg`
+// track and future §4.2 additions.
 //
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
 // own per-case stimulus (ARP-learning probe, UT egress provocation, ...)

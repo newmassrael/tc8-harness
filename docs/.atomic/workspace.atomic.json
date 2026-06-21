@@ -194,11 +194,11 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/dut_control.h",
+          "file": "src/cli/test_command.cpp",
           "kind": "references"
         },
         {
-          "file": "src/cli/test_command.cpp",
+          "file": "src/sce_integration/dut_capabilities.h",
           "kind": "references"
         }
       ]

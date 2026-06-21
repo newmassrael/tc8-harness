@@ -8,6 +8,7 @@
 #include <thread>
 #include <vector>
 
+#include "sce_integration/dut_capabilities.h"
 #include "sce_integration/dut_socket_control.h"
 #include "stimulus/testability_client.h"
 #include "stimulus/upper_tester_client.h"
@@ -16,33 +17,9 @@
 
 namespace tc8::sce {
 
-// Which semantic DUT-control sub-interfaces a backend exposes. Two axes are
-// folded into one bitmask:
-//   (1) Backend interface surface — which IDutControl sub-interfaces the
-//       selected `--dut-control` backend provides (opcode UT is a TC8-tailored
-//       superset; AUTOSAR testability is the portable standard subset; the
-//       socket backend has no kernel-state probe). Backend-static.
-//   (2) DUT firmware fault-injection support — whether the DUT itself
-//       implements the UT fault opcode a `_neg` self-validation case drives.
-//       The DUT reports its implemented opcodes via OpQueryCapabilities (0x16,
-//       the single source of truth), so a fault cap is DUT-DERIVED, not
-//       backend-static: the kernel-stack reference DUT has no §4.2 ARP egress
-//       fault seam and omits OpSetArpFlavor, so kCapArpFlavor is absent there
-//       and the ARP `_NEG` cases capability-skip (N/A); the lwIP fixture
-//       implements it and they run.
-// A case queries the bit it needs and is capability-skipped (N/A, not a fail)
-// when the selected backend / DUT lacks it (test_command.cpp Tier-2 gate).
-enum DutCapability : std::uint32_t {
-    kCapTcpControl = 1u << 0,        // ITcpControl (handle-based TCP data plane)
-    kCapUdpControl = 1u << 1,        // IUdpControl (one-shot UDP send)
-    kCapTcpStateProbe = 1u << 2,     // TCP kernel-state query (opcode only)
-    kCapArpConditioning = 1u << 3,   // ARP cache conditioning (opcode only)
-    kCapLinkLocalControl = 1u << 4,  // link-local autoconf control (opcode only)
-    kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing (opcode only)
-    kCapTcpRecvOob = 1u << 6,        // out-of-band (urgent) TCP receive (opcode only)
-    kCapArpFlavor = 1u << 7,         // §4.2 ARP egress fault (OpSetArpFlavor) — DUT-derived
-};
-using DutCapabilities = std::uint32_t;
+// DutCapability / DutCapabilities / kDutDerivedCaps live in dut_capabilities.h
+// (the lightweight vocabulary header a case includes to declare
+// kRequiredCapabilities without pulling this backend stack).
 
 // Upper-Tester-channel abstraction so the harness can drive either an in-house
 // opcode DUT (the reference tc8-dut / lwIP DUT) or a standard AUTOSAR
@@ -81,7 +58,18 @@ public:
     virtual const char *backendName() const = 0;
 
     // Which semantic sub-interfaces this backend exposes (DutCapability bits).
+    // MAY block on a DUT round-trip the first call (a backend that resolves
+    // DUT-derived fault caps from OpQueryCapabilities); the result is cached.
     virtual DutCapabilities capabilities() const = 0;
+
+    // Whether the DUT-derived (kDutDerivedCaps) portion of capabilities() was
+    // RESOLVED — i.e. the DUT answered OpQueryCapabilities with a usable bitmap.
+    // True for backends that expose only backend-static caps (nothing to
+    // resolve). False means "could not determine the DUT's fault seams" (query
+    // failed / pre-0x16 DUT): the Tier-2 gate turns a missing DUT-derived cap
+    // into an `error` rather than a silent N/A `skip`, so a `_NEG` proof never
+    // disappears into a false green.
+    virtual bool faultCapsResolved() const { return true; }
 
     // Data-plane sub-interfaces, or nullptr when unsupported — a case checks for
     // nullptr and conditioning-skips. Default nullptr: a backend opts in by
@@ -468,21 +456,15 @@ public:
             kCapTcpRecvOob;
         // (2) DUT-firmware fault caps — the DUT is the SSOT for what it can
         // fault: OpQueryCapabilities (0x16) reports its implemented opcodes.
-        // Queried once and cached (one round trip per backend instance; the
-        // per-case smoke respawn makes that one query per case). A DUT that
-        // predates 0x16, or is unreachable, reports no fault caps, so a `_NEG`
-        // requiring one capability-skips (N/A) rather than running blind.
-        if (!fault_caps_) {
-            std::uint32_t fault = 0;
-            if (const auto c = stimulus::queryUpperTesterCapabilities(
-                    dut_ip_be_, port_, timeout_ms_, src_ip_be_)) {
-                if (c->supports(ut::OpSetArpFlavor)) {
-                    fault |= kCapArpFlavor;
-                }
-            }
-            fault_caps_ = fault;
-        }
-        return static_cast<DutCapabilities>(kBackendBase | *fault_caps_);
+        resolveCaps16();
+        return static_cast<DutCapabilities>(kBackendBase | fault_caps_);
+    }
+    // True iff the DUT answered 0x16 with a usable bitmap (see the base class):
+    // distinguishes "DUT lacks the seam" (a real N/A skip) from "could not reach
+    // / pre-0x16 DUT" (an error, not a silent green) at the Tier-2 gate.
+    bool faultCapsResolved() const override {
+        resolveCaps16();
+        return caps16_resolved_;
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }
@@ -501,13 +483,48 @@ private:
     // caller that sets an even shorter control timeout still wins.
     static constexpr int kStateProbeTimeoutMs = 500;
 
+    // OpQueryCapabilities (0x16) attempts before giving up: a single dropped
+    // UDP datagram must NOT masquerade as "DUT lacks the seam" and silently skip
+    // a `_NEG` proof. Only the no-answer (transport) case retries; a DUT that
+    // answers (even kStatusUnknownOpcode) is definitive.
+    static constexpr int kCapQueryAttempts = 3;
+
+    // Resolve the DUT-derived fault caps once, lazily, from the DUT's 0x16
+    // bitmap (the SSOT for what it can fault). Caches both the derived bits and
+    // whether resolution succeeded so capabilities() / faultCapsResolved() cost
+    // at most one round trip per backend instance (one per case under the smoke
+    // respawn). Extend the supports()->bit mapping per DUT-derived cap added to
+    // kDutDerivedCaps.
+    void resolveCaps16() const {
+        if (caps16_done_) {
+            return;
+        }
+        caps16_done_ = true;
+        for (int attempt = 0; attempt < kCapQueryAttempts; ++attempt) {
+            const auto c = stimulus::queryUpperTesterCapabilities(
+                dut_ip_be_, port_, timeout_ms_, src_ip_be_);
+            if (!c) {
+                continue;  // transport failure: a dropped datagram — retry
+            }
+            caps16_resolved_ = c->supported;  // false = pre-0x16 DUT (definitive)
+            if (c->supported && c->supports(ut::OpSetArpFlavor)) {
+                fault_caps_ |= kCapArpFlavor;
+            }
+            return;
+        }
+        // No answer after every attempt: caps16_resolved_ stays false so the
+        // gate errors rather than skipping a `_NEG` that should have run.
+    }
+
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    // DUT-derived fault caps (axis 2 above), lazily queried via 0x16 and cached
-    // so capabilities() costs at most one round trip per backend instance.
-    mutable std::optional<std::uint32_t> fault_caps_;
+    // DUT-derived fault caps (axis 2) + resolution state, lazily filled by
+    // resolveCaps16() and cached.
+    mutable bool caps16_done_ = false;       // resolution attempted
+    mutable bool caps16_resolved_ = false;   // DUT gave a usable 0x16 bitmap
+    mutable std::uint32_t fault_caps_ = 0;   // derived DUT fault caps
     OpcodeTcpControl tcp_ctrl_;
     OpcodeTcpStateProbe state_probe_;
     OpcodeTcpRecvOob recv_oob_;

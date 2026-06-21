@@ -483,6 +483,19 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         if (const std::uint32_t missing =
                 entry->required_capabilities & ~dut_control->capabilities();
             missing != 0U) {
+            // A missing DUT-derived fault cap has two causes that must NOT be
+            // conflated: the DUT answered OpQueryCapabilities and genuinely lacks
+            // the seam (a real N/A skip), OR the bitmap could not be resolved
+            // (DUT unreachable / pre-0x16) — for a case that NEEDS the seam that
+            // is a test-system non-conclusion, not an N/A. Surfacing the latter
+            // as `error` (gating on a strict driver, visible in JUnit either way)
+            // keeps a `_NEG` proof from silently turning green when it could not
+            // even determine whether the fault was injectable.
+            if ((missing & sce::kDutDerivedCaps) != 0U && !dut_control->faultCapsResolved()) {
+                std::printf("verdict  : error:dut_capability_query_unresolved_0x%x_on_%s\n",
+                            static_cast<unsigned>(missing), dut_control->backendName());
+                return ::tc8::sce::verdictExitCode(::tc8::sce::VerdictClass::Error);
+            }
             std::printf("verdict  : skip:requires_capability_0x%x_unavailable_on_%s\n",
                         static_cast<unsigned>(missing), dut_control->backendName());
             return 2;  // distinct from 0 (pass) / 1 (fail): capability-skip
