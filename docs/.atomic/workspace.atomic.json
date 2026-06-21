@@ -624,6 +624,34 @@
         {
           "file": "tests/_templates/arp_field_check.sce-template.xml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_arp_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_arp_fault.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/arp_reply_neg.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_21_neg/arp_21_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_27_neg/arp_27_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_37_neg/arp_37_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_42_neg/arp_42_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

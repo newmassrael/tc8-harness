@@ -1,12 +1,19 @@
-// TC8 §4.2 ARP egress fault injection for the lwIP fixture. Carries the
-// ARP-over-Ethernet field offsets, the deterministic wrong-value sentinels,
-// and the netif link-output wrapper that rewrites one header field of a
-// DUT-emitted ARP frame — the load-bearing wire-mutation logic the §4.2 ARP
-// `_NEG` self-validation cases drive via UT 0x18 OpSetArpFlavor.
+// TC8 §4.2 ARP fault injection for the lwIP fixture. Two fault kinds the §4.2 ARP
+// `_NEG` self-validation cases drive via UT 0x18 OpSetArpFlavor, both fixture glue
+// with lwIP itself untouched:
+//   * EGRESS field-corruption — the netif link-output wrapper rewrites one header
+//     field of a DUT-emitted ARP frame (the §4.2 ARP field cases).
+//   * INGRESS prohibited-emission — the netif input wrapper makes a buggy DUT
+//     produce the emission a §4.2.4.2 reception case proves absent (synthesize the
+//     forbidden ARP Reply), since the conformant DUT drops the frame and emits
+//     nothing to corrupt.
+// Carries the ARP-over-Ethernet field offsets, the deterministic wrong-value
+// sentinels, and both netif wrappers.
 #include "lwip_arp_fault.h"
 
 #include <atomic>
 #include <cstdint>
+#include <cstring>
 
 #include "lwip/err.h"
 #include "lwip/netif.h"
@@ -39,6 +46,11 @@ constexpr std::uint16_t kArpHLen    = 18;  // u8  hw addr length  (6)
 constexpr std::uint16_t kArpPLen    = 19;  // u8  proto addr len  (4)
 constexpr std::uint16_t kArpOpcode  = 20;  // u16 opcode          (1 request / 2 reply)
 constexpr std::uint16_t kArpMinLen  = 22;  // bytes needed through the opcode field
+constexpr std::uint16_t kArpSenderHw = 22;  // 6  sender hardware addr
+constexpr std::uint16_t kArpSenderIp = 28;  // 4  sender protocol addr
+constexpr std::uint16_t kArpTargetHw = 32;  // 6  target hardware addr
+constexpr std::uint16_t kArpTargetIp = 38;  // 4  target protocol addr
+constexpr std::uint16_t kArpFrameLen = 42;  // Ethernet(14) + ARP(28) for IPv4/Ethernet
 
 // Deterministic non-conformant sentinels. The matching ARP_xx guard tests
 // `field != correct`, so the exact wrong value is immaterial; these are unambiguous
@@ -81,6 +93,58 @@ err_t arpFaultLinkoutput(struct netif *nif, struct pbuf *p) {
     return g_orig_linkoutput(nif, p);
 }
 
+// The netif's original input (tcpip_input), saved at ingress-hook install. Every
+// inbound frame is forwarded to it after (optionally) producing the prohibited
+// emission, so lwIP's own reception (which drops the malformed/foreign frame) is
+// unchanged.
+netif_input_fn g_orig_input = nullptr;
+
+// kArpFaultReplyToDropFrame: a buggy DUT answering an ARP frame it should have
+// dropped (§4.2.4.2 ARP_21/27/37/42 reply-absence). `rx` points at the inbound
+// Ethernet+ARP frame; the synthesized Reply is addressed back to its sender with
+// the DUT's own identity, so the case guard's `opcode == 2 and sender_hw ==
+// dut_iface_mac` fires. Sent via the saved RAW link-output (not nif->linkoutput)
+// so the egress field-corruption hook never touches it. No core lock needed: the
+// tap link-output is a stack-buffered write(2), and pbuf_alloc on this (rx) thread
+// is what low_level_input already does for every inbound frame.
+void emitProhibitedArpReply(struct netif *nif, const std::uint8_t *rx) {
+    if (g_orig_linkoutput == nullptr) {
+        return;  // ingress hook installed before the egress hook saved the original
+    }
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, kArpFrameLen, PBUF_RAM);
+    if (p == nullptr) {
+        return;
+    }
+    auto *o = static_cast<std::uint8_t *>(p->payload);
+    std::memcpy(o + 0, rx + kArpSenderHw, 6);             // eth dst = requester sender_hw
+    std::memcpy(o + 6, nif->hwaddr, 6);                   // eth src = DUT MAC
+    put16(o, kEthTypeOff, 0x0806);
+    put16(o, kArpHType, 0x0001);
+    put16(o, kArpPType, 0x0800);
+    o[kArpHLen] = 6;
+    o[kArpPLen] = 4;
+    put16(o, kArpOpcode, 0x0002);                         // Reply
+    std::memcpy(o + kArpSenderHw, nif->hwaddr, 6);        // sender_hw = DUT MAC
+    const std::uint32_t dut_ip = ip4_addr_get_u32(netif_ip4_addr(nif));
+    std::memcpy(o + kArpSenderIp, &dut_ip, 4);            // sender_ip = DUT IP (network order)
+    std::memcpy(o + kArpTargetHw, rx + kArpSenderHw, 6);  // target_hw = requester sender_hw
+    std::memcpy(o + kArpTargetIp, rx + kArpSenderIp, 4);  // target_ip = requester sender_ip
+    g_orig_linkoutput(nif, p);
+    pbuf_free(p);
+}
+
+err_t arpFaultIngressInput(struct pbuf *p, struct netif *nif) {
+    const std::uint8_t flavor = g_arp_fault_flavor.load(std::memory_order_relaxed);
+    if (flavor == ut::kArpFaultReplyToDropFrame && p != nullptr &&
+        p->payload != nullptr && p->len >= kArpFrameLen) {
+        const auto *f = static_cast<const std::uint8_t *>(p->payload);
+        if (isArp(f)) {
+            emitProhibitedArpReply(nif, f);
+        }
+    }
+    return g_orig_input(p, nif);
+}
+
 }  // namespace
 
 void setArpFaultFlavor(std::uint8_t flavor) {
@@ -95,6 +159,16 @@ void installArpFaultEgressHook(struct netif *nif) {
     }
     g_orig_linkoutput = nif->linkoutput;
     nif->linkoutput = arpFaultLinkoutput;
+}
+
+void installArpFaultIngressHook(struct netif *nif) {
+    // Null netif, or already installed: nothing to do (idempotent — never
+    // double-wrap, which would corrupt the saved original input).
+    if (nif == nullptr || g_orig_input != nullptr) {
+        return;
+    }
+    g_orig_input = nif->input;
+    nif->input = arpFaultIngressInput;
 }
 
 }  // namespace tc8::lwip_dut

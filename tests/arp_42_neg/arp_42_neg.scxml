@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_42 negative — lwIP ingress-fault self-validation of the
+  positive _42 reply-absence guard. The trait injects a frame whose opcode is
+  Response (the DUT MUST NOT reply to a Response) and arms
+  kArpFaultReplyToDropFrame, so the lwIP netif input hook synthesizes the
+  prohibited ARP Reply. Pass = that Reply observed; fail_compliant = DUT stayed
+  silent despite the flavor (fault inert). lwIP-only (capability-gated on
+  kCapArpFlavor). Envelope: arp_reply_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_42_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_reply_neg.sce-template.xml"/>
+</scxml>

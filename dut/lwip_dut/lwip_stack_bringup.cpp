@@ -94,6 +94,10 @@ ip4_addr_t BringUpLwipStack() {
     // OpSetArpFlavor sets a non-None flavor). Under the core lock with the rest of
     // the netif setup, before any frame can leave.
     installArpFaultEgressHook(netif_default);
+    // Wrap the tap input with the §4.2 ARP ingress fault hook (the prohibited-
+    // emission flavors). After the egress hook — it reuses the saved link-output to
+    // send the synthesized Reply. Also inert until a matching flavor is armed.
+    installArpFaultIngressHook(netif_default);
     UNLOCK_TCPIP_CORE();
 
     return addr;

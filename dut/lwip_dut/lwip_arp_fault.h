@@ -19,4 +19,15 @@ void setArpFaultFlavor(std::uint8_t flavor);
 // analog of a tc8-dut emit-flavor. Idempotent; call once after the netif is up.
 void installArpFaultEgressHook(struct netif *nif);
 
+// Install the ARP ingress fault hook on the netif: wraps netif->input so that,
+// while an ingress prohibited-emission flavor (kArpFaultReplyToDropFrame, ...) is
+// active, the §4.2.4.2 reception cases' forbidden emission is produced as the
+// inbound malformed/foreign ARP frame arrives — the conformant DUT drops it and
+// emits nothing, so there is no egress to corrupt. kArpFaultReplyToDropFrame
+// synthesizes the prohibited ARP Reply and sends it back via the saved
+// link-output. The original frame is always forwarded to lwIP afterwards (which
+// drops it as normal); lwIP is untouched. Idempotent; call after the egress hook
+// (it reuses the same saved link-output) and after the netif is up.
+void installArpFaultIngressHook(struct netif *nif);
+
 }  // namespace tc8::lwip_dut

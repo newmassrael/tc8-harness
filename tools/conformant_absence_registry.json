@@ -1629,15 +1629,6 @@
         }
       ]
     },
-    "ARP_21": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_to_malformed_request",
-          "property": "DUT must not emit an ARP Reply to a Request carrying an unknown Hardware Type (RFC 826 ar$hrd drop); silence is conformant"
-        }
-      ]
-    },
     "ARP_22": {
       "guards": [
         {
@@ -1652,15 +1643,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit an ARP Reply to a Request carrying the correct Protocol Type (0x0800); binary present/absent"
-        }
-      ]
-    },
-    "ARP_27": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_to_malformed_request",
-          "property": "DUT must not emit an ARP Reply to a Request carrying an unknown Protocol Type (RFC 826 ar$pro drop); silence is conformant"
         }
       ]
     },
@@ -1681,15 +1663,6 @@
         }
       ]
     },
-    "ARP_37": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_to_foreign_target_ip",
-          "property": "DUT must not emit an ARP Reply to a Request whose Target Protocol Address is not the DUT's interface IP (RFC 826 target check); silence is conformant"
-        }
-      ]
-    },
     "ARP_38": {
       "guards": [
         {
@@ -1704,15 +1677,6 @@
         {
           "class": "liveness",
           "property": "DUT must answer a correct ARP Request with a Reply whose opcode is Response (2, RFC 826 opcode swap); binary present/absent"
-        }
-      ]
-    },
-    "ARP_42": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_to_response",
-          "property": "DUT must not emit an ARP Reply to a frame whose opcode is Response (RFC 826 Packet Reception requires opcode=Request); silence is conformant"
         }
       ]
     },

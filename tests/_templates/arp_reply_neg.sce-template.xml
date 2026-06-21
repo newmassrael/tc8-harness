@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.2 reply-absence `_NEG` body: the lwIP ingress-fault self-validation of
+  the positive ARP_21/27/37/42 guards. The positive injects a malformed/foreign
+  ARP frame the conformant DUT MUST drop without replying (silence = pass). Its
+  `_NEG` arms kArpFaultReplyToDropFrame, so the lwIP netif input hook synthesizes
+  the prohibited ARP Reply as that frame arrives.
+
+    Pass:    a DUT ARP Reply observed (opcode == 2 and sender_hw == dut_iface_mac)
+             — the injected violation is present, proving the positive's guard
+             would fire on a non-conformant DUT.
+    Fail:    deadline_exceeded -> fail_compliant — the DUT stayed silent despite
+             the flavor (the fault was inert: a flavor-wiring regression, NOT a
+             DUT conformance violation; role fault_injection_inert).
+
+  The four reply-absence cases differ only in the malformed frame their trait
+  injects (hw_type / proto_type / target_ip / opcode=Response); the observed
+  outcome — the synthesized Reply, or conformant silence — is identical, so this
+  body is param-less (cf. arp_group_c_drop_and_emit). 5 s deadline matches the
+  §4.2.4.2 `_NEG` cluster; the synthesized Reply lands on the inbound frame's
+  arrival, well inside the window.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_reply_neg">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silent_despite_reply_to_drop_frame_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>
