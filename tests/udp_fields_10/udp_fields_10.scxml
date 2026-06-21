@@ -18,5 +18,6 @@
   <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
            expected_received="0"
            fail_reason_wrong_receipt="dut_received_udp_with_length_greater_than_actual"
-           fail_reason_timeout="no_ut_confirmation_for_long_length_discard"/>
+           fail_reason_timeout="no_ut_confirmation_for_long_length_discard"
+           fail_role="observed_violation"/>
 </scxml>

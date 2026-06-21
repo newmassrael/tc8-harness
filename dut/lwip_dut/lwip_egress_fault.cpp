@@ -17,7 +17,7 @@
 
 #include "tc8/upper_tester_protocol.h"
 
-#include "lwip_arp_wire.h"
+#include "lwip_wire.h"
 
 namespace tc8::lwip_dut {
 namespace {
@@ -54,25 +54,13 @@ void mutateArp(std::uint8_t *f, std::uint8_t flavor) {
     }
 }
 
-// IPv4/UDP field offsets (kEthHdrLen from lwip_arp_wire.h + IPv4 header; the IPv4
-// IHL is read so an options-bearing header still lands the UDP offset correctly).
-// UDP offsets are relative to the UDP start.
-constexpr std::uint16_t kIpProtoOff  = kEthHdrLen + 9;   // IPv4 protocol byte
-constexpr std::uint8_t  kIpProtoUdp  = 17;
-constexpr std::uint16_t kUdpSrcPort  = 0;
-constexpr std::uint16_t kUdpDstPort  = 2;
-constexpr std::uint16_t kUdpLength   = 4;
-constexpr std::uint16_t kUdpChecksum = 6;
-constexpr std::uint16_t kUdpHdrLen   = 8;
+// IPv4/UDP field offsets + isIpv4/udpRegionOffset come from lwip_wire.h (the SSOT
+// both fault seams read).
 
 // Deterministic non-conformant UDP sentinels (the guard tests the field, so the
 // exact wrong value is immaterial; these are unambiguous and != the spec values).
 constexpr std::uint16_t kWrongPort      = 0xDEAD;  // != any per-case spec port
 constexpr std::uint16_t kWrongUdpLength = 0x0007;  // < 8, never == 8 + payload
-
-bool isIpv4(const std::uint8_t *f) {
-    return f[kEthTypeOff] == 0x08 && f[kEthTypeOff + 1] == 0x00;
-}
 
 void mutateUdp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t udp) {
     // Never the DUT's own UT Confirmation (src_port == ut::kPort) — only its
@@ -107,7 +95,7 @@ err_t egressFaultLinkoutput(struct netif *nif, struct pbuf *p) {
         if (p->len >= kArpMinLen && isArp(f)) {
             mutateArp(f, flavor);
         } else if (p->len >= kIpProtoOff + 1 && isIpv4(f) && f[kIpProtoOff] == kIpProtoUdp) {
-            const std::uint16_t udp = kEthHdrLen + (f[kEthHdrLen] & 0x0F) * 4;
+            const std::uint16_t udp = udpRegionOffset(f);
             if (p->len >= udp + kUdpHdrLen) {
                 mutateUdp(f, flavor, udp);
             }

@@ -190,6 +190,60 @@ TCP:
   decay or a lower RTO seed would flip this case into the deviation
   set — re-measure on any lwipopts or pin change.
 
+## Phase F fault-injection seams
+
+The fixture carries two inert-until-armed fault seams that the Phase F `_NEG`
+self-validation cases drive (via the Upper Tester `OpSetEgressFlavor` 0x18 /
+`OpSetIngressFlavor` 0x19; the flavor catalog SSOT is
+`include/tc8/upper_tester_protocol.h`). lwIP itself is never patched — both are
+netif-level glue (`lwip_egress_fault.cpp` wraps `linkoutput`,
+`lwip_ingress_fault.cpp` wraps `input`):
+
+- **Egress field-fault** rewrites one header field of a DUT-emitted frame (ARP
+  §4.2 fields; UDP §4.6.5.4 src/dst port, length, checksum). Used where the
+  conformant DUT *emits* a frame whose field a positive case checks.
+- **Ingress reaction-fault** makes the DUT exhibit a forbidden *reaction* to an
+  inbound frame: the §4.2.4.2 ARP prohibited emission (reply / learn), or the
+  §4.6.5.4 UDP prohibited acceptance — `kUdpFaultAcceptBadChecksum` zeroes the
+  inbound UDP checksum so lwIP's `chksum != 0` gate skips and delivers a
+  datagram it must drop.
+
+**Why UDP_FIELDS_09/10/15 + DATAGRAMLENGTH_01 share one acceptance flavor.** On
+lwIP these all drop at the *same* gate — the UDP checksum. lwIP ignores the UDP
+Length field for plain UDP (`src/core/udp.c` checks only `p->len < UDP_HLEN`), so
+the Length mutants (09 Length=0, 10 Length>payload, DATAGRAMLENGTH_01
+Length<payload) are rejected only because the Length field is checksum-covered,
+and FIELDS_15 corrupts the checksum directly. One "skip checksum validation"
+fault (`kUdpFaultAcceptBadChecksum`, which zeroes the inbound checksum) therefore
+makes them all accepted — the honest representation of the lwIP drop mechanics
+(one flavor per drop gate, mirroring the egress catalog's one-flavor-per-field).
+
+**Why UDP_FIELDS_08 is not faithfully faultable here.** The sub-8-byte
+truncation drops *earlier*, at lwIP's `p->len < UDP_HLEN` minimum-length gate,
+before the checksum is ever read — so the checksum-skip flavor cannot reach it.
+Making the DUT accept it would require fabricating UDP header bytes the tester
+never sent (growing the pbuf, synthesizing length/checksum), i.e. feeding the
+DUT a *different* frame than the wire carried — not a faithful mutation of "the
+DUT accepted what arrived." It is left without a `_NEG` rather than carry a
+contrived reconstruction (the same honest stance as the §4.2 ARP
+kernel-emission cases that have no firmware builder to fault).
+
+**The inverse property — UDP_FIELDS_03/16 prohibited rejection.** FIELDS_03 (src
+port 0) and FIELDS_16 (checksum 0) are valid edge-case datagrams the DUT *must
+accept*. Their faithful fault is the opposite of acceptance: `kUdpFaultRejectValid`
+makes the input hook *swallow* the inbound data-listener frame (never forward it
+to lwIP), so the receive-counting app reports no receipt — modelling a DUT that
+wrongly drops a datagram it must deliver. The `_NEG` passes only when that
+rejection is observed (`ut_received == 0`); a conformant DUT still accepts
+(`ut_received == 1`, the fault-inert branch).
+
+**Still outside this seam.** FIELDS_04 (egress to two hosts), FIELDS_05 (UI
+source-IP reporting), and FIELDS_12 (65507-byte reassembly) each need their own
+mechanism (egress routing, UI field, reassembly) and are out of scope. The
+addressing-based discards (ADDRESSING_02, INVALID_ADDRESSES_01/02,
+INTRODUCTION_02) drop at the IP layer, not the UDP checksum gate, so they would
+need an IP-layer acceptance fault rather than this UDP seam.
+
 ## lwipopts.h alignment (why each non-default option exists)
 
 Every entry carries its rationale in `lwipopts.h`; the

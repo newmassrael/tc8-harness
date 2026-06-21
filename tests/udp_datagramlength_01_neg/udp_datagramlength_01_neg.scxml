@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.4 UDP_DatagramLength_01 negative — lwIP ingress-acceptance
+  self-validation of the positive "discard a datagram whose Length field is smaller
+  than the IP payload" guard. The trait arms kUdpFaultAcceptBadChecksum, so the lwIP
+  netif input hook zeroes the inbound UDP checksum and lwIP delivers the datagram its
+  checksum check would otherwise drop. (On lwIP an understated Length is rejected via
+  the UDP checksum, not a length check: lwIP ignores the UDP Length field for plain
+  UDP, but the field is checksum-covered, so corrupting it breaks the checksum — see
+  lwip_ingress_fault.cpp.) Pass = the DUT reported the datagram received
+  (ut_received == 1, the injected acceptance observed); fail_compliant = the DUT still
+  discarded it despite the flavor (fault inert — what a conformant DUT does). lwIP-only
+  (capability-gated on kCapIngressFault). Envelope: ipv4_udp_ut_presence.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_datagramlength_01_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="1"
+           fail_reason_wrong_receipt="dut_discarded_short_length_udp_despite_flavor"
+           fail_reason_timeout="no_ut_confirmation_for_short_length_accept"
+           fail_role="fault_injection_inert"/>
+</scxml>

@@ -202,7 +202,15 @@ jobs:
       # kArpFaultLearnFromDropFrame): the input hook forces the dropped
       # Response's address into the ARP table as a static entry, so the DUT's
       # UT-provoked UDP egress uses the injected MAC — the _neg passes only
-      # when that UDP is observed. ~5 min.
+      # when that UDP is observed. Then the §4.6.5.4 UDP acceptance INGRESS
+      # cluster (UDP_FIELDS_09/10/15_NEG + DATAGRAMLENGTH_01_NEG,
+      # kUdpFaultAcceptBadChecksum): the input hook zeroes the inbound UDP
+      # checksum so lwIP delivers a datagram its checksum check must drop — the
+      # _neg passes only when the UT GetReceivedUdp confirmation reports receipt.
+      # Finally the §4.6.5.4 UDP rejection INGRESS cluster (UDP_FIELDS_03/16_NEG,
+      # kUdpFaultRejectValid): the input hook swallows the valid data-listener
+      # frame so lwIP never delivers it — the _neg passes only when the
+      # confirmation reports NO receipt. ~6 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -224,7 +232,9 @@ jobs:
             ARP_21_NEG ARP_27_NEG ARP_37_NEG ARP_42_NEG \
             ARP_22_NEG ARP_28_NEG ARP_38_NEG \
             UDP_FIELDS_01_NEG UDP_FIELDS_02_NEG UDP_FIELDS_06_NEG \
-            UDP_FIELDS_07_NEG UDP_FIELDS_13_NEG UDP_FIELDS_14_NEG
+            UDP_FIELDS_07_NEG UDP_FIELDS_13_NEG UDP_FIELDS_14_NEG \
+            UDP_FIELDS_09_NEG UDP_FIELDS_10_NEG UDP_FIELDS_15_NEG \
+            UDP_DatagramLength_01_NEG UDP_FIELDS_03_NEG UDP_FIELDS_16_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

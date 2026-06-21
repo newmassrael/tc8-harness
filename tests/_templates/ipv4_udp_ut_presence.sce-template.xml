@@ -35,6 +35,13 @@
   <sce:param name="expected_received"          required="true"/>
   <sce:param name="fail_reason_wrong_receipt"  required="true"/>
   <sce:param name="fail_reason_timeout"        required="true"/>
+  <!-- Verdict role for the wrong-receipt fail-final. Positives bind
+       observed_violation (the DUT received/dropped against the spec). The
+       §4.6.5.4 acceptance `_NEG` siblings bind fault_injection_inert: with the
+       ingress accept-fault armed, the wrong-receipt branch fires only when a
+       conformant DUT still dropped the datagram (the fault was inert), not an
+       IUT violation. Mirrors the udp_field_check fail_role param. -->
+  <sce:param name="fail_role"                  required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::UdpCaptured"
@@ -72,7 +79,7 @@
 
   <final id="fail_wrong_receipt">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_wrong_receipt}","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason_wrong_receipt}","role":"{$fail_role}"}</content>
     </donedata>
   </final>
 

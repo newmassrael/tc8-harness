@@ -1,11 +1,16 @@
-// TC8 §4.2.4.2 ARP ingress prohibited-emission fault for the lwIP fixture — the
-// seam the reply-absence (ARP_21/27/37/42) and drop-and-emit (ARP_22/28/38) `_NEG`
-// cases drive via UT 0x19 OpSetIngressFlavor. The conformant DUT drops the inbound
-// malformed/foreign ARP frame and emits nothing, so there is no egress to corrupt;
-// the netif input wrapper makes the buggy DUT produce the forbidden behaviour:
-// synthesize the prohibited ARP Reply, or wrongly learn the dropped Response's
-// address. lwIP itself is untouched — fixture glue only.
-#include "lwip_arp_ingress_fault.h"
+// Ingress reaction-fault seam for the lwIP fixture — the netif input wrapper the
+// reception `_NEG` cases drive via UT 0x19 OpSetIngressFlavor. The conformant DUT's
+// reaction to an inbound frame is the property under test (it drops the frame), so
+// there is no DUT egress field to corrupt; the wrapper makes the buggy DUT exhibit
+// the forbidden reaction as the frame arrives:
+//   * §4.2.4.2 ARP prohibited emission — synthesize the prohibited ARP Reply
+//     (ARP_21/27/37/42), or wrongly learn the dropped Response's address
+//     (ARP_22/28/38).
+//   * §4.6.5.4 UDP prohibited acceptance — zero the inbound datagram's UDP checksum
+//     so lwIP's validation gate skips and delivers it to the receive-counting app
+//     (UDP_FIELDS_09/10/15).
+// lwIP itself is untouched — fixture glue only.
+#include "lwip_ingress_fault.h"
 
 #include <atomic>
 #include <cstdint>
@@ -19,7 +24,7 @@
 
 #include "tc8/upper_tester_protocol.h"
 
-#include "lwip_arp_wire.h"
+#include "lwip_wire.h"
 
 namespace tc8::lwip_dut {
 namespace {
@@ -83,17 +88,41 @@ void learnDropFrameAddress(const std::uint8_t *rx) {
     UNLOCK_TCPIP_CORE();
 }
 
-err_t arpIngressFaultInput(struct pbuf *p, struct netif *nif) {
+// The two UDP ingress reaction faults both target the data-listener datagram
+// (dst port kDataPort), so the UT control channel (kPort) is never disturbed:
+//   * kUdpFaultAcceptBadChecksum (§4.6.5.4 FIELDS_09/10/15 + DATAGRAMLENGTH_01):
+//     zero the inbound UDP checksum so lwIP's `udphdr->chksum != 0` guard skips
+//     validation and delivers a datagram it must drop. This is the only drop gate
+//     for these cases on lwIP — lwIP ignores the UDP length field for plain UDP, so
+//     the length mutants fail only because the length field is checksum-covered, and
+//     FIELDS_15 corrupts the checksum directly. The UDP checksum is not part of the
+//     IPv4 header checksum, so zeroing it leaves the IPv4 header valid.
+//   * kUdpFaultRejectValid (§4.6.5.4 FIELDS_03 src port 0 / _16 checksum 0): swallow
+//     the (valid) datagram — never forward it to lwIP — so the receive-counting app
+//     never sees one the DUT must accept.
+err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
     const std::uint8_t flavor = g_ingress_flavor.load(std::memory_order_relaxed);
-    if (flavor != ut::kIngressFaultNone && p != nullptr && p->payload != nullptr &&
-        p->len >= kArpFrameLen) {
-        const auto *f = static_cast<const std::uint8_t *>(p->payload);
-        if (isArp(f)) {
+    if (flavor != ut::kIngressFaultNone && p != nullptr && p->payload != nullptr) {
+        auto *f = static_cast<std::uint8_t *>(p->payload);
+        if (p->len >= kArpFrameLen && isArp(f)) {
             if (flavor == ut::kArpFaultReplyToDropFrame) {
                 emitProhibitedArpReply(nif, f);
             } else if (flavor == ut::kArpFaultLearnFromDropFrame &&
                        get16(f, kArpOpcode) == 0x0002) {  // learn only from a Response
                 learnDropFrameAddress(f);
+            }
+        } else if ((flavor == ut::kUdpFaultAcceptBadChecksum ||
+                    flavor == ut::kUdpFaultRejectValid) &&
+                   p->len >= kIpProtoOff + 1 && isIpv4(f) &&
+                   f[kIpProtoOff] == kIpProtoUdp &&
+                   p->len >= udpRegionOffset(f) + kUdpHdrLen) {
+            const std::uint16_t udp = udpRegionOffset(f);
+            if (get16(f, udp + kUdpDstPort) == ut::kDataPort) {
+                if (flavor == ut::kUdpFaultRejectValid) {
+                    pbuf_free(p);     // swallow — the DUT wrongly drops a frame it must accept
+                    return ERR_OK;
+                }
+                put16(f, udp + kUdpChecksum, 0x0000);  // accept-bad-checksum: skip lwIP's gate
             }
         }
     }
@@ -106,14 +135,14 @@ void setIngressFaultFlavor(std::uint8_t flavor) {
     g_ingress_flavor.store(flavor, std::memory_order_relaxed);
 }
 
-void installArpIngressFaultHook(struct netif *nif) {
+void installIngressFaultHook(struct netif *nif) {
     // Null netif, or already installed: nothing to do (idempotent — never
     // double-wrap, which would corrupt the saved original input).
     if (nif == nullptr || g_orig_input != nullptr) {
         return;
     }
     g_orig_input = nif->input;
-    nif->input = arpIngressFaultInput;
+    nif->input = ingressFaultInput;
 }
 
 }  // namespace tc8::lwip_dut

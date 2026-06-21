@@ -43,7 +43,7 @@ enum DutCapability : std::uint32_t {
     kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing (opcode only)
     kCapTcpRecvOob = 1u << 6,        // out-of-band (urgent) TCP receive (opcode only)
     kCapEgressFault = 1u << 7,       // egress field fault (OpSetEgressFlavor) — DUT-derived
-    kCapIngressFault = 1u << 8,      // ingress prohibited-emission fault (OpSetIngressFlavor) — DUT-derived
+    kCapIngressFault = 1u << 8,      // ingress reaction fault — ARP emission + UDP acceptance (OpSetIngressFlavor) — DUT-derived
 };
 using DutCapabilities = std::uint32_t;
 
@@ -53,12 +53,17 @@ using DutCapabilities = std::uint32_t;
 // silent N/A skip. Extend alongside every DUT-derived bit added above. The
 // dedicated-fault-opcode shape (kCapEgressFault ↔ OpSetEgressFlavor 0x18,
 // kCapIngressFault ↔ OpSetIngressFlavor 0x19) is the clean case: a 0x16 per-opcode
-// bit is a 1:1 proxy for the whole mechanism. A flavor-byte fault on a
-// SHARED opcode (e.g. the DHCPv4 `_neg` flavors on OpStartDhcpClient 0x10) maps
-// to its host opcode's presence — sound for applicability (a DUT lacking the
-// opcode entirely, like the lwIP fixture for DHCP, correctly skips) but it
-// cannot distinguish a DUT that implements the opcode yet ignores the flavor;
-// that residual is out of scope until such a DUT exists.
+// bit is a 1:1 proxy for the whole mechanism. The one nuance: OpSetIngressFlavor now
+// hosts two reaction kinds (ARP prohibited emission + UDP prohibited acceptance)
+// under the single kCapIngressFault bit, so a DUT advertising the opcode but
+// implementing only one kind would falsely claim the other — the same residual class
+// as a flavor-byte fault on a SHARED opcode (e.g. the DHCPv4 `_neg` flavors on
+// OpStartDhcpClient 0x10): the bit maps to host-opcode presence — sound for
+// applicability (a DUT lacking the opcode entirely, like the lwIP fixture for DHCP,
+// correctly skips) but it cannot distinguish a DUT that implements the opcode yet
+// ignores a flavor. The only ingress-fault DUT is the lwIP fixture, which implements
+// both kinds, so the residual is out of scope until a DUT implements one but not the
+// other.
 inline constexpr DutCapabilities kDutDerivedCaps = kCapEgressFault | kCapIngressFault;
 
 }  // namespace tc8::sce

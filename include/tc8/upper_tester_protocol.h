@@ -848,14 +848,36 @@ inline constexpr std::uint8_t kUdpFaultLengthWrong     = 0x08;  // RFC 768 lengt
 inline constexpr std::uint8_t kUdpFaultChecksumWrong   = 0x09;  // RFC 768 checksum:  §4.6.5.4 UDP_FIELDS_13/14
 inline constexpr std::uint8_t kEgressFaultMax         = kUdpFaultChecksumWrong;
 
-// `OpSetIngressFlavor` prohibited-emission catalog (lwIP fixture input hook). The
-// §4.2.4.2 reception cases where a conformant DUT emits NOTHING (it drops a
-// malformed/foreign frame), so there is no egress to corrupt: the input hook makes
-// the buggy DUT produce the forbidden emission the positive case proves absent.
+// `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
+// reception cases where a conformant DUT's reaction to an inbound frame is itself
+// the property under test, so there is no DUT egress field to corrupt: the input
+// hook makes the buggy DUT exhibit the forbidden reaction the positive case proves
+// absent. Three reaction kinds today: prohibited EMISSION (§4.2.4.2 ARP — the DUT
+// must drop a malformed/foreign frame silently, the fault makes it reply/learn),
+// prohibited ACCEPTANCE (§4.6.5.4 UDP — the DUT must discard a malformed datagram,
+// the fault makes it accept and deliver it to the receive-counting app), and
+// prohibited REJECTION (§4.6.5.4 UDP — the DUT must accept a valid edge-case
+// datagram, the fault makes it drop one it must deliver). One contiguous catalog;
+// the flavor name carries the protocol + reaction.
 inline constexpr std::uint8_t kIngressFaultNone          = 0x00;
+// ARP-over-Ethernet prohibited emission:
 inline constexpr std::uint8_t kArpFaultReplyToDropFrame  = 0x01;  // §4.2.4.2 reply-absence: ARP_21/27/37/42 (reply to a frame the DUT must drop)
 inline constexpr std::uint8_t kArpFaultLearnFromDropFrame = 0x02;  // §4.2.4.2 drop-and-emit: ARP_22/28/38 (learn the dropped Response's address)
-inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultLearnFromDropFrame;
+// UDP prohibited acceptance — the input hook zeroes the inbound datagram's UDP
+// checksum field so lwIP's `chksum != 0` guard skips validation and delivers it. On
+// lwIP this is the ONLY drop gate for these cases: the length-field mutants
+// (FIELDS_09 length 0, _10 length > payload, DATAGRAMLENGTH_01 length < payload)
+// break the checksum because the length field is checksum-covered, and FIELDS_15
+// corrupts the checksum directly — so one "skip checksum validation" fault makes them
+// all accepted. (FIELDS_08's sub-8-byte truncation drops earlier, at the UDP
+// minimum-length gate, and is not faithfully faultable this way — see
+// dut/lwip_dut/README.md.)
+inline constexpr std::uint8_t kUdpFaultAcceptBadChecksum  = 0x03;  // §4.6.5.4 acceptance: UDP_FIELDS_09/10/15 + DATAGRAMLENGTH_01 (accept a datagram its checksum check must drop)
+// UDP prohibited rejection — the input hook swallows the inbound data-listener UDP
+// frame (never forwards it to lwIP) so the receive-counting app never sees a datagram
+// the DUT must accept. Models a DUT that wrongly drops a valid edge-case datagram.
+inline constexpr std::uint8_t kUdpFaultRejectValid       = 0x04;  // §4.6.5.4 rejection: UDP_FIELDS_03 (src port 0) / _16 (checksum 0) (drop a datagram it must accept)
+inline constexpr std::uint8_t kIngressFaultMax           = kUdpFaultRejectValid;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

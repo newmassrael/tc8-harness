@@ -19,5 +19,6 @@
   <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
            expected_received="0"
            fail_reason_wrong_receipt="dut_received_udp_with_invalid_checksum"
-           fail_reason_timeout="no_ut_confirmation_for_invalid_checksum_discard"/>
+           fail_reason_timeout="no_ut_confirmation_for_invalid_checksum_discard"
+           fail_role="observed_violation"/>
 </scxml>

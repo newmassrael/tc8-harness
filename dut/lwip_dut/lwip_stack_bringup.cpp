@@ -19,7 +19,7 @@ extern "C" {
 }
 #include "tcp_isn.h"
 
-#include "lwip_arp_ingress_fault.h"
+#include "lwip_ingress_fault.h"
 #include "lwip_egress_fault.h"
 
 // lwipopts.h routes LWIP_PLATFORM_ASSERT here: loud + fatal, because a tripped
@@ -95,11 +95,11 @@ ip4_addr_t BringUpLwipStack() {
     // OpSetEgressFlavor sets a non-None flavor). Under the core lock with the rest of
     // the netif setup, before any frame can leave.
     installEgressFaultHook(netif_default);
-    // Wrap the tap input with the ARP ingress prohibited-emission hook (inert until
-    // an OpSetIngressFlavor sets a non-None flavor). After the egress hook — the
-    // synthesized Reply is sent via netif->linkoutput, which the egress hook leaves
-    // untouched while no egress flavor is armed.
-    installArpIngressFaultHook(netif_default);
+    // Wrap the tap input with the ingress reaction-fault hook (inert until an
+    // OpSetIngressFlavor sets a non-None flavor). After the egress hook — the ARP
+    // flavor's synthesized Reply is sent via netif->linkoutput, which the egress hook
+    // leaves untouched while no egress flavor is armed.
+    installIngressFaultHook(netif_default);
     UNLOCK_TCPIP_CORE();
 
     return addr;

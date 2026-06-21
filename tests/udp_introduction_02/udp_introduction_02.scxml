@@ -29,5 +29,6 @@
   <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
            expected_received="0"
            fail_reason_wrong_receipt="dut_received_all_systems_multicast_udp"
-           fail_reason_timeout="no_ut_confirmation_for_multicast_deny"/>
+           fail_reason_timeout="no_ut_confirmation_for_multicast_deny"
+           fail_role="observed_violation"/>
 </scxml>

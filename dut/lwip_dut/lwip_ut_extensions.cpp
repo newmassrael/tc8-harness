@@ -10,7 +10,7 @@
 
 #include "tc8/upper_tester_protocol.h"
 
-#include "lwip_arp_ingress_fault.h"
+#include "lwip_ingress_fault.h"
 #include "lwip_egress_fault.h"
 
 namespace tc8::lwip_dut {
@@ -90,9 +90,10 @@ void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server) {
         ut::OpSetIngressFlavor,
         [](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
            std::vector<std::uint8_t> & /*body*/) {
-            // Params: <flavor:u8>. Arms the §4.2.4.2 ARP ingress prohibited-emission
-            // fault: the netif input hook makes the buggy DUT reply to / learn from a
-            // frame it must drop. An out-of-range flavor is malformed.
+            // Params: <flavor:u8>. Arms an ingress reaction-fault: the netif input
+            // hook makes the buggy DUT reply to / learn from an ARP frame it must drop
+            // (§4.2.4.2), or accept a UDP datagram its checksum check must drop
+            // (§4.6.5.4). An out-of-range flavor is malformed.
             if (len < 1 || params[0] > ut::kIngressFaultMax) {
                 status = ut::kStatusMalformed;
                 return;

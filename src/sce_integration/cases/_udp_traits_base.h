@@ -58,4 +58,19 @@ struct UdpEgressFaultNegBase : UdpAnyBase<StateMachine> {
         ::tc8::sce::kCapEgressFault;
 };
 
+// Base for the §4.6.5.4 UDP INGRESS acceptance-fault `_NEG` cases (UDP_FIELDS_09/10/
+// 15). Same UDP dispatch as UdpAnyBase, plus the one declaration every such case
+// shares: it requires the DUT to implement OpSetIngressFlavor (kCapIngressFault).
+// The DUT is the SSOT for that (OpQueryCapabilities 0x16), so the Tier-2 gate runs
+// these only on the lwIP fixture and capability-skips them (N/A) on the kernel-stack
+// reference DUT — the sibling of ArpIngressFaultNegBase on the UDP dispatch. The
+// armed flavor (kUdpFaultAcceptBadChecksum) makes the fixture zero the inbound UDP
+// checksum so lwIP accepts a datagram its checksum check must drop; a conformant DUT
+// still drops it, landing the template's fault_injection_inert fail branch.
+template <typename StateMachine>
+struct UdpIngressFaultNegBase : UdpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault;
+};
+
 }  // namespace tc8::sce

@@ -33,7 +33,9 @@ inline void emitEgressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view i
 }
 
 // emitIngressFlavorArm (UT 0x19 OpSetIngressFlavor): a non-None flavor makes the
-// netif input hook produce a prohibited emission (the §4.2.4.2 ARP reply / learn).
+// netif input hook produce a prohibited reaction to an inbound frame — the §4.2.4.2
+// ARP reply / learn emission, or the §4.6.5.4 UDP acceptance (zero the inbound UDP
+// checksum so lwIP delivers a datagram it must drop).
 inline void emitIngressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
                                  std::uint8_t flavor) {
     if (cfg.stimulus_timing.initial_wait.count() > 0) {
