@@ -274,7 +274,10 @@ jobs:
       # is observed. The §4.8.6.8 close-state siblings (TCP_CLOSING_07/08/09_NEG, same flavor)
       # extend this to the data/FIN the DUT must absorb in FIN-WAIT-1 / FIN-WAIT-2 / CLOSE-WAIT
       # without a RST — the hook synthesizes the RST on the PSH data (07/08) or the tester FIN
-      # (09), and the _neg passes only when that DUT-origin RST is observed. ~13 min.
+      # (09), and the _neg passes only when that DUT-origin RST is observed. The §4.8.6.7
+      # multi-guard sweep FLAGS_PROCESSING_07 graduates via per-fail-final variants
+      # (_NEG/_NEG2/_NEG3/_NEG4 = URG-only in CW/CLOSING/LA/TW), each arming the same flavor and
+      # passing when the synthesized RST is observed. ~15 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -321,7 +324,9 @@ jobs:
             TCP_ACKNOWLEDGEMENT_04_NEG \
             TCP_HEADER_07_NEG TCP_HEADER_08_NEG TCP_HEADER_09_NEG TCP_HEADER_11_NEG \
             TCP_FLAGS_INVALID_03_NEG TCP_FLAGS_INVALID_04_NEG TCP_FLAGS_PROCESSING_11_NEG \
-            TCP_CLOSING_07_NEG TCP_CLOSING_08_NEG TCP_CLOSING_09_NEG
+            TCP_CLOSING_07_NEG TCP_CLOSING_08_NEG TCP_CLOSING_09_NEG \
+            TCP_FLAGS_PROCESSING_07_NEG TCP_FLAGS_PROCESSING_07_NEG2 \
+            TCP_FLAGS_PROCESSING_07_NEG3 TCP_FLAGS_PROCESSING_07_NEG4
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

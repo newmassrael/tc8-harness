@@ -2631,30 +2631,6 @@
         }
       ]
     },
-    "TCP_FLAGS_PROCESSING_07": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_urg_only_in_closing",
-          "property": "Silence is conformant: a URG-only segment in CLOSING must elicit no response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_urg_only_in_cw",
-          "property": "Silence is conformant: a URG-only segment in CLOSE-WAIT must elicit no response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_urg_only_in_la",
-          "property": "Silence is conformant: a URG-only segment in LAST-ACK must elicit no response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_urg_only_in_tw",
-          "property": "Silence is conformant: a URG-only segment in TIME-WAIT must elicit no response; fail iff the DUT emits any reply"
-        }
-      ]
-    },
     "TCP_FLAGS_PROCESSING_08": {
       "guards": [
         {

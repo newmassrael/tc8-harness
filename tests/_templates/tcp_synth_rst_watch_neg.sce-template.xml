@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.8 TCP must-not-respond `_NEG` body for the multi-state active-OPEN sweeps
+  (FLAGS_PROCESSING_07 CW/CLOSING/LA/TW + FLAGS_INVALID_15 EST/FW1/FW2/CW/CLOSING/LA/TW). The
+  positive drives the DUT through an active OPEN to a target close-state and injects a segment
+  it MUST silently absorb (a URG-only segment / an out-of-window RST), asserting no DUT RST or
+  pure ACK on the connection 4-tuple. Its `_NEG` arms kTcpSynthRstOnDisruptive, so the lwIP
+  netif input hook synthesizes the prohibited RST as that disruptive segment arrives.
+
+    Pass:    a DUT RST observed on the case 4-tuple (is_dut_rst) — the synthesized RST, proving
+             the positive's guard would fire on a non-conformant DUT.
+    Fail:    deadline -> fail_compliant — the DUT stayed silent despite the flavor (the fault
+             was inert: a flavor-wiring regression, NOT a DUT conformance violation; role
+             fault_injection_inert).
+
+  Two-state chain: listening_handshake_ack matches the active-OPEN third-leg pure ACK (the
+  connection-reached precondition; a flipped dut_iface_ip makes this unreachable ->
+  inconclusive). listening_rst_watch then carries a generous 20 s window because the trait's
+  per-phase seam (DUT close to CLOSING / LAST-ACK, the FIN-WAIT-2 TIME-WAIT prelude) runs in the
+  stimulus thread AFTER the handshake and emits several intermediate DUT FIN/ACK segments — none
+  of which match is_dut_rst — before the disruptive trigger and the synthesized RST. The cases
+  differ only in the per-case active-OPEN port offset, threaded as {$port_offset}.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="tcp_synth_rst_watch_neg">
+
+  <sce:param name="port_offset" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset})"
+                target="listening_rst_watch"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
+  </state>
+  <state id="listening_rst_watch">
+    <onentry>
+      <send event="deadline_rst_watch" delay="20s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset})"
+                target="pass"/>
+    <transition event="deadline_rst_watch" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silent_despite_synth_rst_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>

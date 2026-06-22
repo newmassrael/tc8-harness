@@ -3646,6 +3646,10 @@
         {
           "file": "src/sce_integration/cases/tcp_closing_07_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/tcp_synth_rst_watch_neg.sce-template.xml",
+          "kind": "references"
         }
       ]
     },
@@ -4719,6 +4723,38 @@
         },
         {
           "file": "tests/tcp_flags_processing_11_neg/tcp_flags_processing_11_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_07_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_07_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_07_neg3.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_07_neg4.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_07_neg/tcp_flags_processing_07_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_07_neg2/tcp_flags_processing_07_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_07_neg3/tcp_flags_processing_07_neg3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_07_neg4/tcp_flags_processing_07_neg4.scxml",
           "kind": "implements"
         }
       ]
