@@ -232,7 +232,7 @@ jobs:
       # listener skips its RFC 1122 destination-address discard (a post-delivery app
       # decision, not a wire mutation) — the _neg passes only when the UT GetReceivedUdp
       # confirmation reports receipt. Last the §4.8.6.16 TCP
-      # multi-phase ack cluster (TCP_HEADER_02/05/06_NEG kTcpFaultDataAckNumWrong): the
+      # multi-phase ack cluster (TCP_HEADER_02/05/06_NEG kTcpFaultPureAckNumWrong): the
       # observed ack_num is on the DATA-elicited ACK, so the flavor is armed PER-PHASE —
       # the handshake is driven disarmed (third-leg ACK escapes), then armed before the
       # data injection so the link-output hook flips only the data-ACK's ack_num — the
@@ -241,7 +241,7 @@ jobs:
       # kAppFaultAcceptDirectedBroadcast), MessageFormat_02 + ADDRESSING_01 (reuse the
       # kUdpFaultRejectValid ingress swallow), USER_INTERFACE_05 (reuses the
       # kUdpFaultSrcPortWrong egress rewrite). Then a TCP ack/RST reuse cluster:
-      # ACKNOWLEDGEMENT_02/03 + SEQUENCE_02 reuse kTcpFaultDataAckNumWrong (02/03
+      # ACKNOWLEDGEMENT_02/03 + SEQUENCE_02 reuse kTcpFaultPureAckNumWrong (02/03
       # per-phase on the data-ACK, SEQUENCE_02 arm-before on the handshake ACK), and
       # FLAGS_INVALID_02 reuses kTcpFaultRstSeqWrong on the LISTEN RST; SEQUENCE_03/04
       # reuse kTcpFaultSynAckAckWrong on the passive-open SYN,ACK ack_num (tester ISN 0

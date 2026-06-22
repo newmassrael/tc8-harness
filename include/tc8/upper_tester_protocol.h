@@ -865,9 +865,9 @@ inline constexpr std::uint8_t kUdpFaultDstPortWrong    = 0x07;  // RFC 768 dst p
 inline constexpr std::uint8_t kUdpFaultLengthWrong     = 0x08;  // RFC 768 length:    §4.6.5.4 UDP_FIELDS_06/07
 inline constexpr std::uint8_t kUdpFaultChecksumWrong   = 0x09;  // RFC 768 checksum:  §4.6.5.4 UDP_FIELDS_13/14
 // TCP (segment-selective; the flavor names the field + the segment it targets):
-inline constexpr std::uint8_t kTcpFaultSynAckAckWrong   = 0x0A;  // RFC 793 ack num:  §4.8 TCP_SEQUENCE_01 (SYN,ACK acks tester ISN+1)
+inline constexpr std::uint8_t kTcpFaultSynAckAckWrong   = 0x0A;  // RFC 793 ack num:  §4.8 TCP_SEQUENCE_01/03/04 (passive-open SYN,ACK acks tester ISN+1)
 inline constexpr std::uint8_t kTcpFaultDataChecksumWrong = 0x0B; // RFC 793 checksum: §4.8 TCP_CHECKSUM_03 (data segment) + §4.8 TCP_HEADER_01 (data segment header validity)
-inline constexpr std::uint8_t kTcpFaultRstSeqWrong      = 0x0C;  // RFC 793 §3.9 seq:  §4.8 TCP_BASICS_04 (closed-port RST SEQ=0) + TCP_BASICS_05 (RST SEQ = incoming ACK)
+inline constexpr std::uint8_t kTcpFaultRstSeqWrong      = 0x0C;  // RFC 793 §3.9 seq:  §4.8 TCP_BASICS_04/05 + FLAGS_INVALID_02 (RST SEQ off the spec value)
 inline constexpr std::uint8_t kTcpFaultSynMssZero       = 0x0D;  // RFC 1122 §4.2.2.6 MSS option: §4.8 TCP_MSS_OPTIONS_11 (active-OPEN SYN advertises a receive MSS)
 inline constexpr std::uint8_t kTcpFaultSynMssDefault    = 0x0E;  // RFC 1122 §4.2.2.6 MSS value:  §4.8 TCP_MSS_OPTIONS_12 (advertised MSS differs from the 536 default)
 // ICMPv4 (§4.3) + IPv4 header (§4.4) on a DUT ICMP message, gated per ICMP type so only
@@ -878,13 +878,15 @@ inline constexpr std::uint8_t kIcmpFaultEchoSeqWrong   = 0x10;  // RFC 792 echo 
 inline constexpr std::uint8_t kIpv4FaultTtlZero        = 0x11;  // RFC 1122 §3.2.1.7 TTL:  §4.4 IPv4_TTL_01 (emitted TTL MUST be non-zero)
 inline constexpr std::uint8_t kIpv4FaultHdrChecksumWrong = 0x12; // RFC 791 §3.1 header checksum: §4.4 IPv4_CHECKSUM_05
 inline constexpr std::uint8_t kIcmpFaultDestUnreachCodeWrong = 0x13; // RFC 1122 §3.2.2.1 code: §4.3 ICMPv4_TYPE_18 (Protocol Unreachable code 2)
-// TCP (§4.8) data-elicited ACK ack_num. Appended at the catalog tail (the value space
-// is append-only; numeric grouping with the 0x0A-0x0E TCP block is not maintained for
-// later additions). Gated on a pure DUT ACK and armed per-phase (after the handshake,
-// before the data injection) so only the data-elicited ACK is corrupted, not the
-// handshake third leg whose ack_num would break the connection.
-inline constexpr std::uint8_t kTcpFaultDataAckNumWrong = 0x14;  // RFC 793 §3.9 ack num: §4.8 TCP_HEADER_02/05/06 (data-ACK acks the injected payload)
-inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultDataAckNumWrong;
+// TCP (§4.8) pure-ACK ack_num. Appended at the catalog tail (the value space is
+// append-only; numeric grouping with the 0x0A-0x0E TCP block is not maintained for
+// later additions). Gated on a pure DUT ACK — the flavor names the field, the caller's
+// arm timing names which ACK: per-phase after the handshake for a data-elicited ACK
+// (HEADER_02/05/06, ACKNOWLEDGEMENT_02/03), or armed up front for the single ACK of a
+// SYN-SENT open (SEQUENCE_02). The handshake third leg (also a pure ACK) is escaped by
+// the arm timing, not the gate.
+inline constexpr std::uint8_t kTcpFaultPureAckNumWrong = 0x14;  // RFC 793 §3.9 ack num: §4.8 HEADER_02/05/06 + ACKNOWLEDGEMENT_02/03 + SEQUENCE_02
+inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultPureAckNumWrong;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself

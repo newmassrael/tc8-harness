@@ -28,7 +28,7 @@ using TcpHeader02NegSM =
 
 namespace tc8::sce {
 
-// Self-validation of TCP_HEADER_02: kTcpFaultDataAckNumWrong flips the data-elicited
+// Self-validation of §4.8.6.16 TCP_HEADER_02: kTcpFaultPureAckNumWrong flips the data-elicited
 // ACK's ack_num so it no longer acknowledges the injected payload; a conformant DUT
 // acks (snd_nxt + payload_len). The observed field is on the SECOND DUT pure ACK, so
 // the fault is armed per-phase — the handshake is driven disarmed (its third-leg ACK
@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::TcpHeader02NegSM>
     static constexpr std::string_view kCaseId       = "TCP_HEADER_02_NEG";
     static constexpr std::string_view kSpecSection  = "4.8.6.16";
     static constexpr std::string_view kDescription  =
-        "Self-validation of TCP_HEADER_02: the lwIP kTcpFaultDataAckNumWrong egress "
+        "Self-validation of TCP_HEADER_02: the lwIP kTcpFaultPureAckNumWrong egress "
         "flavor flips the data-elicited ACK's ack_num; a conformant DUT acks the payload";
 
     // Same 4 B in-window payload the positive injects — content is immaterial (the
@@ -75,7 +75,7 @@ struct TestCaseTraits<cases::TcpHeader02NegSM>
 
         // Per-phase arm: the handshake third-leg ACK has already left (driveSeamActiveOpen
         // + acceptOne completed it), so arming now corrupts only the data-elicited ACK.
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultDataAckNumWrong);
+        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port = remote_port;
@@ -87,7 +87,7 @@ struct TestCaseTraits<cases::TcpHeader02NegSM>
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         // Short pre-injection wait so the arm lands before the data elicits the ACK.
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/std::chrono::milliseconds(200));
+                     /*initial_wait=*/kEgressArmSettle);
         ::close(tester_fd);
     }
 };

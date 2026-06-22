@@ -20,6 +20,13 @@
 
 namespace tc8::sce {
 
+// The settle a per-phase `_neg` inserts AFTER emitEgressFlavorArmMidStream and BEFORE
+// the stimulus that elicits the observed segment, so the (raw-injected) arm is processed
+// by the DUT's UT thread before the segment is emitted on the tcpip thread. Used as the
+// `initial_wait` of the eliciting emit. Distinct from kTcpPilotPhaseGap (a phase gap),
+// though currently the same 200 ms.
+inline constexpr auto kEgressArmSettle = std::chrono::milliseconds(200);
+
 // emitEgressFlavorArm (UT 0x18 OpSetEgressFlavor): a non-None flavor makes the netif
 // link-output hook corrupt one header field of the next DUT-emitted frame (ARP
 // fields, UDP src/dst port / length / checksum, ...).

@@ -4,7 +4,7 @@
   _06 "DUT ignores a non-zero Reserved field and ACKs with the expected Ack Number"
   guard. The observed field (ack_num) is on the DATA-elicited ACK, so the fault is armed
   per-phase: the trait drives the active OPEN disarmed (handshake third-leg ACK escapes),
-  then arms kTcpFaultDataAckNumWrong before raw-injecting the Reserved=0xF data. The
+  then arms kTcpFaultPureAckNumWrong before raw-injecting the Reserved=0xF data. The
   DUT's data-ACK then carries a flipped ack_num.
   Pass = the data-ACK's ack_num does NOT acknowledge the payload (the injected violation
   observed); fail_compliant = the DUT still acked correctly despite the flavor (fault
@@ -45,7 +45,7 @@
                 target="pass"/>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 34U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 34U) and captured.ack_num == captured.expected_ack_num"
-                target="fail_compliant_correct_ack_num"/>
+                target="fail_compliant"/>
     <transition event="deadline_data_ack" target="inconclusive_no_data_ack"/>
   </state>
 
@@ -67,7 +67,7 @@
     </donedata>
   </final>
 
-  <final id="fail_compliant_correct_ack_num">
+  <final id="fail_compliant">
     <donedata>
       <content>{"verdict":"fail","reason":"dut_ack_num_correct_despite_flavor","role":"fault_injection_inert"}</content>
     </donedata>

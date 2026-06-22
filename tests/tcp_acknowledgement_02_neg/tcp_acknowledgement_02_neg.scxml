@@ -4,7 +4,7 @@
   positive _02 "DUT ACKs piggybacked in-window data with the expected Ack Number"
   guard. The observed ack_num is on the DATA-elicited ACK (the second DUT pure ACK), so
   the fault is armed per-phase: the trait drives the active OPEN + DUT data send with the
-  fault disarmed (the handshake third-leg ACK escapes), then arms kTcpFaultDataAckNumWrong
+  fault disarmed (the handshake third-leg ACK escapes), then arms kTcpFaultPureAckNumWrong
   before raw-injecting the tester data. The DUT's data-ACK then carries a flipped ack_num.
   Pass = the data-ACK's ack_num does NOT acknowledge the payload (the injected violation);
   fail_compliant = the DUT still acked correctly despite the flavor (fault inert).
@@ -44,7 +44,7 @@
                 target="pass"/>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpAck02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpAck02LocalOffset) and captured.ack_num == captured.expected_ack_num"
-                target="fail_compliant_correct_ack_num"/>
+                target="fail_compliant"/>
     <transition event="deadline_data_ack" target="inconclusive_no_data_ack"/>
   </state>
 
@@ -66,7 +66,7 @@
     </donedata>
   </final>
 
-  <final id="fail_compliant_correct_ack_num">
+  <final id="fail_compliant">
     <donedata>
       <content>{"verdict":"fail","reason":"dut_ack_num_correct_despite_flavor","role":"fault_injection_inert"}</content>
     </donedata>

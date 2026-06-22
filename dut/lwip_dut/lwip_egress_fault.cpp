@@ -120,7 +120,7 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
     const bool is_syn_only = (flags & kTcpFlagSyn) && !(flags & kTcpFlagAck);
     const bool is_rst      = (flags & kTcpFlagRst) != 0;
     // A pure ACK carries ACK with no SYN/FIN/RST and no payload — the shape of both the
-    // handshake third leg and a data-elicited ACK. kTcpFaultDataAckNumWrong is armed
+    // handshake third leg and a data-elicited ACK. kTcpFaultPureAckNumWrong is armed
     // per-phase (after the handshake) so only the latter is in flight when it fires.
     const bool is_pure_ack = (flags & kTcpFlagAck) && !(flags & kTcpFlagSyn) &&
                              !(flags & kTcpFlagFin) && !is_rst && !tcpHasPayload(f, tcp);
@@ -148,7 +148,7 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
         // acknowledges the injected payload (RFC 793 §3.9). Gated on a pure ACK and
         // armed only after the handshake completes, so the handshake third leg (also a
         // pure ACK) escaped and this fires on the data-ACK the case observes.
-        case ut::kTcpFaultDataAckNumWrong:
+        case ut::kTcpFaultPureAckNumWrong:
             if (is_pure_ack) put32(f, tcp + kTcpAckNumOff,
                                    get32(f, tcp + kTcpAckNumOff) ^ kTcpSeqAckFlip);
             break;

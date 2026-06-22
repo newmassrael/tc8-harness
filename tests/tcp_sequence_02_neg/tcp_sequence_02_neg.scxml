@@ -2,13 +2,11 @@
 <!--
   TC8 §4.8.6.17 TCP_SEQUENCE_02 negative — lwIP egress self-validation of the positive
   _02 "from SYN-SENT the DUT ACKs the tester's ISN+1" guard. The observed ack is the
-  DUT's first pure ACK (its response to the injected SYN,ACK); the DUT's own SYN is not
-  a pure ACK, so the fault can be armed up front (arm-before) and corrupts only that ACK.
-  The trait arms kTcpFaultDataAckNumWrong before driving the SYN-SENT open, so the DUT's
-  ACK carries a flipped ack_num.
-  Pass = the ack_num does NOT equal tester ISN+1 (the injected violation observed);
-  fail_compliant = the DUT still acked ISN+1 despite the flavor (fault inert). lwIP-only
-  (kCapEgressFault). Mirrors tcp_sequence_02's single pure-ACK observation.
+  DUT's first pure ACK (its response to the injected SYN,ACK); the DUT's own SYN is not a
+  pure ACK, so the trait arms kTcpFaultPureAckNumWrong up front (arm-before) and corrupts
+  only that ACK. Pass = the ack_num does NOT equal tester ISN+1 (the injected violation);
+  fail_compliant = the DUT acked ISN+1 despite the flavor (fault inert). lwIP-only
+  (kCapEgressFault). Envelope: tcp_egress_field_check.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -17,42 +15,11 @@
        name="tcp_sequence_02_neg"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
-  <sce:context id="expected"
-               cpp:type="tc8::Ipv4Expected"
-               cpp:include="sce_integration/ipv4_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="6s"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x01) == 0 and captured.ack_num != ::tc8::sce::tcp::kTesterInitialSeq + 1U"
-                target="pass"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpSequence02LocalOffset and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x01) == 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
-                target="fail_compliant_correct_ack_num"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_compliant_correct_ack_num">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_ack_num_correct_despite_flavor","role":"fault_injection_inert"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_timeout">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_synack_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/tcp_egress_field_check.sce-template.xml"
+           filter="captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpSequence02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpSequence02LocalOffset)"
+           pass_expr="captured.ack_num != ::tc8::sce::tcp::kTesterInitialSeq + 1U"
+           fail_state="fail_compliant"
+           fail_reason="dut_ack_num_correct_despite_flavor"
+           fail_role="fault_injection_inert"
+           inconclusive_reason="no_dut_ack_to_synack_within_listen_window"/>
 </scxml>

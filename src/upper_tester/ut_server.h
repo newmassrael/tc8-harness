@@ -66,9 +66,12 @@ public:
     // in upper_tester_protocol.h). While a non-None flavor is set, dataListenerLoop
     // skips the matching RFC 1122 destination-address discard so a buggy DUT counts a
     // datagram it must drop — the reception a §4.4.4.5 positive proves absent. The
-    // discard policy lives here (shared core), so its fault bypass does
-    // too; the OpSetAppFlavor opcode that drives it is registered only by the lwIP
-    // fixture, so the kernel-backed tc8-dut never arms it. Thread-safe: written from
+    // destination-address discard is shared-core conformant behaviour, and a
+    // post-delivery app decision is out of the fixture's netif-level reach, so the fault
+    // STATE must live here; it is co-located with the policy it bypasses — a deliberate
+    // choice over a separate discard-predicate seam, since the skip is a one-line gate.
+    // The OpSetAppFlavor opcode that drives it is registered only by the lwIP fixture, so
+    // the kernel-backed tc8-dut never arms it. Thread-safe: written from
     // the OpSetAppFlavor handler on the UT thread, read on the data-listener thread.
     void setAppFaultFlavor(std::uint8_t flavor);
 

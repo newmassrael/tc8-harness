@@ -285,12 +285,15 @@ to the socket, so the listener's deny is the real drop.)
 **§4.8 TCP egress field faults.** The egress seam extends to TCP, but TCP is
 stateful so each flavor is segment-selective (the link-output hook sees every DUT
 segment; corrupting all of them would break the handshake the observed segment
-depends on). Ten positives are wired (13 `_neg` files — BASICS_04 and BASICS_05 carry
-one sibling per iteration, mapped in `tools/fault_injection_coverage.json`):
+depends on). The wired cases are listed below by flavor (the authoritative case/file
+count is the Phase F floor `tools/fault_injection_floor.txt` plus the per-push smoke
+lane — not hand-maintained here; BASICS_04/05 carry one sibling per iteration, mapped
+in `tools/fault_injection_coverage.json`):
 
-- `TCP_SEQUENCE_01_NEG` (`kTcpFaultSynAckAckWrong` — flip the SYN,ACK ack_num, gated
-  on the SYN,ACK; the tester completes the handshake from the uncorrupted seq so the
-  segment is still captured).
+- `TCP_SEQUENCE_01_NEG` / `_03_NEG` / `_04_NEG` (`kTcpFaultSynAckAckWrong` — flip the
+  passive-open SYN,ACK ack_num, gated on the SYN,ACK; the tester completes the handshake
+  from the uncorrupted seq so the segment is still captured. 03/04 are §4.8.6.17 siblings
+  with tester ISN 0 / wrap-around 2^32-1).
 - `TCP_CHECKSUM_03_NEG` (`kTcpFaultDataChecksumWrong` — XOR a DATA segment's
   checksum, gated on payload so the handshake stays valid).
 - `TCP_BASICS_04_NEG` / `_NEG2` / `_NEG3` (`kTcpFaultRstSeqWrong` — XOR the closed-port
@@ -300,6 +303,8 @@ one sibling per iteration, mapped in `tools/fault_injection_coverage.json`):
 - `TCP_BASICS_05_NEG` / `_NEG2` (`kTcpFaultRstSeqWrong`, reused) — same RST-seq flavor,
   but the positive's RST SEQ echoes the incoming ACK (kTesterPilotAckPhase*), so each
   sibling injects the SYN,ACK / bare-ACK iteration to prove its fail-final.
+- `TCP_FLAGS_INVALID_02_NEG` (`kTcpFaultRstSeqWrong`, reused) — flip the LISTEN-state
+  RST's seq off the incoming SEG.ACK, gated on the RST flag (§4.8.6.6).
 - `TCP_MSS_OPTIONS_11_NEG` (`kTcpFaultSynMssZero`) / `TCP_MSS_OPTIONS_12_NEG`
   (`kTcpFaultSynMssDefault`) — walk the active-OPEN SYN's TCP options to the kind=2
   MSS option and zero its value (11) or force it to the 536 default (12), gated on
@@ -307,15 +312,15 @@ one sibling per iteration, mapped in `tools/fault_injection_coverage.json`):
 - `TCP_HEADER_01_NEG` (`kTcpFaultDataChecksumWrong`, reused) — self-validates
   HEADER_01's *checksum* conjunct only; its data_offset conjunct is unreachable
   (below).
-- `TCP_HEADER_02_NEG` / `TCP_HEADER_05_NEG` / `TCP_HEADER_06_NEG`
-  (`kTcpFaultDataAckNumWrong`) — flip the *data-elicited* ACK's ack_num so it no
-  longer acknowledges the injected payload. The observed ACK is the second DUT pure
-  ACK (the first is the handshake third leg), so the flavor is armed PER-PHASE: the
-  trait drives the active OPEN with the fault disarmed (the handshake ACK escapes),
-  then arms via `emitEgressFlavorArmMidStream` before injecting the data, with a short
-  pre-injection wait so the arm lands first. 02/05/06 differ only in the injected
-  segment's Reserved field (default / 0 / 0xF), which the ack_num fault is independent
-  of.
+- `TCP_HEADER_02/05/06_NEG`, `TCP_ACKNOWLEDGEMENT_02/03_NEG`, `TCP_SEQUENCE_02_NEG`
+  (`kTcpFaultPureAckNumWrong`) — flip a pure DUT ACK's ack_num. The flavor gates on a
+  pure ACK; the caller's arm timing names *which* one: PER-PHASE after the handshake for
+  a data-elicited ACK (HEADER_02/05/06 §4.8.6.16, ACKNOWLEDGEMENT_02/03 §4.8.6.18) via
+  `emitEgressFlavorArmMidStream` + a `kEgressArmSettle` pre-injection wait so the arm
+  lands first; or armed UP FRONT for the single ACK of a SYN-SENT open (SEQUENCE_02
+  §4.8.6.17). The handshake third leg (also a pure ACK) is escaped by the arm timing,
+  not the gate. HEADER 02/05/06 differ only in the injected segment's Reserved field
+  (default / 0 / 0xF), which the ack_num fault is independent of.
 
 **Why TCP_HEADER_01's data_offset conjunct is not self-validatable here.** libtins
 (`build/libtins-4.0/src/tcp.cpp`) throws `malformed_packet` when
@@ -343,6 +348,12 @@ laziness:
   registry by policy, not a fault target. (HEADER_02/05/06 — the data-ACK ack_num
   cases — are now wired via per-phase arming, above. HEADER_07/08/09/11 and CHECKSUM_02
   are ingress-drop / addressing cases — wrong seam entirely.)
+- **TCP_ACKNOWLEDGEMENT_04 (RST-after-pure-ACK).** Its fail-final fires when the DUT
+  *emits a RST* after receiving a pure ACK — a behavioural misbehaviour (the DUT must
+  emit a frame it otherwise would not), not a field corruption of a frame it already
+  emits. The egress field-mutate seam cannot synthesise that emission; a behavioural /
+  ingress-reaction seam would. Deferred — wrong seam for the egress field-fault cluster
+  (its §4.8.6.18 siblings ACKNOWLEDGEMENT_02/03 are ack_num field faults, wired above).
 
 ## lwipopts.h alignment (why each non-default option exists)
 

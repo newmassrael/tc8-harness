@@ -28,7 +28,7 @@ using TcpAcknowledgement02NegSM =
 
 namespace tc8::sce {
 
-// Self-validation of §4.8.6.18 TCP_ACKNOWLEDGEMENT_02: kTcpFaultDataAckNumWrong flips
+// Self-validation of §4.8.6.18 TCP_ACKNOWLEDGEMENT_02: kTcpFaultPureAckNumWrong flips
 // the data-elicited ACK's ack_num so it no longer acknowledges the piggybacked payload;
 // a conformant DUT acks it. The observed ACK is the second DUT pure ACK, so the fault is
 // armed per-phase — the active OPEN + DUT data send is driven disarmed, then the flavor
@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement02NegSM>
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_02_NEG";
     static constexpr std::string_view kSpecSection  = "4.8.6.18";
     static constexpr std::string_view kDescription  =
-        "Self-validation of TCP_ACKNOWLEDGEMENT_02: the lwIP kTcpFaultDataAckNumWrong "
+        "Self-validation of TCP_ACKNOWLEDGEMENT_02: the lwIP kTcpFaultPureAckNumWrong "
         "egress flavor flips the data-elicited ACK's ack_num; a conformant DUT acks the payload";
 
     // Content immaterial (the fault corrupts ack_num regardless); only the tester
@@ -77,7 +77,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement02NegSM>
 
         // Per-phase arm: the handshake ACK and the DUT data send have left, so this
         // corrupts only the data-elicited ACK.
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultDataAckNumWrong);
+        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port = remote_port;
@@ -87,7 +87,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement02NegSM>
         data.flags    = ::tc8::stimulus::kTcpFlagPsh | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kTesterPayload.begin(), kTesterPayload.end());
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/std::chrono::milliseconds(200));
+                     /*initial_wait=*/kEgressArmSettle);
         ::close(tester_fd);
     }
 };

@@ -4050,6 +4050,22 @@
         {
           "file": "tests/tcp_header_06_neg/tcp_header_06_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_header_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_header_05_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_header_06_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },
@@ -4112,6 +4128,10 @@
         {
           "file": "src/sce_integration/cases/tcp_sequence_04_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },
@@ -4150,6 +4170,10 @@
         {
           "file": "src/sce_integration/cases/tcp_acknowledgement_03_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },
@@ -4458,6 +4482,10 @@
         {
           "file": "src/sce_integration/cases/tcp_flags_invalid_02_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },

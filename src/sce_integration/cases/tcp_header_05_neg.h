@@ -28,7 +28,7 @@ using TcpHeader05NegSM =
 
 namespace tc8::sce {
 
-// Self-validation of TCP_HEADER_05: kTcpFaultDataAckNumWrong flips the data-elicited
+// Self-validation of §4.8.6.16 TCP_HEADER_05: kTcpFaultPureAckNumWrong flips the data-elicited
 // ACK's ack_num after the DUT accepts Reserved=0 data; a conformant DUT acks the
 // payload. Per-phase arm (after the handshake) so only the data-ACK is corrupted.
 // lwIP-only (kCapEgressFault). Mirrors tcp_header_05's stimulus on the +33 port quad.
@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::TcpHeader05NegSM>
     static constexpr std::string_view kCaseId       = "TCP_HEADER_05_NEG";
     static constexpr std::string_view kSpecSection  = "4.8.6.16";
     static constexpr std::string_view kDescription  =
-        "Self-validation of TCP_HEADER_05: the lwIP kTcpFaultDataAckNumWrong egress "
+        "Self-validation of TCP_HEADER_05: the lwIP kTcpFaultPureAckNumWrong egress "
         "flavor flips the Reserved=0 data-ACK's ack_num; a conformant DUT acks the payload";
 
     static constexpr std::array<std::uint8_t, 4> kDataPayload = {
@@ -71,7 +71,7 @@ struct TestCaseTraits<cases::TcpHeader05NegSM>
 
         // Per-phase arm: the handshake third-leg ACK has already left, so this corrupts
         // only the data-elicited ACK.
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultDataAckNumWrong);
+        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port          = remote_port;
@@ -83,7 +83,7 @@ struct TestCaseTraits<cases::TcpHeader05NegSM>
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         data.reserved_override = 0x00U;
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/std::chrono::milliseconds(200));
+                     /*initial_wait=*/kEgressArmSettle);
         ::close(tester_fd);
     }
 };

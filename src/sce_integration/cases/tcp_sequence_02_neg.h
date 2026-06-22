@@ -26,7 +26,7 @@ using TcpSequence02NegSM =
 
 namespace tc8::sce {
 
-// Self-validation of §4.8.6.17 TCP_SEQUENCE_02: kTcpFaultDataAckNumWrong flips the
+// Self-validation of §4.8.6.17 TCP_SEQUENCE_02: kTcpFaultPureAckNumWrong flips the
 // ack_num of the DUT's ACK to the injected SYN,ACK so it no longer equals tester ISN+1;
 // a conformant DUT acks ISN+1. The DUT's own SYN is not a pure ACK, so the flavor is
 // armed up front (arm-before) and corrupts only the single observed ACK. lwIP-only
@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::TcpSequence02NegSM>
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_02_NEG";
     static constexpr std::string_view kSpecSection  = "4.8.6.17";
     static constexpr std::string_view kDescription  =
-        "Self-validation of TCP_SEQUENCE_02: the lwIP kTcpFaultDataAckNumWrong egress "
+        "Self-validation of TCP_SEQUENCE_02: the lwIP kTcpFaultPureAckNumWrong egress "
         "flavor flips the ack_num of the DUT's ACK; a conformant DUT acks the tester ISN+1";
 
     static void stimulus(Captured& /*c*/,
@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::TcpSequence02NegSM>
                          ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultDataAckNumWrong);
+        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         const std::uint16_t local_port  =
             kBasicsActiveLocalPort + kTcpSequence02LocalOffset;
