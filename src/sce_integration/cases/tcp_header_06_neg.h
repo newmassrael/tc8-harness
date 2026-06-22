@@ -84,7 +84,7 @@ struct TestCaseTraits<cases::TcpHeader06NegSM>
         // 0x0F = all four RFC 793 §3.1 reserved bits, matching the positive.
         data.reserved_override = 0x0FU;
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/kEgressArmSettle);
+                     /*initial_wait=*/kFlavorArmSettle);
         ::close(tester_fd);
     }
 };

@@ -2498,24 +2498,6 @@
         }
       ]
     },
-    "TCP_FLAGS_INVALID_03": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_ack_rst_with_unacceptable_ack",
-          "property": "Silence is conformant: DUT must drop an ACK-RST with an unacceptable ACK; fail iff it emits any reply"
-        }
-      ]
-    },
-    "TCP_FLAGS_INVALID_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_bare_rst_in_syn_sent",
-          "property": "Silence is conformant: DUT must drop a bare RST in SYN-SENT without response; fail iff it emits any reply"
-        }
-      ]
-    },
     "TCP_FLAGS_INVALID_05": {
       "guards": [
         {
@@ -2749,15 +2731,6 @@
           "class": "prohibited_emission",
           "fail_reason": "dut_sent_second_segment_before_piggyback_inject",
           "property": "Silence is conformant: DUT must not emit a second data segment before the tester injects the piggyback ACK; fail iff it does"
-        }
-      ]
-    },
-    "TCP_FLAGS_PROCESSING_11": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_duplicate_ack_in_est",
-          "property": "Silence is conformant: DUT must not respond to a duplicate ACK in ESTABLISHED; fail iff it emits a reply"
         }
       ]
     },

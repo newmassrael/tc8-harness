@@ -87,7 +87,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement02NegSM>
         data.flags    = ::tc8::stimulus::kTcpFlagPsh | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kTesterPayload.begin(), kTesterPayload.end());
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/kEgressArmSettle);
+                     /*initial_wait=*/kFlavorArmSettle);
         ::close(tester_fd);
     }
 };

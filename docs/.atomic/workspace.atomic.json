@@ -3630,6 +3630,18 @@
         {
           "file": "src/sce_integration/cases/tcp_header_07_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_11_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4634,6 +4646,22 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_03_neg/tcp_flags_invalid_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_04_neg/tcp_flags_invalid_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -4679,6 +4707,14 @@
         },
         {
           "file": "tests/tcp_flags_processing_11/tcp_flags_processing_11.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_11_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_11_neg/tcp_flags_processing_11_neg.scxml",
           "kind": "implements"
         }
       ]

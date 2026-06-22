@@ -227,15 +227,24 @@ a post-delivery application decision, below the netif glue's reach:
     hook builds the whole frame (Ethernet + IPv4 + 8-byte ICMP, both checksums via
     lwIP's own `inet_chksum`) rather than corrupting an egress field. The guard reads
     only the reply's type + source IP.
-  - *§4.8 TCP behavioral prohibited emission* — `kTcpSynthRst` synthesizes a RST on the
-    connection's 4-tuple when a pure ACK arrives in ESTABLISHED (`§4.8.6.18`
-    ACKNOWLEDGEMENT_04, the DUT must stay silent). The RFC 793 §3.9 guards check only the
-    4-tuple + RST flag — never seq/ack — so the synthesized segment needs no connection-
-    state tracking: the inbound trigger's swapped addresses give the whole 4-tuple, and
-    seq/ack stay 0. Armed per-phase (after ESTABLISHED) so the handshake is unaffected. This
-    is the behavioural seam the egress field-fault cannot reach — there is no DUT-emitted RST
-    to corrupt, so the hook synthesizes it. (The same seam generalises to the other §4.8
-    must-not-respond guards — `dut_emitted_response_to_*` / `dut_acked_*` — as they land.)
+  - *§4.8 TCP behavioral prohibited emission* — the hook synthesizes the forbidden TCP
+    response on the connection's 4-tuple (swapped from the inbound trigger; the RFC 793 §3.9
+    guards check only the 4-tuple + flag — never seq/ack — so the synthesized segment needs
+    no connection-state tracking, and seq/ack stay 0). The flavor names the response and its
+    dispatch gate names the trigger; armed per-phase so the handshake is unaffected:
+    - `kTcpSynthRst` — synthesize a RST when a **pure ACK** arrives (`§4.8.6.18`
+      ACKNOWLEDGEMENT_04 in ESTABLISHED; `§4.8.6.7` FLAGS_PROCESSING_11 duplicate-ACK in
+      ESTABLISHED — the duplicate is itself a pure ACK).
+    - `kTcpSynthAck` — synthesize a challenge ACK when a **SYN or PSH** segment the DUT must
+      drop arrives (`§4.8.6.16` HEADER_07/08/09/11 malformed / multicast).
+    - `kTcpSynthRstOnDisruptive` — synthesize a RST when a **disruptive** segment (RST / FIN /
+      URG / PSH) the DUT must answer with silence arrives (`§4.8.6.6` FLAGS_INVALID_03/04
+      RST-in-SYN-SENT; the CLOSING_07/08/09 FW1/FW2/CW data/FIN cases as they land). The gate
+      excludes a bare pure ACK and a bare SYN, so the handshake and the tester's auto-ACKs
+      never trigger it.
+
+    This is the behavioural seam the egress field-fault cannot reach — there is no DUT-emitted
+    segment to corrupt, so the hook synthesizes the whole frame.
   - *§4.6.5.4 UDP prohibited acceptance* — `kUdpFaultAcceptBadChecksum` zeroes the
     inbound UDP checksum so lwIP's `chksum != 0` gate skips and delivers a datagram
     it must drop.
@@ -388,9 +397,13 @@ laziness:
   (`HEADER_07/08/09/11_NEG`, `kTcpSynthAck` — synthesize a pure ACK on a malformed (bad data
   offset / zero checksum) or multicast-destination segment the DUT must drop, gated on SYN|PSH;
   the synthesized source IP is the DUT's own netif address, so the multicast trigger still
-  yields a DUT-sourced reply). The remaining must-not-respond family
-  (`dut_emitted_response_to_*`, FLAGS_INVALID / FLAGS_PROCESSING) is reachable the same way and
-  lands as those cases are built.
+  yields a DUT-sourced reply), and the §4.8 **must-not-respond** cluster
+  (`FLAGS_INVALID_03/04_NEG` RST-in-SYN-SENT + `FLAGS_PROCESSING_11_NEG` duplicate-ACK-in-EST —
+  `kTcpSynthRstOnDisruptive` for the SYN-SENT RSTs, `kTcpSynthRst` for the pure-ACK duplicate —
+  the hook synthesizes the prohibited RST when the disruptive segment arrives). The remaining
+  must-not-respond cases (CLOSING_07/08/09 in FW1/FW2/CW, and the multi-guard state-sweeps
+  FLAGS_INVALID_15 / FLAGS_PROCESSING_07/08) are reachable the same way and land as those cases
+  are built.
 
 ## lwipopts.h alignment (why each non-default option exists)
 

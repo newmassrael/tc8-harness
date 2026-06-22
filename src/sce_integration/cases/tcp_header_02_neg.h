@@ -87,7 +87,7 @@ struct TestCaseTraits<cases::TcpHeader02NegSM>
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         // Short pre-injection wait so the arm lands before the data elicits the ACK.
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/kEgressArmSettle);
+                     /*initial_wait=*/kFlavorArmSettle);
         ::close(tester_fd);
     }
 };

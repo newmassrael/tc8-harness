@@ -76,7 +76,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03NegSM>
         data.flags    = ::tc8::stimulus::kTcpFlagPsh | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/kEgressArmSettle);
+                     /*initial_wait=*/kFlavorArmSettle);
         std::this_thread::sleep_for(kDelayedAckSettle);
         if (open.conn) {
             ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);

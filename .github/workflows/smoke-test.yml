@@ -266,7 +266,12 @@ jobs:
       # (TCP_HEADER_07/08/09/11_NEG, kTcpSynthAck): the DUT must silently drop a malformed (bad
       # data offset / zero checksum) or multicast-destination segment, so the hook synthesizes
       # the prohibited challenge ACK on the connection 4-tuple — the _neg passes only when that
-      # DUT-origin pure ACK is observed. ~11 min.
+      # DUT-origin pure ACK is observed. Finally the §4.8 must-not-respond cluster
+      # (TCP_FLAGS_INVALID_03/04_NEG + TCP_FLAGS_PROCESSING_11_NEG, kTcpSynthRstOnDisruptive /
+      # kTcpSynthRst): the DUT must drop an ACK-RST or bare RST in SYN-SENT, and ignore a
+      # duplicate ACK in ESTABLISHED, without responding; the hook synthesizes the prohibited
+      # RST when the disruptive segment arrives — the _neg passes only when that DUT-origin RST
+      # is observed. ~12 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -311,7 +316,8 @@ jobs:
             UDP_USER_INTERFACE_01_NEG UDP_USER_INTERFACE_02_NEG \
             UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG \
             TCP_ACKNOWLEDGEMENT_04_NEG \
-            TCP_HEADER_07_NEG TCP_HEADER_08_NEG TCP_HEADER_09_NEG TCP_HEADER_11_NEG
+            TCP_HEADER_07_NEG TCP_HEADER_08_NEG TCP_HEADER_09_NEG TCP_HEADER_11_NEG \
+            TCP_FLAGS_INVALID_03_NEG TCP_FLAGS_INVALID_04_NEG TCP_FLAGS_PROCESSING_11_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

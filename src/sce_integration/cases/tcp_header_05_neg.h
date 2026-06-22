@@ -83,7 +83,7 @@ struct TestCaseTraits<cases::TcpHeader05NegSM>
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         data.reserved_override = 0x00U;
         emitTcpFrame(cfg, iface, cfg.dut.mac, data,
-                     /*initial_wait=*/kEgressArmSettle);
+                     /*initial_wait=*/kFlavorArmSettle);
         ::close(tester_fd);
     }
 };

@@ -75,6 +75,7 @@ constexpr std::uint8_t  kTcpFlagSyn     = 0x02;
 constexpr std::uint8_t  kTcpFlagRst     = 0x04;
 constexpr std::uint8_t  kTcpFlagPsh     = 0x08;
 constexpr std::uint8_t  kTcpFlagAck     = 0x10;
+constexpr std::uint8_t  kTcpFlagUrg     = 0x20;
 // RFC 793 §3.1 kind=2 MSS option: 1 B kind + 1 B length(4) + 2 B value.
 constexpr std::uint8_t  kTcpOptKindEnd  = 0;   // End of Options List (no length)
 constexpr std::uint8_t  kTcpOptKindNop  = 1;   // No-Operation (no length)
