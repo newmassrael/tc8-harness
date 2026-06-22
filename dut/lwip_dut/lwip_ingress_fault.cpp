@@ -13,7 +13,8 @@
 //     ERROR_04 trigger), addressed back to the trigger's sender.
 //   * §4.8 TCP behavioral prohibited emission — synthesize the prohibited TCP
 //     response on the connection's 4-tuple (a RST after a pure ACK in ESTABLISHED /
-//     ACKNOWLEDGEMENT_04), swapped from the inbound trigger.
+//     ACKNOWLEDGEMENT_04, or a challenge ACK to a malformed / multicast segment the DUT
+//     must drop / HEADER_07/08/09/11), swapped from the inbound trigger.
 //   * §4.6.5.4 UDP prohibited acceptance — zero the inbound datagram's UDP checksum
 //     so lwIP's validation gate skips and delivers it to the receive-counting app
 //     (UDP_FIELDS_09/10/15).
@@ -147,16 +148,19 @@ std::uint16_t tcpSynthChecksum(const std::uint8_t *f, std::uint16_t l4, std::uin
     return static_cast<std::uint16_t>(~sum);
 }
 
-// kTcpSynthRst: a buggy DUT emitting a RST in response to a segment RFC 793 §3.9 says it
-// must silently accept — a pure ACK in ESTABLISHED (§4.8.6.18 ACKNOWLEDGEMENT_04). `rx`
-// points at the inbound trigger (the tester's pure ACK); the synthesized RST swaps its
-// 4-tuple so it appears to come from the DUT's side of the connection (the case guard's
-// is_dut_rst checks only that 4-tuple + the RST flag, never seq/ack). seq/ack are left 0:
-// immaterial to the guard, and a real RST's seq is connection-state-derived, which this
-// stateless frame hook does not track. Both checksums are computed (IPv4 via lwIP's own
-// inet_chksum, TCP via tcpSynthChecksum) so the frame is valid at every layer. Sent via
-// nif->linkoutput like the ARP/ICMP synthesis.
-void emitProhibitedTcpRst(struct netif *nif, const std::uint8_t *rx) {
+// kTcpSynth*: a buggy DUT emitting a forbidden TCP response to a segment it must silently
+// accept or drop — a RST on a pure ACK in ESTABLISHED (kTcpSynthRst, §4.8.6.18
+// ACKNOWLEDGEMENT_04), or a challenge ACK on a malformed/multicast segment (kTcpSynthAck,
+// §4.8.6.16 HEADER_07/08/09/11). `rx` points at the inbound trigger; the synthesized segment
+// carries `tcp_flags` on the connection's 4-tuple, derived by swapping the trigger's source
+// for the destination — except the source IP, which is the DUT's own netif address so a
+// multicast-destination trigger (HEADER_11) still yields a DUT-sourced reply. The case guards
+// (is_dut_rst / is_pure_dut_ack) check only that 4-tuple + the flag, never seq/ack, so those
+// stay 0 (a real segment's seq is connection-state-derived, which this stateless hook does not
+// track). Both checksums are computed (IPv4 via lwIP's own inet_chksum, TCP via
+// tcpSynthChecksum) so the frame is valid at every layer. Sent via nif->linkoutput like the
+// ARP/ICMP synthesis.
+void emitProhibitedTcpSegment(struct netif *nif, const std::uint8_t *rx, std::uint8_t tcp_flags) {
     constexpr std::uint16_t kL4Off    = kEthHdrLen + kIpHdrLenMin;        // 34
     constexpr std::uint16_t kFrameLen = kL4Off + kTcpMinHdrLen;          // 54
     struct pbuf *p = pbuf_alloc(PBUF_RAW, kFrameLen, PBUF_RAM);
@@ -172,7 +176,8 @@ void emitProhibitedTcpRst(struct netif *nif, const std::uint8_t *rx) {
     put16(o, kIpTotalLenOff, kIpHdrLenMin + kTcpMinHdrLen);  // 40
     o[kIpTtlOff]   = 64;
     o[kIpProtoOff] = kIpProtoTcp;
-    std::memcpy(o + kIpSrcOff, rx + kIpDstOff, 4);        // src = trigger's IPv4 dst = DUT IP
+    const std::uint32_t dut_ip = ip4_addr_get_u32(netif_ip4_addr(nif));
+    std::memcpy(o + kIpSrcOff, &dut_ip, 4);               // src = DUT IP (own netif addr; trigger dst may be multicast)
     std::memcpy(o + kIpDstOff, rx + kIpSrcOff, 4);        // dst = trigger's IPv4 src = tester IP
     const std::uint16_t ip_cksum = inet_chksum(o + kEthHdrLen, kIpHdrLenMin);
     std::memcpy(o + kIpHdrChecksumOff, &ip_cksum, 2);
@@ -180,7 +185,7 @@ void emitProhibitedTcpRst(struct netif *nif, const std::uint8_t *rx) {
     put16(o, kL4Off + kTcpSrcPortOff, get16(rx, rx_l4 + kTcpDstPortOff));  // src port = DUT local port
     put16(o, kL4Off + kTcpDstPortOff, get16(rx, rx_l4 + kTcpSrcPortOff));  // dst port = tester remote port
     o[kL4Off + kTcpDataOffOff] = 0x50;                    // data offset 5 (20 B header, no options)
-    o[kL4Off + kTcpFlagsOff]   = kTcpFlagRst;             // RST
+    o[kL4Off + kTcpFlagsOff]   = tcp_flags;               // RST or ACK
     put16(o, kL4Off + kTcpChecksumOff, tcpSynthChecksum(o, kL4Off, kTcpMinHdrLen));
     nif->linkoutput(nif, p);
     pbuf_free(p);
@@ -252,24 +257,37 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 flavor == ut::kIcmpFaultSynthParamProblem ? kIcmpTypeParamProblem :
                                                             kIcmpTypeEchoReply;
             emitProhibitedIcmpReply(nif, f, reply_type);
-        } else if (flavor == ut::kTcpSynthRst &&
+        } else if ((flavor == ut::kTcpSynthRst || flavor == ut::kTcpSynthAck) &&
                    p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoTcp &&
                    p->len >= l4RegionOffset(f) + kTcpMinHdrLen) {
-            // §4.8.6.18 ACKNOWLEDGEMENT_04: the conformant DUT silently accepts a pure ACK
-            // in ESTABLISHED, so the input hook synthesizes the prohibited RST. The gate is
-            // a pure ACK (ACK set; SYN/FIN/RST clear; no payload) — the handshake SYN,ACK
-            // carries SYN and is excluded, and the DUT's own segments are egress (not seen
-            // here), so only the post-handshake data ACK triggers. Per-phase arming scopes
-            // it past the handshake regardless.
             const std::uint16_t tcp = l4RegionOffset(f);
             const std::uint8_t flags = f[tcp + kTcpFlagsOff];
-            const bool pure_ack =
-                (flags & kTcpFlagAck) != 0U &&
-                (flags & (kTcpFlagSyn | kTcpFlagFin | kTcpFlagRst)) == 0U &&
-                !tcpHasPayload(f, tcp);
-            if (pure_ack) {
-                emitProhibitedTcpRst(nif, f);
+            if (flavor == ut::kTcpSynthRst) {
+                // §4.8.6.18 ACKNOWLEDGEMENT_04: the conformant DUT silently accepts a pure
+                // ACK in ESTABLISHED, so the hook synthesizes the prohibited RST. The gate is
+                // a pure ACK (ACK set; SYN/FIN/RST clear; no payload) — the handshake SYN,ACK
+                // carries SYN, the DUT's own segments are egress (not seen here), so only the
+                // post-handshake data ACK triggers. Per-phase arming scopes it regardless.
+                const bool pure_ack =
+                    (flags & kTcpFlagAck) != 0U &&
+                    (flags & (kTcpFlagSyn | kTcpFlagFin | kTcpFlagRst)) == 0U &&
+                    !tcpHasPayload(f, tcp);
+                if (pure_ack) {
+                    emitProhibitedTcpSegment(nif, f, kTcpFlagRst);
+                }
+            } else {  // kTcpSynthAck
+                // §4.8.6.16 HEADER_07/08/09/11: the conformant DUT silently drops a malformed
+                // (bad data offset / zero checksum) or multicast-addressed segment, so the
+                // hook synthesizes the prohibited challenge ACK. The gate is SYN or PSH — the
+                // malformed triggers carry PSH (data segments) or SYN (multicast SYN), while
+                // the tester's pure-ACK challenge response and any RST carry neither, so the
+                // synthesis does not storm. The handshake SYN,ACK also carries SYN, so
+                // per-phase arming (after ESTABLISHED) is required. The flag byte is at a
+                // fixed offset, immune to the trigger's deliberately bad data offset.
+                if ((flags & (kTcpFlagSyn | kTcpFlagPsh)) != 0U) {
+                    emitProhibitedTcpSegment(nif, f, kTcpFlagAck);
+                }
             }
         }
     }

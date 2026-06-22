@@ -383,11 +383,14 @@ laziness:
   seam** (`kTcpSynthRst`, the §4.8 TCP entry in the ingress reaction-fault list above), not
   the egress field-fault cluster. Its fail-final fires when the DUT *emits a RST* after a
   pure ACK — a behavioural misbehaviour the conformant DUT never makes, so there is no egress
-  frame to corrupt; the input hook synthesizes the RST instead. This is the pilot for the
-  behavioural-emission seam: the broader §4.8 must-not-respond family
-  (`dut_emitted_response_to_*` / `dut_acked_*`, e.g. HEADER_07/08/09/11, FLAGS_INVALID /
-  FLAGS_PROCESSING) is reachable the same way (synthesize the forbidden RST / ACK / SYN,ACK)
-  and lands as those cases are built.
+  frame to corrupt; the input hook synthesizes the RST instead. This was the pilot for the
+  behavioural-emission seam, now joined by the §4.8.6.16 **must-not-challenge-ACK** cluster
+  (`HEADER_07/08/09/11_NEG`, `kTcpSynthAck` — synthesize a pure ACK on a malformed (bad data
+  offset / zero checksum) or multicast-destination segment the DUT must drop, gated on SYN|PSH;
+  the synthesized source IP is the DUT's own netif address, so the multicast trigger still
+  yields a DUT-sourced reply). The remaining must-not-respond family
+  (`dut_emitted_response_to_*`, FLAGS_INVALID / FLAGS_PROCESSING) is reachable the same way and
+  lands as those cases are built.
 
 ## lwipopts.h alignment (why each non-default option exists)
 

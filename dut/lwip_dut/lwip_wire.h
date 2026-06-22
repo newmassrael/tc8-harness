@@ -73,6 +73,7 @@ constexpr std::uint16_t kTcpMinHdrLen   = 20;  // bytes needed through the check
 constexpr std::uint8_t  kTcpFlagFin     = 0x01;
 constexpr std::uint8_t  kTcpFlagSyn     = 0x02;
 constexpr std::uint8_t  kTcpFlagRst     = 0x04;
+constexpr std::uint8_t  kTcpFlagPsh     = 0x08;
 constexpr std::uint8_t  kTcpFlagAck     = 0x10;
 // RFC 793 §3.1 kind=2 MSS option: 1 B kind + 1 B length(4) + 2 B value.
 constexpr std::uint8_t  kTcpOptKindEnd  = 0;   // End of Options List (no length)

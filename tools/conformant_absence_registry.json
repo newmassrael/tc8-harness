@@ -2770,42 +2770,6 @@
         }
       ]
     },
-    "TCP_HEADER_07": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_acked_segment_with_invalid_data_offset",
-          "property": "Silence is conformant: DUT must drop a segment with an invalid data offset; fail iff it ACKs it"
-        }
-      ]
-    },
-    "TCP_HEADER_08": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_acked_segment_with_oversize_data_offset",
-          "property": "Silence is conformant: DUT must drop a segment whose data offset exceeds the segment; fail iff it ACKs it"
-        }
-      ]
-    },
-    "TCP_HEADER_09": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_acked_segment_with_zero_checksum",
-          "property": "Silence is conformant: DUT must drop a segment carrying a zero checksum; fail iff it ACKs it"
-        }
-      ]
-    },
-    "TCP_HEADER_11": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_acked_multicast_syn",
-          "property": "Silence is conformant: DUT must not accept a SYN with a multicast source; fail iff it ACKs it"
-        }
-      ]
-    },
     "TCP_MSS_OPTIONS_01": {
       "guards": [
         {

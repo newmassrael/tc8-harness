@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.16 TCP_HEADER_11 negative — lwIP TCP behavioral-synthesis self-validation of the
+  positive _11 no-challenge-ACK guard. The trait drives the active OPEN to ESTABLISHED, arms
+  kTcpSynthAck, then injects a SYN whose IP destination is a multicast address (the frame the
+  DUT must silently drop); the lwIP netif input hook synthesizes the prohibited challenge ACK
+  on the connection 4-tuple (DUT-sourced, since the trigger's destination is multicast). Pass
+  = that ACK observed; fail_compliant = DUT stayed silent despite the flavor (fault inert).
+  lwIP-only (capability-gated on kCapIngressFault). Envelope: tcp_synth_ack_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_11_neg"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_synth_ack_neg.sce-template.xml"
+           port_offset="38U"/>
+</scxml>

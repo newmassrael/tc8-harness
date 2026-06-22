@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.16 TCP_HEADER_09 negative — lwIP TCP behavioral-synthesis self-validation of the
+  positive _09 no-challenge-ACK guard. The trait drives the active OPEN to ESTABLISHED, arms
+  kTcpSynthAck, then injects a data segment with Checksum = 0 (the frame the DUT must silently
+  drop); the lwIP netif input hook synthesizes the prohibited challenge ACK. Pass = that ACK
+  observed; fail_compliant = DUT stayed silent despite the flavor (fault inert). lwIP-only
+  (capability-gated on kCapIngressFault). Envelope: tcp_synth_ack_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_09_neg"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_synth_ack_neg.sce-template.xml"
+           port_offset="37U"/>
+</scxml>

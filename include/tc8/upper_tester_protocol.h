@@ -934,11 +934,14 @@ inline constexpr std::uint8_t kIcmpFaultSynthEchoReply    = 0x05;  // §4.3.3.2 
 inline constexpr std::uint8_t kIcmpFaultSynthInfoReply    = 0x06;  // §4.3.3.2 TYPE_16: synthesize an Information Reply (type 16, RFC 1122 §3.2.2.7 SHOULD NOT)
 inline constexpr std::uint8_t kIcmpFaultSynthParamProblem = 0x07;  // §4.3.3.1 ERROR_03 (fragmented) / ERROR_04 (broadcast): synthesize a Parameter Problem (type 12)
 // TCP behavioral prohibited emission (§4.8) — the input hook synthesizes a forbidden TCP
-// response on the connection's 4-tuple (swapped from the inbound trigger). RFC 793 §3.9
-// guards check only the 4-tuple + flag, never seq/ack, so the synthesized segment needs no
-// connection-state tracking — the inbound trigger's addresses give the whole 4-tuple:
-inline constexpr std::uint8_t kTcpSynthRst               = 0x08;  // §4.8.6.18 ACKNOWLEDGEMENT_04: synthesize a RST in response to a pure ACK (RFC 793 §3.9 MUST NOT)
-inline constexpr std::uint8_t kIngressFaultMax           = kTcpSynthRst;
+// response on the connection's 4-tuple (swapped from the inbound trigger; the synthesized
+// source IP is the DUT's own netif address, so a multicast-destination trigger still yields
+// a DUT-sourced reply). RFC 793 §3.9 guards check only the 4-tuple + flag, never seq/ack, so
+// the synthesized segment needs no connection-state tracking. The flavor names the response;
+// its dispatch gate names the trigger:
+inline constexpr std::uint8_t kTcpSynthRst               = 0x08;  // §4.8.6.18 ACKNOWLEDGEMENT_04: synthesize a RST on a pure ACK (RFC 793 §3.9 MUST NOT)
+inline constexpr std::uint8_t kTcpSynthAck               = 0x09;  // §4.8.6.16 HEADER_07/08/09/11: synthesize a challenge ACK on a malformed/multicast segment the DUT must drop (RFC 1122 §4.2.3.10 / RFC 793 §3.1)
+inline constexpr std::uint8_t kIngressFaultMax           = kTcpSynthAck;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

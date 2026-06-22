@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.8.6.16 TCP must-not-challenge-ACK `_NEG` body: the lwIP TCP behavioral-synthesis
+  self-validation of the positive HEADER_07/08/09/11 guards. The positive drives the DUT to
+  ESTABLISHED, injects a segment the DUT MUST silently drop (bad data offset / zero checksum
+  / multicast destination), and asserts no DUT challenge ACK on the connection 4-tuple. Its
+  `_NEG` arms kTcpSynthAck, so the lwIP netif input hook synthesizes the prohibited challenge
+  ACK as that trigger arrives.
+
+    Pass:    a DUT pure ACK observed on the case 4-tuple (is_pure_dut_ack) AFTER the
+             handshake ACK — the synthesized challenge ACK, proving the positive's guard
+             would fire on a non-conformant DUT.
+    Fail:    deadline -> fail_compliant — the DUT stayed silent despite the flavor (the fault
+             was inert: a flavor-wiring regression, NOT a DUT conformance violation; role
+             fault_injection_inert).
+
+  Two-state chain mirrors the positive's prelude (so the first pure ACK is the handshake
+  third leg, the second is the synthesized challenge ACK); the four cases differ only in the
+  per-case active-OPEN port offset, threaded as {$port_offset}. The negative-flip handle is
+  the positive's: a flipped dut_iface_ip makes the phase-1 src_ip conjunct unreachable.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="tcp_synth_ack_neg">
+
+  <sce:param name="port_offset" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset})"
+                target="listening_ack_watch"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
+  </state>
+  <state id="listening_ack_watch">
+    <onentry>
+      <send event="deadline_ack_watch" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset})"
+                target="pass"/>
+    <transition event="deadline_ack_watch" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+  <final id="inconclusive_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silent_despite_synth_ack_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>
