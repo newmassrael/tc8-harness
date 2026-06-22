@@ -2563,50 +2563,6 @@
         }
       ]
     },
-    "TCP_FLAGS_INVALID_15": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_closing",
-          "property": "Silence is conformant: an out-of-window RST in CLOSING must be dropped without response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_cw",
-          "property": "Silence is conformant: an out-of-window RST in CLOSE-WAIT must be dropped without response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_est",
-          "property": "Silence is conformant: an out-of-window RST in ESTABLISHED must be dropped without response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_fw1",
-          "property": "Silence is conformant: an out-of-window RST in FIN-WAIT-1 must be dropped without response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_fw2",
-          "property": "Silence is conformant: an out-of-window RST in FIN-WAIT-2 must be dropped without response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_la",
-          "property": "Silence is conformant: an out-of-window RST in LAST-ACK must be dropped without response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_syn_rcvd",
-          "property": "Silence is conformant: an out-of-window RST in SYN-RECEIVED must be dropped without response; fail iff the DUT emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_otw_rst_in_tw",
-          "property": "Silence is conformant: an out-of-window RST in TIME-WAIT must be dropped without response; fail iff the DUT emits any reply"
-        }
-      ]
-    },
     "TCP_FLAGS_PROCESSING_02": {
       "guards": [
         {

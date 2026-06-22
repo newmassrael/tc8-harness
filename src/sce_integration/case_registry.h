@@ -99,7 +99,7 @@ private:
 // suffix keeps the case id a pure identity — the guard each variant
 // proves lives in the coverage SSOT, not the file name.
 inline constexpr std::string_view kKnownVariantTags[] = {
-    "_NEG", "_NEG2", "_NEG3", "_NEG4"};
+    "_NEG", "_NEG2", "_NEG3", "_NEG4", "_NEG5", "_NEG6", "_NEG7", "_NEG8"};
 
 constexpr std::string_view stripVariantTag(std::string_view id) {
     for (auto tag : kKnownVariantTags) {

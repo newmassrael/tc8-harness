@@ -33,6 +33,16 @@
       "dut_emitted_response_to_urg_only_in_closing": "TCP_FLAGS_PROCESSING_07_NEG2",
       "dut_emitted_response_to_urg_only_in_la": "TCP_FLAGS_PROCESSING_07_NEG3",
       "dut_emitted_response_to_urg_only_in_tw": "TCP_FLAGS_PROCESSING_07_NEG4"
+    },
+    "TCP_FLAGS_INVALID_15": {
+      "dut_emitted_response_to_otw_rst_in_syn_rcvd": "TCP_FLAGS_INVALID_15_NEG",
+      "dut_emitted_response_to_otw_rst_in_est": "TCP_FLAGS_INVALID_15_NEG2",
+      "dut_emitted_response_to_otw_rst_in_fw1": "TCP_FLAGS_INVALID_15_NEG3",
+      "dut_emitted_response_to_otw_rst_in_fw2": "TCP_FLAGS_INVALID_15_NEG4",
+      "dut_emitted_response_to_otw_rst_in_cw": "TCP_FLAGS_INVALID_15_NEG5",
+      "dut_emitted_response_to_otw_rst_in_closing": "TCP_FLAGS_INVALID_15_NEG6",
+      "dut_emitted_response_to_otw_rst_in_la": "TCP_FLAGS_INVALID_15_NEG7",
+      "dut_emitted_response_to_otw_rst_in_tw": "TCP_FLAGS_INVALID_15_NEG8"
     }
   }
 }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_15 negative (phase 2 / ESTABLISHED) — lwIP TCP
+  behavioral-synthesis self-validation of the positive _15 no-response-to-OTW-RST guard in
+  ESTABLISHED. The trait drives the DUT to ESTABLISHED, arms kTcpSynthRstOnDisruptive, then
+  injects an out-of-window RST the DUT MUST silently drop; the lwIP netif input hook synthesizes
+  the prohibited RST. Pass = that RST observed; fail_compliant = DUT stayed silent despite the
+  flavor (fault inert). lwIP-only (kCapIngressFault). Envelope: tcp_synth_rst_watch_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_15_neg2"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_synth_rst_watch_neg.sce-template.xml"
+           port_offset="0U"/>
+</scxml>

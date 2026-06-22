@@ -4670,6 +4670,70 @@
         {
           "file": "tests/tcp_flags_invalid_04_neg/tcp_flags_invalid_04_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg3.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg4.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg5.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg6.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg7.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_15_neg8.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg/tcp_flags_invalid_15_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg2/tcp_flags_invalid_15_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg3/tcp_flags_invalid_15_neg3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg4/tcp_flags_invalid_15_neg4.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg5/tcp_flags_invalid_15_neg5.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg6/tcp_flags_invalid_15_neg6.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg7/tcp_flags_invalid_15_neg7.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_15_neg8/tcp_flags_invalid_15_neg8.scxml",
+          "kind": "implements"
         }
       ]
     },
