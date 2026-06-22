@@ -110,6 +110,7 @@ jobs:
           sudo -n dut/env/smoke-test.sh \
             --workers 4 \
             --junit-xml reports/junit-smoke-positive.xml \
+            --log-dir smoke-logs/positive \
             $(./build/tc8-harness test --list-cases \
                 --exclude-deferred --exclude-platform-known-fail --exclude-serial \
               | awk '/^  [A-Z]/{print $1}')
@@ -127,6 +128,7 @@ jobs:
           sudo -n dut/env/smoke-test.sh \
             --workers 1 \
             --junit-xml reports/junit-smoke-positive-serial.xml \
+            --log-dir smoke-logs/serial \
             $(./build/tc8-harness test --list-cases \
                 --only-serial \
               | awk '/^  [A-Z]/{print $1}')
@@ -136,6 +138,7 @@ jobs:
           sudo -n dut/env/smoke-test.sh \
             --workers 4 \
             --junit-xml reports/junit-smoke-negative.xml \
+            --log-dir smoke-logs/negative \
             --negative
 
       # Topology-profile regression: the external / ssh-remote profiles
@@ -155,6 +158,7 @@ jobs:
             --topology external \
             --topology-conf dut/env/topology.d/examples/external-netns-fixture.conf \
             --junit-xml reports/junit-smoke-topology-external.xml \
+            --log-dir smoke-logs/topology-external \
             ICMPv4_TYPE_08 UDP_INTRODUCTION_03
 
       - name: Topology profile regression — ssh-remote (netns fixture)
@@ -163,6 +167,7 @@ jobs:
             --topology ssh-remote \
             --topology-conf dut/env/topology.d/examples/ssh-remote-netns-fixture.conf \
             --junit-xml reports/junit-smoke-topology-ssh-remote.xml \
+            --log-dir smoke-logs/topology-ssh-remote \
             SOMEIPSRV_FORMAT_01 ICMPv4_TYPE_08
 
       # lwIP DUT regression: the in-repo embedded-stack DUT
@@ -303,6 +308,7 @@ jobs:
           sudo -n dut/env/smoke-test.sh \
             --topology lwip-tap \
             --junit-xml reports/junit-smoke-lwip-dut.xml \
+            --log-dir smoke-logs/lwip-dut \
             ICMPv4_TYPE_08 UDP_INTRODUCTION_03 \
             TCP_BASICS_01 TCP_BASICS_02 TCP_BASICS_03 \
             TCP_CALL_ABORT_02 TCP_CLOSING_07 TCP_MSS_OPTIONS_02 \
@@ -387,6 +393,24 @@ jobs:
         with:
           name: junit-reports
           path: reports/
+
+      # The JUnit above carries only the verdict string. When a step fails, the
+      # WHY — a "no verdict line" crash/timeout, the DUT's stderr, the wire trace —
+      # lives in the per-case harness log, DUT log, and pcap that each step's
+      # `--log-dir smoke-logs/<step>` captured. `gh run view --log` returns nothing
+      # for this self-hosted job, so without this upload that evidence vanishes with
+      # the runner and every CI failure becomes guesswork. Failure-only: green runs
+      # generate the logs (so the path is always exercised) but cost no artifact
+      # storage. (The Testability SP checks below use standalone probe scripts, not
+      # smoke-test.sh, so they have no --log-dir to feed this.)
+      - name: Upload harness logs + pcaps (failure only)
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: smoke-diagnostics
+          path: smoke-logs/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Publish JUnit summary to PR
         if: always()
