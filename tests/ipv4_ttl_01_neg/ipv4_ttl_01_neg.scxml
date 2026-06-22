@@ -7,7 +7,10 @@
   immaterial and the guard reads the zeroed TTL. Pass = TTL == 0 observed (the violation
   RFC 1122 section 3.2.1.7 forbids); fail_compliant = the DUT emitted a non-zero TTL
   despite the flavor (fault inert). lwIP-only (capability-gated on kCapEgressFault).
-  Envelope: ipv4_field_check.
+  Envelope: ipv4_field_check (its guard filters on src_addr == dut only — Ipv4Captured
+  carries no ICMP type — so it relies on the DUT's Echo Reply being the only IPv4 frame
+  it sources in the window, the same single-reply assumption the positive makes; the
+  DUT-side fault is itself type-0-gated in mutateIcmpFrame).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

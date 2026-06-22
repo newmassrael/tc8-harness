@@ -29,7 +29,7 @@ template <>
 struct TestCaseTraits<cases::TcpHeader01NegSM>
     : TcpEgressFaultNegBase<cases::TcpHeader01NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_01_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
+    static constexpr std::string_view kSpecSection  = "4.8.6.16";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_01's checksum conjunct: the lwIP "
         "kTcpFaultDataChecksumWrong egress flavor invalidates the DUT data-segment "
@@ -56,8 +56,8 @@ struct TestCaseTraits<cases::TcpHeader01NegSM>
 
         auto open = driveSeamActiveOpen(
             dut, cfg,
-            kBasicsActiveLocalPort  + 30U,
-            kBasicsActiveRemotePort + 30U);
+            kBasicsActiveLocalPort  + kTcpHeader01LocalOffset,
+            kBasicsActiveRemotePort + kTcpHeader01LocalOffset);
 
         if (open.conn) {
             seamSendTcp(dut, open.conn->socket, kHeaderPayload);

@@ -147,6 +147,29 @@ inline constexpr auto kTcpSeamInterSendRtoClearGap = std::chrono::milliseconds(3
 // the SEQ-zero guard rather than silently masquerade as pass.
 inline constexpr std::uint32_t kTesterInitialSeq = 0x10203040U;
 
+// §4.8.6.1 TCP_BASICS_05 tester-chosen ACK literals: the DUT's RFC 793 §3.9 RST to an
+// ACK-bearing closed-port segment carries SEQ <- incoming.ACK, so each phase's guard
+// pins to its literal. Distinct per phase (and from kTesterInitialSeq) so a stuck-at DUT
+// that mirrors one phase's SEQ false-fails the other rather than masquerading. SSOT for
+// the positive's stimulus, its scxml guards, and the BASICS_05_NEG/_NEG2 self-validation
+// siblings (which must inject the same ACK the guard checks).
+inline constexpr std::uint32_t kTesterPilotAckPhaseSynAck = 0xC0FFEE00U;
+inline constexpr std::uint32_t kTesterPilotAckPhaseAck    = 0xDEADBEEFU;
+
+// RFC 1122 §4.2.2.6 default Maximum Segment Size. Tester-side SSOT for the §4.8.6.9
+// MSS_OPTIONS_12 guards (positive asserts mss != 536; the _NEG forces mss == 536). The
+// lwIP fixture carries its own copy of this wire value (the DUT and tester are separate
+// compilation domains; the 16-bit wire field is the only shared contract).
+inline constexpr std::uint16_t kRfcDefaultMss = 536U;
+
+// §4.8 active-OPEN port-quad offsets (kBasicsActiveLocalPort/RemotePort + N). Registered
+// here — like every other §4.8 offset — so the reserved slots are grep-findable and a
+// future case cannot silently collide. The HEADER block reserves +30.., the MSS_OPTIONS
+// block +40.. (see the per-case comments). Shared by each positive and its _NEG sibling.
+inline constexpr std::uint16_t kTcpHeader01LocalOffset      = 30U;
+inline constexpr std::uint16_t kTcpMssOptions11LocalOffset  = 40U;
+inline constexpr std::uint16_t kTcpMssOptions12LocalOffset  = 41U;
+
 // Forward offset used to construct an out-of-window SEQ for an
 // established connection's receive window. Linux's max plausible
 // window scale is 2^14 × 64 KB ≈ 1 GB; a 16 MB offset above the

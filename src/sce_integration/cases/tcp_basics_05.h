@@ -16,19 +16,6 @@ namespace tc8::sce::cases {
 
 using TcpBasics05SM = ::SCE::Generated::tcp_basics_05::tcp_basics_05;
 
-// Tester-chosen ACK literals sent in the BASICS_05 stimulus iterations.
-// The DUT's RFC 793 §3.9 RST response carries SEQ ← incoming.ACK, so
-// each phase's SCXML pass guard pins to the corresponding literal.
-// Bytes chosen to be unambiguously distinct from 0 (BASICS_04's pass
-// criterion) and from the tester's own SEQ
-// (`tcp_pilot_common::kTesterInitialSeq`); the two phase literals also
-// differ from each other so a stuck-at DUT bug that emits a single
-// RST whose SEQ matches one phase but not the other is caught (rather
-// than silently masquerading as pass on both phases under a shared
-// literal).
-inline constexpr std::uint32_t kTesterPilotAckPhaseSynAck = 0xC0FFEE00U;
-inline constexpr std::uint32_t kTesterPilotAckPhaseAck    = 0xDEADBEEFU;
-
 }  // namespace tc8::sce::cases
 
 namespace tc8::sce {
@@ -73,7 +60,7 @@ struct TestCaseTraits<cases::TcpBasics05SM>
             /*flags=*/static_cast<std::uint8_t>(
                 ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck),
             /*seq_num=*/kTesterInitialSeq,
-            /*ack_num=*/cases::kTesterPilotAckPhaseSynAck);
+            /*ack_num=*/kTesterPilotAckPhaseSynAck);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // iter 2 — bare ACK
@@ -82,7 +69,7 @@ struct TestCaseTraits<cases::TcpBasics05SM>
             /*dst_port=*/kBasicsClosedPort,
             /*flags=*/::tc8::stimulus::kTcpFlagAck,
             /*seq_num=*/kTesterInitialSeq + 0x100U,
-            /*ack_num=*/cases::kTesterPilotAckPhaseAck,
+            /*ack_num=*/kTesterPilotAckPhaseAck,
             /*payload=*/{},
             /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);

@@ -390,10 +390,11 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // §4.8.6.17 SEQUENCE_01 passive-open observation: a DUT-emitted SYN,ACK
     // (the LISTEN-state second leg) — SYN and ACK both set. Sibling of
     // `is_dut_syn` (which requires ACK clear, the active-OPEN first leg); the
-    // 4-tuple match isolates the case connection. Gives the §4.8 egress
-    // field-shape `_NEG` envelope a raw-`&`-free matcher for the SYN,ACK guard
-    // (an sce:template filter cannot carry a bitmask `&`; see
-    // tests/_templates/tcp_egress_field_check.sce-template.xml).
+    // 4-tuple match isolates the case connection. Completes the is_dut_*
+    // matcher family so the §4.8 egress `_NEG` envelope expresses the SYN,ACK
+    // guard as one readable method call rather than inline control-bit masks
+    // (a raw `&` IS expressible in an sce:template param via double-escape —
+    // see someipsrv_onwire_02 — but the matcher is the project idiom).
     bool is_dut_syn_ack(std::uint32_t expected_dut_iface_ip,
                         std::uint32_t expected_tester_ip,
                         std::uint16_t expected_src_port,

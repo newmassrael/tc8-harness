@@ -254,16 +254,21 @@ need an IP-layer acceptance fault rather than this UDP seam.
 **§4.8 TCP egress field faults.** The egress seam extends to TCP, but TCP is
 stateful so each flavor is segment-selective (the link-output hook sees every DUT
 segment; corrupting all of them would break the handshake the observed segment
-depends on). Six cases are wired:
+depends on). Seven positives are wired (10 `_neg` files — BASICS_04 and BASICS_05 carry
+one sibling per iteration, mapped in `tools/fault_injection_coverage.json`):
 
 - `TCP_SEQUENCE_01_NEG` (`kTcpFaultSynAckAckWrong` — flip the SYN,ACK ack_num, gated
   on the SYN,ACK; the tester completes the handshake from the uncorrupted seq so the
   segment is still captured).
 - `TCP_CHECKSUM_03_NEG` (`kTcpFaultDataChecksumWrong` — XOR a DATA segment's
   checksum, gated on payload so the handshake stays valid).
-- `TCP_BASICS_04_NEG` (`kTcpFaultRstSeqWrong` — XOR the closed-port RST's seq off
-  zero, gated on the RST flag). One iteration suffices: the positive's three
-  iterations (SYN/FIN/Data) all land on the identical RFC 793 §3.9 seq==0 guard.
+- `TCP_BASICS_04_NEG` / `_NEG2` / `_NEG3` (`kTcpFaultRstSeqWrong` — XOR the closed-port
+  RST's seq off zero, gated on the RST flag). The positive has three fail-finals
+  (SYN/FIN/Data iterations); each sibling injects one iteration's stimulus to prove the
+  corresponding fail-final reachable.
+- `TCP_BASICS_05_NEG` / `_NEG2` (`kTcpFaultRstSeqWrong`, reused) — same RST-seq flavor,
+  but the positive's RST SEQ echoes the incoming ACK (kTesterPilotAckPhase*), so each
+  sibling injects the SYN,ACK / bare-ACK iteration to prove its fail-final.
 - `TCP_MSS_OPTIONS_11_NEG` (`kTcpFaultSynMssZero`) / `TCP_MSS_OPTIONS_12_NEG`
   (`kTcpFaultSynMssDefault`) — walk the active-OPEN SYN's TCP options to the kind=2
   MSS option and zero its value (11) or force it to the 536 default (12), gated on
@@ -292,8 +297,6 @@ laziness:
   before shipping. Also, clearing the SYN bit *de-selects* the segment (the positive
   has no fail-final — only pass on SYN+ACK), so the violation is unobservable rather
   than a clean pass/fail flip.
-- **TCP_BASICS_05 (RST seq=incoming.ack).** Faultable like BASICS_04, but its seq
-  target is tester-chosen per phase; deferred with the multi-phase-ack batch.
 - **Multi-phase ack cases (HEADER_02/05/06, CHECKSUM_01).** The observed field is
   on a second, data-elicited segment; the `_neg` needs per-phase arming, deferred
   until the single-phase seam is proven. (HEADER_07/08/09/11 and CHECKSUM_02 are

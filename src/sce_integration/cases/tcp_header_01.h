@@ -26,7 +26,7 @@ template <>
 struct TestCaseTraits<cases::TcpHeader01SM>
     : TcpAnyBase<cases::TcpHeader01SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
+    static constexpr std::string_view kSpecSection  = "4.8.6.16";
     static constexpr std::string_view kDescription  =
         "DUT generates a TCP packet containing valid header field values "
         "(RFC 793 §3.1 Header Format)";
@@ -57,8 +57,8 @@ struct TestCaseTraits<cases::TcpHeader01SM>
 
         auto open = driveSeamActiveOpen(
             dut, cfg,
-            kBasicsActiveLocalPort  + 30U,
-            kBasicsActiveRemotePort + 30U);
+            kBasicsActiveLocalPort  + kTcpHeader01LocalOffset,
+            kBasicsActiveRemotePort + kTcpHeader01LocalOffset);
 
         if (open.conn) {
             seamSendTcp(dut, open.conn->socket, kHeaderPayload);

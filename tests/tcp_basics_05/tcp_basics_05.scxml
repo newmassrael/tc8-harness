@@ -61,10 +61,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0xC0FFEE00U"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == ::tc8::sce::tcp::kTesterPilotAckPhaseSynAck"
                 target="listening_ack"/>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0xC0FFEE00U"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != ::tc8::sce::tcp::kTesterPilotAckPhaseSynAck"
                 target="fail_wrong_seq_synack"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout_synack"/>
   </state>
@@ -74,10 +74,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0xDEADBEEFU"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == ::tc8::sce::tcp::kTesterPilotAckPhaseAck"
                 target="pass"/>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0xDEADBEEFU"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != ::tc8::sce::tcp::kTesterPilotAckPhaseAck"
                 target="fail_wrong_seq_ack"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout_ack"/>
   </state>

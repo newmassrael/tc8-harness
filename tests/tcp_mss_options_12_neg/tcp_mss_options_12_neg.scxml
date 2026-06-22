@@ -18,8 +18,8 @@
        datamodel="null"
        initial="listening">
   <sce:use template="../_templates/tcp_egress_field_check.sce-template.xml"
-           filter="captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 41U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 41U)"
-           pass_expr="captured.mss == 536"
+           filter="captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions12LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions12LocalOffset)"
+           pass_expr="captured.mss == ::tc8::sce::tcp::kRfcDefaultMss"
            fail_state="fail_compliant"
            fail_reason="dut_syn_advertised_non_default_mss_despite_flavor"
            fail_role="fault_injection_inert"

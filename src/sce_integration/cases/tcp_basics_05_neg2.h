@@ -34,9 +34,10 @@ struct TestCaseTraits<cases::TcpBasics05Neg2SM>
         "DUT sets SEQ = incoming.ACK";
 
     // Bare-ACK-iteration sibling of tcp_basics_05_neg: arm the RST-seq fault, then
-    // raw-inject one bare ACK whose ACK is the positive's phase literal (0xDEADBEEF) to the
-    // closed port. The flavor flips the resulting DUT RST's seq, proving the positive's
-    // dut_rst_seq_not_ack_phase_ack_literal fail-final reachable.
+    // raw-inject one bare ACK whose ACK is the positive's phase literal
+    // (kTesterPilotAckPhaseAck) to the closed port. The flavor flips the resulting DUT
+    // RST's seq, proving the positive's dut_rst_seq_not_ack_phase_ack_literal fail-final
+    // reachable.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
@@ -48,7 +49,7 @@ struct TestCaseTraits<cases::TcpBasics05Neg2SM>
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/::tc8::stimulus::kTcpFlagAck,
                         /*seq_num=*/kTesterInitialSeq + 0x100U,
-                        /*ack_num=*/0xDEADBEEFU);
+                        /*ack_num=*/kTesterPilotAckPhaseAck);
     }
 };
 

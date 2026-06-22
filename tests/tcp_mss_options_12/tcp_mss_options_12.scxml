@@ -45,7 +45,7 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + 41U) and captured.dst_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + 41U) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) == 0 and captured.mss &gt; 0 and captured.mss != 536"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions12LocalOffset) and captured.dst_port == static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions12LocalOffset) and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) == 0 and captured.mss &gt; 0 and captured.mss != ::tc8::sce::tcp::kRfcDefaultMss"
                 target="pass"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>

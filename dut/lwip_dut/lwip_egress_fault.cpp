@@ -167,7 +167,7 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
 // ttl/checksum mutate the IPv4 header (the resulting IPv4 checksum mismatch is
 // immaterial: libtins does not validate the IPv4 header checksum on parse, so the guard
 // still reads the field; the checksum fault invalidates that field directly).
-void mutateIcmp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t icmp) {
+void mutateIcmpFrame(std::uint8_t *f, std::uint8_t flavor, std::uint16_t icmp) {
     const std::uint8_t type = f[icmp + kIcmpTypeOff];
     switch (flavor) {
         case ut::kIcmpFaultEchoIdWrong:
@@ -213,7 +213,7 @@ err_t egressFaultLinkoutput(struct netif *nif, struct pbuf *p) {
         } else if (p->len >= kIpProtoOff + 1 && isIpv4(f) && f[kIpProtoOff] == kIpProtoIcmp) {
             const std::uint16_t icmp = l4RegionOffset(f);
             if (p->len >= icmp + kIcmpMinHdrLen) {
-                mutateIcmp(f, flavor, icmp);
+                mutateIcmpFrame(f, flavor, icmp);
             }
         }
     }

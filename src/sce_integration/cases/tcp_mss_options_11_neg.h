@@ -48,8 +48,8 @@ struct TestCaseTraits<cases::TcpMssOptions11NegSM>
 
         auto open = driveSeamActiveOpen(
             dut, cfg,
-            kBasicsActiveLocalPort  + 40U,
-            kBasicsActiveRemotePort + 40U);
+            kBasicsActiveLocalPort  + kTcpMssOptions11LocalOffset,
+            kBasicsActiveRemotePort + kTcpMssOptions11LocalOffset);
         if (!open.conn) return;
 
         dut.tcpControl()->closeTcp(open.conn->socket);

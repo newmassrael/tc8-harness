@@ -852,11 +852,12 @@ inline constexpr std::uint8_t kUdpFaultChecksumWrong   = 0x09;  // RFC 768 check
 // TCP (segment-selective; the flavor names the field + the segment it targets):
 inline constexpr std::uint8_t kTcpFaultSynAckAckWrong   = 0x0A;  // RFC 793 ack num:  §4.8 TCP_SEQUENCE_01 (SYN,ACK acks tester ISN+1)
 inline constexpr std::uint8_t kTcpFaultDataChecksumWrong = 0x0B; // RFC 793 checksum: §4.8 TCP_CHECKSUM_03 (data segment) + §4.8 TCP_HEADER_01 (data segment header validity)
-inline constexpr std::uint8_t kTcpFaultRstSeqWrong      = 0x0C;  // RFC 793 §3.9 seq:  §4.8 TCP_BASICS_04 (closed-port RST MUST carry SEQ=0)
+inline constexpr std::uint8_t kTcpFaultRstSeqWrong      = 0x0C;  // RFC 793 §3.9 seq:  §4.8 TCP_BASICS_04 (closed-port RST SEQ=0) + TCP_BASICS_05 (RST SEQ = incoming ACK)
 inline constexpr std::uint8_t kTcpFaultSynMssZero       = 0x0D;  // RFC 1122 §4.2.2.6 MSS option: §4.8 TCP_MSS_OPTIONS_11 (active-OPEN SYN advertises a receive MSS)
 inline constexpr std::uint8_t kTcpFaultSynMssDefault    = 0x0E;  // RFC 1122 §4.2.2.6 MSS value:  §4.8 TCP_MSS_OPTIONS_12 (advertised MSS differs from the 536 default)
-// ICMPv4 Echo Reply (§4.3) + IPv4 header (§4.4) on the DUT's echo reply (gated on the
-// ICMP Echo Reply, type 0, so only that frame is touched):
+// ICMPv4 (§4.3) + IPv4 header (§4.4) on a DUT ICMP message, gated per ICMP type so only
+// the observed frame is touched: the Echo Reply (type 0) for echo id/seq + IPv4 ttl /
+// header checksum (0x0F-0x12); the Destination Unreachable (type 3) for code (0x13):
 inline constexpr std::uint8_t kIcmpFaultEchoIdWrong    = 0x0F;  // RFC 792 echo id:  §4.3 ICMPv4_TYPE_09 (reply echoes the request identifier)
 inline constexpr std::uint8_t kIcmpFaultEchoSeqWrong   = 0x10;  // RFC 792 echo seq: §4.3 ICMPv4_TYPE_09 (reply echoes the request sequence)
 inline constexpr std::uint8_t kIpv4FaultTtlZero        = 0x11;  // RFC 1122 §3.2.1.7 TTL:  §4.4 IPv4_TTL_01 (emitted TTL MUST be non-zero)

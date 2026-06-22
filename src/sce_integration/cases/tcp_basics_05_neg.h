@@ -34,11 +34,10 @@ struct TestCaseTraits<cases::TcpBasics05NegSM>
         "DUT sets SEQ = incoming.ACK";
 
     // SYN,ACK-iteration sibling: arm the RST-seq fault, then raw-inject one SYN,ACK whose
-    // ACK is the positive's phase literal (0xC0FFEE00) to the closed port. A conformant DUT
-    // replies RST with SEQ = that ACK; the flavor flips it (RST flag intact), proving the
-    // positive's dut_rst_seq_not_synack_ack_literal fail-final reachable. The literal is
-    // duplicated from tcp_basics_05.h rather than included (its TC8_REGISTER_CASE must not
-    // be pulled into this TU); it matches the _neg scxml guard.
+    // ACK is the positive's phase literal (kTesterPilotAckPhaseSynAck) to the closed port.
+    // A conformant DUT replies RST with SEQ = that ACK; the flavor flips it (RST flag
+    // intact), proving the positive's dut_rst_seq_not_synack_ack_literal fail-final
+    // reachable. The ACK literal is the tcp_pilot_common.h SSOT the _neg scxml guard reads.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
@@ -51,7 +50,7 @@ struct TestCaseTraits<cases::TcpBasics05NegSM>
                         /*flags=*/static_cast<std::uint8_t>(
                             ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck),
                         /*seq_num=*/kTesterInitialSeq,
-                        /*ack_num=*/0xC0FFEE00U);
+                        /*ack_num=*/kTesterPilotAckPhaseSynAck);
     }
 };
 

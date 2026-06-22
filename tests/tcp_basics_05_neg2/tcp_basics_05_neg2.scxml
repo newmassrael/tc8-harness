@@ -18,7 +18,7 @@
        initial="listening">
   <sce:use template="../_templates/tcp_egress_field_check.sce-template.xml"
            filter="captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsClosedPort, ::tc8::sce::tcp::kBasicsTesterPort)"
-           pass_expr="captured.seq_num != 0xDEADBEEFU"
+           pass_expr="captured.seq_num != ::tc8::sce::tcp::kTesterPilotAckPhaseAck"
            fail_state="fail_compliant"
            fail_reason="dut_rst_seq_ack_phase_despite_flavor"
            fail_role="fault_injection_inert"

@@ -7,7 +7,10 @@
   parse, so the corrupted frame is still dissected and header_checksum_valid()
   recomputes RFC 1071 over the captured scalars to false. Pass = invalid checksum
   observed; fail_compliant = the DUT emitted a valid checksum despite the flavor (fault
-  inert). lwIP-only (capability-gated on kCapEgressFault). Envelope: ipv4_field_check.
+  inert). lwIP-only (capability-gated on kCapEgressFault). Envelope: ipv4_field_check (its
+  guard filters on src_addr == dut only, so it relies on the DUT's Echo Reply being the
+  only IPv4 frame it sources in the window — the same single-reply assumption the positive
+  makes; the DUT-side fault is itself type-0-gated in mutateIcmpFrame).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
