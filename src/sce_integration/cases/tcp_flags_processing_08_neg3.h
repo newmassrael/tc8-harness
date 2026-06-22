@@ -73,7 +73,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg3SM>
         fin.ack_num  = 0U;
         fin.flags    = ::tc8::stimulus::kTcpFlagFin;
         emitTcpFrame(cfg, iface, cfg.dut.mac, fin, /*initial_wait=*/kFlavorArmSettle);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        std::this_thread::sleep_for(kSynthRstObserveHold);
     }
 };
 

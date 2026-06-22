@@ -4844,6 +4844,14 @@
         {
           "file": "tests/tcp_flags_processing_08_neg3/tcp_flags_processing_08_neg3.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
         }
       ]
     },

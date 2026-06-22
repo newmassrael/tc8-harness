@@ -70,7 +70,7 @@ struct TestCaseTraits<cases::TcpClosing09NegSM>
         // armed hook synthesizes the prohibited RST on the inbound FIN.
         ::shutdown(tester_fd, SHUT_WR);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        std::this_thread::sleep_for(kSynthRstObserveHold);
 
         // Silent tester disposal — no tester FIN/RST that could itself confuse the observation.
         silentlyCloseTesterFd(tester_fd);

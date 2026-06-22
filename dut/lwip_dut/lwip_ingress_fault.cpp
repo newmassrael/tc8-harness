@@ -13,11 +13,11 @@
 //     ERROR_04 trigger), addressed back to the trigger's sender.
 //   * §4.8 TCP behavioral prohibited emission — synthesize the prohibited TCP
 //     response on the connection's 4-tuple (a RST after a pure ACK in ESTABLISHED /
-//     ACKNOWLEDGEMENT_04, a challenge ACK to a malformed / multicast segment the DUT
-//     must drop / HEADER_07/08/09/11, or a RST in response to a disruptive segment
-//     the DUT must answer with silence — a RST in SYN-SENT / FLAGS_INVALID_03/04, or
-//     the data / FIN that drives FIN-WAIT/CLOSE-WAIT / CLOSING_07/08/09), swapped
-//     from the inbound trigger.
+//     ACKNOWLEDGEMENT_04 + dup-ACK FLAGS_PROCESSING_11, a challenge ACK to a malformed /
+//     multicast segment the DUT must drop / HEADER_07/08/09/11, or a RST in response to a
+//     disruptive segment the DUT must answer with silence — the §4.8 must-not-respond family
+//     spanning SYN-SENT / EST / the close-states, FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08,
+//     CLOSING_07/08/09), swapped from the inbound trigger.
 //   * §4.6.5.4 UDP prohibited acceptance — zero the inbound datagram's UDP checksum
 //     so lwIP's validation gate skips and delivers it to the receive-counting app
 //     (UDP_FIELDS_09/10/15).
@@ -129,9 +129,10 @@ void emitProhibitedIcmpReply(struct netif *nif, const std::uint8_t *rx,
 
 // kTcpSynth*: a buggy DUT emitting a forbidden TCP response to a segment it must silently
 // accept or drop — a RST on a pure ACK in ESTABLISHED (kTcpSynthRst, §4.8.6.18
-// ACKNOWLEDGEMENT_04), a challenge ACK on a malformed/multicast segment (kTcpSynthAck,
-// §4.8.6.16 HEADER_07/08/09/11), or a RST on a disruptive segment the DUT must answer with
-// silence (kTcpSynthRstOnDisruptive, §4.8 FLAGS_INVALID_03/04 + CLOSING_07/08/09).
+// ACKNOWLEDGEMENT_04 + §4.8.6.7 FLAGS_PROCESSING_11), a challenge ACK on a malformed/multicast
+// segment (kTcpSynthAck, §4.8.6.16 HEADER_07/08/09/11), or a RST on a disruptive segment the
+// DUT must answer with silence (kTcpSynthRstOnDisruptive, the §4.8 must-not-respond family —
+// FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08, CLOSING_07/08/09).
 // `rx` points at the inbound trigger; the synthesized segment
 // carries `tcp_flags` on the connection's 4-tuple, derived by swapping the trigger's source
 // for the destination — except the source IP, which is the DUT's own netif address so a
@@ -248,8 +249,9 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
             const std::uint16_t tcp = l4RegionOffset(f);
             const std::uint8_t flags = f[tcp + kTcpFlagsOff];
             if (flavor == ut::kTcpSynthRst) {
-                // §4.8.6.18 ACKNOWLEDGEMENT_04: the conformant DUT silently accepts a pure
-                // ACK in ESTABLISHED, so the hook synthesizes the prohibited RST. The gate is
+                // §4.8.6.18 ACKNOWLEDGEMENT_04 + §4.8.6.7 FLAGS_PROCESSING_11 (a duplicate ACK
+                // in ESTABLISHED, itself a pure ACK): the conformant DUT silently accepts the
+                // pure ACK, so the hook synthesizes the prohibited RST. The gate is
                 // a pure ACK (ACK set; SYN/FIN/RST clear; no payload) — the handshake SYN,ACK
                 // carries SYN, the DUT's own segments are egress (not seen here). The gate is
                 // level-triggered, not one-shot: every matching pure ACK synthesizes a RST
@@ -276,16 +278,18 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                     emitProhibitedTcpSegment(nif, f, kTcpFlagAck);
                 }
             } else {  // kTcpSynthRstOnDisruptive
-                // §4.8 must-not-respond family (FLAGS_INVALID_03/04 RST in SYN-SENT,
-                // CLOSING_07/08/09 data/FIN in FW1/FW2/CW): the conformant DUT processes or
-                // drops the segment without emitting a RST, so the hook synthesizes the
-                // prohibited RST. The gate is the disruptive-flag union (RST/FIN/URG/PSH),
-                // which the case's deliberate trigger carries: a bare or ACK-bearing RST
-                // (FLAGS_INVALID), the PSH data segment (CLOSING_07/08), or the tester's FIN
-                // (CLOSING_09). It excludes a bare pure ACK and a bare SYN, so the handshake
-                // and the tester's later auto-ACKs (e.g. CLOSING_08's FW1->FW2 FIN-ACK) do
-                // not trip it. The synthesized RST (seq=0) trips every guard in the family —
-                // each fails on is_dut_rst, or on "any DUT segment" which a RST satisfies.
+                // §4.8 must-not-respond family (FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08,
+                // CLOSING_07/08/09 — across SYN-SENT/LISTEN/EST and every close-state): the
+                // conformant DUT processes or drops the segment without emitting a RST, so the
+                // hook synthesizes the prohibited RST. The gate is the disruptive-flag union
+                // (RST/FIN/URG/PSH), which the case's deliberate trigger carries: a bare or
+                // ACK-bearing RST / out-of-window RST (FLAGS_INVALID), a URG-only segment
+                // (FLAGS_PROCESSING_07), a bare FIN (FLAGS_PROCESSING_08), the PSH data segment
+                // (CLOSING_07/08), or the tester's FIN (CLOSING_09). It excludes a bare pure ACK
+                // and a bare SYN, so the handshake and the tester's later auto-ACKs (e.g.
+                // CLOSING_08's FW1->FW2 FIN-ACK) do not trip it. The synthesized RST (seq=0)
+                // trips every guard in the family — each fails on is_dut_rst, or on "any DUT
+                // segment" which a RST satisfies.
                 if ((flags & (kTcpFlagRst | kTcpFlagFin | kTcpFlagUrg | kTcpFlagPsh)) != 0U) {
                     emitProhibitedTcpSegment(nif, f, kTcpFlagRst);
                 }

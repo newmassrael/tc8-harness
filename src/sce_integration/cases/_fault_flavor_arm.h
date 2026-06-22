@@ -29,6 +29,13 @@ namespace tc8::sce {
 // gap), though currently the same 200 ms.
 inline constexpr auto kFlavorArmSettle = std::chrono::milliseconds(200);
 
+// The window a synthesis `_neg` holds open AFTER injecting its trigger, so the lwIP-synthesized
+// RST lands and is captured before the stimulus returns and any fault resource (a stack
+// TesterAutoAckDrop, the tester fd) tears down. Must stay <= the SCXML `rst_watch` deadline.
+// Named to avoid aliasing kTcpUtBootWait (also 1500 ms, but the boot bring-up wait — an
+// unrelated meaning that happens to share the value).
+inline constexpr auto kSynthRstObserveHold = std::chrono::milliseconds(1500);
+
 // emitEgressFlavorArm (UT 0x18 OpSetEgressFlavor): a non-None flavor makes the netif
 // link-output hook corrupt one header field of the next DUT-emitted frame (ARP
 // fields, UDP src/dst port / length / checksum, ...).

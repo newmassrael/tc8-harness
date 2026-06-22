@@ -76,7 +76,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15Neg7SM>
             rst.ack_num  = seq_range->rcv_nxt - 1U;
             rst.flags    = ::tc8::stimulus::kTcpFlagRst | ::tc8::stimulus::kTcpFlagAck;
             emitTcpFrame(cfg, iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            std::this_thread::sleep_for(kSynthRstObserveHold);
         }
         silentlyCloseTesterFd(tester_fd);
     }

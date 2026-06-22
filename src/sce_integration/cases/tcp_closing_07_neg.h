@@ -87,7 +87,7 @@ struct TestCaseTraits<cases::TcpClosing07NegSM>
         emitTcpFrame(cfg, iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
 
         // Hold FW1 (AckDrop alive) while the synthesized RST is observed.
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        std::this_thread::sleep_for(kSynthRstObserveHold);
         (void)tester_fd;
     }
 };

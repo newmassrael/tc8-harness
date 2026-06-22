@@ -72,7 +72,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07NegSM>
             urg.ack_num  = 0U;
             urg.flags    = ::tc8::stimulus::kTcpFlagUrg;
             emitTcpFrame(cfg, iface, cfg.dut.mac, urg, /*initial_wait=*/kFlavorArmSettle);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            std::this_thread::sleep_for(kSynthRstObserveHold);
         }
         silentlyCloseTesterFd(tester_fd);
     }

@@ -15,11 +15,13 @@
 
   Two-state chain: listening_handshake_ack matches the active-OPEN third-leg pure ACK (the
   connection-reached precondition; a flipped dut_iface_ip makes this unreachable ->
-  inconclusive). listening_rst_watch then carries a generous 20 s window because the trait's
-  per-phase seam (DUT close to CLOSING / LAST-ACK, the FIN-WAIT-2 TIME-WAIT prelude) runs in the
-  stimulus thread AFTER the handshake and emits several intermediate DUT FIN/ACK segments — none
-  of which match is_dut_rst — before the disruptive trigger and the synthesized RST. The cases
-  differ only in the per-case active-OPEN port offset, threaded as {$port_offset}.
+  inconclusive). listening_rst_watch then carries a generous 20 s window sized for the SLOWEST
+  consumer's seam — FLAGS_PROCESSING_07 / FLAGS_INVALID_15's driveSeamCloseToClosing /
+  driveSeamTimeWaitFw2 preludes run in the stimulus thread AFTER the handshake and emit several
+  intermediate DUT FIN/ACK segments (none matching is_dut_rst) before the disruptive trigger and
+  the synthesized RST. Short-seam consumers (CLOSING_07/08/09 reach FW1/FW2/CW via a single
+  shutdownTcpWr) land well inside the same window, so one deadline serves all. The cases differ
+  only in the per-case active-OPEN port offset, threaded as {$port_offset}.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
