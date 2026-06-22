@@ -188,6 +188,10 @@
         {
           "file": "dut/lwip_dut/lwip_egress_fault.h",
           "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/icmpv4_synth_neg.sce-template.xml",
+          "kind": "references"
         }
       ]
     },
@@ -778,6 +782,14 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/icmpv4_synth_neg.sce-template.xml",
+          "kind": "implements"
         }
       ]
     },
@@ -835,6 +847,22 @@
         },
         {
           "file": "tests/icmpv4_error_05/icmpv4_error_05.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_error_03_neg/icmpv4_error_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_error_04_neg/icmpv4_error_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_error_05_neg/icmpv4_error_05_neg.scxml",
           "kind": "implements"
         }
       ]
@@ -929,6 +957,18 @@
         },
         {
           "file": "tests/icmpv4_type_18_neg/icmpv4_type_18_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_type_10_neg/icmpv4_type_10_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_type_16_neg/icmpv4_type_16_neg.scxml",
           "kind": "implements"
         }
       ]

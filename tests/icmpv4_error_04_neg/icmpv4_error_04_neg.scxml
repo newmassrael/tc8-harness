@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.1 ICMPv4_ERROR_04 negative — lwIP ingress-fault self-validation of the
+  positive _04 Parameter-Problem-absence guard. The trait injects an Echo Request to the
+  limited broadcast address carrying a malformed Timestamp option (the broadcast-
+  destination rule, RFC 1122 §3.2.2, forbids the Parameter Problem reply) and arms
+  kIcmpFaultSynthParamProblem, so the lwIP netif input hook synthesizes the prohibited
+  Parameter Problem (type=12). Pass = that reply observed; fail_compliant = DUT stayed
+  silent despite the flavor (fault inert). lwIP-only (capability-gated on
+  kCapIngressFault). Envelope: icmpv4_synth_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_error_04_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_synth_neg.sce-template.xml"/>
+</scxml>

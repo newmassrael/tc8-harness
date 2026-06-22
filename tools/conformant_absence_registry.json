@@ -1067,33 +1067,6 @@
         }
       ]
     },
-    "ICMPv4_ERROR_03": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_sent_parameter_problem_to_fragmented_sequence",
-          "property": "DUT must not send a Parameter Problem for a fragmented datagram sequence; silence is conformant"
-        }
-      ]
-    },
-    "ICMPv4_ERROR_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_sent_parameter_problem_to_broadcast",
-          "property": "DUT must not send a Parameter Problem in response to a broadcast datagram; silence is conformant"
-        }
-      ]
-    },
-    "ICMPv4_ERROR_05": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_sent_icmp_to_unknown_type",
-          "property": "DUT must not send an ICMP error for an unknown/unsupported ICMP type; silence is conformant"
-        }
-      ]
-    },
     "ICMPv4_TYPE_04": {
       "guards": [
         {
@@ -1109,24 +1082,6 @@
           "class": "prohibited_emission",
           "fail_reason": "dut_replied_to_malformed_ip_options",
           "property": "DUT must not reply to a datagram carrying malformed IP options; silence is conformant"
-        }
-      ]
-    },
-    "ICMPv4_TYPE_10": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_to_bad_checksum",
-          "property": "DUT must not reply to an Echo Request with a bad IP/ICMP checksum; silence is conformant"
-        }
-      ]
-    },
-    "ICMPv4_TYPE_16": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_sent_information_reply",
-          "property": "DUT must not send an Information Reply (obsolete ICMP message type); silence is conformant"
         }
       ]
     },

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.3 ICMPv4 prohibited-emission `_NEG` body: the lwIP ingress-fault self-validation
+  of the positive TYPE_16 / ERROR_03 / ERROR_04 / ERROR_05 / TYPE_10 guards. The
+  positive injects a trigger the conformant DUT must answer with silence (an Info
+  Request, a bad-checksum or unknown-type ICMP, a broadcast or fragmented options
+  datagram), and asserts no DUT-origin ICMP reply arrives. Its `_NEG` arms a
+  kIcmpFaultSynth* flavor, so the lwIP netif INPUT hook synthesizes the prohibited ICMP
+  reply as that trigger arrives.
+
+    Pass:    a DUT-origin ICMP reply observed (src_ip == dut_iface_ip; the trait's
+             ingress-fault base narrows the captured variant to the synthesized type —
+             Echo Reply 0 / Parameter Problem 12 / Information Reply 16) — the injected
+             violation is present, proving the positive's guard would fire on a
+             non-conformant DUT.
+    Fail:    deadline_exceeded -> fail_compliant — the DUT stayed silent despite the
+             flavor (the fault was inert: a flavor-wiring regression, NOT a DUT
+             conformance violation; role fault_injection_inert).
+
+  The five cases differ only in the trigger their trait injects and the reply type the
+  flavor synthesizes; the observed outcome — a DUT-origin ICMP, or conformant silence —
+  is identical, so this body is param-less (cf. arp_reply_neg, its §4.2 sibling). The
+  `src_ip == dut_iface_ip` conjunct is the sole filter for the ERROR_05 type-agnostic
+  dispatch (which would otherwise raise on the tester's own unknown-type stimulus) and a
+  no-op for the type-narrowed consumers, exactly as in the positive absence body. The 3 s
+  deadline matches the §4.3 absence cases; the synthesized reply lands on the trigger's
+  arrival, well inside the window.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="icmpv4_synth_neg">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silent_despite_icmp_synth_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>

@@ -214,10 +214,22 @@ a post-delivery application decision, below the netif glue's reach:
   IPv4 IHL/version/total_length below the minimum — are not faultable this way; the
   dissector drops them before the guard runs.)
 - **Ingress reaction-fault** makes the DUT exhibit a forbidden *reaction* to an
-  inbound frame: the §4.2.4.2 ARP prohibited emission (reply / learn), or the
-  §4.6.5.4 UDP prohibited acceptance — `kUdpFaultAcceptBadChecksum` zeroes the
-  inbound UDP checksum so lwIP's `chksum != 0` gate skips and delivers a
-  datagram it must drop.
+  inbound frame. Three reaction flavors today:
+  - *§4.2.4.2 ARP prohibited emission* — synthesize the forbidden ARP Reply, or
+    wrongly learn the dropped Response's address (reply / learn).
+  - *§4.3 ICMPv4 prohibited emission* — synthesize the ICMP reply a conformant DUT
+    must NOT send, addressed back to the trigger's sender with the DUT's own source
+    identity: `kIcmpFaultSynthInfoReply` (Information Reply for an Info Request,
+    TYPE_16), `kIcmpFaultSynthEchoReply` (Echo Reply for a bad-checksum Echo /
+    TYPE_10 or an unknown-type ICMP / ERROR_05), `kIcmpFaultSynthParamProblem`
+    (Parameter Problem for a fragmented / ERROR_03 or broadcast / ERROR_04 trigger).
+    Like the ARP reply synthesis, the conformant DUT emits nothing — so the input
+    hook builds the whole frame (Ethernet + IPv4 + 8-byte ICMP, both checksums via
+    lwIP's own `inet_chksum`) rather than corrupting an egress field. The guard reads
+    only the reply's type + source IP.
+  - *§4.6.5.4 UDP prohibited acceptance* — `kUdpFaultAcceptBadChecksum` zeroes the
+    inbound UDP checksum so lwIP's `chksum != 0` gate skips and delivers a datagram
+    it must drop.
 - **App-layer reception-fault** makes the data listener skip a destination-address
   discard that RFC 1122 places at the *application* layer (`§4.4.4.5` directed
   broadcast via `kAppFaultAcceptDirectedBroadcast`; `§4.6.5.6` all-systems multicast

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_16 negative — lwIP ingress-fault self-validation of the
+  positive _16 Information-Reply-absence guard. The trait injects an Information Request
+  (type=15, the frame the DUT must not answer) and arms kIcmpFaultSynthInfoReply, so the
+  lwIP netif input hook synthesizes the prohibited Information Reply (type=16). Pass =
+  that reply observed; fail_compliant = DUT stayed silent despite the flavor (fault
+  inert). lwIP-only (capability-gated on kCapIngressFault). Envelope: icmpv4_synth_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_16_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_synth_neg.sce-template.xml"/>
+</scxml>

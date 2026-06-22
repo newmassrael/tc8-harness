@@ -6,6 +6,11 @@
 //   * §4.2.4.2 ARP prohibited emission — synthesize the prohibited ARP Reply
 //     (ARP_21/27/37/42), or wrongly learn the dropped Response's address
 //     (ARP_22/28/38).
+//   * §4.3 ICMPv4 prohibited emission — synthesize the prohibited ICMP reply a
+//     conformant DUT must NOT send (Information Reply for an Info Request /
+//     TYPE_16; Echo Reply for a bad-checksum Echo / TYPE_10 or an unknown type /
+//     ERROR_05; Parameter Problem for a fragmented / ERROR_03 or broadcast /
+//     ERROR_04 trigger), addressed back to the trigger's sender.
 //   * §4.6.5.4 UDP prohibited acceptance — zero the inbound datagram's UDP checksum
 //     so lwIP's validation gate skips and delivers it to the receive-counting app
 //     (UDP_FIELDS_09/10/15).
@@ -18,6 +23,7 @@
 
 #include "lwip/err.h"
 #include "lwip/etharp.h"
+#include "lwip/inet_chksum.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcpip.h"
@@ -67,6 +73,51 @@ void emitProhibitedArpReply(struct netif *nif, const std::uint8_t *rx) {
     std::memcpy(o + kArpSenderIp, &dut_ip, 4);            // sender_ip = DUT IP (network order)
     std::memcpy(o + kArpTargetHw, rx + kArpSenderHw, 6);  // target_hw = requester sender_hw
     std::memcpy(o + kArpTargetIp, rx + kArpSenderIp, 4);  // target_ip = requester sender_ip
+    nif->linkoutput(nif, p);
+    pbuf_free(p);
+}
+
+// kIcmpFaultSynth*: a buggy DUT answering an inbound ICMP trigger the conformant DUT
+// stays silent for (§4.3 ICMPv4 prohibited emission — Info Request → must not Info
+// Reply / TYPE_16; bad-checksum or unknown-type ICMP → must not reply at all /
+// TYPE_10, ERROR_05; broadcast or fragmented options trigger → must not Parameter
+// Problem / ERROR_03, ERROR_04). `rx` points at the inbound Ethernet+IPv4+ICMP frame;
+// the synthesized reply carries the DUT's source identity (eth + IPv4 src) addressed
+// back to the trigger's sender, so the case guard's `src_ip == dut_iface_ip` fires and
+// the dispatch's type narrowing selects the reply. `reply_type` is the ICMP type the
+// flavor names (Echo Reply 0 / Parameter Problem 12 / Information Reply 16). The
+// 8-byte ICMP body (type, code 0, checksum, zeroed rest-of-header) is the minimum a
+// well-formed reply needs — the guards read only type + src_ip, never the body. Both
+// checksums are computed with lwIP's own `inet_chksum` (the routine a real lwIP
+// emission would use), so the frame is valid at every layer, not merely dissectable.
+// Sent via nif->linkoutput like the ARP synthesis — no egress flavor armed, so the
+// egress hook forwards it untouched. Reads only the inbound IPv4 fixed header
+// (proto + source), which is present whatever the trigger's IHL or fragment offset.
+void emitProhibitedIcmpReply(struct netif *nif, const std::uint8_t *rx,
+                             std::uint8_t reply_type) {
+    constexpr std::uint16_t kL4Off    = kEthHdrLen + kIpHdrLenMin;        // 34
+    constexpr std::uint16_t kFrameLen = kL4Off + kIcmpMinHdrLen;          // 42
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, kFrameLen, PBUF_RAM);
+    if (p == nullptr) {
+        return;
+    }
+    auto *o = static_cast<std::uint8_t *>(p->payload);
+    std::memset(o, 0, kFrameLen);
+    std::memcpy(o + 0, rx + 6, 6);                        // eth dst = trigger's eth src (the tester)
+    std::memcpy(o + 6, nif->hwaddr, 6);                   // eth src = DUT MAC
+    put16(o, kEthTypeOff, 0x0800);                        // IPv4
+    o[kIpVerIhlOff] = 0x45;                               // version 4, IHL 5 (no options)
+    put16(o, kIpTotalLenOff, kIpHdrLenMin + kIcmpMinHdrLen);  // 28
+    o[kIpTtlOff]   = 64;
+    o[kIpProtoOff] = kIpProtoIcmp;
+    const std::uint32_t dut_ip = ip4_addr_get_u32(netif_ip4_addr(nif));
+    std::memcpy(o + kIpSrcOff, &dut_ip, 4);               // src = DUT IP (network order)
+    std::memcpy(o + kIpDstOff, rx + kIpSrcOff, 4);        // dst = trigger's IPv4 src (the tester)
+    const std::uint16_t ip_cksum = inet_chksum(o + kEthHdrLen, kIpHdrLenMin);
+    std::memcpy(o + kIpHdrChecksumOff, &ip_cksum, 2);
+    o[kL4Off + kIcmpTypeOff] = reply_type;               // code + rest-of-header stay 0 from memset
+    const std::uint16_t icmp_cksum = inet_chksum(o + kL4Off, kIcmpMinHdrLen);
+    std::memcpy(o + kL4Off + kIcmpChecksumOff, &icmp_cksum, 2);
     nif->linkoutput(nif, p);
     pbuf_free(p);
 }
@@ -124,6 +175,19 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 }
                 put16(f, udp + kUdpChecksum, 0x0000);  // accept-bad-checksum: skip lwIP's gate
             }
+        } else if ((flavor == ut::kIcmpFaultSynthEchoReply ||
+                    flavor == ut::kIcmpFaultSynthInfoReply ||
+                    flavor == ut::kIcmpFaultSynthParamProblem) &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
+                   f[kIpProtoOff] == kIpProtoIcmp) {
+            // §4.3 prohibited emission: the conformant DUT drops the trigger and stays
+            // silent, so the input hook synthesizes the forbidden ICMP reply. The flavor
+            // names the reply type; the original frame still goes to lwIP, which drops it.
+            const std::uint8_t reply_type =
+                flavor == ut::kIcmpFaultSynthInfoReply    ? kIcmpTypeInfoReply :
+                flavor == ut::kIcmpFaultSynthParamProblem ? kIcmpTypeParamProblem :
+                                                            kIcmpTypeEchoReply;
+            emitProhibitedIcmpReply(nif, f, reply_type);
         }
     }
     return g_orig_input(p, nif);

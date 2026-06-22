@@ -86,4 +86,30 @@ struct Icmpv4EgressFaultNegBase : Icmpv4TypedBase<StateMachine, ReplyType> {
         ::tc8::sce::kCapEgressFault;
 };
 
+// Base for the §4.3 ICMPv4 prohibited-emission INGRESS `_NEG` cases (TYPE_16, ERROR_03/04,
+// TYPE_10). The positive proves the DUT stays silent for its trigger; the `_NEG` arms a
+// kIcmpFaultSynth* flavor so the lwIP netif INPUT hook synthesizes the forbidden reply, and
+// the case passes only when it is observed. Same type-narrowing dispatch as
+// Icmpv4TypedBase<SM, ReplyType> (the synthesized reply's type — Echo Reply 0, Parameter
+// Problem 12, Information Reply 16), plus the one declaration every such case shares: it
+// requires OpSetIngressFlavor (kCapIngressFault), so the Tier-2 gate runs these only on the
+// lwIP fixture and capability-skips them (N/A) on the kernel-stack reference DUT. The ingress
+// sibling of Icmpv4EgressFaultNegBase (which corrupts a frame the DUT does emit; here the DUT
+// emits nothing, so the hook synthesizes the whole frame).
+template <typename StateMachine, std::uint8_t ReplyType = std::uint8_t{0}>
+struct Icmpv4IngressFaultNegBase : Icmpv4TypedBase<StateMachine, ReplyType> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault;
+};
+
+// Type-agnostic variant for ICMPv4_ERROR_05, whose positive dispatches type-agnostically
+// ("any DUT-origin ICMP = fail"); the `_NEG` mirrors that shape. The synthesized Echo Reply
+// is selected by `captured.src_ip == expected.dut_iface_ip` in the SCXML, not the type — the
+// same defence the positive uses to exclude the tester's own unknown-type stimulus frame.
+template <typename StateMachine>
+struct Icmpv4IngressFaultNegAnyBase : Icmpv4AnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault;
+};
+
 }  // namespace tc8::sce

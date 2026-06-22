@@ -892,13 +892,19 @@ inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultPureAckNumWrong
 // reception cases where a conformant DUT's reaction to an inbound frame is itself
 // the property under test, so there is no DUT egress field to corrupt: the input
 // hook makes the buggy DUT exhibit the forbidden reaction the positive case proves
-// absent. Three reaction kinds today: prohibited EMISSION (§4.2.4.2 ARP — the DUT
-// must drop a malformed/foreign frame silently, the fault makes it reply/learn),
-// prohibited ACCEPTANCE (§4.6.5.4 UDP — the DUT must discard a malformed datagram,
-// the fault makes it accept and deliver it to the receive-counting app), and
-// prohibited REJECTION (§4.6.5.4 UDP — the DUT must accept a valid edge-case
-// datagram, the fault makes it drop one it must deliver). One contiguous catalog;
-// the flavor name carries the protocol + reaction.
+// absent. Four reaction kinds today: prohibited EMISSION (§4.2.4.2 ARP — the DUT
+// must drop a malformed/foreign frame silently, the fault makes it reply/learn;
+// §4.3 ICMPv4 — the DUT must stay silent for an Info Request / unknown type /
+// bad-checksum Echo / broadcast or fragmented error trigger, the fault synthesizes
+// the prohibited ICMP reply), prohibited ACCEPTANCE (§4.6.5.4 UDP — the DUT must
+// discard a malformed datagram, the fault makes it accept and deliver it to the
+// receive-counting app), and prohibited REJECTION (§4.6.5.4 UDP — the DUT must
+// accept a valid edge-case datagram, the fault makes it drop one it must deliver).
+// The ARP and ICMP emission faults synthesize a frame back to the inbound sender
+// (the conformant DUT emits nothing, so there is no egress to corrupt — the netif
+// input hook builds the forbidden frame itself); the UDP faults mutate or swallow
+// the inbound datagram in place. One contiguous catalog; the flavor name carries
+// the protocol + reaction.
 inline constexpr std::uint8_t kIngressFaultNone          = 0x00;
 // ARP-over-Ethernet prohibited emission:
 inline constexpr std::uint8_t kArpFaultReplyToDropFrame  = 0x01;  // §4.2.4.2 reply-absence: ARP_21/27/37/42 (reply to a frame the DUT must drop)
@@ -917,7 +923,15 @@ inline constexpr std::uint8_t kUdpFaultAcceptBadChecksum  = 0x03;  // §4.6.5.4 
 // frame (never forwards it to lwIP) so the receive-counting app never sees a datagram
 // the DUT must accept. Models a DUT that wrongly drops a valid edge-case datagram.
 inline constexpr std::uint8_t kUdpFaultRejectValid       = 0x04;  // §4.6.5.4 rejection: UDP_FIELDS_03 (src port 0) / _16 (checksum 0) (drop a datagram it must accept)
-inline constexpr std::uint8_t kIngressFaultMax           = kUdpFaultRejectValid;
+// ICMPv4 prohibited emission (§4.3) — the input hook synthesizes the ICMP reply a
+// conformant DUT must NOT send for the inbound trigger, addressed back to the
+// trigger's sender with the DUT's own source identity (the DUT emits nothing, so
+// there is no egress field to corrupt). The flavor names the reply type; the case's
+// trigger frame selects which prohibited reply is in scope:
+inline constexpr std::uint8_t kIcmpFaultSynthEchoReply    = 0x05;  // §4.3.3.2 TYPE_10 (bad-checksum Echo) / §4.3.3.1 ERROR_05 (unknown type): synthesize an Echo Reply (type 0)
+inline constexpr std::uint8_t kIcmpFaultSynthInfoReply    = 0x06;  // §4.3.3.2 TYPE_16: synthesize an Information Reply (type 16, RFC 1122 §3.2.2.7 SHOULD NOT)
+inline constexpr std::uint8_t kIcmpFaultSynthParamProblem = 0x07;  // §4.3.3.1 ERROR_03 (fragmented) / ERROR_04 (broadcast): synthesize a Parameter Problem (type 12)
+inline constexpr std::uint8_t kIngressFaultMax           = kIcmpFaultSynthParamProblem;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,
