@@ -60,11 +60,14 @@ constexpr std::uint16_t kUdpLength   = 4;
 constexpr std::uint16_t kUdpChecksum = 6;
 constexpr std::uint16_t kUdpHdrLen   = 8;
 // TCP header field offsets (relative to the TCP region start). Only the fields the
-// current §4.8 egress faults read are defined; window/urgent join as their cases land.
+// current §4.8 egress faults + the RST-synthesis seam read/build are defined.
+constexpr std::uint16_t kTcpSrcPortOff  = 0;   // u16 source port
+constexpr std::uint16_t kTcpDstPortOff  = 2;   // u16 destination port
 constexpr std::uint16_t kTcpSeqNumOff   = 4;   // u32 sequence number
 constexpr std::uint16_t kTcpAckNumOff   = 8;   // u32 acknowledgment number
 constexpr std::uint16_t kTcpDataOffOff  = 12;  // high nibble = header length in 32-bit words
 constexpr std::uint16_t kTcpFlagsOff    = 13;  // u8 control bits (… URG ACK PSH RST SYN FIN)
+constexpr std::uint16_t kTcpWindowOff   = 14;  // u16 window size
 constexpr std::uint16_t kTcpChecksumOff = 16;  // u16 checksum
 constexpr std::uint16_t kTcpMinHdrLen   = 20;  // bytes needed through the checksum field
 constexpr std::uint8_t  kTcpFlagFin     = 0x01;

@@ -3618,6 +3618,14 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_fault_flavor_arm.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4250,6 +4258,22 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_acknowledgement_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_acknowledgement_04_neg/tcp_acknowledgement_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

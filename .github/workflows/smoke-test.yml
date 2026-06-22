@@ -257,7 +257,12 @@ jobs:
       # surfaces a wrong field (port count / payload / src port / src IP) in the UT
       # Confirmation — the report-corruption sibling of the app-layer discard faults, faulted
       # at the only faithful site (the stack delivered it correctly), and the _neg passes only
-      # when the corrupted field is observed. ~9 min.
+      # when the corrupted field is observed. Finally the §4.8 TCP behavioral-synthesis pilot
+      # (TCP_ACKNOWLEDGEMENT_04_NEG, kTcpSynthRst): the DUT must stay silent for a pure ACK in
+      # ESTABLISHED, so the netif INPUT hook synthesizes the prohibited RST on the connection's
+      # 4-tuple (swapped from the inbound trigger; the guard checks only 4-tuple + RST flag, no
+      # seq) — the behavioral seam the egress field-fault cannot reach, and the _neg passes only
+      # when that DUT-origin RST is observed. ~10 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -300,7 +305,8 @@ jobs:
             ICMPv4_TYPE_16_NEG ICMPv4_TYPE_10_NEG \
             ICMPv4_ERROR_03_NEG ICMPv4_ERROR_04_NEG ICMPv4_ERROR_05_NEG \
             UDP_USER_INTERFACE_01_NEG UDP_USER_INTERFACE_02_NEG \
-            UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG
+            UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG \
+            TCP_ACKNOWLEDGEMENT_04_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

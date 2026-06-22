@@ -54,4 +54,18 @@ struct TcpEgressFaultNegBase : TcpAnyBase<StateMachine> {
         ::tc8::sce::kCapEgressFault;
 };
 
+// Base for the §4.8 TCP behavioral INGRESS `_NEG` cases (ACKNOWLEDGEMENT_04). The positive
+// proves the DUT stays silent for an inbound segment RFC 793 §3.9 says it must accept; the
+// `_NEG` arms kTcpSynthRst so the lwIP netif INPUT hook synthesizes the prohibited RST, and
+// the case passes only when it is observed. Same TCP dispatch as TcpAnyBase, plus the
+// kCapIngressFault declaration (OpSetIngressFlavor), so the Tier-2 gate runs these only on
+// the lwIP fixture. The ingress sibling of TcpEgressFaultNegBase: there the DUT emits a
+// segment whose field is corrupted; here the DUT emits nothing, so the hook synthesizes the
+// whole frame (the behavioral seam the egress field-fault cannot reach).
+template <typename StateMachine>
+struct TcpIngressFaultNegBase : TcpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault;
+};
+
 }  // namespace tc8::sce

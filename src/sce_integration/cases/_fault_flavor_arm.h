@@ -64,6 +64,18 @@ inline void emitIngressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view 
                                           cfg.dut.mac, flavor);
 }
 
+// emitIngressFlavorArmMidStream: arm an ingress flavor MID-CONNECTION, without the bring-up
+// wait (the DUT is already up and an exchange is in flight) — the ingress sibling of
+// emitEgressFlavorArmMidStream. The §4.8 TCP RST-synthesis `_NEG` (ACKNOWLEDGEMENT_04)
+// drives the active OPEN to ESTABLISHED with the fault disarmed, then arms here so only the
+// post-handshake pure ACK triggers the synthesized RST (the handshake SYN,ACK is excluded by
+// the pure-ACK gate, but arming after ESTABLISHED scopes it cleanly regardless).
+inline void emitIngressFlavorArmMidStream(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                          std::uint8_t flavor) {
+    ::tc8::stimulus::emitSetIngressFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
+                                          cfg.dut.mac, flavor);
+}
+
 // emitAppFlavorArm (UT 0x1A OpSetAppFlavor): a non-None flavor makes the shared data
 // listener skip a §4.4.4.5 destination-address discard — an application decision (RFC
 // 1122) the IP stack has already delivered to the listener socket — so the DUT counts a

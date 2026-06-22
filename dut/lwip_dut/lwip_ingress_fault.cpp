@@ -11,6 +11,9 @@
 //     TYPE_16; Echo Reply for a bad-checksum Echo / TYPE_10 or an unknown type /
 //     ERROR_05; Parameter Problem for a fragmented / ERROR_03 or broadcast /
 //     ERROR_04 trigger), addressed back to the trigger's sender.
+//   * §4.8 TCP behavioral prohibited emission — synthesize the prohibited TCP
+//     response on the connection's 4-tuple (a RST after a pure ACK in ESTABLISHED /
+//     ACKNOWLEDGEMENT_04), swapped from the inbound trigger.
 //   * §4.6.5.4 UDP prohibited acceptance — zero the inbound datagram's UDP checksum
 //     so lwIP's validation gate skips and delivers it to the receive-counting app
 //     (UDP_FIELDS_09/10/15).
@@ -122,6 +125,67 @@ void emitProhibitedIcmpReply(struct netif *nif, const std::uint8_t *rx,
     pbuf_free(p);
 }
 
+// Internet checksum over the TCP pseudo-header (src/dst IPv4 + proto + segment length) and
+// the TCP segment, for a synthesized RST. lwIP's `inet_chksum` covers a flat buffer but not
+// the TCP pseudo-header, so the one's-complement sum is open-coded over the contiguous frame
+// just built (checksum field still zeroed). get16 reads big-endian, so the host-order fold
+// stores back big-endian via put16 unchanged. The seam controls the exact buffer + length,
+// so this is not exposed to the region/length hazard a recompute on a borrowed buffer is.
+std::uint16_t tcpSynthChecksum(const std::uint8_t *f, std::uint16_t l4, std::uint16_t tcp_len) {
+    std::uint32_t sum = 0;
+    for (std::uint16_t i = 0; i < 8; i += 2) {  // pseudo-header src + dst IPv4
+        sum += get16(f, static_cast<std::uint16_t>(kIpSrcOff + i));
+    }
+    sum += kIpProtoTcp;
+    sum += tcp_len;
+    for (std::uint16_t i = 0; i + 1 < tcp_len; i += 2) {
+        sum += get16(f, static_cast<std::uint16_t>(l4 + i));
+    }
+    while (sum >> 16) {
+        sum = (sum & 0xFFFFu) + (sum >> 16);
+    }
+    return static_cast<std::uint16_t>(~sum);
+}
+
+// kTcpSynthRst: a buggy DUT emitting a RST in response to a segment RFC 793 §3.9 says it
+// must silently accept — a pure ACK in ESTABLISHED (§4.8.6.18 ACKNOWLEDGEMENT_04). `rx`
+// points at the inbound trigger (the tester's pure ACK); the synthesized RST swaps its
+// 4-tuple so it appears to come from the DUT's side of the connection (the case guard's
+// is_dut_rst checks only that 4-tuple + the RST flag, never seq/ack). seq/ack are left 0:
+// immaterial to the guard, and a real RST's seq is connection-state-derived, which this
+// stateless frame hook does not track. Both checksums are computed (IPv4 via lwIP's own
+// inet_chksum, TCP via tcpSynthChecksum) so the frame is valid at every layer. Sent via
+// nif->linkoutput like the ARP/ICMP synthesis.
+void emitProhibitedTcpRst(struct netif *nif, const std::uint8_t *rx) {
+    constexpr std::uint16_t kL4Off    = kEthHdrLen + kIpHdrLenMin;        // 34
+    constexpr std::uint16_t kFrameLen = kL4Off + kTcpMinHdrLen;          // 54
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, kFrameLen, PBUF_RAM);
+    if (p == nullptr) {
+        return;
+    }
+    auto *o = static_cast<std::uint8_t *>(p->payload);
+    std::memset(o, 0, kFrameLen);
+    std::memcpy(o + 0, rx + 6, 6);                        // eth dst = trigger's eth src (the tester)
+    std::memcpy(o + 6, nif->hwaddr, 6);                   // eth src = DUT MAC
+    put16(o, kEthTypeOff, 0x0800);                        // IPv4
+    o[kIpVerIhlOff] = 0x45;                               // version 4, IHL 5
+    put16(o, kIpTotalLenOff, kIpHdrLenMin + kTcpMinHdrLen);  // 40
+    o[kIpTtlOff]   = 64;
+    o[kIpProtoOff] = kIpProtoTcp;
+    std::memcpy(o + kIpSrcOff, rx + kIpDstOff, 4);        // src = trigger's IPv4 dst = DUT IP
+    std::memcpy(o + kIpDstOff, rx + kIpSrcOff, 4);        // dst = trigger's IPv4 src = tester IP
+    const std::uint16_t ip_cksum = inet_chksum(o + kEthHdrLen, kIpHdrLenMin);
+    std::memcpy(o + kIpHdrChecksumOff, &ip_cksum, 2);
+    const std::uint16_t rx_l4 = l4RegionOffset(rx);
+    put16(o, kL4Off + kTcpSrcPortOff, get16(rx, rx_l4 + kTcpDstPortOff));  // src port = DUT local port
+    put16(o, kL4Off + kTcpDstPortOff, get16(rx, rx_l4 + kTcpSrcPortOff));  // dst port = tester remote port
+    o[kL4Off + kTcpDataOffOff] = 0x50;                    // data offset 5 (20 B header, no options)
+    o[kL4Off + kTcpFlagsOff]   = kTcpFlagRst;             // RST
+    put16(o, kL4Off + kTcpChecksumOff, tcpSynthChecksum(o, kL4Off, kTcpMinHdrLen));
+    nif->linkoutput(nif, p);
+    pbuf_free(p);
+}
+
 // kArpFaultLearnFromDropFrame: a buggy DUT that wrongly accepted a malformed/foreign
 // ARP Response it should have dropped (§4.2.4.2 ARP_22/28/38 drop-and-emit). `rx`
 // points at the inbound frame; its (sender_ip -> sender_hw) is forced into the ARP
@@ -188,6 +252,25 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 flavor == ut::kIcmpFaultSynthParamProblem ? kIcmpTypeParamProblem :
                                                             kIcmpTypeEchoReply;
             emitProhibitedIcmpReply(nif, f, reply_type);
+        } else if (flavor == ut::kTcpSynthRst &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
+                   f[kIpProtoOff] == kIpProtoTcp &&
+                   p->len >= l4RegionOffset(f) + kTcpMinHdrLen) {
+            // §4.8.6.18 ACKNOWLEDGEMENT_04: the conformant DUT silently accepts a pure ACK
+            // in ESTABLISHED, so the input hook synthesizes the prohibited RST. The gate is
+            // a pure ACK (ACK set; SYN/FIN/RST clear; no payload) — the handshake SYN,ACK
+            // carries SYN and is excluded, and the DUT's own segments are egress (not seen
+            // here), so only the post-handshake data ACK triggers. Per-phase arming scopes
+            // it past the handshake regardless.
+            const std::uint16_t tcp = l4RegionOffset(f);
+            const std::uint8_t flags = f[tcp + kTcpFlagsOff];
+            const bool pure_ack =
+                (flags & kTcpFlagAck) != 0U &&
+                (flags & (kTcpFlagSyn | kTcpFlagFin | kTcpFlagRst)) == 0U &&
+                !tcpHasPayload(f, tcp);
+            if (pure_ack) {
+                emitProhibitedTcpRst(nif, f);
+            }
         }
     }
     return g_orig_input(p, nif);

@@ -227,6 +227,15 @@ a post-delivery application decision, below the netif glue's reach:
     hook builds the whole frame (Ethernet + IPv4 + 8-byte ICMP, both checksums via
     lwIP's own `inet_chksum`) rather than corrupting an egress field. The guard reads
     only the reply's type + source IP.
+  - *§4.8 TCP behavioral prohibited emission* — `kTcpSynthRst` synthesizes a RST on the
+    connection's 4-tuple when a pure ACK arrives in ESTABLISHED (`§4.8.6.18`
+    ACKNOWLEDGEMENT_04, the DUT must stay silent). The RFC 793 §3.9 guards check only the
+    4-tuple + RST flag — never seq/ack — so the synthesized segment needs no connection-
+    state tracking: the inbound trigger's swapped addresses give the whole 4-tuple, and
+    seq/ack stay 0. Armed per-phase (after ESTABLISHED) so the handshake is unaffected. This
+    is the behavioural seam the egress field-fault cannot reach — there is no DUT-emitted RST
+    to corrupt, so the hook synthesizes it. (The same seam generalises to the other §4.8
+    must-not-respond guards — `dut_emitted_response_to_*` / `dut_acked_*` — as they land.)
   - *§4.6.5.4 UDP prohibited acceptance* — `kUdpFaultAcceptBadChecksum` zeroes the
     inbound UDP checksum so lwIP's `chksum != 0` gate skips and delivers a datagram
     it must drop.
@@ -368,13 +377,17 @@ laziness:
   guard), so there is nothing a fault could make reachable; it stays terminal in the
   registry by policy, not a fault target. (HEADER_02/05/06 — the data-ACK ack_num
   cases — are now wired via per-phase arming, above. HEADER_07/08/09/11 and CHECKSUM_02
-  are ingress-drop / addressing cases — wrong seam entirely.)
-- **TCP_ACKNOWLEDGEMENT_04 (RST-after-pure-ACK).** Its fail-final fires when the DUT
-  *emits a RST* after receiving a pure ACK — a behavioural misbehaviour (the DUT must
-  emit a frame it otherwise would not), not a field corruption of a frame it already
-  emits. The egress field-mutate seam cannot synthesise that emission; a behavioural /
-  ingress-reaction seam would. Deferred — wrong seam for the egress field-fault cluster
-  (its §4.8.6.18 siblings ACKNOWLEDGEMENT_02/03 are ack_num field faults, wired above).
+  are must-not-respond cases — wrong seam for the egress field-fault, but reachable via the
+  ingress-synthesis seam, like ACKNOWLEDGEMENT_04 below.)
+- **TCP_ACKNOWLEDGEMENT_04 (RST-after-pure-ACK)** — now wired via the **ingress-synthesis
+  seam** (`kTcpSynthRst`, the §4.8 TCP entry in the ingress reaction-fault list above), not
+  the egress field-fault cluster. Its fail-final fires when the DUT *emits a RST* after a
+  pure ACK — a behavioural misbehaviour the conformant DUT never makes, so there is no egress
+  frame to corrupt; the input hook synthesizes the RST instead. This is the pilot for the
+  behavioural-emission seam: the broader §4.8 must-not-respond family
+  (`dut_emitted_response_to_*` / `dut_acked_*`, e.g. HEADER_07/08/09/11, FLAGS_INVALID /
+  FLAGS_PROCESSING) is reachable the same way (synthesize the forbidden RST / ACK / SYN,ACK)
+  and lands as those cases are built.
 
 ## lwipopts.h alignment (why each non-default option exists)
 

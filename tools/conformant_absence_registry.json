@@ -2234,15 +2234,6 @@
         }
       ]
     },
-    "TCP_ACKNOWLEDGEMENT_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_rst_after_pure_ack",
-          "property": "DUT must continue the connection after a pure ACK; fail iff it emits a RST instead"
-        }
-      ]
-    },
     "TCP_BASICS_01": {
       "guards": [
         {

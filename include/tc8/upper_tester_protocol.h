@@ -896,7 +896,9 @@ inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultPureAckNumWrong
 // must drop a malformed/foreign frame silently, the fault makes it reply/learn;
 // §4.3 ICMPv4 — the DUT must stay silent for an Info Request / unknown type /
 // bad-checksum Echo / broadcast or fragmented error trigger, the fault synthesizes
-// the prohibited ICMP reply), prohibited ACCEPTANCE (§4.6.5.4 UDP — the DUT must
+// the prohibited ICMP reply; §4.8 TCP — the DUT must silently drop an unacceptable
+// segment, the fault synthesizes the prohibited TCP response, e.g. a RST after a
+// pure ACK), prohibited ACCEPTANCE (§4.6.5.4 UDP — the DUT must
 // discard a malformed datagram, the fault makes it accept and deliver it to the
 // receive-counting app), and prohibited REJECTION (§4.6.5.4 UDP — the DUT must
 // accept a valid edge-case datagram, the fault makes it drop one it must deliver).
@@ -931,7 +933,12 @@ inline constexpr std::uint8_t kUdpFaultRejectValid       = 0x04;  // §4.6.5.4 r
 inline constexpr std::uint8_t kIcmpFaultSynthEchoReply    = 0x05;  // §4.3.3.2 TYPE_10 (bad-checksum Echo) / §4.3.3.1 ERROR_05 (unknown type): synthesize an Echo Reply (type 0)
 inline constexpr std::uint8_t kIcmpFaultSynthInfoReply    = 0x06;  // §4.3.3.2 TYPE_16: synthesize an Information Reply (type 16, RFC 1122 §3.2.2.7 SHOULD NOT)
 inline constexpr std::uint8_t kIcmpFaultSynthParamProblem = 0x07;  // §4.3.3.1 ERROR_03 (fragmented) / ERROR_04 (broadcast): synthesize a Parameter Problem (type 12)
-inline constexpr std::uint8_t kIngressFaultMax           = kIcmpFaultSynthParamProblem;
+// TCP behavioral prohibited emission (§4.8) — the input hook synthesizes a forbidden TCP
+// response on the connection's 4-tuple (swapped from the inbound trigger). RFC 793 §3.9
+// guards check only the 4-tuple + flag, never seq/ack, so the synthesized segment needs no
+// connection-state tracking — the inbound trigger's addresses give the whole 4-tuple:
+inline constexpr std::uint8_t kTcpSynthRst               = 0x08;  // §4.8.6.18 ACKNOWLEDGEMENT_04: synthesize a RST in response to a pure ACK (RFC 793 §3.9 MUST NOT)
+inline constexpr std::uint8_t kIngressFaultMax           = kTcpSynthRst;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,
