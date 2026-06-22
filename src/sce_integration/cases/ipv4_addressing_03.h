@@ -28,7 +28,7 @@ template <>
 struct TestCaseTraits<cases::Ipv4Addressing03SM>
     : Ipv4ObservationBase<cases::Ipv4Addressing03SM> {
     static constexpr std::string_view kCaseId      = "IPv4_ADDRESSING_03";
-    static constexpr std::string_view kSpecSection = "4.4.4.8";
+    static constexpr std::string_view kSpecSection = "4.4.4.5";
     static constexpr std::string_view kDescription =
         "DUT silently discards an IPv4 packet whose Destination Address "
         "is a loopback address (127.0.0.0/8) arriving on a non-loopback "

@@ -1265,15 +1265,6 @@
         }
       ]
     },
-    "IPv4_HEADER_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_despite_non_local_dst_ip",
-          "property": "DUT must not reply to a datagram whose destination IP is not the DUT's; silence is conformant"
-        }
-      ]
-    },
     "IPv4_HEADER_08": {
       "guards": [
         {
@@ -1292,30 +1283,12 @@
         }
       ]
     },
-    "IPv4_CHECKSUM_02": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_despite_invalid_header_checksum",
-          "property": "DUT must not reply to a datagram with an invalid IPv4 header checksum; silence is conformant"
-        }
-      ]
-    },
     "IPv4_VERSION_04": {
       "guards": [
         {
           "class": "prohibited_emission",
           "fail_reason": "dut_replied_despite_non_version_4",
           "property": "DUT must not reply to a datagram whose Version field is not 4; silence is conformant"
-        }
-      ]
-    },
-    "IPv4_ADDRESSING_03": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_despite_loopback_dst",
-          "property": "DUT must not reply to a datagram whose destination is a loopback address; silence is conformant"
         }
       ]
     },

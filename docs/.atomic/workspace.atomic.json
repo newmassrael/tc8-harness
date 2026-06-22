@@ -1170,6 +1170,14 @@
         {
           "file": "tests/ipv4_header_09/ipv4_header_09.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_header_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_header_04_neg/ipv4_header_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -1215,6 +1223,14 @@
         },
         {
           "file": "tests/ipv4_checksum_05_neg/ipv4_checksum_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_checksum_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_checksum_02_neg/ipv4_checksum_02_neg.scxml",
           "kind": "implements"
         }
       ]
@@ -1377,6 +1393,14 @@
         },
         {
           "file": "src/sce_integration/cases/ipv4_addressing_01_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_addressing_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_addressing_03_neg/ipv4_addressing_03_neg.scxml",
           "kind": "implements"
         }
       ]

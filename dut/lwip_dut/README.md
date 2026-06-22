@@ -226,7 +226,12 @@ a post-delivery application decision, below the netif glue's reach:
     Like the ARP reply synthesis, the conformant DUT emits nothing — so the input
     hook builds the whole frame (Ethernet + IPv4 + 8-byte ICMP, both checksums via
     lwIP's own `inet_chksum`) rather than corrupting an egress field. The guard reads
-    only the reply's type + source IP.
+    only the reply's type + source IP. `kIcmpFaultSynthEchoReply` also reaches the
+    §4.4 IPv4-header must-not-reply guards (IPv4_ADDRESSING_03 loopback dst /
+    CHECKSUM_02 bad header checksum / HEADER_04 non-local dst): the gate fires on any
+    inbound IPv4 ICMP frame, so an Echo Request the DUT must drop for an IPv4-layer
+    reason still draws the synthesized Echo Reply — the IPv4-layer sibling of the §4.3
+    triggers.
   - *§4.8 TCP behavioral prohibited emission* — the hook synthesizes the forbidden TCP
     response on the connection's 4-tuple (swapped from the inbound trigger; the RFC 793 §3.9
     guards check only the 4-tuple + flag — never seq/ack — so the synthesized segment needs
