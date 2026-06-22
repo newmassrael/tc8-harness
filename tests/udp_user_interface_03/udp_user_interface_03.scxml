@@ -21,5 +21,7 @@
        initial="listening">
   <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"
            pass_expr="captured.ut_recv_src_port == 20019"
-           fail_reason_field="dut_received_udp_with_wrong_src_port_in_confirmation"/>
+           fail_reason_field="dut_received_udp_with_wrong_src_port_in_confirmation"
+           fail_state="fail_field_mismatch"
+           fail_role="observed_violation"/>
 </scxml>

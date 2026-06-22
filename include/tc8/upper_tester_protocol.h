@@ -935,12 +935,14 @@ inline constexpr std::uint8_t kIngressFaultMax           = kIcmpFaultSynthParamP
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,
-// whereas these make the shared data listener (UpperTesterServer::dataListenerLoop)
-// skip a destination-address discard that RFC 1122 places at the application layer.
-// The IP stack already delivered the datagram to the listener socket — a conformant
-// DUT's application drops it on the recovered destination address; the fault counts
-// it as received, the reception the positive proves absent. One contiguous catalog;
-// the flavor name carries the discard policy it disables.
+// whereas these fault the shared data listener (UpperTesterServer::dataListenerLoop /
+// createUdpReceivePorts) — the application running on the DUT stack, below the netif
+// glue's reach. Two reaction kinds: a DISCARD skip (the listener keeps a datagram RFC
+// 1122 places a destination-address discard on) and a REPORT corruption (the §4.6.5.5
+// UDP User-Interface Confirmation surfaces a wrong src port / src IP / payload / receive-
+// port count for a correctly-received datagram — modelling a DUT whose receive operation
+// returns wrong metadata, the only faithful site since the stack delivered it correctly).
+// One contiguous catalog; the flavor name carries the policy or report field it faults.
 inline constexpr std::uint8_t kAppFaultNone                   = 0x00;
 // §4.4.4.5 ADDRESSING_02: the listener silently discards a datagram whose destination
 // is the interface directed broadcast (limited broadcast 255.255.255.255 is kept).
@@ -954,7 +956,15 @@ inline constexpr std::uint8_t kAppFaultAcceptDirectedBroadcast = 0x01;
 // every multicast destination with LWIP_IGMP off), so the deny is the listener's; this
 // flavor skips it so the DUT counts the multicast it must drop (udp_introduction_02_neg).
 inline constexpr std::uint8_t kAppFaultAcceptMulticast        = 0x02;
-inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultAcceptMulticast;
+// §4.6.5.5 UDP User-Interface Confirmation report corruption — the listener received
+// the datagram correctly but reports a wrong field, so the positive's field guard goes
+// from pass to fail. Each names the GetReceivedUdp / CreateUdpReceivePorts field it
+// mangles; the conformant path (None) reports correctly (the _neg's fault-inert branch):
+inline constexpr std::uint8_t kAppFaultReportWrongSrcPort     = 0x03;  // §4.6.5.5 UI_03: GetReceivedUdp src port (RFC 768 receive returns source port)
+inline constexpr std::uint8_t kAppFaultReportWrongSrcIp       = 0x04;  // §4.6.5.5 UI_04: GetReceivedUdp src IP (RFC 768 receive returns source IP)
+inline constexpr std::uint8_t kAppFaultReportWrongPayload     = 0x05;  // §4.6.5.5 UI_02: GetReceivedUdp payload bytes (RFC 768 receive returns data octets)
+inline constexpr std::uint8_t kAppFaultMiscountPorts          = 0x06;  // §4.6.5.5 UI_01: CreateUdpReceivePorts actual_count (RFC 768 create N receive ports)
+inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultMiscountPorts;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

@@ -239,7 +239,16 @@ a post-delivery application decision, below the netif glue's reach:
   the listener's, not the IP stack's — the flavor skips it so the receive-counting app
   reports a receipt it must have dropped. Unlike the two netif seams this is not a
   frame mutation; the datagram already reached the socket, so the fault lives in the
-  shared data listener (`UpperTesterServer::dataListenerLoop`), armed lwIP-only.
+  shared data listener (`UpperTesterServer::dataListenerLoop`), armed lwIP-only. The
+  same seam also faults the §4.6.5.5 UDP User-Interface **report**: the datagram is
+  received correctly, but the GetReceivedUdp / CreateUdpReceivePorts Confirmation
+  surfaces a wrong field — `kAppFaultReportWrongSrcPort` (UI_03),
+  `kAppFaultReportWrongSrcIp` (UI_04), `kAppFaultReportWrongPayload` (UI_02),
+  `kAppFaultMiscountPorts` (UI_01). This is the only faithful site for those guards:
+  the stack delivered the right metadata, so a wrong report is the receive operation's
+  defect, and an ingress rewrite would make the DUT faithfully report the rewritten
+  value (no fault). The conformant path reports correctly (the `_neg`'s fault-inert
+  branch).
 
 **Why UDP_FIELDS_09/10/15 + DATAGRAMLENGTH_01 share one acceptance flavor.** On
 lwIP these all drop at the *same* gate — the UDP checksum. lwIP ignores the UDP

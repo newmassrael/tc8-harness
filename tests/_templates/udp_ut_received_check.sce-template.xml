@@ -39,6 +39,13 @@
 
   <sce:param name="pass_expr"               required="true"/>
   <sce:param name="fail_reason_field"       required="true"/>
+  <!-- Dual-use (positive + lwIP report-fault `_neg`, mirroring the egress field-check
+       templates): the positive passes fail_state="fail_field_mismatch" /
+       fail_role="observed_violation"; a `_neg` arms an OpSetAppFlavor report corruption,
+       passes pass_expr = the corruption predicate, fail_state="fail_compliant" /
+       fail_role="fault_injection_inert" (the DUT reported correctly despite the flavor). -->
+  <sce:param name="fail_state"              required="true"/>
+  <sce:param name="fail_role"               required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::UdpCaptured"
@@ -57,7 +64,7 @@
                 target="pass"/>
     <transition event="udp_observed"
                 cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and !({$pass_expr})"
-                target="fail_field_mismatch"/>
+                target="{$fail_state}"/>
     <transition event="deadline_exceeded" target="inconclusive_no_ut_confirmation"/>
   </state>
 
@@ -67,9 +74,9 @@
     </donedata>
   </final>
 
-  <final id="fail_field_mismatch">
+  <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason_field}","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason_field}","role":"{$fail_role}"}</content>
     </donedata>
   </final>
 

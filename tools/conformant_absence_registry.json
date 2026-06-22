@@ -1202,15 +1202,6 @@
         }
       ]
     },
-    "UDP_USER_INTERFACE_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_did_not_create_requested_receive_port_count",
-          "property": "DUT's UT create-ports confirmation must report the requested port count; fail iff another value"
-        }
-      ]
-    },
     "UDP_USER_INTERFACE_06": {
       "guards": [
         {
@@ -1235,33 +1226,6 @@
           "class": "incorrect_emission",
           "fail_reason": "dut_emitted_non_port_unreachable_icmp",
           "property": "DUT's ICMP for the closed-port datagram must be Destination Unreachable / Port Unreachable (type 3 code 3); fail iff another type/code"
-        }
-      ]
-    },
-    "UDP_USER_INTERFACE_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_received_udp_with_wrong_payload_bytes",
-          "property": "DUT's UT confirmation must report the expected received payload bytes; fail iff wrong bytes"
-        }
-      ]
-    },
-    "UDP_USER_INTERFACE_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_received_udp_with_wrong_src_port_in_confirmation",
-          "property": "DUT's UT confirmation must report the expected source port; fail iff a wrong port"
-        }
-      ]
-    },
-    "UDP_USER_INTERFACE_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_received_udp_with_wrong_src_ip_in_confirmation",
-          "property": "DUT's UT confirmation must report the expected source IP; fail iff a wrong IP"
         }
       ]
     },

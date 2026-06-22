@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_04 negative — lwIP app-report-fault self-validation of
+  the positive _04 source-IP-report guard. The trait arms kAppFaultReportWrongSrcIp so the
+  shared data listener surfaces a wrong src IP in the GetReceivedUdp Confirmation for a
+  correctly-received datagram. Pass = the corrupted src IP observed
+  (ut_recv_src_ip != tester_ip); fail_compliant = the DUT reported the correct IP despite
+  the flavor (fault inert). lwIP-only (capability-gated on kCapAppFault). Envelope:
+  udp_ut_received_check (report-fault dual-use).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_04_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"
+           pass_expr="captured.ut_recv_src_ip != expected.tester_ip"
+           fail_reason_field="dut_reported_correct_src_ip_despite_flavor"
+           fail_state="fail_compliant"
+           fail_role="fault_injection_inert"/>
+</scxml>

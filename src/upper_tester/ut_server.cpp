@@ -271,6 +271,18 @@ void UpperTesterServer::dataListenerLoop() {
         rec.dst_port = data_port_;
         rec.payload.assign(buf.data(), buf.data() + n);
         rec.populated = true;
+        // §4.6.5.5 UDP User-Interface report corruption: the datagram arrived correctly,
+        // but a buggy DUT surfaces a wrong field in the GetReceivedUdp Confirmation. This
+        // is the only faithful site — the stack delivered the right metadata, so the
+        // defect is the receive operation's reporting of it. Armed lwIP-only via
+        // OpSetAppFlavor; each UI_0x _neg passes only when the corrupted field is observed.
+        if (app_flavor == kAppFaultReportWrongSrcPort) {
+            rec.src_port ^= 0xFFFFu;  // != the tester's src port (UI_03)
+        } else if (app_flavor == kAppFaultReportWrongSrcIp) {
+            rec.src_ip ^= 0xFFu;      // != the tester's src IP (UI_04)
+        } else if (app_flavor == kAppFaultReportWrongPayload && !rec.payload.empty()) {
+            rec.payload[0] ^= 0xFFu;  // first data octet != what the tester sent (UI_02)
+        }
         std::lock_guard<std::mutex> lk(log_mu_);
         last_receipt_ = std::move(rec);
     }
@@ -772,6 +784,13 @@ std::uint8_t UpperTesterServer::createUdpReceivePorts(std::uint8_t count) {
         }
         udp_receive_ports_.push_back(fd);
         ++actual;
+    }
+    // §4.6.5.5 UI_01 report corruption: the ports were bound, but a buggy DUT miscounts
+    // them in the CreateUdpReceivePorts Confirmation (an off-by-one over-report). Armed
+    // lwIP-only via OpSetAppFlavor; udp_user_interface_01_neg passes only when the
+    // reported count differs from the conformant 10.
+    if (app_fault_flavor_.load(std::memory_order_relaxed) == kAppFaultMiscountPorts) {
+        return static_cast<std::uint8_t>(actual + 1);
     }
     return actual;
 }

@@ -2478,6 +2478,42 @@
         {
           "file": "src/sce_integration/cases/udp_user_interface_05_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/upper_tester/ut_server.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_user_interface_01_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_user_interface_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_user_interface_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_user_interface_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_user_interface_01_neg/udp_user_interface_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_user_interface_02_neg/udp_user_interface_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_user_interface_03_neg/udp_user_interface_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_user_interface_04_neg/udp_user_interface_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_01 negative — lwIP app-report-fault self-validation of
+  the positive _01 receive-port-count guard. The trait arms kAppFaultMiscountPorts so the
+  DUT binds the ports but miscounts them in the CreateUdpReceivePorts Confirmation (an
+  off-by-one over-report). Pass = the wrong count observed (ut_create_actual_count != 10);
+  fail_compliant = the DUT reported the correct count despite the flavor (fault inert).
+  lwIP-only (capability-gated on kCapAppFault). Inline 3-state mirror of the positive (sole
+  consumer of the 0x94 response shape).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_01_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::UdpCaptured"
+               cpp:include="sce_integration/udp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count != 10"
+                target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count == 10"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_reported_correct_port_count_despite_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_ut_confirmation_for_create_udp_receive_ports","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

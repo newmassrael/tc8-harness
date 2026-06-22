@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.5 UDP_USER_INTERFACE_02 negative — lwIP app-report-fault self-validation of
+  the positive _02 received-data-octets guard. The trait arms kAppFaultReportWrongPayload
+  so the shared data listener surfaces a corrupted first payload byte in the GetReceivedUdp
+  Confirmation for a correctly-received datagram (0x10 -> 0xEF). Pass = the corrupted byte
+  observed (ut_recv_payload_first16[0] != 0x10); fail_compliant = the DUT reported the
+  correct payload despite the flavor (fault inert). lwIP-only (capability-gated on
+  kCapAppFault). Envelope: udp_ut_received_check (report-fault dual-use).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_user_interface_02_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"
+           pass_expr="captured.ut_recv_payload_first16[0] != 0x10"
+           fail_reason_field="dut_reported_correct_payload_despite_flavor"
+           fail_state="fail_compliant"
+           fail_role="fault_injection_inert"/>
+</scxml>
