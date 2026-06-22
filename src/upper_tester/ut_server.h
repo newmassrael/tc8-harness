@@ -62,6 +62,16 @@ public:
     // registerPrimitive override seam).
     void registerOpcode(std::uint8_t opcode, OpcodeHandler handler);
 
+    // Arm an app-layer reception fault on the data listener (the kAppFault* catalog
+    // in upper_tester_protocol.h). While a non-None flavor is set, dataListenerLoop
+    // skips the matching RFC 1122 destination-address discard so a buggy DUT counts a
+    // datagram it must drop — the reception a §4.4.4.5 positive proves absent. The
+    // discard policy lives here (shared core), so its fault bypass does
+    // too; the OpSetAppFlavor opcode that drives it is registered only by the lwIP
+    // fixture, so the kernel-backed tc8-dut never arms it. Thread-safe: written from
+    // the OpSetAppFlavor handler on the UT thread, read on the data-listener thread.
+    void setAppFaultFlavor(std::uint8_t flavor);
+
     // Bind the data + UT listener sockets and start the server threads.
     // `iface_ip_be` is the source the OpTriggerSendUdp default binds to;
     // `iface_bcast_be` is the directed-broadcast the data listener silently
@@ -171,6 +181,9 @@ private:
     std::uint32_t iface_ip_be_ = 0;
     std::uint32_t iface_bcast_be_ = 0;
     std::uint16_t data_port_ = 0;
+    // App-layer reception-fault flavor (kAppFault*). Default None = the data listener
+    // applies every RFC 1122 dst-address discard; armed lwIP-only via OpSetAppFlavor.
+    std::atomic<std::uint8_t> app_fault_flavor_{kAppFaultNone};
 
     int data_fd_ = -1;
     int ut_fd_ = -1;

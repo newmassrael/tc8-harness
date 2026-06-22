@@ -386,7 +386,7 @@ TEST(UpperTesterClient, PingRequestLayout) {
     // opcode without the bump would size the capability bitmap too
     // small for the new bit.
     EXPECT_EQ(ut::kMaxProtocolOpcode,
-              static_cast<std::uint8_t>(ut::OpSetIngressFlavor));
+              static_cast<std::uint8_t>(ut::OpSetAppFlavor));
 }
 
 
@@ -421,7 +421,7 @@ TEST(UpperTesterClient, ConditionArpCacheRequestLayout) {
 
 TEST(UpperTesterClient, SetFlavorRequestLayout) {
     // Wire format: <opcode:u8> <req_id:u8> <flavor:u8>, shared by the egress
-    // (0x18) and ingress (0x19) fault-arming opcodes.
+    // (0x18), ingress (0x19) and app-layer (0x1A) fault-arming opcodes.
     const auto egress = buildSetFlavorRequest(ut::OpSetEgressFlavor, 0x09,
                                               ut::kArpFaultOpcodeWrong);
     ASSERT_EQ(egress.size(), 3u);
@@ -439,6 +439,15 @@ TEST(UpperTesterClient, SetFlavorRequestLayout) {
     EXPECT_EQ(ingress[1], 0x0AU);
     EXPECT_EQ(ingress[2], ut::kArpFaultReplyToDropFrame);
     EXPECT_EQ(ut::OpSetIngressFlavor & ut::kResponseBit, 0u);
+
+    const auto app = buildSetFlavorRequest(ut::OpSetAppFlavor, 0x0B,
+                                           ut::kAppFaultAcceptDirectedBroadcast);
+    ASSERT_EQ(app.size(), 3u);
+    EXPECT_EQ(app[0], static_cast<std::uint8_t>(ut::OpSetAppFlavor));
+    EXPECT_EQ(app[0], 0x1AU);  // opcode lock-in (response = 0x9A)
+    EXPECT_EQ(app[1], 0x0BU);
+    EXPECT_EQ(app[2], ut::kAppFaultAcceptDirectedBroadcast);
+    EXPECT_EQ(ut::OpSetAppFlavor & ut::kResponseBit, 0u);
 }
 
 

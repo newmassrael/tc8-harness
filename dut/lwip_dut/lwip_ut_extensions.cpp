@@ -101,6 +101,25 @@ void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server) {
             setIngressFaultFlavor(params[0]);
             status = ut::kStatusOk;
         });
+
+    server.registerOpcode(
+        ut::OpSetAppFlavor,
+        [&server](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
+                  std::vector<std::uint8_t> & /*body*/) {
+            // Params: <flavor:u8>. Arms an app-layer reception fault: the shared data
+            // listener skips its RFC 1122 destination-address discard so the buggy DUT
+            // counts a datagram it must drop (§4.4.4.5 directed broadcast). The discard
+            // policy and its fault bypass live in the shared UpperTesterServer (the
+            // lwIP fixture can corrupt frames at the netif hook but cannot reach a
+            // post-delivery app decision), so this handler arms it on the server; only
+            // the lwIP fixture registers the opcode. An out-of-range flavor is malformed.
+            if (len < 1 || params[0] > ut::kAppFaultMax) {
+                status = ut::kStatusMalformed;
+                return;
+            }
+            server.setAppFaultFlavor(params[0]);
+            status = ut::kStatusOk;
+        });
 }
 
 }  // namespace tc8::lwip_dut

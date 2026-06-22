@@ -729,6 +729,21 @@ enum Opcode : std::uint8_t {
     // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
     // or an unknown flavor byte.
     OpSetIngressFlavor = 0x19,
+
+    // Arm an APP-LAYER reception-fault flavor (kAppFault* catalog below) on the lwIP
+    // fixture. The §4.4.4.5 directed-broadcast destination-address discard is an
+    // application decision per RFC 1122 — the IP stack delivers the datagram to the
+    // data listener, which then drops it on the RECVINFO-recovered destination address
+    // (UpperTesterServer::dataListenerLoop). A non-None flavor makes that listener skip
+    // its discard so a buggy DUT counts the
+    // datagram it must drop — a SEPARATE seam from the egress/ingress wire faults (the
+    // drop is post-delivery, in the shared data listener, not a frame mutation), hence
+    // its own opcode + cap. lwIP-only like the other fault opcodes: the kernel-backed
+    // tc8-dut never registers it, so the matching `_neg` capability-skips on Linux.
+    //
+    // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
+    // or an unknown flavor byte.
+    OpSetAppFlavor = 0x1A,
 };
 
 // Top of the protocol's opcode value space — the highest opcode this
@@ -739,7 +754,7 @@ enum Opcode : std::uint8_t {
 // OpQueryCapabilities with their exact implemented set — the
 // reference DUT itself skips OpConditionArpCache, whose §4.2 cache
 // conditioning rides netns sysctls instead).
-inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetIngressFlavor;
+inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetAppFlavor;
 
 // Wire encoding of the OpQueryTcpInfo `state` byte — the single source
 // of truth for every producer and consumer. Values equal the Linux
@@ -895,6 +910,23 @@ inline constexpr std::uint8_t kUdpFaultAcceptBadChecksum  = 0x03;  // §4.6.5.4 
 // the DUT must accept. Models a DUT that wrongly drops a valid edge-case datagram.
 inline constexpr std::uint8_t kUdpFaultRejectValid       = 0x04;  // §4.6.5.4 rejection: UDP_FIELDS_03 (src port 0) / _16 (checksum 0) (drop a datagram it must accept)
 inline constexpr std::uint8_t kIngressFaultMax           = kUdpFaultRejectValid;
+
+// `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
+// egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,
+// whereas these make the shared data listener (UpperTesterServer::dataListenerLoop)
+// skip a destination-address discard that RFC 1122 places at the application layer.
+// The IP stack already delivered the datagram to the listener socket — a conformant
+// DUT's application drops it on the recovered destination address; the fault counts
+// it as received, the reception the positive proves absent. One contiguous catalog;
+// the flavor name carries the discard policy it disables.
+inline constexpr std::uint8_t kAppFaultNone                   = 0x00;
+// §4.4.4.5 ADDRESSING_02: the listener silently discards a datagram whose destination
+// is the interface directed broadcast (limited broadcast 255.255.255.255 is kept).
+// This flavor skips that discard so the DUT counts the directed broadcast it must
+// drop (ipv4_addressing_02_neg). lwIP delivers directed broadcast to the INADDR_ANY
+// data socket (IP_SOF_BROADCAST_RECV off), so the drop is genuinely the listener's.
+inline constexpr std::uint8_t kAppFaultAcceptDirectedBroadcast = 0x01;
+inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultAcceptDirectedBroadcast;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

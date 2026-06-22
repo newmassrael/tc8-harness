@@ -633,13 +633,14 @@ int emitConditionArpCache(std::string_view iface,
                           std::uint8_t action,
                           std::uint16_t param);
 
-// One-shot UT SetEgressFlavor (0x18) / SetIngressFlavor (0x19) injection via
-// AF_PACKET SOCK_RAW — arms the lwIP fixture's egress field fault / ingress
-// prohibited-emission fault for the matching `_neg` cluster. Same transport +
-// identity rules as `emitConditionArpCache` (raw-injected, TOPOLOGY values: see
-// `emitTriggerSendUdpBoot`). No boot cadence of its own — the caller
-// (`emit{Egress,Ingress}FlavorArm`) pays the bring-up wait before this lands so the
-// arm is not lost on a cold UT server. Returns `sendUpperTesterRequest`'s result.
+// One-shot UT SetEgressFlavor (0x18) / SetIngressFlavor (0x19) / SetAppFlavor (0x1A)
+// injection via AF_PACKET SOCK_RAW — arms the lwIP fixture's egress field fault /
+// ingress prohibited-emission fault / app-layer reception fault for the matching
+// `_neg` cluster. Same transport + identity rules as `emitConditionArpCache`
+// (raw-injected, TOPOLOGY values: see `emitTriggerSendUdpBoot`). No boot cadence of
+// its own — the caller (`emit{Egress,Ingress,App}FlavorArm`) pays the bring-up wait
+// before this lands so the arm is not lost on a cold UT server. Returns
+// `sendUpperTesterRequest`'s result.
 int emitSetEgressFlavor(std::string_view iface,
                         std::uint32_t tester_ip_be,
                         std::uint32_t dut_ip_be,
@@ -651,5 +652,11 @@ int emitSetIngressFlavor(std::string_view iface,
                          std::uint32_t dut_ip_be,
                          const std::array<std::uint8_t, 6> &dut_mac,
                          std::uint8_t flavor);
+
+int emitSetAppFlavor(std::string_view iface,
+                     std::uint32_t tester_ip_be,
+                     std::uint32_t dut_ip_be,
+                     const std::array<std::uint8_t, 6> &dut_mac,
+                     std::uint8_t flavor);
 
 }  // namespace tc8::stimulus

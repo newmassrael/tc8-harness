@@ -45,4 +45,17 @@ inline void emitIngressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view 
                                           cfg.dut.mac, flavor);
 }
 
+// emitAppFlavorArm (UT 0x1A OpSetAppFlavor): a non-None flavor makes the shared data
+// listener skip a §4.4.4.5 destination-address discard — an application decision (RFC
+// 1122) the IP stack has already delivered to the listener socket — so the DUT counts a
+// datagram it must drop. A post-delivery seam, not a frame mutation.
+inline void emitAppFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
+                             std::uint8_t flavor) {
+    if (cfg.stimulus_timing.initial_wait.count() > 0) {
+        std::this_thread::sleep_for(cfg.stimulus_timing.initial_wait);
+    }
+    ::tc8::stimulus::emitSetAppFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
+                                      cfg.dut.mac, flavor);
+}
+
 }  // namespace tc8::sce

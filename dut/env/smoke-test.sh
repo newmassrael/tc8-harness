@@ -2303,10 +2303,12 @@ if [[ "$NEGATIVE" == "1" ]]; then
         # DUT behaviour, not a comparison against an operator value.
         #   incorrect_emission (DUT emits, value must be right):
         #     IPv4_HEADER_01 (Total Length >= RFC 791 min), IPv4_VERSION_03
-        #     (Version=4), IPv4_TTL_01 (TTL != 0), IPv4_CHECKSUM_05 (valid
-        #     header checksum), IPv4_FRAGMENTS_05 (egress UDP MF/offset=0),
-        #     IPv4_ADDRESSING_01/02 (UT received-count), IPv4_HEADER_05
+        #     (Version=4), IPv4_FRAGMENTS_05 (egress UDP MF/offset=0),
+        #     IPv4_ADDRESSING_01 (UT received-count), IPv4_HEADER_05
         #     (§4.4.4.1, 576-byte Echo Reply payload).
+        #   (IPv4_TTL_01, IPv4_CHECKSUM_05 and IPv4_ADDRESSING_02 graduated
+        #    to FAULT_INJECTION — they now carry lwIP `_neg` self-validation
+        #    cases, so they are no longer conformant-absence registry rows.)
         #   liveness (must emit an IPv4 packet, no wrong-value variant):
         #     IPv4_HEADER_03, IPv4_VERSION_01, IPv4_TTL_05.
         #   prohibited_emission (silence conformant, must not emit):

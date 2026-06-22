@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.5 IPv4_ADDRESSING_02 negative — lwIP app-layer self-validation of the
+  positive _02 "silently discard a directed-broadcast UDP datagram" guard. The §4.4.4.5
+  directed-broadcast destination-address discard is an application decision (RFC 1122):
+  the IP stack delivers the directed broadcast to the INADDR_ANY data-listener socket
+  (lwIP with IP_SOF_BROADCAST_RECV off delivers it, as Linux does), and the listener
+  then drops it on the RECVINFO-recovered destination address. The trait arms
+  kAppFaultAcceptDirectedBroadcast (UT 0x1A OpSetAppFlavor), so the shared data listener
+  skips that discard and counts the datagram a conformant DUT must drop.
+  Pass = the DUT reported the directed broadcast received (ut_received == 1, the injected
+  acceptance observed); fail_compliant = the DUT still discarded it despite the flavor
+  (fault inert — what a conformant DUT does). lwIP-only (capability-gated on
+  kCapAppFault — the kernel-backed tc8-dut never registers OpSetAppFlavor). Envelope:
+  ipv4_udp_ut_presence.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_addressing_02_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="1"
+           fail_reason_wrong_receipt="dut_discarded_directed_broadcast_despite_flavor"
+           fail_reason_timeout="no_ut_confirmation_for_directed_broadcast_accept"
+           fail_role="fault_injection_inert"/>
+</scxml>

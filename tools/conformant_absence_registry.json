@@ -1204,15 +1204,6 @@
         }
       ]
     },
-    "IPv4_ADDRESSING_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_received_directed_broadcast",
-          "property": "DUT's UT confirmation must report no receipt of the directed broadcast (received=0); fail iff one"
-        }
-      ]
-    },
     "IPv4_REASSEMBLY_06": {
       "guards": [
         {

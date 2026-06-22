@@ -44,6 +44,7 @@ enum DutCapability : std::uint32_t {
     kCapTcpRecvOob = 1u << 6,        // out-of-band (urgent) TCP receive (opcode only)
     kCapEgressFault = 1u << 7,       // egress field fault (OpSetEgressFlavor) — DUT-derived
     kCapIngressFault = 1u << 8,      // ingress reaction fault — ARP emission + UDP acceptance (OpSetIngressFlavor) — DUT-derived
+    kCapAppFault = 1u << 9,          // app-layer reception fault — data-listener dst-address discard skip (OpSetAppFlavor) — DUT-derived
 };
 using DutCapabilities = std::uint32_t;
 
@@ -63,7 +64,9 @@ using DutCapabilities = std::uint32_t;
 // correctly skips) but it cannot distinguish a DUT that implements the opcode yet
 // ignores a flavor. The only ingress-fault DUT is the lwIP fixture, which implements
 // both kinds, so the residual is out of scope until a DUT implements one but not the
-// other.
-inline constexpr DutCapabilities kDutDerivedCaps = kCapEgressFault | kCapIngressFault;
+// other. kCapAppFault ↔ OpSetAppFlavor 0x1A is the clean dedicated-opcode shape again
+// (one app-layer reception fault, one opcode), like kCapEgressFault.
+inline constexpr DutCapabilities kDutDerivedCaps =
+    kCapEgressFault | kCapIngressFault | kCapAppFault;
 
 }  // namespace tc8::sce

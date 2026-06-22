@@ -520,6 +520,7 @@ private:
             if (c->supported) {
                 if (c->supports(ut::OpSetEgressFlavor))  fault_caps_ |= kCapEgressFault;
                 if (c->supports(ut::OpSetIngressFlavor)) fault_caps_ |= kCapIngressFault;
+                if (c->supports(ut::OpSetAppFlavor))     fault_caps_ |= kCapAppFault;
             }
             return;
         }

@@ -192,12 +192,15 @@ TCP:
 
 ## Phase F fault-injection seams
 
-The fixture carries two inert-until-armed fault seams that the Phase F `_NEG`
+The fixture carries three inert-until-armed fault seams that the Phase F `_NEG`
 self-validation cases drive (via the Upper Tester `OpSetEgressFlavor` 0x18 /
-`OpSetIngressFlavor` 0x19; the flavor catalog SSOT is
-`include/tc8/upper_tester_protocol.h`). lwIP itself is never patched — both are
-netif-level glue (`lwip_egress_fault.cpp` wraps `linkoutput`,
-`lwip_ingress_fault.cpp` wraps `input`):
+`OpSetIngressFlavor` 0x19 / `OpSetAppFlavor` 0x1A; the flavor catalog SSOT is
+`include/tc8/upper_tester_protocol.h`). lwIP itself is never patched: the first two
+are netif-level glue (`lwip_egress_fault.cpp` wraps `linkoutput`,
+`lwip_ingress_fault.cpp` wraps `input`); the third is a discard skip in the shared
+data listener (`src/upper_tester/ut_server.cpp`), where an RFC 1122
+destination-address discard the IP stack has already delivered to the socket lives —
+a post-delivery application decision, below the netif glue's reach:
 
 - **Egress field-fault** rewrites one header field of a DUT-emitted frame (ARP
   §4.2 fields; UDP §4.6.5.4 src/dst port, length, checksum; TCP §4.8 SYN,ACK ack,
@@ -214,6 +217,14 @@ netif-level glue (`lwip_egress_fault.cpp` wraps `linkoutput`,
   §4.6.5.4 UDP prohibited acceptance — `kUdpFaultAcceptBadChecksum` zeroes the
   inbound UDP checksum so lwIP's `chksum != 0` gate skips and delivers a
   datagram it must drop.
+- **App-layer reception-fault** makes the data listener skip a destination-address
+  discard that RFC 1122 places at the *application* layer (`§4.4.4.5` directed
+  broadcast). lwIP delivers the directed broadcast to the INADDR_ANY data socket
+  (`IP_SOF_BROADCAST_RECV` off), so the drop is genuinely the listener's, not the IP
+  stack's — `kAppFaultAcceptDirectedBroadcast` skips it so the receive-counting app
+  reports a receipt it must have dropped. Unlike the two netif seams this is not a
+  frame mutation; the datagram already reached the socket, so the fault lives in the
+  shared data listener (`UpperTesterServer::dataListenerLoop`), armed lwIP-only.
 
 **Why UDP_FIELDS_09/10/15 + DATAGRAMLENGTH_01 share one acceptance flavor.** On
 lwIP these all drop at the *same* gate — the UDP checksum. lwIP ignores the UDP
@@ -244,12 +255,30 @@ wrongly drops a datagram it must deliver. The `_NEG` passes only when that
 rejection is observed (`ut_received == 0`); a conformant DUT still accepts
 (`ut_received == 1`, the fault-inert branch).
 
+**§4.4.4.5 app-layer reception fault — ADDRESSING_02.** The directed-broadcast
+discard is not an IP-stack drop: lwIP (like Linux) delivers a directed broadcast to
+the INADDR_ANY data socket, and the data listener drops it on the RECVINFO-recovered
+destination address (`ut_server.cpp` `dataListenerLoop`) — RFC 1122 §3.2.1.3 places
+this at the application layer. `IPv4_ADDRESSING_02_NEG` arms
+`kAppFaultAcceptDirectedBroadcast` so the listener skips that discard and counts the
+datagram; the `_NEG` passes only when the receipt is observed (`ut_received == 1`), and
+a conformant DUT still drops it (`ut_received == 0`, the fault-inert branch). A wire
+mutation cannot do this faithfully: rewriting the destination from the directed
+broadcast to a unicast (to dodge the listener's check) would change the very field
+under test, so a conformant DUT would accept the rewritten frame too — the seam stays
+at the layer where the real decision is.
+
 **Still outside this seam.** FIELDS_04 (egress to two hosts), FIELDS_05 (UI
 source-IP reporting), and FIELDS_12 (65507-byte reassembly) each need their own
-mechanism (egress routing, UI field, reassembly) and are out of scope. The
-addressing-based discards (ADDRESSING_02, INVALID_ADDRESSES_01/02,
-INTRODUCTION_02) drop at the IP layer, not the UDP checksum gate, so they would
-need an IP-layer acceptance fault rather than this UDP seam.
+mechanism (egress routing, UI field, reassembly) and are out of scope.
+`INVALID_ADDRESSES_01/02` (multicast / broadcast *source* address) drop *inside*
+lwIP's `ip4_input` ("packet source is not valid"), keyed on the very source-IP field
+under test — the only way past is to rewrite the source (the faithfulness trap above),
+so they have no faithful fixture seam (Linux drops them at the martian-source filter
+for the same reason). `INTRODUCTION_02` (multicast *destination*) shares the §4.4.4.5
+app-layer discard mechanism (`dataListenerLoop` also drops multicast), so it is
+faultable through this same seam once an lwIP multicast-delivery probe confirms the
+datagram reaches the socket — not yet wired.
 
 **§4.8 TCP egress field faults.** The egress seam extends to TCP, but TCP is
 stateful so each flavor is segment-selective (the link-output hook sees every DUT

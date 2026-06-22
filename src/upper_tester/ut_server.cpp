@@ -101,6 +101,10 @@ void UpperTesterServer::registerOpcode(std::uint8_t opcode, OpcodeHandler handle
     handlers_[opcode] = std::move(handler);
 }
 
+void UpperTesterServer::setAppFaultFlavor(std::uint8_t flavor) {
+    app_fault_flavor_.store(flavor, std::memory_order_relaxed);
+}
+
 bool UpperTesterServer::start(std::uint32_t iface_ip_be, std::uint32_t iface_bcast_be,
                               std::uint16_t ut_port, std::uint16_t data_port) {
     iface_ip_be_ = iface_ip_be;
@@ -242,9 +246,14 @@ void UpperTesterServer::dataListenerLoop() {
         if (n < 0) {
             continue;  // timeout — re-check stop
         }
+        const std::uint8_t app_flavor = app_fault_flavor_.load(std::memory_order_relaxed);
         // §4.4.4.5 ADDRESSING_02: silently discard directed-broadcast at the
-        // application layer (limited broadcast 255.255.255.255 is kept).
-        if (iface_bcast_be_ != 0 && orig_dst_be == iface_bcast_be_) {
+        // application layer (limited broadcast 255.255.255.255 is kept). The
+        // kAppFaultAcceptDirectedBroadcast app fault skips this discard so a buggy DUT
+        // counts the directed broadcast it must drop — the reception ipv4_addressing_02
+        // proves absent (armed lwIP-only via OpSetAppFlavor).
+        if (app_flavor != kAppFaultAcceptDirectedBroadcast && iface_bcast_be_ != 0 &&
+            orig_dst_be == iface_bcast_be_) {
             continue;
         }
         // §4.6.5.6 UDP_INTRODUCTION_02: silently discard multicast.

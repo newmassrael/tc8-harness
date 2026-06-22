@@ -225,7 +225,12 @@ jobs:
       # when that violation is observed. Finally the egress remainder closeout
       # (ICMPv4_TYPE_18_NEG kIcmpFaultDestUnreachCodeWrong flips the Dest Unreachable
       # code; TCP_BASICS_05_NEG/_NEG2 reuse kTcpFaultRstSeqWrong to flip the closed-port
-      # RST seq off the incoming ACK). ~7 min.
+      # RST seq off the incoming ACK). Last, the §4.4.4.5 APP-LAYER reception fault
+      # (IPv4_ADDRESSING_02_NEG kAppFaultAcceptDirectedBroadcast): the IP stack
+      # delivers the directed broadcast to the INADDR_ANY data-listener socket and the
+      # shared data listener skips its RFC 1122 destination-address discard (a
+      # post-delivery app decision, not a wire mutation) — the _neg passes only when
+      # the UT GetReceivedUdp confirmation reports receipt. ~7 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -257,7 +262,8 @@ jobs:
             ICMPv4_TYPE_09_NEG ICMPv4_TYPE_09_NEG2 \
             IPv4_TTL_01_NEG IPv4_CHECKSUM_05_NEG \
             ICMPv4_TYPE_18_NEG \
-            TCP_BASICS_05_NEG TCP_BASICS_05_NEG2
+            TCP_BASICS_05_NEG TCP_BASICS_05_NEG2 \
+            IPv4_ADDRESSING_02_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:
