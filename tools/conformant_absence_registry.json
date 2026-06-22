@@ -2587,25 +2587,6 @@
         }
       ]
     },
-    "TCP_FLAGS_PROCESSING_08": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_fin_in_listen",
-          "property": "Silence is conformant: DUT must drop a FIN in LISTEN without response; fail iff it emits any reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_fin_in_syn_sent",
-          "property": "Silence is conformant: DUT must drop a FIN in SYN-SENT without response; fail iff it emits any reply"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_seq_not_zero_after_fin_in_closed",
-          "property": "DUT's RST to a FIN in CLOSED must carry seq=0 (RFC 793); fail iff non-zero"
-        }
-      ]
-    },
     "TCP_FLAGS_PROCESSING_09": {
       "guards": [
         {

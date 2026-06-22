@@ -43,6 +43,11 @@
       "dut_emitted_response_to_otw_rst_in_closing": "TCP_FLAGS_INVALID_15_NEG6",
       "dut_emitted_response_to_otw_rst_in_la": "TCP_FLAGS_INVALID_15_NEG7",
       "dut_emitted_response_to_otw_rst_in_tw": "TCP_FLAGS_INVALID_15_NEG8"
+    },
+    "TCP_FLAGS_PROCESSING_08": {
+      "dut_rst_seq_not_zero_after_fin_in_closed": "TCP_FLAGS_PROCESSING_08_NEG",
+      "dut_emitted_response_to_fin_in_listen": "TCP_FLAGS_PROCESSING_08_NEG2",
+      "dut_emitted_response_to_fin_in_syn_sent": "TCP_FLAGS_PROCESSING_08_NEG3"
     }
   }
 }

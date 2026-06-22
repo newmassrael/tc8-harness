@@ -279,7 +279,9 @@ jobs:
       # (_NEG/_NEG2/_NEG3/_NEG4 = URG-only in CW/CLOSING/LA/TW), each arming the same flavor and
       # passing when the synthesized RST is observed. FLAGS_INVALID_15 graduates the same way
       # over 8 states (_NEG..._NEG8 = out-of-window RST in SYN-RCVD/EST/FW1/FW2/CW/CLOSING/LA/TW).
-      # ~18 min.
+      # FLAGS_PROCESSING_08 graduates its 3 fail-finals (_NEG = closed-port RST-seq egress fault
+      # [BASICS_04_NEG2 wire-shape], _NEG2/_NEG3 = FIN in LISTEN/SYN-SENT via the synth flavor).
+      # ~19 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -332,7 +334,9 @@ jobs:
             TCP_FLAGS_INVALID_15_NEG TCP_FLAGS_INVALID_15_NEG2 \
             TCP_FLAGS_INVALID_15_NEG3 TCP_FLAGS_INVALID_15_NEG4 \
             TCP_FLAGS_INVALID_15_NEG5 TCP_FLAGS_INVALID_15_NEG6 \
-            TCP_FLAGS_INVALID_15_NEG7 TCP_FLAGS_INVALID_15_NEG8
+            TCP_FLAGS_INVALID_15_NEG7 TCP_FLAGS_INVALID_15_NEG8 \
+            TCP_FLAGS_PROCESSING_08_NEG TCP_FLAGS_PROCESSING_08_NEG2 \
+            TCP_FLAGS_PROCESSING_08_NEG3
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

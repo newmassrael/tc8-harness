@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08 negative (phase 3 / SYN-SENT) — lwIP TCP
+  behavioral-synthesis self-validation of the positive _08 no-response-to-FIN guard in SYN-SENT.
+  The positive drives the DUT to SYN-SENT and injects a bare FIN the DUT MUST silently drop.
+  This negative arms kTcpSynthRstOnDisruptive so the lwIP netif input hook synthesizes the
+  prohibited RST as the FIN arrives. Pass = that RST observed; fail_compliant = DUT stayed silent
+  despite the flavor (fault inert). lwIP-only (kCapIngressFault).
+
+  Two-state chain: listening_dut_syn confirms the DUT's active-OPEN SYN (the SYN-SENT
+  precondition; deadline -> inconclusive), then listening_rst_watch passes on the synthesized
+  RST. The DUT's SYN retransmits do not match is_dut_rst.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_08_neg3"
+       datamodel="null"
+       initial="listening_dut_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_dut_syn">
+    <onentry><send event="deadline_dut_syn" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                target="listening_rst_watch"/>
+    <transition event="deadline_dut_syn" target="inconclusive_no_dut_syn"/>
+  </state>
+  <state id="listening_rst_watch">
+    <onentry><send event="deadline_rst_watch" delay="8s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                target="pass"/>
+    <transition event="deadline_rst_watch" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+  <final id="inconclusive_no_dut_syn">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_syn_to_active_open_phase3","role":"precondition_unmet"}</content></donedata>
+  </final>
+  <final id="fail_compliant">
+    <donedata><content>{"verdict":"fail","reason":"dut_silent_despite_synth_rst_flavor","role":"fault_injection_inert"}</content></donedata>
+  </final>
+</scxml>

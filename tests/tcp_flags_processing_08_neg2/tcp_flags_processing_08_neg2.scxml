@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08 negative (phase 2 / LISTEN) — lwIP TCP
+  behavioral-synthesis self-validation of the positive _08 no-response-to-FIN guard in LISTEN.
+  The positive opens a passive LISTEN and injects a bare FIN the DUT MUST silently drop. This
+  negative arms kTcpSynthRstOnDisruptive so the lwIP netif input hook synthesizes the prohibited
+  RST as the FIN arrives. Pass = that RST observed; fail_compliant = DUT stayed silent despite
+  the flavor (fault inert). lwIP-only (kCapIngressFault).
+
+  Single watch state (no handshake precondition): a passive LISTEN emits nothing until a SYN, so
+  there is no DUT segment to confirm — the synthesized RST is the only DUT-origin segment on the
+  listen 4-tuple, and is_dut_rst lands on pass.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_08_neg2"
+       datamodel="null"
+       initial="listening_rst_watch">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_rst_watch">
+    <onentry><send event="deadline_rst_watch" delay="8s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 14U, ::tc8::sce::tcp::kBasicsTesterPort + 71U)"
+                target="pass"/>
+    <transition event="deadline_rst_watch" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+  <final id="fail_compliant">
+    <donedata><content>{"verdict":"fail","reason":"dut_silent_despite_synth_rst_flavor","role":"fault_injection_inert"}</content></donedata>
+  </final>
+</scxml>

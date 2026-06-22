@@ -401,9 +401,12 @@ laziness:
   (`FLAGS_INVALID_03/04_NEG` RST-in-SYN-SENT + `FLAGS_PROCESSING_11_NEG` duplicate-ACK-in-EST +
   `CLOSING_07/08/09_NEG` data/FIN-in-FW1/FW2/CW — `kTcpSynthRstOnDisruptive` for the disruptive
   RST/FIN/PSH triggers, `kTcpSynthRst` for the pure-ACK duplicate — the hook synthesizes the
-  prohibited RST when the disruptive segment arrives). The remaining must-not-respond cases (the
-  multi-guard state-sweeps FLAGS_INVALID_15 / FLAGS_PROCESSING_07/08, each needing one `_neg`
-  per fail-final) are reachable the same way and land as those cases are built.
+  prohibited RST when the disruptive segment arrives). The multi-guard state-sweeps are also
+  graduated, each by one `_neg` per fail-final (`fault_injection_coverage.json`), the uniform
+  active-OPEN variants sharing the `tcp_synth_rst_watch_neg` template: `FLAGS_PROCESSING_07`
+  (URG-only in CW/CLOSING/LA/TW), `FLAGS_INVALID_15` (out-of-window RST across 8 states), and
+  `FLAGS_PROCESSING_08` (FIN in LISTEN/SYN-SENT via the synth flavor; its CLOSED fail-final is
+  instead an egress RST-seq fault, since the conformant DUT does emit a RST there).
 
 ## lwipopts.h alignment (why each non-default option exists)
 
