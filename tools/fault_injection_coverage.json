@@ -23,6 +23,10 @@
     "ICMPv4_TYPE_09": {
       "echo_id_mismatch": "ICMPv4_TYPE_09_NEG",
       "echo_seq_mismatch": "ICMPv4_TYPE_09_NEG2"
+    },
+    "TCP_BASICS_05": {
+      "dut_rst_seq_not_synack_ack_literal": "TCP_BASICS_05_NEG",
+      "dut_rst_seq_not_ack_phase_ack_literal": "TCP_BASICS_05_NEG2"
     }
   }
 }

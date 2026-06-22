@@ -926,6 +926,10 @@
         {
           "file": "tests/icmpv4_type_09_neg2/icmpv4_type_09_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_type_18_neg/icmpv4_type_18_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -3707,6 +3711,14 @@
         },
         {
           "file": "tests/tcp_basics_04_neg3/tcp_basics_04_neg3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_05_neg/tcp_basics_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_05_neg2/tcp_basics_05_neg2.scxml",
           "kind": "implements"
         }
       ]

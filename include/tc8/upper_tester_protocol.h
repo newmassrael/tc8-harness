@@ -861,7 +861,8 @@ inline constexpr std::uint8_t kIcmpFaultEchoIdWrong    = 0x0F;  // RFC 792 echo 
 inline constexpr std::uint8_t kIcmpFaultEchoSeqWrong   = 0x10;  // RFC 792 echo seq: §4.3 ICMPv4_TYPE_09 (reply echoes the request sequence)
 inline constexpr std::uint8_t kIpv4FaultTtlZero        = 0x11;  // RFC 1122 §3.2.1.7 TTL:  §4.4 IPv4_TTL_01 (emitted TTL MUST be non-zero)
 inline constexpr std::uint8_t kIpv4FaultHdrChecksumWrong = 0x12; // RFC 791 §3.1 header checksum: §4.4 IPv4_CHECKSUM_05
-inline constexpr std::uint8_t kEgressFaultMax         = kIpv4FaultHdrChecksumWrong;
+inline constexpr std::uint8_t kIcmpFaultDestUnreachCodeWrong = 0x13; // RFC 1122 §3.2.2.1 code: §4.3 ICMPv4_TYPE_18 (Protocol Unreachable code 2)
+inline constexpr std::uint8_t kEgressFaultMax         = kIcmpFaultDestUnreachCodeWrong;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself

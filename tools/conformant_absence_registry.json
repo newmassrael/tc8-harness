@@ -1059,15 +1059,6 @@
         }
       ]
     },
-    "ICMPv4_TYPE_18": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_icmp_code_not_protocol_unreachable",
-          "property": "DUT's Destination Unreachable must carry Code=2 (protocol unreachable); fail iff a different code"
-        }
-      ]
-    },
     "ICMPv4_TYPE_22": {
       "guards": [
         {
@@ -2427,20 +2418,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit an ACK to the tester's FIN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
-        }
-      ]
-    },
-    "TCP_BASICS_05": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_seq_not_ack_phase_ack_literal",
-          "property": "DUT's RST seq must equal the acknowledged ACK value (RFC 793); fail iff it differs"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_seq_not_synack_ack_literal",
-          "property": "DUT's RST seq must equal the SYN,ACK's ACK value (RFC 793); fail iff it differs"
         }
       ]
     },

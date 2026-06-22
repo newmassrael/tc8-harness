@@ -222,7 +222,10 @@ jobs:
       # kIcmpFaultEchoId/EchoSeqWrong, IPv4_TTL_01_NEG kIpv4FaultTtlZero,
       # IPv4_CHECKSUM_05_NEG kIpv4FaultHdrChecksumWrong): the hook corrupts the Echo
       # Reply's echo id/seq, IPv4 TTL, or IPv4 header checksum — the _neg passes only
-      # when that violation is observed. ~7 min.
+      # when that violation is observed. Finally the egress remainder closeout
+      # (ICMPv4_TYPE_18_NEG kIcmpFaultDestUnreachCodeWrong flips the Dest Unreachable
+      # code; TCP_BASICS_05_NEG/_NEG2 reuse kTcpFaultRstSeqWrong to flip the closed-port
+      # RST seq off the incoming ACK). ~7 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -252,7 +255,9 @@ jobs:
             TCP_HEADER_01_NEG \
             TCP_MSS_OPTIONS_11_NEG TCP_MSS_OPTIONS_12_NEG \
             ICMPv4_TYPE_09_NEG ICMPv4_TYPE_09_NEG2 \
-            IPv4_TTL_01_NEG IPv4_CHECKSUM_05_NEG
+            IPv4_TTL_01_NEG IPv4_CHECKSUM_05_NEG \
+            ICMPv4_TYPE_18_NEG \
+            TCP_BASICS_05_NEG TCP_BASICS_05_NEG2
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

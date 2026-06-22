@@ -74,13 +74,14 @@ struct Icmpv4TypedBase : Icmpv4AnyBase<StateMachine> {
     }
 };
 
-// Base for the §4.3 ICMPv4 Echo Reply EGRESS field-fault `_NEG` cases. Same Echo Reply
-// (type 0) dispatch as Icmpv4TypedBase<SM, 0>, plus the one declaration every such case
+// Base for the §4.3 ICMPv4 EGRESS field-fault `_NEG` cases. Same type-narrowing dispatch
+// as Icmpv4TypedBase<SM, ReplyType> (ReplyType defaults to the Echo Reply 0; TYPE_18
+// passes 3 for Destination Unreachable), plus the one declaration every such case
 // shares: it requires the DUT to implement OpSetEgressFlavor (kCapEgressFault). The
 // Tier-2 gate runs these only on the lwIP fixture and capability-skips them (N/A) on
 // the kernel-stack reference DUT — the ICMPv4 sibling of TcpEgressFaultNegBase.
-template <typename StateMachine>
-struct Icmpv4EgressFaultNegBase : Icmpv4TypedBase<StateMachine, std::uint8_t{0}> {
+template <typename StateMachine, std::uint8_t ReplyType = std::uint8_t{0}>
+struct Icmpv4EgressFaultNegBase : Icmpv4TypedBase<StateMachine, ReplyType> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapEgressFault;
 };

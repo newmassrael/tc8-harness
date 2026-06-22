@@ -40,11 +40,13 @@ constexpr std::uint8_t  kIpProtoUdp  = 17;
 constexpr std::uint8_t  kIpProtoTcp  = 6;
 constexpr std::uint8_t  kIpProtoIcmp = 1;
 // ICMPv4 field offsets (relative to the L4 region start = Ethernet + IPv4 header).
-constexpr std::uint16_t kIcmpTypeOff    = 0;   // u8 type (0 = Echo Reply)
+constexpr std::uint16_t kIcmpTypeOff    = 0;   // u8 type (0 = Echo Reply, 3 = Dest Unreachable)
+constexpr std::uint16_t kIcmpCodeOff    = 1;   // u8 code
 constexpr std::uint16_t kIcmpEchoIdOff  = 4;   // u16 identifier (Echo/Echo Reply)
 constexpr std::uint16_t kIcmpEchoSeqOff = 6;   // u16 sequence number
 constexpr std::uint16_t kIcmpMinHdrLen  = 8;   // bytes needed through the sequence field
-constexpr std::uint8_t  kIcmpTypeEchoReply = 0;
+constexpr std::uint8_t  kIcmpTypeEchoReply  = 0;
+constexpr std::uint8_t  kIcmpTypeDestUnreach = 3;
 constexpr std::uint16_t kUdpSrcPort  = 0;
 constexpr std::uint16_t kUdpDstPort  = 2;
 constexpr std::uint16_t kUdpLength   = 4;

@@ -2,13 +2,13 @@
 // shape `_NEG` self-validation cases drive via UT 0x18 OpSetEgressFlavor. The netif
 // link-output wrapper rewrites one header field of a DUT-emitted frame, routed by
 // the armed flavor; lwIP itself is untouched. Protocol-generic over one flavor
-// catalog: the §4.2 ARP-over-Ethernet, §4.6.5.4 UDP, §4.8 TCP, §4.3 ICMPv4 Echo Reply,
-// and §4.4 IPv4-header fields, each a dispatch branch on the same hook. A field rewrite
-// leaves the frame's checksum mismatched — immaterial, since every guard reads the
-// mutated field, not cross-field consistency (libtins delivers a checksum-stale frame
-// and does not validate the IPv4 header checksum on parse). TCP faults are
-// segment-selective and the ICMP/IPv4 faults are gated on the DUT's Echo Reply, so each
-// touches only the one frame the matching case observes.
+// catalog: the §4.2 ARP-over-Ethernet, §4.6.5.4 UDP, §4.8 TCP, §4.3 ICMPv4 (Echo Reply
+// + Destination Unreachable), and §4.4 IPv4-header fields, each a dispatch branch on the
+// same hook. A field rewrite leaves the frame's checksum mismatched — immaterial, since
+// every guard reads the mutated field, not cross-field consistency (libtins delivers a
+// checksum-stale frame and does not validate the IPv4 header checksum on parse). TCP
+// faults are segment-selective and the ICMP/IPv4 faults are gated on the specific ICMP
+// type the case observes, so each touches only the one frame the matching case observes.
 #include "lwip_egress_fault.h"
 
 #include <atomic>
@@ -106,6 +106,10 @@ constexpr std::uint16_t kRfcDefaultMss = 536;
 // field changes off the echoed value (a fixed value could collide with it).
 constexpr std::uint16_t kIcmpEchoFieldFlip = 0x5A5A;
 
+// XOR sentinel for the 8-bit ICMP code field (Destination Unreachable): guarantees the
+// code changes off the spec value (the guard tests code != expected, so any flip works).
+constexpr std::uint8_t kIcmpCodeFlip = 0xFF;
+
 // TCP is stateful, so unlike ARP/UDP each fault is gated on the SPECIFIC segment the
 // matching case observes — corrupting every DUT segment would break the handshake the
 // observed segment depends on. The tester's guard reads the mutated field, not the
@@ -156,25 +160,37 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
     }
 }
 
-// The DUT's ICMP Echo Reply (§4.3) and the IPv4 header it rides on (§4.4). All gated
-// on the Echo Reply (ICMP type 0) so only that frame is touched — the same frame the
-// matching positive observes. echo id/seq mutate the ICMP region; ttl/checksum mutate
-// the IPv4 header (the resulting IPv4 checksum mismatch is immaterial: libtins does not
-// validate the IPv4 header checksum on parse, so the guard still reads the field; the
-// checksum fault invalidates that field directly).
-void mutateEchoReply(std::uint8_t *f, std::uint8_t flavor, std::uint16_t icmp) {
-    if (f[icmp + kIcmpTypeOff] != kIcmpTypeEchoReply) {
-        return;  // not the Echo Reply the case observes
-    }
+// The DUT's ICMP messages (§4.3) and the IPv4 header they ride on (§4.4). Each flavor
+// is gated on the specific ICMP type the matching case observes — the Echo Reply (type
+// 0) for echo id/seq + IPv4 ttl/checksum, the Destination Unreachable (type 3) for the
+// code — so only that frame is touched. echo id/seq + code mutate the ICMP region;
+// ttl/checksum mutate the IPv4 header (the resulting IPv4 checksum mismatch is
+// immaterial: libtins does not validate the IPv4 header checksum on parse, so the guard
+// still reads the field; the checksum fault invalidates that field directly).
+void mutateIcmp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t icmp) {
+    const std::uint8_t type = f[icmp + kIcmpTypeOff];
     switch (flavor) {
-        case ut::kIcmpFaultEchoIdWrong:  put16(f, icmp + kIcmpEchoIdOff,
-                                               get16(f, icmp + kIcmpEchoIdOff) ^ kIcmpEchoFieldFlip); break;
-        case ut::kIcmpFaultEchoSeqWrong: put16(f, icmp + kIcmpEchoSeqOff,
-                                               get16(f, icmp + kIcmpEchoSeqOff) ^ kIcmpEchoFieldFlip); break;
-        case ut::kIpv4FaultTtlZero:      f[kIpTtlOff] = 0; break;
-        case ut::kIpv4FaultHdrChecksumWrong: put16(f, kIpHdrChecksumOff,
-                                               get16(f, kIpHdrChecksumOff) ^ kChecksumFlip); break;
-        default: break;  // None / non-echo-reply flavor: no-op
+        case ut::kIcmpFaultEchoIdWrong:
+            if (type == kIcmpTypeEchoReply) put16(f, icmp + kIcmpEchoIdOff,
+                                                  get16(f, icmp + kIcmpEchoIdOff) ^ kIcmpEchoFieldFlip);
+            break;
+        case ut::kIcmpFaultEchoSeqWrong:
+            if (type == kIcmpTypeEchoReply) put16(f, icmp + kIcmpEchoSeqOff,
+                                                  get16(f, icmp + kIcmpEchoSeqOff) ^ kIcmpEchoFieldFlip);
+            break;
+        case ut::kIpv4FaultTtlZero:
+            if (type == kIcmpTypeEchoReply) f[kIpTtlOff] = 0;
+            break;
+        case ut::kIpv4FaultHdrChecksumWrong:
+            if (type == kIcmpTypeEchoReply) put16(f, kIpHdrChecksumOff,
+                                                  get16(f, kIpHdrChecksumOff) ^ kChecksumFlip);
+            break;
+        // TYPE_18: flip the Destination Unreachable code off the spec value (Protocol
+        // Unreachable, code 2). Gated on the type-3 error message the case observes.
+        case ut::kIcmpFaultDestUnreachCodeWrong:
+            if (type == kIcmpTypeDestUnreach) f[icmp + kIcmpCodeOff] ^= kIcmpCodeFlip;
+            break;
+        default: break;  // None / non-ICMP flavor: no-op
     }
 }
 
@@ -197,7 +213,7 @@ err_t egressFaultLinkoutput(struct netif *nif, struct pbuf *p) {
         } else if (p->len >= kIpProtoOff + 1 && isIpv4(f) && f[kIpProtoOff] == kIpProtoIcmp) {
             const std::uint16_t icmp = l4RegionOffset(f);
             if (p->len >= icmp + kIcmpMinHdrLen) {
-                mutateEchoReply(f, flavor, icmp);
+                mutateIcmp(f, flavor, icmp);
             }
         }
     }
