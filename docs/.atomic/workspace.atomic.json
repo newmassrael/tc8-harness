@@ -1094,6 +1094,14 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_icmpv4_traits_base.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2166,11 +2174,7 @@
           "kind": "references"
         },
         {
-          "file": "src/sce_integration/cases/udp_introduction_03_neg.h",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/udp_introduction_03_neg/udp_introduction_03_neg.scxml",
+          "file": "src/sce_integration/cases/_icmpv4_traits_base.h",
           "kind": "implements"
         }
       ]

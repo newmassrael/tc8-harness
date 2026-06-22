@@ -27,7 +27,7 @@ namespace tc8::sce {
 // code 3, RFC 1122 §4.1.3.1). kIcmpFaultDestUnreachCodeWrong makes the lwIP link-output hook
 // XOR-flip the code of that reply (gated on type 3, type left intact), and the case passes only
 // when the corrupted code (!= 3) is observed. lwIP-only (kCapEgressFault via
-// Icmpv4EgressFaultNegBase). The §4.6 sibling of ICMPv4_TYPE_18_NEG — the UDP-elicited
+// Icmpv4EgressFaultNegBase). The sibling of ICMPv4_TYPE_18_NEG — the UDP-elicited
 // Destination Unreachable instead of the protocol-unreachable one. ReplyType 3 narrows the
 // observed variant to Destination Unreachable.
 template <>

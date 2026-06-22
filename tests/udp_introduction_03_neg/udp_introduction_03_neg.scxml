@@ -7,7 +7,7 @@
   Destination Unreachable reply (gated on type=3; type untouched so the filter still selects it).
   Pass = the corrupted code observed (code != 3, the Port Unreachable value RFC 1122 §4.1.3.1
   mandates); fail_compliant = the DUT emitted code 3 despite the flavor (fault inert). lwIP-only
-  (capability-gated on kCapEgressFault). The §4.6 sibling of ICMPv4_TYPE_18_NEG. Envelope:
+  (capability-gated on kCapEgressFault). The sibling of ICMPv4_TYPE_18_NEG. Envelope:
   icmpv4_egress_field_check.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

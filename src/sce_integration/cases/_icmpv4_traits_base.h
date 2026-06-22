@@ -74,8 +74,10 @@ struct Icmpv4TypedBase : Icmpv4AnyBase<StateMachine> {
     }
 };
 
-// Base for the §4.3 ICMPv4 EGRESS field-fault `_NEG` cases. Same type-narrowing dispatch
-// as Icmpv4TypedBase<SM, ReplyType> (ReplyType defaults to the Echo Reply 0; TYPE_18
+// Base for ICMPv4 EGRESS field-fault `_NEG` cases whose conformance object is a DUT-emitted
+// ICMP frame (§4.3 Echo Reply / Dest Unreachable; §4.6 UDP-elicited Port Unreachable). Same
+// type-narrowing dispatch as Icmpv4TypedBase<SM, ReplyType> (ReplyType defaults to Echo Reply
+// 0; TYPE_18
 // passes 3 for Destination Unreachable), plus the one declaration every such case
 // shares: it requires the DUT to implement OpSetEgressFlavor (kCapEgressFault). The
 // Tier-2 gate runs these only on the lwIP fixture and capability-skips them (N/A) on
@@ -86,8 +88,9 @@ struct Icmpv4EgressFaultNegBase : Icmpv4TypedBase<StateMachine, ReplyType> {
         ::tc8::sce::kCapEgressFault;
 };
 
-// Base for the §4.3 ICMPv4 prohibited-emission INGRESS `_NEG` cases (TYPE_16, ERROR_03/04,
-// TYPE_10). The positive proves the DUT stays silent for its trigger; the `_NEG` arms a
+// Base for ICMPv4 prohibited-emission INGRESS `_NEG` cases — §4.3 ICMP triggers and the §4.4
+// IPv4-header must-not-reply guards that reuse ICMP synthesis. The positive proves the DUT
+// stays silent for its trigger; the `_NEG` arms a
 // kIcmpFaultSynth* flavor so the lwIP netif INPUT hook synthesizes the forbidden reply, and
 // the case passes only when it is observed. Same type-narrowing dispatch as
 // Icmpv4TypedBase<SM, ReplyType> (the synthesized reply's type — Echo Reply 0, Parameter

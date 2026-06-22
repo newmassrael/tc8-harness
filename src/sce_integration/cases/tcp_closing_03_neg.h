@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::TcpClosing03NegSM>
     // 16-byte payload matching the positive's RST-with-data wire shape (0xA5 pattern); the synth
     // fires on the RST flag regardless of payload, but the data keeps the trigger a faithful
     // mirror of the positive's "RST containing some data".
-    static constexpr std::uint16_t kRstPayloadLen = 16U;
+    static constexpr std::size_t kRstPayloadLen = 16U;
 
     // Mirrors the positive's EST seam (driveSeamActiveOpen + acceptOne + queryTcpSeqRange) with
     // the fault armed after the handshake so only the RST+ACK+data inject elicits the synthesized

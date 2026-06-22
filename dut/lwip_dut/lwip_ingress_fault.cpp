@@ -233,7 +233,8 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                     flavor == ut::kIcmpFaultSynthParamProblem) &&
                    p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoIcmp) {
-            // §4.3 prohibited emission: the conformant DUT drops the trigger and stays
+            // §4.3 ICMP prohibited emission, and the §4.4 IPv4-header must-not-reply guards
+            // that reuse the Echo Reply synth: the conformant DUT drops the trigger and stays
             // silent, so the input hook synthesizes the forbidden ICMP reply. The flavor
             // names the reply type; the original frame still goes to lwIP, which drops it.
             const std::uint8_t reply_type =
@@ -278,8 +279,8 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                     emitProhibitedTcpSegment(nif, f, kTcpFlagAck);
                 }
             } else {  // kTcpSynthRstOnDisruptive
-                // §4.8 must-not-respond family (FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08,
-                // CLOSING_07/08/09 — across SYN-SENT/LISTEN/EST and every close-state): the
+                // §4.8 must-not-respond family (across LISTEN / SYN-SENT / SYN-RCVD /
+                // ESTABLISHED / every close-state / the closed port): the
                 // conformant DUT processes or drops the segment without emitting a RST, so the
                 // hook synthesizes the prohibited RST. The gate is the disruptive-flag union
                 // (RST/FIN/URG/PSH), which the case's deliberate trigger carries: a bare or
