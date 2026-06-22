@@ -106,7 +106,16 @@ jobs:
         # When the harness later runs against a strict-RFC DUT, drop
         # the second flag — the marked cases land green there.
         run: |
-          mkdir -p reports
+          # Pre-create reports/ AND every smoke-logs/<step> as the runner user
+          # (NOT root) so the sudo'd smoke-test.sh writes only root-owned FILES
+          # into runner-owned dirs — git clean (runner user) can then remove them
+          # on the next checkout. A root-owned dir here fails `git clean` (exit
+          # 128) and blocks all future checkouts. Mirrors how reports/ is created
+          # once here and reused by every later step.
+          mkdir -p reports \
+            smoke-logs/positive smoke-logs/serial smoke-logs/negative \
+            smoke-logs/topology-external smoke-logs/topology-ssh-remote \
+            smoke-logs/lwip-dut
           sudo -n dut/env/smoke-test.sh \
             --workers 4 \
             --junit-xml reports/junit-smoke-positive.xml \
