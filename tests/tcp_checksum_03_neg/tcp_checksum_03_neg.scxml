@@ -2,14 +2,13 @@
 <!--
   TC8 §4.8.6.2 TCP_CHECKSUM_03 negative — lwIP egress-fault self-validation of the
   positive _03 data-segment checksum guard. The trait arms kTcpFaultDataChecksumWrong,
-  so the lwIP netif link-output hook XOR-invalidates the checksum of the DUT's
-  outbound DATA segment. The fault is gated on a payload-bearing segment, so the
-  active-OPEN handshake's control segments keep valid checksums and the connection
-  still reaches ESTABLISHED to emit the data. The tester captures the segment via
-  pcap regardless of the bad checksum. Pass = the invalid checksum observed
-  (not tcp_checksum_valid()); fail_compliant = the DUT emitted a valid checksum
-  despite the flavor (fault inert — what a conformant DUT does). lwIP-only
-  (capability-gated on kCapEgressFault).
+  so the lwIP link-output hook XOR-invalidates the checksum of the DUT's outbound DATA
+  segment. The fault is gated on a payload-bearing segment, so the active-OPEN
+  handshake's control segments keep valid checksums and the connection still reaches
+  ESTABLISHED to emit the data. The tester captures the segment via pcap regardless of
+  the bad checksum. Pass = the invalid checksum observed (not tcp_checksum_valid());
+  fail_compliant = the DUT emitted a valid checksum despite the flavor (fault inert).
+  lwIP-only (capability-gated on kCapEgressFault). Envelope: tcp_egress_field_check.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -18,43 +17,11 @@
        name="tcp_checksum_03_neg"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::Ipv4Expected"
-               cpp:include="sce_integration/ipv4_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.payload_len &gt; 0 and not captured.tcp_checksum_valid()"
-                target="pass"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.payload_len &gt; 0 and captured.tcp_checksum_valid()"
-                target="fail_compliant"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_compliant">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_emitted_valid_checksum_despite_flavor","role":"fault_injection_inert"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_timeout">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_data_segment_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/tcp_egress_field_check.sce-template.xml"
+           filter="captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum03LocalOffset) and captured.payload_len &gt; 0"
+           pass_expr="not captured.tcp_checksum_valid()"
+           fail_state="fail_compliant"
+           fail_reason="dut_emitted_valid_checksum_despite_flavor"
+           fail_role="fault_injection_inert"
+           inconclusive_reason="no_dut_data_segment_within_listen_window"/>
 </scxml>

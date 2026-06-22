@@ -95,13 +95,20 @@ void mutateUdp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t udp) {
 // fixed value could collide with the correct one).
 constexpr std::uint32_t kTcpSeqAckFlip = 0xA5A5A5A5;
 
+// The RFC 1122 §4.2.2.6 default MSS — the deterministic non-conformant value for the
+// TCP_MSS_OPTIONS_12 fault: the case's guard forbids exactly this value, so forcing
+// the advertised MSS to it is the precise violation.
+constexpr std::uint16_t kRfcDefaultMss = 536;
+
 // TCP is stateful, so unlike ARP/UDP each fault is gated on the SPECIFIC segment the
 // matching case observes — corrupting every DUT segment would break the handshake the
 // observed segment depends on. The tester's guard reads the mutated field, not the
 // checksum, and libpcap delivers the (now checksum-stale) segment regardless.
 void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
     const std::uint8_t flags = f[tcp + kTcpFlagsOff];
-    const bool is_syn_ack = (flags & kTcpFlagSyn) && (flags & kTcpFlagAck);
+    const bool is_syn_ack  = (flags & kTcpFlagSyn) && (flags & kTcpFlagAck);
+    const bool is_syn_only = (flags & kTcpFlagSyn) && !(flags & kTcpFlagAck);
+    const bool is_rst      = (flags & kTcpFlagRst) != 0;
     switch (flavor) {
         // TCP_SEQUENCE_01: flip the SYN,ACK acknowledgment so it no longer equals
         // tester_isn + 1. Flags stay SYN,ACK so the case guard still selects it.
@@ -109,12 +116,35 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
             if (is_syn_ack) put32(f, tcp + kTcpAckNumOff,
                                   get32(f, tcp + kTcpAckNumOff) ^ kTcpSeqAckFlip);
             break;
-        // TCP_CHECKSUM_03: XOR-invalidate a DATA segment's checksum. Gated on payload
-        // so the handshake's control segments keep valid checksums and the connection
-        // still reaches ESTABLISHED to emit the observed data segment.
+        // TCP_CHECKSUM_03 / TCP_HEADER_01: XOR-invalidate a DATA segment's checksum.
+        // Gated on payload so the handshake's control segments keep valid checksums and
+        // the connection still reaches ESTABLISHED to emit the observed data segment.
         case ut::kTcpFaultDataChecksumWrong:
             if (tcpHasPayload(f, tcp)) put16(f, tcp + kTcpChecksumOff,
                                              get16(f, tcp + kTcpChecksumOff) ^ kChecksumFlip);
+            break;
+        // TCP_BASICS_04: flip the closed-port RST's sequence off zero (RFC 793 §3.9
+        // mandates SEQ=0). Gated on the RST flag so only that reset is touched.
+        case ut::kTcpFaultRstSeqWrong:
+            if (is_rst) put32(f, tcp + kTcpSeqNumOff,
+                              get32(f, tcp + kTcpSeqNumOff) ^ kTcpSeqAckFlip);
+            break;
+        // TCP_MSS_OPTIONS_11: zero the MSS the active-OPEN SYN advertises (a DUT that
+        // omits a receive MSS). TCP_MSS_OPTIONS_12: force it to the 536 default (a DUT
+        // whose MSS does not differ from the default). Both gated on the pure SYN so the
+        // passive SYN,ACK of a different case is untouched; no-op if the SYN carried no
+        // MSS option (tcpMssValueOffset == 0 — nothing to corrupt, fault inert).
+        case ut::kTcpFaultSynMssZero:
+            if (is_syn_only) {
+                const std::uint16_t m = tcpMssValueOffset(f, tcp);
+                if (m != 0) put16(f, m, 0);
+            }
+            break;
+        case ut::kTcpFaultSynMssDefault:
+            if (is_syn_only) {
+                const std::uint16_t m = tcpMssValueOffset(f, tcp);
+                if (m != 0) put16(f, m, kRfcDefaultMss);
+            }
             break;
         default: break;  // None / non-TCP flavor: no-op
     }

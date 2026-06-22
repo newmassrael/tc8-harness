@@ -211,10 +211,13 @@ jobs:
       # kUdpFaultRejectValid): the input hook swallows the valid data-listener
       # frame so lwIP never delivers it — the _neg passes only when the
       # confirmation reports NO receipt. Last the §4.8 TCP egress field cluster
-      # (TCP_SEQUENCE_01_NEG kTcpFaultSynAckAckWrong, TCP_CHECKSUM_03_NEG
-      # kTcpFaultDataChecksumWrong): the link-output hook corrupts one field of a
-      # specific DUT segment (SYN,ACK ack / DATA checksum) — the _neg passes only
-      # when the corrupted field is observed on the captured segment. ~7 min.
+      # (TCP_SEQUENCE_01_NEG kTcpFaultSynAckAckWrong, TCP_CHECKSUM_03_NEG /
+      # TCP_HEADER_01_NEG kTcpFaultDataChecksumWrong, TCP_BASICS_04_NEG
+      # kTcpFaultRstSeqWrong, TCP_MSS_OPTIONS_11_NEG kTcpFaultSynMssZero,
+      # TCP_MSS_OPTIONS_12_NEG kTcpFaultSynMssDefault): the link-output hook corrupts
+      # one field of a specific DUT segment (SYN,ACK ack / DATA checksum / closed-port
+      # RST seq / active-OPEN SYN MSS) — the _neg passes only when the corrupted field
+      # is observed on the captured segment. ~7 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -239,7 +242,10 @@ jobs:
             UDP_FIELDS_07_NEG UDP_FIELDS_13_NEG UDP_FIELDS_14_NEG \
             UDP_FIELDS_09_NEG UDP_FIELDS_10_NEG UDP_FIELDS_15_NEG \
             UDP_DatagramLength_01_NEG UDP_FIELDS_03_NEG UDP_FIELDS_16_NEG \
-            TCP_SEQUENCE_01_NEG TCP_CHECKSUM_03_NEG
+            TCP_SEQUENCE_01_NEG TCP_CHECKSUM_03_NEG \
+            TCP_BASICS_04_NEG TCP_BASICS_04_NEG2 TCP_BASICS_04_NEG3 \
+            TCP_HEADER_01_NEG \
+            TCP_MSS_OPTIONS_11_NEG TCP_MSS_OPTIONS_12_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

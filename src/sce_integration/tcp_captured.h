@@ -387,6 +387,25 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
             && (flags & 0x01U) == 0U;
     }
 
+    // §4.8.6.17 SEQUENCE_01 passive-open observation: a DUT-emitted SYN,ACK
+    // (the LISTEN-state second leg) — SYN and ACK both set. Sibling of
+    // `is_dut_syn` (which requires ACK clear, the active-OPEN first leg); the
+    // 4-tuple match isolates the case connection. Gives the §4.8 egress
+    // field-shape `_NEG` envelope a raw-`&`-free matcher for the SYN,ACK guard
+    // (an sce:template filter cannot carry a bitmask `&`; see
+    // tests/_templates/tcp_egress_field_check.sce-template.xml).
+    bool is_dut_syn_ack(std::uint32_t expected_dut_iface_ip,
+                        std::uint32_t expected_tester_ip,
+                        std::uint16_t expected_src_port,
+                        std::uint16_t expected_dst_port) const noexcept {
+        return src_ip == expected_dut_iface_ip
+            && dst_ip == expected_tester_ip
+            && src_port == expected_src_port
+            && dst_port == expected_dst_port
+            && (flags & 0x02U) != 0U
+            && (flags & 0x10U) != 0U;
+    }
+
     // §4.8.6.9 TCP_MSS_OPTIONS_06/_09/_10 segment-size observation:
     // a DUT-emitted ACK-only data segment (payload_len > 0, ACK set,
     // SYN/FIN/RST clear). PSH may be set or clear — Linux flips PSH

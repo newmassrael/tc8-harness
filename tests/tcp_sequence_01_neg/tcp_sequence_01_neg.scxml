@@ -2,13 +2,12 @@
 <!--
   TC8 §4.8.6.17 TCP_SEQUENCE_01 negative — lwIP egress-fault self-validation of the
   positive _01 SYN,ACK ack_num guard. The trait arms kTcpFaultSynAckAckWrong, so the
-  lwIP netif link-output hook flips the acknowledgment of the DUT's passive-open
-  SYN,ACK (gated on the SYN,ACK segment; the flags stay SYN+ACK so the case 4-tuple +
-  flag conjuncts still select it). The tester completes the handshake from the
-  uncorrupted seq, so the SYN,ACK is captured. Pass = the corrupted ack observed
-  (ack_num != tester ISN + 1); fail_compliant = the DUT acked correctly despite the
-  flavor (fault inert — what a conformant DUT does). lwIP-only (capability-gated on
-  kCapEgressFault).
+  lwIP link-output hook flips the acknowledgment of the DUT's passive-open SYN,ACK
+  (gated on the SYN,ACK segment; the flags stay SYN+ACK so the filter still selects it).
+  The tester completes the handshake from the uncorrupted seq, so the SYN,ACK is
+  captured. Pass = the corrupted ack observed (ack_num != tester ISN + 1);
+  fail_compliant = the DUT acked correctly despite the flavor (fault inert). lwIP-only
+  (capability-gated on kCapEgressFault). Envelope: tcp_egress_field_check.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -17,43 +16,11 @@
        name="tcp_sequence_01_neg"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::Ipv4Expected"
-               cpp:include="sce_integration/ipv4_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
-    </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpSequence01ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpSequence01TesterSrcPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num != ::tc8::sce::tcp::kTesterInitialSeq + 1U"
-                target="pass"/>
-    <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpSequence01ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpSequence01TesterSrcPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0 and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 1U"
-                target="fail_compliant"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_compliant">
-    <donedata>
-      <content>{"verdict":"fail","reason":"dut_synack_acked_tester_isn_despite_flavor","role":"fault_injection_inert"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_timeout">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_syn_ack_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/tcp_egress_field_check.sce-template.xml"
+           filter="captured.is_dut_syn_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence01ListenPort, ::tc8::sce::tcp::kTcpSequence01TesterSrcPort)"
+           pass_expr="captured.ack_num != ::tc8::sce::tcp::kTesterInitialSeq + 1U"
+           fail_state="fail_compliant"
+           fail_reason="dut_synack_acked_tester_isn_despite_flavor"
+           fail_role="fault_injection_inert"
+           inconclusive_reason="no_dut_syn_ack_within_listen_window"/>
 </scxml>

@@ -851,8 +851,11 @@ inline constexpr std::uint8_t kUdpFaultLengthWrong     = 0x08;  // RFC 768 lengt
 inline constexpr std::uint8_t kUdpFaultChecksumWrong   = 0x09;  // RFC 768 checksum:  §4.6.5.4 UDP_FIELDS_13/14
 // TCP (segment-selective; the flavor names the field + the segment it targets):
 inline constexpr std::uint8_t kTcpFaultSynAckAckWrong   = 0x0A;  // RFC 793 ack num:  §4.8 TCP_SEQUENCE_01 (SYN,ACK acks tester ISN+1)
-inline constexpr std::uint8_t kTcpFaultDataChecksumWrong = 0x0B; // RFC 793 checksum: §4.8 TCP_CHECKSUM_03 (data segment)
-inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultDataChecksumWrong;
+inline constexpr std::uint8_t kTcpFaultDataChecksumWrong = 0x0B; // RFC 793 checksum: §4.8 TCP_CHECKSUM_03 (data segment) + §4.8 TCP_HEADER_01 (data segment header validity)
+inline constexpr std::uint8_t kTcpFaultRstSeqWrong      = 0x0C;  // RFC 793 §3.9 seq:  §4.8 TCP_BASICS_04 (closed-port RST MUST carry SEQ=0)
+inline constexpr std::uint8_t kTcpFaultSynMssZero       = 0x0D;  // RFC 1122 §4.2.2.6 MSS option: §4.8 TCP_MSS_OPTIONS_11 (active-OPEN SYN advertises a receive MSS)
+inline constexpr std::uint8_t kTcpFaultSynMssDefault    = 0x0E;  // RFC 1122 §4.2.2.6 MSS value:  §4.8 TCP_MSS_OPTIONS_12 (advertised MSS differs from the 536 default)
+inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultSynMssDefault;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself

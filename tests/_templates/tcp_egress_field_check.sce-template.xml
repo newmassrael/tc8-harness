@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6 TCP egress field-shape envelope. A DUT-emitted TCP segment must carry the
+  RFC value in one header field; each consumer asserts a single field while reusing
+  this listening-state envelope. The TCP sibling of arp_field_check / udp_field_check /
+  ipv4_field_check, used by the §4.8.6 egress-fault `_NEG` self-validation cases (the lwIP
+  link-output mutation tests) — the verdict differs only by the bound expressions, not
+  the envelope, so there is one SSOT for the guard shape.
+
+  Filter:  {$filter}  — the "this is the DUT-emitted segment of the right shape" gate
+           (4-tuple + the control-bit / payload conjuncts that select the observed
+           segment), shared by the pass and fail transitions.
+  Pass:    filter and  ({$pass_expr})            ->  pass
+  Fail:    filter and !({$pass_expr})            ->  {$fail_state}
+  Timeout: deadline_exceeded                     ->  inconclusive
+           (no DUT-emitted segment at all: precondition not reached)
+
+  The `_NEG` consumer binds the NEGATION of the positive's field assertion to
+  {$pass_expr} (pass = the injected violation is observed), fail_state=fail_compliant
+  with role fault_injection_inert (the fault was inert — a flavor-wiring regression,
+  not a DUT violation). Single `{$pass_expr}` per the ipv4_field_check precedent: XML
+  attribute values can't carry a raw `<`, so dual pass/fail exprs would re-parse-fail;
+  `!({$pass_expr})` is robust because `!`, `(`, `)` survive the lexical paste, and
+  compound predicates ride TcpCaptured member methods (reference_sce_captured_arg.md).
+
+  5 s deadline matches the §4.8.6 positive cluster: the DUT-emitted segment (provoked by
+  the case's raw inject / active OPEN) lands well within the window.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="tcp_egress_field_check">
+
+  <sce:param name="filter"              required="true"/>
+  <sce:param name="pass_expr"           required="true"/>
+  <sce:param name="fail_state"          required="true"/>
+  <sce:param name="fail_reason"         required="true"/>
+  <sce:param name="fail_role"           required="true"/>
+  <sce:param name="inconclusive_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:({$filter}) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:({$filter}) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="inconclusive"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"{$fail_role}"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"{$inconclusive_reason}","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</sce:template>

@@ -14,6 +14,11 @@
       "dut_emitted_arp_during_first_rate_limit_silence": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG2",
       "dut_post_silence_probe_targets_previous_ll": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG3",
       "dut_emitted_arp_during_second_rate_limit_silence": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG4"
+    },
+    "TCP_BASICS_04": {
+      "dut_rst_seq_not_zero_after_syn": "TCP_BASICS_04_NEG",
+      "dut_rst_seq_not_zero_after_fin": "TCP_BASICS_04_NEG2",
+      "dut_rst_seq_not_zero_after_data": "TCP_BASICS_04_NEG3"
     }
   }
 }

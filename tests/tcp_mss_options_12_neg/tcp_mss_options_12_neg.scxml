@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_12 negative — lwIP egress-fault self-validation of the
+  positive _12 "advertised MSS differs from the 536 default" guard. The trait arms
+  kTcpFaultSynMssDefault, so the lwIP link-output hook walks the DUT SYN's TCP options
+  to the kind=2 MSS option and forces its value to the RFC 1122 §4.2.2.6 default 536
+  (gated on the pure SYN; SYN stays set and ACK clear so the filter still selects it).
+  Pass = the default MSS observed (mss == 536, the value the positive forbids);
+  fail_compliant = the DUT advertised a non-default MSS despite the flavor (fault
+  inert). lwIP-only (capability-gated on kCapEgressFault). Envelope:
+  tcp_egress_field_check.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_12_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/tcp_egress_field_check.sce-template.xml"
+           filter="captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 41U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 41U)"
+           pass_expr="captured.mss == 536"
+           fail_state="fail_compliant"
+           fail_reason="dut_syn_advertised_non_default_mss_despite_flavor"
+           fail_role="fault_injection_inert"
+           inconclusive_reason="no_dut_syn_within_listen_window"/>
+</scxml>

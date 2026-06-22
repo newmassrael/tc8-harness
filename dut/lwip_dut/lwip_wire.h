@@ -42,15 +42,21 @@ constexpr std::uint16_t kUdpLength   = 4;
 constexpr std::uint16_t kUdpChecksum = 6;
 constexpr std::uint16_t kUdpHdrLen   = 8;
 // TCP header field offsets (relative to the TCP region start). Only the fields the
-// current §4.8 egress faults read are defined; seq/window/urgent join as their cases
-// land.
+// current §4.8 egress faults read are defined; window/urgent join as their cases land.
+constexpr std::uint16_t kTcpSeqNumOff   = 4;   // u32 sequence number
 constexpr std::uint16_t kTcpAckNumOff   = 8;   // u32 acknowledgment number
 constexpr std::uint16_t kTcpDataOffOff  = 12;  // high nibble = header length in 32-bit words
 constexpr std::uint16_t kTcpFlagsOff    = 13;  // u8 control bits (… URG ACK PSH RST SYN FIN)
 constexpr std::uint16_t kTcpChecksumOff = 16;  // u16 checksum
 constexpr std::uint16_t kTcpMinHdrLen   = 20;  // bytes needed through the checksum field
 constexpr std::uint8_t  kTcpFlagSyn     = 0x02;
+constexpr std::uint8_t  kTcpFlagRst     = 0x04;
 constexpr std::uint8_t  kTcpFlagAck     = 0x10;
+// RFC 793 §3.1 kind=2 MSS option: 1 B kind + 1 B length(4) + 2 B value.
+constexpr std::uint8_t  kTcpOptKindEnd  = 0;   // End of Options List (no length)
+constexpr std::uint8_t  kTcpOptKindNop  = 1;   // No-Operation (no length)
+constexpr std::uint8_t  kTcpOptKindMss  = 2;
+constexpr std::uint8_t  kTcpOptLenMss   = 4;
 
 inline void put16(std::uint8_t *f, std::uint16_t off, std::uint16_t v) {
     f[off] = static_cast<std::uint8_t>(v >> 8);
@@ -98,6 +104,32 @@ inline bool tcpHasPayload(const std::uint8_t *f, std::uint16_t tcp) {
     const std::uint16_t ip_hdr   = static_cast<std::uint16_t>((f[kEthHdrLen] & 0x0F) * 4);
     const std::uint16_t tcp_hdr  = static_cast<std::uint16_t>((f[tcp + kTcpDataOffOff] >> 4) * 4);
     return ip_total > static_cast<std::uint16_t>(ip_hdr + tcp_hdr);
+}
+
+// Byte offset of the 2-byte MSS option value within an Ethernet+IPv4+TCP frame, or 0
+// if the segment carries no RFC 793 §3.1 kind=2 MSS option. Walks the TCP option TLV
+// chain between the 20-byte fixed header and the data-offset-declared header end
+// (kind 0 = End-of-Options, kind 1 = NOP single byte, others length-prefixed). Lets a
+// SYN MSS fault rewrite the advertised MSS wherever the stack placed the option,
+// independent of option ordering. Stops on any truncated/malformed option.
+inline std::uint16_t tcpMssValueOffset(const std::uint8_t *f, std::uint16_t tcp) {
+    const std::uint16_t opt_start = static_cast<std::uint16_t>(tcp + kTcpMinHdrLen);
+    const std::uint16_t opt_end =
+        static_cast<std::uint16_t>(tcp + (f[tcp + kTcpDataOffOff] >> 4) * 4);
+    std::uint16_t i = opt_start;
+    while (i < opt_end) {
+        const std::uint8_t kind = f[i];
+        if (kind == kTcpOptKindEnd) break;
+        if (kind == kTcpOptKindNop) { i++; continue; }
+        if (i + 1 >= opt_end) break;  // truncated length-prefixed option
+        const std::uint8_t len = f[i + 1];
+        if (len < 2 || i + len > opt_end) break;  // malformed length
+        if (kind == kTcpOptKindMss && len == kTcpOptLenMss) {
+            return static_cast<std::uint16_t>(i + 2);
+        }
+        i = static_cast<std::uint16_t>(i + len);
+    }
+    return 0;
 }
 
 }  // namespace tc8::lwip_dut

@@ -3550,6 +3550,10 @@
         {
           "file": "tests/tcp_mss_options_11/tcp_mss_options_11.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/tcp_egress_field_check.sce-template.xml",
+          "kind": "references"
         }
       ]
     },
@@ -3651,6 +3655,18 @@
         },
         {
           "file": "src/upper_tester/ut_server.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_04_neg/tcp_basics_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_04_neg2/tcp_basics_04_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_04_neg3/tcp_basics_04_neg3.scxml",
           "kind": "implements"
         }
       ]
@@ -3898,6 +3914,10 @@
         {
           "file": "tests/tcp_header_11/tcp_header_11.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_header_01_neg/tcp_header_01_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -3931,6 +3951,10 @@
         },
         {
           "file": "tests/tcp_sequence_01_neg/tcp_sequence_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/tcp_captured.h",
           "kind": "implements"
         }
       ]
@@ -4423,6 +4447,14 @@
         },
         {
           "file": "tests/tcp_mss_options_12/tcp_mss_options_12.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_11_neg/tcp_mss_options_11_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_12_neg/tcp_mss_options_12_neg.scxml",
           "kind": "implements"
         }
       ]

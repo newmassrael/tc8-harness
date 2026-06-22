@@ -200,7 +200,8 @@ netif-level glue (`lwip_egress_fault.cpp` wraps `linkoutput`,
 `lwip_ingress_fault.cpp` wraps `input`):
 
 - **Egress field-fault** rewrites one header field of a DUT-emitted frame (ARP
-  §4.2 fields; UDP §4.6.5.4 src/dst port, length, checksum). Used where the
+  §4.2 fields; UDP §4.6.5.4 src/dst port, length, checksum; TCP §4.8 SYN,ACK ack,
+  DATA checksum, closed-port RST seq, active-OPEN SYN MSS). Used where the
   conformant DUT *emits* a frame whose field a positive case checks.
 - **Ingress reaction-fault** makes the DUT exhibit a forbidden *reaction* to an
   inbound frame: the §4.2.4.2 ARP prohibited emission (reply / learn), or the
@@ -247,35 +248,50 @@ need an IP-layer acceptance fault rather than this UDP seam.
 **§4.8 TCP egress field faults.** The egress seam extends to TCP, but TCP is
 stateful so each flavor is segment-selective (the link-output hook sees every DUT
 segment; corrupting all of them would break the handshake the observed segment
-depends on). Two cases are wired so far:
-`TCP_SEQUENCE_01_NEG` (`kTcpFaultSynAckAckWrong` — flip the SYN,ACK ack_num, gated
-on the SYN,ACK; the tester completes the handshake from the uncorrupted seq so the
-segment is still captured) and `TCP_CHECKSUM_03_NEG` (`kTcpFaultDataChecksumWrong`
-— XOR a DATA segment's checksum, gated on payload so the handshake stays valid).
+depends on). Six cases are wired:
 
-The other §4.8 field guards are deferred for specific reasons, not coverage
+- `TCP_SEQUENCE_01_NEG` (`kTcpFaultSynAckAckWrong` — flip the SYN,ACK ack_num, gated
+  on the SYN,ACK; the tester completes the handshake from the uncorrupted seq so the
+  segment is still captured).
+- `TCP_CHECKSUM_03_NEG` (`kTcpFaultDataChecksumWrong` — XOR a DATA segment's
+  checksum, gated on payload so the handshake stays valid).
+- `TCP_BASICS_04_NEG` (`kTcpFaultRstSeqWrong` — XOR the closed-port RST's seq off
+  zero, gated on the RST flag). One iteration suffices: the positive's three
+  iterations (SYN/FIN/Data) all land on the identical RFC 793 §3.9 seq==0 guard.
+- `TCP_MSS_OPTIONS_11_NEG` (`kTcpFaultSynMssZero`) / `TCP_MSS_OPTIONS_12_NEG`
+  (`kTcpFaultSynMssDefault`) — walk the active-OPEN SYN's TCP options to the kind=2
+  MSS option and zero its value (11) or force it to the 536 default (12), gated on
+  the pure SYN so the passive SYN,ACK is untouched.
+- `TCP_HEADER_01_NEG` (`kTcpFaultDataChecksumWrong`, reused) — self-validates
+  HEADER_01's *checksum* conjunct only; its data_offset conjunct is unreachable
+  (below).
+
+**Why TCP_HEADER_01's data_offset conjunct is not self-validatable here.** libtins
+(`build/libtins-4.0/src/tcp.cpp`) throws `malformed_packet` when
+`data_offset*4 < sizeof(tcp_header)` (i.e. data_offset < 5), so a segment with a
+sub-minimum data offset never produces a `TcpFrame` — the tester observes nothing
+and the `_neg` would land on `inconclusive`, not `pass`. The same fact makes
+HEADER_01's *positive* `data_offset < 5` fail branch unreachable through the
+dissector: only its `!checksum_valid` half can ever fire. HEADER_01_NEG therefore
+reuses the data-checksum flavor and carries `data_offset >= 5` as an always-true
+shape conjunct.
+
+The remaining §4.8 field guards are deferred for specific reasons, not coverage
 laziness:
 
 - **TCP_BASICS_01 (SYN,ACK flags).** Faultable in principle (clear the SYN bit),
   but its positive drives `driveSeamPassiveOpen` — a kernel `connect()` trigger.
   Corrupting the SYN,ACK makes the tester kernel RST, so the seam's `acceptTcp`
   never confirms; whether that returns cleanly (timeout) or blocks needs verifying
-  before shipping. Deferred pending that check (the raw-accept and active-open
-  paths used by SEQUENCE_01/CHECKSUM_03 are bounded and have no such dependency).
-- **TCP_BASICS_04/05 (RST seq).** Faultable (corrupt the RST seq), but multi-phase
-  (3 / 2 RST triggers); a single-observation `_neg` suffices but the scaffold is
-  heavier than the first batch warranted.
-- **TCP_HEADER_01 (data_offset).** Corrupting the data-offset nibble controls the
-  header length the tester's dissector uses to find the payload, so it risks
-  breaking dissection of the very segment under observation — needs a dissector
-  tolerance check first. (HEADER_07/08/09/11 and CHECKSUM_02 are ingress-drop /
-  addressing cases — wrong seam entirely.)
-- **TCP_MSS_OPTIONS_11/12 (MSS value).** The MSS lives in the TCP options at a
-  variable offset, so the hook must scan for the option kind rather than write a
-  fixed offset — a small option-walk extension to `mutateTcp`.
+  before shipping. Also, clearing the SYN bit *de-selects* the segment (the positive
+  has no fail-final — only pass on SYN+ACK), so the violation is unobservable rather
+  than a clean pass/fail flip.
+- **TCP_BASICS_05 (RST seq=incoming.ack).** Faultable like BASICS_04, but its seq
+  target is tester-chosen per phase; deferred with the multi-phase-ack batch.
 - **Multi-phase ack cases (HEADER_02/05/06, CHECKSUM_01).** The observed field is
   on a second, data-elicited segment; the `_neg` needs per-phase arming, deferred
-  until the single-phase seam is proven.
+  until the single-phase seam is proven. (HEADER_07/08/09/11 and CHECKSUM_02 are
+  ingress-drop / addressing cases — wrong seam entirely.)
 
 ## lwipopts.h alignment (why each non-default option exists)
 

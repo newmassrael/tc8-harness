@@ -2448,25 +2448,6 @@
         }
       ]
     },
-    "TCP_BASICS_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_seq_not_zero_after_data",
-          "property": "DUT's RST after data must carry seq=0 per the test's RFC 793 expectation; fail iff non-zero"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_seq_not_zero_after_fin",
-          "property": "DUT's RST after FIN must carry seq=0 per the test's RFC 793 expectation; fail iff non-zero"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_seq_not_zero_after_syn",
-          "property": "DUT's RST after SYN must carry seq=0 per the test's RFC 793 expectation; fail iff non-zero"
-        }
-      ]
-    },
     "TCP_BASICS_05": {
       "guards": [
         {
@@ -2992,15 +2973,6 @@
         }
       ]
     },
-    "TCP_HEADER_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_segment_with_invalid_header",
-          "property": "DUT's data segment must carry a well-formed TCP header; fail iff a malformed header is emitted"
-        }
-      ]
-    },
     "TCP_HEADER_02": {
       "guards": [
         {
@@ -3142,22 +3114,6 @@
           "class": "incorrect_emission",
           "fail_reason": "dut_data_segment_size_not_default_536",
           "property": "DUT's data segment must honour the RFC 1122 default 536 MSS when none is advertised; fail iff oversized"
-        }
-      ]
-    },
-    "TCP_MSS_OPTIONS_11": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit a SYN carrying an MSS option; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
-        }
-      ]
-    },
-    "TCP_MSS_OPTIONS_12": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit a SYN advertising a non-default MSS; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
         }
       ]
     },
