@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.16 TCP_HEADER_02 negative — lwIP egress self-validation of the positive
+  _02 "DUT ACKs in-window data with the expected Ack Number" guard. The observed field
+  (ack_num) is on the DATA-elicited ACK, the second DUT pure ACK of the connection, so
+  the fault must be armed per-phase: the trait drives the active OPEN to ESTABLISHED
+  with the fault disarmed (the handshake third-leg ACK leaves uncorrupted, so the chain
+  advances past listening_handshake_ack), then arms kTcpFaultDataAckNumWrong before
+  raw-injecting the data. The DUT's data-ACK then carries a flipped ack_num.
+  Pass = the data-ACK's ack_num does NOT acknowledge the payload (ack_num !=
+  expected_ack_num, the injected violation observed); fail_compliant = the DUT still
+  acked correctly despite the flavor (fault inert — what a conformant DUT does).
+  lwIP-only (capability-gated on kCapEgressFault). Mirrors tcp_header_02's two-state
+  chain on the +31/+31 port quad.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_header_02_neg"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U)"
+                target="listening_data_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_data_ack">
+    <onentry>
+      <send event="deadline_data_ack" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U) and captured.ack_num != captured.expected_ack_num"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U) and captured.ack_num == captured.expected_ack_num"
+                target="fail_compliant_correct_ack_num"/>
+    <transition event="deadline_data_ack" target="inconclusive_no_data_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_data_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_valid_data","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_correct_ack_num">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_ack_num_correct_despite_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</scxml>

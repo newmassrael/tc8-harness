@@ -2923,39 +2923,12 @@
         }
       ]
     },
-    "TCP_HEADER_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
-          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
-        }
-      ]
-    },
     "TCP_HEADER_04": {
       "guards": [
         {
           "class": "prohibited_emission",
           "fail_reason": "dut_acked_segment_with_wrong_source_port",
           "property": "Silence is conformant: DUT must not accept a segment for the wrong source port; fail iff it ACKs it"
-        }
-      ]
-    },
-    "TCP_HEADER_05": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
-          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
-        }
-      ]
-    },
-    "TCP_HEADER_06": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
-          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
         }
       ]
     },

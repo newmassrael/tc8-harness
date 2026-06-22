@@ -60,6 +60,7 @@ constexpr std::uint16_t kTcpDataOffOff  = 12;  // high nibble = header length in
 constexpr std::uint16_t kTcpFlagsOff    = 13;  // u8 control bits (… URG ACK PSH RST SYN FIN)
 constexpr std::uint16_t kTcpChecksumOff = 16;  // u16 checksum
 constexpr std::uint16_t kTcpMinHdrLen   = 20;  // bytes needed through the checksum field
+constexpr std::uint8_t  kTcpFlagFin     = 0x01;
 constexpr std::uint8_t  kTcpFlagSyn     = 0x02;
 constexpr std::uint8_t  kTcpFlagRst     = 0x04;
 constexpr std::uint8_t  kTcpFlagAck     = 0x10;

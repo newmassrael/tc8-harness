@@ -119,6 +119,11 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
     const bool is_syn_ack  = (flags & kTcpFlagSyn) && (flags & kTcpFlagAck);
     const bool is_syn_only = (flags & kTcpFlagSyn) && !(flags & kTcpFlagAck);
     const bool is_rst      = (flags & kTcpFlagRst) != 0;
+    // A pure ACK carries ACK with no SYN/FIN/RST and no payload — the shape of both the
+    // handshake third leg and a data-elicited ACK. kTcpFaultDataAckNumWrong is armed
+    // per-phase (after the handshake) so only the latter is in flight when it fires.
+    const bool is_pure_ack = (flags & kTcpFlagAck) && !(flags & kTcpFlagSyn) &&
+                             !(flags & kTcpFlagFin) && !is_rst && !tcpHasPayload(f, tcp);
     switch (flavor) {
         // TCP_SEQUENCE_01: flip the SYN,ACK acknowledgment so it no longer equals
         // tester_isn + 1. Flags stay SYN,ACK so the case guard still selects it.
@@ -138,6 +143,14 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
         case ut::kTcpFaultRstSeqWrong:
             if (is_rst) put32(f, tcp + kTcpSeqNumOff,
                               get32(f, tcp + kTcpSeqNumOff) ^ kTcpSeqAckFlip);
+            break;
+        // TCP_HEADER_02/05/06: flip the data-elicited ACK's ack_num so it no longer
+        // acknowledges the injected payload (RFC 793 §3.9). Gated on a pure ACK and
+        // armed only after the handshake completes, so the handshake third leg (also a
+        // pure ACK) escaped and this fires on the data-ACK the case observes.
+        case ut::kTcpFaultDataAckNumWrong:
+            if (is_pure_ack) put32(f, tcp + kTcpAckNumOff,
+                                   get32(f, tcp + kTcpAckNumOff) ^ kTcpSeqAckFlip);
             break;
         // TCP_MSS_OPTIONS_11: zero the MSS the active-OPEN SYN advertises (a DUT that
         // omits a receive MSS). TCP_MSS_OPTIONS_12: force it to the 536 default (a DUT

@@ -878,7 +878,13 @@ inline constexpr std::uint8_t kIcmpFaultEchoSeqWrong   = 0x10;  // RFC 792 echo 
 inline constexpr std::uint8_t kIpv4FaultTtlZero        = 0x11;  // RFC 1122 §3.2.1.7 TTL:  §4.4 IPv4_TTL_01 (emitted TTL MUST be non-zero)
 inline constexpr std::uint8_t kIpv4FaultHdrChecksumWrong = 0x12; // RFC 791 §3.1 header checksum: §4.4 IPv4_CHECKSUM_05
 inline constexpr std::uint8_t kIcmpFaultDestUnreachCodeWrong = 0x13; // RFC 1122 §3.2.2.1 code: §4.3 ICMPv4_TYPE_18 (Protocol Unreachable code 2)
-inline constexpr std::uint8_t kEgressFaultMax         = kIcmpFaultDestUnreachCodeWrong;
+// TCP (§4.8) data-elicited ACK ack_num. Appended at the catalog tail (the value space
+// is append-only; numeric grouping with the 0x0A-0x0E TCP block is not maintained for
+// later additions). Gated on a pure DUT ACK and armed per-phase (after the handshake,
+// before the data injection) so only the data-elicited ACK is corrupted, not the
+// handshake third leg whose ack_num would break the connection.
+inline constexpr std::uint8_t kTcpFaultDataAckNumWrong = 0x14;  // RFC 793 §3.9 ack num: §4.8 TCP_HEADER_02/05/06 (data-ACK acks the injected payload)
+inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultDataAckNumWrong;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself

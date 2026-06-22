@@ -32,6 +32,18 @@ inline void emitEgressFlavorArm(const ::tc8::TestConfig &cfg, std::string_view i
                                          cfg.dut.mac, flavor);
 }
 
+// emitEgressFlavorArmMidStream: arm an egress flavor MID-CONNECTION, without the
+// bring-up wait (the DUT is already up and an exchange is in flight). The multi-phase
+// ack `_NEG`s (TCP_HEADER_02/05/06) drive the handshake with the fault disarmed, then
+// arm here between the handshake and the data injection so only the data-elicited ACK
+// is corrupted — the handshake third leg (also a pure ACK) has already left. The caller
+// follows with a short pre-injection wait so the arm lands before the data-ACK.
+inline void emitEgressFlavorArmMidStream(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                         std::uint8_t flavor) {
+    ::tc8::stimulus::emitSetEgressFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
+                                         cfg.dut.mac, flavor);
+}
+
 // emitIngressFlavorArm (UT 0x19 OpSetIngressFlavor): a non-None flavor makes the
 // netif input hook produce a prohibited reaction to an inbound frame — the §4.2.4.2
 // ARP reply / learn emission, or the §4.6.5.4 UDP acceptance (zero the inbound UDP

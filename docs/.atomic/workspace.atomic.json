@@ -3990,6 +3990,18 @@
         {
           "file": "tests/tcp_header_01_neg/tcp_header_01_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_header_02_neg/tcp_header_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_header_05_neg/tcp_header_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_header_06_neg/tcp_header_06_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

@@ -204,8 +204,9 @@ a post-delivery application decision, below the netif glue's reach:
 
 - **Egress field-fault** rewrites one header field of a DUT-emitted frame (ARP
   §4.2 fields; UDP §4.6.5.4 src/dst port, length, checksum; TCP §4.8 SYN,ACK ack,
-  DATA checksum, closed-port RST seq, active-OPEN SYN MSS; ICMPv4 §4.3 Echo Reply
-  id/seq; IPv4 §4.4 header TTL / header checksum on the Echo Reply). Used where the
+  DATA checksum, closed-port RST seq, active-OPEN SYN MSS, data-elicited ACK ack_num;
+  ICMPv4 §4.3 Echo Reply id/seq; IPv4 §4.4 header TTL / header checksum on the Echo
+  Reply). Used where the
   conformant DUT *emits* a frame whose field a positive case checks. A field rewrite
   leaves the frame's checksum stale, which is immaterial: libtins delivers the frame
   and does not validate the IPv4 header checksum on parse, so the guard reads the
@@ -283,7 +284,7 @@ datagram reaches the socket — not yet wired.
 **§4.8 TCP egress field faults.** The egress seam extends to TCP, but TCP is
 stateful so each flavor is segment-selective (the link-output hook sees every DUT
 segment; corrupting all of them would break the handshake the observed segment
-depends on). Seven positives are wired (10 `_neg` files — BASICS_04 and BASICS_05 carry
+depends on). Ten positives are wired (13 `_neg` files — BASICS_04 and BASICS_05 carry
 one sibling per iteration, mapped in `tools/fault_injection_coverage.json`):
 
 - `TCP_SEQUENCE_01_NEG` (`kTcpFaultSynAckAckWrong` — flip the SYN,ACK ack_num, gated
@@ -305,6 +306,15 @@ one sibling per iteration, mapped in `tools/fault_injection_coverage.json`):
 - `TCP_HEADER_01_NEG` (`kTcpFaultDataChecksumWrong`, reused) — self-validates
   HEADER_01's *checksum* conjunct only; its data_offset conjunct is unreachable
   (below).
+- `TCP_HEADER_02_NEG` / `TCP_HEADER_05_NEG` / `TCP_HEADER_06_NEG`
+  (`kTcpFaultDataAckNumWrong`) — flip the *data-elicited* ACK's ack_num so it no
+  longer acknowledges the injected payload. The observed ACK is the second DUT pure
+  ACK (the first is the handshake third leg), so the flavor is armed PER-PHASE: the
+  trait drives the active OPEN with the fault disarmed (the handshake ACK escapes),
+  then arms via `emitEgressFlavorArmMidStream` before injecting the data, with a short
+  pre-injection wait so the arm lands first. 02/05/06 differ only in the injected
+  segment's Reserved field (default / 0 / 0xF), which the ack_num fault is independent
+  of.
 
 **Why TCP_HEADER_01's data_offset conjunct is not self-validatable here.** libtins
 (`build/libtins-4.0/src/tcp.cpp`) throws `malformed_packet` when
@@ -326,10 +336,12 @@ laziness:
   before shipping. Also, clearing the SYN bit *de-selects* the segment (the positive
   has no fail-final — only pass on SYN+ACK), so the violation is unobservable rather
   than a clean pass/fail flip.
-- **Multi-phase ack cases (HEADER_02/05/06, CHECKSUM_01).** The observed field is
-  on a second, data-elicited segment; the `_neg` needs per-phase arming, deferred
-  until the single-phase seam is proven. (HEADER_07/08/09/11 and CHECKSUM_02 are
-  ingress-drop / addressing cases — wrong seam entirely.)
+- **TCP_CHECKSUM_01 (must-ACK a correct-checksum segment).** Its data-ACK guard has
+  only pass + inconclusive — no fail-final (absence is `inconclusive`, a liveness
+  guard), so there is nothing a fault could make reachable; it stays terminal in the
+  registry by policy, not a fault target. (HEADER_02/05/06 — the data-ACK ack_num
+  cases — are now wired via per-phase arming, above. HEADER_07/08/09/11 and CHECKSUM_02
+  are ingress-drop / addressing cases — wrong seam entirely.)
 
 ## lwipopts.h alignment (why each non-default option exists)
 
