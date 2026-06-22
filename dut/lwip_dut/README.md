@@ -398,10 +398,12 @@ laziness:
   offset / zero checksum) or multicast-destination segment the DUT must drop, gated on SYN|PSH;
   the synthesized source IP is the DUT's own netif address, so the multicast trigger still
   yields a DUT-sourced reply), and the §4.8 **must-not-respond** cluster
-  (`FLAGS_INVALID_03/04_NEG` RST-in-SYN-SENT + `FLAGS_PROCESSING_11_NEG` duplicate-ACK-in-EST +
-  `CLOSING_07/08/09_NEG` data/FIN-in-FW1/FW2/CW — `kTcpSynthRstOnDisruptive` for the disruptive
-  RST/FIN/PSH triggers, `kTcpSynthRst` for the pure-ACK duplicate — the hook synthesizes the
-  prohibited RST when the disruptive segment arrives). The multi-guard state-sweeps are also
+  (`FLAGS_INVALID_01_NEG` SYN+RST-in-LISTEN + `FLAGS_INVALID_03/04_NEG` RST-in-SYN-SENT +
+  `FLAGS_PROCESSING_11_NEG` duplicate-ACK-in-EST + `CLOSING_03_NEG` RST-with-data-in-EST +
+  `CLOSING_07/08/09_NEG` data/FIN-in-FW1/FW2/CW + `CLOSING_13_NEG` RST-to-closed-port —
+  `kTcpSynthRstOnDisruptive` for the disruptive RST/FIN/PSH triggers, `kTcpSynthRst` for the
+  pure-ACK duplicate — the hook synthesizes the prohibited RST when the disruptive segment
+  arrives). The multi-guard state-sweeps are also
   graduated, each by one `_neg` per fail-final (`fault_injection_coverage.json`), the uniform
   active-OPEN variants sharing the `tcp_synth_rst_watch_neg` template: `FLAGS_PROCESSING_07`
   (URG-only in CW/CLOSING/LA/TW), `FLAGS_INVALID_15` (out-of-window RST across 8 states), and

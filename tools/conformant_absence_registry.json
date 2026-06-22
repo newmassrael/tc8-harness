@@ -2396,15 +2396,6 @@
         }
       ]
     },
-    "TCP_CLOSING_03": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_rst_with_data_in_est",
-          "property": "Silence is conformant: DUT must drop a RST-with-data in ESTABLISHED without response; fail iff it emits any reply"
-        }
-      ]
-    },
     "TCP_CLOSING_06": {
       "guards": [
         {
@@ -2459,15 +2450,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit a SYN,ACK to the first SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
-        }
-      ]
-    },
-    "TCP_FLAGS_INVALID_01": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_after_syn_rst_in_listen",
-          "property": "Silence is conformant: DUT must drop a SYN+RST in LISTEN without response; fail iff it emits any reply"
         }
       ]
     },
@@ -2925,15 +2907,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
-        }
-      ]
-    },
-    "TCP_CLOSING_13": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_rst_in_closed",
-          "property": "Silence is conformant: a RST received in CLOSED must be dropped without response; fail iff the DUT emits any reply"
         }
       ]
     },

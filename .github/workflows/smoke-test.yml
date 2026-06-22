@@ -281,7 +281,11 @@ jobs:
       # over 8 states (_NEG..._NEG8 = out-of-window RST in SYN-RCVD/EST/FW1/FW2/CW/CLOSING/LA/TW).
       # FLAGS_PROCESSING_08 graduates its 3 fail-finals (_NEG = closed-port RST-seq egress fault
       # [BASICS_04_NEG2 wire-shape], _NEG2/_NEG3 = FIN in LISTEN/SYN-SENT via the synth flavor).
-      # ~19 min.
+      # Three single-guard must-not-respond siblings on the same kTcpSynthRstOnDisruptive flavor
+      # close out the family: TCP_FLAGS_INVALID_01_NEG (§4.8.6.6, SYN+RST in LISTEN),
+      # TCP_CLOSING_03_NEG (§4.8.6.8, RST-with-data in ESTABLISHED) and TCP_CLOSING_13_NEG
+      # (§4.8.6.8, bare RST to a closed port) — each passes only when the synthesized DUT-origin
+      # RST is observed. ~20 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -336,7 +340,8 @@ jobs:
             TCP_FLAGS_INVALID_15_NEG5 TCP_FLAGS_INVALID_15_NEG6 \
             TCP_FLAGS_INVALID_15_NEG7 TCP_FLAGS_INVALID_15_NEG8 \
             TCP_FLAGS_PROCESSING_08_NEG TCP_FLAGS_PROCESSING_08_NEG2 \
-            TCP_FLAGS_PROCESSING_08_NEG3
+            TCP_FLAGS_PROCESSING_08_NEG3 \
+            TCP_FLAGS_INVALID_01_NEG TCP_CLOSING_03_NEG TCP_CLOSING_13_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.8 TCP_CLOSING_13 negative (CLOSED) — lwIP TCP behavioral-synthesis self-validation
+  of the positive _13 no-response-to-RST-in-CLOSED guard. The positive raw-injects a bare RST to
+  a port with no socket; a conformant DUT in CLOSED drops it without any reply (RFC 793 §3.9 —
+  an incoming RST is discarded). This negative arms kTcpSynthRstOnDisruptive, so the lwIP netif
+  input hook synthesizes the prohibited RST as that bare RST arrives (the RST flag trips the
+  disruptive-union gate), proving the dut_emitted_response_to_rst_in_closed fail-final reachable.
+  Pass = that RST observed; fail_compliant = DUT stayed silent despite the flavor (fault inert).
+  lwIP-only (kCapIngressFault).
+
+  No connection and no socket on either side, so there is no DUT handshake/baseline segment to
+  confirm a precondition on — the single listening_rst_watch state watches the closed-port
+  4-tuple (kBasicsClosedPort, kBasicsTesterPort + 80) directly. Same minimal shape as the
+  positive, which only observes silence. The synthesized RST is DUT-sourced (src = DUT netif IP,
+  src port = the closed dst port the trigger targeted), so is_dut_rst matches it.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_closing_13_neg"
+       datamodel="null"
+       initial="listening_rst_watch">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_rst_watch">
+    <onentry><send event="deadline_rst_watch" delay="8s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsClosedPort, ::tc8::sce::tcp::kBasicsTesterPort + 80U)"
+                target="pass"/>
+    <transition event="deadline_rst_watch" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+  <final id="fail_compliant">
+    <donedata><content>{"verdict":"fail","reason":"dut_silent_despite_synth_rst_flavor","role":"fault_injection_inert"}</content></donedata>
+  </final>
+</scxml>
