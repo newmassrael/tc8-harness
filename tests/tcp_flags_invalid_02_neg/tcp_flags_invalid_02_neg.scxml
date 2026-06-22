@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_02 negative — lwIP egress self-validation of the
+  positive _02 "TCP in LISTEN RSTs an ACK-bearing segment with SEQ = SEG.ACK" guard.
+  The trait arms kTcpFaultRstSeqWrong before driving the LISTEN probe, so the DUT's RST
+  (gated on the RST flag) carries a flipped sequence number off the incoming SEG.ACK.
+  Pass = the RST's seq does NOT equal the probe's ACK (the injected violation observed);
+  fail_compliant = the DUT still set seq = SEG.ACK despite the flavor (fault inert). The
+  positive's phase-2 LISTEN-survival check is unnecessary here — the _neg only proves the
+  RST-seq guard reachable. lwIP-only (kCapEgressFault). Reuses the TCP RST-seq flavor.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_02_neg"
+       datamodel="null"
+       initial="listening_for_rst">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_for_rst">
+    <onentry>
+      <send event="deadline" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != ::tc8::sce::tcp::kFlagsInvalid02ProbeAck"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == ::tc8::sce::tcp::kFlagsInvalid02ProbeAck"
+                target="fail_compliant_correct_seq"/>
+    <transition event="deadline" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_correct_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_correct_despite_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_to_syn_ack_in_listen","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

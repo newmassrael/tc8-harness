@@ -2315,24 +2315,6 @@
         }
       ]
     },
-    "TCP_ACKNOWLEDGEMENT_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_ack_num_does_not_acknowledge_piggyback_payload",
-          "property": "DUT's ACK must acknowledge the piggybacked payload; fail iff the ack_num does not cover it"
-        }
-      ]
-    },
-    "TCP_ACKNOWLEDGEMENT_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_ack_num_does_not_acknowledge_payload",
-          "property": "DUT's ACK must acknowledge the tester's data (ack_num covers the sent payload); fail iff the ack_num does not"
-        }
-      ]
-    },
     "TCP_ACKNOWLEDGEMENT_04": {
       "guards": [
         {
@@ -2603,15 +2585,6 @@
           "class": "prohibited_emission",
           "fail_reason": "dut_emitted_response_after_syn_rst_in_listen",
           "property": "Silence is conformant: DUT must drop a SYN+RST in LISTEN without response; fail iff it emits any reply"
-        }
-      ]
-    },
-    "TCP_FLAGS_INVALID_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_seq_not_seg_ack_in_listen",
-          "property": "DUT's RST to a segment in LISTEN must carry seq = the segment's ACK (RFC 793); fail iff it differs"
         }
       ]
     },
@@ -3089,33 +3062,6 @@
           "class": "incorrect_emission",
           "fail_reason": "probe3_delta_not_greater_than_probe2_lower_bound",
           "property": "DUT's third zero-window probe must back off beyond probe 2; fail iff it does not"
-        }
-      ]
-    },
-    "TCP_SEQUENCE_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_ack_num_does_not_acknowledge_tester_isn",
-          "property": "DUT's ACK must acknowledge the tester's ISN+1; fail iff the ack_num does not"
-        }
-      ]
-    },
-    "TCP_SEQUENCE_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_synack_ack_num_not_1_for_zero_isn",
-          "property": "DUT's SYN,ACK must carry ack_num=1 for a tester ISN of 0; fail iff it differs"
-        }
-      ]
-    },
-    "TCP_SEQUENCE_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_synack_ack_num_not_zero_for_max_isn",
-          "property": "DUT's SYN,ACK must wrap ack_num to 0 for a tester ISN of 2^32-1; fail iff it differs"
         }
       ]
     },

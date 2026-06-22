@@ -240,7 +240,12 @@ jobs:
       # (no new flavor): INTRODUCTION_01 (directed-broadcast app deny, reuses
       # kAppFaultAcceptDirectedBroadcast), MessageFormat_02 + ADDRESSING_01 (reuse the
       # kUdpFaultRejectValid ingress swallow), USER_INTERFACE_05 (reuses the
-      # kUdpFaultSrcPortWrong egress rewrite). ~7 min.
+      # kUdpFaultSrcPortWrong egress rewrite). Then a TCP ack/RST reuse cluster:
+      # ACKNOWLEDGEMENT_02/03 + SEQUENCE_02 reuse kTcpFaultDataAckNumWrong (02/03
+      # per-phase on the data-ACK, SEQUENCE_02 arm-before on the handshake ACK), and
+      # FLAGS_INVALID_02 reuses kTcpFaultRstSeqWrong on the LISTEN RST; SEQUENCE_03/04
+      # reuse kTcpFaultSynAckAckWrong on the passive-open SYN,ACK ack_num (tester ISN 0
+      # / wrap-around 2^32-1). ~7 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -276,7 +281,10 @@ jobs:
             IPv4_ADDRESSING_02_NEG UDP_INTRODUCTION_02_NEG \
             TCP_HEADER_02_NEG TCP_HEADER_05_NEG TCP_HEADER_06_NEG \
             UDP_INTRODUCTION_01_NEG UDP_MessageFormat_02_NEG \
-            IPv4_ADDRESSING_01_NEG UDP_USER_INTERFACE_05_NEG
+            IPv4_ADDRESSING_01_NEG UDP_USER_INTERFACE_05_NEG \
+            TCP_ACKNOWLEDGEMENT_02_NEG TCP_ACKNOWLEDGEMENT_03_NEG \
+            TCP_SEQUENCE_02_NEG TCP_FLAGS_INVALID_02_NEG \
+            TCP_SEQUENCE_03_NEG TCP_SEQUENCE_04_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

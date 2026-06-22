@@ -4088,6 +4088,30 @@
         {
           "file": "src/sce_integration/tcp_captured.h",
           "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_sequence_02_neg/tcp_sequence_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_sequence_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_sequence_03_neg/tcp_sequence_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_sequence_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_sequence_04_neg/tcp_sequence_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_sequence_04_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4109,6 +4133,22 @@
         },
         {
           "file": "tests/tcp_acknowledgement_04/tcp_acknowledgement_04.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_acknowledgement_02_neg/tcp_acknowledgement_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_acknowledgement_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_acknowledgement_03_neg/tcp_acknowledgement_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_acknowledgement_03_neg.h",
           "kind": "implements"
         }
       ]
@@ -4409,6 +4449,14 @@
         },
         {
           "file": "tests/tcp_flags_invalid_15/tcp_flags_invalid_15.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_02_neg/tcp_flags_invalid_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_invalid_02_neg.h",
           "kind": "implements"
         }
       ]
