@@ -271,7 +271,10 @@ jobs:
       # kTcpSynthRst): the DUT must drop an ACK-RST or bare RST in SYN-SENT, and ignore a
       # duplicate ACK in ESTABLISHED, without responding; the hook synthesizes the prohibited
       # RST when the disruptive segment arrives — the _neg passes only when that DUT-origin RST
-      # is observed. ~12 min.
+      # is observed. The §4.8.6.8 close-state siblings (TCP_CLOSING_07/08/09_NEG, same flavor)
+      # extend this to the data/FIN the DUT must absorb in FIN-WAIT-1 / FIN-WAIT-2 / CLOSE-WAIT
+      # without a RST — the hook synthesizes the RST on the PSH data (07/08) or the tester FIN
+      # (09), and the _neg passes only when that DUT-origin RST is observed. ~13 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -317,7 +320,8 @@ jobs:
             UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG \
             TCP_ACKNOWLEDGEMENT_04_NEG \
             TCP_HEADER_07_NEG TCP_HEADER_08_NEG TCP_HEADER_09_NEG TCP_HEADER_11_NEG \
-            TCP_FLAGS_INVALID_03_NEG TCP_FLAGS_INVALID_04_NEG TCP_FLAGS_PROCESSING_11_NEG
+            TCP_FLAGS_INVALID_03_NEG TCP_FLAGS_INVALID_04_NEG TCP_FLAGS_PROCESSING_11_NEG \
+            TCP_CLOSING_07_NEG TCP_CLOSING_08_NEG TCP_CLOSING_09_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

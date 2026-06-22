@@ -239,9 +239,9 @@ a post-delivery application decision, below the netif glue's reach:
       drop arrives (`§4.8.6.16` HEADER_07/08/09/11 malformed / multicast).
     - `kTcpSynthRstOnDisruptive` — synthesize a RST when a **disruptive** segment (RST / FIN /
       URG / PSH) the DUT must answer with silence arrives (`§4.8.6.6` FLAGS_INVALID_03/04
-      RST-in-SYN-SENT; the CLOSING_07/08/09 FW1/FW2/CW data/FIN cases as they land). The gate
-      excludes a bare pure ACK and a bare SYN, so the handshake and the tester's auto-ACKs
-      never trigger it.
+      RST-in-SYN-SENT; `§4.8.6.8` CLOSING_07/08/09 PSH-data-in-FW1/FW2 and tester-FIN-in-CW).
+      The gate excludes a bare pure ACK and a bare SYN, so the handshake and the tester's
+      auto-ACKs never trigger it.
 
     This is the behavioural seam the egress field-fault cannot reach — there is no DUT-emitted
     segment to corrupt, so the hook synthesizes the whole frame.
@@ -398,12 +398,12 @@ laziness:
   offset / zero checksum) or multicast-destination segment the DUT must drop, gated on SYN|PSH;
   the synthesized source IP is the DUT's own netif address, so the multicast trigger still
   yields a DUT-sourced reply), and the §4.8 **must-not-respond** cluster
-  (`FLAGS_INVALID_03/04_NEG` RST-in-SYN-SENT + `FLAGS_PROCESSING_11_NEG` duplicate-ACK-in-EST —
-  `kTcpSynthRstOnDisruptive` for the SYN-SENT RSTs, `kTcpSynthRst` for the pure-ACK duplicate —
-  the hook synthesizes the prohibited RST when the disruptive segment arrives). The remaining
-  must-not-respond cases (CLOSING_07/08/09 in FW1/FW2/CW, and the multi-guard state-sweeps
-  FLAGS_INVALID_15 / FLAGS_PROCESSING_07/08) are reachable the same way and land as those cases
-  are built.
+  (`FLAGS_INVALID_03/04_NEG` RST-in-SYN-SENT + `FLAGS_PROCESSING_11_NEG` duplicate-ACK-in-EST +
+  `CLOSING_07/08/09_NEG` data/FIN-in-FW1/FW2/CW — `kTcpSynthRstOnDisruptive` for the disruptive
+  RST/FIN/PSH triggers, `kTcpSynthRst` for the pure-ACK duplicate — the hook synthesizes the
+  prohibited RST when the disruptive segment arrives). The remaining must-not-respond cases (the
+  multi-guard state-sweeps FLAGS_INVALID_15 / FLAGS_PROCESSING_07/08, each needing one `_neg`
+  per fail-final) are reachable the same way and land as those cases are built.
 
 ## lwipopts.h alignment (why each non-default option exists)
 

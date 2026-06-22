@@ -2413,33 +2413,6 @@
         }
       ]
     },
-    "TCP_CLOSING_07": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_rst_in_fw1",
-          "property": "Silence is conformant: DUT must not emit a RST in FIN-WAIT-1 for this stimulus; fail iff it does"
-        }
-      ]
-    },
-    "TCP_CLOSING_08": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_fin_or_rst_in_fw2",
-          "property": "Silence is conformant: DUT must not emit a FIN or RST in FIN-WAIT-2 for this stimulus; fail iff it does"
-        }
-      ]
-    },
-    "TCP_CLOSING_09": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_fin_or_rst_in_close_wait",
-          "property": "Silence is conformant: DUT must not emit a FIN or RST in CLOSE-WAIT for this stimulus; fail iff it does"
-        }
-      ]
-    },
     "TCP_CONNECTION_ESTAB_01": {
       "guards": [
         {

@@ -3642,6 +3642,10 @@
         {
           "file": "src/sce_integration/cases/tcp_flags_processing_11_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_closing_07_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4781,6 +4785,30 @@
         },
         {
           "file": "tests/tcp_closing_13/tcp_closing_13.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_closing_07_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_closing_08_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_closing_09_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_closing_07_neg/tcp_closing_07_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_closing_08_neg/tcp_closing_08_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_closing_09_neg/tcp_closing_09_neg.scxml",
           "kind": "implements"
         }
       ]

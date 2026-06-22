@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.8 TCP_CLOSING_08 negative — lwIP TCP behavioral-synthesis
+  self-validation of the positive _08 no-FIN/RST-in-FIN-WAIT-2 guard. A conformant DUT in
+  FIN-WAIT-2 ACKs incoming data and stays in FW2 (RFC 793 §3.5); the positive's
+  remain_in_fw2 guard fails on a DUT FIN or RST. This negative arms
+  kTcpSynthRstOnDisruptive so the lwIP netif input hook synthesizes the prohibited RST on
+  the connection's 4-tuple when the FW2 data segment (PSH) arrives, and passes only when
+  that synthesized RST is observed. lwIP-only (capability-gated on kCapIngressFault).
+
+  Two-state chain (confirm + watch): the watch predicate is is_dut_rst ALONE, not the
+  positive's is_dut_fin_ack-or-is_dut_rst. The synthesized response is a RST, which proves
+  the fail-final (dut_emitted_fin_or_rst_in_fw2) reachable; including is_dut_fin_ack would
+  false-pass on the DUT's own conformant half-close FIN that precedes the data exchange.
+    * listening_handshake_ack — observe the DUT's active-OPEN third-leg pure ACK
+      (deadline -> inconclusive).
+    * watch_synth_rst — 8 s window; is_dut_rst lands on pass (the synthesized RST appears
+      right after the injected data); the deadline means the DUT stayed conformant despite
+      the armed flavor (fault inert).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_closing_08_neg"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 74U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 74U)"
+                target="watch_synth_rst"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
+  </state>
+
+  <state id="watch_synth_rst">
+    <onentry><send event="deadline_synth_rst" delay="8s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 74U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 74U)"
+                target="pass"/>
+    <transition event="deadline_synth_rst" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata><content>{"verdict":"fail","reason":"dut_silent_despite_synth_rst_flavor","role":"fault_injection_inert"}</content></donedata>
+  </final>
+</scxml>
