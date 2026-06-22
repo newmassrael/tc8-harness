@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3 ICMPv4 egress field-shape envelope. A DUT-emitted ICMP Echo Reply must
+  carry the RFC 792 value in one header field; each consumer asserts a single field
+  while reusing this listening-state envelope. The ICMPv4 sibling of arp/udp/ipv4/
+  tcp_egress_field_check, used by the §4.3 egress-fault `_NEG` self-validation cases
+  (the lwIP link-output mutation tests).
+
+  Filter:  {$filter}  — the "this is the DUT-emitted Echo Reply" gate (type == 0 +
+           src_ip == dut_iface_ip), shared by the pass and fail transitions.
+  Pass:    filter and  ({$pass_expr})            ->  pass
+  Fail:    filter and !({$pass_expr})            ->  {$fail_state}
+  Timeout: deadline_exceeded                     ->  inconclusive
+           (no DUT Echo Reply at all: precondition not reached)
+
+  The `_NEG` consumer binds the NEGATION of the positive's field assertion to
+  {$pass_expr} (pass = the injected violation is observed), fail_state=fail_compliant
+  with role fault_injection_inert (the fault was inert — a flavor-wiring regression,
+  not a DUT violation). Single `{$pass_expr}` per the ipv4_field_check precedent: an
+  XML attribute can't carry a raw `<`, so `!({$pass_expr})` is the robust negation.
+
+  5 s deadline matches the §4.3 positive cluster: the tester-provoked Echo Reply lands
+  well within the window.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="icmpv4_egress_field_check">
+
+  <sce:param name="filter"              required="true"/>
+  <sce:param name="pass_expr"           required="true"/>
+  <sce:param name="fail_state"          required="true"/>
+  <sce:param name="fail_reason"         required="true"/>
+  <sce:param name="fail_role"           required="true"/>
+  <sce:param name="inconclusive_reason" required="true"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:({$filter}) and ({$pass_expr})"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:({$filter}) and !({$pass_expr})"
+                target="{$fail_state}"/>
+    <transition event="deadline_exceeded" target="inconclusive"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$fail_state}">
+    <donedata>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"{$fail_role}"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"{$inconclusive_reason}","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</sce:template>

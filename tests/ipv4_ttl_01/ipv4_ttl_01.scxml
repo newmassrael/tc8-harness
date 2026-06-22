@@ -17,5 +17,6 @@
   <sce:use template="../_templates/ipv4_field_check.sce-template.xml"
            pass_expr="captured.ttl &gt; 0"
            fail_state="fail_ttl"
-           fail_reason="ipv4_ttl_is_zero"/>
+           fail_reason="ipv4_ttl_is_zero"
+           fail_role="observed_violation"/>
 </scxml>

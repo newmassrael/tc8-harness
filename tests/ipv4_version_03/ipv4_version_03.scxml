@@ -16,5 +16,6 @@
   <sce:use template="../_templates/ipv4_field_check.sce-template.xml"
            pass_expr="captured.version == 4"
            fail_state="fail_version"
-           fail_reason="ipv4_version_not_four"/>
+           fail_reason="ipv4_version_not_four"
+           fail_role="observed_violation"/>
 </scxml>

@@ -19,6 +19,10 @@
       "dut_rst_seq_not_zero_after_syn": "TCP_BASICS_04_NEG",
       "dut_rst_seq_not_zero_after_fin": "TCP_BASICS_04_NEG2",
       "dut_rst_seq_not_zero_after_data": "TCP_BASICS_04_NEG3"
+    },
+    "ICMPv4_TYPE_09": {
+      "echo_id_mismatch": "ICMPv4_TYPE_09_NEG",
+      "echo_seq_mismatch": "ICMPv4_TYPE_09_NEG2"
     }
   }
 }

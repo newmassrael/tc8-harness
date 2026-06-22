@@ -33,9 +33,18 @@ constexpr std::uint16_t kArpFrameLen = 42;  // Ethernet(14) + ARP(28) for IPv4/E
 // frame start; the L4 field offsets are relative to the L4 region start (the IPv4 IHL
 // varies, so the region offset is computed per-frame by l4RegionOffset()).
 constexpr std::uint16_t kIpTotalLenOff = kEthHdrLen + 2;  // IPv4 total length (u16)
+constexpr std::uint16_t kIpTtlOff    = kEthHdrLen + 8;  // IPv4 time-to-live (u8)
 constexpr std::uint16_t kIpProtoOff  = kEthHdrLen + 9;  // IPv4 protocol byte
+constexpr std::uint16_t kIpHdrChecksumOff = kEthHdrLen + 10;  // IPv4 header checksum (u16)
 constexpr std::uint8_t  kIpProtoUdp  = 17;
 constexpr std::uint8_t  kIpProtoTcp  = 6;
+constexpr std::uint8_t  kIpProtoIcmp = 1;
+// ICMPv4 field offsets (relative to the L4 region start = Ethernet + IPv4 header).
+constexpr std::uint16_t kIcmpTypeOff    = 0;   // u8 type (0 = Echo Reply)
+constexpr std::uint16_t kIcmpEchoIdOff  = 4;   // u16 identifier (Echo/Echo Reply)
+constexpr std::uint16_t kIcmpEchoSeqOff = 6;   // u16 sequence number
+constexpr std::uint16_t kIcmpMinHdrLen  = 8;   // bytes needed through the sequence field
+constexpr std::uint8_t  kIcmpTypeEchoReply = 0;
 constexpr std::uint16_t kUdpSrcPort  = 0;
 constexpr std::uint16_t kUdpDstPort  = 2;
 constexpr std::uint16_t kUdpLength   = 4;

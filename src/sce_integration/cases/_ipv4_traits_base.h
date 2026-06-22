@@ -3,6 +3,7 @@
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
+#include "sce_integration/dut_capabilities.h"
 #include "sce_integration/ipv4_fragments_common.h"
 #include "sce_integration/ipv4_pilot_common.h"
 #include "sce_integration/test_case_traits.h"
@@ -84,6 +85,17 @@ struct Ipv4FragmentEchoBase {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::ipv4::fragments::dispatchEchoReply<SM>(c, sm, ev);
     }
+};
+
+// Base for the §4.4 IPv4-header EGRESS field-fault `_NEG` cases. Same Echo Reply
+// observation as Ipv4ObservationBase, plus the one declaration every such case shares:
+// it requires the DUT to implement OpSetEgressFlavor (kCapEgressFault). The Tier-2 gate
+// runs these only on the lwIP fixture and capability-skips them (N/A) on the
+// kernel-stack reference DUT — the IPv4 sibling of TcpEgressFaultNegBase.
+template <typename StateMachine>
+struct Ipv4EgressFaultNegBase : Ipv4ObservationBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEgressFault;
 };
 
 }  // namespace tc8::sce

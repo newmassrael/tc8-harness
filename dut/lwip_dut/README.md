@@ -201,8 +201,14 @@ netif-level glue (`lwip_egress_fault.cpp` wraps `linkoutput`,
 
 - **Egress field-fault** rewrites one header field of a DUT-emitted frame (ARP
   §4.2 fields; UDP §4.6.5.4 src/dst port, length, checksum; TCP §4.8 SYN,ACK ack,
-  DATA checksum, closed-port RST seq, active-OPEN SYN MSS). Used where the
-  conformant DUT *emits* a frame whose field a positive case checks.
+  DATA checksum, closed-port RST seq, active-OPEN SYN MSS; ICMPv4 §4.3 Echo Reply
+  id/seq; IPv4 §4.4 header TTL / header checksum on the Echo Reply). Used where the
+  conformant DUT *emits* a frame whose field a positive case checks. A field rewrite
+  leaves the frame's checksum stale, which is immaterial: libtins delivers the frame
+  and does not validate the IPv4 header checksum on parse, so the guard reads the
+  mutated field. (The structural fields libtins *does* gate on — TCP data_offset,
+  IPv4 IHL/version/total_length below the minimum — are not faultable this way; the
+  dissector drops them before the guard runs.)
 - **Ingress reaction-fault** makes the DUT exhibit a forbidden *reaction* to an
   inbound frame: the §4.2.4.2 ARP prohibited emission (reply / learn), or the
   §4.6.5.4 UDP prohibited acceptance — `kUdpFaultAcceptBadChecksum` zeroes the

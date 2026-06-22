@@ -1187,15 +1187,6 @@
         }
       ]
     },
-    "IPv4_TTL_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "ipv4_ttl_is_zero",
-          "property": "DUT's emitted IPv4 packet must carry a non-zero TTL; fail iff zero"
-        }
-      ]
-    },
     "IPv4_TTL_05": {
       "guards": [
         {
@@ -1210,15 +1201,6 @@
           "class": "incorrect_emission",
           "fail_reason": "dut_emitted_udp_with_nonzero_fragment_fields",
           "property": "DUT's egress UDP datagram must carry MF=0 and fragment offset=0; fail iff either is non-zero"
-        }
-      ]
-    },
-    "IPv4_CHECKSUM_05": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_reply_header_checksum_invalid",
-          "property": "DUT's IPv4 reply must carry a valid header checksum; fail iff invalid"
         }
       ]
     },

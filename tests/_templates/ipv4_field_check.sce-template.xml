@@ -31,6 +31,12 @@
   in attribute values) at the cost of one layer of negation in the
   generated guard. Semantically identical; structurally robust.
 
+  fail_role: positive consumers bind "observed_violation"; the §4.4
+  egress-fault `_NEG` siblings bind the NEGATION to {$pass_expr} (pass =
+  the injected violation observed) with fail_state=fail_compliant and
+  fail_role="fault_injection_inert" — the same dual-use shape as
+  arp_field_check.
+
   src_addr guard: the listener observes both the tester's own Echo
   Request and the DUT's Echo Reply as ipv4_observed events. Every guard
   conjuncts `captured.src_addr == expected.dut_iface_ip` so tester-
@@ -45,6 +51,7 @@
   <sce:param name="pass_expr"   required="true"/>
   <sce:param name="fail_state"  required="true"/>
   <sce:param name="fail_reason" required="true"/>
+  <sce:param name="fail_role"   required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::Ipv4Captured"
@@ -75,7 +82,7 @@
 
   <final id="{$fail_state}">
     <donedata>
-      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"{$fail_reason}","role":"{$fail_role}"}</content>
     </donedata>
   </final>
 

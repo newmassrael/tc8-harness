@@ -762,6 +762,22 @@
         {
           "file": "dut/env/topology.d/external.conf",
           "kind": "references"
+        },
+        {
+          "file": "tests/_templates/icmpv4_egress_field_check.sce-template.xml",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },
@@ -902,6 +918,14 @@
         {
           "file": "tests/tcp_checksum_02/tcp_checksum_02.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_type_09_neg/icmpv4_type_09_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_type_09_neg2/icmpv4_type_09_neg2.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -1018,6 +1042,14 @@
         {
           "file": "dut/dut_service/posix_stack_probe.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },
@@ -1136,6 +1168,10 @@
         {
           "file": "tests/ipv4_checksum_05/ipv4_checksum_05.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_checksum_05_neg/ipv4_checksum_05_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -1157,6 +1193,10 @@
         },
         {
           "file": "tests/ipv4_ttl_05/ipv4_ttl_05.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_ttl_01_neg/ipv4_ttl_01_neg.scxml",
           "kind": "implements"
         }
       ]

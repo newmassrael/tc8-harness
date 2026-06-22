@@ -855,7 +855,13 @@ inline constexpr std::uint8_t kTcpFaultDataChecksumWrong = 0x0B; // RFC 793 chec
 inline constexpr std::uint8_t kTcpFaultRstSeqWrong      = 0x0C;  // RFC 793 §3.9 seq:  §4.8 TCP_BASICS_04 (closed-port RST MUST carry SEQ=0)
 inline constexpr std::uint8_t kTcpFaultSynMssZero       = 0x0D;  // RFC 1122 §4.2.2.6 MSS option: §4.8 TCP_MSS_OPTIONS_11 (active-OPEN SYN advertises a receive MSS)
 inline constexpr std::uint8_t kTcpFaultSynMssDefault    = 0x0E;  // RFC 1122 §4.2.2.6 MSS value:  §4.8 TCP_MSS_OPTIONS_12 (advertised MSS differs from the 536 default)
-inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultSynMssDefault;
+// ICMPv4 Echo Reply (§4.3) + IPv4 header (§4.4) on the DUT's echo reply (gated on the
+// ICMP Echo Reply, type 0, so only that frame is touched):
+inline constexpr std::uint8_t kIcmpFaultEchoIdWrong    = 0x0F;  // RFC 792 echo id:  §4.3 ICMPv4_TYPE_09 (reply echoes the request identifier)
+inline constexpr std::uint8_t kIcmpFaultEchoSeqWrong   = 0x10;  // RFC 792 echo seq: §4.3 ICMPv4_TYPE_09 (reply echoes the request sequence)
+inline constexpr std::uint8_t kIpv4FaultTtlZero        = 0x11;  // RFC 1122 §3.2.1.7 TTL:  §4.4 IPv4_TTL_01 (emitted TTL MUST be non-zero)
+inline constexpr std::uint8_t kIpv4FaultHdrChecksumWrong = 0x12; // RFC 791 §3.1 header checksum: §4.4 IPv4_CHECKSUM_05
+inline constexpr std::uint8_t kEgressFaultMax         = kIpv4FaultHdrChecksumWrong;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself

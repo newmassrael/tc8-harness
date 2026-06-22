@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_09 negative (identifier variant) — lwIP egress-fault
+  self-validation of the positive _09 echo-identifier guard. The trait arms
+  kIcmpFaultEchoIdWrong, so the lwIP link-output hook XOR-flips the identifier of the
+  DUT's Echo Reply (gated on type=0; type/code untouched so the filter still selects
+  it). Proves the positive's `echo_id_mismatch` fail-final reachable
+  (fault_injection_coverage.json); the _NEG2 sibling covers `echo_seq_mismatch`.
+  Pass = the corrupted identifier observed (echo_id != request id); fail_compliant =
+  the DUT echoed the identifier despite the flavor (fault inert). lwIP-only
+  (capability-gated on kCapEgressFault). Envelope: icmpv4_egress_field_check.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_09_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_egress_field_check.sce-template.xml"
+           filter="captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
+           pass_expr="captured.echo_id != expected.echo_id"
+           fail_state="fail_compliant"
+           fail_reason="dut_echoed_id_despite_flavor"
+           fail_role="fault_injection_inert"
+           inconclusive_reason="no_echo_reply_within_listen_window"/>
+</scxml>

@@ -217,7 +217,12 @@ jobs:
       # TCP_MSS_OPTIONS_12_NEG kTcpFaultSynMssDefault): the link-output hook corrupts
       # one field of a specific DUT segment (SYN,ACK ack / DATA checksum / closed-port
       # RST seq / active-OPEN SYN MSS) — the _neg passes only when the corrupted field
-      # is observed on the captured segment. ~7 min.
+      # is observed on the captured segment. Then the §4.3/§4.4 ICMPv4 + IPv4-header
+      # egress cluster on the DUT's Echo Reply (ICMPv4_TYPE_09_NEG/_NEG2
+      # kIcmpFaultEchoId/EchoSeqWrong, IPv4_TTL_01_NEG kIpv4FaultTtlZero,
+      # IPv4_CHECKSUM_05_NEG kIpv4FaultHdrChecksumWrong): the hook corrupts the Echo
+      # Reply's echo id/seq, IPv4 TTL, or IPv4 header checksum — the _neg passes only
+      # when that violation is observed. ~7 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -245,7 +250,9 @@ jobs:
             TCP_SEQUENCE_01_NEG TCP_CHECKSUM_03_NEG \
             TCP_BASICS_04_NEG TCP_BASICS_04_NEG2 TCP_BASICS_04_NEG3 \
             TCP_HEADER_01_NEG \
-            TCP_MSS_OPTIONS_11_NEG TCP_MSS_OPTIONS_12_NEG
+            TCP_MSS_OPTIONS_11_NEG TCP_MSS_OPTIONS_12_NEG \
+            ICMPv4_TYPE_09_NEG ICMPv4_TYPE_09_NEG2 \
+            IPv4_TTL_01_NEG IPv4_CHECKSUM_05_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

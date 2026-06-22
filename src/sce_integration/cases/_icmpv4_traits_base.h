@@ -5,6 +5,7 @@
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
+#include "sce_integration/dut_capabilities.h"
 #include "sce_integration/icmpv4_pilot_common.h"
 #include "sce_integration/test_case_traits.h"
 
@@ -71,6 +72,17 @@ struct Icmpv4TypedBase : Icmpv4AnyBase<StateMachine> {
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::icmpv4::dispatchIcmpFrame(c, sm, ev, ExpectedReplyType);
     }
+};
+
+// Base for the §4.3 ICMPv4 Echo Reply EGRESS field-fault `_NEG` cases. Same Echo Reply
+// (type 0) dispatch as Icmpv4TypedBase<SM, 0>, plus the one declaration every such case
+// shares: it requires the DUT to implement OpSetEgressFlavor (kCapEgressFault). The
+// Tier-2 gate runs these only on the lwIP fixture and capability-skips them (N/A) on
+// the kernel-stack reference DUT — the ICMPv4 sibling of TcpEgressFaultNegBase.
+template <typename StateMachine>
+struct Icmpv4EgressFaultNegBase : Icmpv4TypedBase<StateMachine, std::uint8_t{0}> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEgressFault;
 };
 
 }  // namespace tc8::sce

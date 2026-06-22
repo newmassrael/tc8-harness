@@ -16,5 +16,6 @@
   <sce:use template="../_templates/ipv4_field_check.sce-template.xml"
            pass_expr="captured.total_length &gt;= 20"
            fail_state="fail_total_length"
-           fail_reason="total_length_below_rfc791_minimum"/>
+           fail_reason="total_length_below_rfc791_minimum"
+           fail_role="observed_violation"/>
 </scxml>
