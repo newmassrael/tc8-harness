@@ -932,7 +932,13 @@ inline constexpr std::uint8_t kAppFaultNone                   = 0x00;
 // drop (ipv4_addressing_02_neg). lwIP delivers directed broadcast to the INADDR_ANY
 // data socket (IP_SOF_BROADCAST_RECV off), so the drop is genuinely the listener's.
 inline constexpr std::uint8_t kAppFaultAcceptDirectedBroadcast = 0x01;
-inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultAcceptDirectedBroadcast;
+// §4.6.5.6 UDP_INTRODUCTION_02: the listener silently denies a datagram whose
+// destination is the all-systems multicast 224.0.0.1 (the TC8 security profile inverts
+// the RFC 1122 §4.1.1 SHOULD-allow). lwIP delivers it to the socket (ip4_input accepts
+// every multicast destination with LWIP_IGMP off), so the deny is the listener's; this
+// flavor skips it so the DUT counts the multicast it must drop (udp_introduction_02_neg).
+inline constexpr std::uint8_t kAppFaultAcceptMulticast        = 0x02;
+inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultAcceptMulticast;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

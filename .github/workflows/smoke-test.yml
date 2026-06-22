@@ -227,10 +227,11 @@ jobs:
       # code; TCP_BASICS_05_NEG/_NEG2 reuse kTcpFaultRstSeqWrong to flip the closed-port
       # RST seq off the incoming ACK). Last, the §4.4.4.5 APP-LAYER reception fault
       # (IPv4_ADDRESSING_02_NEG kAppFaultAcceptDirectedBroadcast): the IP stack
-      # delivers the directed broadcast to the INADDR_ANY data-listener socket and the
-      # shared data listener skips its RFC 1122 destination-address discard (a
-      # post-delivery app decision, not a wire mutation) — the _neg passes only when
-      # the UT GetReceivedUdp confirmation reports receipt. Last the §4.8.6.16 TCP
+      # delivers the directed broadcast (ADDRESSING_02) / all-systems multicast
+      # (INTRODUCTION_02) to the INADDR_ANY data-listener socket and the shared data
+      # listener skips its RFC 1122 destination-address discard (a post-delivery app
+      # decision, not a wire mutation) — the _neg passes only when the UT GetReceivedUdp
+      # confirmation reports receipt. Last the §4.8.6.16 TCP
       # multi-phase ack cluster (TCP_HEADER_02/05/06_NEG kTcpFaultDataAckNumWrong): the
       # observed ack_num is on the DATA-elicited ACK, so the flavor is armed PER-PHASE —
       # the handshake is driven disarmed (third-leg ACK escapes), then armed before the
@@ -268,7 +269,7 @@ jobs:
             IPv4_TTL_01_NEG IPv4_CHECKSUM_05_NEG \
             ICMPv4_TYPE_18_NEG \
             TCP_BASICS_05_NEG TCP_BASICS_05_NEG2 \
-            IPv4_ADDRESSING_02_NEG \
+            IPv4_ADDRESSING_02_NEG UDP_INTRODUCTION_02_NEG \
             TCP_HEADER_02_NEG TCP_HEADER_05_NEG TCP_HEADER_06_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP

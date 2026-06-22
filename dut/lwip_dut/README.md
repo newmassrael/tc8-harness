@@ -220,9 +220,11 @@ a post-delivery application decision, below the netif glue's reach:
   datagram it must drop.
 - **App-layer reception-fault** makes the data listener skip a destination-address
   discard that RFC 1122 places at the *application* layer (`§4.4.4.5` directed
-  broadcast). lwIP delivers the directed broadcast to the INADDR_ANY data socket
-  (`IP_SOF_BROADCAST_RECV` off), so the drop is genuinely the listener's, not the IP
-  stack's — `kAppFaultAcceptDirectedBroadcast` skips it so the receive-counting app
+  broadcast via `kAppFaultAcceptDirectedBroadcast`; `§4.6.5.6` all-systems multicast
+  via `kAppFaultAcceptMulticast`). lwIP delivers both to the INADDR_ANY data socket
+  (directed broadcast with `IP_SOF_BROADCAST_RECV` off; multicast because `ip4_input`
+  accepts every multicast destination with `LWIP_IGMP` off), so the drop is genuinely
+  the listener's, not the IP stack's — the flavor skips it so the receive-counting app
   reports a receipt it must have dropped. Unlike the two netif seams this is not a
   frame mutation; the datagram already reached the socket, so the fault lives in the
   shared data listener (`UpperTesterServer::dataListenerLoop`), armed lwIP-only.
@@ -276,10 +278,9 @@ mechanism (egress routing, UI field, reassembly) and are out of scope.
 lwIP's `ip4_input` ("packet source is not valid"), keyed on the very source-IP field
 under test — the only way past is to rewrite the source (the faithfulness trap above),
 so they have no faithful fixture seam (Linux drops them at the martian-source filter
-for the same reason). `INTRODUCTION_02` (multicast *destination*) shares the §4.4.4.5
-app-layer discard mechanism (`dataListenerLoop` also drops multicast), so it is
-faultable through this same seam once an lwIP multicast-delivery probe confirms the
-datagram reaches the socket — not yet wired.
+for the same reason). (`INTRODUCTION_02`, multicast *destination*, is now wired through
+the §4.6.5.6 app-layer seam above — a wire probe confirmed lwIP delivers the multicast
+to the socket, so the listener's deny is the real drop.)
 
 **§4.8 TCP egress field faults.** The egress seam extends to TCP, but TCP is
 stateful so each flavor is segment-selective (the link-output hook sees every DUT

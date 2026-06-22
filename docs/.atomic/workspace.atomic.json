@@ -2456,6 +2456,22 @@
         {
           "file": "src/upper_tester/ut_server.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "tests/udp_introduction_02_neg/udp_introduction_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_introduction_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_udp_traits_base.h",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "references"
         }
       ]
     },

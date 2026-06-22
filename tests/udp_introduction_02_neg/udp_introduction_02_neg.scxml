@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.6 UDP_INTRODUCTION_02 negative — lwIP app-layer self-validation of the
+  positive _02 "DUT denies an all-systems multicast (224.0.0.1) UDP datagram" guard.
+  The deny is an application decision: lwIP's ip4_input accepts every multicast
+  destination with LWIP_IGMP off, delivering the datagram to the INADDR_ANY data
+  listener, which then drops it on the recovered multicast destination address
+  (ut_server.cpp dataListenerLoop). The trait arms kAppFaultAcceptMulticast (UT 0x1A
+  OpSetAppFlavor) so the listener skips that deny and counts the datagram a conformant
+  DUT must drop.
+  Pass = the DUT reported the multicast received (ut_received == 1, the injected
+  acceptance observed); fail_compliant = the DUT still denied it despite the flavor
+  (fault inert — what a conformant DUT does). lwIP-only (capability-gated on
+  kCapAppFault — the kernel-backed tc8-dut never registers OpSetAppFlavor). Envelope:
+  ipv4_udp_ut_presence.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_introduction_02_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="1"
+           fail_reason_wrong_receipt="dut_denied_multicast_despite_flavor"
+           fail_reason_timeout="no_ut_confirmation_for_multicast_accept"
+           fail_role="fault_injection_inert"/>
+</scxml>

@@ -256,8 +256,12 @@ void UpperTesterServer::dataListenerLoop() {
             orig_dst_be == iface_bcast_be_) {
             continue;
         }
-        // §4.6.5.6 UDP_INTRODUCTION_02: silently discard multicast.
-        if (isMulticastV4(orig_dst_be)) {
+        // §4.6.5.6 UDP_INTRODUCTION_02: silently discard multicast. The
+        // kAppFaultAcceptMulticast app fault skips this discard so a buggy DUT counts
+        // the multicast it must drop — the reception udp_introduction_02 proves absent
+        // (armed lwIP-only via OpSetAppFlavor; lwIP delivers multicast to the socket
+        // with LWIP_IGMP off, so the discard here is the real drop point).
+        if (app_flavor != kAppFaultAcceptMulticast && isMulticastV4(orig_dst_be)) {
             continue;
         }
         ReceiveRecord rec;

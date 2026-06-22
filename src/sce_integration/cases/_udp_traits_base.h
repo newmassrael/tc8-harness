@@ -73,4 +73,18 @@ struct UdpIngressFaultNegBase : UdpAnyBase<StateMachine> {
         ::tc8::sce::kCapIngressFault;
 };
 
+// Base for the §4.6.5.6 UDP APP-LAYER reception-fault `_NEG` cases (INTRODUCTION_02).
+// Same UDP dispatch as UdpAnyBase, plus the one declaration it shares: it requires the
+// DUT to implement OpSetAppFlavor (kCapAppFault). The discard under test is an
+// application decision in the shared data listener (not a netif-level wire fault), so a
+// conformant DUT still drops the multicast and the case lands the template's
+// fault_injection_inert fail branch; the lwIP fixture registers the opcode and runs it,
+// the kernel-backed reference DUT capability-skips (N/A). Sibling of the IPv4
+// ipv4_addressing_02_neg app-fault case on the UDP dispatch.
+template <typename StateMachine>
+struct UdpAppFaultNegBase : UdpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapAppFault;
+};
+
 }  // namespace tc8::sce
