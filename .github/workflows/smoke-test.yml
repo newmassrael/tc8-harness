@@ -236,7 +236,11 @@ jobs:
       # observed ack_num is on the DATA-elicited ACK, so the flavor is armed PER-PHASE —
       # the handshake is driven disarmed (third-leg ACK escapes), then armed before the
       # data injection so the link-output hook flips only the data-ACK's ack_num — the
-      # _neg passes only when that wrong ack_num is observed. ~7 min.
+      # _neg passes only when that wrong ack_num is observed. Finally a reuse cluster
+      # (no new flavor): INTRODUCTION_01 (directed-broadcast app deny, reuses
+      # kAppFaultAcceptDirectedBroadcast), MessageFormat_02 + ADDRESSING_01 (reuse the
+      # kUdpFaultRejectValid ingress swallow), USER_INTERFACE_05 (reuses the
+      # kUdpFaultSrcPortWrong egress rewrite). ~7 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -270,7 +274,9 @@ jobs:
             ICMPv4_TYPE_18_NEG \
             TCP_BASICS_05_NEG TCP_BASICS_05_NEG2 \
             IPv4_ADDRESSING_02_NEG UDP_INTRODUCTION_02_NEG \
-            TCP_HEADER_02_NEG TCP_HEADER_05_NEG TCP_HEADER_06_NEG
+            TCP_HEADER_02_NEG TCP_HEADER_05_NEG TCP_HEADER_06_NEG \
+            UDP_INTRODUCTION_01_NEG UDP_MessageFormat_02_NEG \
+            IPv4_ADDRESSING_01_NEG UDP_USER_INTERFACE_05_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:

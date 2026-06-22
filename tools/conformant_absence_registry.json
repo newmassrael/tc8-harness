@@ -1195,15 +1195,6 @@
         }
       ]
     },
-    "IPv4_ADDRESSING_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_did_not_receive_limited_broadcast",
-          "property": "DUT's UT confirmation must report receipt of the limited broadcast (received=1); fail iff zero"
-        }
-      ]
-    },
     "IPv4_REASSEMBLY_06": {
       "guards": [
         {
@@ -1262,15 +1253,6 @@
           "class": "incorrect_emission",
           "fail_reason": "dut_did_not_create_requested_receive_port_count",
           "property": "DUT's UT create-ports confirmation must report the requested port count; fail iff another value"
-        }
-      ]
-    },
-    "UDP_USER_INTERFACE_05": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_with_wrong_user_interface_src_port",
-          "property": "DUT's UT-driven egress UDP must carry the configured source port; fail iff a wrong port"
         }
       ]
     },
@@ -1337,15 +1319,6 @@
         }
       ]
     },
-    "UDP_INTRODUCTION_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_received_directed_broadcast_udp",
-          "property": "DUT must not accept a directed-broadcast UDP on a unicast socket; fail iff its UT confirmation reports receipt"
-        }
-      ]
-    },
     "UDP_INVALID_ADDRESSES_01": {
       "guards": [
         {
@@ -1361,15 +1334,6 @@
           "class": "incorrect_emission",
           "fail_reason": "dut_received_udp_with_broadcast_src_ip",
           "property": "DUT must not accept a UDP with a broadcast source IP; fail iff its UT confirmation reports receipt"
-        }
-      ]
-    },
-    "UDP_MESSAGEFORMAT_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_did_not_accept_well_formed_udp",
-          "property": "DUT must accept a well-formed UDP; fail iff its UT confirmation reports no receipt"
         }
       ]
     },

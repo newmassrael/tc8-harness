@@ -1330,6 +1330,14 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "tests/ipv4_addressing_01_neg/ipv4_addressing_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_addressing_01_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2102,6 +2110,14 @@
         {
           "file": "tests/udp_messageformat_02/udp_messageformat_02.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/udp_messageformat_02_neg/udp_messageformat_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_messageformat_02_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2414,6 +2430,14 @@
         {
           "file": "dut/env/topology.d/lwip-tap.conf",
           "kind": "implements"
+        },
+        {
+          "file": "tests/udp_user_interface_05_neg/udp_user_interface_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_user_interface_05_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2472,6 +2496,14 @@
         {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "references"
+        },
+        {
+          "file": "tests/udp_introduction_01_neg/udp_introduction_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_introduction_01_neg.h",
+          "kind": "implements"
         }
       ]
     },

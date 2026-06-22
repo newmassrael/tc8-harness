@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.5 IPv4_ADDRESSING_01 negative — lwIP ingress self-validation of the
+  positive _01 "DUT receives a limited-broadcast (255.255.255.255) UDP datagram" guard.
+  The trait arms kUdpFaultRejectValid, so the netif input hook swallows the inbound
+  data-listener frame (never forwards it to lwIP), modelling a DUT that wrongly drops a
+  limited broadcast it must receive (RFC 1122 keeps the limited broadcast; only the
+  directed broadcast is dropped — see ipv4_addressing_02).
+  Pass = the DUT reported NO receipt (ut_received == 0, the injected rejection observed);
+  fail_compliant = the DUT still received it despite the flavor (fault inert — what a
+  conformant DUT does). lwIP-only (kCapIngressFault). Envelope: ipv4_udp_ut_presence.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_addressing_01_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"
+           expected_received="0"
+           fail_reason_wrong_receipt="dut_received_limited_broadcast_despite_flavor"
+           fail_reason_timeout="no_ut_confirmation_for_limited_broadcast_reject"
+           fail_role="fault_injection_inert"/>
+</scxml>
