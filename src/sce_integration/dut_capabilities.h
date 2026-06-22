@@ -43,8 +43,8 @@ enum DutCapability : std::uint32_t {
     kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing (opcode only)
     kCapTcpRecvOob = 1u << 6,        // out-of-band (urgent) TCP receive (opcode only)
     kCapEgressFault = 1u << 7,       // egress field fault (OpSetEgressFlavor) — DUT-derived
-    kCapIngressFault = 1u << 8,      // ingress reaction fault — ARP emission + UDP acceptance (OpSetIngressFlavor) — DUT-derived
-    kCapAppFault = 1u << 9,          // app-layer reception fault — data-listener dst-address discard skip (OpSetAppFlavor) — DUT-derived
+    kCapIngressFault = 1u << 8,      // ingress reaction fault — ARP/ICMP/TCP prohibited emission + UDP acceptance/rejection (OpSetIngressFlavor) — DUT-derived
+    kCapAppFault = 1u << 9,          // app-layer reception fault — data-listener discard skip + UI-report corruption (OpSetAppFlavor) — DUT-derived
 };
 using DutCapabilities = std::uint32_t;
 
@@ -54,18 +54,17 @@ using DutCapabilities = std::uint32_t;
 // silent N/A skip. Extend alongside every DUT-derived bit added above. The
 // dedicated-fault-opcode shape (kCapEgressFault ↔ OpSetEgressFlavor 0x18,
 // kCapIngressFault ↔ OpSetIngressFlavor 0x19) is the clean case: a 0x16 per-opcode
-// bit is a 1:1 proxy for the whole mechanism. The one nuance: OpSetIngressFlavor now
-// hosts two reaction kinds (ARP prohibited emission + UDP prohibited acceptance)
-// under the single kCapIngressFault bit, so a DUT advertising the opcode but
-// implementing only one kind would falsely claim the other — the same residual class
-// as a flavor-byte fault on a SHARED opcode (e.g. the DHCPv4 `_neg` flavors on
-// OpStartDhcpClient 0x10): the bit maps to host-opcode presence — sound for
+// bit is a 1:1 proxy for the whole mechanism. The one nuance: both OpSetIngressFlavor
+// and OpSetAppFlavor now host SEVERAL reaction kinds under a single cap bit —
+// OpSetIngressFlavor: ARP / ICMP / TCP prohibited emission + UDP prohibited acceptance /
+// rejection; OpSetAppFlavor: data-listener discard skip + UI-report corruption — so a DUT
+// advertising the opcode but implementing only some kinds would falsely claim the rest, the
+// same residual class as a flavor-byte fault on a SHARED opcode (e.g. the DHCPv4 `_neg`
+// flavors on OpStartDhcpClient 0x10): the bit maps to host-opcode presence — sound for
 // applicability (a DUT lacking the opcode entirely, like the lwIP fixture for DHCP,
-// correctly skips) but it cannot distinguish a DUT that implements the opcode yet
-// ignores a flavor. The only ingress-fault DUT is the lwIP fixture, which implements
-// both kinds, so the residual is out of scope until a DUT implements one but not the
-// other. kCapAppFault ↔ OpSetAppFlavor 0x1A is the clean dedicated-opcode shape again
-// (one app-layer reception fault, one opcode), like kCapEgressFault.
+// correctly skips) but it cannot distinguish a DUT that implements the opcode yet ignores a
+// flavor. The only ingress-/app-fault DUT is the lwIP fixture, which implements every kind,
+// so the residual is out of scope until a DUT implements some but not all.
 inline constexpr DutCapabilities kDutDerivedCaps =
     kCapEgressFault | kCapIngressFault | kCapAppFault;
 

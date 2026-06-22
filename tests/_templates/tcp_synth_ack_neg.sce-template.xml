@@ -14,10 +14,14 @@
              was inert: a flavor-wiring regression, NOT a DUT conformance violation; role
              fault_injection_inert).
 
-  Two-state chain mirrors the positive's prelude (so the first pure ACK is the handshake
-  third leg, the second is the synthesized challenge ACK); the four cases differ only in the
-  per-case active-OPEN port offset, threaded as {$port_offset}. The negative-flip handle is
-  the positive's: a flipped dut_iface_ip makes the phase-1 src_ip conjunct unreachable.
+  Two-state chain: phase 1 matches the handshake third-leg ACK (which acknowledges the tester
+  ISN, so ack_num != 0); phase 2 matches the synthesized challenge ACK (the hook builds it with
+  ack_num == 0). The two are byte-identical on the 4-tuple, so they are disambiguated by content
+  (ack_num), NOT arrival order — which keeps the verdict SOUND under capture loss: if pcap drops
+  the handshake ACK, the synthesized ACK (ack_num==0) does not satisfy phase 1, so the case
+  lands on inconclusive_no_handshake_ack rather than a false fail_compliant. The four cases
+  differ only in the per-case active-OPEN port offset, threaded as {$port_offset}. Negative-flip
+  handle: a flipped dut_iface_ip makes the phase-1 src_ip conjunct unreachable.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
@@ -38,7 +42,7 @@
       <send event="deadline_handshake_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset})"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset}) and captured.ack_num != 0U"
                 target="listening_ack_watch"/>
     <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
@@ -47,7 +51,7 @@
       <send event="deadline_ack_watch" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset})"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + {$port_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + {$port_offset}) and captured.ack_num == 0U"
                 target="pass"/>
     <transition event="deadline_ack_watch" target="fail_compliant"/>
   </state>

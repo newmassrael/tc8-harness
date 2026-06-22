@@ -27,12 +27,12 @@
 
 #include "lwip/err.h"
 #include "lwip/etharp.h"
-#include "lwip/inet_chksum.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 #include "lwip/tcpip.h"
 
 #include "tc8/upper_tester_protocol.h"
+#include "wire/ip_checksum.h"
 
 #include "lwip_wire.h"
 
@@ -92,8 +92,8 @@ void emitProhibitedArpReply(struct netif *nif, const std::uint8_t *rx) {
 // flavor names (Echo Reply 0 / Parameter Problem 12 / Information Reply 16). The
 // 8-byte ICMP body (type, code 0, checksum, zeroed rest-of-header) is the minimum a
 // well-formed reply needs — the guards read only type + src_ip, never the body. Both
-// checksums are computed with lwIP's own `inet_chksum` (the routine a real lwIP
-// emission would use), so the frame is valid at every layer, not merely dissectable.
+// checksums are computed with the shared tc8::wire `inetChecksum` SSOT, so the frame
+// is valid at every layer, not merely dissectable.
 // Sent via nif->linkoutput like the ARP synthesis — no egress flavor armed, so the
 // egress hook forwards it untouched. Reads only the inbound IPv4 fixed header
 // (proto + source), which is present whatever the trigger's IHL or fragment offset.
@@ -117,35 +117,11 @@ void emitProhibitedIcmpReply(struct netif *nif, const std::uint8_t *rx,
     const std::uint32_t dut_ip = ip4_addr_get_u32(netif_ip4_addr(nif));
     std::memcpy(o + kIpSrcOff, &dut_ip, 4);               // src = DUT IP (network order)
     std::memcpy(o + kIpDstOff, rx + kIpSrcOff, 4);        // dst = trigger's IPv4 src (the tester)
-    const std::uint16_t ip_cksum = inet_chksum(o + kEthHdrLen, kIpHdrLenMin);
-    std::memcpy(o + kIpHdrChecksumOff, &ip_cksum, 2);
+    put16(o, kIpHdrChecksumOff, ::tc8::wire::inetChecksum(o + kEthHdrLen, kIpHdrLenMin));
     o[kL4Off + kIcmpTypeOff] = reply_type;               // code + rest-of-header stay 0 from memset
-    const std::uint16_t icmp_cksum = inet_chksum(o + kL4Off, kIcmpMinHdrLen);
-    std::memcpy(o + kL4Off + kIcmpChecksumOff, &icmp_cksum, 2);
+    put16(o, kL4Off + kIcmpChecksumOff, ::tc8::wire::inetChecksum(o + kL4Off, kIcmpMinHdrLen));
     nif->linkoutput(nif, p);
     pbuf_free(p);
-}
-
-// Internet checksum over the TCP pseudo-header (src/dst IPv4 + proto + segment length) and
-// the TCP segment, for a synthesized RST. lwIP's `inet_chksum` covers a flat buffer but not
-// the TCP pseudo-header, so the one's-complement sum is open-coded over the contiguous frame
-// just built (checksum field still zeroed). get16 reads big-endian, so the host-order fold
-// stores back big-endian via put16 unchanged. The seam controls the exact buffer + length,
-// so this is not exposed to the region/length hazard a recompute on a borrowed buffer is.
-std::uint16_t tcpSynthChecksum(const std::uint8_t *f, std::uint16_t l4, std::uint16_t tcp_len) {
-    std::uint32_t sum = 0;
-    for (std::uint16_t i = 0; i < 8; i += 2) {  // pseudo-header src + dst IPv4
-        sum += get16(f, static_cast<std::uint16_t>(kIpSrcOff + i));
-    }
-    sum += kIpProtoTcp;
-    sum += tcp_len;
-    for (std::uint16_t i = 0; i + 1 < tcp_len; i += 2) {
-        sum += get16(f, static_cast<std::uint16_t>(l4 + i));
-    }
-    while (sum >> 16) {
-        sum = (sum & 0xFFFFu) + (sum >> 16);
-    }
-    return static_cast<std::uint16_t>(~sum);
 }
 
 // kTcpSynth*: a buggy DUT emitting a forbidden TCP response to a segment it must silently
@@ -157,9 +133,9 @@ std::uint16_t tcpSynthChecksum(const std::uint8_t *f, std::uint16_t l4, std::uin
 // multicast-destination trigger (HEADER_11) still yields a DUT-sourced reply. The case guards
 // (is_dut_rst / is_pure_dut_ack) check only that 4-tuple + the flag, never seq/ack, so those
 // stay 0 (a real segment's seq is connection-state-derived, which this stateless hook does not
-// track). Both checksums are computed (IPv4 via lwIP's own inet_chksum, TCP via
-// tcpSynthChecksum) so the frame is valid at every layer. Sent via nif->linkoutput like the
-// ARP/ICMP synthesis.
+// track). Both checksums use the shared tc8::wire SSOT (IPv4 header via inetChecksum, TCP via
+// tcpChecksum's pseudo-header fold) so the frame is valid at every layer. Sent via
+// nif->linkoutput like the ARP/ICMP synthesis.
 void emitProhibitedTcpSegment(struct netif *nif, const std::uint8_t *rx, std::uint8_t tcp_flags) {
     constexpr std::uint16_t kL4Off    = kEthHdrLen + kIpHdrLenMin;        // 34
     constexpr std::uint16_t kFrameLen = kL4Off + kTcpMinHdrLen;          // 54
@@ -179,14 +155,16 @@ void emitProhibitedTcpSegment(struct netif *nif, const std::uint8_t *rx, std::ui
     const std::uint32_t dut_ip = ip4_addr_get_u32(netif_ip4_addr(nif));
     std::memcpy(o + kIpSrcOff, &dut_ip, 4);               // src = DUT IP (own netif addr; trigger dst may be multicast)
     std::memcpy(o + kIpDstOff, rx + kIpSrcOff, 4);        // dst = trigger's IPv4 src = tester IP
-    const std::uint16_t ip_cksum = inet_chksum(o + kEthHdrLen, kIpHdrLenMin);
-    std::memcpy(o + kIpHdrChecksumOff, &ip_cksum, 2);
+    put16(o, kIpHdrChecksumOff, ::tc8::wire::inetChecksum(o + kEthHdrLen, kIpHdrLenMin));
+    std::uint32_t tester_ip = 0;
+    std::memcpy(&tester_ip, rx + kIpSrcOff, 4);           // trigger's IPv4 src (NBO) for the pseudo-header
     const std::uint16_t rx_l4 = l4RegionOffset(rx);
     put16(o, kL4Off + kTcpSrcPortOff, get16(rx, rx_l4 + kTcpDstPortOff));  // src port = DUT local port
     put16(o, kL4Off + kTcpDstPortOff, get16(rx, rx_l4 + kTcpSrcPortOff));  // dst port = tester remote port
     o[kL4Off + kTcpDataOffOff] = 0x50;                    // data offset 5 (20 B header, no options)
     o[kL4Off + kTcpFlagsOff]   = tcp_flags;               // RST or ACK
-    put16(o, kL4Off + kTcpChecksumOff, tcpSynthChecksum(o, kL4Off, kTcpMinHdrLen));
+    put16(o, kL4Off + kTcpChecksumOff,
+          ::tc8::wire::tcpChecksum(dut_ip, tester_ip, o + kL4Off, kTcpMinHdrLen));
     nif->linkoutput(nif, p);
     pbuf_free(p);
 }
@@ -267,8 +245,11 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 // §4.8.6.18 ACKNOWLEDGEMENT_04: the conformant DUT silently accepts a pure
                 // ACK in ESTABLISHED, so the hook synthesizes the prohibited RST. The gate is
                 // a pure ACK (ACK set; SYN/FIN/RST clear; no payload) — the handshake SYN,ACK
-                // carries SYN, the DUT's own segments are egress (not seen here), so only the
-                // post-handshake data ACK triggers. Per-phase arming scopes it regardless.
+                // carries SYN, the DUT's own segments are egress (not seen here). The gate is
+                // level-triggered, not one-shot: every matching pure ACK synthesizes a RST
+                // (the post-close FIN's ACK also matches), but the surplus RSTs carry seq=0,
+                // are out-of-window, and are inert to the guard (which needs one observation).
+                // Per-phase arming scopes the first synthesis past the handshake.
                 const bool pure_ack =
                     (flags & kTcpFlagAck) != 0U &&
                     (flags & (kTcpFlagSyn | kTcpFlagFin | kTcpFlagRst)) == 0U &&

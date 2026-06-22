@@ -35,6 +35,19 @@ std::uint16_t udpChecksum(std::uint32_t       src_be,
                           const std::uint8_t* udp,
                           std::size_t         udp_len);
 
+// IPv4 + TCP pseudo-header + TCP segment checksum (RFC 793 §3.1). Same
+// `*_be` / pre-zeroed-checksum-field convention as udpChecksum; `tcp`
+// covers the 20-byte TCP header (plus options/payload) with its checksum
+// field pre-zeroed. Distinct from udpChecksum only in the pseudo-header
+// protocol byte (6) and in NOT applying RFC 768's 0x0000→0xFFFF rewrite —
+// a TCP checksum that computes to zero is transmitted as zero (TCP has no
+// "no checksum" sentinel). SSOT for the TCP pseudo-header fold so the
+// fixture's RST/ACK synthesis does not re-roll it.
+std::uint16_t tcpChecksum(std::uint32_t       src_be,
+                          std::uint32_t       dst_be,
+                          const std::uint8_t* tcp,
+                          std::size_t         tcp_len);
+
 // Big-endian 16/32-bit writers — one-liners callers reach for when
 // laying out IPv4/UDP/BOOTP headers in a raw byte buffer. Inline so
 // the compiler can fold them at the call site.

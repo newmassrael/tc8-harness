@@ -23,6 +23,16 @@ constexpr int kAcceptWaitUs = 200 * 1000;
 // while a refused connect returns immediately. Re-verify under netns at LIVE.
 constexpr int kConnectTimeoutMs = 5000;
 
+// §4.6.5.5 UI-report corruption sentinels (kAppFaultReport* / kAppFaultMiscountPorts). XOR by
+// a nonzero mask guarantees the reported field differs from the value the tester sent — the
+// report-fault analog of lwip_egress_fault.cpp's kChecksumFlip idiom — so the matching UI_0x
+// `_neg`'s "!= expected" pass predicate is always reachable. The port-count fault over-reports
+// by one (the bound count is 10; +1 = 11 != 10).
+constexpr std::uint16_t kReportSrcPortFlip   = 0xFFFFU;  // UI_03 src port
+constexpr std::uint8_t  kReportSrcIpByteFlip = 0xFFU;    // UI_04 src IP low byte
+constexpr std::uint8_t  kReportPayloadFlip   = 0xFFU;    // UI_02 first data octet
+constexpr std::uint8_t  kReportPortOverCount = 1U;       // UI_01 over-report
+
 void writeBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
     b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFFU));
     b.push_back(static_cast<std::uint8_t>(v & 0xFFU));
@@ -277,11 +287,11 @@ void UpperTesterServer::dataListenerLoop() {
         // defect is the receive operation's reporting of it. Armed lwIP-only via
         // OpSetAppFlavor; each UI_0x _neg passes only when the corrupted field is observed.
         if (app_flavor == kAppFaultReportWrongSrcPort) {
-            rec.src_port ^= 0xFFFFu;  // != the tester's src port (UI_03)
+            rec.src_port ^= kReportSrcPortFlip;  // != the tester's src port (UI_03)
         } else if (app_flavor == kAppFaultReportWrongSrcIp) {
-            rec.src_ip ^= 0xFFu;      // != the tester's src IP (UI_04)
+            rec.src_ip ^= kReportSrcIpByteFlip;  // != the tester's src IP (UI_04)
         } else if (app_flavor == kAppFaultReportWrongPayload && !rec.payload.empty()) {
-            rec.payload[0] ^= 0xFFu;  // first data octet != what the tester sent (UI_02)
+            rec.payload[0] ^= kReportPayloadFlip;  // first data octet != what the tester sent (UI_02)
         }
         std::lock_guard<std::mutex> lk(log_mu_);
         last_receipt_ = std::move(rec);
@@ -790,7 +800,7 @@ std::uint8_t UpperTesterServer::createUdpReceivePorts(std::uint8_t count) {
     // lwIP-only via OpSetAppFlavor; udp_user_interface_01_neg passes only when the
     // reported count differs from the conformant 10.
     if (app_fault_flavor_.load(std::memory_order_relaxed) == kAppFaultMiscountPorts) {
-        return static_cast<std::uint8_t>(actual + 1);
+        return static_cast<std::uint8_t>(actual + kReportPortOverCount);
     }
     return actual;
 }
