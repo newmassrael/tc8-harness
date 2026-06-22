@@ -1202,30 +1202,12 @@
         }
       ]
     },
-    "UDP_USER_INTERFACE_06": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_with_wrong_user_interface_dst_port",
-          "property": "DUT's UT-driven egress UDP must carry the configured destination port; fail iff a wrong port"
-        }
-      ]
-    },
     "UDP_Padding_02": {
       "guards": [
         {
           "class": "incorrect_emission",
           "fail_reason": "dut_emitted_udp_with_padding_on_even_payload",
           "property": "DUT's egress UDP for an even payload must carry no padding (Length=16); fail iff padded"
-        }
-      ]
-    },
-    "UDP_INTRODUCTION_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_non_port_unreachable_icmp",
-          "property": "DUT's ICMP for the closed-port datagram must be Destination Unreachable / Port Unreachable (type 3 code 3); fail iff another type/code"
         }
       ]
     },

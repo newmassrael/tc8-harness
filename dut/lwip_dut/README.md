@@ -205,8 +205,8 @@ a post-delivery application decision, below the netif glue's reach:
 - **Egress field-fault** rewrites one header field of a DUT-emitted frame (ARP
   §4.2 fields; UDP §4.6.5.4 src/dst port, length, checksum; TCP §4.8 SYN,ACK ack,
   DATA checksum, closed-port RST seq, active-OPEN SYN MSS, data-elicited ACK ack_num;
-  ICMPv4 §4.3 Echo Reply id/seq; IPv4 §4.4 header TTL / header checksum on the Echo
-  Reply). Used where the
+  ICMPv4 §4.3 Echo Reply id/seq and Destination Unreachable code; IPv4 §4.4 header
+  TTL / header checksum on the Echo Reply). Used where the
   conformant DUT *emits* a frame whose field a positive case checks. A field rewrite
   leaves the frame's checksum stale, which is immaterial: libtins delivers the frame
   and does not validate the IPv4 header checksum on parse, so the guard reads the

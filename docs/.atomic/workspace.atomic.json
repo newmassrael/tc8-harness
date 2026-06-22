@@ -2164,6 +2164,14 @@
         {
           "file": "src/stimulus/upper_tester_client.h",
           "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_introduction_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_introduction_03_neg/udp_introduction_03_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -2538,6 +2546,14 @@
         {
           "file": "tests/udp_user_interface_04_neg/udp_user_interface_04_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_user_interface_06_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_user_interface_06_neg/udp_user_interface_06_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -2603,6 +2619,14 @@
         },
         {
           "file": "src/sce_integration/cases/udp_introduction_01_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_introduction_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/udp_introduction_03_neg/udp_introduction_03_neg.scxml",
           "kind": "implements"
         }
       ]

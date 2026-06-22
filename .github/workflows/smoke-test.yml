@@ -225,7 +225,10 @@ jobs:
       # when that violation is observed. Finally the egress remainder closeout
       # (ICMPv4_TYPE_18_NEG kIcmpFaultDestUnreachCodeWrong flips the Dest Unreachable
       # code; TCP_BASICS_05_NEG/_NEG2 reuse kTcpFaultRstSeqWrong to flip the closed-port
-      # RST seq off the incoming ACK). Last, the §4.4.4.5 APP-LAYER reception fault
+      # RST seq off the incoming ACK; UDP_USER_INTERFACE_06_NEG reuses kUdpFaultDstPortWrong
+      # to rewrite the DUT egress destination port off 20026; UDP_INTRODUCTION_03_NEG reuses
+      # kIcmpFaultDestUnreachCodeWrong to flip the code of the DUT's UDP-elicited Port
+      # Unreachable off 3). Last, the §4.4.4.5 APP-LAYER reception fault
       # (IPv4_ADDRESSING_02_NEG kAppFaultAcceptDirectedBroadcast): the IP stack
       # delivers the directed broadcast (ADDRESSING_02) / all-systems multicast
       # (INTRODUCTION_02) to the INADDR_ANY data-listener socket and the shared data
@@ -320,12 +323,12 @@ jobs:
             TCP_MSS_OPTIONS_11_NEG TCP_MSS_OPTIONS_12_NEG \
             ICMPv4_TYPE_09_NEG ICMPv4_TYPE_09_NEG2 \
             IPv4_TTL_01_NEG IPv4_CHECKSUM_05_NEG \
-            ICMPv4_TYPE_18_NEG \
+            ICMPv4_TYPE_18_NEG UDP_INTRODUCTION_03_NEG \
             TCP_BASICS_05_NEG TCP_BASICS_05_NEG2 \
             IPv4_ADDRESSING_02_NEG UDP_INTRODUCTION_02_NEG \
             TCP_HEADER_02_NEG TCP_HEADER_05_NEG TCP_HEADER_06_NEG \
             UDP_INTRODUCTION_01_NEG UDP_MessageFormat_02_NEG \
-            IPv4_ADDRESSING_01_NEG UDP_USER_INTERFACE_05_NEG \
+            IPv4_ADDRESSING_01_NEG UDP_USER_INTERFACE_05_NEG UDP_USER_INTERFACE_06_NEG \
             TCP_ACKNOWLEDGEMENT_02_NEG TCP_ACKNOWLEDGEMENT_03_NEG \
             TCP_SEQUENCE_02_NEG TCP_FLAGS_INVALID_02_NEG \
             TCP_SEQUENCE_03_NEG TCP_SEQUENCE_04_NEG \
