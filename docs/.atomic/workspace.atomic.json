@@ -3738,6 +3738,10 @@
         {
           "file": "src/sce_integration/cases/tcp_flags_invalid_01_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_checksum_02_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4521,6 +4525,14 @@
         },
         {
           "file": "tests/tcp_checksum_03_neg/tcp_checksum_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_checksum_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_checksum_02_neg/tcp_checksum_02_neg.scxml",
           "kind": "implements"
         }
       ]

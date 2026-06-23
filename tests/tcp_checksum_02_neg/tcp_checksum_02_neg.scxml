@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.2 TCP_CHECKSUM_02 negative — lwIP TCP behavioral-synthesis self-validation of the
+  positive _02 no-ACK guard. The trait drives the active OPEN to ESTABLISHED, arms kTcpSynthAck,
+  then injects a data segment with a corrupt TCP checksum (the frame the DUT must silently drop
+  per RFC 1122 §4.2.2.7); the lwIP netif input hook synthesizes the prohibited forward ACK on the
+  connection 4-tuple. Pass = that ACK observed; fail_compliant = DUT stayed silent despite the
+  flavor (fault inert). lwIP-only (capability-gated on kCapIngressFault). Envelope:
+  tcp_synth_ack_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_checksum_02_neg"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_synth_ack_neg.sce-template.xml"
+           port_offset="40U"/>
+</scxml>

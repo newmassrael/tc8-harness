@@ -247,7 +247,8 @@ a post-delivery application decision, below the netif glue's reach:
       ACKNOWLEDGEMENT_04 in ESTABLISHED; `§4.8.6.7` FLAGS_PROCESSING_11 duplicate-ACK in
       ESTABLISHED — the duplicate is itself a pure ACK).
     - `kTcpSynthAck` — synthesize a challenge ACK when a **SYN or PSH** segment the DUT must
-      drop arrives (`§4.8.6.16` HEADER_07/08/09/11 malformed / multicast).
+      drop arrives (`§4.8.6.16` HEADER_07/08/09/11 malformed / multicast; `§4.8.6.2`
+      CHECKSUM_02 corrupt-TCP-checksum data segment, same PSH-gated synth).
     - `kTcpSynthRstOnDisruptive` — synthesize a RST when a **disruptive** segment (RST / FIN /
       URG / PSH) the DUT must answer with silence arrives (`§4.8.6.6` FLAGS_INVALID_03/04
       RST-in-SYN-SENT; `§4.8.6.8` CLOSING_07/08/09 PSH-data-in-FW1/FW2 and tester-FIN-in-CW).

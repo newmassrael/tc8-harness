@@ -2306,15 +2306,6 @@
         }
       ]
     },
-    "TCP_CHECKSUM_02": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_acked_corrupt_checksum_data",
-          "property": "Silence is conformant: DUT must drop a segment with a corrupt checksum; fail iff it ACKs the corrupt data"
-        }
-      ]
-    },
     "TCP_CLOSING_06": {
       "guards": [
         {
