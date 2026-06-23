@@ -2221,20 +2221,6 @@
         }
       ]
     },
-    "TCP_CALL_RECEIVE_05": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_fin_in_cw_without_close",
-          "property": "Silence is conformant: DUT must not emit a FIN in CLOSE-WAIT before the application closes; fail iff it does"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_rst_in_cw",
-          "property": "Silence is conformant: DUT must not emit a RST in CLOSE-WAIT for this stimulus; fail iff it does"
-        }
-      ]
-    },
     "TCP_CHECKSUM_01": {
       "guards": [
         {

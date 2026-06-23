@@ -4706,6 +4706,38 @@
         {
           "file": "tests/tcp_call_receive_05/tcp_call_receive_05.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_call_receive_05_neg/tcp_call_receive_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_call_receive_05_neg2/tcp_call_receive_05_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_call_receive_05_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_call_receive_05_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_tcp_call_receive_05_neg_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/tcp_synth_fin_watch_neg.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "implements"
         }
       ]
     },

@@ -247,7 +247,8 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                                                             kIcmpTypeEchoReply;
             emitProhibitedIcmpReply(nif, f, reply_type);
         } else if ((flavor == ut::kTcpSynthRst || flavor == ut::kTcpSynthAck ||
-                    flavor == ut::kTcpSynthRstOnDisruptive) &&
+                    flavor == ut::kTcpSynthRstOnDisruptive ||
+                    flavor == ut::kTcpSynthFinOnDisruptive) &&
                    p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoTcp &&
                    p->len >= l4RegionOffset(f) + kTcpMinHdrLen) {
@@ -282,7 +283,7 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 if ((flags & (kTcpFlagSyn | kTcpFlagPsh)) != 0U) {
                     emitProhibitedTcpSegment(nif, f, kTcpFlagAck);
                 }
-            } else {  // kTcpSynthRstOnDisruptive
+            } else if (flavor == ut::kTcpSynthRstOnDisruptive) {
                 // §4.8 must-not-respond family (across LISTEN / SYN-SENT / SYN-RCVD /
                 // ESTABLISHED / every close-state / the closed port): the
                 // conformant DUT processes or drops the segment without emitting a RST, so the
@@ -297,6 +298,18 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 // segment" which a RST satisfies.
                 if ((flags & (kTcpFlagRst | kTcpFlagFin | kTcpFlagUrg | kTcpFlagPsh)) != 0U) {
                     emitProhibitedTcpSegment(nif, f, kTcpFlagRst);
+                }
+            } else {  // kTcpSynthFinOnDisruptive
+                // §4.8.6.4 CALL_RECEIVE_05: the conformant DUT in CLOSE-WAIT (after the PSH+FIN
+                // data segment) returns the queued data on a RECEIVE call and stays in CW
+                // without emitting a FIN before the application closes (RFC 793 §3.5). The hook
+                // synthesizes the prohibited FIN+ACK on the same disruptive-flag gate as the
+                // RST sibling, so the dut_emitted_fin_in_cw_without_close fail-final (is_dut_fin_ack)
+                // is reachable. FIN+ACK (not a bare FIN) matches is_dut_fin_ack; the pure-ACK and
+                // bare-SYN exclusion keeps the handshake and auto-ACKs clear, exactly as the RST
+                // sibling.
+                if ((flags & (kTcpFlagRst | kTcpFlagFin | kTcpFlagUrg | kTcpFlagPsh)) != 0U) {
+                    emitProhibitedTcpSegment(nif, f, kTcpFlagFin | kTcpFlagAck);
                 }
             }
         }

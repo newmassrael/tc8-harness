@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.4 TCP_CALL_RECEIVE_05 negative (RST in CLOSE-WAIT) — lwIP TCP behavioral-
+  synthesis self-validation of the positive _05 no-RST-in-CW guard. The trait drives the DUT
+  through an active OPEN to ESTABLISHED and injects a PSH+FIN+ACK data segment (the EST->CW
+  trigger) with kTcpSynthRstOnDisruptive armed; the lwIP netif input hook synthesizes the
+  prohibited RST as that disruptive segment arrives, proving the dut_emitted_rst_in_cw
+  fail-final reachable. Pass = that RST observed; fail_compliant = DUT stayed silent despite
+  the flavor (fault inert). lwIP-only (kCapIngressFault). Envelope: tcp_synth_rst_watch_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_call_receive_05_neg"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_synth_rst_watch_neg.sce-template.xml"
+           port_offset="::tc8::sce::tcp::kTcpCallReceive05NegRstOffset"/>
+</scxml>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.4 TCP_CALL_RECEIVE_05 negative 2 (FIN in CLOSE-WAIT) — lwIP TCP behavioral-
+  synthesis self-validation of the positive _05 no-FIN-in-CW guard. The trait drives the DUT
+  through an active OPEN to ESTABLISHED and injects a PSH+FIN+ACK data segment (the EST->CW
+  trigger) with kTcpSynthFinOnDisruptive armed; the lwIP netif input hook synthesizes the
+  prohibited FIN+ACK as that disruptive segment arrives, proving the
+  dut_emitted_fin_in_cw_without_close fail-final reachable. Pass = that FIN+ACK observed;
+  fail_compliant = DUT stayed silent despite the flavor (fault inert). lwIP-only
+  (kCapIngressFault). Envelope: tcp_synth_fin_watch_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_call_receive_05_neg2"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_synth_fin_watch_neg.sce-template.xml"
+           port_offset="::tc8::sce::tcp::kTcpCallReceive05NegFinOffset"/>
+</scxml>

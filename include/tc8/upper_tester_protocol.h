@@ -953,7 +953,8 @@ inline constexpr std::uint8_t kTcpSynthRstOnDisruptive   = 0x0A;  // §4.8 must-
 // Extends the §4.3 ICMP synth family above; numbered 0x0B (after the TCP synths)
 // to avoid renumbering 0x05-0x0A — the dispatch keys on the value, not its order.
 inline constexpr std::uint8_t kIcmpFaultSynthTimeExceeded = 0x0B;  // §4.3.3.2 TYPE_04 (incomplete reassembly, fragment zero never arrives): synthesize a Time Exceeded (type 11)
-inline constexpr std::uint8_t kIngressFaultMax           = kIcmpFaultSynthTimeExceeded;
+inline constexpr std::uint8_t kTcpSynthFinOnDisruptive   = 0x0C;  // §4.8.6.4 CALL_RECEIVE_05 (FIN in CLOSE-WAIT before app close): synthesize the prohibited FIN+ACK (RFC 793 §3.5 MUST NOT)
+inline constexpr std::uint8_t kIngressFaultMax           = kTcpSynthFinOnDisruptive;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

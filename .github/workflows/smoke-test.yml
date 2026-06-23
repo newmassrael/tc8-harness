@@ -319,7 +319,12 @@ jobs:
       # out the family: TCP_FLAGS_INVALID_01_NEG (§4.8.6.6, SYN+RST in LISTEN), TCP_CLOSING_03_NEG
       # (§4.8.6.8, RST-with-data in ESTABLISHED), TCP_CLOSING_13_NEG (§4.8.6.8, bare RST to a
       # closed port) and TCP_UNACCEPTABLE_02_NEG (§4.8.6.3, unacceptable RST in SYN-RECEIVED) —
-      # each passes only when the synthesized DUT-origin RST is observed. ~20 min.
+      # each passes only when the synthesized DUT-origin RST is observed. The §4.8.6.4
+      # CALL_RECEIVE_05 graduates its 2 fail-finals (_NEG = RST in CLOSE-WAIT via
+      # kTcpSynthRstOnDisruptive, _NEG2 = FIN in CLOSE-WAIT via the new kTcpSynthFinOnDisruptive
+      # flavor, which synthesizes a prohibited FIN+ACK on the same disruptive-flag gate) — the
+      # DUT in CW must return queued data on RECEIVE without emitting a FIN or RST before the app
+      # closes, and each _neg passes only when the synthesized segment is observed. ~22 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -384,6 +389,7 @@ jobs:
             TCP_FLAGS_PROCESSING_08_NEG3 \
             TCP_FLAGS_PROCESSING_09_NEG TCP_FLAGS_PROCESSING_09_NEG2 \
             TCP_FLAGS_PROCESSING_09_NEG3 \
+            TCP_CALL_RECEIVE_05_NEG TCP_CALL_RECEIVE_05_NEG2 \
             TCP_FLAGS_INVALID_01_NEG TCP_CLOSING_03_NEG TCP_CLOSING_13_NEG \
             TCP_UNACCEPTABLE_02_NEG
 

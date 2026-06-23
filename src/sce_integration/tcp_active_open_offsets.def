@@ -165,6 +165,9 @@ TC8_TCP_OFFSET(kTcpChecksum02NegLocalOffset, 42)
 TC8_TCP_OFFSET(kTcpFlagsProc09NegClosingOffset, 43)
 TC8_TCP_OFFSET(kTcpFlagsProc09NegLastAckOffset, 44)
 TC8_TCP_OFFSET(kTcpFlagsProc09NegCloseWaitOffset, 45)
+// CALL_RECEIVE_05 must-not-respond-in-CW _NEG (RST) + _NEG2 (FIN) variants.
+TC8_TCP_OFFSET(kTcpCallReceive05NegRstOffset, 46)
+TC8_TCP_OFFSET(kTcpCallReceive05NegFinOffset, 47)
 // CLOSING_06 / _03 / _09 / _07 / _08.
 TC8_TCP_OFFSET(kTcpClosing06LocalOffset, 70)
 TC8_TCP_OFFSET(kTcpClosing03LocalOffset, 71)

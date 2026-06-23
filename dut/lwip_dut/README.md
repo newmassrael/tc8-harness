@@ -258,9 +258,15 @@ a post-delivery application decision, below the netif glue's reach:
       URG / PSH) the DUT must answer with silence arrives (`§4.8.6.6` FLAGS_INVALID_03/04
       RST-in-SYN-SENT; `§4.8.6.8` CLOSING_07/08/09 PSH-data-in-FW1/FW2 and tester-FIN-in-CW;
       `§4.8.6.7` FLAGS_PROCESSING_09 duplicate-FIN+ACK-in-CLOSING/LAST-ACK/CLOSE-WAIT;
-      `§4.8.6.3` UNACCEPTABLE_02 unacceptable-RST-in-SYN-RECEIVED).
+      `§4.8.6.3` UNACCEPTABLE_02 unacceptable-RST-in-SYN-RECEIVED;
+      `§4.8.6.4` CALL_RECEIVE_05 PSH+FIN-data-in-CLOSE-WAIT, RST fail-final).
       The gate excludes a bare pure ACK and a bare SYN, so the handshake and the tester's
       auto-ACKs never trigger it.
+    - `kTcpSynthFinOnDisruptive` — synthesize a **FIN+ACK** (not a RST) on the same
+      disruptive-flag gate, for the FIN fail-final of a must-not-respond case whose guard checks
+      `is_dut_fin_ack` (`§4.8.6.4` CALL_RECEIVE_05: the DUT in CLOSE-WAIT must return queued data
+      on RECEIVE without emitting a FIN before the application closes). FIN+ACK (not a bare FIN)
+      matches the guard; the same pure-ACK / bare-SYN exclusion keeps the handshake clear.
 
     This is the behavioural seam the egress field-fault cannot reach — there is no DUT-emitted
     segment to corrupt, so the hook synthesizes the whole frame.
