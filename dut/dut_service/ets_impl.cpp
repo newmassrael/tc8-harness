@@ -332,22 +332,25 @@ void EtsImpl::clientServiceSubscribeEventgroup(
 
 // §5.1.6 SOMEIP_ETS_103/_104/_105 last-value getters. Each returns the
 // pre-initialised cell (0x08) — wire-shape valid, state-receipt vacuous.
+// maybeFaultFieldValue lets the _NEG cases bit-flip the readback (the same
+// kEtsFaultFieldValueWrong flavor the field getters use): the positive guard
+// asserts the cached UInt8 == 0x08, so the corrupted 0xF7 trips != 0x08.
 void EtsImpl::clientServiceGetLastValueOfEventTCP(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     clientServiceGetLastValueOfEventTCPReply_t _reply) {
-    _reply(lastEventValueTcp_);
+    _reply(maybeFaultFieldValue(lastEventValueTcp_));
 }
 
 void EtsImpl::clientServiceGetLastValueOfEventUDPUnicast(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     clientServiceGetLastValueOfEventUDPUnicastReply_t _reply) {
-    _reply(lastEventValueUdpUnicast_);
+    _reply(maybeFaultFieldValue(lastEventValueUdpUnicast_));
 }
 
 void EtsImpl::clientServiceGetLastValueOfEventUDPMulticast(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     clientServiceGetLastValueOfEventUDPMulticastReply_t _reply) {
-    _reply(lastEventValueUdpMulticast_);
+    _reply(maybeFaultFieldValue(lastEventValueUdpMulticast_));
 }
 
 void EtsImpl::suspendInterface(

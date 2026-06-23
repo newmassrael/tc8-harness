@@ -1012,7 +1012,7 @@ inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultReportW
 // returns and the reset side-effect are EtsImpl-owned. The conformant path (None) behaves
 // correctly (the _neg's fault-inert branch). tc8-dut-only.
 inline constexpr std::uint8_t kEtsFaultNone                   = 0x00;
-inline constexpr std::uint8_t kEtsFaultFieldValueWrong        = 0x01;  // §5.1.6 SOMEIP_ETS_166/167/168: any field getter (scalar 0x40/0x2A or array 0x28) returns value ^ 0xFF per byte (!= the value setField stored)
+inline constexpr std::uint8_t kEtsFaultFieldValueWrong        = 0x01;  // §5.1.6 SOMEIP_ETS_166/167/168 + 103/104/105: any field or last-value getter (0x40/0x2A/0x28/0x3B/0x3C/0x3D) returns value ^ 0xFF per byte (!= the cached/set value)
 inline constexpr std::uint8_t kEtsFaultResetSkip              = 0x02;  // §5.1.6 SOMEIP_ETS_146: resetInterface is a no-op, so the post-reset getFieldA still returns the pre-reset value
 inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultResetSkip;
 

@@ -506,33 +506,6 @@
         }
       ]
     },
-    "SOMEIP_ETS_103": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "tcp_get_last_value_not_08",
-          "property": "GetLastValueOfEvent over TCP must return the last emitted event value"
-        }
-      ]
-    },
-    "SOMEIP_ETS_104": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "udp_multicast_get_last_value_not_08",
-          "property": "GetLastValueOfEvent over UDP multicast must return the last emitted event value"
-        }
-      ]
-    },
-    "SOMEIP_ETS_105": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "udp_unicast_get_last_value_not_08",
-          "property": "GetLastValueOfEvent over UDP unicast must return the last emitted event value"
-        }
-      ]
-    },
     "SOMEIP_ETS_106": {
       "guards": [
         {

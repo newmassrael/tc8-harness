@@ -8112,6 +8112,30 @@
         {
           "file": "src/sce_integration/cases/someip_ets_167_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "tests/someip_ets_103_neg/someip_ets_103_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/someip_ets_103_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/someip_ets_104_neg/someip_ets_104_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/someip_ets_104_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/someip_ets_105_neg/someip_ets_105_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/someip_ets_105_neg.h",
+          "kind": "implements"
         }
       ]
     },
