@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_02 negative (SYN-RECEIVED) — lwIP TCP behavioral-synthesis
+  self-validation of the positive _02 no-response-to-unacceptable-RST guard in SYN-RECEIVED. The
+  positive opens a passive LISTEN, drives the DUT to SYN-RECEIVED (tester SYN -> DUT SYN,ACK), and
+  injects an out-of-window RST the DUT MUST silently drop without changing state. This negative
+  arms kTcpSynthRstOnDisruptive so the lwIP netif input hook synthesizes the prohibited RST as
+  that unacceptable RST arrives. Pass = that RST observed; fail_compliant = DUT stayed silent
+  despite the flavor (fault inert). lwIP-only (kCapIngressFault).
+
+  Passive SYN-RECEIVED cannot reuse the active-OPEN tcp_synth_rst_watch_neg template (no third-leg
+  pure ACK): listening_dut_synack confirms the DUT SYN,ACK on (kBasicsListenPort,
+  kBasicsTesterPort), then listening_rst_watch passes on a DUT RST on the same listen 4-tuple —
+  the synthesized RST. Same shape as tcp_flags_invalid_15_neg (SYN-RECEIVED).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_02_neg"
+       datamodel="null"
+       initial="listening_dut_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_dut_synack">
+    <onentry><send event="deadline_dut_synack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_rst_watch"/>
+    <transition event="deadline_dut_synack" target="inconclusive_no_dut_synack"/>
+  </state>
+  <state id="listening_rst_watch">
+    <onentry><send event="deadline_rst_watch" delay="8s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort, ::tc8::sce::tcp::kBasicsTesterPort)"
+                target="pass"/>
+    <transition event="deadline_rst_watch" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+  <final id="inconclusive_no_dut_synack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_syn_rcvd","role":"precondition_unmet"}</content></donedata>
+  </final>
+  <final id="fail_compliant">
+    <donedata><content>{"verdict":"fail","reason":"dut_silent_despite_synth_rst_flavor","role":"fault_injection_inert"}</content></donedata>
+  </final>
+</scxml>

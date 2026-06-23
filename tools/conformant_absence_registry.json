@@ -2706,15 +2706,6 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_02": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_rst_after_unacceptable_rst",
-          "property": "Silence is conformant: DUT must drop an unacceptable RST without emitting a RST; fail iff it emits one"
-        }
-      ]
-    },
     "TCP_UNACCEPTABLE_03": {
       "guards": [
         {

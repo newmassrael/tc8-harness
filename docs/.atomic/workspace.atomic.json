@@ -3742,6 +3742,10 @@
         {
           "file": "src/sce_integration/cases/tcp_checksum_02_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_unacceptable_02_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4607,6 +4611,14 @@
         },
         {
           "file": "tests/tcp_unacceptable_14/tcp_unacceptable_14.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_unacceptable_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_02_neg/tcp_unacceptable_02_neg.scxml",
           "kind": "implements"
         }
       ]
