@@ -1220,15 +1220,6 @@
         }
       ]
     },
-    "IPv4_HEADER_08": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_despite_ihl_times_4_gt_tot_len",
-          "property": "DUT must not reply to a datagram where IHL*4 exceeds Total Length; silence is conformant"
-        }
-      ]
-    },
     "IPv4_VERSION_04": {
       "guards": [
         {

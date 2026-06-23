@@ -14,6 +14,12 @@ namespace tc8::sce::cases {
 
 using Ipv4Header08SM = ::SCE::Generated::ipv4_header_08::ipv4_header_08;
 
+// §4.4.4.1 p529 spec literal "IP IHL field set to 13": with tot_len at the
+// default 28, ihl*4 = 52 > tot_len, so a conformant DUT drops the datagram and
+// stays silent. SSOT shared by the positive stimulus and the IPv4_HEADER_08_NEG
+// self-validation (which arms the lwIP synth flavor against the same trigger).
+inline constexpr std::uint8_t kIpv4Header08BadIhl = 13U;
+
 }  // namespace tc8::sce::cases
 
 namespace tc8::sce {
@@ -30,9 +36,7 @@ struct TestCaseTraits<cases::Ipv4Header08SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::ipv4::StimulusOverrides ov{};
-        // Spec §4.4.4.1 p529: "IP IHL field set to 13". With tot_len at
-        // the default 28, kernel computes ihl*4=52 > tot_len and drops.
-        ov.ihl = std::uint8_t{13};
+        ov.ihl = cases::kIpv4Header08BadIhl;
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
 };
