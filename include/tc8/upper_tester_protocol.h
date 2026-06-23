@@ -978,15 +978,17 @@ inline constexpr std::uint8_t kAppFaultAcceptDirectedBroadcast = 0x01;
 // every multicast destination with LWIP_IGMP off), so the deny is the listener's; this
 // flavor skips it so the DUT counts the multicast it must drop (udp_introduction_02_neg).
 inline constexpr std::uint8_t kAppFaultAcceptMulticast        = 0x02;
-// §4.6.5.5 UDP User-Interface Confirmation report corruption — the listener received
-// the datagram correctly but reports a wrong field, so the positive's field guard goes
-// from pass to fail. Each names the GetReceivedUdp / CreateUdpReceivePorts field it
-// mangles; the conformant path (None) reports correctly (the _neg's fault-inert branch):
+// §4.6.5.5 UDP User-Interface + §4.6.5.4 FIELDS Confirmation report corruption — the
+// listener received the datagram correctly but reports a wrong field, so the positive's
+// field guard goes from pass to fail. Each names the GetReceivedUdp / CreateUdpReceivePorts
+// field it mangles; the conformant path (None) reports correctly (the _neg's fault-inert
+// branch):
 inline constexpr std::uint8_t kAppFaultReportWrongSrcPort     = 0x03;  // §4.6.5.5 UI_03: GetReceivedUdp src port (RFC 768 receive returns source port)
 inline constexpr std::uint8_t kAppFaultReportWrongSrcIp       = 0x04;  // §4.6.5.5 UI_04: GetReceivedUdp src IP (RFC 768 receive returns source IP)
 inline constexpr std::uint8_t kAppFaultReportWrongPayload     = 0x05;  // §4.6.5.5 UI_02: GetReceivedUdp payload bytes (RFC 768 receive returns data octets)
 inline constexpr std::uint8_t kAppFaultMiscountPorts          = 0x06;  // §4.6.5.5 UI_01: CreateUdpReceivePorts actual_count (RFC 768 create N receive ports)
-inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultMiscountPorts;
+inline constexpr std::uint8_t kAppFaultReportWrongLength      = 0x07;  // §4.6.5.4 UDP_FIELDS_12: GetReceivedUdp payload length (RFC 768 receive returns datagram length)
+inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultReportWrongLength;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

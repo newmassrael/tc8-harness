@@ -1148,15 +1148,6 @@
         }
       ]
     },
-    "UDP_FIELDS_12": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_received_udp_with_unexpected_payload_length",
-          "property": "DUT's UT confirmation must report the expected received payload length; fail iff another value"
-        }
-      ]
-    },
     "UDP_FIELDS_08": {
       "guards": [
         {

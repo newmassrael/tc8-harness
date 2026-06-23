@@ -280,10 +280,11 @@ jobs:
       # can never reassemble draws a synthesized Echo Reply (the hook gates on the ICMP
       # protocol byte, never the fragment offset).
       # Finally the §4.6.5.5 UDP
-      # User-Interface app-report fault cluster (UDP_USER_INTERFACE_01/02/03/04_NEG, UT 0x1A
+      # User-Interface + §4.6.5.4 FIELDS app-report fault cluster (UDP_USER_INTERFACE_01/02/03/04_NEG
+      # + UDP_FIELDS_12_NEG, UT 0x1A
       # OpSetAppFlavor): the datagram is received correctly but the shared data listener
-      # surfaces a wrong field (port count / payload / src port / src IP) in the UT
-      # Confirmation — the report-corruption sibling of the app-layer discard faults, faulted
+      # surfaces a wrong field (port count / payload / src port / src IP / reassembled length) in
+      # the UT Confirmation — the report-corruption sibling of the app-layer discard faults, faulted
       # at the only faithful site (the stack delivered it correctly), and the _neg passes only
       # when the corrupted field is observed. Finally the §4.8 TCP behavioral-synthesis pilot
       # (TCP_ACKNOWLEDGEMENT_04_NEG, kTcpSynthRst): the DUT must stay silent for a pure ACK in
@@ -367,6 +368,7 @@ jobs:
             IPv4_REASSEMBLY_06_NEG IPv4_REASSEMBLY_07_NEG IPv4_REASSEMBLY_09_NEG \
             UDP_USER_INTERFACE_01_NEG UDP_USER_INTERFACE_02_NEG \
             UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG \
+            UDP_FIELDS_12_NEG \
             TCP_ACKNOWLEDGEMENT_04_NEG \
             TCP_HEADER_07_NEG TCP_HEADER_08_NEG TCP_HEADER_09_NEG TCP_HEADER_11_NEG \
             TCP_CHECKSUM_02_NEG \

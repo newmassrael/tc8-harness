@@ -277,11 +277,14 @@ a post-delivery application decision, below the netif glue's reach:
   reports a receipt it must have dropped. Unlike the two netif seams this is not a
   frame mutation; the datagram already reached the socket, so the fault lives in the
   shared data listener (`UpperTesterServer::dataListenerLoop`), armed lwIP-only. The
-  same seam also faults the §4.6.5.5 UDP User-Interface **report**: the datagram is
+  same seam also faults the §4.6.5.5 UDP User-Interface and §4.6.5.4 FIELDS **report**:
+  the datagram is
   received correctly, but the GetReceivedUdp / CreateUdpReceivePorts Confirmation
   surfaces a wrong field — `kAppFaultReportWrongSrcPort` (UI_03),
   `kAppFaultReportWrongSrcIp` (UI_04), `kAppFaultReportWrongPayload` (UI_02),
-  `kAppFaultMiscountPorts` (UI_01). This is the only faithful site for those guards:
+  `kAppFaultMiscountPorts` (UI_01), `kAppFaultReportWrongLength` (FIELDS_12 — over-reports
+  the reassembled 65507-byte length by one). This is the only faithful site for those
+  guards:
   the stack delivered the right metadata, so a wrong report is the receive operation's
   defect, and an ingress rewrite would make the DUT faithfully report the rewritten
   value (no fault). The conformant path reports correctly (the `_neg`'s fault-inert
@@ -329,9 +332,9 @@ broadcast to a unicast (to dodge the listener's check) would change the very fie
 under test, so a conformant DUT would accept the rewritten frame too — the seam stays
 at the layer where the real decision is.
 
-**Still outside this seam.** FIELDS_04 (egress to two hosts), FIELDS_05 (UI
-source-IP reporting), and FIELDS_12 (65507-byte reassembly) each need their own
-mechanism (egress routing, UI field, reassembly) and are out of scope.
+**Still outside this seam.** FIELDS_04 (egress to two hosts) and FIELDS_05 (UI
+source-IP reporting) each need their own mechanism (egress routing, UI field) and are
+out of scope.
 `INVALID_ADDRESSES_01/02` (multicast / broadcast *source* address) drop *inside*
 lwIP's `ip4_input` ("packet source is not valid"), keyed on the very source-IP field
 under test — the only way past is to rewrite the source (the faithfulness trap above),

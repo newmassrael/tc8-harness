@@ -2500,6 +2500,14 @@
         {
           "file": "tests/udp_fields_16_neg/udp_fields_16_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/udp_fields_12_neg/udp_fields_12_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_fields_12_neg.h",
+          "kind": "implements"
         }
       ]
     },
