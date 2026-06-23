@@ -2266,6 +2266,10 @@
         {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/cases/udp_padding_02_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4044,10 +4048,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_out_of_order_01/tcp_out_of_order_01.scxml",
           "kind": "implements"
         },
@@ -4178,10 +4178,6 @@
       "intent": "TC8 §4.8.6.13 — TCP — Nagle. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_nagle_02/tcp_nagle_02.scxml",
           "kind": "implements"
         },
@@ -4197,10 +4193,6 @@
       "bindings": [
         {
           "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/tcp_pilot_common.h",
           "kind": "implements"
         },
         {

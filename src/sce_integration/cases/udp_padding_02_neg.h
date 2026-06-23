@@ -8,6 +8,7 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/cases/_udp_traits_base.h"
+#include "sce_integration/cases/udp_padding_02.h"  // SSOT for kUdpPadding02DutSrcPort
 #include "sce_integration/test_runner.h"
 #include "sce_integration/udp_pilot_common.h"
 
@@ -21,7 +22,7 @@ using UdpPadding02NegSM = ::SCE::Generated::udp_padding_02_neg::udp_padding_02_n
 
 namespace tc8::sce {
 
-// Self-validation of UDP_Padding_02: a conformant DUT emits a UDP datagram whose Length
+// Self-validation of §4.6.5.3 UDP_Padding_02: a conformant DUT emits a UDP datagram whose Length
 // field is exactly 8 + payload (no trailing padding lifts it above 8+N). kUdpFaultLengthWrong is
 // the shared UDP-Length egress flavor (one flavor per field; the exact wrong value is immaterial —
 // the guard tests the field), so the lwIP netif link-output hook rewrites the DUT egress UDP Length
@@ -42,7 +43,7 @@ struct TestCaseTraits<cases::UdpPadding02NegSM>
         emitEgressFlavorArm(cfg, iface, ::tc8::ut::kUdpFaultLengthWrong);
         ::tc8::sce::udp::emitTriggerSendUdp(
             cfg, iface, /*req_id=*/1,
-            /*dut_src_port=*/20030,
+            /*dut_src_port=*/cases::kUdpPadding02DutSrcPort,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),

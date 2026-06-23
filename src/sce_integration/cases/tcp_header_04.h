@@ -49,7 +49,9 @@ struct TestCaseTraits<cases::TcpHeader04SM>
         // it intentionally stays OUT of the active-OPEN offset registry
         // (kActiveOpenOffsetRegistry in tcp_pilot_common.h); the value is
         // immaterial as long as the DUT is not listening on it. +132 keeps it
-        // ~100 above the §4.8.6 HEADER cluster's +30..+38 block.
+        // ~100 above the §4.8.6 HEADER cluster's +30..+38 block. It adds to the
+        // REMOTE base kBasicsActiveRemotePort — a different axis from the LOCAL
+        // kTcpNagle02LocalOffset (also 132); same number, different port, no alias.
         constexpr std::uint16_t kHeader04WrongRemoteOffset = 132U;
         const std::uint16_t wrong_remote_port =
             static_cast<std::uint16_t>(kBasicsActiveRemotePort

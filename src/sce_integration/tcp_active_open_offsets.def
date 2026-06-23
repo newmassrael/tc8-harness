@@ -1,0 +1,182 @@
+// Single source of truth for the TC8 active-OPEN port-quad offsets.
+//
+// X-macro form (see verdict_taxonomy.def for the same idiom):
+//   TC8_TCP_OFFSET(name, value)        — one active-OPEN offset constant
+//   TC8_TCP_OFFSET_SPAN5(name, base)   — a 5-wide span base+0..base+4 for the
+//                                        5-iteration FLAGS_INVALID_08..13 loops
+//
+// Consumed twice by tcp_pilot_common.h, zero-cost, no parsing:
+//   1. to DECLARE the named `inline constexpr std::uint16_t` constants, and
+//   2. to build kActiveOpenOffsetRegistry[] for offsetRegistryUnique().
+// Because both derive from THIS list, "declare an offset" and "it enters the
+// uniqueness static_assert" are the SAME act — the registry cannot drift out of
+// sync with the declared set (the defect this file's predecessor hand-array had).
+//
+// Each case that performs an active OPEN binds at (kBasicsActiveLocalPort +
+// offset, kBasicsActiveRemotePort + offset). The offsets are globally unique so
+// the static_assert catches same-value aliasing between two DIFFERENT cases at
+// COMPILE time (e.g. the FLAGS_PROCESSING_02-positive-vs-_NEG-at-60 collision
+// this registry retired). The per-case fresh-DUT smoke model already precludes a
+// runtime TIME-WAIT/EADDRNOTAVAIL residue collision between cases; the invariant
+// is the cheap compile-time guarantee that the values never alias regardless.
+//
+// A positive and its mirror `_NEG` deliberately SHARE one constant (identical
+// 4-tuple; the _NEG only arms a fault flavor) — that aliasing is one entry here,
+// referenced by both. Passive-listener absolute ports (kTcp*ListenPort /
+// *TesterSrcPort) are a different axis and live in tcp_pilot_common.h, NOT here.
+
+// ── HEADER_01 / MSS_OPTIONS_11/12 (active-OPEN) ──
+TC8_TCP_OFFSET(kTcpHeader01LocalOffset, 30)
+TC8_TCP_OFFSET(kTcpMssOptions11LocalOffset, 40)
+TC8_TCP_OFFSET(kTcpMssOptions12LocalOffset, 41)
+
+// ── MSS_OPTIONS_05/09 two-iteration active-OPEN phases ──
+TC8_TCP_OFFSET(kTcpMssOptions05Phase1LocalOffset, 100)
+TC8_TCP_OFFSET(kTcpMssOptions05Phase2LocalOffset, 101)
+TC8_TCP_OFFSET(kTcpMssOptions09Phase1LocalOffset, 110)
+TC8_TCP_OFFSET(kTcpMssOptions09Phase2LocalOffset, 111)
+
+// ── BASICS_17 simultaneous-OPEN ──
+TC8_TCP_OFFSET(kTcpBasics17LocalOffset, 120)
+
+// ── ACK_02/04 + NAGLE_02/03 active-OPEN block ──
+TC8_TCP_OFFSET(kTcpAck02LocalOffset, 130)
+TC8_TCP_OFFSET(kTcpAck04LocalOffset, 131)
+TC8_TCP_OFFSET(kTcpNagle02LocalOffset, 132)
+TC8_TCP_OFFSET(kTcpNagle03LocalOffset, 133)
+
+// ── CONTROL_FLAGS_05 / URGENT_PTR_04 / 
+//    OUT_OF_ORDER / FLAGS_PROCESSING_10 / PROBING_WINDOWS /
+//    RETRANSMISSION_TO — monotonic active-OPEN reservation +140.. ──
+TC8_TCP_OFFSET(kTcpControlFlags05LocalOffset, 140)
+TC8_TCP_OFFSET(kTcpUrgentPtr04LocalOffset, 142)
+TC8_TCP_OFFSET(kTcpOutOfOrder03LocalOffset, 143)
+TC8_TCP_OFFSET(kTcpFlagsProcessing10LocalOffset, 144)
+TC8_TCP_OFFSET(kTcpOutOfOrder01LocalOffset, 145)
+TC8_TCP_OFFSET(kTcpOutOfOrder02LocalOffset, 146)
+TC8_TCP_OFFSET(kTcpOutOfOrder05LocalOffset, 147)
+TC8_TCP_OFFSET(kTcpProbingWindows02LocalOffset, 148)
+TC8_TCP_OFFSET(kTcpProbingWindows03LocalOffset, 149)
+TC8_TCP_OFFSET(kTcpProbingWindows05LocalOffset, 150)
+TC8_TCP_OFFSET(kTcpProbingWindows04LocalOffset, 151)
+TC8_TCP_OFFSET(kTcpProbingWindows06LocalOffset, 152)
+TC8_TCP_OFFSET(kTcpRetransmissionTo06LocalOffset, 153)
+TC8_TCP_OFFSET(kTcpRetransmissionTo04LocalOffset, 154)
+TC8_TCP_OFFSET(kTcpRetransmissionTo05LocalOffset, 155)
+TC8_TCP_OFFSET(kTcpRetransmissionTo03LocalOffset, 156)
+
+// ── SEQUENCE_02 / CONNECTION_ESTAB_03 active-OPEN ──
+TC8_TCP_OFFSET(kTcpSequence02LocalOffset, 161)
+TC8_TCP_OFFSET(kTcpConnEstab03LocalOffset1, 176)
+TC8_TCP_OFFSET(kTcpConnEstab03LocalOffset2, 177)
+TC8_TCP_OFFSET(kTcpConnEstab03LocalOffset3, 178)
+
+// ── CHECKSUM_04 (same-port ISN axis) / RETRANSMISSION_TO_08/09 ──
+TC8_TCP_OFFSET(kTcpChecksum04LocalOffset, 180)
+TC8_TCP_OFFSET(kTcpRetransmissionTo08LocalOffset, 181)
+TC8_TCP_OFFSET(kTcpRetransmissionTo09LocalOffset, 182)
+
+// ── BASICS_06..14 / CHECKSUM_01..03 / 
+//    FLAGS_INVALID_14 / UNACCEPTABLE_04..14 — the +200 block that
+//    retired the last bare-port active-OPEN callers (one 4-tuple per case/phase) ──
+TC8_TCP_OFFSET(kTcpBasics06LocalOffset, 200)
+TC8_TCP_OFFSET(kTcpBasics07LocalOffset, 201)
+TC8_TCP_OFFSET(kTcpBasics08Phase1LocalOffset, 202)
+TC8_TCP_OFFSET(kTcpBasics08Phase2LocalOffset, 203)
+TC8_TCP_OFFSET(kTcpBasics09LocalOffset, 204)
+TC8_TCP_OFFSET(kTcpBasics10Phase1LocalOffset, 205)
+TC8_TCP_OFFSET(kTcpBasics10Phase2LocalOffset, 206)
+TC8_TCP_OFFSET(kTcpBasics11LocalOffset, 207)
+TC8_TCP_OFFSET(kTcpBasics12LocalOffset, 208)
+TC8_TCP_OFFSET(kTcpBasics13LocalOffset, 209)
+TC8_TCP_OFFSET(kTcpBasics14LocalOffset, 210)
+TC8_TCP_OFFSET(kTcpChecksum01LocalOffset, 211)
+TC8_TCP_OFFSET(kTcpChecksum02LocalOffset, 212)
+TC8_TCP_OFFSET(kTcpChecksum03LocalOffset, 213)
+TC8_TCP_OFFSET(kTcpFlagsInvalid14Phase1LocalOffset, 214)
+TC8_TCP_OFFSET(kTcpFlagsInvalid14Phase2LocalOffset, 222)
+TC8_TCP_OFFSET(kTcpUnacceptable04LocalOffset, 215)
+TC8_TCP_OFFSET(kTcpUnacceptable06LocalOffset, 216)
+TC8_TCP_OFFSET(kTcpUnacceptable09Phase1LocalOffset, 217)
+TC8_TCP_OFFSET(kTcpUnacceptable09Phase2LocalOffset, 223)
+TC8_TCP_OFFSET(kTcpUnacceptable10LocalOffset, 218)
+TC8_TCP_OFFSET(kTcpUnacceptable11Phase1LocalOffset, 225)
+TC8_TCP_OFFSET(kTcpUnacceptable11Phase2LocalOffset, 226)
+TC8_TCP_OFFSET(kTcpUnacceptable12Phase1LocalOffset, 227)
+TC8_TCP_OFFSET(kTcpUnacceptable12Phase2LocalOffset, 228)
+TC8_TCP_OFFSET(kTcpUnacceptable13Phase1LocalOffset, 219)
+TC8_TCP_OFFSET(kTcpUnacceptable13Phase2LocalOffset, 224)
+TC8_TCP_OFFSET(kTcpUnacceptable14Phase1LocalOffset, 220)
+TC8_TCP_OFFSET(kTcpUnacceptable14Phase2LocalOffset, 221)
+
+// ── 0..97 low zone (sub-family cases migrated off bare literals) ──
+// FLAGS_INVALID_15 — 7 close-state phases; _NEG2..8 mirror one each.
+TC8_TCP_OFFSET(kTcpFlagsInvalid15Phase1LocalOffset, 0)
+TC8_TCP_OFFSET(kTcpFlagsInvalid15Phase2LocalOffset, 1)
+TC8_TCP_OFFSET(kTcpFlagsInvalid15Phase3LocalOffset, 2)
+TC8_TCP_OFFSET(kTcpFlagsInvalid15Phase4LocalOffset, 3)
+TC8_TCP_OFFSET(kTcpFlagsInvalid15Phase5LocalOffset, 4)
+TC8_TCP_OFFSET(kTcpFlagsInvalid15Phase6LocalOffset, 5)
+TC8_TCP_OFFSET(kTcpFlagsInvalid15Phase7LocalOffset, 6)
+// FLAGS_INVALID_08..13 — each a 5-iteration OTW-SEQ sweep (base+0..+4).
+TC8_TCP_OFFSET_SPAN5(kTcpFlagsInvalid08BaseOffset, 7)
+TC8_TCP_OFFSET_SPAN5(kTcpFlagsInvalid09BaseOffset, 12)
+TC8_TCP_OFFSET_SPAN5(kTcpFlagsInvalid10BaseOffset, 64)
+TC8_TCP_OFFSET_SPAN5(kTcpFlagsInvalid11BaseOffset, 75)
+TC8_TCP_OFFSET_SPAN5(kTcpFlagsInvalid12BaseOffset, 80)
+TC8_TCP_OFFSET_SPAN5(kTcpFlagsInvalid13BaseOffset, 85)
+// FLAGS_INVALID_03/04 / _05 / _06 (2 phases each).
+TC8_TCP_OFFSET(kTcpFlagsInvalid03LocalOffset, 20)
+TC8_TCP_OFFSET(kTcpFlagsInvalid04LocalOffset, 21)
+TC8_TCP_OFFSET(kTcpFlagsInvalid05Phase1LocalOffset, 22)
+TC8_TCP_OFFSET(kTcpFlagsInvalid05Phase2LocalOffset, 23)
+TC8_TCP_OFFSET(kTcpFlagsInvalid06Phase1LocalOffset, 24)
+TC8_TCP_OFFSET(kTcpFlagsInvalid06Phase2LocalOffset, 25)
+// UNACCEPTABLE_08 — two OTW-SEQ active-OPEN phases.
+TC8_TCP_OFFSET(kTcpUnacceptable08Phase1LocalOffset, 29)
+TC8_TCP_OFFSET(kTcpUnacceptable08Phase2LocalOffset, 28)
+// HEADER_02/04/05/06/07/08/09/11.
+TC8_TCP_OFFSET(kTcpHeader02LocalOffset, 31)
+TC8_TCP_OFFSET(kTcpHeader04LocalOffset, 32)
+TC8_TCP_OFFSET(kTcpHeader05LocalOffset, 33)
+TC8_TCP_OFFSET(kTcpHeader06LocalOffset, 34)
+TC8_TCP_OFFSET(kTcpHeader07LocalOffset, 35)
+TC8_TCP_OFFSET(kTcpHeader08LocalOffset, 36)
+TC8_TCP_OFFSET(kTcpHeader09LocalOffset, 37)
+TC8_TCP_OFFSET(kTcpHeader11LocalOffset, 38)
+// FLAGS_PROCESSING_11/06/08 single; _07 4 phases; _09 3 phases; _02 4 phases.
+TC8_TCP_OFFSET(kTcpFlagsProcessing11LocalOffset, 50)
+TC8_TCP_OFFSET(kTcpFlagsProcessing06LocalOffset, 51)
+TC8_TCP_OFFSET(kTcpFlagsProcessing08LocalOffset, 52)
+TC8_TCP_OFFSET(kTcpFlagsProcessing07Phase1LocalOffset, 53)
+TC8_TCP_OFFSET(kTcpFlagsProcessing07Phase2LocalOffset, 54)
+TC8_TCP_OFFSET(kTcpFlagsProcessing07Phase3LocalOffset, 55)
+TC8_TCP_OFFSET(kTcpFlagsProcessing07Phase4LocalOffset, 56)
+TC8_TCP_OFFSET(kTcpFlagsProcessing09Phase1LocalOffset, 57)
+TC8_TCP_OFFSET(kTcpFlagsProcessing09Phase2LocalOffset, 58)
+TC8_TCP_OFFSET(kTcpFlagsProcessing09Phase3LocalOffset, 59)
+TC8_TCP_OFFSET(kTcpFlagsProcessing02Phase1LocalOffset, 60)
+TC8_TCP_OFFSET(kTcpFlagsProcessing02Phase2LocalOffset, 61)
+TC8_TCP_OFFSET(kTcpFlagsProcessing02Phase3LocalOffset, 62)
+TC8_TCP_OFFSET(kTcpFlagsProcessing02Phase4LocalOffset, 63)
+// CHECKSUM_02 / FLAGS_PROCESSING_09 lwIP _NEG offsets (off the
+// FLAGS_PROCESSING_02 positive's 60..63 into the free 42..45 gap).
+TC8_TCP_OFFSET(kTcpChecksum02NegLocalOffset, 42)
+TC8_TCP_OFFSET(kTcpFlagsProc09NegClosingOffset, 43)
+TC8_TCP_OFFSET(kTcpFlagsProc09NegLastAckOffset, 44)
+TC8_TCP_OFFSET(kTcpFlagsProc09NegCloseWaitOffset, 45)
+// CLOSING_06 / _03 / _09 / _07 / _08.
+TC8_TCP_OFFSET(kTcpClosing06LocalOffset, 70)
+TC8_TCP_OFFSET(kTcpClosing03LocalOffset, 71)
+TC8_TCP_OFFSET(kTcpClosing09LocalOffset, 72)
+TC8_TCP_OFFSET(kTcpClosing07LocalOffset, 73)
+TC8_TCP_OFFSET(kTcpClosing08LocalOffset, 74)
+// CALL_ABORT_02 / _03 (3 phases); CALL_RECEIVE_05 / _04 (3 phases).
+TC8_TCP_OFFSET(kTcpCallAbort02LocalOffset, 90)
+TC8_TCP_OFFSET(kTcpCallAbort03Phase1LocalOffset, 91)
+TC8_TCP_OFFSET(kTcpCallAbort03Phase2LocalOffset, 92)
+TC8_TCP_OFFSET(kTcpCallAbort03Phase3LocalOffset, 93)
+TC8_TCP_OFFSET(kTcpCallReceive05LocalOffset, 94)
+TC8_TCP_OFFSET(kTcpCallReceive04Phase1LocalOffset, 95)
+TC8_TCP_OFFSET(kTcpCallReceive04Phase2LocalOffset, 96)
+TC8_TCP_OFFSET(kTcpCallReceive04Phase3LocalOffset, 97)
