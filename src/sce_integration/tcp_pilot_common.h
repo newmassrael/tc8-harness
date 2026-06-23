@@ -551,6 +551,15 @@ inline constexpr std::uint16_t kTcpChecksum01LocalOffset           = 211U;
 inline constexpr std::uint16_t kTcpChecksum02LocalOffset           = 212U;
 inline constexpr std::uint16_t kTcpChecksum03LocalOffset           = 213U;
 
+// §4.8.6.2 CHECKSUM_02 lwIP _neg active-OPEN offset. Registered here (not a
+// raw literal in the _neg trait) so it joins this file's global offset
+// uniqueness audit: 60 is verified free of BOTH the registered positive
+// offsets above AND the ad-hoc `_neg` literal block (0..56, 71..74) — notably
+// it avoids kTcpMssOptions11LocalOffset = 40U, which the first cut collided
+// with. The trait AND its SCXML port_offset both reference this symbol, so the
+// 4-tuple cannot drift between stimulus and guard.
+inline constexpr std::uint16_t kTcpChecksum02NegLocalOffset        = 60U;
+
 // §4.8.6.6 FLAGS_INVALID_14 — two TIME-WAIT phases (FIN-flag OTW
 // probe + data-segment OTW probe). Each phase runs its own
 // driveSeamTimeWaitFw2 prelude on a unique 4-tuple so the

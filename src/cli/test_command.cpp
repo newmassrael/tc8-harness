@@ -40,12 +40,18 @@ namespace {
 // case_registry.h, where `category` is likewise derived, not stored).
 // Returns "-" when the inventory is unavailable or the id is out-of-spec
 // (e.g. an OEM case shipped without an extra inventory JSON).
+// The single "section or '-'" fallback policy, shared by both display paths
+// (specSectionFor below, which looks up by id, and the runListCases loop, which
+// already holds the SpecCase from its filter pass).
+std::string sectionOf(const sce::SpecCase *sc) {
+    return (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
+}
+
 std::string specSectionFor(const std::optional<sce::SpecInventory> &inv, std::string_view id) {
     if (!inv.has_value()) {
         return "-";
     }
-    const auto *sc = inv->find(sce::SpecInventory::canonicalise(std::string{id}));
-    return (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
+    return sectionOf(inv->find(sce::SpecInventory::canonicalise(std::string{id})));
 }
 
 }  // namespace
@@ -215,8 +221,7 @@ int TestCommand::runListCases() const {
             std::printf("%.*s\n", static_cast<int>(e->category.size()), e->category.data());
             current_category = e->category;
         }
-        const std::string section =
-            (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
+        const std::string section = sectionOf(sc);
         const char *tag = e->deprecated ? " [deprecated]" : "";
         std::printf("  %-28.*s  §%-10.*s %.*s%s\n", static_cast<int>(e->id.size()), e->id.data(),
                     static_cast<int>(section.size()), section.data(),

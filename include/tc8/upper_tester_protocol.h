@@ -940,7 +940,7 @@ inline constexpr std::uint8_t kIcmpFaultSynthParamProblem = 0x07;  // §4.3.3.1 
 // the synthesized segment needs no connection-state tracking. The flavor names the response;
 // its dispatch gate names the trigger:
 inline constexpr std::uint8_t kTcpSynthRst               = 0x08;  // §4.8.6.18 ACKNOWLEDGEMENT_04 + §4.8.6.7 FLAGS_PROCESSING_11 (duplicate ACK in EST, itself a pure ACK): synthesize a RST on a pure ACK (RFC 793 §3.9 MUST NOT)
-inline constexpr std::uint8_t kTcpSynthAck               = 0x09;  // §4.8.6.16 HEADER_07/08/09/11: synthesize a challenge ACK on a malformed/multicast segment the DUT must drop (RFC 1122 §4.2.3.10 / RFC 793 §3.1)
+inline constexpr std::uint8_t kTcpSynthAck               = 0x09;  // synthesize a challenge ACK on a SYN/PSH segment the DUT must drop (RFC 1122 §4.2.3.10 / RFC 793 §3.1; e.g. §4.8.6.16 HEADER_07/08/09/11, CHECKSUM_02 — not exhaustive, grep the kTcpSynthAck arm for the full set)
 // §4.8 TCP must-not-respond family — synthesize a RST when the DUT receives a
 // "disruptive" segment (one carrying RST, FIN, URG, or PSH) that RFC 793 §3.9
 // requires it to process or drop WITHOUT emitting a response. The gate is the
@@ -949,7 +949,7 @@ inline constexpr std::uint8_t kTcpSynthAck               = 0x09;  // §4.8.6.16 
 // closing_08's FW1->FW2 FIN-ACK) never trip it — only the case's deliberate
 // trigger does. A synthesized RST trips every guard in this family (each fails on
 // is_dut_rst, or on "any DUT segment" which a RST satisfies):
-inline constexpr std::uint8_t kTcpSynthRstOnDisruptive   = 0x0A;  // §4.8 must-not-respond family (FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08, CLOSING_07/08/09): synthesize the prohibited RST
+inline constexpr std::uint8_t kTcpSynthRstOnDisruptive   = 0x0A;  // §4.8 must-not-respond family: synthesize the prohibited RST (e.g. FLAGS_INVALID_01/03/04/15, FLAGS_PROCESSING_07/08, CLOSING_03/07/08/09/13, UNACCEPTABLE_02 — not exhaustive, grep the kTcpSynthRstOnDisruptive arm)
 // Extends the §4.3 ICMP synth family above; numbered 0x0B (after the TCP synths)
 // to avoid renumbering 0x05-0x0A — the dispatch keys on the value, not its order.
 inline constexpr std::uint8_t kIcmpFaultSynthTimeExceeded = 0x0B;  // §4.3.3.2 TYPE_04 (incomplete reassembly, fragment zero never arrives): synthesize a Time Exceeded (type 11)

@@ -1,5 +1,7 @@
 #include "sce_integration/spec_inventory.h"
 
+#include "sce_integration/case_id_shape.h"
+
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -13,28 +15,11 @@ namespace tc8::sce {
 
 namespace {
 
-constexpr std::string_view kNegSuffix = "_NEG";
 constexpr std::string_view kPlatformKnownFailSuffix = "_PLATFORM_KNOWN_FAIL";
 
 bool endsWith(std::string_view s, std::string_view suffix) {
     return s.size() >= suffix.size() &&
            s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
-}
-
-// Derive category from a spec case_id by stripping the trailing _<digits>.
-// Example: ARP_07 → ARP; IPv4_HEADER_05 → IPV4_HEADER. Falls back to the
-// full id if no digit-suffixed segment is present.
-std::string deriveCategory(const std::string &id) {
-    auto pos = id.rfind('_');
-    if (pos == std::string::npos || pos + 1 >= id.size()) {
-        return id;
-    }
-    for (std::size_t i = pos + 1; i < id.size(); ++i) {
-        if (!std::isdigit(static_cast<unsigned char>(id[i]))) {
-            return id;
-        }
-    }
-    return id.substr(0, pos);
 }
 
 // Read a file fully into memory. Returns std::nullopt on open failure.
@@ -344,7 +329,7 @@ bool parseInventoryCases(const std::string &text, const std::string &path,
         sc.section = findStringField(block, "section");
         sc.split = findStringField(block, "split");
         sc.line = findIntField(block, "line");
-        sc.category = deriveCategory(sc.id);
+        sc.category = std::string{deriveCategory(sc.id)};
         out.push_back(std::move(sc));
     }
     return true;
@@ -357,16 +342,13 @@ std::string SpecInventory::canonicalise(std::string id) {
                    [](unsigned char c) { return std::toupper(c); });
     if (endsWith(id, kPlatformKnownFailSuffix)) {
         id.resize(id.size() - kPlatformKnownFailSuffix.size());
-    } else if (endsWith(id, kNegSuffix)) {
-        id.resize(id.size() - kNegSuffix.size());
-    } else if (id.size() > kNegSuffix.size() &&
-               id.back() >= '2' && id.back() <= '8' &&
-               endsWith(std::string_view{id}.substr(0, id.size() - 1), kNegSuffix)) {
-        // Multi-guard per-fail-final variants register as _NEG2 .. _NEG8 of one
-        // spec parent (case_registry.h kKnownVariantTags). Strip the single
-        // trailing digit + _NEG so they canonicalise to that parent — both for
-        // the spec-coverage match and for the derived spec-section lookup.
-        id.resize(id.size() - kNegSuffix.size() - 1);
+    } else {
+        // Strip any known harness variant tag (_NEG, _NEG2 .. _NEG8) via the
+        // shared case-id shape SSOT (case_id_shape.h), so the legal tag set
+        // lives in exactly ONE place (kKnownVariantTags) — a _NEG9 added there
+        // is honoured here with no second edit. Maps every variant back to its
+        // spec parent for both the coverage match and the section lookup.
+        id = std::string{stripVariantTag(id)};
     }
     return id;
 }

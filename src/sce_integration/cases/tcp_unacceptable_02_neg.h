@@ -12,6 +12,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/cases/tcp_unacceptable_02.h"  // SSOT for kOutOfWindowRstSeq
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
@@ -75,9 +76,9 @@ struct TestCaseTraits<cases::TcpUnacceptable02NegSM>
             ::tc8::stimulus::TcpSegmentSpec rst{};
             rst.src_port = tester_port;
             rst.dst_port = listen_port;
-            // SEQ far outside the receive window (ISN_t + 1 + 1 MB) — the positive's
-            // unacceptable-RST value; the DUT's tcp_check_req rejects it.
-            rst.seq_num  = kTesterInitialSeq + 1U + 0x100000U;
+            // The positive's out-of-window RST SEQ, reused as the SSOT (far
+            // outside the receive window so the DUT's tcp_check_req rejects it).
+            rst.seq_num  = TestCaseTraits<cases::TcpUnacceptable02SM>::kOutOfWindowRstSeq;
             rst.ack_num  = 0U;
             rst.flags    = ::tc8::stimulus::kTcpFlagRst;
             emitTcpFrame(cfg, iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
