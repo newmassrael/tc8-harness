@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_04 negative — lwIP ingress-fault self-validation of the
+  positive _04 Time-Exceeded-absence guard. The trait injects a lone IP fragment with
+  MF=0 and offset>0 (fragment zero never sent) — a partial datagram whose reassembly the
+  conformant DUT abandons silently — and arms kIcmpFaultSynthTimeExceeded, so the lwIP
+  netif INPUT hook synthesizes the prohibited Time Exceeded (type=11) as that fragment
+  arrives. Pass = that reply observed; fail_compliant = DUT stayed silent despite the
+  flavor (fault inert). lwIP-only (capability-gated on kCapIngressFault). Envelope:
+  icmpv4_synth_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_04_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_synth_neg.sce-template.xml"/>
+</scxml>

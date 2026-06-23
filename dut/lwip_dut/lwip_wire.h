@@ -52,6 +52,7 @@ constexpr std::uint16_t kIcmpEchoSeqOff = 6;   // u16 sequence number
 constexpr std::uint16_t kIcmpMinHdrLen  = 8;   // bytes needed through the sequence field
 constexpr std::uint8_t  kIcmpTypeEchoReply   = 0;
 constexpr std::uint8_t  kIcmpTypeDestUnreach = 3;
+constexpr std::uint8_t  kIcmpTypeTimeExceeded = 11;
 constexpr std::uint8_t  kIcmpTypeParamProblem = 12;
 constexpr std::uint8_t  kIcmpTypeInfoReply   = 16;
 constexpr std::uint16_t kUdpSrcPort  = 0;

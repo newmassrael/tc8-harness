@@ -974,6 +974,10 @@
         {
           "file": "tests/icmpv4_type_05_neg/icmpv4_type_05_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/icmpv4_type_04_neg/icmpv4_type_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

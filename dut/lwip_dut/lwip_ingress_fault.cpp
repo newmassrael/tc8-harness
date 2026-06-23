@@ -230,16 +230,20 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
             }
         } else if ((flavor == ut::kIcmpFaultSynthEchoReply ||
                     flavor == ut::kIcmpFaultSynthInfoReply ||
-                    flavor == ut::kIcmpFaultSynthParamProblem) &&
+                    flavor == ut::kIcmpFaultSynthParamProblem ||
+                    flavor == ut::kIcmpFaultSynthTimeExceeded) &&
                    p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoIcmp) {
             // §4.3 ICMP prohibited emission, and the §4.4 IPv4-header must-not-reply guards
             // that reuse the Echo Reply synth: the conformant DUT drops the trigger and stays
             // silent, so the input hook synthesizes the forbidden ICMP reply. The flavor
             // names the reply type; the original frame still goes to lwIP, which drops it.
+            // TimeExceeded (TYPE_04) fires whatever the trigger's fragment offset — the hook
+            // reads only fixed-offset fields, so an offset>0 lone fragment still synthesizes it.
             const std::uint8_t reply_type =
                 flavor == ut::kIcmpFaultSynthInfoReply    ? kIcmpTypeInfoReply :
                 flavor == ut::kIcmpFaultSynthParamProblem ? kIcmpTypeParamProblem :
+                flavor == ut::kIcmpFaultSynthTimeExceeded ? kIcmpTypeTimeExceeded :
                                                             kIcmpTypeEchoReply;
             emitProhibitedIcmpReply(nif, f, reply_type);
         } else if ((flavor == ut::kTcpSynthRst || flavor == ut::kTcpSynthAck ||

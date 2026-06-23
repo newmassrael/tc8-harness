@@ -263,12 +263,12 @@ jobs:
       # FLAGS_INVALID_02 reuses kTcpFaultRstSeqWrong on the LISTEN RST; SEQUENCE_03/04
       # reuse kTcpFaultSynAckAckWrong on the passive-open SYN,ACK ack_num (tester ISN 0
       # / wrap-around 2^32-1). Finally the §4.3 ICMPv4 prohibited-emission INGRESS
-      # synthesis cluster (ICMPv4_TYPE_16/TYPE_10/TYPE_05/ERROR_03/ERROR_04/ERROR_05_NEG, UT
-      # 0x19 OpSetIngressFlavor): the conformant DUT stays silent for each trigger (Info Request
-      # / bad-checksum Echo / malformed IP options / unknown type / broadcast or fragmented
-      # options), so the netif
+      # synthesis cluster (ICMPv4_TYPE_16/TYPE_10/TYPE_05/TYPE_04/ERROR_03/ERROR_04/ERROR_05_NEG,
+      # UT 0x19 OpSetIngressFlavor): the conformant DUT stays silent for each trigger (Info
+      # Request / bad-checksum Echo / malformed IP options / incomplete reassembly / unknown type
+      # / broadcast or fragmented options), so the netif
       # INPUT hook synthesizes the prohibited ICMP reply (Information Reply / Echo Reply /
-      # Parameter Problem) — the ICMP sibling of the ARP reply-absence cluster, and the
+      # Time Exceeded / Parameter Problem) — the ICMP sibling of the ARP reply-absence cluster, and the
       # _neg passes only when that DUT-origin reply is observed. The same Echo-Reply synthesis
       # extends to the §4.4 IPv4-header must-not-reply guards (IPv4_ADDRESSING_03 / CHECKSUM_02 /
       # HEADER_04 / HEADER_02 / HEADER_09_NEG): a loopback / bad-checksum / non-local-destination /
@@ -349,7 +349,7 @@ jobs:
             TCP_ACKNOWLEDGEMENT_02_NEG TCP_ACKNOWLEDGEMENT_03_NEG \
             TCP_SEQUENCE_02_NEG TCP_FLAGS_INVALID_02_NEG \
             TCP_SEQUENCE_03_NEG TCP_SEQUENCE_04_NEG \
-            ICMPv4_TYPE_16_NEG ICMPv4_TYPE_10_NEG ICMPv4_TYPE_05_NEG \
+            ICMPv4_TYPE_16_NEG ICMPv4_TYPE_10_NEG ICMPv4_TYPE_05_NEG ICMPv4_TYPE_04_NEG \
             ICMPv4_ERROR_03_NEG ICMPv4_ERROR_04_NEG ICMPv4_ERROR_05_NEG \
             IPv4_ADDRESSING_03_NEG IPv4_CHECKSUM_02_NEG IPv4_HEADER_04_NEG \
             IPv4_HEADER_02_NEG IPv4_HEADER_09_NEG \

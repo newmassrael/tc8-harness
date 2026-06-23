@@ -223,7 +223,10 @@ a post-delivery application decision, below the netif glue's reach:
     TYPE_16), `kIcmpFaultSynthEchoReply` (Echo Reply for a bad-checksum Echo /
     TYPE_10, an unknown-type ICMP / ERROR_05, or a malformed-IP-options Echo /
     TYPE_05), `kIcmpFaultSynthParamProblem` (Parameter Problem for a fragmented /
-    ERROR_03 or broadcast / ERROR_04 trigger).
+    ERROR_03 or broadcast / ERROR_04 trigger), `kIcmpFaultSynthTimeExceeded` (Time
+    Exceeded / type 11 for an incomplete reassembly whose fragment zero never arrives /
+    TYPE_04). The hook reads only fixed-offset trigger fields, so the fragment offset is
+    irrelevant to the synthesis.
     Like the ARP reply synthesis, the conformant DUT emits nothing — so the input
     hook builds the whole frame (Ethernet + IPv4 + 8-byte ICMP, both checksums via
     lwIP's own `inet_chksum`) rather than corrupting an egress field. The guard reads

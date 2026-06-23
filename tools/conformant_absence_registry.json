@@ -1067,15 +1067,6 @@
         }
       ]
     },
-    "ICMPv4_TYPE_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_sent_time_exceeded_for_missing_fragment_zero",
-          "property": "DUT must not send a reassembly Time Exceeded when fragment zero never arrives; silence is conformant"
-        }
-      ]
-    },
     "IPv4_HEADER_01": {
       "guards": [
         {
