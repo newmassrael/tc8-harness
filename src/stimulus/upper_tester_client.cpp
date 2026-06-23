@@ -632,4 +632,14 @@ int emitSetAppFlavor(std::string_view iface,
                                   ut::kTesterSrcPort, req);
 }
 
+int emitSetEtsFlavor(std::string_view iface,
+                     std::uint32_t tester_ip_be,
+                     std::uint32_t dut_ip_be,
+                     const std::array<std::uint8_t, 6> &dut_mac,
+                     std::uint8_t flavor) {
+    const auto req = buildSetFlavorRequest(ut::OpSetEtsFlavor, 0x01, flavor);
+    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                  ut::kTesterSrcPort, req);
+}
+
 }  // namespace tc8::stimulus

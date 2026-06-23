@@ -6,6 +6,7 @@
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
+#include "sce_integration/dut_capabilities.h"
 #include "sce_integration/someip_captured.h"
 #include "sce_integration/test_case_traits.h"
 
@@ -68,6 +69,16 @@ struct SomeIpAnyBase {
             c.prev_sd_session_id = c.session_id;
         }
     }
+};
+
+// §5.1.6 SOMEIP_ETS field get/set `_NEG` base: inherits the any-frame observe dispatch and
+// gates the case on kCapEtsFault, so it runs only on a DUT that registers UT 0x1B
+// OpSetEtsFlavor (the reference tc8-dut, whose harness-owned EtsImpl carries the field-getter
+// fault) and capability-skips on the lwIP fixture (no SOME/IP service).
+template <typename StateMachine>
+struct SomeIpEtsFaultNegBase : SomeIpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEtsFault;
 };
 
 template <typename StateMachine>

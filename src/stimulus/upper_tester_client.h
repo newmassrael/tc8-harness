@@ -659,4 +659,11 @@ int emitSetAppFlavor(std::string_view iface,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint8_t flavor);
 
+// §5.1.6 SOMEIP_ETS field-getter fault arm (UT 0x1B OpSetEtsFlavor). tc8-dut-only.
+int emitSetEtsFlavor(std::string_view iface,
+                     std::uint32_t tester_ip_be,
+                     std::uint32_t dut_ip_be,
+                     const std::array<std::uint8_t, 6> &dut_mac,
+                     std::uint8_t flavor);
+
 }  // namespace tc8::stimulus

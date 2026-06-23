@@ -45,6 +45,7 @@ enum DutCapability : std::uint32_t {
     kCapEgressFault = 1u << 7,       // egress field fault (OpSetEgressFlavor) — DUT-derived
     kCapIngressFault = 1u << 8,      // ingress reaction fault — ARP/ICMP/TCP prohibited emission + UDP acceptance/rejection (OpSetIngressFlavor) — DUT-derived
     kCapAppFault = 1u << 9,          // app-layer reception fault — data-listener discard skip + UI-report corruption (OpSetAppFlavor) — DUT-derived
+    kCapEtsFault = 1u << 10,         // SOME/IP application fault — EtsImpl field-getter value corruption (OpSetEtsFlavor) — tc8-dut-only (no lwIP SOME/IP service)
 };
 using DutCapabilities = std::uint32_t;
 

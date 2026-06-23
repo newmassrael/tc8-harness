@@ -98,4 +98,18 @@ inline void emitAppFlavorArm(const ::tc8::TestConfig &cfg, std::string_view ifac
                                       cfg.dut.mac, flavor);
 }
 
+// emitEtsFlavorArm (UT 0x1B OpSetEtsFlavor): a non-None flavor makes the reference tc8-dut's
+// SOME/IP EtsImpl field getter return a corrupted value, so a buggy DUT surfaces a post-set
+// readback that does not echo what was set (§5.1.6 SOMEIP_ETS field get/set guards). The only
+// faithful SOME/IP fault site (the wire serialization is vendored vsomeip; the field value is
+// EtsImpl-owned). tc8-dut-only.
+inline void emitEtsFlavorArm(const ::tc8::TestConfig &cfg, std::string_view iface,
+                             std::uint8_t flavor) {
+    if (cfg.stimulus_timing.initial_wait.count() > 0) {
+        std::this_thread::sleep_for(cfg.stimulus_timing.initial_wait);
+    }
+    ::tc8::stimulus::emitSetEtsFlavor(iface, cfg.ipv4.tester_ip, cfg.dut.ip,
+                                      cfg.dut.mac, flavor);
+}
+
 }  // namespace tc8::sce

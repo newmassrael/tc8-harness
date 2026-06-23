@@ -4,7 +4,27 @@
 #include <cstdlib>
 #include <thread>
 
+#include "tc8/upper_tester_protocol.h"
+
+#include "ets_fault.h"
+
 namespace tc8::dut {
+
+namespace {
+
+// §5.1.6 SOMEIP_ETS_166/168 field-getter fault: when kEtsFaultFieldValueWrong is armed
+// (via UT 0x1B OpSetEtsFlavor), the getter returns the stored value with every bit flipped
+// — guaranteed != the value setField stored (x ^ 0xFF != x for all 8-bit x), so the
+// positive's post-set-readback guard fails. The setter is left untouched (its echo stays
+// correct), so the _neg mirrors the positive's get/set/get chain and only the final
+// readback flips. None (the conformant path) returns the stored value verbatim.
+inline std::uint8_t maybeFaultFieldValue(std::uint8_t stored) {
+    return etsFaultFlavor() == ut::kEtsFaultFieldValueWrong
+               ? static_cast<std::uint8_t>(stored ^ 0xFFU)
+               : stored;
+}
+
+}  // namespace
 
 namespace {
 
@@ -77,7 +97,7 @@ void EtsImpl::echoINT8(
 void EtsImpl::getFieldA(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     getFieldAReply_t _reply) {
-    _reply(fieldA_);
+    _reply(maybeFaultFieldValue(fieldA_));
 }
 
 void EtsImpl::setFieldA(
@@ -107,7 +127,7 @@ void EtsImpl::setTestFieldUint8Array(
 void EtsImpl::getTestFieldUint8Reliable(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     getTestFieldUint8ReliableReply_t _reply) {
-    _reply(testFieldUint8Reliable_);
+    _reply(maybeFaultFieldValue(testFieldUint8Reliable_));
 }
 
 void EtsImpl::setTestFieldUint8Reliable(

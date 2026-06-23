@@ -8,6 +8,7 @@
 
 #include <CommonAPI/CommonAPI.hpp>
 
+#include "ets_fault.h"
 #include "ets_impl.h"
 #include "ets_impl_2.h"
 #include "posix_socket_backend.h"
@@ -121,6 +122,21 @@ int main() {
     tc8::ut::UpperTesterServer upper_tester{std::make_unique<tc8::dut::PosixSocketBackend>(),
                                             std::make_unique<tc8::dut::PosixStackProbe>()};
     ut_ext.registerOn(upper_tester);
+    // §5.1.6 SOMEIP_ETS_166/168 field-getter fault arm (UT 0x1B OpSetEtsFlavor). tc8-dut-only:
+    // the SOME/IP EtsImpl is harness-owned, so this is the only faithful SOME/IP fault site
+    // (the wire serialization is vendored-vsomeip). The lwIP fixture carries no SOME/IP service
+    // and never registers it, so the matching `_neg` capability-skips there.
+    upper_tester.registerOpcode(
+        tc8::ut::OpSetEtsFlavor,
+        [](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
+           std::vector<std::uint8_t> & /*body*/) {
+            if (len < 1 || params[0] > tc8::ut::kEtsFaultMax) {
+                status = tc8::ut::kStatusMalformed;
+                return;
+            }
+            tc8::dut::setEtsFaultFlavor(params[0]);
+            status = tc8::ut::kStatusOk;
+        });
     if (!upper_tester.start(ut_ext.ifaceIpBe(), ut_ext.ifaceBcastBe())) {
         std::fprintf(stderr, "tc8-dut: upper-tester start failed\n");
         std::_Exit(1);

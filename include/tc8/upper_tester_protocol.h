@@ -744,6 +744,19 @@ enum Opcode : std::uint8_t {
     // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
     // or an unknown flavor byte.
     OpSetAppFlavor = 0x1A,
+
+    // Arm a SOME/IP application-layer fault flavor (kEtsFault* catalog below) on the
+    // reference tc8-dut's EnhancedTestability service (EtsImpl). A non-None flavor makes a
+    // getter return a corrupted value, so a buggy DUT surfaces a field readback that does
+    // not echo what was set (§5.1.6 SOMEIP_ETS field get/set guards). This is the SOME/IP
+    // sibling of OpSetAppFlavor: the fault lives in the harness-owned EtsImpl method, above
+    // the vendored vsomeip transport, so it is the only faithful SOME/IP fault site (the
+    // wire serialization is vsomeip-owned). tc8-dut-only: the lwIP fixture carries no
+    // SOME/IP service and never registers it, so the matching `_neg` capability-skips there.
+    //
+    // Params: <flavor:u8>. Status: kStatusOk; kStatusMalformed for a short request
+    // or an unknown flavor byte.
+    OpSetEtsFlavor = 0x1B,
 };
 
 // Top of the protocol's opcode value space — the highest opcode this
@@ -754,7 +767,7 @@ enum Opcode : std::uint8_t {
 // OpQueryCapabilities with their exact implemented set — the
 // reference DUT itself skips OpConditionArpCache, whose §4.2 cache
 // conditioning rides netns sysctls instead).
-inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetAppFlavor;
+inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetEtsFlavor;
 
 // Wire encoding of the OpQueryTcpInfo `state` byte — the single source
 // of truth for every producer and consumer. Values equal the Linux
@@ -990,6 +1003,17 @@ inline constexpr std::uint8_t kAppFaultReportWrongPayload     = 0x05;  // §4.6.
 inline constexpr std::uint8_t kAppFaultMiscountPorts          = 0x06;  // §4.6.5.5 UI_01: CreateUdpReceivePorts actual_count (RFC 768 create N receive ports)
 inline constexpr std::uint8_t kAppFaultReportWrongLength      = 0x07;  // §4.6.5.4 UDP_FIELDS_12: GetReceivedUdp payload length (RFC 768 receive returns datagram length)
 inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultReportWrongLength;
+
+// `OpSetEtsFlavor` (0x1B) SOME/IP application-layer fault flavor byte. The harness-owned
+// EtsImpl (the EnhancedTestability service methods) reads it: a non-None flavor makes a
+// field getter return a value that does not echo what setField stored, so the §5.1.6
+// SOMEIP_ETS field get/set guards (which assert the post-set readback equals the set value)
+// go from pass to fail. The only faithful SOME/IP fault site — the response serialization is
+// vendored-vsomeip-owned, but the field value the getter returns is EtsImpl-owned. The
+// conformant path (None) echoes correctly (the _neg's fault-inert branch). tc8-dut-only.
+inline constexpr std::uint8_t kEtsFaultNone                   = 0x00;
+inline constexpr std::uint8_t kEtsFaultFieldValueWrong        = 0x01;  // §5.1.6 SOMEIP_ETS_166/168: field getter returns value ^ 0xFF (!= the value setField stored)
+inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultFieldValueWrong;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

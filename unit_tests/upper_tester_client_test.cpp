@@ -386,7 +386,7 @@ TEST(UpperTesterClient, PingRequestLayout) {
     // opcode without the bump would size the capability bitmap too
     // small for the new bit.
     EXPECT_EQ(ut::kMaxProtocolOpcode,
-              static_cast<std::uint8_t>(ut::OpSetAppFlavor));
+              static_cast<std::uint8_t>(ut::OpSetEtsFlavor));
 }
 
 

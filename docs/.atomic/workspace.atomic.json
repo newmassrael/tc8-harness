@@ -8056,6 +8056,42 @@
         {
           "file": "tests/someip_ets_178/someip_ets_178.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/someip_ets_166_neg/someip_ets_166_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/someip_ets_168_neg/someip_ets_168_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/someip_ets_166_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/someip_ets_168_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/ets_fault.h",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_fault_flavor_arm.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/_someipsrv_traits_base.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },

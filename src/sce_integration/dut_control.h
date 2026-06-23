@@ -521,6 +521,7 @@ private:
                 if (c->supports(ut::OpSetEgressFlavor))  fault_caps_ |= kCapEgressFault;
                 if (c->supports(ut::OpSetIngressFlavor)) fault_caps_ |= kCapIngressFault;
                 if (c->supports(ut::OpSetAppFlavor))     fault_caps_ |= kCapAppFault;
+                if (c->supports(ut::OpSetEtsFlavor))     fault_caps_ |= kCapEtsFault;
             }
             return;
         }
