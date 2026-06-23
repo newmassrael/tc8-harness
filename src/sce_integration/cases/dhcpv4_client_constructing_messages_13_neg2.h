@@ -6,6 +6,7 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_dhcpv4_traits_base.h"
+#include "sce_integration/cases/dhcpv4_client_constructing_messages_13.h"  // SSOT for kCm13* envelope
 #include "sce_integration/test_runner.h"
 
 #include "dhcpv4_client_constructing_messages_13_neg2_sm.h"
@@ -40,16 +41,16 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13Neg2SM>
                          std::string_view iface) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
             cfg, iface, cfg.dut.mac,
-            /*retry_count=*/4U,
+            /*retry_count=*/cases::kCm13RetryCount,
             /*retry_interval_ms=*/0U,
             /*nak_to_discover_min_ms=*/0U,
             /*nak_to_discover_max_ms=*/0U,
             /*arp_probe_listen_ms=*/0U,
             /*decline_to_discover_min_ms=*/0U,
             /*decline_to_discover_max_ms=*/0U,
-            /*retx_first_ms=*/4000U,
-            /*retx_cap_ms=*/64000U,
-            /*retx_jitter_ms=*/1000U,
+            /*retx_first_ms=*/cases::kCm13RetxFirstMs,
+            /*retx_cap_ms=*/cases::kCm13RetxCapMs,
+            /*retx_jitter_ms=*/cases::kCm13RetxJitterMs,
             /*iface_index=*/0U,
             /*apply_initial_wait=*/true,
             /*flavor=*/::tc8::ut::kDhcpFlavorRetxNoBackoff);

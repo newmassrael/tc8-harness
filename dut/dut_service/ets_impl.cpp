@@ -12,15 +12,16 @@ namespace tc8::dut {
 
 namespace {
 
-// §5.1.6 SOMEIP_ETS_166/167/168 field-getter fault: when kEtsFaultFieldValueWrong is armed
-// (via UT 0x1B OpSetEtsFlavor), the getter returns the stored value with every bit flipped
-// — guaranteed != the value setField stored (x ^ 0xFF != x for all 8-bit x), so the
+// §5.1.6 SOMEIP_ETS_166/167/168 + 103/104/105 field-getter fault: when kEtsFaultFieldValueWrong
+// is armed (via UT 0x1B OpSetEtsFlavor), the getter returns the stored value with every bit
+// flipped — guaranteed != the value setField stored (x ^ 0xFF != x for all 8-bit x), so the
 // positive's post-set-readback guard fails. The setter is left untouched (its echo stays
 // correct), so the _neg mirrors the positive's get/set/get chain and only the final
 // readback flips. None (the conformant path) returns the stored value verbatim. One flavor
-// covers every field getter — scalar (getFieldA, getTestFieldUint8Reliable) and array
-// (getTestFieldUint8Array) — because the fault semantic is identical (getter does not echo
-// the set value); the array form complements each byte.
+// covers every field getter — scalar (getFieldA, getTestFieldUint8Reliable), array
+// (getTestFieldUint8Array), and the §5.1.6 last-value getters (103/104/105) — because the
+// fault semantic is identical (getter does not echo the stored value); the array form
+// complements each byte.
 inline std::uint8_t maybeFaultFieldValue(std::uint8_t stored) {
     return etsFaultFlavor() == ut::kEtsFaultFieldValueWrong
                ? static_cast<std::uint8_t>(stored ^ 0xFFU)
@@ -46,7 +47,6 @@ inline std::uint8_t maybeFaultSetterEcho(std::uint8_t stored) {
                ? static_cast<std::uint8_t>(stored ^ 0xFFU)
                : stored;
 }
-
 
 // §5.1.6 SOMEIP_ETS_097 vs _098..101 fork — env-gated so ETS_097 (Proxy
 // path) and ETS_098..101 (raw-UDP path) can coexist without cross-test

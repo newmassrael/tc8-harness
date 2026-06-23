@@ -322,12 +322,13 @@ std::vector<std::uint8_t> buildStartLLAutoconfBuggyRequest(
 //   <retx_first_ms:u16>               <retx_cap_ms:u16>
 //   <retx_jitter_ms:u16>
 //   <iface_index:u8>
+//   <flavor:u8>                       (param offset 24; 0 = kDhcpFlavorNone)
 //
-// Fixed wire size: 1 + 1 + 24 = 26 bytes. Legacy 9 / 13 / 15 / 17 / 25-byte
-// (S2..S6b / S9 / S10 / S12 / pre-S13) payloads are still accepted —
+// Fixed wire size: 1 + 1 + 25 = 27 bytes. Legacy 9 / 13 / 15 / 17 / 25 / 26-byte
+// (S2..S6b / S9 / S10 / S12 / pre-S13 / pre-flavor) payloads are still accepted —
 // DUT defaults every later slot to 0, preserving instant restart,
-// skip-Probe, instant-restart-after-DECLINE, flat-retry, and
-// primary-iface (index=0) behaviour.
+// skip-Probe, instant-restart-after-DECLINE, flat-retry, primary-iface
+// (index=0), and conformant (flavor=None) behaviour.
 //
 // §4.7.6.9 INIT_ALLOC_01: nak_to_discover_min/max define the random
 // wait the DUT applies between NAK ingestion (or lease expiry) and the
@@ -372,18 +373,20 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     std::uint8_t  iface_index                = 0,
     std::uint8_t  flavor                     = 0);
 
-// §4.5.6.1 / §4.7 Phase F fault-injection variant of the 0x10
-// OpStartDhcpClient request: the canonical buildStartDhcpClientRequest
-// param block (single source of the wire layout) plus the trailing
-// `flavor` byte at param offset 24 (the handler's >= 25 gate). The basic
+// §4.5.6.1 / §4.7 Phase F fault-injection convenience wrapper for the 0x10
+// OpStartDhcpClient request: a narrowed-arity forwarder to
+// buildStartDhcpClientRequest (the single source of the wire layout) that
+// defaults the advanced timing slots to 0 and threads the trailing `flavor`
+// byte at param offset 24 (the handler's >= 25 gate). The basic
 // SELECTING-timing _neg cases (INTRO_01_NEG, DISCOVER / SELECTING
 // clusters) leave `arp_probe_listen_ms` at 0; the §4.7.6.9 INIT_ALLOC
 // _neg cases pass 1500 so the firmware runs the post-BOUND ARP Probe ->
 // conflict-listen -> Announce | DECLINE sequence the ARP-shape mutants
-// target. Positive cases keep buildStartDhcpClientRequest (no flavor
-// slot) so their wire shape is unchanged. `flavor` is a kDhcpFlavor*
-// value; kDhcpFlavorNone makes the firmware run the fully compliant
-// lifecycle (used to prove the negative's compliant branch is live).
+// target. The wire shape is uniformly 27 bytes for both positives and _neg
+// cases (buildStartDhcpClientRequest always appends the flavor byte,
+// defaulting to 0); only the flavor *value* distinguishes a _neg.
+// kDhcpFlavorNone makes the firmware run the fully compliant lifecycle
+// (used to prove the negative's compliant branch is live).
 std::vector<std::uint8_t> buildStartDhcpClientBuggyRequest(
     std::uint8_t  req_id,
     std::uint16_t offer_wait_ms,
