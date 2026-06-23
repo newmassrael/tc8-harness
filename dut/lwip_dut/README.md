@@ -233,8 +233,8 @@ a post-delivery application decision, below the netif glue's reach:
     only the reply's type + source IP. `kIcmpFaultSynthEchoReply` also reaches the
     §4.4 IPv4-header must-not-reply guards (IPv4_ADDRESSING_03 loopback dst /
     CHECKSUM_02 bad header checksum / HEADER_04 non-local dst / HEADER_02 IHL<5 /
-    HEADER_08 IHL*4 > Total Length / HEADER_09 oversized Total Length): the gate fires
-    on any inbound IPv4 ICMP frame,
+    HEADER_08 IHL*4 > Total Length / HEADER_09 oversized Total Length /
+    VERSION_04 wrong version): the gate fires on any inbound IPv4 ICMP frame,
     reading proto at a fixed offset and the trigger source at fixed offsets, so an Echo
     Request the DUT must drop for any IPv4-layer reason — including a malformed header the
     DUT never parses — still draws the synthesized Echo Reply, the IPv4-layer sibling of

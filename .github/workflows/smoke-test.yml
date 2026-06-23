@@ -271,9 +271,9 @@ jobs:
       # Time Exceeded / Parameter Problem) — the ICMP sibling of the ARP reply-absence cluster, and the
       # _neg passes only when that DUT-origin reply is observed. The same Echo-Reply synthesis
       # extends to the §4.4 IPv4-header must-not-reply guards (IPv4_ADDRESSING_03 / CHECKSUM_02 /
-      # HEADER_04 / HEADER_02 / HEADER_08 / HEADER_09_NEG): a loopback / bad-checksum /
-      # non-local-destination / IHL<5 / IHL*4>TotLen / oversized-Total-Length Echo Request the
-      # DUT must drop draws a synthesized Echo
+      # HEADER_04 / HEADER_02 / HEADER_08 / HEADER_09 / VERSION_04_NEG): a loopback /
+      # bad-checksum / non-local-destination / IHL<5 / IHL*4>TotLen / oversized-Total-Length /
+      # wrong-version Echo Request the DUT must drop draws a synthesized Echo
       # Reply, the IPv4-layer sibling of the §4.3 triggers.
       # Finally the §4.6.5.5 UDP
       # User-Interface app-report fault cluster (UDP_USER_INTERFACE_01/02/03/04_NEG, UT 0x1A
@@ -359,6 +359,7 @@ jobs:
             ICMPv4_ERROR_03_NEG ICMPv4_ERROR_04_NEG ICMPv4_ERROR_05_NEG \
             IPv4_ADDRESSING_03_NEG IPv4_CHECKSUM_02_NEG IPv4_HEADER_04_NEG \
             IPv4_HEADER_02_NEG IPv4_HEADER_08_NEG IPv4_HEADER_09_NEG \
+            IPv4_VERSION_04_NEG \
             UDP_USER_INTERFACE_01_NEG UDP_USER_INTERFACE_02_NEG \
             UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG \
             TCP_ACKNOWLEDGEMENT_04_NEG \

@@ -14,6 +14,11 @@ namespace tc8::sce::cases {
 
 using Ipv4Version04SM = ::SCE::Generated::ipv4_version_04::ipv4_version_04;
 
+// §4.4.4.4 spec literal: wire Version != 4 (6, IHL stays 5) — a datagram a
+// conformant DUT silently discards at its version check. SSOT shared by the
+// positive stimulus and the IPv4_VERSION_04_NEG self-validation.
+inline constexpr std::uint8_t kIpv4Version04BadVersion = 6U;
+
 }  // namespace tc8::sce::cases
 
 namespace tc8::sce {
@@ -30,7 +35,7 @@ struct TestCaseTraits<cases::Ipv4Version04SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::sce::ipv4::StimulusOverrides ov{};
-        ov.version = std::uint8_t{6};  // wire Version != 4, IHL stays 5
+        ov.version = cases::kIpv4Version04BadVersion;
         ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
     }
 };

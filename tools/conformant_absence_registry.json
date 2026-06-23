@@ -1211,15 +1211,6 @@
         }
       ]
     },
-    "IPv4_VERSION_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_despite_non_version_4",
-          "property": "DUT must not reply to a datagram whose Version field is not 4; silence is conformant"
-        }
-      ]
-    },
     "ARP_16": {
       "guards": [
         {

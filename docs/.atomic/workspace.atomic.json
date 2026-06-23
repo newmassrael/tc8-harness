@@ -1332,6 +1332,18 @@
         {
           "file": "tests/ipv4_version_04/ipv4_version_04.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_version_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_version_04_neg/ipv4_version_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_version_04.h",
+          "kind": "implements"
         }
       ]
     },
