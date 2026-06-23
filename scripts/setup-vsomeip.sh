@@ -44,4 +44,14 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX="$INSTAL
 cmake --build build -j4
 sudo cmake --install build
 
+# CI runs this whole script as root (build-harness wraps it in `sudo -n` for
+# the /usr/local install above), which leaves the quilt `.pc/`, the patched
+# sources, and build/ root-owned. The next checkout's `git clean` runs as the
+# unprivileged runner user and cannot remove a root-owned tree — git exits 128
+# and blocks every future run. Restore ownership to the invoking user so the
+# tree stays cleanable. No-op on a local non-sudo run (SUDO_USER unset).
+if [[ -n "${SUDO_USER:-}" ]]; then
+    chown -R "$SUDO_USER:$SUDO_USER" "$VSOMEIP_DIR"
+fi
+
 echo "vsomeip setup complete: $(git -C "$VSOMEIP_DIR" describe --always) -> $INSTALL_PREFIX"
