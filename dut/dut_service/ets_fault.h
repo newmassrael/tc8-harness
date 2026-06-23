@@ -6,10 +6,12 @@
 #include "tc8/upper_tester_protocol.h"
 
 // SOME/IP application-layer fault flavor for the reference tc8-dut's EnhancedTestability
-// service (EtsImpl). The §5.1.6 SOMEIP_ETS field get/set `_NEG` cases drive it via
-// UT 0x1B OpSetEtsFlavor: a non-None flavor makes an EtsImpl field getter return a value
-// that does not echo what setField stored, so the positive's post-set-readback guard goes
-// from pass to fail. This is the only faithful SOME/IP fault site — the response
+// service (EtsImpl). The §5.1.6 SOMEIP_ETS field get/set/reset `_NEG` cases drive it via
+// UT 0x1B OpSetEtsFlavor: a non-None flavor makes an EtsImpl method misbehave — a field
+// getter returns a value that does not echo what setField stored (kEtsFaultFieldValueWrong),
+// or resetInterface skips clearing the field (kEtsFaultResetSkip) — so the positive's
+// post-set or post-reset readback guard goes from pass to fail. This is the only faithful
+// SOME/IP fault site — the response
 // serialization is vendored-vsomeip-owned, but the field value the getter returns lives in
 // harness-owned EtsImpl. The flavor byte is written on the UT thread (the OpSetEtsFlavor
 // handler) and read on the vsomeip dispatcher thread (the EtsImpl method), so it is an

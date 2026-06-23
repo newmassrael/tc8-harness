@@ -122,7 +122,7 @@ int main() {
     tc8::ut::UpperTesterServer upper_tester{std::make_unique<tc8::dut::PosixSocketBackend>(),
                                             std::make_unique<tc8::dut::PosixStackProbe>()};
     ut_ext.registerOn(upper_tester);
-    // §5.1.6 SOMEIP_ETS_166/168 field-getter fault arm (UT 0x1B OpSetEtsFlavor). tc8-dut-only:
+    // §5.1.6 SOMEIP_ETS_146/166/167/168 EtsImpl fault arm (UT 0x1B OpSetEtsFlavor). tc8-dut-only:
     // the SOME/IP EtsImpl is harness-owned, so this is the only faithful SOME/IP fault site
     // (the wire serialization is vendored-vsomeip). The lwIP fixture carries no SOME/IP service
     // and never registers it, so the matching `_neg` capability-skips there.

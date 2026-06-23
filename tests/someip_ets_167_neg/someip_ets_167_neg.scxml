@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 v3.0 §5.1.6 SOMEIP_ETS_167 negative — tc8-dut SOME/IP application-fault self-validation
+  of the positive _167 array-field guard. The trait arms kEtsFaultFieldValueWrong (UT 0x1B
+  OpSetEtsFlavor), so the EnhancedTestability service's array getter (getTestFieldUint8Array)
+  returns the stored array with every byte complemented — guaranteed != the array setField
+  stored. The trait then drives the same get / set([0x11,0x22,0x33,0x44]) / get chain the
+  positive uses: the setTestFieldUint8Array echo stays correct (the setter is untouched), so
+  phases 1-3 mirror the positive, and only the post-set getTestFieldUint8Array readback flips.
+  Pass = the corrupted first array byte observed (payload[4] != 0x11, i.e. 0x11 ^ 0xFF = 0xEE);
+  fail_compliant = the DUT echoed the set array despite the flavor (fault inert). tc8-dut-only
+  (capability-gated on kCapEtsFault — the lwIP fixture carries no SOME/IP service). This is the
+  only faithful SOME/IP fault site: the wire serialization is vendored-vsomeip-owned, but the
+  array value the getter returns is harness-owned EtsImpl.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someip_ets_167_neg"
+       datamodel="null"
+       initial="listening_phase1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening_phase1">
+    <onentry>
+      <send event="phase1_deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                target="listening_phase2"/>
+    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
+  </state>
+
+  <state id="listening_phase2">
+    <onentry>
+      <send event="phase2_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0028 and captured.message_type == 0x80"
+                target="listening_phase3"/>
+    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_initial_get"/>
+  </state>
+
+  <state id="listening_phase3">
+    <onentry>
+      <send event="phase3_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0029 and captured.message_type == 0x80 and captured.payload_len == 8 and captured.payload_snapshot[0] == 0x00 and captured.payload_snapshot[1] == 0x00 and captured.payload_snapshot[2] == 0x00 and captured.payload_snapshot[3] == 0x04 and captured.payload_snapshot[4] == 0x11 and captured.payload_snapshot[5] == 0x22 and captured.payload_snapshot[6] == 0x33 and captured.payload_snapshot[7] == 0x44"
+                target="listening_phase4"/>
+    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_set_response"/>
+  </state>
+
+  <state id="listening_phase4">
+    <onentry>
+      <send event="phase4_deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0028 and captured.message_type == 0x80 and captured.payload_len == 8 and captured.payload_snapshot[4] != 0x11"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.method_id == 0x0028 and captured.message_type == 0x80 and captured.payload_len == 8 and captured.payload_snapshot[4] == 0x11"
+                target="fail_compliant"/>
+    <transition event="phase4_deadline_exceeded" target="inconclusive_phase4_no_post_set_get"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase1_no_offer">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase2_no_initial_get">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_initial_get_array_response","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase3_no_set_response">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_set_array_response","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase4_no_post_set_get">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_post_set_get_array_response","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_echoed_set_array_despite_ets_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</scxml>

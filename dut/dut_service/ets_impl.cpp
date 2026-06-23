@@ -12,16 +12,28 @@ namespace tc8::dut {
 
 namespace {
 
-// §5.1.6 SOMEIP_ETS_166/168 field-getter fault: when kEtsFaultFieldValueWrong is armed
+// §5.1.6 SOMEIP_ETS_166/167/168 field-getter fault: when kEtsFaultFieldValueWrong is armed
 // (via UT 0x1B OpSetEtsFlavor), the getter returns the stored value with every bit flipped
 // — guaranteed != the value setField stored (x ^ 0xFF != x for all 8-bit x), so the
 // positive's post-set-readback guard fails. The setter is left untouched (its echo stays
 // correct), so the _neg mirrors the positive's get/set/get chain and only the final
-// readback flips. None (the conformant path) returns the stored value verbatim.
+// readback flips. None (the conformant path) returns the stored value verbatim. One flavor
+// covers every field getter — scalar (getFieldA, getTestFieldUint8Reliable) and array
+// (getTestFieldUint8Array) — because the fault semantic is identical (getter does not echo
+// the set value); the array form complements each byte.
 inline std::uint8_t maybeFaultFieldValue(std::uint8_t stored) {
     return etsFaultFlavor() == ut::kEtsFaultFieldValueWrong
                ? static_cast<std::uint8_t>(stored ^ 0xFFU)
                : stored;
+}
+
+inline std::vector<std::uint8_t> maybeFaultFieldArray(std::vector<std::uint8_t> stored) {
+    if (etsFaultFlavor() == ut::kEtsFaultFieldValueWrong) {
+        for (std::uint8_t& byte : stored) {
+            byte = static_cast<std::uint8_t>(byte ^ 0xFFU);
+        }
+    }
+    return stored;
 }
 
 
@@ -109,7 +121,7 @@ void EtsImpl::setFieldA(
 void EtsImpl::getTestFieldUint8Array(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     getTestFieldUint8ArrayReply_t _reply) {
-    _reply(testFieldUint8Array_);
+    _reply(maybeFaultFieldArray(testFieldUint8Array_));
 }
 
 void EtsImpl::setTestFieldUint8Array(
@@ -349,6 +361,13 @@ void EtsImpl::suspendInterface(
 
 void EtsImpl::resetInterface(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/) {
+    // §5.1.6 SOMEIP_ETS_146 reset-skip fault: when kEtsFaultResetSkip is armed (via UT 0x1B
+    // OpSetEtsFlavor), the reset is a no-op, so the post-reset getFieldA still returns the
+    // pre-reset value (the _neg's post-reset readback != 0 guard fires). The conformant path
+    // clears the field, so the post-reset readback is 0.
+    if (etsFaultFlavor() == ut::kEtsFaultResetSkip) {
+        return;
+    }
     fieldA_ = 0;
 }
 

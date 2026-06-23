@@ -831,15 +831,6 @@
         }
       ]
     },
-    "SOMEIP_ETS_146": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "post_reset_get_field_still_returns_aa",
-          "property": "after ResetInterface the field getter must not return the pre-reset value"
-        }
-      ]
-    },
     "SOMEIP_ETS_147": {
       "guards": [
         {
@@ -943,15 +934,6 @@
         {
           "class": "liveness",
           "property": "DUT must answer set-field and get-field and stop/resume offering across SuspendInterface"
-        }
-      ]
-    },
-    "SOMEIP_ETS_167": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "post_set_get_array_value_mismatch",
-          "property": "after SetField the array-field getter must return the set value"
         }
       ]
     },

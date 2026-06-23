@@ -1005,15 +1005,16 @@ inline constexpr std::uint8_t kAppFaultReportWrongLength      = 0x07;  // §4.6.
 inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultReportWrongLength;
 
 // `OpSetEtsFlavor` (0x1B) SOME/IP application-layer fault flavor byte. The harness-owned
-// EtsImpl (the EnhancedTestability service methods) reads it: a non-None flavor makes a
-// field getter return a value that does not echo what setField stored, so the §5.1.6
-// SOMEIP_ETS field get/set guards (which assert the post-set readback equals the set value)
-// go from pass to fail. The only faithful SOME/IP fault site — the response serialization is
-// vendored-vsomeip-owned, but the field value the getter returns is EtsImpl-owned. The
-// conformant path (None) echoes correctly (the _neg's fault-inert branch). tc8-dut-only.
+// EtsImpl (the EnhancedTestability service methods) reads it: a non-None flavor makes an
+// EtsImpl method misbehave so a §5.1.6 SOMEIP_ETS get/set/reset guard (which asserts the
+// post-set or post-reset readback) goes from pass to fail. The only faithful SOME/IP fault
+// site — the response serialization is vendored-vsomeip-owned, but the field value the getter
+// returns and the reset side-effect are EtsImpl-owned. The conformant path (None) behaves
+// correctly (the _neg's fault-inert branch). tc8-dut-only.
 inline constexpr std::uint8_t kEtsFaultNone                   = 0x00;
-inline constexpr std::uint8_t kEtsFaultFieldValueWrong        = 0x01;  // §5.1.6 SOMEIP_ETS_166/168: field getter returns value ^ 0xFF (!= the value setField stored)
-inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultFieldValueWrong;
+inline constexpr std::uint8_t kEtsFaultFieldValueWrong        = 0x01;  // §5.1.6 SOMEIP_ETS_166/167/168: any field getter (scalar 0x40/0x2A or array 0x28) returns value ^ 0xFF per byte (!= the value setField stored)
+inline constexpr std::uint8_t kEtsFaultResetSkip              = 0x02;  // §5.1.6 SOMEIP_ETS_146: resetInterface is a no-op, so the post-reset getFieldA still returns the pre-reset value
+inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultResetSkip;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL
