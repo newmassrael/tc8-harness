@@ -359,6 +359,14 @@ std::string SpecInventory::canonicalise(std::string id) {
         id.resize(id.size() - kPlatformKnownFailSuffix.size());
     } else if (endsWith(id, kNegSuffix)) {
         id.resize(id.size() - kNegSuffix.size());
+    } else if (id.size() > kNegSuffix.size() &&
+               id.back() >= '2' && id.back() <= '8' &&
+               endsWith(std::string_view{id}.substr(0, id.size() - 1), kNegSuffix)) {
+        // Multi-guard per-fail-final variants register as _NEG2 .. _NEG8 of one
+        // spec parent (case_registry.h kKnownVariantTags). Strip the single
+        // trailing digit + _NEG so they canonicalise to that parent — both for
+        // the spec-coverage match and for the derived spec-section lookup.
+        id.resize(id.size() - kNegSuffix.size() - 1);
     }
     return id;
 }
