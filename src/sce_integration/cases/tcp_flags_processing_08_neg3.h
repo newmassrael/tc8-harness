@@ -53,8 +53,8 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg3SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 52U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 52U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing08LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing08LocalOffset;
 
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 

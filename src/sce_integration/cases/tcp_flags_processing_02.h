@@ -195,8 +195,8 @@ private:
                                      std::string_view iface,
                                      ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 60U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 60U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing02Phase1LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing02Phase1LocalOffset;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
@@ -218,8 +218,8 @@ private:
                                   std::string_view iface,
                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 61U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 61U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing02Phase2LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing02Phase2LocalOffset;
 
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
@@ -251,8 +251,8 @@ private:
                                   std::string_view iface,
                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 62U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 62U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing02Phase3LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing02Phase3LocalOffset;
 
         // Drive DUT to FW2: the DUT CLOSE emits the DUT FIN, and the
         // tester kernel's auto-ACK (no AckDrop here, unlike the FW1
@@ -285,8 +285,8 @@ private:
                                    std::string_view iface,
                                    ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 63U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 63U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing02Phase4LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing02Phase4LocalOffset;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();

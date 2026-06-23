@@ -82,7 +82,7 @@
   <state id="listening_p3_dut_syn">
     <onentry><send event="deadline_p3_dut_syn" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset)"
                 target="listening_p3_silence"/>
     <transition event="deadline_p3_dut_syn" target="inconclusive_p3_no_dut_syn"/>
   </state>
@@ -90,7 +90,7 @@
   <state id="listening_p3_silence">
     <onentry><send event="deadline_p3_silence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U) or captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset) or captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset)"
                 target="fail_p3_unexpected_response"/>
     <transition event="deadline_p3_silence" target="pass"/>
   </state>

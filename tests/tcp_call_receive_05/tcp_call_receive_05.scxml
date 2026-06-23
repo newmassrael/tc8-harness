@@ -68,7 +68,7 @@
   <state id="listening_handshake_ack">
     <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset)"
                 target="listening_dut_data_ack"/>
     <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
@@ -76,7 +76,7 @@
   <state id="listening_dut_data_ack">
     <onentry><send event="deadline_dut_data_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U) and captured.ack_num == captured.expected_ack_num"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="listening_remain_in_cw"/>
     <transition event="deadline_dut_data_ack" target="inconclusive_no_dut_data_ack"/>
   </state>
@@ -84,10 +84,10 @@
   <state id="listening_remain_in_cw">
     <onentry><send event="deadline_remain_in_cw" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset)"
                 target="fail_dut_rst_in_cw"/>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 94U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 94U)"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallReceive05LocalOffset)"
                 target="fail_dut_fin_in_cw"/>
     <transition event="deadline_remain_in_cw"
                 cond="cpp:captured.ut_received_payload_len == 16U"

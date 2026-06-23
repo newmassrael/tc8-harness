@@ -103,14 +103,14 @@
   <state id="listening_p2_handshake_ack">
     <onentry><send event="deadline_p2_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase1LocalOffset)"
                 target="listening_p2_absence"/>
     <transition event="deadline_p2_handshake_ack" target="inconclusive_p2_no_handshake_ack"/>
   </state>
   <state id="listening_p2_absence">
     <onentry><send event="deadline_p2_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort, ::tc8::sce::tcp::kBasicsActiveRemotePort)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase1LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase1LocalOffset)"
                 target="fail_p2_unexpected_response"/>
     <transition event="deadline_p2_absence" target="listening_p3_handshake_ack"/>
   </state>
@@ -119,21 +119,21 @@
   <state id="listening_p3_handshake_ack">
     <onentry><send event="deadline_p3_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset)"
                 target="listening_p3_dut_fin"/>
     <transition event="deadline_p3_handshake_ack" target="inconclusive_p3_no_handshake_ack"/>
   </state>
   <state id="listening_p3_dut_fin">
     <onentry><send event="deadline_p3_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset)"
                 target="listening_p3_absence"/>
     <transition event="deadline_p3_dut_fin" target="inconclusive_p3_no_dut_fin"/>
   </state>
   <state id="listening_p3_absence">
     <onentry><send event="deadline_p3_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 1U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 1U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase2LocalOffset)"
                 target="fail_p3_unexpected_response"/>
     <transition event="deadline_p3_absence" target="listening_p4_handshake_ack"/>
   </state>
@@ -142,14 +142,14 @@
   <state id="listening_p4_handshake_ack">
     <onentry><send event="deadline_p4_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset)"
                 target="listening_p4_dut_fin"/>
     <transition event="deadline_p4_handshake_ack" target="inconclusive_p4_no_handshake_ack"/>
   </state>
   <state id="listening_p4_dut_fin">
     <onentry><send event="deadline_p4_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U)"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset)"
                 target="listening_p4_absence"/>
     <transition event="deadline_p4_dut_fin" target="inconclusive_p4_no_dut_fin"/>
   </state>
@@ -164,7 +164,7 @@
          via grep filter in .github/workflows/smoke-test.yml. -->
     <onentry><send event="deadline_p4_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 2U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 2U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase3LocalOffset)"
                 target="fail_p4_unexpected_response"/>
     <transition event="deadline_p4_absence" target="listening_p5_handshake_ack"/>
   </state>
@@ -173,21 +173,21 @@
   <state id="listening_p5_handshake_ack">
     <onentry><send event="deadline_p5_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 3U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 3U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset)"
                 target="listening_p5_close_wait_ack"/>
     <transition event="deadline_p5_handshake_ack" target="inconclusive_p5_no_handshake_ack"/>
   </state>
   <state id="listening_p5_close_wait_ack">
     <onentry><send event="deadline_p5_close_wait_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 3U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 3U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset)"
                 target="listening_p5_absence"/>
     <transition event="deadline_p5_close_wait_ack" target="inconclusive_p5_no_close_wait_ack"/>
   </state>
   <state id="listening_p5_absence">
     <onentry><send event="deadline_p5_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 3U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 3U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 3U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 3U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase4LocalOffset)"
                 target="fail_p5_unexpected_response"/>
     <transition event="deadline_p5_absence" target="listening_p6_handshake_ack"/>
   </state>
@@ -196,28 +196,28 @@
   <state id="listening_p6_handshake_ack">
     <onentry><send event="deadline_p6_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset)"
                 target="listening_p6_dut_fin"/>
     <transition event="deadline_p6_handshake_ack" target="inconclusive_p6_no_handshake_ack"/>
   </state>
   <state id="listening_p6_dut_fin">
     <onentry><send event="deadline_p6_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U)"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset)"
                 target="listening_p6_closing_ack"/>
     <transition event="deadline_p6_dut_fin" target="inconclusive_p6_no_dut_fin"/>
   </state>
   <state id="listening_p6_closing_ack">
     <onentry><send event="deadline_p6_closing_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset)"
                 target="listening_p6_absence"/>
     <transition event="deadline_p6_closing_ack" target="inconclusive_p6_no_closing_ack"/>
   </state>
   <state id="listening_p6_absence">
     <onentry><send event="deadline_p6_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 4U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 4U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase5LocalOffset)"
                 target="fail_p6_unexpected_response"/>
     <transition event="deadline_p6_absence" target="listening_p7_handshake_ack"/>
   </state>
@@ -226,28 +226,28 @@
   <state id="listening_p7_handshake_ack">
     <onentry><send event="deadline_p7_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset)"
                 target="listening_p7_close_wait_ack"/>
     <transition event="deadline_p7_handshake_ack" target="inconclusive_p7_no_handshake_ack"/>
   </state>
   <state id="listening_p7_close_wait_ack">
     <onentry><send event="deadline_p7_close_wait_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset)"
                 target="listening_p7_dut_fin"/>
     <transition event="deadline_p7_close_wait_ack" target="inconclusive_p7_no_close_wait_ack"/>
   </state>
   <state id="listening_p7_dut_fin">
     <onentry><send event="deadline_p7_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U)"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset)"
                 target="listening_p7_absence"/>
     <transition event="deadline_p7_dut_fin" target="inconclusive_p7_no_dut_fin"/>
   </state>
   <state id="listening_p7_absence">
     <onentry><send event="deadline_p7_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 5U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 5U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase6LocalOffset)"
                 target="fail_p7_unexpected_response"/>
     <transition event="deadline_p7_absence" target="listening_p8_handshake_ack"/>
   </state>
@@ -256,21 +256,21 @@
   <state id="listening_p8_handshake_ack">
     <onentry><send event="deadline_p8_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset)"
                 target="listening_p8_dut_fin"/>
     <transition event="deadline_p8_handshake_ack" target="inconclusive_p8_no_handshake_ack"/>
   </state>
   <state id="listening_p8_dut_fin">
     <onentry><send event="deadline_p8_dut_fin" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset)"
                 target="listening_p8_tw_ack"/>
     <transition event="deadline_p8_dut_fin" target="inconclusive_p8_no_dut_fin"/>
   </state>
   <state id="listening_p8_tw_ack">
     <onentry><send event="deadline_p8_tw_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset)"
                 target="listening_p8_absence"/>
     <transition event="deadline_p8_tw_ack" target="inconclusive_p8_no_tw_ack"/>
   </state>
@@ -286,7 +286,7 @@
          via grep filter in .github/workflows/smoke-test.yml. -->
     <onentry><send event="deadline_p8_absence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 6U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 6U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid15Phase7LocalOffset)"
                 target="fail_p8_unexpected_response"/>
     <transition event="deadline_p8_absence" target="pass"/>
   </state>

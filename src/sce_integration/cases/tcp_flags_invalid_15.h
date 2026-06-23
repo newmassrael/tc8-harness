@@ -199,8 +199,8 @@ private:
                                      std::string_view iface,
                                      ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 0U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 0U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase1LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase1LocalOffset;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
@@ -217,8 +217,8 @@ private:
                                   std::string_view iface,
                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 1U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 1U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase2LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase2LocalOffset;
 
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
@@ -245,8 +245,8 @@ private:
                                   std::string_view iface,
                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 2U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 2U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase3LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase3LocalOffset;
 
         // DUT CLOSE -> DUT FIN; with no AckDrop here the tester kernel
         // auto-ACK advances the DUT FIN-WAIT-1 -> FIN-WAIT-2. The
@@ -268,8 +268,8 @@ private:
                                    std::string_view iface,
                                    ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 3U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 3U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase4LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase4LocalOffset;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
@@ -288,8 +288,8 @@ private:
                                  std::string_view iface,
                                  ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 4U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 4U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase5LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase5LocalOffset;
 
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
@@ -315,8 +315,8 @@ private:
                                  std::string_view iface,
                                  ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 5U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 5U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase6LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase6LocalOffset;
 
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
@@ -343,8 +343,8 @@ private:
                                   std::string_view iface,
                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 6U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 6U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase7LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase7LocalOffset;
 
         const auto info = driveSeamTimeWaitFw2(
             dut, cfg, local_port, remote_port);

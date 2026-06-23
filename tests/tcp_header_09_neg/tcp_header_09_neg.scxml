@@ -15,5 +15,5 @@
        datamodel="null"
        initial="listening_handshake_ack">
   <sce:use template="../_templates/tcp_synth_ack_neg.sce-template.xml"
-           port_offset="37U"/>
+           port_offset="::tc8::sce::tcp::kTcpHeader09LocalOffset"/>
 </scxml>

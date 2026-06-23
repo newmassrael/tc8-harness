@@ -130,7 +130,7 @@ private:
                                      std::string_view iface,
                                      ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        constexpr std::uint16_t kPortOffset = 95U;
+        constexpr std::uint16_t kPortOffset = kTcpCallReceive04Phase1LocalOffset;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
@@ -169,7 +169,7 @@ private:
                                   std::string_view iface,
                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        constexpr std::uint16_t kPortOffset = 96U;
+        constexpr std::uint16_t kPortOffset = kTcpCallReceive04Phase2LocalOffset;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
@@ -227,7 +227,7 @@ private:
                                   std::string_view iface,
                                   ::tc8::sce::IDutControl& dut) {
         using namespace ::tc8::sce::tcp;
-        constexpr std::uint16_t kPortOffset = 97U;
+        constexpr std::uint16_t kPortOffset = kTcpCallReceive04Phase3LocalOffset;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 

@@ -29,14 +29,14 @@
   <state id="listening_dut_syn">
     <onentry><send event="deadline_dut_syn" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset)"
                 target="listening_rst_watch"/>
     <transition event="deadline_dut_syn" target="inconclusive_no_dut_syn"/>
   </state>
   <state id="listening_rst_watch">
     <onentry><send event="deadline_rst_watch" delay="8s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 52U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 52U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing08LocalOffset)"
                 target="pass"/>
     <transition event="deadline_rst_watch" target="fail_compliant"/>
   </state>

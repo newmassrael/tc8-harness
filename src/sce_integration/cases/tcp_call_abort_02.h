@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        constexpr std::uint16_t kPortOffset = 90U;
+        constexpr std::uint16_t kPortOffset = kTcpCallAbort02LocalOffset;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 

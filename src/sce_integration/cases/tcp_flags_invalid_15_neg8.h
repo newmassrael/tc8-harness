@@ -48,8 +48,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15Neg8SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 6U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 6U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase7LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase7LocalOffset;
 
         const auto info = driveSeamTimeWaitFw2(dut, cfg, local_port, remote_port);
         if (info.ok) {

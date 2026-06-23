@@ -34,7 +34,7 @@
       <send event="deadline_handshake_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpHeader02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpHeader02LocalOffset)"
                 target="listening_data_ack"/>
     <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
@@ -44,10 +44,10 @@
       <send event="deadline_data_ack" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U) and captured.ack_num != captured.expected_ack_num"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpHeader02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpHeader02LocalOffset) and captured.ack_num != captured.expected_ack_num"
                 target="pass"/>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 31U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 31U) and captured.ack_num == captured.expected_ack_num"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpHeader02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpHeader02LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="fail_compliant"/>
     <transition event="deadline_data_ack" target="inconclusive_no_data_ack"/>
   </state>

@@ -52,8 +52,8 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07Neg4SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 56U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 56U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing07Phase4LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing07Phase4LocalOffset;
 
         const auto info = driveSeamTimeWaitFw2(dut, cfg, local_port, remote_port);
         if (info.ok) {

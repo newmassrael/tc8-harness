@@ -63,7 +63,7 @@
   <state id="listening_handshake_ack">
     <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 71U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpClosing03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpClosing03LocalOffset)"
                 target="listening_spec_silence"/>
     <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
@@ -71,7 +71,7 @@
   <state id="listening_spec_silence">
     <onentry><send event="deadline_spec_silence" delay="3s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 71U"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpClosing03LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpClosing03LocalOffset"
                 target="fail_dut_response_to_rst"/>
     <transition event="deadline_spec_silence" target="listening_verify_rst"/>
   </state>
@@ -79,7 +79,7 @@
   <state id="listening_verify_rst">
     <onentry><send event="deadline_verify_rst" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 71U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 71U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpClosing03LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpClosing03LocalOffset)"
                 target="pass"/>
     <transition event="deadline_verify_rst" target="inconclusive_no_verify_rst"/>
   </state>

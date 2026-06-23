@@ -47,8 +47,8 @@ struct TestCaseTraits<cases::TcpHeader07SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 35U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 35U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader07LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader07LocalOffset;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();

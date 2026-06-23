@@ -551,24 +551,11 @@ inline constexpr std::uint16_t kTcpChecksum01LocalOffset           = 211U;
 inline constexpr std::uint16_t kTcpChecksum02LocalOffset           = 212U;
 inline constexpr std::uint16_t kTcpChecksum03LocalOffset           = 213U;
 
-// §4.8.6.2 CHECKSUM_02 lwIP _neg active-OPEN offset. Registered here (not a
-// raw literal in the _neg trait) so it joins this file's global offset
-// uniqueness audit: 60 is verified free of BOTH the registered positive
-// offsets above AND the ad-hoc `_neg` literal block (0..56, 71..74) — notably
-// it avoids kTcpMssOptions11LocalOffset = 40U, which the first cut collided
-// with. The trait AND its SCXML port_offset both reference this symbol, so the
-// 4-tuple cannot drift between stimulus and guard.
-inline constexpr std::uint16_t kTcpChecksum02NegLocalOffset        = 60U;
-
-// §4.8.6.7 FLAGS_PROCESSING_09 lwIP _neg active-OPEN offsets — one per
-// per-fail-final close-state variant. Registered here (not raw literals in the
-// _neg traits) so they join this file's global offset uniqueness audit; 61..63
-// are verified free of BOTH the registered positive offsets and the ad-hoc
-// _neg literal block. Each variant's trait AND its SCXML port_offset reference
-// the matching symbol so the 4-tuple cannot drift between stimulus and guard.
-inline constexpr std::uint16_t kTcpFlagsProc09NegClosingOffset     = 61U;
-inline constexpr std::uint16_t kTcpFlagsProc09NegLastAckOffset     = 62U;
-inline constexpr std::uint16_t kTcpFlagsProc09NegCloseWaitOffset   = 63U;
+// §4.8.6.2 CHECKSUM_02 / §4.8.6.7 FLAGS_PROCESSING_09 lwIP _NEG active-OPEN
+// offsets are defined in the consolidated 0..97 registry block below. They were
+// moved off 60..63 to 42..45 to clear the FLAGS_PROCESSING_02 positive, which
+// binds 60..63 — a collision the prior hand-audit missed because that positive
+// used bare literals invisible to its "registered positives" check.
 
 // §4.8.6.6 FLAGS_INVALID_14 — two TIME-WAIT phases (FIN-flag OTW
 // probe + data-segment OTW probe). Each phase runs its own
@@ -598,6 +585,233 @@ inline constexpr std::uint16_t kTcpUnacceptable13Phase1LocalOffset = 219U;
 inline constexpr std::uint16_t kTcpUnacceptable13Phase2LocalOffset = 224U;
 inline constexpr std::uint16_t kTcpUnacceptable14Phase1LocalOffset = 220U;
 inline constexpr std::uint16_t kTcpUnacceptable14Phase2LocalOffset = 221U;
+
+// ============================================================================
+// §4.8 active-OPEN port-quad offset registry — 0..97 low zone + invariant
+// ----------------------------------------------------------------------------
+// Every §4.8 case that performs an active OPEN binds at
+// (kBasicsActiveLocalPort + offset, kBasicsActiveRemotePort + offset). Two
+// cases sharing an offset share the 4-tuple, so a TIME-WAIT / LAST_ACK residue
+// from one can EADDRNOTAVAIL-collide the other when both land on the same
+// smoke-test worker netns (the BASICS_11 class). The residue-sensitive cases
+// above were migrated to the registered +100.. block; the sub-family cases
+// below historically used bare literals in the 0..97 range — invisible to the
+// old hand audit, which is how a _NEG at 60 silently aliased the
+// FLAGS_PROCESSING_02 positive at 60..63. Registering them here brings the whole
+// §4.8 surface under the offsetRegistryUnique() static_assert.
+//
+// A positive and its mirror `_NEG` sibling reference the SAME constant on
+// purpose (identical 4-tuple; the _NEG only arms a fault flavor on the lwIP
+// run). Loop-driven multi-phase cases (FLAGS_INVALID_08..13) reserve a 5-wide
+// span via a base constant — both the trait `+ phase` (phase 0..4) and the
+// SCXML guards add the base, so the reserved span is base+0..base+4.
+
+// §4.8.6.6 FLAGS_INVALID_15 — 7 close-state phases (EST/FW1/FW2/CW/CLOSING/
+// LA/TW). _NEG2..8 mirror one phase each.
+inline constexpr std::uint16_t kTcpFlagsInvalid15Phase1LocalOffset = 0U;
+inline constexpr std::uint16_t kTcpFlagsInvalid15Phase2LocalOffset = 1U;
+inline constexpr std::uint16_t kTcpFlagsInvalid15Phase3LocalOffset = 2U;
+inline constexpr std::uint16_t kTcpFlagsInvalid15Phase4LocalOffset = 3U;
+inline constexpr std::uint16_t kTcpFlagsInvalid15Phase5LocalOffset = 4U;
+inline constexpr std::uint16_t kTcpFlagsInvalid15Phase6LocalOffset = 5U;
+inline constexpr std::uint16_t kTcpFlagsInvalid15Phase7LocalOffset = 6U;
+
+// §4.8.6.6 FLAGS_INVALID_08..13 — each a 5-iteration OTW-SEQ sweep. Base +
+// phase(0..4) reserves a 5-wide span. These six cases previously all shared
+// offsets 0..4 (and aliased FLAGS_INVALID_15) — the systemic collision this
+// sweep retires. Bases sit in free 0..97 gaps clear of every other offset.
+inline constexpr std::uint16_t kTcpFlagsInvalid08BaseOffset        = 7U;
+inline constexpr std::uint16_t kTcpFlagsInvalid09BaseOffset        = 12U;
+inline constexpr std::uint16_t kTcpFlagsInvalid10BaseOffset        = 64U;
+inline constexpr std::uint16_t kTcpFlagsInvalid11BaseOffset        = 75U;
+inline constexpr std::uint16_t kTcpFlagsInvalid12BaseOffset        = 80U;
+inline constexpr std::uint16_t kTcpFlagsInvalid13BaseOffset        = 85U;
+
+// §4.8.6.6 FLAGS_INVALID_03/04 (+_NEG mirror); _05/_06 (2 phases each).
+inline constexpr std::uint16_t kTcpFlagsInvalid03LocalOffset       = 20U;
+inline constexpr std::uint16_t kTcpFlagsInvalid04LocalOffset       = 21U;
+inline constexpr std::uint16_t kTcpFlagsInvalid05Phase1LocalOffset = 22U;
+inline constexpr std::uint16_t kTcpFlagsInvalid05Phase2LocalOffset = 23U;
+inline constexpr std::uint16_t kTcpFlagsInvalid06Phase1LocalOffset = 24U;
+inline constexpr std::uint16_t kTcpFlagsInvalid06Phase2LocalOffset = 25U;
+
+// §4.8.6.3 UNACCEPTABLE_08 — two SYN-SENT phases (SYN,ACK probe + ACK probe),
+// each a distinct active-OPEN 4-tuple. Phase1 historically bound the bare
+// kBasicsActiveLocalPort (offset 0), aliasing FLAGS_INVALID_15 Phase1, so it
+// now takes its own slot (Phase2 keeps 28 — unchanged on the wire).
+inline constexpr std::uint16_t kTcpUnacceptable08Phase1LocalOffset = 29U;
+inline constexpr std::uint16_t kTcpUnacceptable08Phase2LocalOffset = 28U;
+
+// HEADER_02/04/05/06/07/08/09/11 (+_NEG mirror where present).
+// HEADER_01 is the registered +30 above.
+inline constexpr std::uint16_t kTcpHeader02LocalOffset             = 31U;
+inline constexpr std::uint16_t kTcpHeader04LocalOffset             = 32U;
+inline constexpr std::uint16_t kTcpHeader05LocalOffset             = 33U;
+inline constexpr std::uint16_t kTcpHeader06LocalOffset             = 34U;
+inline constexpr std::uint16_t kTcpHeader07LocalOffset             = 35U;
+inline constexpr std::uint16_t kTcpHeader08LocalOffset             = 36U;
+inline constexpr std::uint16_t kTcpHeader09LocalOffset             = 37U;
+inline constexpr std::uint16_t kTcpHeader11LocalOffset             = 38U;
+
+// §4.8.6.7 FLAGS_PROCESSING_11 (+_NEG) / _06 / _08 (+_NEG3) single offsets;
+// _07 (+_NEG..4) 4 phases; _09 positive 3 phases; _02 4 phases.
+inline constexpr std::uint16_t kTcpFlagsProcessing11LocalOffset       = 50U;
+inline constexpr std::uint16_t kTcpFlagsProcessing06LocalOffset       = 51U;
+inline constexpr std::uint16_t kTcpFlagsProcessing08LocalOffset       = 52U;
+inline constexpr std::uint16_t kTcpFlagsProcessing07Phase1LocalOffset = 53U;
+inline constexpr std::uint16_t kTcpFlagsProcessing07Phase2LocalOffset = 54U;
+inline constexpr std::uint16_t kTcpFlagsProcessing07Phase3LocalOffset = 55U;
+inline constexpr std::uint16_t kTcpFlagsProcessing07Phase4LocalOffset = 56U;
+inline constexpr std::uint16_t kTcpFlagsProcessing09Phase1LocalOffset = 57U;
+inline constexpr std::uint16_t kTcpFlagsProcessing09Phase2LocalOffset = 58U;
+inline constexpr std::uint16_t kTcpFlagsProcessing09Phase3LocalOffset = 59U;
+inline constexpr std::uint16_t kTcpFlagsProcessing02Phase1LocalOffset = 60U;
+inline constexpr std::uint16_t kTcpFlagsProcessing02Phase2LocalOffset = 61U;
+inline constexpr std::uint16_t kTcpFlagsProcessing02Phase3LocalOffset = 62U;
+inline constexpr std::uint16_t kTcpFlagsProcessing02Phase4LocalOffset = 63U;
+
+// §4.8.6.2 CHECKSUM_02 / §4.8.6.7 FLAGS_PROCESSING_09 lwIP _NEG offsets, moved
+// off 60..63 (FLAGS_PROCESSING_02 positive) into the free 42..45 gap.
+inline constexpr std::uint16_t kTcpChecksum02NegLocalOffset        = 42U;
+inline constexpr std::uint16_t kTcpFlagsProc09NegClosingOffset     = 43U;
+inline constexpr std::uint16_t kTcpFlagsProc09NegLastAckOffset     = 44U;
+inline constexpr std::uint16_t kTcpFlagsProc09NegCloseWaitOffset   = 45U;
+
+// CLOSING_06 / _03 (+_NEG) / _09 (+_NEG) / _07 (+_NEG) / _08 (+_NEG).
+inline constexpr std::uint16_t kTcpClosing06LocalOffset            = 70U;
+inline constexpr std::uint16_t kTcpClosing03LocalOffset            = 71U;
+inline constexpr std::uint16_t kTcpClosing09LocalOffset            = 72U;
+inline constexpr std::uint16_t kTcpClosing07LocalOffset            = 73U;
+inline constexpr std::uint16_t kTcpClosing08LocalOffset            = 74U;
+
+// CALL_ABORT_02 / _03 (3 close-state phases); CALL_RECEIVE_05 / _04
+// (3 phases).
+inline constexpr std::uint16_t kTcpCallAbort02LocalOffset          = 90U;
+inline constexpr std::uint16_t kTcpCallAbort03Phase1LocalOffset    = 91U;
+inline constexpr std::uint16_t kTcpCallAbort03Phase2LocalOffset    = 92U;
+inline constexpr std::uint16_t kTcpCallAbort03Phase3LocalOffset    = 93U;
+inline constexpr std::uint16_t kTcpCallReceive05LocalOffset        = 94U;
+inline constexpr std::uint16_t kTcpCallReceive04Phase1LocalOffset  = 95U;
+inline constexpr std::uint16_t kTcpCallReceive04Phase2LocalOffset  = 96U;
+inline constexpr std::uint16_t kTcpCallReceive04Phase3LocalOffset  = 97U;
+
+// ---- Compile-time uniqueness invariant over the whole §4.8 offset surface ---
+// Every active-OPEN offset constant (the 0..97 block here + the registered
+// +100.. block above) appears exactly once below. offsetRegistryUnique()
+// rejects any duplicate at compile time, so a future case that reuses a value
+// breaks the build instead of silently colliding on a shared worker netns
+// (which netns isolation otherwise masks). Size is deduced, so the list is the
+// single source of truth. ADD NEW ACTIVE-OPEN OFFSETS HERE when registering one
+// above; loop cases contribute their base+0..base+4 span.
+inline constexpr std::uint16_t kActiveOpenOffsetRegistry[] = {
+    // registered +30 / +40 / +41 + the +100.. block
+    kTcpHeader01LocalOffset, kTcpMssOptions11LocalOffset, kTcpMssOptions12LocalOffset,
+    kTcpMssOptions05Phase1LocalOffset, kTcpMssOptions05Phase2LocalOffset,
+    kTcpMssOptions09Phase1LocalOffset, kTcpMssOptions09Phase2LocalOffset,
+    kTcpBasics17LocalOffset,
+    kTcpAck02LocalOffset, kTcpAck04LocalOffset,
+    kTcpNagle02LocalOffset, kTcpNagle03LocalOffset,
+    kTcpControlFlags05LocalOffset, kTcpUrgentPtr04LocalOffset,
+    kTcpOutOfOrder03LocalOffset, kTcpFlagsProcessing10LocalOffset,
+    kTcpOutOfOrder01LocalOffset, kTcpOutOfOrder02LocalOffset, kTcpOutOfOrder05LocalOffset,
+    kTcpProbingWindows02LocalOffset, kTcpProbingWindows03LocalOffset,
+    kTcpProbingWindows05LocalOffset, kTcpProbingWindows04LocalOffset,
+    kTcpProbingWindows06LocalOffset,
+    kTcpRetransmissionTo06LocalOffset, kTcpRetransmissionTo04LocalOffset,
+    kTcpRetransmissionTo05LocalOffset, kTcpRetransmissionTo03LocalOffset,
+    kTcpSequence02LocalOffset,
+    kTcpConnEstab03LocalOffset1, kTcpConnEstab03LocalOffset2, kTcpConnEstab03LocalOffset3,
+    kTcpChecksum04LocalOffset, kTcpRetransmissionTo08LocalOffset, kTcpRetransmissionTo09LocalOffset,
+    kTcpBasics06LocalOffset, kTcpBasics07LocalOffset,
+    kTcpBasics08Phase1LocalOffset, kTcpBasics08Phase2LocalOffset,
+    kTcpBasics09LocalOffset,
+    kTcpBasics10Phase1LocalOffset, kTcpBasics10Phase2LocalOffset,
+    kTcpBasics11LocalOffset, kTcpBasics12LocalOffset, kTcpBasics13LocalOffset,
+    kTcpBasics14LocalOffset,
+    kTcpChecksum01LocalOffset, kTcpChecksum02LocalOffset, kTcpChecksum03LocalOffset,
+    kTcpFlagsInvalid14Phase1LocalOffset, kTcpFlagsInvalid14Phase2LocalOffset,
+    kTcpUnacceptable04LocalOffset, kTcpUnacceptable06LocalOffset,
+    kTcpUnacceptable09Phase1LocalOffset, kTcpUnacceptable09Phase2LocalOffset,
+    kTcpUnacceptable10LocalOffset,
+    kTcpUnacceptable11Phase1LocalOffset, kTcpUnacceptable11Phase2LocalOffset,
+    kTcpUnacceptable12Phase1LocalOffset, kTcpUnacceptable12Phase2LocalOffset,
+    kTcpUnacceptable13Phase1LocalOffset, kTcpUnacceptable13Phase2LocalOffset,
+    kTcpUnacceptable14Phase1LocalOffset, kTcpUnacceptable14Phase2LocalOffset,
+    // 0..97 low zone (this block)
+    kTcpFlagsInvalid15Phase1LocalOffset, kTcpFlagsInvalid15Phase2LocalOffset,
+    kTcpFlagsInvalid15Phase3LocalOffset, kTcpFlagsInvalid15Phase4LocalOffset,
+    kTcpFlagsInvalid15Phase5LocalOffset, kTcpFlagsInvalid15Phase6LocalOffset,
+    kTcpFlagsInvalid15Phase7LocalOffset,
+    static_cast<std::uint16_t>(kTcpFlagsInvalid08BaseOffset + 0U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid08BaseOffset + 1U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid08BaseOffset + 2U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid08BaseOffset + 3U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid08BaseOffset + 4U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid09BaseOffset + 0U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid09BaseOffset + 1U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid09BaseOffset + 2U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid09BaseOffset + 3U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid09BaseOffset + 4U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid10BaseOffset + 0U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid10BaseOffset + 1U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid10BaseOffset + 2U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid10BaseOffset + 3U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid10BaseOffset + 4U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid11BaseOffset + 0U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid11BaseOffset + 1U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid11BaseOffset + 2U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid11BaseOffset + 3U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid11BaseOffset + 4U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid12BaseOffset + 0U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid12BaseOffset + 1U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid12BaseOffset + 2U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid12BaseOffset + 3U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid12BaseOffset + 4U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid13BaseOffset + 0U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid13BaseOffset + 1U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid13BaseOffset + 2U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid13BaseOffset + 3U),
+    static_cast<std::uint16_t>(kTcpFlagsInvalid13BaseOffset + 4U),
+    kTcpFlagsInvalid03LocalOffset, kTcpFlagsInvalid04LocalOffset,
+    kTcpFlagsInvalid05Phase1LocalOffset, kTcpFlagsInvalid05Phase2LocalOffset,
+    kTcpFlagsInvalid06Phase1LocalOffset, kTcpFlagsInvalid06Phase2LocalOffset,
+    kTcpUnacceptable08Phase1LocalOffset, kTcpUnacceptable08Phase2LocalOffset,
+    kTcpHeader02LocalOffset, kTcpHeader04LocalOffset, kTcpHeader05LocalOffset,
+    kTcpHeader06LocalOffset, kTcpHeader07LocalOffset, kTcpHeader08LocalOffset,
+    kTcpHeader09LocalOffset, kTcpHeader11LocalOffset,
+    kTcpFlagsProcessing11LocalOffset, kTcpFlagsProcessing06LocalOffset,
+    kTcpFlagsProcessing08LocalOffset,
+    kTcpFlagsProcessing07Phase1LocalOffset, kTcpFlagsProcessing07Phase2LocalOffset,
+    kTcpFlagsProcessing07Phase3LocalOffset, kTcpFlagsProcessing07Phase4LocalOffset,
+    kTcpFlagsProcessing09Phase1LocalOffset, kTcpFlagsProcessing09Phase2LocalOffset,
+    kTcpFlagsProcessing09Phase3LocalOffset,
+    kTcpFlagsProcessing02Phase1LocalOffset, kTcpFlagsProcessing02Phase2LocalOffset,
+    kTcpFlagsProcessing02Phase3LocalOffset, kTcpFlagsProcessing02Phase4LocalOffset,
+    kTcpChecksum02NegLocalOffset,
+    kTcpFlagsProc09NegClosingOffset, kTcpFlagsProc09NegLastAckOffset,
+    kTcpFlagsProc09NegCloseWaitOffset,
+    kTcpClosing06LocalOffset, kTcpClosing03LocalOffset, kTcpClosing09LocalOffset,
+    kTcpClosing07LocalOffset, kTcpClosing08LocalOffset,
+    kTcpCallAbort02LocalOffset,
+    kTcpCallAbort03Phase1LocalOffset, kTcpCallAbort03Phase2LocalOffset,
+    kTcpCallAbort03Phase3LocalOffset,
+    kTcpCallReceive05LocalOffset,
+    kTcpCallReceive04Phase1LocalOffset, kTcpCallReceive04Phase2LocalOffset,
+    kTcpCallReceive04Phase3LocalOffset,
+};
+
+constexpr bool offsetRegistryUnique() {
+    constexpr std::size_t n =
+        sizeof(kActiveOpenOffsetRegistry) / sizeof(kActiveOpenOffsetRegistry[0]);
+    for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t j = i + 1U; j < n; ++j)
+            if (kActiveOpenOffsetRegistry[i] == kActiveOpenOffsetRegistry[j])
+                return false;
+    return true;
+}
+static_assert(offsetRegistryUnique(),
+              "TC8 §4.8 active-OPEN port-quad offsets must be globally unique; "
+              "see the kActiveOpenOffsetRegistry block in tcp_pilot_common.h");
 
 // Emit one TCP segment (IPv4-layer wrapped) on `iface`. Caller supplies
 // the segment spec (flags / seq / ack / payload). Defaults to tester-

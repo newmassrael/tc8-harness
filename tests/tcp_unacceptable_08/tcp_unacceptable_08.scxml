@@ -57,7 +57,7 @@
       <send event="deadline_p1" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort and (captured.flags &amp; 0x04) != 0"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable08Phase1LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable08Phase1LocalOffset and (captured.flags &amp; 0x04) != 0"
                 target="listening_p2_dut_rst"/>
     <transition event="deadline_p1" target="inconclusive_p1_no_dut_rst"/>
   </state>
@@ -67,7 +67,7 @@
       <send event="deadline_p2" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + 28 and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + 28 and (captured.flags &amp; 0x04) != 0"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable08Phase2LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable08Phase2LocalOffset and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
     <transition event="deadline_p2" target="inconclusive_p2_no_dut_rst"/>
   </state>

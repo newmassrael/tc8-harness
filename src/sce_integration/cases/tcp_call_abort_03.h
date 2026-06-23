@@ -42,9 +42,9 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
 
     // TC8 §4.8.6.5 — TCP Call Abort (CLOSING / LAST-ACK / TIME-WAIT).
     // One port-quad offset per compound iteration.
-    static constexpr std::uint16_t kPortOffsetClosing  = 91U;
-    static constexpr std::uint16_t kPortOffsetLastAck  = 92U;
-    static constexpr std::uint16_t kPortOffsetTimeWait = 93U;
+    static constexpr std::uint16_t kPortOffsetClosing  = ::tc8::sce::tcp::kTcpCallAbort03Phase1LocalOffset;
+    static constexpr std::uint16_t kPortOffsetLastAck  = ::tc8::sce::tcp::kTcpCallAbort03Phase2LocalOffset;
+    static constexpr std::uint16_t kPortOffsetTimeWait = ::tc8::sce::tcp::kTcpCallAbort03Phase3LocalOffset;
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

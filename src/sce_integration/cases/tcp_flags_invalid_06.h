@@ -108,8 +108,8 @@ private:
                                  const ::tc8::TestConfig& cfg,
                                  std::string_view iface) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 24U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 24U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid06Phase1LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid06Phase1LocalOffset;
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
@@ -130,8 +130,8 @@ private:
                                         const ::tc8::TestConfig& cfg,
                                         std::string_view iface) {
         using namespace ::tc8::sce::tcp;
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 25U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 25U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid06Phase2LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid06Phase2LocalOffset;
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;

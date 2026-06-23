@@ -71,8 +71,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 20U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 20U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid03LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid03LocalOffset;
 
         auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
 

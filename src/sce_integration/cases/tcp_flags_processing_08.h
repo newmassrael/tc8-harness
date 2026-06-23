@@ -119,9 +119,9 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
 
         // Phase 3 — deferred via scheduleAfterStateEntry(p3_dut_syn).
         constexpr std::uint16_t kPhase3LocalPort  =
-            kBasicsActiveLocalPort  + 52U;
+            kBasicsActiveLocalPort  + kTcpFlagsProcessing08LocalOffset;
         constexpr std::uint16_t kPhase3RemotePort =
-            kBasicsActiveRemotePort + 52U;
+            kBasicsActiveRemotePort + kTcpFlagsProcessing08LocalOffset;
 
         std::string                 iface_copy(iface);
         ::tc8::TestConfig           cfg_copy = cfg;

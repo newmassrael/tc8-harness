@@ -42,13 +42,18 @@ struct TestCaseTraits<cases::TcpHeader04SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 32U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 32U;
-        // PORT2 — deliberately distant from any §4.8 listener port to
-        // avoid an accidental kernel-listener match. +132 places it
-        // ~100 above the §4.8.6.X HEADER cluster's +30..+38 block.
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader04LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader04LocalOffset;
+        // PORT2 — a deliberately-wrong tester SOURCE port for the stray probe
+        // segment below (TCP §4.8 HEADER). This is NOT an active-OPEN bind, so
+        // it intentionally stays OUT of the active-OPEN offset registry
+        // (kActiveOpenOffsetRegistry in tcp_pilot_common.h); the value is
+        // immaterial as long as the DUT is not listening on it. +132 keeps it
+        // ~100 above the §4.8.6 HEADER cluster's +30..+38 block.
+        constexpr std::uint16_t kHeader04WrongRemoteOffset = 132U;
         const std::uint16_t wrong_remote_port =
-            static_cast<std::uint16_t>(kBasicsActiveRemotePort + 132U);
+            static_cast<std::uint16_t>(kBasicsActiveRemotePort
+                                       + kHeader04WrongRemoteOffset);
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();

@@ -47,8 +47,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15Neg3SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + 1U;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + 1U;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase2LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase2LocalOffset;
 
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;

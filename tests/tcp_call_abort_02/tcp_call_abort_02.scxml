@@ -59,7 +59,7 @@
   <state id="listening_handshake_ack">
     <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 90U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 90U)"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset)"
                 target="listening_dut_rst"/>
     <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
   </state>
@@ -67,7 +67,7 @@
   <state id="listening_dut_rst">
     <onentry><send event="deadline_dut_rst" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 90U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 90U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset)"
                 target="listening_verify_rst"/>
     <transition event="deadline_dut_rst" target="inconclusive_no_dut_rst"/>
   </state>
@@ -75,7 +75,7 @@
   <state id="listening_verify_rst">
     <onentry><send event="deadline_verify_rst" delay="5s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + 90U, ::tc8::sce::tcp::kBasicsActiveRemotePort + 90U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset)"
                 target="pass"/>
     <transition event="deadline_verify_rst" target="inconclusive_no_verify_rst"/>
   </state>

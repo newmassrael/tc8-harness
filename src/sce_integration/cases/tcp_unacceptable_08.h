@@ -71,8 +71,8 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
 
         runPhaseSynSentRst(
             dut, cfg, iface,
-            /*local_port=*/kBasicsActiveLocalPort,
-            /*remote_port=*/kBasicsActiveRemotePort,
+            /*local_port=*/static_cast<std::uint16_t>(kBasicsActiveLocalPort + kTcpUnacceptable08Phase1LocalOffset),
+            /*remote_port=*/static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpUnacceptable08Phase1LocalOffset),
             /*bad_inject_flags=*/static_cast<std::uint8_t>(
                 ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck));
 
@@ -88,8 +88,8 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
                 using namespace ::tc8::sce::tcp;
                 runPhaseSynSentRst(
                     *dut_ptr, cfg_copy, iface_str,
-                    /*local_port=*/static_cast<std::uint16_t>(kBasicsActiveLocalPort + 28U),
-                    /*remote_port=*/static_cast<std::uint16_t>(kBasicsActiveRemotePort + 28U),
+                    /*local_port=*/static_cast<std::uint16_t>(kBasicsActiveLocalPort + kTcpUnacceptable08Phase2LocalOffset),
+                    /*remote_port=*/static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpUnacceptable08Phase2LocalOffset),
                     /*bad_inject_flags=*/::tc8::stimulus::kTcpFlagAck);
             });
     }

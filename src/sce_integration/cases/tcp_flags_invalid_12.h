@@ -82,8 +82,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
         (void)ack_drop;
 
         for (std::uint16_t phase = 0; phase < 5U; ++phase) {
-            const std::uint16_t local_port  = kBasicsActiveLocalPort  + phase;
-            const std::uint16_t remote_port = kBasicsActiveRemotePort + phase;
+            const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid12BaseOffset + phase;
+            const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid12BaseOffset + phase;
 
             auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
             const int tester_fd = open.listener.acceptOne();

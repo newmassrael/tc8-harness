@@ -53,8 +53,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid08SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         for (std::uint16_t phase = 0; phase < 5U; ++phase) {
-            const std::uint16_t local_port  = kBasicsActiveLocalPort  + phase;
-            const std::uint16_t remote_port = kBasicsActiveRemotePort + phase;
+            const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid08BaseOffset + phase;
+            const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid08BaseOffset + phase;
             auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
             const int tester_fd = open.listener.acceptOne();
             if (tester_fd < 0) {
