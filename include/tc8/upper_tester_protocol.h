@@ -1014,7 +1014,8 @@ inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultReportW
 inline constexpr std::uint8_t kEtsFaultNone                   = 0x00;
 inline constexpr std::uint8_t kEtsFaultFieldValueWrong        = 0x01;  // §5.1.6 SOMEIP_ETS_166/167/168 + 103/104/105: any field or last-value getter (0x40/0x2A/0x28/0x3B/0x3C/0x3D) returns value ^ 0xFF per byte (!= the cached/set value)
 inline constexpr std::uint8_t kEtsFaultResetSkip              = 0x02;  // §5.1.6 SOMEIP_ETS_146: resetInterface is a no-op, so the post-reset getFieldA still returns the pre-reset value
-inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultResetSkip;
+inline constexpr std::uint8_t kEtsFaultSetterEchoWrong        = 0x03;  // SOMEIPSRV_RPC_11: the field setter (0x42) response echoes value ^ 0xFF; the store is left correct, and this is distinct from the getter fault so the get/set/get _neg cases keep a correct setter echo
+inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultSetterEchoWrong;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
 // at param offset 24). A separate family from kFlavor* (which is the LL

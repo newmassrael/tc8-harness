@@ -36,6 +36,17 @@ inline std::vector<std::uint8_t> maybeFaultFieldArray(std::vector<std::uint8_t> 
     return stored;
 }
 
+// SOMEIPSRV_RPC_11 setter-echo fault: when kEtsFaultSetterEchoWrong is armed, the field
+// SETTER's response echoes the stored value bit-flipped — the store itself is left correct,
+// so later getters are unaffected and only the setter response payload deviates. Distinct from
+// kEtsFaultFieldValueWrong (which corrupts getters) so the get/set/get _neg cases, which rely
+// on a correct setter echo in their set phase, stay green.
+inline std::uint8_t maybeFaultSetterEcho(std::uint8_t stored) {
+    return etsFaultFlavor() == ut::kEtsFaultSetterEchoWrong
+               ? static_cast<std::uint8_t>(stored ^ 0xFFU)
+               : stored;
+}
+
 
 // §5.1.6 SOMEIP_ETS_097 vs _098..101 fork — env-gated so ETS_097 (Proxy
 // path) and ETS_098..101 (raw-UDP path) can coexist without cross-test
@@ -114,7 +125,7 @@ void EtsImpl::setFieldA(
     uint8_t _value,
     setFieldAReply_t _reply) {
     fieldA_ = _value;
-    _reply(fieldA_);
+    _reply(maybeFaultSetterEcho(fieldA_));
 }
 
 // §5.1.6 SOMEIP_ETS_167 TestFieldUINT8Array.

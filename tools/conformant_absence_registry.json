@@ -1863,15 +1863,6 @@
         }
       ]
     },
-    "SOMEIPSRV_RPC_11": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "setter_response_payload_did_not_echo_set_value",
-          "property": "DUT's field setter response payload must echo the value set by the request; fail iff it differs"
-        }
-      ]
-    },
     "SOMEIPSRV_RPC_13": {
       "guards": [
         {

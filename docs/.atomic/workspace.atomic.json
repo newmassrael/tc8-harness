@@ -6698,6 +6698,14 @@
         {
           "file": "tests/someipsrv_rpc_11/someipsrv_rpc_11.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/someipsrv_rpc_11_neg/someipsrv_rpc_11_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/someipsrv_rpc_11_neg.h",
+          "kind": "implements"
         }
       ]
     },
