@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing06NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing06NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ANNOUNCING_06_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "Self-validation of _06: tc8-dut fast announce_interval="
         "200 ms drives the Announce interval below the RFC 3927 §2.4 "

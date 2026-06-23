@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp04SM>
     : ArpAndUdpBase<cases::Arp04SM> {
     static constexpr std::string_view kCaseId = "ARP_04";
-    static constexpr std::string_view kSpecSection = "4.2.4.1";
     static constexpr std::string_view kDescription =
         "ARP entry used for UDP egress after ARP Request learning — DUT must "
         "emit UDP to tester_ip carrying Ethernet destination = tester_mac";

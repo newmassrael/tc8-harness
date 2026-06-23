@@ -75,7 +75,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId      = "TCP_RETRANSMISSION_TO_09";
-    static constexpr std::string_view kSpecSection = "4.8.6.11";
     static constexpr std::string_view kDescription =
         "DUT TCP SHOULD use 2*MSL upper bound on SYN-segment RTO "
         "(RFC 1122 §4.2.3.1 p96 SHOULD).";

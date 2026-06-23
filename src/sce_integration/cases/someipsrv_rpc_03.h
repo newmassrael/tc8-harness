@@ -28,7 +28,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc03SM> : SomeIpAnyBase<cases::Rpc03SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_03";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.3";
     static constexpr std::string_view kDescription =
         "Field getter — empty Request payload returns Response with field value";
 

@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -29,6 +30,25 @@
 #include "sce_integration/verdict.h"
 
 namespace tc8::cli {
+
+namespace {
+
+// Resolve a case's spec section from the loaded inventory — the SSOT
+// (docs/spec/case_inventory.json, mined from the TC8 spec PDF). The
+// harness deliberately does NOT store a per-case section copy in the
+// case traits: a hand-authored copy drifts from the spec (cf.
+// case_registry.h, where `category` is likewise derived, not stored).
+// Returns "-" when the inventory is unavailable or the id is out-of-spec
+// (e.g. an OEM case shipped without an extra inventory JSON).
+std::string specSectionFor(const std::optional<sce::SpecInventory> &inv, std::string_view id) {
+    if (!inv.has_value()) {
+        return "-";
+    }
+    const auto *sc = inv->find(sce::SpecInventory::canonicalise(std::string{id}));
+    return (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
+}
+
+}  // namespace
 
 TestCommand::TestCommand(CLI::App &app) {
     sub_ = app.add_subcommand("test", "Run a registered TC8 test case against a live NIC");
@@ -134,33 +154,42 @@ int TestCommand::run(std::optional<std::string> bpf_override) {
 }
 
 int TestCommand::runListCases() const {
-    // Optional override-set lookup — loaded when either filter flag is
-    // set. Failure to load surfaces with stderr + non-zero exit so
-    // smoke/CI invocations don't silently fall back to the full list.
-    std::optional<sce::SpecInventory> inv_for_filter;
-    if (exclude_deferred_ || exclude_platform_known_fail_ || exclude_serial_ || only_serial_) {
-        const std::string inv_path = inventory_path_.empty()
-            ? std::string("docs/spec/case_inventory.json")
-            : inventory_path_;
-        const std::string ov_path = overrides_path_.empty()
-            ? std::string("docs/spec/inventory_overrides.json")
-            : overrides_path_;
-        std::string err;
-        inv_for_filter =
-            sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
-        if (!inv_for_filter.has_value()) {
+    // The spec inventory (mined from the TC8 spec PDF) is the SSOT for
+    // each case's section — shown in the listing below — and also drives
+    // the optional filter flags. The section is DERIVED from the
+    // inventory by canonical id; the harness never stores a per-case
+    // section copy (it would drift; cf. case_registry.h, where `category`
+    // is likewise derived, not stored).
+    const bool need_filter =
+        exclude_deferred_ || exclude_platform_known_fail_ || exclude_serial_ || only_serial_;
+    const std::string inv_path = inventory_path_.empty()
+        ? std::string("docs/spec/case_inventory.json")
+        : inventory_path_;
+    const std::string ov_path = overrides_path_.empty()
+        ? std::string("docs/spec/inventory_overrides.json")
+        : overrides_path_;
+    std::string err;
+    std::optional<sce::SpecInventory> inv =
+        sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
+    if (!inv.has_value()) {
+        // The filter flags REQUIRE the inventory — fail loudly so smoke/CI
+        // invocations never silently fall back to an unfiltered list.
+        if (need_filter) {
             std::fprintf(stderr, "error: %s\n", err.c_str());
             return 2;
         }
+        // No filters requested: the section column degrades to "-" but the
+        // registered list stays useful in a stripped environment.
+        std::fprintf(stderr, "warning: %s (spec sections shown as '-')\n", err.c_str());
     }
 
     const auto entries = sce::CaseRegistry::instance().listSorted(list_all_);
     std::string_view current_category;
     std::size_t emitted = 0;
     for (const auto *e : entries) {
-        if (inv_for_filter.has_value()) {
-            const auto canon = sce::SpecInventory::canonicalise(std::string{e->id});
-            const auto *sc = inv_for_filter->find(canon);
+        const auto canon = sce::SpecInventory::canonicalise(std::string{e->id});
+        const sce::SpecCase *sc = inv.has_value() ? inv->find(canon) : nullptr;
+        if (need_filter) {
             // timing_serial defaults false, so a case with no override entry is
             // non-serial — --only-serial drops it, --exclude-serial keeps it.
             const bool serial = (sc != nullptr) && sc->timing_serial;
@@ -186,9 +215,11 @@ int TestCommand::runListCases() const {
             std::printf("%.*s\n", static_cast<int>(e->category.size()), e->category.data());
             current_category = e->category;
         }
+        const std::string section =
+            (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
         const char *tag = e->deprecated ? " [deprecated]" : "";
         std::printf("  %-28.*s  §%-10.*s %.*s%s\n", static_cast<int>(e->id.size()), e->id.data(),
-                    static_cast<int>(e->spec_section.size()), e->spec_section.data(),
+                    static_cast<int>(section.size()), section.data(),
                     static_cast<int>(e->description.size()), e->description.data(), tag);
         ++emitted;
     }
@@ -372,8 +403,22 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     const std::string bpf = capture::bpf::resolveCaptureFilter(
         bpf_override, entry->bpf_expression, entry->bpf_group);
 
-    std::printf("case     : %.*s  (§%.*s)\n", static_cast<int>(entry->id.size()), entry->id.data(),
-                static_cast<int>(entry->spec_section.size()), entry->spec_section.data());
+    // Spec section is derived from the inventory (the SSOT), not stored on
+    // the case — see runListCases() / case_registry.h. Best-effort here: a
+    // missing inventory just renders the section as "-".
+    const std::string inv_path = inventory_path_.empty()
+        ? std::string("docs/spec/case_inventory.json")
+        : inventory_path_;
+    const std::string ov_path = overrides_path_.empty()
+        ? std::string("docs/spec/inventory_overrides.json")
+        : overrides_path_;
+    std::string inv_err;
+    const auto inv =
+        sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &inv_err);
+    const std::string section = specSectionFor(inv, entry->id);
+
+    std::printf("case     : %.*s  (§%s)\n", static_cast<int>(entry->id.size()), entry->id.data(),
+                section.c_str());
     std::printf("source   : test live (%s)\n", iface_.c_str());
     std::printf("bpf      : %s\n", bpf.c_str());
 

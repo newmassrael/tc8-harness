@@ -45,7 +45,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_037";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "DUT must not close TCP reliable connection when service is stopped";
 

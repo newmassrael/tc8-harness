@@ -32,7 +32,6 @@ template <>
 struct TestCaseTraits<cases::UdpUserInterface03NegSM>
     : UdpAppFaultNegBase<cases::UdpUserInterface03NegSM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.5";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_USER_INTERFACE_03: the lwIP kAppFaultReportWrongSrcPort app "
         "fault makes the Confirmation report a wrong source port; a conformant DUT reports "

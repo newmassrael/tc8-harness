@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics14SM>
     : TcpAnyBase<cases::TcpBasics14SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_14";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "TCP MUST NOT move on to CLOSED state from TIME-WAIT state "
         "before 2*MSL time expires, where TIME-WAIT is reached "

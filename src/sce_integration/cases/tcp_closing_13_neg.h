@@ -40,7 +40,6 @@ template <>
 struct TestCaseTraits<cases::TcpClosing13NegSM>
     : TcpIngressFaultNegBase<cases::TcpClosing13NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_13_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.8";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CLOSING_13 (CLOSED): the lwIP kTcpSynthRstOnDisruptive ingress "
         "flavor makes the DUT emit a RST to a bare RST received on a closed port; a conformant "

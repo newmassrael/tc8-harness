@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpMssOptions06SM>
     : TcpAnyBase<cases::TcpMssOptions06SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_06";
-    static constexpr std::string_view kSpecSection  = "4.8.6.9";
     static constexpr std::string_view kDescription  =
         "DUT MUST receive an MSS option in a SYN segment and clamp "
         "the effective send segment size to min(advertised, DUT_MSS) "

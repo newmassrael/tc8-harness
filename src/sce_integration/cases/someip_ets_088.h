@@ -30,7 +30,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_088";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Multi-entry Subscribe (eg 0x02 + 0x05 + 0x06) — DUT acks/nacks each entry";
 

@@ -32,7 +32,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts122SM> : SomeIpAnyBase<cases::SomeipEts122SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_122";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "InterfaceVersion Field Getter — DUT must respond (any return_code)";
 

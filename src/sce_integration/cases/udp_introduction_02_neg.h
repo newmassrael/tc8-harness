@@ -32,7 +32,6 @@ template <>
 struct TestCaseTraits<cases::UdpIntroduction02NegSM>
     : UdpAppFaultNegBase<cases::UdpIntroduction02NegSM> {
     static constexpr std::string_view kCaseId      = "UDP_INTRODUCTION_02_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.6";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_INTRODUCTION_02: the lwIP kAppFaultAcceptMulticast app "
         "fault makes the data listener count an all-systems multicast datagram; a "

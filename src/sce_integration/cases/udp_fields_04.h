@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields04SM>
     : UdpAnyBase<cases::UdpFields04SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_04";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT can send UDP to the same destination port at two distinct "
         "destination IP addresses (Topology 2; RFC 768 'Fields' MUST)";

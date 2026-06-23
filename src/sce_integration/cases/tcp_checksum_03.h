@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpChecksum03SM>
     : TcpAnyBase<cases::TcpChecksum03SM> {
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.2";
     static constexpr std::string_view kDescription  =
         "Sender TCP MUST generate a correct RFC 793 §3.1 pseudo-header "
         "checksum (RFC 1122 §4.2.2.7 p86 TCP Checksum)";

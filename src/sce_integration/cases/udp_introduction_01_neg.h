@@ -33,7 +33,6 @@ template <>
 struct TestCaseTraits<cases::UdpIntroduction01NegSM>
     : UdpAppFaultNegBase<cases::UdpIntroduction01NegSM> {
     static constexpr std::string_view kCaseId      = "UDP_INTRODUCTION_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.6";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_INTRODUCTION_01: the lwIP kAppFaultAcceptDirectedBroadcast "
         "app fault makes the data listener count a directed-broadcast datagram; a "

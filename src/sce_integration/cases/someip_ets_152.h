@@ -37,7 +37,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_152";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Burst Subscribe → observe DUT SD session_id wrap 0xFFFF → 0x0001";
 

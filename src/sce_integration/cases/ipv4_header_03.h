@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Header03SM>
     : Ipv4ObservationBase<cases::Ipv4Header03SM> {
     static constexpr std::string_view kCaseId      = "IPv4_HEADER_03";
-    static constexpr std::string_view kSpecSection = "4.4.4.1";
     static constexpr std::string_view kDescription =
         "DUT's ICMP Echo Reply carries an IPv4 header whose Source "
         "Address equals one of the DUT's defined IPv4 addresses";

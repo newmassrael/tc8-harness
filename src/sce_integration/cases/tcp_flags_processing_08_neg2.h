@@ -36,7 +36,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing08Neg2SM>
     : TcpIngressFaultNegBase<cases::TcpFlagsProcessing08Neg2SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_08_NEG2";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_08 (LISTEN): the lwIP kTcpSynthRstOnDisruptive "
         "ingress flavor makes the DUT emit a RST to a bare FIN in LISTEN; a conformant DUT stays "

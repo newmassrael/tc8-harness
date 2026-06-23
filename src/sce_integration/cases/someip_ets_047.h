@@ -31,7 +31,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts047SM> : SomeIpAnyBase<cases::SomeipEts047SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_047";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUTF16FIXED odd-after-termination — DUT discards 65th byte and echoes canonical 64-byte frame";
 

@@ -27,7 +27,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts075SM> : SomeIpAnyBase<cases::SomeipEts075SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_075";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Wrong Message Type on echoUINT8 — DUT must reject or ignore";
 

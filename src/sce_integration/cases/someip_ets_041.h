@@ -39,7 +39,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_041";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUTF16DYNAMIC two-step length-too-short — DUT echoes valid then rejects truncated";
 

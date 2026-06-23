@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Ttl01SM>
     : Ipv4ObservationBase<cases::Ipv4Ttl01SM> {
     static constexpr std::string_view kCaseId      = "IPv4_TTL_01";
-    static constexpr std::string_view kSpecSection = "4.4.4.3";
     static constexpr std::string_view kDescription =
         "DUT's ICMP Echo Reply carries an IPv4 header whose TTL field "
         "is greater than zero (RFC 1122 section 3.2.1.7)";

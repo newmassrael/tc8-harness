@@ -28,7 +28,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts118SM> : SomeIpAnyBase<cases::SomeipEts118SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_118";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "FindService with unreferenced IPv4 Endpoint option (×10) — DUT ignores option, OfferServices";
 

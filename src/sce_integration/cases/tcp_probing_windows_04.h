@@ -31,7 +31,6 @@ template <>
 struct TestCaseTraits<cases::TcpProbingWindows04SM>
     : TcpAnyBase<cases::TcpProbingWindows04SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_04";
-    static constexpr std::string_view kSpecSection  = "4.8.6.12";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST keep the connection open and emit zero-window "
         "probes indefinitely as long as the tester acknowledges each "

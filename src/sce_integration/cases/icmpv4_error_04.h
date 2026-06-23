@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Error04SM>
     : Icmpv4TypedBase<cases::Icmpv4Error04SM, std::uint8_t{12}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_ERROR_04";
-    static constexpr std::string_view kSpecSection = "4.3.3.1";
     static constexpr std::string_view kDescription =
         "DUT must not emit an ICMP Parameter Problem message in "
         "response to a datagram whose destination is an IP broadcast "

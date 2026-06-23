@@ -33,7 +33,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts173SM> : SomeIpAnyBase<cases::SomeipEts173SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_173";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Unicast SubscribeEventgroup with two endpoint-option index/count configurations — DUT Acks both";
 

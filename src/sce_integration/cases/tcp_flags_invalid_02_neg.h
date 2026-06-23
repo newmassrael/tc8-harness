@@ -36,7 +36,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid02NegSM>
     : TcpEgressFaultNegBase<cases::TcpFlagsInvalid02NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_02_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_02: the lwIP kTcpFaultRstSeqWrong egress "
         "flavor flips the LISTEN RST's seq off SEG.ACK; a conformant DUT sets seq = SEG.ACK";

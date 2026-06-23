@@ -27,7 +27,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts005SM> : SomeIpAnyBase<cases::SomeipEts005SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_005";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "checkByteOrder — DUT replies with UInt32 BE sum of UInt8+UInt16 BE inputs";
 

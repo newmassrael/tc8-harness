@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpOutOfOrder03SM>
     : TcpAnyBase<cases::TcpOutOfOrder03SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.10";
     static constexpr std::string_view kDescription  =
         "DUT TCP queues out-of-order segments and emits a cumulative ACK "
         "covering all queued data once the SEQ-number gap is filled "

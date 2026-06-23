@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpCallAbort02SM>
     : TcpAnyBase<cases::TcpCallAbort02SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_ABORT_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.5";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST enter CLOSED on application "
         "ABORT call (RFC 793 §3.9 p62 Event Processing). The abort "

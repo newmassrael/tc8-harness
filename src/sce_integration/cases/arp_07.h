@@ -20,7 +20,6 @@ template <>
 struct TestCaseTraits<cases::Arp07SM>
     : ArpAnyBase<cases::Arp07SM> {
     static constexpr std::string_view kCaseId       = "ARP_07";
-    static constexpr std::string_view kSpecSection  = "4.2.4.1";
     static constexpr std::string_view kDescription  =
         "ARP request sending — DUT broadcasts an ARP Request when its cache "
         "lacks the destination's entry";

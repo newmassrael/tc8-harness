@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpMssOptions02SM>
     : TcpAnyBase<cases::TcpMssOptions02SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.9";
     static constexpr std::string_view kDescription  =
         "DUT MUST accept No Operation and End of Options List options "
         "in a SYN segment and complete the handshake (RFC 1122 "

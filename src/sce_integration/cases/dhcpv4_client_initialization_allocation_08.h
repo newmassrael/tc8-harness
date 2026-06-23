@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation08SM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientInitializationAllocation08SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_08";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Post-BOUND DUT emits ARP Probe with sender_ip=0, target_ip=offered "
         "yiaddr to verify the offered address is not in use (RFC 2131 §4.4.1)";

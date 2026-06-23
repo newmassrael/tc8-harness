@@ -33,7 +33,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts034SM> : SomeIpAnyBase<cases::SomeipEts034SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_034";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUINT8E2E — DUT echoes the 4×UInt32 E2E header + UInt8 value unchanged";
 

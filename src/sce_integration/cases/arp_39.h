@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Arp39SM>
     : ArpAndUdpBase<cases::Arp39SM> {
     static constexpr std::string_view kCaseId = "ARP_39";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP learning via received Request — DUT must populate cache from "
         "tester-injected Request and use it for subsequent UDP egress";

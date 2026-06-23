@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpUserInterface08SM>
     : UdpAnyBase<cases::UdpUserInterface08SM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_08";
-    static constexpr std::string_view kSpecSection = "4.6.5.5";
     static constexpr std::string_view kDescription =
         "DUT-emit UDP datagram carries caller-specified Destination IP "
         "Address (RFC 768 'User Interface' MUST)";

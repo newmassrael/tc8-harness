@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpUnacceptable05SM>
     : TcpAnyBase<cases::TcpUnacceptable05SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.3";
     static constexpr std::string_view kDescription  =
         "TCP in LISTEN state MUST send a RST after receiving a segment "
         "carrying an unacceptable ACK (RFC 793 §3.4 p36 Establishing a "

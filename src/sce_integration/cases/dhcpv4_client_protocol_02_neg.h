@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol02NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientProtocol02NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_02_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of PROTOCOL_02: tc8-dut's DHCP client emits a "
         "DHCPDISCOVER with no Option 53 DHCP Message Type (RFC 2131 §3 "

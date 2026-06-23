@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp22SM>
     : ArpAndUdpBase<cases::Arp22SM> {
     static constexpr std::string_view kCaseId = "ARP_22";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "Gratuitous ARP Response with unknown hw_type — DUT must drop and "
         "emit its own ARP Request on subsequent UDP egress";

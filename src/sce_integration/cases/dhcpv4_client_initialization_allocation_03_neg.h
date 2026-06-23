@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation03NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation03NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_03: tc8-dut flips a chaddr byte in its "
         "DHCPDISCOVER (RFC 2131 §4.4.1 MUST be the client MAC) via the "

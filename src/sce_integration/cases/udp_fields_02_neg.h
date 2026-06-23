@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields02NegSM>
     : UdpEgressFaultNegBase<cases::UdpFields02NegSM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_02_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_FIELDS_02: the lwIP kUdpFaultDstPortWrong egress "
         "flavor rewrites the DUT egress Destination Port; a conformant DUT emits 20001";

@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::Options15SM>
     : SomeIpAnyBase<cases::Options15SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_OPTIONS_15";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.15";
     static constexpr std::string_view kDescription =
         "Layer-4 Protocol field of the IPv4 Endpoint Option for TCP shall be 0x06";
 };

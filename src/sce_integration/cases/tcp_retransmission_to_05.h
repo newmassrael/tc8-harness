@@ -37,7 +37,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId       = "TCP_RETRANSMISSION_TO_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.11";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST include exponential backoff (more than linear) "
         "for successive RTO values for SYN segments (RFC 1122 "

@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest12SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest12SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_12";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST generated during REBINDING state: destination IP "
         "MUST be 0xFFFFFFFF (broadcast) per RFC 2131 §4.4.5";

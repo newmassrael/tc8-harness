@@ -31,7 +31,6 @@ template <>
 struct TestCaseTraits<cases::UdpMessageFormat02NegSM>
     : UdpIngressFaultNegBase<cases::UdpMessageFormat02NegSM> {
     static constexpr std::string_view kCaseId      = "UDP_MessageFormat_02_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.1";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_MessageFormat_02: the lwIP kUdpFaultRejectValid ingress "
         "flavor makes the DUT drop a well-formed datagram; a conformant DUT accepts it";

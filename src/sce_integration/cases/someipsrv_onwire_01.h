@@ -27,7 +27,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Onwire01SM> : SomeIpAnyBase<cases::Onwire01SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_ONWIRE_01";
-    static constexpr std::string_view kSpecSection = "5.1.5.6.1";
     static constexpr std::string_view kDescription =
         "Method Response transport src endpoint matches DUT SERVICE-ID-1 UDP endpoint";
 

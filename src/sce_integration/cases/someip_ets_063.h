@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts063SM> : SomeIpAnyBase<cases::SomeipEts063SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_063";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "UTF16FIXED 65-byte payload — DUT must respond (any return_code)";
 

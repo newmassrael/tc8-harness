@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields15SM>
     : UdpAnyBase<cases::UdpFields15SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_15";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT silently discards a UDP datagram with non-zero invalid "
         "checksum (RFC 1122 §4.1.3.4 MUST)";

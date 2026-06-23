@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Arp46NegSM>
     : ArpEgressFaultNegBase<cases::Arp46NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_46_NEG";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_46: the lwIP ArpFaultHwTypeWrong egress "
         "flavor corrupts the Hardware Type of the DUT's ARP Reply "

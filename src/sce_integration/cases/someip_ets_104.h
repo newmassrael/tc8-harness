@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts104SM> : SomeIpAnyBase<cases::SomeipEts104SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_104";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Client-Mode + GetLastValueOfEventUDPMulticast — DUT responds with cached UInt8";
 

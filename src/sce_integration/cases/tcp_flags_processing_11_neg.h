@@ -38,7 +38,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing11NegSM>
     : TcpIngressFaultNegBase<cases::TcpFlagsProcessing11NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_11_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_11: the lwIP kTcpSynthRst ingress flavor makes "
         "the DUT emit a RST to a duplicate ACK in ESTABLISHED; a conformant DUT stays silent";

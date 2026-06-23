@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Checksum05NegSM>
     : Ipv4EgressFaultNegBase<cases::Ipv4Checksum05NegSM> {
     static constexpr std::string_view kCaseId      = "IPv4_CHECKSUM_05_NEG";
-    static constexpr std::string_view kSpecSection = "4.4.4.2";
     static constexpr std::string_view kDescription =
         "Self-validation of IPv4_CHECKSUM_05: the lwIP kIpv4FaultHdrChecksumWrong egress "
         "flavor invalidates the Echo Reply IPv4 header checksum; a conformant DUT emits a "

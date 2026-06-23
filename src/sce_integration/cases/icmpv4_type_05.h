@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type05SM>
     : Icmpv4TypedBase<cases::Icmpv4Type05SM, std::uint8_t{0}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_05";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "DUT discards an ICMP Echo Request with an IP header parameter "
         "problem (malformed Internet Timestamp option) and must not "

@@ -36,7 +36,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts061SM> : SomeIpAnyBase<cases::SomeipEts061SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_061";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Two SOME/IP Method Requests in one UDP datagram — DUT replies to both";
 

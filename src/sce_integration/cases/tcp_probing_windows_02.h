@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpProbingWindows02SM>
     : TcpAnyBase<cases::TcpProbingWindows02SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.12";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST treat the receive window as an unsigned 16-bit "
         "number — an MSB-set advertised window does not refuse the "

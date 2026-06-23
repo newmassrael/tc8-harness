@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp43SM>
     : ArpAnyBase<cases::Arp43SM> {
     static constexpr std::string_view kCaseId = "ARP_43";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP Response Ethernet source MAC equals DUT interface MAC";
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {

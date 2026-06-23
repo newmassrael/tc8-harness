@@ -28,7 +28,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts130SM> : SomeIpAnyBase<cases::SomeipEts130SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_130";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "FindService with Unicast Flag=0 — DUT ignores flag and answers";
 

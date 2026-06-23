@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::Format26SM>
     : SomeIpSdOnlyBase<cases::Format26SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_26";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.26";
     static constexpr std::string_view kDescription =
         "Type 2 entry TTL on a SubscribeEventgroupAck shall carry the configured TTL";
 

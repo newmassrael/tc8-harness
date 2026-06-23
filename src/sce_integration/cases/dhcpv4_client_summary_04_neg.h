@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary04NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientSummary04NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_SUMMARY_04_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.1";
     static constexpr std::string_view kDescription =
         "Self-validation of SUMMARY_04: tc8-dut's DHCP client emits a "
         "DHCPDISCOVER with a non-zero reserved 'flags' bit (RFC 2131 §2 "

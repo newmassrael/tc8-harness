@@ -36,7 +36,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts060SM> : SomeIpAnyBase<cases::SomeipEts060SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_060";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "SD multicast FindService — DUT unicast OfferService lists UDP+TCP IPv4 Endpoint Options";
 

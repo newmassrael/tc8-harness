@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Reassembly04SM>
     : Ipv4FragmentEchoBase<cases::Ipv4Reassembly04SM> {
     static constexpr std::string_view kCaseId      = "IPv4_REASSEMBLY_04";
-    static constexpr std::string_view kSpecSection = "4.4.4.7";
     static constexpr std::string_view kDescription =
         "DUT reassembles a 4-fragment Echo Request received out of "
         "order (frag 0, frag 2, frag 1, frag 3) and emits an Echo "

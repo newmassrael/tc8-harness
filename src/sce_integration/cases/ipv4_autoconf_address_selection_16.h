@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection16SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection16SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_16";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT replies to an ARP Request targeting its claimed IPv4 "
         "Link-Local address (RFC 3927 §2.5, MUST)";

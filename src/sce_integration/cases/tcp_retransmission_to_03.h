@@ -38,7 +38,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId       = "TCP_RETRANSMISSION_TO_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.11";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST follow Karn's algorithm — preserve RTO doubling "
         "across an ACK that acknowledges a previously retransmitted "

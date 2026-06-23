@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type04SM>
     : Icmpv4TypedBase<cases::Icmpv4Type04SM, std::uint8_t{11}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_04";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "DUT must not emit ICMP Time Exceeded (type=11) for a "
         "partially-received datagram when fragment 0 never arrives "

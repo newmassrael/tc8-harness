@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
     : TcpAnyBase<cases::TcpFlagsProcessing06SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_06";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "TCP in TIME-WAIT state MUST acknowledge a retransmitted FIN "
         "and restart the 2*MSL time-out (RFC 793 §3.9 p73 Event "

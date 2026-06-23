@@ -42,7 +42,6 @@ template <>
 struct TestCaseTraits<cases::SdBehavior03SM>
     : SomeIpSdOnlyBase<cases::SdBehavior03SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_BEHAVIOR_03";
-    static constexpr std::string_view kSpecSection = "5.1.5.4.3";
     static constexpr std::string_view kDescription =
         "Unicast Find after >1/2 cyclic_offer_delay → DUT replies with multicast OfferService";
 

@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Header08SM>
     : Ipv4ObservationBase<cases::Ipv4Header08SM> {
     static constexpr std::string_view kCaseId      = "IPv4_HEADER_08";
-    static constexpr std::string_view kSpecSection = "4.4.4.1";
     static constexpr std::string_view kDescription =
         "DUT discards a packet whose Total Length is smaller than the "
         "header length implied by IHL (spec literal: IHL=13)";

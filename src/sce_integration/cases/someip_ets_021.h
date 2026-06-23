@@ -24,7 +24,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts021SM> : SomeIpAnyBase<cases::SomeipEts021SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_021";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoINT8 round-trip — DUT echoes the Int8 value sent in Method Request";
 

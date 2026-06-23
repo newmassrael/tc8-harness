@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpUnacceptable08SM>
     : TcpAnyBase<cases::TcpUnacceptable08SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_08";
-    static constexpr std::string_view kSpecSection  = "4.8.6.3";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-SENT state MUST send a RST control message after "
         "receiving a segment with an unacceptable ACK number "

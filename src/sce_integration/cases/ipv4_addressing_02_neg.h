@@ -33,7 +33,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Addressing02NegSM>
     : UdpAppFaultNegBase<cases::Ipv4Addressing02NegSM> {
     static constexpr std::string_view kCaseId       = "IPv4_ADDRESSING_02_NEG";
-    static constexpr std::string_view kSpecSection  = "4.4.4.5";
     static constexpr std::string_view kDescription  =
         "Self-validation of IPv4_ADDRESSING_02: the lwIP kAppFaultAcceptDirectedBroadcast "
         "app fault makes the data listener count a directed-broadcast datagram; a "

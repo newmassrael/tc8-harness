@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics04SM>
     : TcpAnyBase<cases::TcpBasics04SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_04";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSED state MUST send a RST segment with zero SEQ "
         "number in response to an incoming segment not containing RST "

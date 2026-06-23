@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::TcpMssOptions12SM>
     : TcpAnyBase<cases::TcpMssOptions12SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_12";
-    static constexpr std::string_view kSpecSection  = "4.8.6.9";
     static constexpr std::string_view kDescription  =
         "DUT SHOULD advertise an MSS != 536 in active-OPEN SYN when its "
         "receive MSS differs from the RFC 1122 §4.2.2.6 default";

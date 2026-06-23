@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpSequence05SM>
     : TcpAnyBase<cases::TcpSequence05SM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.17";
     static constexpr std::string_view kDescription  =
         "From ESTABLISHED, DUT acknowledges each tester data segment "
         "with a cumulative ACK at the expected Ack Number "

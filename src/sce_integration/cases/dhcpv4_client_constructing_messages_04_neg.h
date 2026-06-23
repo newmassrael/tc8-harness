@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages04NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages04NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_04_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "Self-validation of CONSTRUCTING_MESSAGES_04: tc8-dut sources the "
         "post-OFFER DHCPREQUEST from a non-zero IP (RFC 2131 §4.1 requires "

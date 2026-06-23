@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Options03SM>
     : SomeIpAnyBase<cases::Options03SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_OPTIONS_03";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.3";
     static constexpr std::string_view kDescription =
         "First Reserved field of the IPv4 Endpoint Option shall be 0x00";
 };

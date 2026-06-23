@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpUrgentPtr04SM>
     : TcpAnyBase<cases::TcpUrgentPtr04SM> {
     static constexpr std::string_view kCaseId       = "TCP_URGENT_PTR_04";
-    static constexpr std::string_view kSpecSection  = "4.8.6.14";
     static constexpr std::string_view kDescription  =
         "Data following the urgent pointer (non-urgent data) MUST NOT "
         "be delivered to the user in the same buffer with preceding "

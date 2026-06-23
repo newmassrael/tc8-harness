@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection05NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection05NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_05_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of _05: tc8-dut SenderHwWrong fault-"
         "injection drives sender_hw to a non-DUT MAC (RFC 826 "

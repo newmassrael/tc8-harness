@@ -68,7 +68,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_097";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "DUT client restarts refused TCP connection on next OfferService";
 

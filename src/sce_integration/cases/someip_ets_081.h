@@ -47,7 +47,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_081";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Server-reboot recovery — DUT renews TCP after lower-sid OfferService";
 

@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating10SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating10SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_ALLOCATING_10";
-    static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "Client retransmits DHCPREQUEST in RENEWING when no DHCPACK or "
         "DHCPNAK is received (RFC 2131 §3.1)";

@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing05SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing05SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ANNOUNCING_05";
-    static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "DUT broadcasts ANNOUNCE_NUM (= 2) ARP Announcements after the "
         "Probe phase (RFC 3927 §2.4, MUST)";

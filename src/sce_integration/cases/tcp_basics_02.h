@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics02SM>
     : TcpAnyBase<cases::TcpBasics02SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "TCP MUST move on to ESTABLISHED state after receiving ACK in "
         "SYN-RCVD state (RFC 793 §3.2 p23 Terminology)";

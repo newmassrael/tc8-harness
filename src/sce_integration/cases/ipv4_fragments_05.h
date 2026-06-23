@@ -30,7 +30,6 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId       = "IPv4_FRAGMENTS_05";
-    static constexpr std::string_view kSpecSection  = "4.4.4.6";
     static constexpr std::string_view kDescription  =
         "DUT-originated IPv4 UDP datagram is unfragmented (MF=0, "
         "Fragment Offset=0) per RFC 791 §3.2 p25";

@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts003SM> : SomeIpAnyBase<cases::SomeipEts003SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_003";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Empty echoUINT8 Request payload — DUT must reply with stripped payload";
 

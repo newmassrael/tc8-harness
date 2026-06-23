@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpPadding02SM>
     : UdpAnyBase<cases::UdpPadding02SM> {
     static constexpr std::string_view kCaseId      = "UDP_Padding_02";
-    static constexpr std::string_view kSpecSection = "4.6.5.3";
     static constexpr std::string_view kDescription =
         "DUT-emit UDP datagram with even payload size carries no "
         "trailing padding bytes (RFC 768 'Fields')";

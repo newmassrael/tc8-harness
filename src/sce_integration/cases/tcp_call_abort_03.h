@@ -33,7 +33,6 @@ template <>
 struct TestCaseTraits<cases::TcpCallAbort03SM>
     : TcpAnyBase<cases::TcpCallAbort03SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_ABORT_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.5";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSING / LAST-ACK / TIME-WAIT MUST respond with ok "
         "and enter CLOSED on application ABORT call (RFC 793 §3.9 p62 "

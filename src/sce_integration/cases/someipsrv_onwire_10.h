@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Onwire10SM> : SomeIpAnyBase<cases::Onwire10SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_ONWIRE_10";
-    static constexpr std::string_view kSpecSection = "5.1.5.6.10";
     static constexpr std::string_view kDescription =
         "Error message for UNKNOWN-SERVICE-ID Request carries return_code E_UNKNOWN_SERVICE";
 

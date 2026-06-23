@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type16NegSM>
     : Icmpv4IngressFaultNegBase<cases::Icmpv4Type16NegSM, std::uint8_t{16}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_16_NEG";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ICMPv4_TYPE_16: the lwIP kIcmpFaultSynthInfoReply ingress "
         "flavor makes the DUT answer an Information Request with the prohibited "

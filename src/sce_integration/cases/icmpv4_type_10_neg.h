@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type10NegSM>
     : Icmpv4IngressFaultNegBase<cases::Icmpv4Type10NegSM, std::uint8_t{0}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_10_NEG";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ICMPv4_TYPE_10: the lwIP kIcmpFaultSynthEchoReply ingress "
         "flavor makes the DUT reply to a bad-checksum Echo Request with an Echo Reply; "

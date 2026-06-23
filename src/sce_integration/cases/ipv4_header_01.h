@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Header01SM>
     : Ipv4ObservationBase<cases::Ipv4Header01SM> {
     static constexpr std::string_view kCaseId      = "IPv4_HEADER_01";
-    static constexpr std::string_view kSpecSection = "4.4.4.1";
     static constexpr std::string_view kDescription =
         "DUT's ICMP Echo Reply carries an IPv4 header with Total Length "
         ">= 20 bytes (RFC 791 minimum)";

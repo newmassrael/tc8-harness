@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type18SM>
     : Icmpv4TypedBase<cases::Icmpv4Type18SM, std::uint8_t{3}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_18";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "DUT emits ICMP Destination Unreachable / Protocol Unreachable "
         "(type=3, code=2) on receiving an IPv4 packet with an "

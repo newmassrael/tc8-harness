@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientParameters04NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientParameters04NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PARAMETERS_04_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.5";
     static constexpr std::string_view kDescription =
         "Self-validation of PARAMETERS_04: tc8-dut corrupts one Option 55 "
         "byte in the post-OFFER DHCPREQUEST (RFC 2131 §4.3.6 MUST repeat the "

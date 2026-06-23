@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest01NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest01NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "Self-validation of REQUEST_01: tc8-dut fills 'ciaddr' in the "
         "post-OFFER DHCPREQUEST (RFC 2131 §4.3.2 mandates ciaddr=0 in "

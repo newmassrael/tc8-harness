@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics17SM>
     : TcpAnyBase<cases::TcpBasics17SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_17";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "TCP MUST support simultaneous OPEN attempts (RFC 1122 "
         "§4.2.2.10 p87, RFC 793 §3.4 simultaneous-open path).";

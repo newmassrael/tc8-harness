@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpProbingWindows06SM>
     : TcpAnyBase<cases::TcpProbingWindows06SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_06";
-    static constexpr std::string_view kSpecSection  = "4.8.6.12";
     static constexpr std::string_view kDescription  =
         "DUT TCP SHOULD increase exponentially the interval between "
         "successive zero-window probes (RFC 1122 §4.2.2.17 — RFC 793 "

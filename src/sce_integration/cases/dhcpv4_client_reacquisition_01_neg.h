@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition01NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition01NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REACQUISITION_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "Self-validation of REACQUISITION_01: tc8-dut sends the RENEWING "
         "DHCPREQUEST to a wrong destination (RFC 2131 §4.4.5 mandates "

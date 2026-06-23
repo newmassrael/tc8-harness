@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpUnacceptable03SM>
     : TcpAnyBase<cases::TcpUnacceptable03SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.3";
     static constexpr std::string_view kDescription  =
         "TCP MUST send a RST after receiving an unacceptable ACK in "
         "SYN-RCVD state (RFC 793 §3.4 p35 Establishing a Connection)";

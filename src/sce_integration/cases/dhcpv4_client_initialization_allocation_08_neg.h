@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation08NegSM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientInitializationAllocation08NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_08_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_08: tc8-dut emits the post-BOUND ARP "
         "Probe with a non-zero sender IP (RFC 2131 §4.4.1 / RFC 5227 §2.1.1 "

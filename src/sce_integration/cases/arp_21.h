@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp21SM>
     : ArpAnyBase<cases::Arp21SM> {
     static constexpr std::string_view kCaseId = "ARP_21";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP Request with unknown hw_type — DUT must drop and not reply";
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {

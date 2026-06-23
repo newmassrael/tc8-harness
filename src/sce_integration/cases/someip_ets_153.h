@@ -31,7 +31,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts153SM> : SomeIpAnyBase<cases::SomeipEts153SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_153";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "SubscribeEventgroup SOME/IP Length lies smaller than actual — DUT Nacks or ignores";
 

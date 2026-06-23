@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields06SM>
     : UdpAnyBase<cases::UdpFields06SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_06";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT-emitted UDP datagram's Length field equals 8 (header) + "
         "<udpUserDataSize>=8 (RFC 768 'Fields' MUST)";

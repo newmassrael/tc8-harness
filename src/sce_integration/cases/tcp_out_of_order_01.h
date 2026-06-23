@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpOutOfOrder01SM>
     : TcpAnyBase<cases::TcpOutOfOrder01SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.10";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST acknowledge a full-sized segment within 0.5 sec "
         "(RFC 1122 §4.2.3.2 p96 — When to Send an ACK Segment, MUST).";

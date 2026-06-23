@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpUnacceptable01SM>
     : TcpAnyBase<cases::TcpUnacceptable01SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.3";
     static constexpr std::string_view kDescription  =
         "TCP MUST return to LISTEN state on receiving an acceptable RST "
         "in SYN-RCVD state (RFC 793 §3.4 p33 Establishing a connection)";

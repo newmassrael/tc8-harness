@@ -27,7 +27,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts119SM> : SomeIpAnyBase<cases::SomeipEts119SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_119";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "SubscribeEventgroup with wrong l4proto (neither UDP nor TCP) — DUT Nacks or ignores";
 

@@ -31,7 +31,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader11SM>
     : TcpAnyBase<cases::TcpHeader11SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_11";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
     static constexpr std::string_view kDescription  =
         "DUT silently discards SYN with multicast IP destination address "
         "(RFC 1122 §4.2.3.10 p104; Linux PACKET_HOST gate)";

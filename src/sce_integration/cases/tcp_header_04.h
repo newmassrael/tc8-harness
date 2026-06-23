@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader04SM>
     : TcpAnyBase<cases::TcpHeader04SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_04";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
     static constexpr std::string_view kDescription  =
         "DUT discards TCP packet whose source port differs from the "
         "established peer's port (RFC 793 §3.1 / §3.9 4-tuple demux)";

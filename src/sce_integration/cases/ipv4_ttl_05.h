@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Ttl05SM>
     : Ipv4ObservationBase<cases::Ipv4Ttl05SM> {
     static constexpr std::string_view kCaseId      = "IPv4_TTL_05";
-    static constexpr std::string_view kSpecSection = "4.4.4.3";
     static constexpr std::string_view kDescription =
         "DUT replies to an ICMPv4 Echo Request carrying TTL=0 (RFC 1122 "
         "section 3.2.1.7: host MUST NOT discard on TTL < 2)";

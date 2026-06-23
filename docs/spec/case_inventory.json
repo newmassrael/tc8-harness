@@ -1559,823 +1559,823 @@
     },
     {
       "case_id": "SOMEIP_ETS_001",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 96
     },
     {
       "case_id": "SOMEIP_ETS_002",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 118
     },
     {
       "case_id": "SOMEIP_ETS_003",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 145
     },
     {
       "case_id": "SOMEIP_ETS_004",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 167
     },
     {
       "case_id": "SOMEIP_ETS_005",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 195
     },
     {
       "case_id": "SOMEIP_ETS_007",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 215
     },
     {
       "case_id": "SOMEIP_ETS_008",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 240
     },
     {
       "case_id": "SOMEIP_ETS_009",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 262
     },
     {
       "case_id": "SOMEIP_ETS_019",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 287
     },
     {
       "case_id": "SOMEIP_ETS_021",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 306
     },
     {
       "case_id": "SOMEIP_ETS_022",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 331
     },
     {
       "case_id": "SOMEIP_ETS_027",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 353
     },
     {
       "case_id": "SOMEIP_ETS_028",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 378
     },
     {
       "case_id": "SOMEIP_ETS_029",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 400
     },
     {
       "case_id": "SOMEIP_ETS_030",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 430
     },
     {
       "case_id": "SOMEIP_ETS_031",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 452
     },
     {
       "case_id": "SOMEIP_ETS_032",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 480
     },
     {
       "case_id": "SOMEIP_ETS_033",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 502
     },
     {
       "case_id": "SOMEIP_ETS_034",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 529
     },
     {
       "case_id": "SOMEIP_ETS_035",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 551
     },
     {
       "case_id": "SOMEIP_ETS_037",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 579
     },
     {
       "case_id": "SOMEIP_ETS_038",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 597
     },
     {
       "case_id": "SOMEIP_ETS_039",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 622
     },
     {
       "case_id": "SOMEIP_ETS_040",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 646
     },
     {
       "case_id": "SOMEIP_ETS_041",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 671
     },
     {
       "case_id": "SOMEIP_ETS_042",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 744
     },
     {
       "case_id": "SOMEIP_ETS_043",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 771
     },
     {
       "case_id": "SOMEIP_ETS_044",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 793
     },
     {
       "case_id": "SOMEIP_ETS_045",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 823
     },
     {
       "case_id": "SOMEIP_ETS_046",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 842
     },
     {
       "case_id": "SOMEIP_ETS_047",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p561-p580",
       "line": 869
     },
     {
       "case_id": "SOMEIP_ETS_048",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 4
     },
     {
       "case_id": "SOMEIP_ETS_049",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 29
     },
     {
       "case_id": "SOMEIP_ETS_050",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 54
     },
     {
       "case_id": "SOMEIP_ETS_051",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 127
     },
     {
       "case_id": "SOMEIP_ETS_052",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 153
     },
     {
       "case_id": "SOMEIP_ETS_053",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 173
     },
     {
       "case_id": "SOMEIP_ETS_054",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 197
     },
     {
       "case_id": "SOMEIP_ETS_055",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 216
     },
     {
       "case_id": "SOMEIP_ETS_058",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 242
     },
     {
       "case_id": "SOMEIP_ETS_059",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 269
     },
     {
       "case_id": "SOMEIP_ETS_060",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 308
     },
     {
       "case_id": "SOMEIP_ETS_061",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 338
     },
     {
       "case_id": "SOMEIP_ETS_063",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 363
     },
     {
       "case_id": "SOMEIP_ETS_064",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 388
     },
     {
       "case_id": "SOMEIP_ETS_065",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 406
     },
     {
       "case_id": "SOMEIP_ETS_066",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 433
     },
     {
       "case_id": "SOMEIP_ETS_067",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 452
     },
     {
       "case_id": "SOMEIP_ETS_068",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 479
     },
     {
       "case_id": "SOMEIP_ETS_069",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 501
     },
     {
       "case_id": "SOMEIP_ETS_070",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 532
     },
     {
       "case_id": "SOMEIP_ETS_071",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 558
     },
     {
       "case_id": "SOMEIP_ETS_072",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 590
     },
     {
       "case_id": "SOMEIP_ETS_073",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 616
     },
     {
       "case_id": "SOMEIP_ETS_074",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 648
     },
     {
       "case_id": "SOMEIP_ETS_075",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 682
     },
     {
       "case_id": "SOMEIP_ETS_076",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 714
     },
     {
       "case_id": "SOMEIP_ETS_077",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 748
     },
     {
       "case_id": "SOMEIP_ETS_078",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 774
     },
     {
       "case_id": "SOMEIP_ETS_081",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 804
     },
     {
       "case_id": "SOMEIP_ETS_082",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p581-p600",
       "line": 851
     },
     {
       "case_id": "SOMEIP_ETS_084",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 4
     },
     {
       "case_id": "SOMEIP_ETS_086",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 49
     },
     {
       "case_id": "SOMEIP_ETS_087",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 87
     },
     {
       "case_id": "SOMEIP_ETS_088",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 123
     },
     {
       "case_id": "SOMEIP_ETS_089",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 155
     },
     {
       "case_id": "SOMEIP_ETS_091",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 205
     },
     {
       "case_id": "SOMEIP_ETS_092",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 230
     },
     {
       "case_id": "SOMEIP_ETS_093",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 261
     },
     {
       "case_id": "SOMEIP_ETS_094",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 348
     },
     {
       "case_id": "SOMEIP_ETS_095",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 387
     },
     {
       "case_id": "SOMEIP_ETS_096",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 422
     },
     {
       "case_id": "SOMEIP_ETS_097",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 454
     },
     {
       "case_id": "SOMEIP_ETS_098",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 495
     },
     {
       "case_id": "SOMEIP_ETS_099",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 528
     },
     {
       "case_id": "SOMEIP_ETS_100",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 563
     },
     {
       "case_id": "SOMEIP_ETS_101",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 598
     },
     {
       "case_id": "SOMEIP_ETS_103",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 638
     },
     {
       "case_id": "SOMEIP_ETS_104",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 679
     },
     {
       "case_id": "SOMEIP_ETS_105",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 723
     },
     {
       "case_id": "SOMEIP_ETS_106",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p601-p620",
       "line": 767
     },
     {
       "case_id": "SOMEIP_ETS_107",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 4
     },
     {
       "case_id": "SOMEIP_ETS_108",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 42
     },
     {
       "case_id": "SOMEIP_ETS_109",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 79
     },
     {
       "case_id": "SOMEIP_ETS_110",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 109
     },
     {
       "case_id": "SOMEIP_ETS_111",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 141
     },
     {
       "case_id": "SOMEIP_ETS_112",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 166
     },
     {
       "case_id": "SOMEIP_ETS_113",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 194
     },
     {
       "case_id": "SOMEIP_ETS_114",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 218
     },
     {
       "case_id": "SOMEIP_ETS_115",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 246
     },
     {
       "case_id": "SOMEIP_ETS_116",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 269
     },
     {
       "case_id": "SOMEIP_ETS_117",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 297
     },
     {
       "case_id": "SOMEIP_ETS_118",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 320
     },
     {
       "case_id": "SOMEIP_ETS_119",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 348
     },
     {
       "case_id": "SOMEIP_ETS_120",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 378
     },
     {
       "case_id": "SOMEIP_ETS_121",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 413
     },
     {
       "case_id": "SOMEIP_ETS_122",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 446
     },
     {
       "case_id": "SOMEIP_ETS_123",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 468
     },
     {
       "case_id": "SOMEIP_ETS_124",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 497
     },
     {
       "case_id": "SOMEIP_ETS_125",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 520
     },
     {
       "case_id": "SOMEIP_ETS_127",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 548
     },
     {
       "case_id": "SOMEIP_ETS_128",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 579
     },
     {
       "case_id": "SOMEIP_ETS_130",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 612
     },
     {
       "case_id": "SOMEIP_ETS_134",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 641
     },
     {
       "case_id": "SOMEIP_ETS_135",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 678
     },
     {
       "case_id": "SOMEIP_ETS_136",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 708
     },
     {
       "case_id": "SOMEIP_ETS_137",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p621-p640",
       "line": 738
     },
     {
       "case_id": "SOMEIP_ETS_138",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 4
     },
     {
       "case_id": "SOMEIP_ETS_139",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 35
     },
     {
       "case_id": "SOMEIP_ETS_140",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 59
     },
     {
       "case_id": "SOMEIP_ETS_141",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 87
     },
     {
       "case_id": "SOMEIP_ETS_142",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 109
     },
     {
       "case_id": "SOMEIP_ETS_143",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 137
     },
     {
       "case_id": "SOMEIP_ETS_144",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 159
     },
     {
       "case_id": "SOMEIP_ETS_146",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 187
     },
     {
       "case_id": "SOMEIP_ETS_147",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 225
     },
     {
       "case_id": "SOMEIP_ETS_148",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 258
     },
     {
       "case_id": "SOMEIP_ETS_149",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 290
     },
     {
       "case_id": "SOMEIP_ETS_150",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 322
     },
     {
       "case_id": "SOMEIP_ETS_151",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 358
     },
     {
       "case_id": "SOMEIP_ETS_152",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 391
     },
     {
       "case_id": "SOMEIP_ETS_153",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 420
     },
     {
       "case_id": "SOMEIP_ETS_154",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 445
     },
     {
       "case_id": "SOMEIP_ETS_155",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 471
     },
     {
       "case_id": "SOMEIP_ETS_162",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 495
     },
     {
       "case_id": "SOMEIP_ETS_163",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 522
     },
     {
       "case_id": "SOMEIP_ETS_164",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 550
     },
     {
       "case_id": "SOMEIP_ETS_166",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 598
     },
     {
       "case_id": "SOMEIP_ETS_167",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 628
     },
     {
       "case_id": "SOMEIP_ETS_168",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 660
     },
     {
       "case_id": "SOMEIP_ETS_171",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 692
     },
     {
       "case_id": "SOMEIP_ETS_173",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p641-p660",
       "line": 720
     },
     {
       "case_id": "SOMEIP_ETS_174",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p661-p664",
       "line": 4
     },
     {
       "case_id": "SOMEIP_ETS_175",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p661-p664",
       "line": 34
     },
     {
       "case_id": "SOMEIP_ETS_176",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p661-p664",
       "line": 65
     },
     {
       "case_id": "SOMEIP_ETS_177",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p661-p664",
       "line": 102
     },
     {
       "case_id": "SOMEIP_ETS_178",
-      "section": "5.1.5.7",
+      "section": "5.1.6",
       "split": "tc8_p661-p664",
       "line": 125
     },

@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields01SM>
     : UdpAnyBase<cases::UdpFields01SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_01";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT-emitted UDP datagram carries the caller-specified Source "
         "Port (RFC 768 'Fields' SHOULD)";

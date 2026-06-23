@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest12NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest12NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_12_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "Self-validation of REQUEST_12: tc8-dut unicasts the REBINDING "
         "DHCPREQUEST to a sentinel (RFC 2131 §4.4.5 mandates broadcast) via "

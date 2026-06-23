@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Arp38NegSM>
     : ArpIngressFaultNegUdpBase<cases::Arp38NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_38_NEG";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_38: the lwIP kArpFaultLearnFromDropFrame ingress "
         "flavor makes the DUT learn a non-gratuitous Response targeting an unused "

@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Options11SM>
     : SomeIpSdOnlyBase<cases::Options11SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_OPTIONS_11";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.11";
     static constexpr std::string_view kDescription =
         "IPv4-Address field of the IPv4 Multicast Option shall carry the eventgroup multicast IP";
 

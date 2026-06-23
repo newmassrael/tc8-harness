@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Reassembly12SM>
     : Ipv4FragmentEchoBase<cases::Ipv4Reassembly12SM> {
     static constexpr std::string_view kCaseId      = "IPv4_REASSEMBLY_12";
-    static constexpr std::string_view kSpecSection = "4.4.4.7";
     static constexpr std::string_view kDescription =
         "DUT reassembles a 2-fragment Echo Request whose first "
         "fragment carries Low TTL (timer must not shrink) and emits "

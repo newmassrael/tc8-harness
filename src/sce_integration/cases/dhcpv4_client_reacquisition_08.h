@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition08SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition08SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REACQUISITION_08";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "Lease expiration before DHCPACK: client moves to INIT and "
         "requests network initialization parameters (RFC 2131 §4.4.5)";

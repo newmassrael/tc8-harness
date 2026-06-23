@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01Neg2SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfNetworkPartitions01Neg2SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG2";
-    static constexpr std::string_view kSpecSection = "4.5.6.6";
     static constexpr std::string_view kDescription =
         "Self-validation of NETWORK_PARTITIONS_01 guard 2 (periodic "
         "gratuitous): tc8-dut EmitPeriodicGratuitous fault-injection "

@@ -44,7 +44,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_164";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "TestField get / set / suspendInterface / StopOffer / resume / get — DUT honors suspend cycle";
 

@@ -24,7 +24,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Onwire05SM> : SomeIpAnyBase<cases::Onwire05SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_ONWIRE_05";
-    static constexpr std::string_view kSpecSection = "5.1.5.6.5";
     static constexpr std::string_view kDescription =
         "Method Response carries Protocol Version 0x01";
 

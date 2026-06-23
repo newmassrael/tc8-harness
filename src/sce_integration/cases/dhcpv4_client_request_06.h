@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest06SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest06SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_06";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST generated during RENEWING state: 'server identifier' "
         "(Option 54) MUST NOT be filled in (RFC 2131 §4.3.6 table 5)";

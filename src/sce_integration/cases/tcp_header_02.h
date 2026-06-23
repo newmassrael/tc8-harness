@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader02SM>
     : TcpAnyBase<cases::TcpHeader02SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
     static constexpr std::string_view kDescription  =
         "DUT accepts TCP packet with valid header fields and ACKs with "
         "the expected Ack Number (RFC 793 §3.9 Event Processing)";

@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating03NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating03NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_ALLOCATING_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "Self-validation of ALLOCATING_03: tc8-dut echoes a WRONG Option 54 "
         "server-id in the post-OFFER DHCPREQUEST (RFC 2131 §3.1 MUST echo "

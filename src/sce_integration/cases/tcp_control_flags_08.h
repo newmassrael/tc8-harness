@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpControlFlags08SM>
     : TcpAnyBase<cases::TcpControlFlags08SM> {
     static constexpr std::string_view kCaseId       = "TCP_CONTROL_FLAGS_08";
-    static constexpr std::string_view kSpecSection  = "4.8.6.19";
     static constexpr std::string_view kDescription  =
         "Recovery from old duplicate SYN: DUT in LISTEN replies SYN,ACK "
         "to a stale SYN, consumes a tester-injected RST with believable "

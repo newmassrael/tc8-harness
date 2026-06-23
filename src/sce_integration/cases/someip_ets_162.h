@@ -32,7 +32,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts162SM> : SomeIpAnyBase<cases::SomeipEts162SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_162";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "SubscribeEventgroup with unallowed Endpoint IPv4 (DUT self) — DUT Nacks or ignores";
 

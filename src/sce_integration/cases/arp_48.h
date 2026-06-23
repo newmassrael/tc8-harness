@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::Arp48SM>
     : ArpAndUdpBase<cases::Arp48SM> {
     static constexpr std::string_view kCaseId = "ARP_48";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP cache entry ages out when idle — DUT must re-ARP on next "
         "egress after <DYNAMIC-ARP-CACHE-TIMEOUT> seconds of inactivity";

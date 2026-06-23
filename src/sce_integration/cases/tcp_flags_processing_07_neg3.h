@@ -38,7 +38,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing07Neg3SM>
     : TcpIngressFaultNegBase<cases::TcpFlagsProcessing07Neg3SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_07_NEG3";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_07 (LAST-ACK): the lwIP "
         "kTcpSynthRstOnDisruptive ingress flavor makes the DUT emit a RST to a URG-only segment "

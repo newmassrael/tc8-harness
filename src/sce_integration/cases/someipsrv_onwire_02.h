@@ -25,7 +25,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Onwire02SM> : SomeIpAnyBase<cases::Onwire02SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_ONWIRE_02";
-    static constexpr std::string_view kSpecSection = "5.1.5.6.2";
     static constexpr std::string_view kDescription =
         "Method ID MSB cleared in Method Response";
 

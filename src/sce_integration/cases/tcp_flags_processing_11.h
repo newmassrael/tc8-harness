@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
     : TcpAnyBase<cases::TcpFlagsProcessing11SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_11";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST ignore a duplicate ACK "
         "(RFC 793 §3.9 p72 Event Processing)";

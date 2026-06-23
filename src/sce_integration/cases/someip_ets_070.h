@@ -30,7 +30,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts070SM> : SomeIpAnyBase<cases::SomeipEts070SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_070";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUNION SOME/IP length overshoots UDP payload — DUT must reject or ignore";
 

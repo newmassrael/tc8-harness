@@ -46,7 +46,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts094SM> : SomeIpAnyBase<cases::SomeipEts094SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_094";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Server-side reboot detection — duplicate SD session_id triggers expire_subscriptions";
 

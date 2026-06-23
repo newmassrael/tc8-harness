@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection14NegSM>
     : LinklocalRepeatedConflictBase<cases::Ipv4AutoconfAddressSelection14NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_14_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ADDRESS_SELECTION_14 guard 1: tc8-dut "
         "ReprobeStaleCycle fault-injection re-probes the stale LL on "

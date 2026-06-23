@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Reassembly06SM>
     : Ipv4FragmentEchoBase<cases::Ipv4Reassembly06SM> {
     static constexpr std::string_view kCaseId      = "IPv4_REASSEMBLY_06";
-    static constexpr std::string_view kSpecSection = "4.4.4.7";
     static constexpr std::string_view kDescription =
         "DUT does not reassemble when offset=0 fragment is missing — "
         "frag (offset=1, MF=1) + frag (offset=2, MF=0) leave a hole "

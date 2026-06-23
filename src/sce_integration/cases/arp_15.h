@@ -20,7 +20,6 @@ template <>
 struct TestCaseTraits<cases::Arp15SM>
     : ArpAnyBase<cases::Arp15SM> {
     static constexpr std::string_view kCaseId       = "ARP_15";
-    static constexpr std::string_view kSpecSection  = "4.2.4.1";
     static constexpr std::string_view kDescription  =
         "ARP request Destination IP Address shall carry the resolution target IPv4";
     // UT 0x02 egress-provocation stimulus — see arp_07.h.

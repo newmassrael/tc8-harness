@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Arp10NegSM>
     : ArpEgressFaultNegBase<cases::Arp10NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_10_NEG";
-    static constexpr std::string_view kSpecSection = "4.2.4.1";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_10: the lwIP ArpFaultHwLenWrong egress "
         "flavor corrupts the Hardware Address Length of the DUT's ARP "

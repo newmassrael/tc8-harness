@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Format20SM>
     : SomeIpSdOnlyBase<cases::Format20SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_20";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.20";
     static constexpr std::string_view kDescription =
         "Length of a Type 2 entry shall be 16 bytes";
 

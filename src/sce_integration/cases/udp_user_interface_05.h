@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpUserInterface05SM>
     : UdpAnyBase<cases::UdpUserInterface05SM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_05";
-    static constexpr std::string_view kSpecSection = "4.6.5.5";
     static constexpr std::string_view kDescription =
         "DUT-emit UDP datagram carries caller-specified Source Port "
         "(RFC 768 'User Interface' MUST). Mirror of FIELDS_01 distinct "

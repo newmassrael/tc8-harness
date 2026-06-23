@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields08SM>
     : UdpAnyBase<cases::UdpFields08SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_08";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT discards a truncated UDP datagram (wire region < 8 bytes) "
         "(RFC 768 'Fields' MUST)";

@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpSequence01SM>
     : TcpAnyBase<cases::TcpSequence01SM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.17";
     static constexpr std::string_view kDescription  =
         "DUT acknowledges tester ISN by emitting SYN,ACK with "
         "ack_num == tester_seq + 1 (RFC 793 §3.1).";

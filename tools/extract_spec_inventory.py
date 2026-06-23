@@ -39,7 +39,13 @@ import sys
 from pathlib import Path
 
 
-SECTION_RE = re.compile(r"^([0-9]+(?:\.[0-9]+)+)\s+[A-Z]")
+SECTION_RE = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)+)\s+[A-Z]")
+# Headings may be indented in the pdftotext -layout output: most chapter
+# headings sit at column 0, but some (observed: "   5.1.6 Test Cases ETS")
+# are indented. Anchoring at ^ with no leading-whitespace allowance made
+# the miner skip the indented ones, so the cases beneath inherited the
+# previous left-aligned section (the SOMEIP_ETS body picked up a stale
+# 5.1.5.7 instead of 5.1.6). `^\s*` captures both.
 # pdftotext occasionally bleeds a page-number digit into the indented
 # case-id line (observed once at tc8_p481-p500.txt:326 — the spec line
 # `0SOMEIPSRV_SD_MESSAGE_08:` instead of `SOMEIPSRV_SD_MESSAGE_08:`),

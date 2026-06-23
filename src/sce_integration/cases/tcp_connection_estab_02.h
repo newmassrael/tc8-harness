@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpConnectionEstab02SM>
     : TcpAnyBase<cases::TcpConnectionEstab02SM> {
     static constexpr std::string_view kCaseId       = "TCP_CONNECTION_ESTAB_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.15";
     static constexpr std::string_view kDescription  =
         "DUT opens 3 passive sockets and emits SYN,ACK on each "
         "received tester SYN (RFC 793 §3.4).";

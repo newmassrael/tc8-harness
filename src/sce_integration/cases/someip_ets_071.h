@@ -32,7 +32,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts071SM> : SomeIpAnyBase<cases::SomeipEts071SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_071";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUNION inner union-length too long — DUT must reject or ignore";
 

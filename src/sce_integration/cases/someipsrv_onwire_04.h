@@ -27,7 +27,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Onwire04SM> : SomeIpAnyBase<cases::Onwire04SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_ONWIRE_04";
-    static constexpr std::string_view kSpecSection = "5.1.5.6.4";
     static constexpr std::string_view kDescription =
         "Request ID may be reused after Response arrived — DUT replies to both Requests";
 

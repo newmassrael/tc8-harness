@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type18NegSM>
     : Icmpv4EgressFaultNegBase<cases::Icmpv4Type18NegSM, std::uint8_t{3}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_18_NEG";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ICMPv4_TYPE_18: the lwIP kIcmpFaultDestUnreachCodeWrong egress "
         "flavor flips the Destination Unreachable code; a conformant DUT emits code 2";

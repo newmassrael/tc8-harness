@@ -28,7 +28,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc10SM> : SomeIpAnyBase<cases::Rpc10SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_10";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.10";
     static constexpr std::string_view kDescription =
         "Wrong message_type to fire&forget method must not return an Error";
 

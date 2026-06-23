@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpMssOptions01SM>
     : TcpAnyBase<cases::TcpMssOptions01SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.9";
     static constexpr std::string_view kDescription  =
         "DUT MUST handle an illegal MSS option length in a SYN segment "
         "without crashing (RFC 1122 §4.2.2.5 p85). Iterations: ilen=0 "

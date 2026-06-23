@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::Format21SM>
     : SomeIpSdOnlyBase<cases::Format21SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_21";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.21";
     static constexpr std::string_view kDescription =
         "Type 2 entry Index First Option Run shall reference the first option of the first options run";
 

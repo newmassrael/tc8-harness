@@ -38,7 +38,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts082SM> : SomeIpAnyBase<cases::SomeipEts082SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_082";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Server-reboot recovery via UDP — DUT re-subscribes with new tester UDP port";
 

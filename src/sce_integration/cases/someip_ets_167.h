@@ -30,7 +30,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts167SM> : SomeIpAnyBase<cases::SomeipEts167SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_167";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "TestFieldUINT8Array getter / setter / getter — DUT echoes set array";
 

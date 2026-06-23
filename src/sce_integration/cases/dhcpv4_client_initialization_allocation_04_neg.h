@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation04NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation04NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_04_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_04: tc8-dut accepts a mismatched-xid "
         "DHCPOFFER and emits a DHCPREQUEST (RFC 2131 §4.4.1 MUST silently "

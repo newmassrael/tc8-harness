@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest11NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest11NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_11_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "Self-validation of REQUEST_11: tc8-dut writes a wrong 'ciaddr' in "
         "the REBINDING DHCPREQUEST (RFC 2131 §4.4.5 mandates the bound IP) "

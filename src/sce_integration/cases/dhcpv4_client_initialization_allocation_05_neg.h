@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation05NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation05NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_05_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_05: tc8-dut accepts a lone DHCPACK "
         "(no preceding OFFER) and emits a DHCPREQUEST (RFC 2131 §4.4.1 MUST "

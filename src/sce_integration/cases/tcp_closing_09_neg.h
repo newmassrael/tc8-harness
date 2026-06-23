@@ -38,7 +38,6 @@ template <>
 struct TestCaseTraits<cases::TcpClosing09NegSM>
     : TcpIngressFaultNegBase<cases::TcpClosing09NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_09_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.8";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CLOSING_09: the lwIP kTcpSynthRstOnDisruptive ingress flavor "
         "makes the DUT emit a RST on entering CLOSE-WAIT; a conformant DUT stays silent";

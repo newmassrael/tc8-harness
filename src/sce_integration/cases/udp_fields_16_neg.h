@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields16NegSM>
     : UdpIngressFaultNegBase<cases::UdpFields16NegSM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_16_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_FIELDS_16: the lwIP kUdpFaultRejectValid ingress flavor "
         "makes the DUT drop a valid zero-checksum datagram; a conformant DUT accepts it";

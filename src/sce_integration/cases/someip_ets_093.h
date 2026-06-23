@@ -35,7 +35,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts093SM> : SomeIpAnyBase<cases::SomeipEts093SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_093";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Multicast/unicast reboot tracker — DUT Acks lower-sid Subscribe after reboot";
 

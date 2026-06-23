@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts004SM> : SomeIpAnyBase<cases::SomeipEts004SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_004";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Burst test — DUT must respond to each Method Request in a quick burst";
 

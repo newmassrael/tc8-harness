@@ -24,7 +24,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc13SM> : SomeIpSdOnlyBase<cases::Rpc13SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_13";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.13";
     static constexpr std::string_view kDescription =
         "Two distinct services advertise the same UDP port";
 

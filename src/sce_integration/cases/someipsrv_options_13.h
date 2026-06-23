@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Options13SM>
     : SomeIpSdOnlyBase<cases::Options13SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_OPTIONS_13";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.13";
     static constexpr std::string_view kDescription =
         "Layer-4 Protocol field of the IPv4 Multicast Option shall be 0x11 (UDP)";
 

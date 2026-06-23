@@ -37,7 +37,6 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
     using Expected = typename SM::ExpectedType;
 
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_04";
-    static constexpr std::string_view kSpecSection  = "4.8.6.2";
     static constexpr std::string_view kDescription  =
         "TCP MUST use clock-driven selection of initial sequence "
         "numbers (RFC 1122 §4.2.2.9 p87, RFC 793 §3.3 p27).";

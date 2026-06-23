@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpProbingWindows05SM>
     : TcpAnyBase<cases::TcpProbingWindows05SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.12";
     static constexpr std::string_view kDescription  =
         "DUT TCP SHOULD send the first zero-window probe after the "
         "retransmission timeout when the receive window remains zero "

@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Error02SM>
     : Icmpv4TypedBase<cases::Icmpv4Error02SM, std::uint8_t{12}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_ERROR_02";
-    static constexpr std::string_view kSpecSection = "4.3.3.1";
     static constexpr std::string_view kDescription =
         "DUT emits ICMP Parameter Problem (type=12) on receiving "
         "fragment 0 (MF=1, offset=0) carrying a malformed Internet "

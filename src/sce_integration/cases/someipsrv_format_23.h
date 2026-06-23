@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Format23SM>
     : SomeIpSdOnlyBase<cases::Format23SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_23";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.23";
     static constexpr std::string_view kDescription =
         "Type 2 entry Service ID shall carry the configured SdServerServiceID";
 

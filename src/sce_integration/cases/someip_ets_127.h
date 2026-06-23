@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts127SM> : SomeIpAnyBase<cases::SomeipEts127SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_127";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "10 multicast FindService at 100 ms — DUT answers with unicast OfferService";
 

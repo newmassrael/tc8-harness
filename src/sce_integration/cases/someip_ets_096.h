@@ -25,7 +25,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts096SM> : SomeIpAnyBase<cases::SomeipEts096SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_096";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Subscribe with TCP Endpoint option and no live TCP connection — "
         "DUT must respond with SubscribeEventgroupNack";

@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics03SM>
     : TcpAnyBase<cases::TcpBasics03SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "TCP MUST send an ACK in response to a FIN received in "
         "ESTABLISHED state (RFC 793 §3.2 p23 Terminology)";

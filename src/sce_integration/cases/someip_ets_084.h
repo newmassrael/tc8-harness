@@ -42,7 +42,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_084";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Client mode deactivate — DUT emits StopSubscribeEventgroup for ets3";
 

@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpControlFlags05SM>
     : TcpAnyBase<cases::TcpControlFlags05SM> {
     static constexpr std::string_view kCaseId       = "TCP_CONTROL_FLAGS_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.19";
     static constexpr std::string_view kDescription  =
         "DUT receives a TCP packet with the URG flag set and replies "
         "with an ACK whose ack_num is the expected value (RFC 4413 "

@@ -38,7 +38,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts120SM> : SomeIpAnyBase<cases::SomeipEts120SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_120";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Subscribe with Endpoint Option != tester source — DUT Acks";
 

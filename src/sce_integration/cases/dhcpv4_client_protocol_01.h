@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientProtocol01SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_01";
-    static constexpr std::string_view kSpecSection = "4.7.6.2";
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER carries the RFC 1497 magic cookie 99,130,83,99 in "
         "the first four octets of the 'options' field (RFC 2131 §3, MUST)";

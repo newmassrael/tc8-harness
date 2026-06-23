@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest02SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest02SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_02";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST advertises the offered IP via Option 50 (Requested IP "
         "Address) matching the OFFER yiaddr (RFC 2131 §4.3.2, MUST)";

@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::SdMessage08SM>
     : SomeIpSdOnlyBase<cases::SdMessage08SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_MESSAGE_08";
-    static constexpr std::string_view kSpecSection = "5.1.5.3.8";
     static constexpr std::string_view kDescription =
         "OfferService shall carry at least one IPv4 Endpoint Option";
 };

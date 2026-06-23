@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages03NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages03NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "Self-validation of CONSTRUCTING_MESSAGES_03: tc8-dut's DHCP client "
         "sources its pre-binding DHCPDISCOVER from a non-zero IP address "

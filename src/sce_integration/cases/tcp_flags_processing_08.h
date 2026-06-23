@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
     : TcpAnyBase<cases::TcpFlagsProcessing08SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_08";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSED / LISTEN / SYN-SENT MUST not process a FIN: "
         "CLOSED replies RST, LISTEN / SYN-SENT silently drop "

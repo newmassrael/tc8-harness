@@ -26,7 +26,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection15SM>
     : LinklocalRepeatedConflictBase<cases::Ipv4AutoconfAddressSelection15SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_15";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT rate-limit persists across multiple windows: post-silence "
         "Probe targets a fresh LL and a single conflict puts the DUT "

@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields16SM>
     : UdpAnyBase<cases::UdpFields16SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_16";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP datagram with Checksum field == 0 (RFC 768 "
         "'no checksum computed' sentinel; RFC 1122 §4.1.3.4 SHOULD "

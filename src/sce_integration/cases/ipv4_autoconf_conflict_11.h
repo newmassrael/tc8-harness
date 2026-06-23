@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict11SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfConflict11SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_CONFLICT_11";
-    static constexpr std::string_view kSpecSection = "4.5.6.4";
     static constexpr std::string_view kDescription =
         "DUT-emitted ARP Reply carrying a Link-Local sender IP "
         "is sent via link-layer broadcast (RFC 3927 §2.5, MUST)";

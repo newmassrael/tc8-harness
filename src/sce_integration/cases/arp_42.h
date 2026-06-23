@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp42SM>
     : ArpAnyBase<cases::Arp42SM> {
     static constexpr std::string_view kCaseId = "ARP_42";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP Response received — DUT must not reply to a Response";
     // Non-gratuitous Response: target_hw is the tester's injected MAC so

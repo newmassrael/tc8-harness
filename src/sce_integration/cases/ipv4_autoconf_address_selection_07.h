@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection07SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection07SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_07";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT-emitted ARP Probe carries target_hw = NULL_MAC (six "
         "zero octets) (RFC 3927 §2.2.1, SHOULD)";

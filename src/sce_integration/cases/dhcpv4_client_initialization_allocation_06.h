@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation06SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation06SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_06";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST 'xid' equals the originating DISCOVER's 'xid' — the "
         "harness emul OFFER faithfully echoes DISCOVER.xid so the spec's "

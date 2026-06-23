@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Format07SM>
     : SomeIpSdOnlyBase<cases::Format07SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_07";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.7";
     static constexpr std::string_view kDescription =
         "SD Reboot Flag shall be '1' after reboot";
 };

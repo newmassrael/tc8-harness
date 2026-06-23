@@ -30,7 +30,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection15Neg4SM>
     : LinklocalRepeatedConflictBase<cases::Ipv4AutoconfAddressSelection15Neg4SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG4";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ADDRESS_SELECTION_15 guard 4: tc8-dut "
         "SkipSecondRateLimitSilence fault-injection emits a Probe during "

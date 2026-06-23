@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpOutOfOrder05SM>
     : TcpAnyBase<cases::TcpOutOfOrder05SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.10";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST emit at least one ACK per two full-sized "
         "segments in a stream (RFC 1122 §4.2.3.2 p96 stretchACK floor).";

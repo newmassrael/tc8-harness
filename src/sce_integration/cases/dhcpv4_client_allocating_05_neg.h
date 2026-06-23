@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating05NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating05NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_ALLOCATING_05_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "Self-validation of ALLOCATING_05: tc8-dut unicasts the post-OFFER "
         "DHCPREQUEST instead of broadcasting (RFC 2131 §3.1 MUST) via the "

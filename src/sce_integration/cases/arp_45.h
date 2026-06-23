@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp45SM>
     : ArpAnyBase<cases::Arp45SM> {
     static constexpr std::string_view kCaseId = "ARP_45";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP Response target_hw sequential check — DUT Reply to each "
         "Request must echo that Request's sender_hw as its target_hw";

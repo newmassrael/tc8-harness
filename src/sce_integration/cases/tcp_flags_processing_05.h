@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
     : TcpAnyBase<cases::TcpFlagsProcessing05SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-RCVD MUST go to LISTEN state on receiving SYN "
         "(or SYN+ACK) in window (RFC 1122 §4.2.2.20(e) p94). 2 spec "

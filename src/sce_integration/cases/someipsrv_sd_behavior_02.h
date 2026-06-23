@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::SdBehavior02SM>
     : SomeIpSdOnlyBase<cases::SdBehavior02SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_BEHAVIOR_02";
-    static constexpr std::string_view kSpecSection = "5.1.5.4.2";
     static constexpr std::string_view kDescription =
         "Main Phase OfferService cyclic gap == cyclic_offer_delay ± tolerance";
 };

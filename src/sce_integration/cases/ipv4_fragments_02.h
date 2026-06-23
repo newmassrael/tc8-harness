@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Fragments02SM>
     : Ipv4FragmentEchoBase<cases::Ipv4Fragments02SM> {
     static constexpr std::string_view kCaseId      = "IPv4_FRAGMENTS_02";
-    static constexpr std::string_view kSpecSection = "4.4.4.6";
     static constexpr std::string_view kDescription =
         "DUT must not reassemble fragments whose Identification "
         "fields differ (RFC 791 §3.2 reassembly-bucket tuple)";

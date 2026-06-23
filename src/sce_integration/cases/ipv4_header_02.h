@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Header02SM>
     : Ipv4ObservationBase<cases::Ipv4Header02SM> {
     static constexpr std::string_view kCaseId      = "IPv4_HEADER_02";
-    static constexpr std::string_view kSpecSection = "4.4.4.1";
     static constexpr std::string_view kDescription =
         "DUT silently discards an IPv4 packet whose Header Length "
         "field indicates a value less than 20 bytes";

@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics09SM>
     : TcpAnyBase<cases::TcpBasics09SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_09";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "TCP MUST move to CLOSED state after receiving an ACK of the "
         "sent FIN in LAST-ACK state (RFC 793 §3.2 p23 Terminology)";

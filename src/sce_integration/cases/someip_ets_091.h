@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts091SM> : SomeIpAnyBase<cases::SomeipEts091SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_091";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Cyclic OfferService Session-IDs must strictly increment across iterations";
 

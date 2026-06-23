@@ -30,7 +30,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts146SM> : SomeIpAnyBase<cases::SomeipEts146SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_146";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "getFieldA / setFieldA(0xAA) / resetInterface / getFieldA — post-reset value differs";
 

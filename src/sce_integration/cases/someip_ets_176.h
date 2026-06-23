@@ -31,7 +31,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts176SM> : SomeIpAnyBase<cases::SomeipEts176SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_176";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "SubscribeEventgroup with trailing payload (counted + uncounted) — DUT Acks both";
 

@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
     : TcpAnyBase<cases::TcpFlagsInvalid01SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "TCP MUST ignore an incoming segment with RST flag in LISTEN "
         "state (RFC 793 §3.9 p65 Event Processing)";

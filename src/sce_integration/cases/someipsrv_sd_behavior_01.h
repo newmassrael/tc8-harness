@@ -32,7 +32,6 @@ template <>
 struct TestCaseTraits<cases::SdBehavior01SM>
     : SomeIpSdOnlyBase<cases::SdBehavior01SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_BEHAVIOR_01";
-    static constexpr std::string_view kSpecSection = "5.1.5.4.1";
     static constexpr std::string_view kDescription =
         "Repetition Phase OfferService delay doubles between consecutive emits";
 };

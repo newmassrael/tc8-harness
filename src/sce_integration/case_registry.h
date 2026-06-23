@@ -22,7 +22,11 @@ namespace tc8::sce {
 struct CaseEntry {
     std::string_view id;
     std::string_view category;
-    std::string_view spec_section;
+    // NB: there is deliberately no `spec_section` field. A case's spec
+    // section is DERIVED from the spec inventory (docs/spec/case_inventory.json,
+    // mined from the TC8 spec PDF — the SSOT) by canonical id at the point
+    // of display, exactly as `category` is derived from the id below. A
+    // hand-authored per-case copy would drift from the spec.
     std::string_view description;
     bool deprecated = false;
     int topology = 1;
@@ -150,7 +154,7 @@ template <typename StateMachine> struct CaseRegistrar {
         static_assert(isWellFormedCaseId(T::kCaseId), "TestCaseTraits<SM>::kCaseId must end in '_<digits>', "
                                                       "e.g. 'SOMEIPSRV_FORMAT_01' or 'SOMEIP_ETS_025'");
         CaseRegistry::instance().add(
-            CaseEntry{T::kCaseId, deriveCategory(T::kCaseId), T::kSpecSection, T::kDescription, T::kDeprecated,
+            CaseEntry{T::kCaseId, deriveCategory(T::kCaseId), T::kDescription, T::kDeprecated,
                       T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(), requiredCapabilitiesOf<T>(),
                       [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));

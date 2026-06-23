@@ -28,7 +28,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts019SM> : SomeIpAnyBase<cases::SomeipEts019SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_019";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoFLOAT64 round-trip — DUT echoes the 8-byte Double 1.5";
 

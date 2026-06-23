@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict11NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfConflict11NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_CONFLICT_11_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.4";
     static constexpr std::string_view kDescription =
         "Self-validation of CONFLICT_11: tc8-dut ReplyEthDstUnicast "
         "fault-injection sends the defending ARP Reply to a unicast "

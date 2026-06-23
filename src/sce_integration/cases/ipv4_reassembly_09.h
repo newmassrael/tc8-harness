@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Reassembly09SM>
     : Ipv4FragmentEchoBase<cases::Ipv4Reassembly09SM> {
     static constexpr std::string_view kCaseId      = "IPv4_REASSEMBLY_09";
-    static constexpr std::string_view kSpecSection = "4.4.4.7";
     static constexpr std::string_view kDescription =
         "DUT discards an IPv4 Packet whose MF=1 with no following "
         "fragment — reassembly bucket times out, no Echo Reply "

@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpChecksum01SM>
     : TcpAnyBase<cases::TcpChecksum01SM> {
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.2";
     static constexpr std::string_view kDescription  =
         "Receiver TCP MUST check the checksum and MUST acknowledge "
         "in case of no error (RFC 1122 §4.2.2.7 p86 TCP Checksum)";

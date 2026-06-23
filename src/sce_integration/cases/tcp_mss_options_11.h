@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::TcpMssOptions11SM>
     : TcpAnyBase<cases::TcpMssOptions11SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_11";
-    static constexpr std::string_view kSpecSection  = "4.8.6.9";
     static constexpr std::string_view kDescription  =
         "DUT MUST implement sending the MSS option in its active-OPEN "
         "SYN (RFC 1122 §4.2.2.6 p85)";

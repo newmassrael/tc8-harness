@@ -28,7 +28,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts009SM> : SomeIpAnyBase<cases::SomeipEts009SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_009";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoENUM round-trip — DUT echoes the 1-byte enum VALUE_C (0x02)";
 

@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation02NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation02NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_02: tc8-dut writes a nonzero ciaddr in "
         "its DHCPDISCOVER (RFC 2131 §4.4.1 MUST be 0 in INIT) via the "

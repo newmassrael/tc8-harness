@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing02SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing02SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ANNOUNCING_02";
-    static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "DUT-emitted ARP Announcement has sender_proto_ip == "
         "target_proto_ip == announced link-local address (RFC 3927 "

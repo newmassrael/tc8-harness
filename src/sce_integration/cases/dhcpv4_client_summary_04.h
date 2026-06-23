@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary04SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientSummary04SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_SUMMARY_04";
-    static constexpr std::string_view kSpecSection = "4.7.6.1";
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER 'flags' field has reserved bits (1..15) set to 0 — "
         "RFC 2131 §2 Protocol Summary (MUST)";

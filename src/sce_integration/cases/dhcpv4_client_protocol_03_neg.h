@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol03NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientProtocol03NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of PROTOCOL_03: tc8-dut drops Option 53 from the "
         "post-OFFER DHCPREQUEST (RFC 2131 §3 MUST carry the Message Type) via "

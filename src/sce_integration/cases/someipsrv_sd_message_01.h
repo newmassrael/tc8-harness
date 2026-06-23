@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::SdMessage01SM>
     : SomeIpSdOnlyBase<cases::SdMessage01SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_MESSAGE_01";
-    static constexpr std::string_view kSpecSection = "5.1.5.3.1";
     static constexpr std::string_view kDescription =
         "OfferService carries two entries when DUT configured with two instances";
 

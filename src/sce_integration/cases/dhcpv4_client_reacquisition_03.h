@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition03SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition03SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REACQUISITION_03";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "T1 = 0.5 × duration_of_lease: RENEWING REQUEST emitted within "
         "T1 ± ParamToleranceTime of the last DHCPACK (RFC 2131 §4.4.5)";

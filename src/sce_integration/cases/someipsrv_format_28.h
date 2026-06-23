@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::Format28SM>
     : SomeIpSdOnlyBase<cases::Format28SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_28";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.28";
     static constexpr std::string_view kDescription =
         "Type 2 entry Eventgroup ID shall carry the configured SdConsumedEventGroupID";
 

@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict06SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfConflict06SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_CONFLICT_06";
-    static constexpr std::string_view kSpecSection = "4.5.6.4";
     static constexpr std::string_view kDescription =
         "DUT ceases claim and re-probes after two ARP Request "
         "conflicts on its committed LL (RFC 3927 §2.5, MUST)";

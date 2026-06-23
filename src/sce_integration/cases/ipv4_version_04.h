@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Version04SM>
     : Ipv4ObservationBase<cases::Ipv4Version04SM> {
     static constexpr std::string_view kCaseId      = "IPv4_VERSION_04";
-    static constexpr std::string_view kSpecSection = "4.4.4.4";
     static constexpr std::string_view kDescription =
         "DUT silently discards an IPv4 packet whose Version field "
         "is other than 4";

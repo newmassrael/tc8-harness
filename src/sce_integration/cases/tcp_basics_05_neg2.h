@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics05Neg2SM>
     : TcpEgressFaultNegBase<cases::TcpBasics05Neg2SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_05_NEG2";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_BASICS_05 (bare-ACK iteration): the lwIP kTcpFaultRstSeqWrong "
         "egress flavor flips the closed-port RST sequence off the incoming ACK; a conformant "

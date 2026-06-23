@@ -31,7 +31,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing07SM>
     : TcpAnyBase<cases::TcpFlagsProcessing07SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_07";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSE-WAIT / CLOSING / LAST-ACK / TIME-WAIT MUST "
         "ignore any segment with only URG flag set (RFC 793 §3.9 p74 "

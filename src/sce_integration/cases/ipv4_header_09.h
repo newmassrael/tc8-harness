@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Header09SM>
     : Ipv4ObservationBase<cases::Ipv4Header09SM> {
     static constexpr std::string_view kCaseId      = "IPv4_HEADER_09";
-    static constexpr std::string_view kSpecSection = "4.4.4.1";
     static constexpr std::string_view kDescription =
         "DUT discards a packet whose Total Length is bigger than the "
         "actual transmitted data (spec literal: Total Length = 48)";

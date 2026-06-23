@@ -34,7 +34,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid15Neg3SM>
     : TcpIngressFaultNegBase<cases::TcpFlagsInvalid15Neg3SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_15_NEG3";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_15 (FIN-WAIT-1): the lwIP "
         "kTcpSynthRstOnDisruptive ingress flavor makes the DUT emit a RST to an out-of-window "

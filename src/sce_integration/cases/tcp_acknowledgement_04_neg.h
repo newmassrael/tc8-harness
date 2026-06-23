@@ -38,7 +38,6 @@ template <>
 struct TestCaseTraits<cases::TcpAcknowledgement04NegSM>
     : TcpIngressFaultNegBase<cases::TcpAcknowledgement04NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_04_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.18";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_ACKNOWLEDGEMENT_04: the lwIP kTcpSynthRst ingress flavor "
         "makes the DUT emit a RST after a pure ACK; a conformant DUT stays silent";

@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating01NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating01NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_ALLOCATING_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "Self-validation of ALLOCATING_01: tc8-dut's DHCP client unicasts "
         "its DHCPDISCOVER instead of broadcasting to 255.255.255.255 "

@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields10NegSM>
     : UdpIngressFaultNegBase<cases::UdpFields10NegSM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_10_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_FIELDS_10: the lwIP kUdpFaultAcceptBadChecksum ingress "
         "flavor makes the DUT accept a datagram whose Length exceeds the payload; a "

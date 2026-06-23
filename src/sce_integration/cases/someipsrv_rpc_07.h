@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc07SM> : SomeIpAnyBase<cases::Rpc07SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_07";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.7";
     static constexpr std::string_view kDescription =
         "Receiver ignores top 2 bits of Request return_code";
 

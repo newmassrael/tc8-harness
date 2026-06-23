@@ -46,7 +46,6 @@ template <>
 struct TestCaseTraits<cases::SdMessage09SM>
     : SomeIpAnyBase<cases::SdMessage09SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_MESSAGE_09";
-    static constexpr std::string_view kSpecSection = "5.1.5.3.9";
     static constexpr std::string_view kDescription =
         "Notification UDP src_port shall match OfferService "
         "Endpoint Option port (TR_SOMEIP_00360 / 00361)";

@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpAcknowledgement02SM>
     : TcpAnyBase<cases::TcpAcknowledgement02SM> {
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.18";
     static constexpr std::string_view kDescription  =
         "DUT accepts an ACK piggybacked with the next transmit packet "
         "and replies with a pure ACK acknowledging the payload "

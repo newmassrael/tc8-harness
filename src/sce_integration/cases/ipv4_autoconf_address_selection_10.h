@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection10SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection10SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_10";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT-emitted ARP Probe inter-frame interval is in "
         "[PROBE_MIN-50 ms, PROBE_MAX+50 ms] (RFC 3927 §2.2.1)";

@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpUnacceptable06SM>
     : TcpAnyBase<cases::TcpUnacceptable06SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_06";
-    static constexpr std::string_view kSpecSection  = "4.8.6.3";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST send an ACK indicating the "
         "correct SEQ number it expects, after receiving a SYN with a "

@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation09NegSM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientInitializationAllocation09NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_09_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_09: on the injected ARP conflict, "
         "tc8-dut emits a DHCPDECLINE whose Option 50 carries a wrong address "

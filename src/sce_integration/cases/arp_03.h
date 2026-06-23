@@ -27,7 +27,6 @@ struct TestCaseTraits<cases::Arp03SM>
     // irrelevant here — the inherited ArpAnyBase dispatch lets the
     // UDP variant fall through silently.
     static constexpr std::string_view kCaseId = "ARP_03";
-    static constexpr std::string_view kSpecSection = "4.2.4.1";
     static constexpr std::string_view kDescription =
         "ARP entry learned on ARP Request — DUT must NOT emit an ARP Request "
         "after tester pre-populates the cache via an ARP Request";

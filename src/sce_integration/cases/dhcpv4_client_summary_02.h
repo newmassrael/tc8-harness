@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary02SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientSummary02SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_SUMMARY_02";
-    static constexpr std::string_view kSpecSection = "4.7.6.1";
     static constexpr std::string_view kDescription =
         "DUT discards DHCPOFFER with mismatched xid; selects the server "
         "whose OFFER xid matches the originating DHCPDISCOVER "

@@ -27,7 +27,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts125SM> : SomeIpAnyBase<cases::SomeipEts125SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_125";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "SubscribeEventgroup EntriesLen too short — DUT Nacks or ignores";
 

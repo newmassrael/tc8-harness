@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc18SM> : SomeIpAnyBase<cases::Rpc18SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_18";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.18";
     static constexpr std::string_view kDescription =
         "Error message echoes Request Message ID (Service ID + Method ID)";
 

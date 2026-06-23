@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages02SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages02SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "DHCP clients MUST use the IP address provided in the 'server "
         "identifier' option for any unicast requests (RFC 2131 §4.1)";

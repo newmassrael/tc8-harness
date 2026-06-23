@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages12SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_12";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "DUT retransmits DHCPDISCOVER on doubling backoff capped at "
         "an upper bound (RFC 2131 §4.1, MUST). Fast-envelope cap = "

@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Reassembly13SM>
     : Ipv4FragmentEchoBase<cases::Ipv4Reassembly13SM> {
     static constexpr std::string_view kCaseId      = "IPv4_REASSEMBLY_13";
-    static constexpr std::string_view kSpecSection = "4.4.4.7";
     static constexpr std::string_view kDescription =
         "DUT reassembles partially overlapping fragments using "
         "most-recent-wins (RFC 791 §3.2 Example Reassembly "

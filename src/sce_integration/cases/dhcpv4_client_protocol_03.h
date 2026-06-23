@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol03SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientProtocol03SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_03";
-    static constexpr std::string_view kSpecSection = "4.7.6.2";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST emitted on transition to REQUESTING carries Option "
         "53 (Message Type) — RFC 2131 §3 (MUST)";

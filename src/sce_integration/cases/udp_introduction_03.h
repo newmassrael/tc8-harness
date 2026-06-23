@@ -37,7 +37,6 @@ struct TestCaseTraits<cases::UdpIntroduction03SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId       = "UDP_INTRODUCTION_03";
-    static constexpr std::string_view kSpecSection  = "4.6.5.6";
     static constexpr std::string_view kDescription  =
         "DUT emits ICMP Destination Unreachable / Port Unreachable when "
         "a UDP datagram arrives on a port without a pending LISTEN call "

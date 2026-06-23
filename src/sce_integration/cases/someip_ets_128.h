@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_128";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Major-Version wildcard burst + Minor-Version wildcard burst — DUT answers each";
 

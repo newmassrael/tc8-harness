@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating04NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating04NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_ALLOCATING_04_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.3";
     static constexpr std::string_view kDescription =
         "Self-validation of ALLOCATING_04: tc8-dut writes a nonzero BOOTP "
         "'secs' in the post-OFFER DHCPREQUEST (RFC 2131 §4.3.2 MUST echo the "

@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type09SM>
     : Icmpv4TypedBase<cases::Icmpv4Type09SM, std::uint8_t{0}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_09";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "ICMP Echo Reply identifier and sequence number are echoed from "
         "the Echo Request";

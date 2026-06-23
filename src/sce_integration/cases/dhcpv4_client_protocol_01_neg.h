@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol01NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientProtocol01NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of PROTOCOL_01: tc8-dut's DHCP client emits a "
         "DHCPDISCOVER with a corrupted RFC 1497 magic cookie (RFC 2131 §3 "

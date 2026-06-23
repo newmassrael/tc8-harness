@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition01SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REACQUISITION_01";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "RENEWING state DHCPREQUEST: IP destination unicast to Option 54 "
         "server identifier (RFC 2131 §4.4.5)";

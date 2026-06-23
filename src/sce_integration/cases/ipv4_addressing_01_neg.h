@@ -32,7 +32,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Addressing01NegSM>
     : UdpIngressFaultNegBase<cases::Ipv4Addressing01NegSM> {
     static constexpr std::string_view kCaseId       = "IPv4_ADDRESSING_01_NEG";
-    static constexpr std::string_view kSpecSection  = "4.4.4.5";
     static constexpr std::string_view kDescription  =
         "Self-validation of IPv4_ADDRESSING_01: the lwIP kUdpFaultRejectValid ingress "
         "flavor makes the DUT drop a limited-broadcast datagram; a conformant DUT receives it";

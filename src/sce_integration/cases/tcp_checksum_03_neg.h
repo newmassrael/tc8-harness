@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpChecksum03NegSM>
     : TcpEgressFaultNegBase<cases::TcpChecksum03NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_03_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.2";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CHECKSUM_03: the lwIP kTcpFaultDataChecksumWrong egress "
         "flavor invalidates the DUT data-segment checksum; a conformant DUT emits a valid one";

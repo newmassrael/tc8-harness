@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts077SM> : SomeIpAnyBase<cases::SomeipEts077SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_077";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Wrong Service ID (0x9999 unknown) — DUT must reject or ignore";
 

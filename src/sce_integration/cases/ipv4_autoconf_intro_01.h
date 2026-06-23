@@ -33,7 +33,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01SM> {
 
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_INTRO_01";
-    static constexpr std::string_view kSpecSection = "4.5.6.1";
     static constexpr std::string_view kDescription =
         "DUT does not assign IPv4 Link-Local address when DHCP-bound "
         "routable address is available (RFC 3927 §1.9 SHOULD NOT)";

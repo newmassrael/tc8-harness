@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader06SM>
     : TcpAnyBase<cases::TcpHeader06SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_06";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
     static constexpr std::string_view kDescription  =
         "DUT ignores Reserved field non-zero value and accepts the TCP "
         "packet (RFC 4413 §4.2.3 Reserved)";

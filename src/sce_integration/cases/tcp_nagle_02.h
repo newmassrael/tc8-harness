@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpNagle02SM>
     : TcpAnyBase<cases::TcpNagle02SM> {
     static constexpr std::string_view kCaseId       = "TCP_NAGLE_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.13";
     static constexpr std::string_view kDescription  =
         "DUT MUST implement Nagle: with outstanding unacknowledged data "
         "the second small SEND is buffered; the buffered segment is "

@@ -38,7 +38,6 @@ template <>
 struct TestCaseTraits<cases::SdBehavior04SM>
     : SomeIpSdOnlyBase<cases::SdBehavior04SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_BEHAVIOR_04";
-    static constexpr std::string_view kSpecSection = "5.1.5.4.4";
     static constexpr std::string_view kDescription =
         "Multicast Find (Unicast Flag = 0) → DUT replies with multicast OfferService";
 

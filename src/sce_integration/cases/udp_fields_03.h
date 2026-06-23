@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields03SM>
     : UdpAnyBase<cases::UdpFields03SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_03";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP datagram with Source Port=0 (RFC 768 'Fields' "
         "MUST — \"If not used, a value of zero is inserted\")";

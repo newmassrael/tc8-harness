@@ -27,7 +27,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Basic01SM> : SomeIpAnyBase<cases::Basic01SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_BASIC_01";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.1";
     static constexpr std::string_view kDescription =
         "Service identified by Service-ID — DUT emits OfferService and "
         "replies to Method Request with a matching Response";

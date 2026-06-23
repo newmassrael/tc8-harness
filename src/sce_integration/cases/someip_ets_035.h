@@ -28,7 +28,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts035SM> : SomeIpAnyBase<cases::SomeipEts035SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_035";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUINT8RELIABLE — DUT echoes UInt8 over the SOME/IP TCP reliable transport";
 

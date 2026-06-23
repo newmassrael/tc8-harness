@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Options04SM>
     : SomeIpAnyBase<cases::Options04SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_OPTIONS_04";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.4";
     static constexpr std::string_view kDescription =
         "IPv4-Address field of the IPv4 Endpoint Option shall be the local IP";
 };

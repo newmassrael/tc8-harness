@@ -32,7 +32,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts099SM> : SomeIpAnyBase<cases::SomeipEts099SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_099";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "clientServiceActivate spawns FindService for SERVICE-ID-2 while preserving SERVICE-ID-1 server";
 

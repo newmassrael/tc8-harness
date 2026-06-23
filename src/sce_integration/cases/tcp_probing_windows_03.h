@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpProbingWindows03SM>
     : TcpAnyBase<cases::TcpProbingWindows03SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.12";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST be robust against window shrinking — when the "
         "useable window becomes negative, the DUT must not transmit "

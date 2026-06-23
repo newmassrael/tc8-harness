@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Error04NegSM>
     : Icmpv4IngressFaultNegBase<cases::Icmpv4Error04NegSM, std::uint8_t{12}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_ERROR_04_NEG";
-    static constexpr std::string_view kSpecSection = "4.3.3.1";
     static constexpr std::string_view kDescription =
         "Self-validation of ICMPv4_ERROR_04: the lwIP kIcmpFaultSynthParamProblem "
         "ingress flavor makes the DUT emit a Parameter Problem in response to a "

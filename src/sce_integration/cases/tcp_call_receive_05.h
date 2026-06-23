@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpCallReceive05SM>
     : TcpAnyBase<cases::TcpCallReceive05SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_RECEIVE_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.4";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSE-WAIT state MUST return queued data to the "
         "application on a RECEIVE call (RFC 793 §3.9 p59 Event "

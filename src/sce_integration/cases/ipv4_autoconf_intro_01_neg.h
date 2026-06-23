@@ -34,7 +34,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01NegSM> {
 
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_INTRO_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.1";
     static constexpr std::string_view kDescription =
         "Self-validation of INTRO_01: tc8-dut leaks an IPv4 Link-Local "
         "ARP Probe while holding a DHCP lease (RFC 3927 §1.9 SHOULD NOT)";

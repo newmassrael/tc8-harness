@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader01SM>
     : TcpAnyBase<cases::TcpHeader01SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.16";
     static constexpr std::string_view kDescription  =
         "DUT generates a TCP packet containing valid header field values "
         "(RFC 793 §3.1 Header Format)";

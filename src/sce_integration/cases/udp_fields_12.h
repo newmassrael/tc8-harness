@@ -32,7 +32,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields12SM>
     : UdpAnyBase<cases::UdpFields12SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_12";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP datagram with maximum supported Length "
         "(65 507 B IPv4 payload; RFC 768 'Fields' MUST). Wire is "

@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest08SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest08SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_08";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST generated during RENEWING state: 'ciaddr' MUST be "
         "filled in with client's IP address (RFC 2131 §4.4.5)";

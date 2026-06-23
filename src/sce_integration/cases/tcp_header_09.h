@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader09SM>
     : TcpAnyBase<cases::TcpHeader09SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_09";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
     static constexpr std::string_view kDescription  =
         "DUT discards TCP packet with Checksum = 0 and sends no ACK "
         "back (RFC 793 §3.1; TCP checksum is mandatory)";

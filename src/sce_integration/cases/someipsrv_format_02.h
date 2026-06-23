@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Format02SM>
     : SomeIpSdOnlyBase<cases::Format02SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_02";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.2";
     static constexpr std::string_view kDescription =
         "After SD init, Session ID shall be 0x0001";
 };

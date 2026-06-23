@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection08NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection08NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_08_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of _08: tc8-dut TargetOutsidePrefix fault-"
         "injection drives target_proto_ip to 192.168.1.66 "

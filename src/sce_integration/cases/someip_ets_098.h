@@ -39,7 +39,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts098SM> : SomeIpAnyBase<cases::SomeipEts098SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_098";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Client Mode without explicit Subscribe trigger -- DUT must not auto-subscribe";
 

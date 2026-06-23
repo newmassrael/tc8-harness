@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::SdMessage19SM>
     : SomeIpSdOnlyBase<cases::SdMessage19SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_MESSAGE_19";
-    static constexpr std::string_view kSpecSection = "5.1.5.3.19";
     static constexpr std::string_view kDescription =
         "SubscribeEventgroupNack shall echo Eventgroup ID for unknown EventGroupID";
 

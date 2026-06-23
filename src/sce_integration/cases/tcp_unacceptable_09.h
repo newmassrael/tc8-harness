@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpUnacceptable09SM>
     : TcpAnyBase<cases::TcpUnacceptable09SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_09";
-    static constexpr std::string_view kSpecSection  = "4.8.6.3";
     static constexpr std::string_view kDescription  =
         "TCP in FIN-WAIT-1 state MUST return ACK with proper SEQ and "
         "ACK numbers after receiving a segment with OTW SEQ or "

@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
     : TcpAnyBase<cases::TcpFlagsProcessing10SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_10";
-    static constexpr std::string_view kSpecSection  = "4.8.6.7";
     static constexpr std::string_view kDescription  =
         "DUT in ESTABLISHED MUST piggyback the acknowledgement onto a "
         "queued data segment when the tester injects ACK+payload that "

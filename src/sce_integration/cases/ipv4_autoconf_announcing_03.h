@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing03SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing03SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ANNOUNCING_03";
-    static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "DUT-emitted ARP Announcement has ARP sender_hw = DUT interface "
         "MAC (RFC 3927 §2.4, MUST)";

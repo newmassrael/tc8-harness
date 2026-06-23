@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpUserInterface02SM>
     : UdpAnyBase<cases::UdpUserInterface02SM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_02";
-    static constexpr std::string_view kSpecSection = "4.6.5.5";
     static constexpr std::string_view kDescription =
         "Receive operations return the data octets correctly (RFC 768 "
         "'User Interface' MUST)";

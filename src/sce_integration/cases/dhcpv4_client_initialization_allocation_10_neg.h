@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation10NegSM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientInitializationAllocation10NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_10_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_10: after the conflict-free Probe "
         "window, tc8-dut broadcasts a gratuitous ARP Announce whose sender IP "

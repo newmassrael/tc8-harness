@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts076SM> : SomeIpAnyBase<cases::SomeipEts076SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_076";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Wrong Method ID (0x00FF unknown) — DUT must reject or ignore";
 

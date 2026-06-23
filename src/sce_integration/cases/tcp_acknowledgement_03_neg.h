@@ -37,7 +37,6 @@ template <>
 struct TestCaseTraits<cases::TcpAcknowledgement03NegSM>
     : TcpEgressFaultNegBase<cases::TcpAcknowledgement03NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_03_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.18";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_ACKNOWLEDGEMENT_03: the lwIP kTcpFaultPureAckNumWrong "
         "egress flavor flips the data-elicited ACK's ack_num; a conformant DUT acks the payload";

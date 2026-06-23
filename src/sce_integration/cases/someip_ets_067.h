@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts067SM> : SomeIpAnyBase<cases::SomeipEts067SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_067";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUINT8Array with array length zero — DUT echoes empty array";
 

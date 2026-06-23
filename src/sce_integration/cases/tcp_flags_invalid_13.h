@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
     : TcpAnyBase<cases::TcpFlagsInvalid13SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_13";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "TCP in LAST-ACK state MUST send an ACK with next expected "
         "SEQ number after receiving any segment with OTW SEQ number "

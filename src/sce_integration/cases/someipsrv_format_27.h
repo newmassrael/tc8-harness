@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Format27SM>
     : SomeIpSdOnlyBase<cases::Format27SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_27";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.27";
     static constexpr std::string_view kDescription =
         "Type 2 entry Reserved field (upper 12 bits following TTL) shall be zero";
 

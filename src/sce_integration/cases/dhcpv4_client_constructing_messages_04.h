@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientCm04SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientCm04SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_04";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST source IP address field is 0 in REQUESTING state "
         "(RFC 2131 §4.1, MUST)";

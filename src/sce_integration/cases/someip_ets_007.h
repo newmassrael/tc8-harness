@@ -31,7 +31,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts007SM> : SomeIpAnyBase<cases::SomeipEts007SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_007";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoBitfields — DUT echoes each integer arg with bit order reversed";
 

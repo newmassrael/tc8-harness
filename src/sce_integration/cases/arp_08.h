@@ -20,7 +20,6 @@ template <>
 struct TestCaseTraits<cases::Arp08SM>
     : ArpAnyBase<cases::Arp08SM> {
     static constexpr std::string_view kCaseId       = "ARP_08";
-    static constexpr std::string_view kSpecSection  = "4.2.4.1";
     static constexpr std::string_view kDescription  =
         "ARP request Hardware Type field shall carry ARP_HARDWARE_ETHERNET (0x0001)";
     // UT 0x02 egress-provocation stimulus — see arp_07.h.

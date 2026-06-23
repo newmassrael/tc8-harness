@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields10SM>
     : UdpAnyBase<cases::UdpFields10SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_10";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT discards a UDP datagram whose Length field claims more bytes "
         "than the IP payload carries (RFC 768 'Fields' MUST)";

@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid05SM>
     : TcpAnyBase<cases::TcpFlagsInvalid05SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_05";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-SENT state MUST move on to CLOSED state after "
         "receiving a segment with ACK and RST and acceptable ACK "

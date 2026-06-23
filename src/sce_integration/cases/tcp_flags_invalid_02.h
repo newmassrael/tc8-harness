@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
     : TcpAnyBase<cases::TcpFlagsInvalid02SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "TCP in LISTEN state MUST send RST in response to incoming "
         "ACK and remain in LISTEN; RST.SEQ taken from SEG.ACK "

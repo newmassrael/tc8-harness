@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages13SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "DUT uses randomized exponential backoff for DHCPDISCOVER "
         "retransmissions: first interval = 4 ± 1 s, second = 8 ± 1 s "

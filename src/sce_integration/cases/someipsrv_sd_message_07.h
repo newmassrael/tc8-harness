@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::SdMessage07SM>
     : SomeIpSdOnlyBase<cases::SdMessage07SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_MESSAGE_07";
-    static constexpr std::string_view kSpecSection = "5.1.5.3.7";
     static constexpr std::string_view kDescription =
         "OfferService entry TTL shall carry SERVICE-ID-1-TTL";
 };

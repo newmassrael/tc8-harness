@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Format10SM>
     : SomeIpSdOnlyBase<cases::Format10SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_10";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.10";
     static constexpr std::string_view kDescription =
         "SD Reserved field (24 bits) shall be 0x000000";
 };

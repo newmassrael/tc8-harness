@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest07NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientRequest07NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REQUEST_07_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "Self-validation of REQUEST_07: tc8-dut force-includes Option 50 "
         "in the RENEWING DHCPREQUEST (RFC 2131 §4.3.6 table 5 forbids it) "

@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfLinklocalPackets04NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfLinklocalPackets04NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_LINKLOCAL_PACKETS_04_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.5";
     static constexpr std::string_view kDescription =
         "Self-validation of _04: tc8-dut ReplyToArbitraryTarget fault-"
         "injection answers an ARP Request for an unclaimed link-local "

@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::UdpDatagramLength01SM>
     : UdpAnyBase<cases::UdpDatagramLength01SM> {
     static constexpr std::string_view kCaseId      = "UDP_DatagramLength_01";
-    static constexpr std::string_view kSpecSection = "4.6.5.2";
     static constexpr std::string_view kDescription =
         "DUT discards a truncated UDP datagram (Length field smaller "
         "than actual data) (RFC 768 'Format' + automotive frame integrity)";

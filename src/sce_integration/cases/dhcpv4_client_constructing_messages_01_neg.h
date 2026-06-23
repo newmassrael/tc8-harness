@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages01NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages01NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "Self-validation of CONSTRUCTING_MESSAGES_01: tc8-dut's DHCP client "
         "emits a DHCPDISCOVER whose options blob does not terminate on the "

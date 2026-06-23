@@ -20,7 +20,6 @@ template <>
 struct TestCaseTraits<cases::Arp11SM>
     : ArpAnyBase<cases::Arp11SM> {
     static constexpr std::string_view kCaseId       = "ARP_11";
-    static constexpr std::string_view kSpecSection  = "4.2.4.1";
     static constexpr std::string_view kDescription  =
         "ARP request Protocol Address Length field shall carry IP_ADDR_LEN (4)";
     // UT 0x02 egress-provocation stimulus — see arp_07.h.

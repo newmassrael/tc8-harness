@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpMssOptions11NegSM>
     : TcpEgressFaultNegBase<cases::TcpMssOptions11NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_11_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.9";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_MSS_OPTIONS_11: the lwIP kTcpFaultSynMssZero egress "
         "flavor zeroes the active-OPEN SYN's MSS option; a conformant DUT advertises one";

@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01SM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfNetworkPartitions01SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_NETWORK_PARTITIONS_01";
-    static constexpr std::string_view kSpecSection = "4.5.6.6";
     static constexpr std::string_view kDescription =
         "DUT does not emit periodic gratuitous ARPs for its claimed "
         "link-local address (RFC 3927 §4, SHOULD)";

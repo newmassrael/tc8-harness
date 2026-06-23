@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfNetworkPartitions01NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.6";
     static constexpr std::string_view kDescription =
         "Self-validation of NETWORK_PARTITIONS_01 guard 1 (defending "
         "Reply): tc8-dut ReplyEthDstUnicast fault-injection sends the "

@@ -37,7 +37,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid03NegSM>
     : TcpIngressFaultNegBase<cases::TcpFlagsInvalid03NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_03_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_03: the lwIP kTcpSynthRstOnDisruptive ingress "
         "flavor makes the DUT emit a RST to an unacceptable ACK+RST in SYN-SENT; a conformant "

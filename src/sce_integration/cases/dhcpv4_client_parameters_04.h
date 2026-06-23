@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientParameters04SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientParameters04SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PARAMETERS_04";
-    static constexpr std::string_view kSpecSection = "4.7.6.5";
     static constexpr std::string_view kDescription =
         "DHCPREQUEST repeats the DISCOVER's Option 55 (Parameter Request "
         "List) byte sequence verbatim (RFC 2131 §4.3.6, MUST)";

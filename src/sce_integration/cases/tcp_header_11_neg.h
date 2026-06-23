@@ -39,7 +39,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader11NegSM>
     : TcpIngressFaultNegBase<cases::TcpHeader11NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_11_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.16";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_11: the lwIP kTcpSynthAck ingress flavor makes the DUT "
         "challenge-ACK a multicast-destination SYN; a conformant DUT drops it silently";

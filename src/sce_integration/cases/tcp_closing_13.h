@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::TcpClosing13SM>
     : TcpAnyBase<cases::TcpClosing13SM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_13";
-    static constexpr std::string_view kSpecSection  = "4.8.6.8";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSED state MUST ignore a RST control message "
         "(RFC 793 §3.9 p65 Event Processing)";

@@ -25,7 +25,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_14";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.14";
     static constexpr std::string_view kDescription =
         "Multi-instance Method Responses sourced from distinct per-instance UDP ports";
 

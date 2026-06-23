@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Arp05SM>
     static constexpr ::tc8::BpfGroup kBpfGroup = ::tc8::BpfGroup::ArpAndUdp;
 
     static constexpr std::string_view kCaseId = "ARP_05";
-    static constexpr std::string_view kSpecSection = "4.2.4.1";
     static constexpr std::string_view kDescription =
         "ARP entry learned on gratuitous ARP Response — DUT must NOT emit an "
         "ARP Request after tester pre-populates the cache via gratuitous Response";

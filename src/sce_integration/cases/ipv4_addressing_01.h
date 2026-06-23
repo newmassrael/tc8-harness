@@ -34,7 +34,6 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId       = "IPv4_ADDRESSING_01";
-    static constexpr std::string_view kSpecSection  = "4.4.4.5";
     static constexpr std::string_view kDescription  =
         "DUT accepts an IPv4 UDP packet whose Destination Address is "
         "the Limited Broadcast address (RFC 791 §3.2, RFC 1122 §3.2.1.3)";

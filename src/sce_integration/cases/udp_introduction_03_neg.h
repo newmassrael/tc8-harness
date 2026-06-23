@@ -34,7 +34,6 @@ template <>
 struct TestCaseTraits<cases::UdpIntroduction03NegSM>
     : Icmpv4EgressFaultNegBase<cases::UdpIntroduction03NegSM, std::uint8_t{3}> {
     static constexpr std::string_view kCaseId      = "UDP_INTRODUCTION_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.6.5.6";
     static constexpr std::string_view kDescription =
         "Self-validation of UDP_INTRODUCTION_03: the lwIP kIcmpFaultDestUnreachCodeWrong egress "
         "flavor flips the DUT's Port Unreachable code off 3; a conformant DUT emits code 3";

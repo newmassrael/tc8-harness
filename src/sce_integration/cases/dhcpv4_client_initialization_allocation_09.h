@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation09SM>
     : Dhcpv4ArpBase<cases::Dhcpv4ClientInitializationAllocation09SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_09";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Post-Probe ARP conflict triggers DHCPDECLINE emit (msg_type=4, "
         "ciaddr=0, Option 50=declined yiaddr, Option 54=server_id) "

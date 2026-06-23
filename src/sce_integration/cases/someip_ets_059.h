@@ -34,7 +34,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts059SM> : SomeIpAnyBase<cases::SomeipEts059SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_059";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "resetInterface Fire&Forget with wrong interface_version — DUT must stay silent";
 

@@ -35,7 +35,6 @@ template <>
 struct TestCaseTraits<cases::TcpSequence04NegSM>
     : TcpEgressFaultNegBase<cases::TcpSequence04NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_04_NEG";
-    static constexpr std::string_view kSpecSection  = "4.8.6.17";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_SEQUENCE_04: the lwIP kTcpFaultSynAckAckWrong egress "
         "flavor flips the SYN,ACK ack_num; a conformant DUT acks the wrapped tester ISN + 1";

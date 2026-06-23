@@ -37,7 +37,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
     using Event = SM::PolicyType::Event;
 
     static constexpr std::string_view kCaseId       = "TCP_RETRANSMISSION_TO_06";
-    static constexpr std::string_view kSpecSection  = "4.8.6.11";
     static constexpr std::string_view kDescription  =
         "DUT TCP SHOULD use RTO = 1 sec initially (RFC 6298 §2.1).";
     static constexpr bool             kDeprecated   = false;

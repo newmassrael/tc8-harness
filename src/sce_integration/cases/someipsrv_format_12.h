@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::Format12SM>
     : SomeIpSdOnlyBase<cases::Format12SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_12";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.12";
     static constexpr std::string_view kDescription =
         "Solicited OfferService Type 1 entry IndexFirstOptionRun == 0";
 

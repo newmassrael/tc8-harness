@@ -36,7 +36,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts100SM> : SomeIpAnyBase<cases::SomeipEts100SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_100";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "Client-mode FindService is bounded to Start-Up Phase, absent in Main Phase";
 

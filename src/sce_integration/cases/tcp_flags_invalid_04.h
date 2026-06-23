@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
     : TcpAnyBase<cases::TcpFlagsInvalid04SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_04";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-SENT state MUST ignore a RST control message "
         "(RFC 793 §3.9 p67 Event Processing)";

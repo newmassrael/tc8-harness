@@ -35,7 +35,6 @@ template <>
 struct TestCaseTraits<cases::UdpFields14SM>
     : UdpAnyBase<cases::UdpFields14SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_14";
-    static constexpr std::string_view kSpecSection = "4.6.5.4";
     static constexpr std::string_view kDescription =
         "DUT-emitted UDP with even payload size carries a valid checksum "
         "without pad processing (RFC 768 'Fields' MUST)";

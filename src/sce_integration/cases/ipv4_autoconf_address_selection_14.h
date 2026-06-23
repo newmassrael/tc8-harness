@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection14SM>
     : LinklocalRepeatedConflictBase<cases::Ipv4AutoconfAddressSelection14SM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_14";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "DUT rate-limits Probe emissions to one new address per "
         "RATE_LIMIT_INTERVAL after MAX_CONFLICTS=10 conflicts "

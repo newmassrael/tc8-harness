@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
     : TcpAnyBase<cases::TcpFlagsInvalid03SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_03";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-SENT state MUST ignore a segment carrying both ACK "
         "and RST flags with an unacceptable ACK number "

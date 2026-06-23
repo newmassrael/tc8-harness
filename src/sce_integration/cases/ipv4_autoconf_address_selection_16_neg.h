@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection16NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection16NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_16_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of _16: tc8-dut ReplySenderIpWrong fault-"
         "injection drives the defending ARP Reply sender_proto_ip to "

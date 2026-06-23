@@ -30,7 +30,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::SomeipEts049SM> : SomeIpAnyBase<cases::SomeipEts049SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_049";
-    static constexpr std::string_view kSpecSection = "5.1.6";
     static constexpr std::string_view kDescription =
         "echoUTF8DYNAMIC length too long — DUT must reject or ignore";
 

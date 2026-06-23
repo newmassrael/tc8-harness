@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpCallReceive04SM>
     : TcpAnyBase<cases::TcpCallReceive04SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_RECEIVE_04";
-    static constexpr std::string_view kSpecSection  = "4.8.6.4";
     static constexpr std::string_view kDescription  =
         "TCP MUST reassemble queued incoming segments and return the "
         "data to a RECEIVE call in EST / FIN-WAIT-1 / FIN-WAIT-2 "

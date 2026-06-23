@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpOutOfOrder02SM>
     : TcpAnyBase<cases::TcpOutOfOrder02SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_02";
-    static constexpr std::string_view kSpecSection  = "4.8.6.10";
     static constexpr std::string_view kDescription  =
         "DUT TCP delayed-ACK MUST fire within 0.5 sec — cumulative "
         "ACK covering two consecutive data segments arrives in time "

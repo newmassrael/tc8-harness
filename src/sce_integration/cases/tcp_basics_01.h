@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::TcpBasics01SM>
     : TcpAnyBase<cases::TcpBasics01SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_01";
-    static constexpr std::string_view kSpecSection  = "4.8.6.1";
     static constexpr std::string_view kDescription  =
         "TCP in LISTEN state MUST send a SYN,ACK in response to a "
         "received SYN (RFC 793 §3.2 p23 Terminology)";

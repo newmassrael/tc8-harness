@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp32SM>
     : ArpAndUdpBase<cases::Arp32SM> {
     static constexpr std::string_view kCaseId = "ARP_32";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP cache entry merge on two Requests from different MACs — DUT "
         "UDP egress eth_dst must equal the second-injected MAC";

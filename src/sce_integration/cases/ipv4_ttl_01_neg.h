@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Ttl01NegSM>
     : Ipv4EgressFaultNegBase<cases::Ipv4Ttl01NegSM> {
     static constexpr std::string_view kCaseId      = "IPv4_TTL_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.4.4.3";
     static constexpr std::string_view kDescription =
         "Self-validation of IPv4_TTL_01: the lwIP kIpv4FaultTtlZero egress flavor zeroes "
         "the Echo Reply IPv4 TTL; a conformant DUT emits a non-zero TTL";

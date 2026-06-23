@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition05SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition05SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REACQUISITION_05";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "RENEWING retransmission interval = (T2 - T1) / 2 "
         "(RFC 2131 §4.4.5)";

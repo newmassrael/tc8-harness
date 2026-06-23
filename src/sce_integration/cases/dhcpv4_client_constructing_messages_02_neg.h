@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages02NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages02NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_02_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.7";
     static constexpr std::string_view kDescription =
         "Self-validation of CONSTRUCTING_MESSAGES_02: tc8-dut sends the "
         "RENEWING DHCPREQUEST to a wrong destination (RFC 2131 §4.4.5 "

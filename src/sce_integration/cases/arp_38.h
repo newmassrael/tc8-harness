@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp38SM>
     : ArpAndUdpBase<cases::Arp38SM> {
     static constexpr std::string_view kCaseId = "ARP_38";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "Non-gratuitous ARP Response with target_ip != DUT IP — DUT must "
         "drop and emit its own ARP Request on subsequent UDP egress";

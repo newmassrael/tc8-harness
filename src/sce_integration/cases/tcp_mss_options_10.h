@@ -27,7 +27,6 @@ template <>
 struct TestCaseTraits<cases::TcpMssOptions10SM>
     : TcpAnyBase<cases::TcpMssOptions10SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_10";
-    static constexpr std::string_view kSpecSection  = "4.8.6.9";
     static constexpr std::string_view kDescription  =
         "If an MSS option is not received at connection setup, DUT "
         "MUST default send MSS to 536 bytes (RFC 1122 §4.2.2.6 p85).";

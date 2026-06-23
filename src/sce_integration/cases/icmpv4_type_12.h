@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type12SM>
     : Icmpv4TypedBase<cases::Icmpv4Type12SM, std::uint8_t{14}> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_12";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "ICMP Timestamp Reply echoes Identifier and Sequence Number "
         "fields verbatim from the Timestamp Request";

@@ -25,7 +25,6 @@ template <>
 struct TestCaseTraits<cases::Format19SM>
     : SomeIpSdOnlyBase<cases::Format19SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_19";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.19";
     static constexpr std::string_view kDescription =
         "Type 2 entry Type shall be 0x07 (SubscribeEventgroupAck or Nack)";
 

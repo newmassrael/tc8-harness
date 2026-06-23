@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc09SM> : SomeIpAnyBase<cases::Rpc09SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_09";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.9";
     static constexpr std::string_view kDescription =
         "Error message carries no payload (length field = 8)";
 

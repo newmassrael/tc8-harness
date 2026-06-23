@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection03NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAddressSelection03NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ADDRESS_SELECTION_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.2";
     static constexpr std::string_view kDescription =
         "Self-validation of _03: tc8-dut ProbeEthDstUnicast fault-"
         "injection drives the Probe Eth dst to the DUT iface MAC "

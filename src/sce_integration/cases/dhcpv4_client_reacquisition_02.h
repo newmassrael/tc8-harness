@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition02SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientReacquisition02SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_REACQUISITION_02";
-    static constexpr std::string_view kSpecSection = "4.7.6.8";
     static constexpr std::string_view kDescription =
         "On DHCPACK timeout (T2) the client moves to REBINDING and "
         "broadcasts DHCPREQUEST to 0xffffffff (RFC 2131 §4.4.5)";

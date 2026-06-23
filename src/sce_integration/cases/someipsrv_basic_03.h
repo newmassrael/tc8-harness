@@ -34,7 +34,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Basic03SM> : SomeIpAnyBase<cases::Basic03SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_BASIC_03";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.3";
     static constexpr std::string_view kDescription =
         "Method-ID highest bit = 1 for events / notifications — verified "
         "via Subscribe → Ack → Notification chain";

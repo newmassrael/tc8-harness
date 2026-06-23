@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Arp27NegSM>
     : ArpIngressFaultNegBase<cases::Arp27NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_27_NEG";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_27: the lwIP kArpFaultReplyToDropFrame ingress "
         "flavor makes the DUT reply to a Request with an unknown Protocol Type "

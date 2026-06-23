@@ -34,7 +34,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Addressing03NegSM>
     : Icmpv4IngressFaultNegBase<cases::Ipv4Addressing03NegSM, std::uint8_t{0}> {
     static constexpr std::string_view kCaseId      = "IPv4_ADDRESSING_03_NEG";
-    static constexpr std::string_view kSpecSection = "4.4.4.5";
     static constexpr std::string_view kDescription =
         "Self-validation of IPv4_ADDRESSING_03: the lwIP kIcmpFaultSynthEchoReply ingress flavor "
         "makes the DUT reply to a loopback-destination Echo Request; a conformant DUT discards it "

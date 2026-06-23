@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Format08SM>
     : SomeIpSdOnlyBase<cases::Format08SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_08";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.8";
     static constexpr std::string_view kDescription =
         "SD Unicast Flag shall be '1'";
 };

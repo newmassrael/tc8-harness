@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Ipv4AutoconfAnnouncing01NegSM>
     : LinklocalAutoconfBase<cases::Ipv4AutoconfAnnouncing01NegSM> {
     static constexpr std::string_view kCaseId =
         "IPv4_AUTOCONF_ANNOUNCING_01_NEG";
-    static constexpr std::string_view kSpecSection = "4.5.6.3";
     static constexpr std::string_view kDescription =
         "Self-validation of _01: tc8-dut AnnounceEthDstUnicast "
         "fault-injection drives Announce eth_dst to DUT iface MAC "

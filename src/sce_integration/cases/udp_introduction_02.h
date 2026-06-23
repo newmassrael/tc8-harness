@@ -26,7 +26,6 @@ template <>
 struct TestCaseTraits<cases::UdpIntroduction02SM>
     : UdpAnyBase<cases::UdpIntroduction02SM> {
     static constexpr std::string_view kCaseId      = "UDP_INTRODUCTION_02";
-    static constexpr std::string_view kSpecSection = "4.6.5.6";
     static constexpr std::string_view kDescription =
         "DUT denies a UDP datagram with all-systems multicast (224.0.0.1) "
         "destination (RFC 1122 §4.1.1, spec inverts the SHOULD-allow per "

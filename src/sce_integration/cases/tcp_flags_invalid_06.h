@@ -29,7 +29,6 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid06SM>
     : TcpAnyBase<cases::TcpFlagsInvalid06SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_06";
-    static constexpr std::string_view kSpecSection  = "4.8.6.6";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-SENT state MUST drop a segment with neither SYN "
         "nor RST flag set and remain in the same state "

@@ -21,7 +21,6 @@ template <>
 struct TestCaseTraits<cases::Arp37SM>
     : ArpAnyBase<cases::Arp37SM> {
     static constexpr std::string_view kCaseId = "ARP_37";
-    static constexpr std::string_view kSpecSection = "4.2.4.2";
     static constexpr std::string_view kDescription =
         "ARP Request with target_ip != DUT IP — DUT must not reply";
     // <IP-FIRST-UNUSED-ADDR-INTERFACE-1> per spec — an address on the

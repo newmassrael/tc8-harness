@@ -20,7 +20,6 @@ template <>
 struct TestCaseTraits<cases::Arp13SM>
     : ArpAnyBase<cases::Arp13SM> {
     static constexpr std::string_view kCaseId       = "ARP_13";
-    static constexpr std::string_view kSpecSection  = "4.2.4.1";
     static constexpr std::string_view kDescription  =
         "ARP request Sender Hardware Address shall carry the configured DIface-0 MAC";
     // UT 0x02 egress-provocation stimulus — see arp_07.h.

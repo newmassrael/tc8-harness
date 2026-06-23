@@ -26,7 +26,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Basic02SM> : SomeIpSdOnlyBase<cases::Basic02SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_BASIC_02";
-    static constexpr std::string_view kSpecSection = "5.1.5.5.2";
     static constexpr std::string_view kDescription =
         "OfferService instance_id must not be reserved (0x0000 / 0xFFFF) "
         "in reply to a FindService with instance_id=0xFFFF";

@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::UdpInvalidAddresses01SM>
     : UdpAnyBase<cases::UdpInvalidAddresses01SM> {
     static constexpr std::string_view kCaseId      = "UDP_INVALID_ADDRESSES_01";
-    static constexpr std::string_view kSpecSection = "4.6.5.7";
     static constexpr std::string_view kDescription =
         "DUT discards a UDP datagram whose Source IP Address is "
         "all-systems multicast (RFC 1122 §4.1.3.6 + §3.2.1.3 MUST)";

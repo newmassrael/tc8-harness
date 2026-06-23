@@ -25,7 +25,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation06NegSM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation06NegSM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_06_NEG";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "Self-validation of INIT_ALLOC_06: tc8-dut XORs the post-OFFER "
         "DHCPREQUEST's 'xid' (RFC 2131 §4.4.1 MUST echo the DISCOVER's xid) "

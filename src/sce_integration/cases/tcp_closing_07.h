@@ -30,7 +30,6 @@ template <>
 struct TestCaseTraits<cases::TcpClosing07SM>
     : TcpAnyBase<cases::TcpClosing07SM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_07";
-    static constexpr std::string_view kSpecSection  = "4.8.6.8";
     static constexpr std::string_view kDescription  =
         "TCP in FIN-WAIT-1 state MUST honour RECEIVE calls and ACK "
         "incoming data while remaining in FIN-WAIT-1 (RFC 793 §3.5 "

@@ -49,7 +49,6 @@ struct TestCaseTraits<cases::SdMessage02SM>
     using Base = SomeIpSdOnlyBase<cases::SdMessage02SM>;
 
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_MESSAGE_02";
-    static constexpr std::string_view kSpecSection = "5.1.5.3.2";
     static constexpr std::string_view kDescription =
         "FindService(specific instance) returns OfferService with that one entry";
 

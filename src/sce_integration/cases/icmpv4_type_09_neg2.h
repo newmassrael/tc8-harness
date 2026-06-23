@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::Icmpv4Type09Neg2SM>
     : Icmpv4EgressFaultNegBase<cases::Icmpv4Type09Neg2SM> {
     static constexpr std::string_view kCaseId      = "ICMPv4_TYPE_09_NEG2";
-    static constexpr std::string_view kSpecSection = "4.3.3.2";
     static constexpr std::string_view kDescription =
         "Self-validation of ICMPv4_TYPE_09: the lwIP kIcmpFaultEchoSeqWrong egress flavor "
         "flips the Echo Reply sequence; a conformant DUT echoes the request sequence";

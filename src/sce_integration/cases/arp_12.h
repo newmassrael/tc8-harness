@@ -20,7 +20,6 @@ template <>
 struct TestCaseTraits<cases::Arp12SM>
     : ArpAnyBase<cases::Arp12SM> {
     static constexpr std::string_view kCaseId       = "ARP_12";
-    static constexpr std::string_view kSpecSection  = "4.2.4.1";
     static constexpr std::string_view kDescription  =
         "ARP request Operation Code field shall carry OPERATION_REQUEST (1)";
     // UT 0x02 egress-provocation stimulus — see arp_07.h.

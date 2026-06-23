@@ -32,7 +32,6 @@ class IDutControl;
 //
 //   Identity / reporting (mirrored into CaseEntry):
 //     static constexpr std::string_view kCaseId;       // "SOMEIPSRV_FORMAT_01"
-//     static constexpr std::string_view kSpecSection;  // "5.1.5.1.1"
 //     static constexpr std::string_view kDescription;  // Synopsis row
 //     static constexpr bool             kDeprecated;   // Deprecated / Deleted Test Case
 //     static constexpr int              kTopology;     // Test setup — Topology N
@@ -53,6 +52,13 @@ class IDutControl;
 //   (Category is derived from kCaseId — everything before the final
 //   "_<digits>" suffix — so there is no separate kCategory field. The
 //   registrar static_asserts the required shape.)
+//
+//   (Spec section is likewise NOT a trait field. It is derived at the
+//   point of display from the spec inventory — docs/spec/case_inventory.json,
+//   mined from the TC8 spec PDF (the SSOT) — keyed by canonical case id.
+//   A hand-authored per-case copy drifts from the spec; the inventory is
+//   the single source. Out-of-tree cases supply their section via an
+//   extra inventory JSON (see SpecInventory::load extra_inventory_paths).)
 //
 //   Runtime plumbing for TestRunner<SM>:
 //     using Captured = /* SCE Named Context struct dispatch() writes to */;

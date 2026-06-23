@@ -22,7 +22,6 @@ template <>
 struct TestCaseTraits<cases::Format03SM>
     : SomeIpSdOnlyBase<cases::Format03SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_03";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.3";
     static constexpr std::string_view kDescription =
         "Protocol Version shall be statically set to 0x01";
 };

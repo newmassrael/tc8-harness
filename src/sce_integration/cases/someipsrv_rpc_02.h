@@ -25,7 +25,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc02SM> : SomeIpAnyBase<cases::Rpc02SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_02";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.2";
     static constexpr std::string_view kDescription =
         "Single transport for all notifications of SERVICE-ID-2";
 

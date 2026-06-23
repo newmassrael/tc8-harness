@@ -33,7 +33,6 @@ template <>
 struct TestCaseTraits<cases::Ipv4Checksum02NegSM>
     : Icmpv4IngressFaultNegBase<cases::Ipv4Checksum02NegSM, std::uint8_t{0}> {
     static constexpr std::string_view kCaseId      = "IPv4_CHECKSUM_02_NEG";
-    static constexpr std::string_view kSpecSection = "4.4.4.2";
     static constexpr std::string_view kDescription =
         "Self-validation of IPv4_CHECKSUM_02: the lwIP kIcmpFaultSynthEchoReply ingress flavor "
         "makes the DUT reply to a bad-header-checksum Echo Request; a conformant DUT discards it "

@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpClosing09SM>
     : TcpAnyBase<cases::TcpClosing09SM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_09";
-    static constexpr std::string_view kSpecSection  = "4.8.6.8";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST enter CLOSE-WAIT on receiving "
         "FIN; the application MAY send remaining data and TCP MUST "

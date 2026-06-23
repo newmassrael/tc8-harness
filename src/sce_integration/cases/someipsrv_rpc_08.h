@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc08SM> : SomeIpAnyBase<cases::Rpc08SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_08";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.8";
     static constexpr std::string_view kDescription =
         "DUT must not return Error for Requests already carrying an error code";
 

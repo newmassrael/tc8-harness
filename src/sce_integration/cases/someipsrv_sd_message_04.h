@@ -24,7 +24,6 @@ template <>
 struct TestCaseTraits<cases::SdMessage04SM>
     : SomeIpSdOnlyBase<cases::SdMessage04SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_SD_MESSAGE_04";
-    static constexpr std::string_view kSpecSection = "5.1.5.3.4";
     static constexpr std::string_view kDescription =
         "OfferService entry Major Version shall carry SdServerServiceMajorVersion";
 };

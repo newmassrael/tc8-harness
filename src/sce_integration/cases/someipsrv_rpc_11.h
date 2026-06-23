@@ -29,7 +29,6 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Rpc11SM> : SomeIpAnyBase<cases::Rpc11SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_RPC_11";
-    static constexpr std::string_view kSpecSection = "5.1.5.7.11";
     static constexpr std::string_view kDescription =
         "Field setter — Request payload sets value, Response payload echoes set value";
 

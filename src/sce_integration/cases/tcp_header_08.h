@@ -28,7 +28,6 @@ template <>
 struct TestCaseTraits<cases::TcpHeader08SM>
     : TcpAnyBase<cases::TcpHeader08SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_08";
-    static constexpr std::string_view kSpecSection  = "4.8.6.X";
     static constexpr std::string_view kDescription  =
         "DUT discards TCP packet with Data Offset greater than the "
         "actual segment length (RFC 793 §3.1; Linux pskb_may_pull discard)";

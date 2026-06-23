@@ -23,7 +23,6 @@ template <>
 struct TestCaseTraits<cases::Format09SM>
     : SomeIpSdOnlyBase<cases::Format09SM> {
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_FORMAT_09";
-    static constexpr std::string_view kSpecSection = "5.1.5.1.9";
     static constexpr std::string_view kDescription =
         "SD undefined flag bits (mask 0x3F) shall be '0'";
 };

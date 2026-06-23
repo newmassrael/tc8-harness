@@ -23,7 +23,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientInitializationAllocation01SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01";
-    static constexpr std::string_view kSpecSection = "4.7.6.9";
     static constexpr std::string_view kDescription =
         "After NAK in RENEWING the DUT waits a random [1, 10] s before "
         "the restart DHCPDISCOVER (RFC 2131 §4.4.1, SHOULD)";
