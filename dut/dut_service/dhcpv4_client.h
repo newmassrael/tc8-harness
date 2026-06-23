@@ -109,6 +109,9 @@ enum class Dhcpv4BehaviorFlavor : std::uint8_t {
     // retransmission wait to 0, so the backoff intervals fall below RFC 2131
     // §4.1 range.
     RetxNoBackoff            = ::tc8::ut::kDhcpFlavorRetxNoBackoff,
+    // §4.7.6.7 CONSTRUCTING_MESSAGES_12: runLoop forces the wait to 2x the
+    // backoff cap, so the saturation interval exceeds the RFC 2131 §4.1 ceiling.
+    RetxExceedCap            = ::tc8::ut::kDhcpFlavorRetxExceedCap,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

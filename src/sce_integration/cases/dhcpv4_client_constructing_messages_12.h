@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string_view>
 
 #include "sce_integration/case_registry.h"
@@ -13,6 +14,16 @@ namespace tc8::sce::cases {
 using Dhcpv4ClientConstructingMessages12SM =
     ::SCE::Generated::dhcpv4_client_constructing_messages_12::
         dhcpv4_client_constructing_messages_12;
+
+// CONSTRUCTING_MESSAGES_12 fast-envelope backoff parameters — the SSOT shared
+// with the _neg self-validation so the envelope cannot drift across the two
+// traits. retry_count=8 gives the SCXML budget to observe the cap-doubling
+// fixpoint at the 6th DISCOVER; cap=3200 ms is the harness-pinned saturation
+// ceiling (real-spec 64 000 ms blows the smoke budget).
+inline constexpr std::uint8_t  kCm12RetryCount   = 8U;
+inline constexpr std::uint16_t kCm12RetxFirstMs  = 200U;
+inline constexpr std::uint16_t kCm12RetxCapMs    = 3200U;
+inline constexpr std::uint16_t kCm12RetxJitterMs = 100U;
 
 }  // namespace tc8::sce::cases
 
@@ -37,16 +48,16 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12SM>
                          std::string_view iface) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
             cfg, iface, cfg.dut.mac,
-            /*retry_count=*/8U,
+            /*retry_count=*/cases::kCm12RetryCount,
             /*retry_interval_ms=*/0U,
             /*nak_to_discover_min_ms=*/0U,
             /*nak_to_discover_max_ms=*/0U,
             /*arp_probe_listen_ms=*/0U,
             /*decline_to_discover_min_ms=*/0U,
             /*decline_to_discover_max_ms=*/0U,
-            /*retx_first_ms=*/200U,
-            /*retx_cap_ms=*/3200U,
-            /*retx_jitter_ms=*/100U);
+            /*retx_first_ms=*/cases::kCm12RetxFirstMs,
+            /*retx_cap_ms=*/cases::kCm12RetxCapMs,
+            /*retx_jitter_ms=*/cases::kCm12RetxJitterMs);
     }
 };
 

@@ -940,7 +940,8 @@ bool Dhcpv4Client::pollForReply(int                        sk,
             case Dhcpv4BehaviorFlavor::None:
             case Dhcpv4BehaviorFlavor::LeakLinkLocalAfterBind:
             case Dhcpv4BehaviorFlavor::RetxNoBackoff:
-                break;  // not a reply-acceptance mutant (RetxNoBackoff faults runLoop timing)
+            case Dhcpv4BehaviorFlavor::RetxExceedCap:
+                break;  // not a reply-acceptance mutant (RetxNoBackoff/RetxExceedCap fault runLoop timing)
         }
     }
 
@@ -1147,6 +1148,14 @@ void Dhcpv4Client::runLoop(Params params) {
             // schedule is faulted; the DISCOVER shape stays conformant.
             if (behavior_flavor_ == Dhcpv4BehaviorFlavor::RetxNoBackoff) {
                 wait_for_offer = std::chrono::milliseconds(0);
+            }
+            // §4.7.6.7 CONSTRUCTING_MESSAGES_12_NEG: the RetxExceedCap timing
+            // mutant forces every wait to 2x the cap, so the saturation
+            // inter-DISCOVER interval exceeds the RFC 2131 §4.1 cap. Only the
+            // schedule is faulted; the DISCOVER shape stays conformant.
+            if (behavior_flavor_ == Dhcpv4BehaviorFlavor::RetxExceedCap) {
+                wait_for_offer =
+                    std::chrono::milliseconds(params.retx_cap_ms.count() * 2);
             }
 
             std::uint32_t offered_addr_be = 0;

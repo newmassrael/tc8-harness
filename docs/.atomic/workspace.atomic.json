@@ -3250,6 +3250,14 @@
         {
           "file": "src/sce_integration/cases/dhcpv4_client_constructing_messages_13_neg2.h",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_12_neg/dhcpv4_client_constructing_messages_12_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/dhcpv4_client_constructing_messages_12_neg.h",
+          "kind": "implements"
         }
       ]
     },

@@ -1196,6 +1196,11 @@ inline constexpr std::uint8_t kDhcpFlavorProceedOnLoneAck               = 0x1C;
 // conformant path (None) keeps the backoff, which is the _neg's fail_compliant
 // outcome.
 inline constexpr std::uint8_t kDhcpFlavorRetxNoBackoff                  = 0x1D;
+// §4.7.6.7 CONSTRUCTING_MESSAGES_12: behavioural timing mutant — runLoop forces
+// the retransmission wait to 2x the backoff cap, so the saturation interval
+// exceeds the RFC 2131 §4.1 ceiling. The conformant path (None) clamps at the
+// cap, which is the _neg's fail_compliant outcome.
+inline constexpr std::uint8_t kDhcpFlavorRetxExceedCap                  = 0x1E;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

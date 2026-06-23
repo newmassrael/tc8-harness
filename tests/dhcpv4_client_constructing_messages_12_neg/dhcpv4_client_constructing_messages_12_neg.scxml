@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.6 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_12 negative — tc8-dut DHCP
+  retransmission-timing fault self-validation of the positive _12 cap guard.
+  The trait arms kDhcpFlavorRetxExceedCap (UT 0x10 OpStartDhcpClient trailing
+  flavor byte), so runLoop does not enforce the backoff cap — every
+  inter-DISCOVER wait is 2x the cap (6400 ms for the fast-envelope cap=3200 ms),
+  so the saturation interval exceeds the RFC 2131 §4.1 ceiling. The trait drives
+  the same fast-envelope the positive uses (cases::kCm12* SSOT); only the
+  schedule is faulted, the DISCOVER shape stays conformant. Pass = the observed
+  5->6 interval exceeds the [0, cap+tol] band (NOT within [0, 4.2 s]);
+  fail_compliant = the DUT clamped at the cap despite the flavor (fault inert).
+  tc8-dut-only (the lwIP fixture carries no DHCP client).
+
+  Six states observe the 5->6 SATURATION interval — the same frame the positive
+  checks — so the conformant fail_compliant branch tests the real boundary
+  (conformant d5->d6 = cap = 3200 ms, within band; faulted = 6400 ms, exceeds).
+  The flat 2x-cap fault is also visible from d1->d2, but observing it at the
+  saturation point is the meaningful test, hence the 6-state positive parity.
+
+  Deadlines: d1 arrives promptly (s1=3 s); d2..d6 each arrive ~6.4 s after the
+  prior DISCOVER (the faulted gap), so s2..s6 are 10 s (3.6 s margin) to admit
+  them on the uncontended timing_serial lane.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_constructing_messages_12_neg"
+       datamodel="null"
+       initial="listening_for_d1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_d1">
+    <onentry>
+      <send event="s1_deadline" delay="3s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d2"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_d2">
+    <onentry>
+      <send event="s2_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d3"/>
+    <transition event="s2_deadline" target="inconclusive_no_discover_2"/>
+  </state>
+
+  <state id="listening_for_d3">
+    <onentry>
+      <send event="s3_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d4"/>
+    <transition event="s3_deadline" target="inconclusive_no_discover_3"/>
+  </state>
+
+  <state id="listening_for_d4">
+    <onentry>
+      <send event="s4_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d5"/>
+    <transition event="s4_deadline" target="inconclusive_no_discover_4"/>
+  </state>
+
+  <state id="listening_for_d5">
+    <onentry>
+      <send event="s5_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d6"/>
+    <transition event="s5_deadline" target="inconclusive_no_discover_5"/>
+  </state>
+
+  <state id="listening_for_d6">
+    <onentry>
+      <send event="s6_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and not captured.frame_delta_within_us(0, 4200000)"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.frame_delta_within_us(0, 4200000)"
+                target="fail_compliant"/>
+    <transition event="s6_deadline" target="inconclusive_no_discover_6"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover_2">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_2","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover_3">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_3","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover_4">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_4","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover_5">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_5","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover_6">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_6","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_clamped_at_cap_despite_exceed_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</scxml>

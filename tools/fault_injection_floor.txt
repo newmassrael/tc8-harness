@@ -5,5 +5,5 @@
 # below its mark (a _neg was lost -- fix it) OR rises above it (a _neg landed --
 # run `--write-floor`). Monotonic: --write-floor only raises, never lowers, so a
 # regression on one DUT cannot be masked by a gain on the other.
-tc8_dut 59
+tc8_dut 60
 lwip 99
