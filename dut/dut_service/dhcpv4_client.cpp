@@ -939,7 +939,8 @@ bool Dhcpv4Client::pollForReply(int                        sk,
                 break;
             case Dhcpv4BehaviorFlavor::None:
             case Dhcpv4BehaviorFlavor::LeakLinkLocalAfterBind:
-                break;  // not a reply-acceptance mutant
+            case Dhcpv4BehaviorFlavor::RetxNoBackoff:
+                break;  // not a reply-acceptance mutant (RetxNoBackoff faults runLoop timing)
         }
     }
 
@@ -1139,6 +1140,13 @@ void Dhcpv4Client::runLoop(Params params) {
                 const std::int64_t total_ms =
                     std::max<std::int64_t>(0, base_ms + jitter_ms);
                 wait_for_offer = std::chrono::milliseconds(total_ms);
+            }
+            // §4.7.6.7 CONSTRUCTING_MESSAGES_13_NEG: the RetxNoBackoff timing
+            // mutant collapses the inter-DISCOVER wait to 0, so the retransmit
+            // intervals fall far below the RFC 2131 §4.1 backoff range. Only the
+            // schedule is faulted; the DISCOVER shape stays conformant.
+            if (behavior_flavor_ == Dhcpv4BehaviorFlavor::RetxNoBackoff) {
+                wait_for_offer = std::chrono::milliseconds(0);
             }
 
             std::uint32_t offered_addr_be = 0;

@@ -3234,6 +3234,22 @@
         {
           "file": "tests/dhcpv4_client_constructing_messages_13/dhcpv4_client_constructing_messages_13.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_13_neg/dhcpv4_client_constructing_messages_13_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/dhcpv4_client_constructing_messages_13_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_constructing_messages_13_neg2/dhcpv4_client_constructing_messages_13_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/dhcpv4_client_constructing_messages_13_neg2.h",
+          "kind": "implements"
         }
       ]
     },

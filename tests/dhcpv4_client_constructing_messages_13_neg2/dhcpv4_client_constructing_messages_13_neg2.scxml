@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.6 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13 negative variant 2 — proves
+  the SECOND retransmission-interval fail-final (dut_second_retx_interval_out_of_range)
+  reachable. Same kDhcpFlavorRetxNoBackoff timing mutant as _NEG (runLoop collapses the
+  inter-DISCOVER wait to 0); _NEG observes the first interval (d1->d2), this variant
+  advances one more DISCOVER and observes the second interval (d2->d3) collapsed below
+  the [2*FirstRetx-1, 2*FirstRetx+1] = [7,9] s range. Pass = the collapsed second
+  interval observed; fail_compliant = the DUT backed off conformantly despite the
+  flavor (fault inert). tc8-dut-only (the lwIP fixture carries no DHCP client).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_constructing_messages_13_neg2"
+       datamodel="null"
+       initial="listening_for_d1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_d1">
+    <onentry>
+      <send event="s1_deadline" delay="3s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d2"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_d2">
+    <onentry>
+      <send event="s2_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_d3"/>
+    <transition event="s2_deadline" target="inconclusive_no_discover_2"/>
+  </state>
+
+  <state id="listening_for_d3">
+    <onentry>
+      <send event="s3_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and not captured.frame_delta_within_us(7000000, 9000000)"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.frame_delta_within_us(7000000, 9000000)"
+                target="fail_compliant"/>
+    <transition event="s3_deadline" target="inconclusive_no_discover_3"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover_2">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_2","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover_3">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_3","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_backed_off_despite_no_backoff_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</scxml>

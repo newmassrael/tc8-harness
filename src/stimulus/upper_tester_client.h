@@ -369,7 +369,8 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     std::uint16_t retx_first_ms              = 0,
     std::uint16_t retx_cap_ms                = 0,
     std::uint16_t retx_jitter_ms             = 0,
-    std::uint8_t  iface_index                = 0);
+    std::uint8_t  iface_index                = 0,
+    std::uint8_t  flavor                     = 0);
 
 // §4.5.6.1 / §4.7 Phase F fault-injection variant of the 0x10
 // OpStartDhcpClient request: the canonical buildStartDhcpClientRequest

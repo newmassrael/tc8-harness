@@ -66,7 +66,8 @@ inline void emitStartDhcpClient(const ::tc8::TestConfig& cfg,
                                  std::uint16_t retx_cap_ms                = 0,
                                  std::uint16_t retx_jitter_ms             = 0,
                                  std::uint8_t  iface_index                = 0,
-                                 bool          apply_initial_wait         = true) {
+                                 bool          apply_initial_wait         = true,
+                                 std::uint8_t  flavor                     = 0) {
     if (apply_initial_wait) {
         std::this_thread::sleep_for(kDhcpv4PilotInitialWait);
     }
@@ -84,7 +85,8 @@ inline void emitStartDhcpClient(const ::tc8::TestConfig& cfg,
         retx_first_ms,
         retx_cap_ms,
         retx_jitter_ms,
-        iface_index);
+        iface_index,
+        flavor);
     ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
         /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);

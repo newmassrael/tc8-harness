@@ -1,6 +1,10 @@
 {
   "_doc": "Phase F per-fail-final coverage SSOT (docs/verdict_policy.md Section 6.1). A multi-guard positive case whose guards are mutually exclusive in a single run cannot be promoted to FAULT_INJECTION by one _neg (one run reaches one final). Each entry maps every fail-final reason of the base case to the _neg<n> variant that proves it reachable. negative_coverage_audit.py cross-checks the keys against the base .scxml fail-finals (completeness) and that each variant is a real _neg sibling. Single-guard cases need no entry.",
   "cases": {
+    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13": {
+      "dut_first_retx_interval_out_of_range": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG",
+      "dut_second_retx_interval_out_of_range": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG2"
+    },
     "ICMPv4_TYPE_09": {
       "echo_id_mismatch": "ICMPv4_TYPE_09_NEG",
       "echo_seq_mismatch": "ICMPv4_TYPE_09_NEG2"

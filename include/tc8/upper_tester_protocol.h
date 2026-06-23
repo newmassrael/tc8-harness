@@ -1190,6 +1190,12 @@ inline constexpr std::uint8_t kDhcpFlavorAcceptMismatchedXidOffer       = 0x1B;
 // RFC 2131 §4.4.1: a DHCPACK arriving in INIT/SELECTING (no accepted
 // OFFER) MUST be silently discarded. Mutant proceeds on it. (INIT_ALLOC_05)
 inline constexpr std::uint8_t kDhcpFlavorProceedOnLoneAck               = 0x1C;
+// §4.7.6.7 CONSTRUCTING_MESSAGES_13: behavioural timing mutant — runLoop
+// collapses the DHCPDISCOVER retransmission wait to 0, so the inter-DISCOVER
+// intervals fall far below the RFC 2131 §4.1 exponential-backoff range. The
+// conformant path (None) keeps the backoff, which is the _neg's fail_compliant
+// outcome.
+inline constexpr std::uint8_t kDhcpFlavorRetxNoBackoff                  = 0x1D;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

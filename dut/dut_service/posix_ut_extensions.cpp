@@ -218,7 +218,8 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
                 params.arp_flavor = static_cast<Dhcpv4ArpFlavor>(fb);
             } else if (fb == ut::kDhcpFlavorLeakLinkLocalAfterBind ||
                        fb == ut::kDhcpFlavorAcceptMismatchedXidOffer ||
-                       fb == ut::kDhcpFlavorProceedOnLoneAck) {
+                       fb == ut::kDhcpFlavorProceedOnLoneAck ||
+                       fb == ut::kDhcpFlavorRetxNoBackoff) {
                 params.behavior_flavor = static_cast<Dhcpv4BehaviorFlavor>(fb);
             } else {
                 params.flavor = static_cast<Dhcpv4ClientFlavor>(fb);

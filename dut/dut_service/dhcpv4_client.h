@@ -105,6 +105,10 @@ enum class Dhcpv4BehaviorFlavor : std::uint8_t {
     // requires it to silently discard. Scoped to the SELECTING OFFER wait.
     AcceptMismatchedXidOffer = ::tc8::ut::kDhcpFlavorAcceptMismatchedXidOffer,
     ProceedOnLoneAck         = ::tc8::ut::kDhcpFlavorProceedOnLoneAck,
+    // §4.7.6.7 CONSTRUCTING_MESSAGES_13: runLoop collapses the inter-DISCOVER
+    // retransmission wait to 0, so the backoff intervals fall below RFC 2131
+    // §4.1 range.
+    RetxNoBackoff            = ::tc8::ut::kDhcpFlavorRetxNoBackoff,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

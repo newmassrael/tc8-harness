@@ -1313,20 +1313,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_first_retx_interval_out_of_range",
-          "property": "DUT's first DHCPDISCOVER retransmission interval must lie within the RFC 2131 §4.1 backoff range; fail iff out of range"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_second_retx_interval_out_of_range",
-          "property": "DUT's second DHCPDISCOVER retransmission interval must lie within the RFC 2131 §4.1 backoff range; fail iff out of range"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01": {
       "guards": [
         {

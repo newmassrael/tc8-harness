@@ -285,9 +285,10 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     std::uint16_t retx_first_ms,
     std::uint16_t retx_cap_ms,
     std::uint16_t retx_jitter_ms,
-    std::uint8_t  iface_index) {
+    std::uint8_t  iface_index,
+    std::uint8_t  flavor) {
     std::vector<std::uint8_t> req;
-    req.reserve(26);
+    req.reserve(27);
     req.push_back(static_cast<std::uint8_t>(ut::OpStartDhcpClient));
     req.push_back(req_id);
     appendBe16(req, offer_wait_ms);
@@ -303,6 +304,10 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     appendBe16(req, retx_cap_ms);
     appendBe16(req, retx_jitter_ms);
     req.push_back(iface_index);
+    // Trailing flavor byte at param offset 24 (the DUT reader's n >= 25 gate).
+    // 0 = kDhcpFlavorNone, so a positive request (no flavor) stays conformant;
+    // a _neg passes a kDhcpFlavor* byte to arm exactly one firmware mutant.
+    req.push_back(flavor);
     return req;
 }
 
@@ -322,15 +327,13 @@ std::vector<std::uint8_t> buildStartDhcpClientBuggyRequest(
     // gate. `arp_probe_listen_ms` (slot p+11) is the only advanced slot a
     // _neg drives today (§4.7.6.9 INIT_ALLOC ARP-shape mutants); the rest
     // stay 0 — the SELECTING-only _neg cases leave it 0 too.
-    auto req = buildStartDhcpClientRequest(
+    return buildStartDhcpClientRequest(
         req_id, offer_wait_ms, ack_wait_ms, retry_count, retry_interval_ms,
         /*nak_to_discover_min_ms=*/0, /*nak_to_discover_max_ms=*/0,
         arp_probe_listen_ms,
         /*decline_to_discover_min_ms=*/0, /*decline_to_discover_max_ms=*/0,
         /*retx_first_ms=*/0, /*retx_cap_ms=*/0, /*retx_jitter_ms=*/0,
-        /*iface_index=*/0);
-    req.push_back(flavor);
-    return req;
+        /*iface_index=*/0, flavor);
 }
 
 std::vector<std::uint8_t> buildQueryDhcpLeaseRequest(std::uint8_t req_id) {
