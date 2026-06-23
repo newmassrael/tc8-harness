@@ -221,8 +221,9 @@ a post-delivery application decision, below the netif glue's reach:
     must NOT send, addressed back to the trigger's sender with the DUT's own source
     identity: `kIcmpFaultSynthInfoReply` (Information Reply for an Info Request,
     TYPE_16), `kIcmpFaultSynthEchoReply` (Echo Reply for a bad-checksum Echo /
-    TYPE_10 or an unknown-type ICMP / ERROR_05), `kIcmpFaultSynthParamProblem`
-    (Parameter Problem for a fragmented / ERROR_03 or broadcast / ERROR_04 trigger).
+    TYPE_10, an unknown-type ICMP / ERROR_05, or a malformed-IP-options Echo /
+    TYPE_05), `kIcmpFaultSynthParamProblem` (Parameter Problem for a fragmented /
+    ERROR_03 or broadcast / ERROR_04 trigger).
     Like the ARP reply synthesis, the conformant DUT emits nothing — so the input
     hook builds the whole frame (Ethernet + IPv4 + 8-byte ICMP, both checksums via
     lwIP's own `inet_chksum`) rather than corrupting an egress field. The guard reads

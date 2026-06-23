@@ -1076,15 +1076,6 @@
         }
       ]
     },
-    "ICMPv4_TYPE_05": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_to_malformed_ip_options",
-          "property": "DUT must not reply to a datagram carrying malformed IP options; silence is conformant"
-        }
-      ]
-    },
     "IPv4_HEADER_01": {
       "guards": [
         {
