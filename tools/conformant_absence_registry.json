@@ -1132,33 +1132,6 @@
         }
       ]
     },
-    "IPv4_REASSEMBLY_06": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_without_first_fragment",
-          "property": "DUT must not emit an Echo Reply when fragment zero never arrives; silence is conformant"
-        }
-      ]
-    },
-    "IPv4_REASSEMBLY_07": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_with_internal_gap",
-          "property": "DUT must not emit an Echo Reply when the fragment set has an internal gap; silence is conformant"
-        }
-      ]
-    },
-    "IPv4_REASSEMBLY_09": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_replied_to_single_mf1_fragment",
-          "property": "DUT must not emit an Echo Reply for a lone MF=1 fragment; silence is conformant"
-        }
-      ]
-    },
     "UDP_FIELDS_04": {
       "guards": [
         {

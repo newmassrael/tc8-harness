@@ -1594,6 +1594,34 @@
         {
           "file": "tests/ipv4_reassembly_13/ipv4_reassembly_13.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_06_neg/ipv4_reassembly_06_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_07_neg/ipv4_reassembly_07_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_09_neg/ipv4_reassembly_09_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_reassembly_06_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_reassembly_07_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_reassembly_09_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/README.md",
+          "kind": "references"
         }
       ]
     },

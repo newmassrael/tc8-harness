@@ -238,7 +238,11 @@ a post-delivery application decision, below the netif glue's reach:
     reading proto at a fixed offset and the trigger source at fixed offsets, so an Echo
     Request the DUT must drop for any IPv4-layer reason — including a malformed header the
     DUT never parses — still draws the synthesized Echo Reply, the IPv4-layer sibling of
-    the §4.3 triggers.
+    the §4.3 triggers. The same gate reaches the §4.4.4.7 reassembly must-not-reply guards
+    (IPv4_REASSEMBLY_06 missing offset=0 head / _07 internal gap / _09 lone MF=1 fragment):
+    every fragment frame still carries proto=ICMP at its fixed offset, so a bucket the DUT
+    can never reassemble — and therefore never replies to — still draws the synthesized Echo
+    Reply on the first fragment's arrival.
   - *§4.8 TCP behavioral prohibited emission* — the hook synthesizes the forbidden TCP
     response on the connection's 4-tuple (swapped from the inbound trigger; the RFC 793 §3.9
     guards check only the 4-tuple + flag — never seq/ack — so the synthesized segment needs

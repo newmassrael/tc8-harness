@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPv4_REASSEMBLY_09 negative — lwIP ingress-fault self-validation of the
+  positive _09 Echo-Reply-absence guard. The positive injects a single fragment carrying the
+  full 16 B Echo Request body at offset=0 but with MF=1 (more fragments promised, none ever
+  arriving), so a conformant DUT (RFC 791 §3.2) holds the partial datagram until the
+  reassembly timer expires and stays silent. This negative arms kIcmpFaultSynthEchoReply, so
+  the lwIP netif INPUT hook synthesizes the prohibited Echo Reply (type 0) as the fragment
+  arrives: the hook gates only on the IPv4 ethertype and the protocol byte at its fixed
+  offset (still ICMP), never on the MF bit, and builds the reply from fixed trigger fields,
+  so the never-completing bucket does not block the synthesis. The synthesized reply's source
+  is the DUT's own netif address, so it is DUT-origin. Pass = that reply observed;
+  fail_compliant = DUT stayed silent despite the flavor (fault inert). lwIP-only
+  (capability-gated on kCapIngressFault). Envelope: icmpv4_synth_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_09_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_synth_neg.sce-template.xml"/>
+</scxml>

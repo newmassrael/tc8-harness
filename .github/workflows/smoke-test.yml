@@ -274,7 +274,11 @@ jobs:
       # HEADER_04 / HEADER_02 / HEADER_08 / HEADER_09 / VERSION_04_NEG): a loopback /
       # bad-checksum / non-local-destination / IHL<5 / IHL*4>TotLen / oversized-Total-Length /
       # wrong-version Echo Request the DUT must drop draws a synthesized Echo
-      # Reply, the IPv4-layer sibling of the §4.3 triggers.
+      # Reply, the IPv4-layer sibling of the §4.3 triggers. It reaches the §4.4.4.7
+      # reassembly must-not-reply guards the same way (IPv4_REASSEMBLY_06/07/09_NEG): a
+      # fragment bucket with no offset=0 head / an internal gap / a lone MF=1 fragment the DUT
+      # can never reassemble draws a synthesized Echo Reply (the hook gates on the ICMP
+      # protocol byte, never the fragment offset).
       # Finally the §4.6.5.5 UDP
       # User-Interface app-report fault cluster (UDP_USER_INTERFACE_01/02/03/04_NEG, UT 0x1A
       # OpSetAppFlavor): the datagram is received correctly but the shared data listener
@@ -360,6 +364,7 @@ jobs:
             IPv4_ADDRESSING_03_NEG IPv4_CHECKSUM_02_NEG IPv4_HEADER_04_NEG \
             IPv4_HEADER_02_NEG IPv4_HEADER_08_NEG IPv4_HEADER_09_NEG \
             IPv4_VERSION_04_NEG \
+            IPv4_REASSEMBLY_06_NEG IPv4_REASSEMBLY_07_NEG IPv4_REASSEMBLY_09_NEG \
             UDP_USER_INTERFACE_01_NEG UDP_USER_INTERFACE_02_NEG \
             UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG \
             TCP_ACKNOWLEDGEMENT_04_NEG \
