@@ -2479,25 +2479,6 @@
         }
       ]
     },
-    "TCP_FLAGS_PROCESSING_09": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_rst_after_dup_fin_ack_in_closing",
-          "property": "Silence is conformant: DUT must not emit a RST after a duplicate FIN,ACK in CLOSING; fail iff it does"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_rst_after_dup_fin_ack_in_la",
-          "property": "Silence is conformant: DUT must not emit a RST after a duplicate FIN,ACK in LAST-ACK; fail iff it does"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_state_changed_after_dup_fin_ack_in_cw",
-          "property": "Silence is conformant: DUT must not change state on a duplicate FIN,ACK in CLOSE-WAIT; fail iff it emits a state-change response"
-        }
-      ]
-    },
     "TCP_FLAGS_PROCESSING_10": {
       "guards": [
         {

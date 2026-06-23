@@ -252,6 +252,7 @@ a post-delivery application decision, below the netif glue's reach:
     - `kTcpSynthRstOnDisruptive` — synthesize a RST when a **disruptive** segment (RST / FIN /
       URG / PSH) the DUT must answer with silence arrives (`§4.8.6.6` FLAGS_INVALID_03/04
       RST-in-SYN-SENT; `§4.8.6.8` CLOSING_07/08/09 PSH-data-in-FW1/FW2 and tester-FIN-in-CW;
+      `§4.8.6.7` FLAGS_PROCESSING_09 duplicate-FIN+ACK-in-CLOSING/LAST-ACK/CLOSE-WAIT;
       `§4.8.6.3` UNACCEPTABLE_02 unacceptable-RST-in-SYN-RECEIVED).
       The gate excludes a bare pure ACK and a bare SYN, so the handshake and the tester's
       auto-ACKs never trigger it.

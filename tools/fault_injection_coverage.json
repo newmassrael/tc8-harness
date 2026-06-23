@@ -1,9 +1,9 @@
 {
   "_doc": "Phase F per-fail-final coverage SSOT (docs/verdict_policy.md Section 6.1). A multi-guard positive case whose guards are mutually exclusive in a single run cannot be promoted to FAULT_INJECTION by one _neg (one run reaches one final). Each entry maps every fail-final reason of the base case to the _neg<n> variant that proves it reachable. negative_coverage_audit.py cross-checks the keys against the base .scxml fail-finals (completeness) and that each variant is a real _neg sibling. Single-guard cases need no entry.",
   "cases": {
-    "IPv4_AUTOCONF_NETWORK_PARTITIONS_01": {
-      "dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG",
-      "dut_emitted_periodic_gratuitous_arp_for_committed_link_local": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG2"
+    "ICMPv4_TYPE_09": {
+      "echo_id_mismatch": "ICMPv4_TYPE_09_NEG",
+      "echo_seq_mismatch": "ICMPv4_TYPE_09_NEG2"
     },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_14": {
       "dut_re_probed_with_stale_link_local_address": "IPv4_AUTOCONF_ADDRESS_SELECTION_14_NEG",
@@ -15,24 +15,18 @@
       "dut_post_silence_probe_targets_previous_ll": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG3",
       "dut_emitted_arp_during_second_rate_limit_silence": "IPv4_AUTOCONF_ADDRESS_SELECTION_15_NEG4"
     },
+    "IPv4_AUTOCONF_NETWORK_PARTITIONS_01": {
+      "dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG",
+      "dut_emitted_periodic_gratuitous_arp_for_committed_link_local": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG2"
+    },
     "TCP_BASICS_04": {
       "dut_rst_seq_not_zero_after_syn": "TCP_BASICS_04_NEG",
       "dut_rst_seq_not_zero_after_fin": "TCP_BASICS_04_NEG2",
       "dut_rst_seq_not_zero_after_data": "TCP_BASICS_04_NEG3"
     },
-    "ICMPv4_TYPE_09": {
-      "echo_id_mismatch": "ICMPv4_TYPE_09_NEG",
-      "echo_seq_mismatch": "ICMPv4_TYPE_09_NEG2"
-    },
     "TCP_BASICS_05": {
       "dut_rst_seq_not_synack_ack_literal": "TCP_BASICS_05_NEG",
       "dut_rst_seq_not_ack_phase_ack_literal": "TCP_BASICS_05_NEG2"
-    },
-    "TCP_FLAGS_PROCESSING_07": {
-      "dut_emitted_response_to_urg_only_in_cw": "TCP_FLAGS_PROCESSING_07_NEG",
-      "dut_emitted_response_to_urg_only_in_closing": "TCP_FLAGS_PROCESSING_07_NEG2",
-      "dut_emitted_response_to_urg_only_in_la": "TCP_FLAGS_PROCESSING_07_NEG3",
-      "dut_emitted_response_to_urg_only_in_tw": "TCP_FLAGS_PROCESSING_07_NEG4"
     },
     "TCP_FLAGS_INVALID_15": {
       "dut_emitted_response_to_otw_rst_in_syn_rcvd": "TCP_FLAGS_INVALID_15_NEG",
@@ -44,10 +38,21 @@
       "dut_emitted_response_to_otw_rst_in_la": "TCP_FLAGS_INVALID_15_NEG7",
       "dut_emitted_response_to_otw_rst_in_tw": "TCP_FLAGS_INVALID_15_NEG8"
     },
+    "TCP_FLAGS_PROCESSING_07": {
+      "dut_emitted_response_to_urg_only_in_cw": "TCP_FLAGS_PROCESSING_07_NEG",
+      "dut_emitted_response_to_urg_only_in_closing": "TCP_FLAGS_PROCESSING_07_NEG2",
+      "dut_emitted_response_to_urg_only_in_la": "TCP_FLAGS_PROCESSING_07_NEG3",
+      "dut_emitted_response_to_urg_only_in_tw": "TCP_FLAGS_PROCESSING_07_NEG4"
+    },
     "TCP_FLAGS_PROCESSING_08": {
       "dut_rst_seq_not_zero_after_fin_in_closed": "TCP_FLAGS_PROCESSING_08_NEG",
       "dut_emitted_response_to_fin_in_listen": "TCP_FLAGS_PROCESSING_08_NEG2",
       "dut_emitted_response_to_fin_in_syn_sent": "TCP_FLAGS_PROCESSING_08_NEG3"
+    },
+    "TCP_FLAGS_PROCESSING_09": {
+      "dut_emitted_rst_after_dup_fin_ack_in_closing": "TCP_FLAGS_PROCESSING_09_NEG",
+      "dut_emitted_rst_after_dup_fin_ack_in_la": "TCP_FLAGS_PROCESSING_09_NEG2",
+      "dut_state_changed_after_dup_fin_ack_in_cw": "TCP_FLAGS_PROCESSING_09_NEG3"
     }
   }
 }

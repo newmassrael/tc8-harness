@@ -560,6 +560,16 @@ inline constexpr std::uint16_t kTcpChecksum03LocalOffset           = 213U;
 // 4-tuple cannot drift between stimulus and guard.
 inline constexpr std::uint16_t kTcpChecksum02NegLocalOffset        = 60U;
 
+// §4.8.6.7 FLAGS_PROCESSING_09 lwIP _neg active-OPEN offsets — one per
+// per-fail-final close-state variant. Registered here (not raw literals in the
+// _neg traits) so they join this file's global offset uniqueness audit; 61..63
+// are verified free of BOTH the registered positive offsets and the ad-hoc
+// _neg literal block. Each variant's trait AND its SCXML port_offset reference
+// the matching symbol so the 4-tuple cannot drift between stimulus and guard.
+inline constexpr std::uint16_t kTcpFlagsProc09NegClosingOffset     = 61U;
+inline constexpr std::uint16_t kTcpFlagsProc09NegLastAckOffset     = 62U;
+inline constexpr std::uint16_t kTcpFlagsProc09NegCloseWaitOffset   = 63U;
+
 // §4.8.6.6 FLAGS_INVALID_14 — two TIME-WAIT phases (FIN-flag OTW
 // probe + data-segment OTW probe). Each phase runs its own
 // driveSeamTimeWaitFw2 prelude on a unique 4-tuple so the

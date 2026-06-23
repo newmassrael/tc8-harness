@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_09 negative (LAST-ACK) — lwIP TCP behavioral-synthesis
+  self-validation of the positive _09 no-RST guard, per-fail-final variant 2 of 3. The positive
+  drives the DUT into LAST-ACK and injects a duplicate FIN+ACK the DUT MUST absorb without
+  changing state or replying (RFC 793 §3.9). This negative arms kTcpSynthRstOnDisruptive before
+  the FIN+ACK inject, so the lwIP netif input hook synthesizes the prohibited RST as it arrives.
+  Pass = a DUT RST observed on the 4-tuple; fail_compliant = DUT stayed silent despite the flavor
+  (fault inert). lwIP-only (kCapIngressFault).
+
+  Envelope: tcp_synth_rst_watch_neg — listening_handshake_ack confirms the DUT third-leg ACK on
+  the active-OPEN 4-tuple, then listening_rst_watch passes on the synthesized RST. The watch is
+  is_dut_rst ONLY: a conformant DUT legitimately emits a FIN in LAST-ACK (session-17 trap).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_09_neg2"
+       datamodel="null"
+       initial="listening_handshake_ack">
+  <sce:use template="../_templates/tcp_synth_rst_watch_neg.sce-template.xml"
+           port_offset="::tc8::sce::tcp::kTcpFlagsProc09NegLastAckOffset"/>
+</scxml>

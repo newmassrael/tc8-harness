@@ -3746,6 +3746,18 @@
         {
           "file": "src/sce_integration/cases/tcp_unacceptable_02_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_09_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_09_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_09_neg3.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4971,6 +4983,30 @@
         },
         {
           "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_09_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_09_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_flags_processing_09_neg3.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_09_neg/tcp_flags_processing_09_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_09_neg2/tcp_flags_processing_09_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_09_neg3/tcp_flags_processing_09_neg3.scxml",
           "kind": "implements"
         }
       ]
