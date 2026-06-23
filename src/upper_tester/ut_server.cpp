@@ -293,7 +293,7 @@ void UpperTesterServer::dataListenerLoop() {
         } else if (app_flavor == kAppFaultReportWrongPayload && !rec.payload.empty()) {
             rec.payload[0] ^= kReportPayloadFlip;  // first data octet != what the tester sent (UI_02)
         } else if (app_flavor == kAppFaultReportWrongLength) {
-            rec.payload.push_back(0x00);  // over-report length by one != the datagram size sent (FIELDS_12)
+            rec.payload.resize(rec.payload.size() + 1U);  // report length+1 != the size sent (FIELDS_12)
         }
         std::lock_guard<std::mutex> lk(log_mu_);
         last_receipt_ = std::move(rec);

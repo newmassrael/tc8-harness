@@ -4738,6 +4738,10 @@
         {
           "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_call_receive_05.h",
+          "kind": "implements"
         }
       ]
     },

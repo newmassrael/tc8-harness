@@ -24,9 +24,6 @@ inline std::uint8_t maybeFaultFieldValue(std::uint8_t stored) {
                : stored;
 }
 
-}  // namespace
-
-namespace {
 
 // §5.1.6 SOMEIP_ETS_097 vs _098..101 fork — env-gated so ETS_097 (Proxy
 // path) and ETS_098..101 (raw-UDP path) can coexist without cross-test

@@ -10,6 +10,7 @@
 
 #include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/cases/_tcp_seam.h"
+#include "sce_integration/cases/tcp_call_receive_05.h"  // SSOT for kCallReceive05PayloadLen / FillByte
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
@@ -20,12 +21,10 @@
 // the positive uses (the EST->CW trigger), with the synthesis flavor armed BEFORE the inject
 // so the netif input hook fabricates the prohibited RST / FIN+ACK as that disruptive segment
 // arrives. The variants differ only in the armed flavor and the per-case active-OPEN port
-// offset, so the prelude is factored here rather than duplicated across the two traits.
+// offset, so the prelude is factored here rather than duplicated across the two traits. The
+// PSH+FIN+ACK data-segment shape is the positive's SSOT (cases::kCallReceive05PayloadLen /
+// kCallReceive05FillByte) so the mirror cannot drift from the positive.
 namespace tc8::sce::cases::call_receive_05_neg {
-
-// 16-byte payload mirroring the positive (0xC3) so a stray data segment in pcap is
-// attributable to the CALL_RECEIVE_05 family.
-inline constexpr std::uint16_t kPayloadLen = 16U;
 
 inline void driveCwAndArm(::tc8::sce::IDutControl& dut,
                           const ::tc8::TestConfig& cfg,
@@ -57,7 +56,8 @@ inline void driveCwAndArm(::tc8::sce::IDutControl& dut,
     // handshake third-leg; seq=snd_nxt is the tester's next byte. The DUT processes the
     // data+FIN into CLOSE-WAIT, but the armed hook fabricates the prohibited RST / FIN+ACK
     // on the inbound segment first (synthesis runs before lwIP sees the frame).
-    const std::vector<std::uint8_t> payload(kPayloadLen, 0xC3U);
+    const std::vector<std::uint8_t> payload(::tc8::sce::cases::kCallReceive05PayloadLen,
+                                            ::tc8::sce::cases::kCallReceive05FillByte);
     ::tc8::stimulus::TcpSegmentSpec fin_data{};
     fin_data.src_port = remote_port;
     fin_data.dst_port = local_port;

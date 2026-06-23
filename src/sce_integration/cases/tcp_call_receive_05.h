@@ -22,6 +22,13 @@ namespace tc8::sce::cases {
 using TcpCallReceive05SM =
     ::SCE::Generated::tcp_call_receive_05::tcp_call_receive_05;
 
+// §4.8.6.4 CALL_RECEIVE_05 data-segment shape — the single source of truth shared with the
+// _NEG / _NEG2 mirrors (via _tcp_call_receive_05_neg_common.h). 16-byte payload with a
+// case-distinct fill byte (0xC3, vs sibling _03 0xA5 / _07 0x69 / _09 0x5A) so a stray data
+// segment in pcap is attributable to this case family.
+inline constexpr std::uint16_t kCallReceive05PayloadLen = 16U;
+inline constexpr std::uint8_t  kCallReceive05FillByte    = 0xC3U;
+
 }  // namespace tc8::sce::cases
 
 namespace tc8::sce {
@@ -38,10 +45,9 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
         "the bytes and the wire-side data ACK proves end-to-end "
         "FIN+data processing";
 
-    // 16-byte payload pattern. Distinct byte from sibling _03 (0xA5), _07
-    // (0x69), _09 (0x5A) so a stray data segment in pcap can be
-    // attributed to the correct case ID.
-    static constexpr std::uint16_t kPayloadLen = 16U;
+    // Derived from the case-family SSOT (cases::kCallReceive05PayloadLen) so the positive and
+    // the _NEG / _NEG2 mirrors cannot drift on the data-segment shape.
+    static constexpr std::uint16_t kPayloadLen = cases::kCallReceive05PayloadLen;
 
     // Single iteration, backend-agnostic (opcode UT or AUTOSAR testability).
     // Seam active-OPEN on +94 quad → snapshot tester snd_nxt / rcv_nxt → seam
@@ -75,7 +81,7 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
 
         auto& tcp = seamTcpControl(dut);
 
-        const std::vector<std::uint8_t> payload(kPayloadLen, 0xC3U);
+        const std::vector<std::uint8_t> payload(kPayloadLen, cases::kCallReceive05FillByte);
 
         // Receive in EST→CW: the trigger raw-injects a PSH+FIN+ACK carrying the
         // 16-byte data. ack=rcv_nxt acks the handshake third-leg; seq=snd_nxt is

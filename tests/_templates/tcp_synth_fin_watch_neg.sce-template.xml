@@ -10,6 +10,15 @@
     Pass:    a DUT FIN+ACK observed on the case 4-tuple (is_dut_fin_ack) — the synthesized
              FIN+ACK, proving the positive's dut_emitted_fin_in_cw_without_close guard would
              fire on a non-conformant DUT.
+
+    Soundness of the permissive is_dut_fin_ack match (unlike the RST sibling, where ANY RST in
+    CW is genuinely prohibited, a DUT FIN in CW IS the legitimate EVENTUAL behaviour once the
+    application closes): this is sound here because the trait NEVER triggers an application
+    close — the DUT enters CW via the injected PSH+FIN+ACK and is left there, so a conformant
+    DUT emits NO FIN in the window (exactly what the positive _05 asserts and the positive run
+    confirms). The only FIN+ACK on the 4-tuple is therefore the synthesized one. A future
+    variant that closes the DUT app inside the window would need a tighter discriminant (e.g.
+    the synthesized segment's seq==0 fingerprint); the current single-stimulus shape does not.
     Fail:    deadline -> fail_compliant — the DUT stayed silent despite the flavor (the fault
              was inert: a flavor-wiring regression, NOT a DUT conformance violation; role
              fault_injection_inert).

@@ -3,6 +3,8 @@
 #include <atomic>
 #include <cstdint>
 
+#include "tc8/upper_tester_protocol.h"
+
 // SOME/IP application-layer fault flavor for the reference tc8-dut's EnhancedTestability
 // service (EtsImpl). The §5.1.6 SOMEIP_ETS field get/set `_NEG` cases drive it via
 // UT 0x1B OpSetEtsFlavor: a non-None flavor makes an EtsImpl field getter return a value
@@ -14,7 +16,7 @@
 // atomic, mirroring the lwIP fixture's g_ingress_flavor / g_egress_flavor seams.
 namespace tc8::dut {
 
-inline std::atomic<std::uint8_t> g_ets_fault_flavor{0};
+inline std::atomic<std::uint8_t> g_ets_fault_flavor{::tc8::ut::kEtsFaultNone};
 
 inline void setEtsFaultFlavor(std::uint8_t flavor) {
     g_ets_fault_flavor.store(flavor, std::memory_order_relaxed);
