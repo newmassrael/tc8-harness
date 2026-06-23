@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.6.5.3 UDP_Padding_02 negative — lwIP egress-fault self-validation of the positive _02
+  no-padding guard. The positive asserts the DUT-emitted UDP datagram (even 8 B payload) carries
+  Length exactly 8 + payload = 16, with no trailing padding lifting it. This negative arms
+  kUdpFaultLengthWrong (the shared UDP-Length egress flavor), so the lwIP netif link-output hook
+  rewrites the DUT egress UDP Length to a value != 16 — the same Length-guard violation a trailing
+  pad would produce. Pass = a wrong length observed on the DUT egress frame (src 20030, dst 20000);
+  fail_compliant = DUT emitted the correct length (16) despite the flavor (fault inert). lwIP-only
+  (capability-gated on kCapEgressFault). Envelope: udp_field_check.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="udp_padding_02_neg"
+       datamodel="null"
+       initial="listening_phase1">
+  <sce:use template="../_templates/udp_field_check.sce-template.xml"
+           pass_expr="captured.src_port == 20030 and captured.dst_port == 20000 and captured.length != 16"
+           fail_state="fail_compliant"
+           fail_reason="dut_emitted_correct_length_despite_flavor"
+           fail_role="fault_injection_inert"/>
+</scxml>

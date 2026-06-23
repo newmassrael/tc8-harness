@@ -2246,6 +2246,14 @@
         {
           "file": "tests/udp_padding_02/udp_padding_02.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/udp_padding_02_neg/udp_padding_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "references"
         }
       ]
     },

@@ -1184,15 +1184,6 @@
         }
       ]
     },
-    "UDP_Padding_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_emitted_udp_with_padding_on_even_payload",
-          "property": "DUT's egress UDP for an even payload must carry no padding (Length=16); fail iff padded"
-        }
-      ]
-    },
     "UDP_FIELDS_08": {
       "guards": [
         {

@@ -862,7 +862,7 @@ inline constexpr std::uint8_t kArpFaultProtoLenWrong   = 0x05;  // RFC 826 plen:
 // invalidates the checksum field directly):
 inline constexpr std::uint8_t kUdpFaultSrcPortWrong    = 0x06;  // RFC 768 src port:  §4.6.5.4 UDP_FIELDS_01
 inline constexpr std::uint8_t kUdpFaultDstPortWrong    = 0x07;  // RFC 768 dst port:  §4.6.5.4 UDP_FIELDS_02
-inline constexpr std::uint8_t kUdpFaultLengthWrong     = 0x08;  // RFC 768 length:    §4.6.5.4 UDP_FIELDS_06/07
+inline constexpr std::uint8_t kUdpFaultLengthWrong     = 0x08;  // RFC 768 length:    §4.6.5.4 UDP_FIELDS_06/07 + §4.6.5.3 UDP_Padding_02
 inline constexpr std::uint8_t kUdpFaultChecksumWrong   = 0x09;  // RFC 768 checksum:  §4.6.5.4 UDP_FIELDS_13/14
 // TCP (segment-selective; the flavor names the field + the segment it targets):
 inline constexpr std::uint8_t kTcpFaultSynAckAckWrong   = 0x0A;  // RFC 793 ack num:  §4.8 TCP_SEQUENCE_01/03/04 (passive-open SYN,ACK acks tester ISN+1)
