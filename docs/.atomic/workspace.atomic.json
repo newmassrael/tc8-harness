@@ -1186,6 +1186,22 @@
         {
           "file": "tests/ipv4_header_04_neg/ipv4_header_04_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_header_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_header_02_neg/ipv4_header_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/ipv4_header_09_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_header_09_neg/ipv4_header_09_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

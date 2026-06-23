@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.1 IPv4_HEADER_02 negative — lwIP ingress-fault self-validation of the positive _02
+  reply-absence guard. The positive injects an ICMP Echo Request whose IPv4 Header Length (IHL)
+  field is less than 5 words (header < 20 bytes) — a malformed datagram the conformant DUT
+  silently discards, emitting no reply. This negative arms kIcmpFaultSynthEchoReply, so the lwIP
+  netif INPUT hook synthesizes the prohibited Echo Reply (type 0) as that Echo Request arrives;
+  the hook reads the trigger at fixed offsets before lwIP's own header parsing, so the synthesized
+  reply is the only DUT-origin frame on the wire. Pass = that reply observed; fail_compliant = DUT
+  stayed silent despite the flavor (fault inert). lwIP-only (capability-gated on kCapIngressFault).
+  Envelope: icmpv4_synth_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_header_02_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_synth_neg.sce-template.xml"/>
+</scxml>
