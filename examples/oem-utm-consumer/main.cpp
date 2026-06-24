@@ -16,6 +16,7 @@
 #include "autosar/aes_cmac.h"
 #include "autosar/pn_filter.h"
 #include "autosar/crc.h"
+#include "autosar/e2e.h"
 
 namespace {
 
@@ -57,6 +58,10 @@ int main() {
     const std::uint8_t crc8 = tc8::crc::crc8SaeJ1850(pdu.data(), pdu.size());
     const std::uint16_t crc16 = tc8::crc::crc16Ccitt(pdu.data(), pdu.size());
 
+    std::vector<std::uint8_t> e2ePdu(8, 0x00);
+    tc8::e2e::Profile05Protector e2e{tc8::e2e::Profile05Config{0x0000, 0, 1}};
+    e2e.protect(e2ePdu.data(), e2ePdu.size());
+
     // Observe every engine's result through a volatile sink so the out-of-tree
     // link genuinely depends on each exported lib (a dropped engine then fails
     // to link) without asserting any value here — that is the unit tests' job.
@@ -64,6 +69,7 @@ int main() {
     sink ^= static_cast<std::uint32_t>(relevant ? 1U : 0U);
     sink ^= static_cast<std::uint32_t>(crc8);
     sink ^= static_cast<std::uint32_t>(crc16);
+    sink ^= static_cast<std::uint32_t>(e2ePdu[2]);
     (void)sink;
     return 0;
 }

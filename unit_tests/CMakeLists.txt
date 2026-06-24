@@ -77,6 +77,11 @@ target_link_libraries(pn_filter_test PRIVATE tc8_pn)
 # reference, so the E2E profiles built on them inherit a verified CRC.
 tc8_add_unit_test(crc_test)
 target_link_libraries(crc_test PRIVATE tc8_crc)
+# E2E Profile 5: protect outputs and check verdicts pinned to the AUTOSAR FO PRS
+# E2EProtocol Profile 5 worked vectors (Data ID 0x1234), so the CRC coverage,
+# Data ID feed order, little-endian CRC placement, and counter SM are verified.
+tc8_add_unit_test(e2e_test)
+target_link_libraries(e2e_test PRIVATE tc8_e2e)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)

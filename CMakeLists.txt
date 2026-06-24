@@ -154,6 +154,11 @@ tc8_add_engine(tc8_pn src/autosar/pn_filter.cpp)
 # links one verified implementation rather than re-deriving it.
 tc8_add_engine(tc8_crc src/autosar/crc.cpp)
 
+# tc8::e2e — AUTOSAR FO PRS E2EProtocol protect/check. Composes tc8::crc for the
+# CRC; profile/Data ID/offset are injected config. Links tc8_crc.
+tc8_add_engine(tc8_e2e src/autosar/e2e.cpp)
+target_link_libraries(tc8_e2e PUBLIC tc8_crc)
+
 # Portability check: cross-compile the dependency-light core — the SCE
 # engine plus every wire builder / SOME/IP dissector where the
 # endianness- and bit-layout-sensitive code lives — without needing a
@@ -551,8 +556,10 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     target_include_directories(tc8_crc INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_include_directories(tc8_e2e INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-    install(TARGETS tc8_testability_server tc8_wire tc8_crypto tc8_pn tc8_crc
+    install(TARGETS tc8_testability_server tc8_wire tc8_crypto tc8_pn tc8_crc tc8_e2e
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
 
@@ -572,6 +579,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             ${PROJECT_SOURCE_DIR}/src/autosar/aes_cmac.h
             ${PROJECT_SOURCE_DIR}/src/autosar/pn_filter.h
             ${PROJECT_SOURCE_DIR}/src/autosar/crc.h
+            ${PROJECT_SOURCE_DIR}/src/autosar/e2e.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/autosar COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/dut_service/posix_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)

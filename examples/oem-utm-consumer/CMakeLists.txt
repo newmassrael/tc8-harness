@@ -20,4 +20,5 @@ target_link_libraries(oem-utm-consumer PRIVATE
     tc8::tc8_testability_server
     tc8::tc8_crypto
     tc8::tc8_pn
-    tc8::tc8_crc)
+    tc8::tc8_crc
+    tc8::tc8_e2e)
