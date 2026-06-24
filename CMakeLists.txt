@@ -126,25 +126,28 @@ target_include_directories(tc8_wire PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOU
 tc8_enable_strict_warnings(tc8_wire)
 
 # Vendor-neutral AUTOSAR engines (src/autosar/) — the public mechanisms a
-# separate, private OEM UTM repo composes with its own config. First engine:
-# tc8::crypto AES-CMAC (FIPS-197 AES-128 + RFC 4493), the SecOC MAC primitive.
-# Pure byte math — no syscalls, no third-party deps, no OEM content (keys are
-# passed per call by the caller) — so it cross-compiles alongside tc8_wire.
-add_library(tc8_crypto STATIC
-    src/autosar/aes_cmac.cpp
-)
-target_include_directories(tc8_crypto PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
-tc8_enable_strict_warnings(tc8_crypto)
+# separate, private OEM UTM repo composes with its own config. Every engine is
+# the same shape: a dependency-light STATIC lib (pure byte math — no syscalls,
+# no third-party deps, no OEM content) with the src/ include root on its
+# BUILD_INTERFACE and the strict first-party warning set. tc8_add_engine is the
+# single home for that recipe so adding an engine is one line and the lib
+# pattern never drifts across copies. The install/EXPORT interface for each
+# engine is wired once in the TC8_UTM_INSTALL block below.
+function(tc8_add_engine name)
+    add_library(${name} STATIC ${ARGN})
+    target_include_directories(${name} PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+    tc8_enable_strict_warnings(${name})
+endfunction()
 
-# tc8::pn — AUTOSAR Partial Networking relevance filter. Mechanism only (a
-# bitwise AND of the received PNC bit vector with the ECU's cluster mask); the
-# range location and cluster membership are injected config. Pure byte math,
-# same dependency-light profile as tc8_wire / tc8_crypto.
-add_library(tc8_pn STATIC
-    src/autosar/pn_filter.cpp
-)
-target_include_directories(tc8_pn PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
-tc8_enable_strict_warnings(tc8_pn)
+# tc8::crypto — AES-CMAC (FIPS-197 AES-128 + RFC 4493), the SecOC MAC primitive.
+# Keys are passed per call by the caller, so no keying material lives here.
+tc8_add_engine(tc8_crypto src/autosar/aes_cmac.cpp)
+
+# tc8::pn — AUTOSAR Partial Networking relevance filter: a bitwise AND of the
+# received PNC bit vector with the ECU's cluster mask. Range location and
+# cluster membership are injected config.
+tc8_add_engine(tc8_pn src/autosar/pn_filter.cpp)
 
 # Portability check: cross-compile the dependency-light core — the SCE
 # engine plus every wire builder / SOME/IP dissector where the
@@ -533,8 +536,16 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     target_include_directories(tc8_testability_server INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    # AUTOSAR engines join the same exported surface so the OEM repo links the
+    # mechanism it composes with its config. Each new engine adds itself here as
+    # part of its definition-of-done — the utm_export_smoke gate (the consumer
+    # actually calls each engine) then fails if one is dropped from the export.
+    target_include_directories(tc8_crypto INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_include_directories(tc8_pn INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-    install(TARGETS tc8_testability_server tc8_wire
+    install(TARGETS tc8_testability_server tc8_wire tc8_crypto tc8_pn
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
 
@@ -550,6 +561,10 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             ${PROJECT_SOURCE_DIR}/src/wire/icmp_echo.h
             ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wire COMPONENT utm-sdk)
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/src/autosar/aes_cmac.h
+            ${PROJECT_SOURCE_DIR}/src/autosar/pn_filter.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/autosar COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/dut_service/posix_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)
 

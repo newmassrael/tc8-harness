@@ -1,9 +1,11 @@
 // Out-of-tree consumer of the tc8-utm SDK — the shape a separate, private OEM
 // repository takes: include the installed public headers, host a ProtocolServer
-// on the POSIX backend, and attach an OEM service-group MiddlewareModule. This
-// is a build/link smoke (the server is not started — no network here); it proves
-// the exported find_package(tc8-utm) surface compiles and links out-of-tree.
+// on the POSIX backend, attach an OEM service-group MiddlewareModule, and compose
+// the exported AUTOSAR engines. This is a build/link smoke (the server is not
+// started — no network here); it proves the exported find_package(tc8-utm)
+// surface — seam plus every engine — compiles and links out-of-tree.
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -11,6 +13,8 @@
 #include "posix_socket_backend.h"
 #include "testability/middleware.h"
 #include "testability/protocol_server.h"
+#include "autosar/aes_cmac.h"
+#include "autosar/pn_filter.h"
 
 namespace {
 
@@ -36,5 +40,18 @@ public:
 int main() {
     tc8::testability::ProtocolServer server{std::make_unique<tc8::dut::PosixSocketBackend>()};
     server.registerModule(std::make_unique<OemModule>());
-    return 0;
+
+    // Exercise the exported AUTOSAR engines so the find_package surface covers
+    // them, not just the seam. A real OEM module composes these with proprietary
+    // keys and config; here the inputs are placeholder zeros (no OEM content).
+    // Deriving the exit code from both keeps the calls from being stripped.
+    const std::array<std::uint8_t, 16> key{};
+    const std::array<std::uint8_t, 16> tag =
+        tc8::crypto::aesCmac(key.data(), key.size(), nullptr, 0);
+
+    const tc8::pn::PnFilter filter{tc8::pn::PnConfig{0, 1}};
+    const std::vector<std::uint8_t> pdu{0x00};
+    const bool relevant = filter.relevant(pdu.data(), pdu.size(), {0x00});
+
+    return (tag.size() == 16 && !relevant) ? 0 : 1;
 }

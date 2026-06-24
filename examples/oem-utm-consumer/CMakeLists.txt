@@ -13,4 +13,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(tc8-utm REQUIRED)
 
 add_executable(oem-utm-consumer main.cpp)
-target_link_libraries(oem-utm-consumer PRIVATE tc8::tc8_testability_server)
+# Link the seam plus each exported AUTOSAR engine the OEM module would compose.
+# Linking and calling them here is what makes the export a verified gate: drop
+# an engine from the install/EXPORT and this out-of-tree build fails to link.
+target_link_libraries(oem-utm-consumer PRIVATE
+    tc8::tc8_testability_server
+    tc8::tc8_crypto
+    tc8::tc8_pn)
