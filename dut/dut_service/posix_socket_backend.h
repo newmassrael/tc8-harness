@@ -26,6 +26,7 @@ public:
     void setBroadcast(int fd) override;
     void setRecvTimeoutMs(int fd, int ms) override;
     bool bindV4(int fd, std::uint32_t addr_be, std::uint16_t port) override;
+    bool joinMulticast(int fd, std::uint32_t group_be, const std::string &ifname) override;
     int recvFromV4(int fd, void *buf, std::size_t len, tc8::net::Endpoint &src) override;
     int sendToV4(int fd, const void *buf, std::size_t len,
                  const tc8::net::Endpoint &dst) override;

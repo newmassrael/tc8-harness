@@ -70,6 +70,23 @@ bool LwipSocketBackend::bindV4(int fd, std::uint32_t addr_be, std::uint16_t port
     return lwip_bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0;
 }
 
+bool LwipSocketBackend::joinMulticast(int fd, std::uint32_t group_be, const std::string &ifname) {
+#if LWIP_IGMP
+    ip_mreq mreq{};
+    mreq.imr_multiaddr.s_addr = group_be;
+    mreq.imr_interface.s_addr = INADDR_ANY;  // single-netif fixture: ifname unused
+    (void)ifname;
+    return lwip_setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
+#else
+    // The fixture builds without IGMP (LWIP_IGMP=0): no group management. Honest
+    // false rather than a silent no-op (sibling of the IPv6 / route stubs).
+    (void)fd;
+    (void)group_be;
+    (void)ifname;
+    return false;
+#endif
+}
+
 int LwipSocketBackend::recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) {
     sockaddr_in sa{};
     socklen_t sl = sizeof(sa);

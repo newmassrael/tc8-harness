@@ -1517,18 +1517,21 @@ constexpr std::uint8_t kDemoPidEcho = 0x01;
 constexpr std::uint8_t kDemoPidArmTick = 0x02;
 constexpr std::uint8_t kDemoPidReadCount = 0x03;
 constexpr std::uint8_t kDemoPidArmEvent = 0x04;
+constexpr std::uint8_t kDemoPidArmUdpRx = 0x05;
+constexpr std::uint8_t kDemoPidReadRx = 0x06;
 
 class DemoModule : public testability::MiddlewareModule {
 public:
     std::vector<std::uint8_t> groups() const override { return {kDemoGid}; }
     void onStart(testability::MiddlewareContext &ctx) override { ctx_ = &ctx; }
-    void onStop() override {}
+    void onStop() override { cleanupRx(); }
     void onEndTest() override {
         if (static_cast<std::uint64_t>(tick_timer_) != 0) {
             ctx_->cancel(tick_timer_);
             tick_timer_ = testability::TimerId{};
         }
         tick_count_ = 0;  // executor thread — single-threaded, no lock
+        cleanupRx();
     }
     void onPrimitive(const tp::Header &req, const std::uint8_t *dat, std::size_t dat_len,
                      const tc8::net::Endpoint &, std::uint8_t &rid,
@@ -1554,6 +1557,33 @@ public:
                 });
                 rid = tp::kRidEOk;
                 return;
+            case kDemoPidArmUdpRx: {  // open + bind a data-plane UDP socket, drain it
+                if (dat_len < 2) {
+                    rid = tp::kRidEInv;
+                    return;
+                }
+                rx_fd_ = ctx_->backend().createUdp();
+                if (rx_fd_ < 0) {
+                    rid = tp::kRidENok;
+                    return;
+                }
+                ctx_->backend().setReuseAddr(rx_fd_);
+                if (!ctx_->backend().bindV4(rx_fd_, 0, tp::readU16(dat))) {
+                    ctx_->backend().closeFd(rx_fd_);
+                    rx_fd_ = -1;
+                    rid = tp::kRidENok;
+                    return;
+                }
+                ctx_->backend().setNonBlocking(rx_fd_, true);
+                rx_timer_ =
+                    ctx_->scheduleEvery(std::chrono::milliseconds(3), [this] { drainRx(); });
+                rid = tp::kRidEOk;
+                return;
+            }
+            case kDemoPidReadRx:
+                tp::appendU16(resp, static_cast<std::uint16_t>(rx_bytes_));
+                rid = tp::kRidEOk;
+                return;
             default:
                 rid = tp::kRidENtf;
                 return;
@@ -1561,9 +1591,35 @@ public:
     }
 
 private:
+    void drainRx() {
+        std::uint8_t buf[512];
+        tc8::net::Endpoint src;
+        for (;;) {
+            const int n = ctx_->backend().recvFromV4(rx_fd_, buf, sizeof(buf), src);
+            if (n < 0) {
+                break;  // EWOULDBLOCK on the non-blocking socket — queue drained
+            }
+            rx_bytes_ += static_cast<std::uint32_t>(n);
+        }
+    }
+    void cleanupRx() {
+        if (static_cast<std::uint64_t>(rx_timer_) != 0) {
+            ctx_->cancel(rx_timer_);
+            rx_timer_ = testability::TimerId{};
+        }
+        if (rx_fd_ >= 0) {
+            ctx_->backend().closeFd(rx_fd_);
+            rx_fd_ = -1;
+        }
+        rx_bytes_ = 0;
+    }
+
     testability::MiddlewareContext *ctx_ = nullptr;
     testability::TimerId tick_timer_{};
     std::uint32_t tick_count_ = 0;
+    testability::TimerId rx_timer_{};
+    int rx_fd_ = -1;
+    std::uint32_t rx_bytes_ = 0;
 };
 
 stimulus::TestabilityConfig loopbackOn(std::uint16_t port) {
@@ -1673,6 +1729,48 @@ TEST(MiddlewareSeam, ModuleEmitsAsyncEventToRequester) {
 
     ::close(s);
     server.stop();
+}
+
+TEST(MiddlewareSeam, ModuleReceivesUdpThroughContextBackend) {
+    constexpr std::uint16_t kPort = 39904;
+    constexpr std::uint16_t kRxPort = 39914;  // the module's data-plane socket
+    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    server.registerModule(std::make_unique<DemoModule>());
+    ASSERT_TRUE(server.start(kPort));
+    const auto cfg = loopbackOn(kPort);
+
+    std::vector<std::uint8_t> arm;
+    tp::appendU16(arm, kRxPort);
+    ASSERT_TRUE(stimulus::testabilityCall(cfg, kDemoGid, kDemoPidArmUdpRx, arm).eok());
+
+    const int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(s, 0);
+    sockaddr_in dst{};
+    dst.sin_family = AF_INET;
+    dst.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    dst.sin_port = ::htons(kRxPort);
+    const std::uint8_t payload[5] = {1, 2, 3, 4, 5};
+    ASSERT_GT(::sendto(s, payload, sizeof(payload), 0, reinterpret_cast<sockaddr *>(&dst),
+                       sizeof(dst)),
+              0);
+    ::close(s);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));  // let the drain timer run
+    const auto r = stimulus::testabilityCall(cfg, kDemoGid, kDemoPidReadRx, {});
+    ASSERT_TRUE(r.eok());
+    ASSERT_EQ(r.dat.size(), 2u);
+    EXPECT_EQ((r.dat[0] << 8) | r.dat[1], 5);  // the 5 bytes the module drained
+
+    server.stop();
+}
+
+TEST(MiddlewareSeam, JoinMulticastRejectsUnknownInterface) {
+    dut::PosixSocketBackend backend;
+    const int fd = backend.createUdp();
+    ASSERT_GE(fd, 0);
+    // 224.0.0.1 (all-hosts) on a non-existent interface — resolved and rejected.
+    EXPECT_FALSE(backend.joinMulticast(fd, ::htonl(0xE0000001u), "tc8-no-such-iface"));
+    backend.closeFd(fd);
 }
 
 }  // namespace

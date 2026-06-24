@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace tc8::net {
 
@@ -35,6 +36,11 @@ public:
     virtual void setRecvTimeoutMs(int fd, int ms) = 0;
     // addr_be == 0 means "any address". true on success.
     virtual bool bindV4(int fd, std::uint32_t addr_be, std::uint16_t port) = 0;
+
+    // Join the IPv4 multicast group `group_be` (network byte order) on interface
+    // `ifname` (empty = the stack's default / any). true on success; false on an
+    // unknown interface or where the stack has no multicast group management.
+    virtual bool joinMulticast(int fd, std::uint32_t group_be, const std::string &ifname) = 0;
 
     // Datagram I/O. recvFromV4: byte count, or < 0 on timeout/error (fills
     // `src` on success). sendToV4: byte count, or < 0 on failure.

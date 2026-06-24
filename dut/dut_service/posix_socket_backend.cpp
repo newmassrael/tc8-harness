@@ -147,6 +147,21 @@ bool PosixSocketBackend::bindV4(int fd, std::uint32_t addr_be, std::uint16_t por
     return ::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0;
 }
 
+bool PosixSocketBackend::joinMulticast(int fd, std::uint32_t group_be, const std::string &ifname) {
+    ip_mreqn mreq{};
+    mreq.imr_multiaddr.s_addr = group_be;
+    mreq.imr_address.s_addr = INADDR_ANY;
+    // An empty ifname lets the kernel pick the egress interface (imr_ifindex 0);
+    // a named interface is resolved first so an unknown one is rejected here.
+    if (!ifname.empty()) {
+        mreq.imr_ifindex = static_cast<int>(::if_nametoindex(ifname.c_str()));
+        if (mreq.imr_ifindex == 0) {
+            return false;  // unknown interface
+        }
+    }
+    return ::setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
+}
+
 int PosixSocketBackend::recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) {
     sockaddr_in sa{};
     socklen_t sl = sizeof(sa);
