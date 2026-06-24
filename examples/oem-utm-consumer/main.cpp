@@ -18,6 +18,7 @@
 #include "autosar/crc.h"
 #include "autosar/e2e.h"
 #include "autosar/com.h"
+#include "autosar/nm.h"
 
 namespace {
 
@@ -69,6 +70,13 @@ int main() {
     com.setSignal(1, 0);
     const std::vector<std::uint8_t> comPdu = com.packPdu(1);
 
+    tc8::nm::StateMachine nm{
+        tc8::nm::Timing{std::chrono::milliseconds{500}, std::chrono::milliseconds{2000},
+                        std::chrono::milliseconds{1000}, std::chrono::milliseconds{1500}},
+        tc8::nm::PduLayout{8, 0, 1, 2, 6}, 0};
+    nm.requestNetwork();
+    const std::vector<std::uint8_t> nmPdu = nm.buildPdu();
+
     // Observe every engine's result through a volatile sink so the out-of-tree
     // link genuinely depends on each exported lib (a dropped engine then fails
     // to link) without asserting any value here — that is the unit tests' job.
@@ -78,6 +86,7 @@ int main() {
     sink ^= static_cast<std::uint32_t>(crc16);
     sink ^= static_cast<std::uint32_t>(e2ePdu[2]);
     sink ^= static_cast<std::uint32_t>(comPdu[0]);
+    sink ^= static_cast<std::uint32_t>(nmPdu[0]);
     (void)sink;
     return 0;
 }

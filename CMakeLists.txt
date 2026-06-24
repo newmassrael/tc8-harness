@@ -163,6 +163,11 @@ target_link_libraries(tc8_e2e PUBLIC tc8_crc)
 # bit layout). Signal/PDU database is injected config.
 tc8_add_engine(tc8_com src/autosar/com.cpp)
 
+# tc8::nm — AUTOSAR Network Management state machine (SWS UDPNetworkManagement).
+# State logic only; timings/layout/node id are injected config, and the owning
+# module drives it via mainFunction()/rxNmPdu() and onTransmit.
+tc8_add_engine(tc8_nm src/autosar/nm.cpp)
+
 # Portability check: cross-compile the dependency-light core — the SCE
 # engine plus every wire builder / SOME/IP dissector where the
 # endianness- and bit-layout-sensitive code lives — without needing a
@@ -564,8 +569,10 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     target_include_directories(tc8_com INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_include_directories(tc8_nm INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-    install(TARGETS tc8_testability_server tc8_wire tc8_crypto tc8_pn tc8_crc tc8_e2e tc8_com
+    install(TARGETS tc8_testability_server tc8_wire tc8_crypto tc8_pn tc8_crc tc8_e2e tc8_com tc8_nm
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
 
@@ -587,6 +594,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             ${PROJECT_SOURCE_DIR}/src/autosar/crc.h
             ${PROJECT_SOURCE_DIR}/src/autosar/e2e.h
             ${PROJECT_SOURCE_DIR}/src/autosar/com.h
+            ${PROJECT_SOURCE_DIR}/src/autosar/nm.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/autosar COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/dut_service/posix_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)

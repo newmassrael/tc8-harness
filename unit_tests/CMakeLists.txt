@@ -86,6 +86,10 @@ target_link_libraries(e2e_test PRIVATE tc8_e2e)
 # layouts pinned with hand-derived vectors + pack/unpack round-trips.
 tc8_add_unit_test(com_test)
 target_link_libraries(com_test PRIVATE tc8_com)
+# NM state machine: the canonical AUTOSAR transitions and timer expiries driven
+# deterministically through mainFunction()/requestNetwork()/rxNmPdu().
+tc8_add_unit_test(nm_test)
+target_link_libraries(nm_test PRIVATE tc8_nm)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)
