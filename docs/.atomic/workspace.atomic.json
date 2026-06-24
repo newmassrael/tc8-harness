@@ -1218,6 +1218,10 @@
         {
           "file": "tests/ipv4_header_08_neg/ipv4_header_08_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_header_01_neg/ipv4_header_01_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -1343,6 +1347,10 @@
         },
         {
           "file": "src/sce_integration/cases/ipv4_version_04.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_version_03_neg/ipv4_version_03_neg.scxml",
           "kind": "implements"
         }
       ]

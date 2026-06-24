@@ -1004,15 +1004,6 @@
         }
       ]
     },
-    "IPv4_HEADER_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "total_length_below_rfc791_minimum",
-          "property": "DUT's emitted IPv4 datagram Total Length must be >= the RFC 791 minimum; fail iff below it"
-        }
-      ]
-    },
     "IPv4_HEADER_03": {
       "guards": [
         {
@@ -1040,15 +1031,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit an IPv4 packet from its interface address; binary present/absent"
-        }
-      ]
-    },
-    "IPv4_VERSION_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "ipv4_version_not_four",
-          "property": "DUT's emitted IPv4 packet Version field must be 4; fail iff another value"
         }
       ]
     },

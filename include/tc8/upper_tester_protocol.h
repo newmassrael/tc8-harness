@@ -899,7 +899,12 @@ inline constexpr std::uint8_t kIcmpFaultDestUnreachCodeWrong = 0x13; // RFC 1122
 // SYN-SENT open (SEQUENCE_02). The handshake third leg (also a pure ACK) is escaped by
 // the arm timing, not the gate.
 inline constexpr std::uint8_t kTcpFaultPureAckNumWrong = 0x14;  // RFC 793 §3.9 ack num: §4.8 HEADER_02/05/06 + ACKNOWLEDGEMENT_02/03 + SEQUENCE_02
-inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultPureAckNumWrong;
+// IPv4 header (§4.4) on a DUT Echo Reply, gated on type 0 like the ttl/checksum flavors.
+// libtins validates only IHL on parse (not version or total_length), so a mutated
+// version nibble / sub-minimum total_length is dissected and the guard reads the field.
+inline constexpr std::uint8_t kIpv4FaultTotalLenWrong = 0x15;  // RFC 791 §3.1 total length: §4.4 IPv4_HEADER_01 (sub-20 minimum)
+inline constexpr std::uint8_t kIpv4FaultVersionWrong  = 0x16;  // RFC 791 §3.1 version:      §4.4 IPv4_VERSION_03 (version nibble != 4)
+inline constexpr std::uint8_t kEgressFaultMax         = kIpv4FaultVersionWrong;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself

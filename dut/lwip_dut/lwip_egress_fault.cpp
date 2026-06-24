@@ -110,6 +110,12 @@ constexpr std::uint16_t kIcmpEchoFieldFlip = 0x5A5A;
 // code changes off the spec value (the guard tests code != expected, so any flip works).
 constexpr std::uint8_t kIcmpCodeFlip = 0xFF;
 
+// §4.4 IPv4_HEADER_01: a sub-RFC-791-minimum total_length (20 is the minimum header).
+// Non-zero so it is not read as the TCP-segmentation-offload sentinel (tot_len == 0).
+constexpr std::uint16_t kIpv4FaultBadTotalLen = 10;
+// §4.4 IPv4_VERSION_03: the IPv4 version nibble forced to 6 (!= 4), IHL preserved.
+constexpr std::uint8_t kIpv4FaultBadVersion = 6;
+
 // TCP is stateful, so unlike ARP/UDP each fault is gated on the SPECIFIC segment the
 // matching case observes — corrupting every DUT segment would break the handshake the
 // observed segment depends on. The tester's guard reads the mutated field, not the
@@ -197,6 +203,16 @@ void mutateIcmpFrame(std::uint8_t *f, std::uint8_t flavor, std::uint16_t icmp) {
         case ut::kIpv4FaultHdrChecksumWrong:
             if (type == kIcmpTypeEchoReply) put16(f, kIpHdrChecksumOff,
                                                   get16(f, kIpHdrChecksumOff) ^ kChecksumFlip);
+            break;
+        case ut::kIpv4FaultTotalLenWrong:
+            // §4.4 IPv4_HEADER_01: total_length below the RFC 791 20-byte minimum.
+            if (type == kIcmpTypeEchoReply) put16(f, kIpTotalLenOff, kIpv4FaultBadTotalLen);
+            break;
+        case ut::kIpv4FaultVersionWrong:
+            // §4.4 IPv4_VERSION_03: force the version nibble to 6, preserve the IHL nibble.
+            if (type == kIcmpTypeEchoReply)
+                f[kIpVerIhlOff] = static_cast<std::uint8_t>(
+                    (f[kIpVerIhlOff] & 0x0FU) | (kIpv4FaultBadVersion << 4));
             break;
         // TYPE_18: flip the Destination Unreachable code off the spec value (Protocol
         // Unreachable, code 2). Gated on the type-3 error message the case observes.

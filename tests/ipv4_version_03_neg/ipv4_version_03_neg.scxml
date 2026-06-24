@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.4 IPv4_VERSION_03 negative — lwIP egress-fault self-validation of the
+  positive's "version == 4" guard (RFC 791 §3.1). The trait arms kIpv4FaultVersionWrong,
+  so the lwIP link-output hook forces the DUT's Echo Reply IPv4 version nibble to 6 (IHL
+  preserved). libtins never checks the version field on parse, and the harness pipeline
+  dispatches IPv4 by L2 ethertype (0x0800), not the version nibble — so the frame is
+  dissected and the guard reads version()=6. Pass = version != 4 observed (the violation
+  the positive forbids); fail_compliant = the DUT emitted version 4 despite the flavor
+  (fault inert). lwIP-only (capability-gated on kCapEgressFault).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_version_03_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_field_check.sce-template.xml"
+           pass_expr="captured.version != 4"
+           fail_state="fail_compliant"
+           fail_reason="dut_version_four_despite_flavor"
+           fail_role="fault_injection_inert"/>
+</scxml>
