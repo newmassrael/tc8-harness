@@ -9,14 +9,17 @@ add_library(tc8_testability_server STATIC
     posix_socket_backend.cpp
 )
 target_include_directories(tc8_testability_server PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 # The ICMP ECHO_REQUEST primitive frames its packet via the shared wire layer
 # (RFC 1071 checksum + RFC 792 echo body); PUBLIC so tc8-dut, tc8-utm and the
 # unit test inherit tc8_wire transitively rather than each naming the source.
-target_link_libraries(tc8_testability_server PUBLIC tc8_wire)
+# Threads is PUBLIC too: the ProtocolServer and the MiddlewareModule executors
+# use std::thread, so an out-of-tree consumer linking this library gets -pthread.
+find_package(Threads REQUIRED)
+target_link_libraries(tc8_testability_server PUBLIC tc8_wire Threads::Threads)
 
 # The TC8 Upper Tester server, built once as a library so the DUT service and
 # the unit test link the same translation units. Ports & adapters: the

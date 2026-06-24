@@ -122,7 +122,7 @@ add_library(tc8_wire STATIC
     src/wire/ip_checksum.cpp
     src/wire/icmp_echo.cpp
 )
-target_include_directories(tc8_wire PUBLIC src)
+target_include_directories(tc8_wire PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 tc8_enable_strict_warnings(tc8_wire)
 
 # Portability check: cross-compile the dependency-light core — the SCE
@@ -488,6 +488,61 @@ option(TC8_BUILD_UNIT_TESTS
 if(TC8_BUILD_UNIT_TESTS)
     enable_testing()
     add_subdirectory(unit_tests)
+endif()
+
+# ── Out-of-tree UTM SDK (PRS_TPSP §6.6 stateful extension) ──
+# Export the vendor-neutral testability UTM core — the ProtocolServer, the
+# MiddlewareModule / MiddlewareContext seam, and the POSIX SocketBackend — as a
+# find_package(tc8-utm) package so a separate, PRIVATE OEM repository links it
+# and attaches its own service-group modules without vendoring this tree. The
+# exported surface is public-standard only (AUTOSAR Testability + IETF RFC); it
+# carries no OEM-specific content. Install with: cmake --install <build>
+# --component utm-sdk --prefix <dir>.
+option(TC8_UTM_INSTALL
+    "Install the testability UTM core as a find_package(tc8-utm) package"
+    ON)
+
+if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
+    include(GNUInstallDirs)
+    include(CMakePackageConfigHelpers)
+
+    # Install-tree include root for the exported targets (the build-tree paths
+    # are already BUILD_INTERFACE-scoped, so this is purely additive).
+    target_include_directories(tc8_wire INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_include_directories(tc8_testability_server INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+
+    install(TARGETS tc8_testability_server tc8_wire
+        EXPORT tc8-utm-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
+
+    install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/testability_protocol.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/src/testability/middleware.h
+            ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/testability COMPONENT utm-sdk)
+    install(FILES ${PROJECT_SOURCE_DIR}/src/net/socket_backend.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/net COMPONENT utm-sdk)
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/src/wire/icmp_echo.h
+            ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wire COMPONENT utm-sdk)
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/dut_service/posix_socket_backend.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)
+
+    install(EXPORT tc8-utm-targets
+        NAMESPACE tc8::
+        FILE tc8-utm-targets.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tc8-utm COMPONENT utm-sdk)
+
+    configure_package_config_file(
+        ${PROJECT_SOURCE_DIR}/cmake/tc8-utm-config.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/tc8-utm-config.cmake
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tc8-utm)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tc8-utm-config.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tc8-utm COMPONENT utm-sdk)
 endif()
 
 option(TC8_AUTO_SETCAP
