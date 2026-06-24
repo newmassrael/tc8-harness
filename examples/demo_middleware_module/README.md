@@ -53,6 +53,24 @@ The same module source compiles unchanged against the lwIP backend for an embedd
 UTM (`tc8-lwip-utm`) — the engines are pure byte math and the I/O goes through
 `net::SocketBackend`.
 
+## Configuration schema — the injection boundary
+
+The config **struct shapes** are the schema; they live in the engine headers and
+carry *no values*. A module is constructed with these structs populated from the
+OEM's proprietary database — that population happens in the OEM repo, the single
+place OEM data crosses into behavior.
+
+| Engine | Config (shape only) |
+|---|---|
+| `tc8::crypto` | the AES-128 key buffer is passed per `aesCmac()` call — never stored |
+| `tc8::pn` | `PnConfig{ pni_offset, pni_len }` |
+| `tc8::e2e` | `Profile05Config{ data_id, offset, max_delta_counter }`, `Profile11Config{ data_id, data_id_mode, offset, max_delta_counter }` |
+| `tc8::com` | `PduDef{ id, length, cycle, start_delay, send_type, signals }`, `SignalDef{ id, start_bit, bit_size, endian }` |
+| `tc8::nm` | `Timing{ msg_cycle, msg_timeout, repeat_message, wait_bus_sleep }`, `PduLayout{ pdu_length, source_node_id_off, control_bit_vector_off, user_data_off, user_data_len }`, `node_id` |
+
+`demo_module.cpp` fills every one of these with fabricated values — replace those
+with your real configuration and nothing else in this repo changes.
+
 ## Status
 
 The demo is transmit + control only: it ticks an NM state machine, packs and
