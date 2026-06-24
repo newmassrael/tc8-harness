@@ -4,6 +4,7 @@
 #include <cstring>
 #include <deque>
 #include <future>
+#include <stdexcept>
 #include <utility>
 
 #include "wire/icmp_echo.h"
@@ -120,17 +121,11 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
     }
     void emitEvent(std::uint8_t gid, std::uint8_t pid,
                    const std::vector<std::uint8_t> &dat) override {
-        // To the requester of the module's most recent primitive (PRS_TPSP §6.2),
-        // serialised with the core's responses by ProtocolServer::emitEvent.
+        // To the requester of the module's most recent primitive (PRS_TPSP §6.2);
+        // an event-capable test system keeps one persistent control socket, so
+        // that address stays valid across arm and fire. Serialised with the
+        // core's responses by ProtocolServer::emitEvent.
         server_->emitEvent(service_id_, gid, pid, dat, requester_);
-    }
-    void post(std::function<void()> fn) override {
-        std::lock_guard<std::mutex> lk(mu_);
-        tasks_.push_back(std::move(fn));
-        cv_.notify_all();
-    }
-    std::chrono::steady_clock::time_point now() const override {
-        return std::chrono::steady_clock::now();
     }
 
 private:
@@ -185,14 +180,14 @@ private:
             const auto now = std::chrono::steady_clock::now();
             bool have_due = false;
             std::uint64_t due_id = 0;
-            std::chrono::steady_clock::time_point earliest = now + std::chrono::hours(1);
-            for (const auto &kv : timers_) {
+            std::optional<std::chrono::steady_clock::time_point> earliest;
+            for (const auto &kv : timers_) {  // ordered map, linear due-scan (n small)
                 if (kv.second.next <= now) {
                     due_id = kv.first;
                     have_due = true;
                     break;
                 }
-                if (kv.second.next < earliest) {
+                if (!earliest || kv.second.next < *earliest) {
                     earliest = kv.second.next;
                 }
             }
@@ -209,10 +204,10 @@ private:
                 lk.lock();
                 continue;
             }
-            if (timers_.empty()) {
-                cv_.wait(lk);
+            if (earliest) {
+                cv_.wait_until(lk, *earliest);
             } else {
-                cv_.wait_until(lk, earliest);
+                cv_.wait(lk);  // no timers armed — wake only on a new task/timer
             }
         }
     }
@@ -280,7 +275,20 @@ void ProtocolServer::registerPrimitive(std::uint8_t gid, std::uint8_t pid, SpHan
 
 void ProtocolServer::registerModule(std::unique_ptr<MiddlewareModule> module) {
     auto rt = std::make_unique<ModuleRuntime>(this, std::move(module));
-    for (const std::uint8_t gid : rt->ownedGroups()) {
+    const auto &groups = rt->ownedGroups();
+    // Fail fast on a registration clash rather than silently shadowing: GENERAL
+    // is core-owned (its START_TEST/END_TEST drives the module broadcast), and a
+    // GID already owned by another module would be a dispatch black hole. Validate
+    // all GIDs before mutating the index so a throw leaves no partial state.
+    for (const std::uint8_t gid : groups) {
+        if (gid == kGidGeneral) {
+            throw std::invalid_argument("registerModule: GID 0x00 (GENERAL) is core-owned");
+        }
+        if (gid_to_module_.count(gid) != 0) {
+            throw std::invalid_argument("registerModule: GID already owned by a module");
+        }
+    }
+    for (const std::uint8_t gid : groups) {
         gid_to_module_[gid] = rt.get();
     }
     modules_.push_back(std::move(rt));

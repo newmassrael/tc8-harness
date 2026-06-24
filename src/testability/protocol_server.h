@@ -134,7 +134,8 @@ public:
     // the module's onStart() runs at start() and onStop() at stop()/dtor on a
     // dedicated executor; primitives for its owned GID(s) are marshaled there and
     // the single Response awaited, so the module stays lock-free. Consulted
-    // before the built-in groups, after the registerPrimitive table.
+    // before the built-in groups, after the registerPrimitive table. Throws
+    // std::invalid_argument if an owned GID is GENERAL (0x00) or already taken.
     void registerModule(std::unique_ptr<MiddlewareModule> module);
 
 private:

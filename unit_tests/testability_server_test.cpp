@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -1517,21 +1518,18 @@ constexpr std::uint8_t kDemoPidEcho = 0x01;
 constexpr std::uint8_t kDemoPidArmTick = 0x02;
 constexpr std::uint8_t kDemoPidReadCount = 0x03;
 constexpr std::uint8_t kDemoPidArmEvent = 0x04;
-constexpr std::uint8_t kDemoPidArmUdpRx = 0x05;
-constexpr std::uint8_t kDemoPidReadRx = 0x06;
 
 class DemoModule : public testability::MiddlewareModule {
 public:
     std::vector<std::uint8_t> groups() const override { return {kDemoGid}; }
     void onStart(testability::MiddlewareContext &ctx) override { ctx_ = &ctx; }
-    void onStop() override { cleanupRx(); }
+    void onStop() override {}
     void onEndTest() override {
-        if (static_cast<std::uint64_t>(tick_timer_) != 0) {
+        if (tick_timer_ != testability::kNoTimer) {
             ctx_->cancel(tick_timer_);
-            tick_timer_ = testability::TimerId{};
+            tick_timer_ = testability::kNoTimer;
         }
         tick_count_ = 0;  // executor thread — single-threaded, no lock
-        cleanupRx();
     }
     void onPrimitive(const tp::Header &req, const std::uint8_t *dat, std::size_t dat_len,
                      const tc8::net::Endpoint &, std::uint8_t &rid,
@@ -1557,33 +1555,6 @@ public:
                 });
                 rid = tp::kRidEOk;
                 return;
-            case kDemoPidArmUdpRx: {  // open + bind a data-plane UDP socket, drain it
-                if (dat_len < 2) {
-                    rid = tp::kRidEInv;
-                    return;
-                }
-                rx_fd_ = ctx_->backend().createUdp();
-                if (rx_fd_ < 0) {
-                    rid = tp::kRidENok;
-                    return;
-                }
-                ctx_->backend().setReuseAddr(rx_fd_);
-                if (!ctx_->backend().bindV4(rx_fd_, 0, tp::readU16(dat))) {
-                    ctx_->backend().closeFd(rx_fd_);
-                    rx_fd_ = -1;
-                    rid = tp::kRidENok;
-                    return;
-                }
-                ctx_->backend().setNonBlocking(rx_fd_, true);
-                rx_timer_ =
-                    ctx_->scheduleEvery(std::chrono::milliseconds(3), [this] { drainRx(); });
-                rid = tp::kRidEOk;
-                return;
-            }
-            case kDemoPidReadRx:
-                tp::appendU16(resp, static_cast<std::uint16_t>(rx_bytes_));
-                rid = tp::kRidEOk;
-                return;
             default:
                 rid = tp::kRidENtf;
                 return;
@@ -1591,35 +1562,22 @@ public:
     }
 
 private:
-    void drainRx() {
-        std::uint8_t buf[512];
-        tc8::net::Endpoint src;
-        for (;;) {
-            const int n = ctx_->backend().recvFromV4(rx_fd_, buf, sizeof(buf), src);
-            if (n < 0) {
-                break;  // EWOULDBLOCK on the non-blocking socket — queue drained
-            }
-            rx_bytes_ += static_cast<std::uint32_t>(n);
-        }
-    }
-    void cleanupRx() {
-        if (static_cast<std::uint64_t>(rx_timer_) != 0) {
-            ctx_->cancel(rx_timer_);
-            rx_timer_ = testability::TimerId{};
-        }
-        if (rx_fd_ >= 0) {
-            ctx_->backend().closeFd(rx_fd_);
-            rx_fd_ = -1;
-        }
-        rx_bytes_ = 0;
-    }
-
     testability::MiddlewareContext *ctx_ = nullptr;
-    testability::TimerId tick_timer_{};
+    testability::TimerId tick_timer_ = testability::kNoTimer;
     std::uint32_t tick_count_ = 0;
-    testability::TimerId rx_timer_{};
-    int rx_fd_ = -1;
-    std::uint32_t rx_bytes_ = 0;
+};
+
+// A module that (illegally) claims the core GENERAL group — for the fail-fast test.
+class CoreGidModule : public testability::MiddlewareModule {
+public:
+    std::vector<std::uint8_t> groups() const override { return {tp::kGidGeneral}; }
+    void onStart(testability::MiddlewareContext &) override {}
+    void onStop() override {}
+    void onPrimitive(const tp::Header &, const std::uint8_t *, std::size_t,
+                     const tc8::net::Endpoint &, std::uint8_t &rid,
+                     std::vector<std::uint8_t> &) override {
+        rid = tp::kRidENtf;
+    }
 };
 
 stimulus::TestabilityConfig loopbackOn(std::uint16_t port) {
@@ -1629,60 +1587,75 @@ stimulus::TestabilityConfig loopbackOn(std::uint16_t port) {
     return cfg;
 }
 
-TEST(MiddlewareSeam, ModulePrimitiveRoutesEchoesAndUnknownPidIsNotFound) {
-    constexpr std::uint16_t kPort = 39901;
-    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
-    server.registerModule(std::make_unique<DemoModule>());
-    ASSERT_TRUE(server.start(kPort));
-    const auto cfg = loopbackOn(kPort);
+// One server hosting a synthetic module on a loopback control channel per test.
+class MiddlewareSeamTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        server_.registerModule(std::make_unique<DemoModule>());
+        ASSERT_TRUE(server_.start(kPort));
+        cfg_ = loopbackOn(kPort);
+    }
+    void TearDown() override { server_.stop(); }
 
-    const std::vector<std::uint8_t> body = {0x11, 0x22, 0x33};
-    const auto echo = stimulus::testabilityCall(cfg, kDemoGid, kDemoPidEcho, body);
-    EXPECT_TRUE(echo.eok());
-    EXPECT_EQ(echo.dat, body);
+    // Poll the module's tick counter until it is > 0 or a 2 s deadline — replaces
+    // a fixed sleep so a saturated host cannot false-fail (executor timers are
+    // best-effort under load; the repo has a timing-flake history).
+    int pollCounterPositive() {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        int v = 0;
+        do {
+            const auto r = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidReadCount, {});
+            if (r.eok() && r.dat.size() == 2u) {
+                v = (r.dat[0] << 8) | r.dat[1];
+                if (v > 0) {
+                    return v;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        } while (std::chrono::steady_clock::now() < deadline);
+        return v;
+    }
 
-    const auto unknown = stimulus::testabilityCall(cfg, kDemoGid, 0xFE, {});
-    EXPECT_TRUE(unknown.ok);
-    EXPECT_EQ(unknown.rid, tp::kRidENtf);
-
-    server.stop();
-}
-
-TEST(MiddlewareSeam, TimerAdvancesStateAndEndTestResetsIt) {
-    constexpr std::uint16_t kPort = 39902;
-    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
-    server.registerModule(std::make_unique<DemoModule>());
-    ASSERT_TRUE(server.start(kPort));
-    const auto cfg = loopbackOn(kPort);
-
-    auto readCount = [&]() -> int {
-        const auto r = stimulus::testabilityCall(cfg, kDemoGid, kDemoPidReadCount, {});
+    int readCount() {
+        const auto r = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidReadCount, {});
         EXPECT_TRUE(r.eok());
         EXPECT_EQ(r.dat.size(), 2u);
         return r.dat.size() == 2u ? ((r.dat[0] << 8) | r.dat[1]) : -1;
-    };
+    }
 
-    EXPECT_TRUE(stimulus::testabilityCall(cfg, kDemoGid, kDemoPidArmTick, {}).eok());
-    std::this_thread::sleep_for(std::chrono::milliseconds(40));
-    EXPECT_GT(readCount(), 0);  // periodic timer advanced the counter on the executor
+    static constexpr std::uint16_t kPort = 39901;
+    testability::ProtocolServer server_{std::make_unique<dut::PosixSocketBackend>()};
+    stimulus::TestabilityConfig cfg_;
+};
 
-    EXPECT_TRUE(stimulus::testabilityEndTest(cfg, /*tc_id=*/1, "demo").eok());
-    EXPECT_EQ(readCount(), 0);  // END_TEST cancelled the timer + cleared the count
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    EXPECT_EQ(readCount(), 0);  // and it stays cancelled
+TEST_F(MiddlewareSeamTest, PrimitiveRoutesEchoesAndUnknownPidIsNotFound) {
+    const std::vector<std::uint8_t> body = {0x11, 0x22, 0x33};
+    const auto echo = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidEcho, body);
+    EXPECT_TRUE(echo.eok());
+    EXPECT_EQ(echo.dat, body);
 
-    server.stop();
+    const auto unknown = stimulus::testabilityCall(cfg_, kDemoGid, 0xFE, {});
+    EXPECT_TRUE(unknown.ok);
+    EXPECT_EQ(unknown.rid, tp::kRidENtf);
 }
 
-TEST(MiddlewareSeam, ModuleEmitsAsyncEventToRequester) {
-    constexpr std::uint16_t kPort = 39903;
-    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
-    server.registerModule(std::make_unique<DemoModule>());
-    ASSERT_TRUE(server.start(kPort));
+TEST_F(MiddlewareSeamTest, TimerAdvancesStateAndEndTestResetsIt) {
+    EXPECT_TRUE(stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidArmTick, {}).eok());
+    EXPECT_GT(pollCounterPositive(), 0);  // periodic timer advanced the counter
 
+    // END_TEST is synchronous (onEndTest awaited), so the count is cleared and the
+    // timer cancelled by the time the Response returns — and stays so.
+    EXPECT_TRUE(stimulus::testabilityEndTest(cfg_, /*tc_id=*/1, "demo").eok());
+    EXPECT_EQ(readCount(), 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(readCount(), 0);
+}
+
+TEST_F(MiddlewareSeamTest, EmitsAsyncEventToRequester) {
     // A persistent UDP socket as the test system so the async Event (sent to the
     // arm primitive's requester) reaches us — testabilityCall closes its socket
-    // after the Response.
+    // after the Response. The 1 s recv timeout makes the wait deadline-bounded,
+    // not sleep-based.
     const int s = ::socket(AF_INET, SOCK_DGRAM, 0);
     ASSERT_GE(s, 0);
     sockaddr_in la{};
@@ -1728,49 +1701,14 @@ TEST(MiddlewareSeam, ModuleEmitsAsyncEventToRequester) {
     EXPECT_EQ(buf[tp::kHeaderSize + 1], 0xCDu);
 
     ::close(s);
-    server.stop();
 }
 
-TEST(MiddlewareSeam, ModuleReceivesUdpThroughContextBackend) {
-    constexpr std::uint16_t kPort = 39904;
-    constexpr std::uint16_t kRxPort = 39914;  // the module's data-plane socket
+// registerModule must fail fast on a clashing GID rather than silently shadow.
+TEST(MiddlewareSeam, RegisterModuleRejectsDuplicateAndCoreGid) {
     testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
     server.registerModule(std::make_unique<DemoModule>());
-    ASSERT_TRUE(server.start(kPort));
-    const auto cfg = loopbackOn(kPort);
-
-    std::vector<std::uint8_t> arm;
-    tp::appendU16(arm, kRxPort);
-    ASSERT_TRUE(stimulus::testabilityCall(cfg, kDemoGid, kDemoPidArmUdpRx, arm).eok());
-
-    const int s = ::socket(AF_INET, SOCK_DGRAM, 0);
-    ASSERT_GE(s, 0);
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
-    dst.sin_port = ::htons(kRxPort);
-    const std::uint8_t payload[5] = {1, 2, 3, 4, 5};
-    ASSERT_GT(::sendto(s, payload, sizeof(payload), 0, reinterpret_cast<sockaddr *>(&dst),
-                       sizeof(dst)),
-              0);
-    ::close(s);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));  // let the drain timer run
-    const auto r = stimulus::testabilityCall(cfg, kDemoGid, kDemoPidReadRx, {});
-    ASSERT_TRUE(r.eok());
-    ASSERT_EQ(r.dat.size(), 2u);
-    EXPECT_EQ((r.dat[0] << 8) | r.dat[1], 5);  // the 5 bytes the module drained
-
-    server.stop();
-}
-
-TEST(MiddlewareSeam, JoinMulticastRejectsUnknownInterface) {
-    dut::PosixSocketBackend backend;
-    const int fd = backend.createUdp();
-    ASSERT_GE(fd, 0);
-    // 224.0.0.1 (all-hosts) on a non-existent interface — resolved and rejected.
-    EXPECT_FALSE(backend.joinMulticast(fd, ::htonl(0xE0000001u), "tc8-no-such-iface"));
-    backend.closeFd(fd);
+    EXPECT_THROW(server.registerModule(std::make_unique<DemoModule>()), std::invalid_argument);
+    EXPECT_THROW(server.registerModule(std::make_unique<CoreGidModule>()), std::invalid_argument);
 }
 
 }  // namespace

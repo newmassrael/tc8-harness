@@ -30,6 +30,10 @@ using net::Endpoint;
 // zero value is never returned by the scheduler and denotes "no timer".
 enum class TimerId : std::uint64_t {};
 
+// The zero handle the scheduler never returns — a "no timer armed" sentinel for
+// a caller holding a TimerId member (compare against it instead of casting).
+inline constexpr TimerId kNoTimer{0};
+
 class MiddlewareContext;
 
 // A stateful service group supplied out-of-tree (PRS_TPSP §6.6 extension).
@@ -91,16 +95,12 @@ public:
 
     // Emit an asynchronous testability EVENT (PRS_TPSP §6.2, EVB set, TID
     // kTidEvent) for (gid,pid) to the test system that issued this module's most
-    // recent primitive (the requester per PRS_TPSP §6.2). `dat` is the event DAT.
+    // recent primitive (the requester per PRS_TPSP §6.2). An event-capable test
+    // system keeps one persistent control socket (as for LISTEN_AND_ACCEPT /
+    // RECEIVE_AND_FORWARD), so that requester stays addressable across arm and
+    // fire. `dat` is the event DAT.
     virtual void emitEvent(std::uint8_t gid, std::uint8_t pid,
                            const std::vector<std::uint8_t> &dat) = 0;
-
-    // Marshal `fn` onto the module executor (e.g. to hand a result back from a
-    // foreign thread the module itself spawned).
-    virtual void post(std::function<void()> fn) = 0;
-
-    // The steady clock the scheduler uses.
-    virtual std::chrono::steady_clock::time_point now() const = 0;
 };
 
 }  // namespace tc8::testability
