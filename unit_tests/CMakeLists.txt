@@ -72,6 +72,11 @@ target_link_libraries(aes_cmac_test PRIVATE tc8_crypto)
 # fail-fast config guards.
 tc8_add_unit_test(pn_filter_test)
 target_link_libraries(pn_filter_test PRIVATE tc8_pn)
+# CRC Routines: the catalog "123456789" check values (0x4B / 0x29B1) pin the
+# CRC-8/SAE-J1850 and CRC-16/CCITT-FALSE definitions against a published external
+# reference, so the E2E profiles built on them inherit a verified CRC.
+tc8_add_unit_test(crc_test)
+target_link_libraries(crc_test PRIVATE tc8_crc)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)

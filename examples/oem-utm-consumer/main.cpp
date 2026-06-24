@@ -15,6 +15,7 @@
 #include "testability/protocol_server.h"
 #include "autosar/aes_cmac.h"
 #include "autosar/pn_filter.h"
+#include "autosar/crc.h"
 
 namespace {
 
@@ -53,5 +54,16 @@ int main() {
     const std::vector<std::uint8_t> pdu{0x00};
     const bool relevant = filter.relevant(pdu.data(), pdu.size(), {0x00});
 
-    return (tag.size() == 16 && !relevant) ? 0 : 1;
+    const std::uint8_t crc8 = tc8::crc::crc8SaeJ1850(pdu.data(), pdu.size());
+    const std::uint16_t crc16 = tc8::crc::crc16Ccitt(pdu.data(), pdu.size());
+
+    // Observe every engine's result through a volatile sink so the out-of-tree
+    // link genuinely depends on each exported lib (a dropped engine then fails
+    // to link) without asserting any value here — that is the unit tests' job.
+    volatile std::uint32_t sink = tag[0];
+    sink ^= static_cast<std::uint32_t>(relevant ? 1U : 0U);
+    sink ^= static_cast<std::uint32_t>(crc8);
+    sink ^= static_cast<std::uint32_t>(crc16);
+    (void)sink;
+    return 0;
 }
