@@ -3000,6 +3000,10 @@
         {
           "file": "tests/dhcpv4_client_summary_04_neg/dhcpv4_client_summary_04_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_summary_02_neg/dhcpv4_client_summary_02_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -3561,6 +3565,14 @@
         },
         {
           "file": "tests/dhcpv4_client_reacquisition_05_neg/dhcpv4_client_reacquisition_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/dhcpv4_rebinding_dst_unicast_neg.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_reacquisition_02_neg/dhcpv4_client_reacquisition_02_neg.scxml",
           "kind": "implements"
         }
       ]

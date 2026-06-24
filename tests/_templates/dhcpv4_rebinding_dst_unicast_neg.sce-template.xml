@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.7.6.8 REBINDING-dst self-validation shape — shared by REQUEST_12_NEG and
+  REACQUISITION_02_NEG, which assert the identical invariant ("the REBINDING
+  DHCPREQUEST MUST be broadcast", RFC 2131 §4.4.5) and arm the identical
+  firmware mutant (kDhcpFlavorRebindingDstUnicast: REBINDING sent to the
+  sentinel 192.0.2.12, distinct from BOTH the limited broadcast AND the
+  server-id). One lifecycle, two case IDs — the spec ties REQUEST_12 to the
+  RFC 2131 §4.3.2 message-construction rule and REACQUISITION_02 to T2 expiry,
+  but the observed wire shape (and its fault) is the same, so a single template is
+  the SSOT (zero params — pass/fail/reason are fixed by the shared invariant).
+
+  Lifecycle (4 states): DISCOVER -> SELECTING REQUEST -> (ACK) RENEWING REQUEST
+  (unicast to server-id) -> REBINDING REQUEST. The state-4 discriminator is
+  three-way (NOT the dhcpv4_rebinding_request_field template's broadcast
+  pre-filter, which would never see a unicast REBINDING — the field this fault
+  mutates):
+    - dst is neither broadcast nor server-id (the 192.0.2.12 mutant) -> pass
+    - dst is broadcast (a conformant DUT)                            -> fail_compliant
+    - dst == server-id (a RENEWING retransmission)                   -> ignored (wait)
+
+  A conformant client (flavor None) broadcasts the REBINDING, so fail_compliant
+  is the live conformant-DUT outcome, not a dead branch.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="dhcpv4_rebinding_dst_unicast_neg">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="inconclusive_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
+                target="listening_for_rebinding_request"/>
+    <transition event="s3_deadline" target="inconclusive_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_rebinding_request">
+    <onentry>
+      <send event="s4_deadline" delay="6s"/>
+    </onentry>
+    <!-- A RENEWING retransmission (dst = server_id) lands here too under the
+         runBoundPhaseMachine retx schedule; it matches neither transition
+         (pass excludes dst == server_id; fail_compliant requires broadcast)
+         so it is ignored until the REBINDING fires. -->
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and !captured.dst_ip_is_broadcast() and !captured.dst_ip_equals(expected.server_id_be)"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_is_broadcast()"
+                target="fail_compliant"/>
+    <transition event="s4_deadline" target="inconclusive_no_rebinding_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_first_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_renewing_request_after_ack","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_rebinding_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rebinding_request_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rebinding_request_broadcast_despite_dst_unicast_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>

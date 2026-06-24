@@ -1286,15 +1286,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_REACQUISITION_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rebinding_request_dst_not_broadcast",
-          "property": "DUT's REBINDING DHCPREQUEST must be broadcast (RFC 2131 §4.4.5); fail iff not broadcast"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_REACQUISITION_06": {
       "guards": [
         {
@@ -1326,15 +1317,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit a DHCPDISCOVER and a DHCPREQUEST as a DHCP client on UDP port 68 (RFC 2131 §4.1); binary present/absent"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_SUMMARY_02": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_request_did_not_select_second_server",
-          "property": "DUT's DHCPREQUEST Option 54 must select the second (matched-xid) server (RFC 2131 §4.3.2); fail iff it selects another server"
         }
       ]
     },

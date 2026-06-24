@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.8 DHCPv4_CLIENT_REACQUISITION_02 negative — on T2 expiry the
+  REBINDING DHCPREQUEST MUST be broadcast (RFC 2131 §4.4.5). The positive's
+  dst-not-broadcast branch is unreachable against a conformant tc8-dut.
+
+  Identical invariant + mutant as REQUEST_12_NEG (REBINDING dst=broadcast,
+  kDhcpFlavorRebindingDstUnicast), so it shares the
+  dhcpv4_rebinding_dst_unicast_neg template. A conformant client (flavor None)
+  broadcasts the REBINDING, so fail_compliant is the live conformant-DUT outcome.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_reacquisition_02_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+  <sce:use template="../_templates/dhcpv4_rebinding_dst_unicast_neg.sce-template.xml"/>
+</scxml>
