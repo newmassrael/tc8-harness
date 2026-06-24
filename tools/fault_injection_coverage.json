@@ -23,6 +23,10 @@
       "dut_arp_reply_carried_wrong_fields_or_unicast_eth_dst": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG",
       "dut_emitted_periodic_gratuitous_arp_for_committed_link_local": "IPv4_AUTOCONF_NETWORK_PARTITIONS_01_NEG2"
     },
+    "IPv4_HEADER_05": {
+      "dut_echoed_576_byte_data_with_wrong_bytes": "IPv4_HEADER_05_NEG",
+      "dut_truncated_576_byte_datagram_data": "IPv4_HEADER_05_NEG2"
+    },
     "TCP_BASICS_04": {
       "dut_rst_seq_not_zero_after_syn": "TCP_BASICS_04_NEG",
       "dut_rst_seq_not_zero_after_fin": "TCP_BASICS_04_NEG2",

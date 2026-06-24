@@ -904,7 +904,15 @@ inline constexpr std::uint8_t kTcpFaultPureAckNumWrong = 0x14;  // RFC 793 §3.9
 // version nibble / sub-minimum total_length is dissected and the guard reads the field.
 inline constexpr std::uint8_t kIpv4FaultTotalLenWrong = 0x15;  // RFC 791 §3.1 total length: §4.4 IPv4_HEADER_01 (sub-20 minimum)
 inline constexpr std::uint8_t kIpv4FaultVersionWrong  = 0x16;  // RFC 791 §3.1 version:      §4.4 IPv4_VERSION_03 (version nibble != 4)
-inline constexpr std::uint8_t kEgressFaultMax         = kIpv4FaultVersionWrong;
+// Corrupt the first byte of a DUT Echo Reply's Data region (payload length unchanged) so
+// the echoed bytes no longer match the index pattern — the "wrong bytes" half of the
+// 576-octet echo guard, distinct from the truncation half.
+inline constexpr std::uint8_t kIcmpFaultEchoPayloadByteWrong = 0x17;  // RFC 792 echo data: §4.4 IPv4_HEADER_05 (548 B Data echoed verbatim — wrong-bytes half)
+// Shrink the Echo Reply's IP total_length so the dissected payload carries fewer than the 548
+// echoed Data bytes (libtins slices the inner PDU by total_length) — the truncation half of
+// the same 576-octet echo guard, distinct from the wrong-bytes half above.
+inline constexpr std::uint8_t kIcmpFaultEchoPayloadTruncate = 0x18;  // RFC 791 §3.1 total length: §4.4 IPv4_HEADER_05 (data truncated)
+inline constexpr std::uint8_t kEgressFaultMax         = kIcmpFaultEchoPayloadTruncate;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself
@@ -1020,7 +1028,8 @@ inline constexpr std::uint8_t kEtsFaultNone                   = 0x00;
 inline constexpr std::uint8_t kEtsFaultFieldValueWrong        = 0x01;  // §5.1.6 SOMEIP_ETS_166/167/168 + 103/104/105: any field or last-value getter (0x40/0x2A/0x28/0x3B/0x3C/0x3D) returns value ^ 0xFF per byte (!= the cached/set value)
 inline constexpr std::uint8_t kEtsFaultResetSkip              = 0x02;  // §5.1.6 SOMEIP_ETS_146: resetInterface is a no-op, so the post-reset getFieldA still returns the pre-reset value
 inline constexpr std::uint8_t kEtsFaultSetterEchoWrong        = 0x03;  // SOMEIPSRV_RPC_11: the field setter (0x42) response echoes value ^ 0xFF; the store is left correct, and this is distinct from the getter fault so the get/set/get _neg cases keep a correct setter echo
-inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultSetterEchoWrong;
+inline constexpr std::uint8_t kEtsFaultEchoArrayWrong        = 0x04;  // §5.1.6 SOMEIP_ETS_067: echoUINT8Array (0x09) appends a byte so the echoed array is non-empty for a zero-length-array request
+inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultEchoArrayWrong;
 
 // `OpStartDhcpClient` fault-injection flavor byte (the append-only slot at
 // param offset 24). A separate family from kFlavor* (the LL machine's frame-

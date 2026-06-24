@@ -38,6 +38,21 @@ inline std::array<std::uint8_t, kHeader05IcmpDataLen> makeHeader05Payload() {
     return p;
 }
 
+// The 576-octet Echo Request stimulus, shared by the positive and its egress-fault
+// _NEG sibling (SSOT). Bypasses ipv4_pilot_common::emitStimulus — it doesn't thread
+// payload_data/_len, and HEADER_05's spec mandates a 548 B Data region.
+inline void emitHeader05Stimulus(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    static const auto payload = makeHeader05Payload();
+    ::tc8::stimulus::IcmpMessageSpec spec{};
+    spec.src_ip       = cfg.icmpv4.tester_ip;
+    spec.dst_ip       = cfg.icmpv4.dut_iface_ip;
+    spec.echo_id      = ::tc8::stimulus::kIcmpEchoId;
+    spec.echo_seq     = ::tc8::stimulus::kIcmpEchoSeq;
+    spec.payload_data = payload.data();
+    spec.payload_len  = static_cast<std::uint32_t>(payload.size());
+    ::tc8::stimulus::emitIcmpMessage(iface, spec);
+}
+
 }  // namespace tc8::sce::cases
 
 namespace tc8::sce {
@@ -62,19 +77,7 @@ struct TestCaseTraits<cases::Ipv4Header05SM> {
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        // Bypass `ipv4_pilot_common::emitStimulus` — it doesn't thread
-        // payload_data/_len through, and HEADER_05's spec mandates a
-        // 548 B Data region. Construct the IcmpMessageSpec inline so
-        // the builder's Echo-shape body picks up the spec-literal size.
-        static const auto payload = cases::makeHeader05Payload();
-        ::tc8::stimulus::IcmpMessageSpec spec{};
-        spec.src_ip       = cfg.icmpv4.tester_ip;
-        spec.dst_ip       = cfg.icmpv4.dut_iface_ip;
-        spec.echo_id      = ::tc8::stimulus::kIcmpEchoId;
-        spec.echo_seq     = ::tc8::stimulus::kIcmpEchoSeq;
-        spec.payload_data = payload.data();
-        spec.payload_len  = static_cast<std::uint32_t>(payload.size());
-        ::tc8::stimulus::emitIcmpMessage(iface, spec);
+        cases::emitHeader05Stimulus(cfg, iface);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

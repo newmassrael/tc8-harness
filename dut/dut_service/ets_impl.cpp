@@ -48,6 +48,19 @@ inline std::uint8_t maybeFaultSetterEcho(std::uint8_t stored) {
                : stored;
 }
 
+// §5.1.6 SOMEIP_ETS_067 echo-array fault: when kEtsFaultEchoArrayWrong is armed, the
+// echoUINT8Array response carries one extra byte, so the DUT echoes a NON-empty array for a
+// zero-length-array request — the violation the positive forbids (the echo must be empty).
+// The echoed value (not the deserialized input) is EtsImpl-owned, so this is a faithful
+// application-layer fault site. Distinct from kEtsFaultFieldValueWrong (field getters) so it
+// does not perturb the field get/set/reset _neg cases.
+inline std::vector<std::uint8_t> maybeFaultEchoArray(std::vector<std::uint8_t> echoed) {
+    if (etsFaultFlavor() == ut::kEtsFaultEchoArrayWrong) {
+        echoed.push_back(0xFFU);
+    }
+    return echoed;
+}
+
 // §5.1.6 SOMEIP_ETS_097 vs _098..101 fork — env-gated so ETS_097 (Proxy
 // path) and ETS_098..101 (raw-UDP path) can coexist without cross-test
 // contamination. clientServiceActivate / clientServiceSubscribeEventgroup
@@ -183,7 +196,7 @@ void EtsImpl::echoUINT8Array(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     std::vector<uint8_t> _data,
     echoUINT8ArrayReply_t _reply) {
-    _reply(_data);
+    _reply(maybeFaultEchoArray(std::move(_data)));
 }
 
 void EtsImpl::echoUINT8Array16BitLength(

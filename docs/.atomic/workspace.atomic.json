@@ -1222,6 +1222,14 @@
         {
           "file": "tests/ipv4_header_01_neg/ipv4_header_01_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_header_05_neg/ipv4_header_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_header_05_neg2/ipv4_header_05_neg2.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -8203,6 +8211,14 @@
         },
         {
           "file": "src/sce_integration/cases/someip_ets_105_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/someip_ets_067_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/someip_ets_067_neg/someip_ets_067_neg.scxml",
           "kind": "implements"
         }
       ]

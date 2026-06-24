@@ -226,15 +226,6 @@
         }
       ]
     },
-    "SOMEIP_ETS_067": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_response_payload_was_not_empty_array",
-          "property": "DUT response payload must be an empty array for a zero-length array request"
-        }
-      ]
-    },
     "SOMEIP_ETS_068": {
       "guards": [
         {
@@ -1009,20 +1000,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit an IPv4 packet from its interface address; binary present/absent"
-        }
-      ]
-    },
-    "IPv4_HEADER_05": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_echoed_576_byte_data_with_wrong_bytes",
-          "property": "DUT's Echo Reply to the 576-byte datagram must echo the index-pattern payload verbatim; fail iff bytes differ"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_truncated_576_byte_datagram_data",
-          "property": "DUT's Echo Reply must carry the full 548-byte payload; fail iff truncated"
         }
       ]
     },
