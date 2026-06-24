@@ -67,6 +67,11 @@ tc8_add_unit_test(case_registry_test)
 # math, no I/O — links the tc8_crypto engine on top of the shared testable lib.
 tc8_add_unit_test(aes_cmac_test)
 target_link_libraries(aes_cmac_test PRIVATE tc8_crypto)
+# Partial Networking filter: synthetic PNC masks (no OEM cluster IDs) exercise
+# the AND-and-test mechanism, the byte offset, short-PDU handling, and the
+# fail-fast config guards.
+tc8_add_unit_test(pn_filter_test)
+target_link_libraries(pn_filter_test PRIVATE tc8_pn)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)

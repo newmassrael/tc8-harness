@@ -136,6 +136,16 @@ add_library(tc8_crypto STATIC
 target_include_directories(tc8_crypto PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 tc8_enable_strict_warnings(tc8_crypto)
 
+# tc8::pn — AUTOSAR Partial Networking relevance filter. Mechanism only (a
+# bitwise AND of the received PNC bit vector with the ECU's cluster mask); the
+# range location and cluster membership are injected config. Pure byte math,
+# same dependency-light profile as tc8_wire / tc8_crypto.
+add_library(tc8_pn STATIC
+    src/autosar/pn_filter.cpp
+)
+target_include_directories(tc8_pn PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+tc8_enable_strict_warnings(tc8_pn)
+
 # Portability check: cross-compile the dependency-light core — the SCE
 # engine plus every wire builder / SOME/IP dissector where the
 # endianness- and bit-layout-sensitive code lives — without needing a
