@@ -7,7 +7,6 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_dhcpv4_traits_base.h"
-#include "sce_integration/dhcpv4_default_endpoints.h"
 #include "sce_integration/dhcpv4_server_stimulus.h"
 #include "sce_integration/test_runner.h"
 

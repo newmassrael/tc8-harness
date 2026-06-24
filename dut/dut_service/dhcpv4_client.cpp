@@ -1424,6 +1424,14 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
     // The conformant path waits half the time remaining until T2 (RFC 2131
     // §4.4.5); the RenewingRetxNoDelay mutant collapses the wait to 0 so the
     // inter-RENEWING interval falls below the [1, 3] s bound.
+    //
+    // No analogous REBINDING-retx mutant exists (§4.7.6.8 REACQUISITION_06 has
+    // NO fault-injection _neg, deliberately): REACQ_06's guard
+    // frame_delta_within_us(0, 2s) is one-sided (only a >2s interval fails), but
+    // the REBINDING window (lease_end - T2 = 2s under kRetransmissionLeaseSeconds)
+    // cannot exceed 2s before lease_end returns the machine to INIT — a too-slow
+    // retx yields inconclusive (no second REBINDING), never a fail. So a faithful
+    // RebindingRetxNoDelay mirror is unreachable; see memory phase-f-north-star-audit.
     auto renewingRetxAt = [&](clock::time_point now) {
         return renewing_retx_no_delay ? now : now + (t2 - now) / 2;
     };
@@ -1478,6 +1486,14 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
             // receives a DHCPACK, the client moves to INIT state and
             // requests network initialization parameters as if the
             // client were uninitialized." Caller restarts the cycle.
+            //
+            // §4.7.6.8 REACQUISITION_07 has NO fault-injection _neg
+            // (deliberately): its guard needs, AFTER the post-expiry
+            // DISCOVER #2, a REQUEST carrying the released ciaddr — but this
+            // INIT-return emits no REQUEST, the restart DISCOVER/SELECTING
+            // carry ciaddr=0, and no cycle-2 OFFER is scheduled, so no
+            // faithful mutant produces that stale-ciaddr REQUEST (inconclusive,
+            // never fail). See memory phase-f-north-star-audit.
             return true;
         }
 
