@@ -1328,15 +1328,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_USAGE_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "diface_0_and_diface_1_share_same_chaddr",
-          "property": "DUT's per-interface DHCPDISCOVER must carry a distinct chaddr per interface (Topology 2); fail iff two interfaces share the same chaddr"
-        }
-      ]
-    },
     "SOMEIPSRV_BASIC_01": {
       "guards": [
         {

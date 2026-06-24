@@ -3216,6 +3216,14 @@
         {
           "file": "tests/dhcpv4_client_parameters_04_neg/dhcpv4_client_parameters_04_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_usage_01_neg/dhcpv4_client_usage_01_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/posix_ut_extensions.cpp",
+          "kind": "implements"
         }
       ]
     },

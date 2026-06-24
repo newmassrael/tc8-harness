@@ -541,7 +541,12 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     // with bound IP in RENEWING/REBINDING). Other BOOTP address fields
     // (yiaddr/siaddr/giaddr) stay zero.
     std::memcpy(bp + 12, &ciaddr_be, 4);
-    std::memcpy(bp + 28, dut_mac_.data(), 6);
+    // §4.7.6.5 USAGE_01: a chaddr-reuse mutant writes iface-0's MAC here instead
+    // of this iface's own; the L2 source MAC (f+6) stays this iface's, so
+    // is_dhcp_discover still identifies the frame and only chaddr collides.
+    std::memcpy(bp + 28,
+                chaddr_override_set_ ? chaddr_override_.data() : dut_mac_.data(),
+                6);
     if (set_discover_chaddr_mismatch) {
         // §4.7.6.9 INIT_ALLOC_03: flip the first chaddr byte so the emitted
         // chaddr no longer equals the client MAC (the conformant path wrote
@@ -1087,6 +1092,9 @@ void Dhcpv4Client::runLoop(Params params) {
     flavor_ = params.flavor;
     arp_flavor_ = params.arp_flavor;
     behavior_flavor_ = params.behavior_flavor;
+    // §4.7.6.5 USAGE_01 chaddr-reuse mutant (None for every positive case).
+    chaddr_override_     = params.chaddr_override;
+    chaddr_override_set_ = params.chaddr_override_set;
 
     std::random_device rd;
     std::mt19937 rng(rd());

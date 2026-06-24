@@ -226,6 +226,16 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
                        fb == ut::kDhcpFlavorRebindingEntryEarly ||
                        fb == ut::kDhcpFlavorRenewingRetxNoDelay) {
                 params.behavior_flavor = static_cast<Dhcpv4BehaviorFlavor>(fb);
+            } else if (fb == ut::kDhcpFlavorShareChaddrAcrossIface) {
+                // §4.7.6.5 USAGE_01: a secondary-iface client reuses iface-0's
+                // MAC as its DHCP chaddr (RFC 2131 §3.6 violation — ifaces must
+                // be independent). Copy iface-0's bound MAC into the override;
+                // a primary-iface (index 0) request leaves it unset (no self-
+                // collision to inject).
+                if (iface_index > 0 && !dhcpv4_clients_.empty()) {
+                    params.chaddr_override     = dhcpv4_clients_[0]->boundMac();
+                    params.chaddr_override_set = true;
+                }
             } else {
                 params.flavor = static_cast<Dhcpv4ClientFlavor>(fb);
             }

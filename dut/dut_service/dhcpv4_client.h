@@ -241,6 +241,16 @@ public:
         Dhcpv4ClientFlavor   flavor{Dhcpv4ClientFlavor::None};
         Dhcpv4ArpFlavor      arp_flavor{Dhcpv4ArpFlavor::None};
         Dhcpv4BehaviorFlavor behavior_flavor{Dhcpv4BehaviorFlavor::None};
+
+        // §4.7.6.5 USAGE_01 chaddr-reuse mutant: when `chaddr_override_set`,
+        // every emitted message carries `chaddr_override` in the BOOTP chaddr
+        // field instead of this iface's own MAC (the L2 source MAC is
+        // unchanged). The UT server fills it with iface-0's MAC for a
+        // secondary-iface client armed with kDhcpFlavorShareChaddrAcrossIface,
+        // so the DISCOVER collides with iface-0's chaddr (RFC 2131 §3.6
+        // violation). Default: each iface uses its own MAC.
+        std::array<std::uint8_t, 6> chaddr_override{};
+        bool                        chaddr_override_set{false};
     };
 
     Dhcpv4Client();
@@ -265,6 +275,12 @@ public:
     // in NBO, or 0 if the state machine has not yet reached BOUND.
     // Thread-safe.
     std::uint32_t currentLeaseBe() const;
+
+    // The MAC this client was bound to (its iface's hardware address).
+    // §4.7.6.5 USAGE_01: the UT server reads iface-0's bound MAC to fill a
+    // secondary-iface client's chaddr_override. Set once at bind(), read-only
+    // thereafter — no synchronisation needed.
+    const std::array<std::uint8_t, 6>& boundMac() const { return dut_mac_; }
 
 private:
     void runLoop(Params params);
@@ -479,6 +495,12 @@ private:
     Dhcpv4ClientFlavor   flavor_          = Dhcpv4ClientFlavor::None;
     Dhcpv4ArpFlavor      arp_flavor_      = Dhcpv4ArpFlavor::None;
     Dhcpv4BehaviorFlavor behavior_flavor_ = Dhcpv4BehaviorFlavor::None;
+
+    // §4.7.6.5 USAGE_01 chaddr-reuse mutant (copied from Params at runLoop
+    // entry). When set, emitDhcpMessage writes `chaddr_override_` into the
+    // BOOTP chaddr field instead of dut_mac_. Worker-thread local.
+    std::array<std::uint8_t, 6> chaddr_override_{};
+    bool                        chaddr_override_set_ = false;
 
     mutable std::mutex lease_mu_;
     std::uint32_t      committed_lease_be_ = 0;

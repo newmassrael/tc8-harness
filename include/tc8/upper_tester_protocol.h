@@ -1229,6 +1229,13 @@ inline constexpr std::uint8_t kDhcpFlavorRebindingEntryEarly            = 0x21;
 // falls below the [1, 3] s bound. The conformant path (None) keeps the
 // half-remaining schedule.
 inline constexpr std::uint8_t kDhcpFlavorRenewingRetxNoDelay            = 0x22;
+// §4.7.6.5 USAGE_01: multi-iface chaddr-reuse mutant — RFC 2131 §3.6 requires
+// each interface to use DHCP independently. When set on a secondary-iface
+// (iface_index > 0) OpStartDhcpClient, the UT server copies iface-0's bound
+// MAC into the client's chaddr_override so its DHCPDISCOVER carries iface-0's
+// chaddr (colliding with iface-0). The conformant path uses each iface's own
+// MAC. Handled by the UT server (a Params override), not a flavor_ enum.
+inline constexpr std::uint8_t kDhcpFlavorShareChaddrAcrossIface         = 0x23;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

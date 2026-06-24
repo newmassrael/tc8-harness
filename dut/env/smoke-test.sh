@@ -335,7 +335,7 @@ fi
 # per-case, because workers bring up netns once at startup (not per-case).
 NEED_SECOND_VETH=0
 for _case in "${CASES[@]}"; do
-    if [[ "$_case" == "DHCPv4_CLIENT_USAGE_01" ]]; then
+    if [[ "$_case" == "DHCPv4_CLIENT_USAGE_01" || "$_case" == "DHCPv4_CLIENT_USAGE_01_NEG" ]]; then
         NEED_SECOND_VETH=1
         break
     fi
@@ -1508,7 +1508,7 @@ run_case() {
     # INADDR_ANY → dispatches by iface_index byte). A topology without
     # a second tester interface cannot execute the case at all —
     # explicit SKIP, never a misleading timeout FAIL.
-    if [[ "$case_id" == "DHCPv4_CLIENT_USAGE_01" ]]; then
+    if [[ "$case_id" == "DHCPv4_CLIENT_USAGE_01" || "$case_id" == "DHCPv4_CLIENT_USAGE_01_NEG" ]]; then
         local sec_iface
         sec_iface=$(topology_tester_iface_secondary "$W")
         if [[ -z "$sec_iface" ]]; then
