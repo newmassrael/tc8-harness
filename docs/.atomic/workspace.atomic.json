@@ -4564,6 +4564,14 @@
         {
           "file": "tests/tcp_control_flags_08/tcp_control_flags_08.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_control_flags_05_neg/tcp_control_flags_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_control_flags_05_neg.h",
+          "kind": "implements"
         }
       ]
     },

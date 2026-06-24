@@ -2138,15 +2138,6 @@
         }
       ]
     },
-    "TCP_CONTROL_FLAGS_05": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_ack_num_does_not_acknowledge_urg_payload",
-          "property": "DUT's ACK must acknowledge the urgent-flagged payload; fail iff the ack_num does not cover it"
-        }
-      ]
-    },
     "TCP_CONTROL_FLAGS_08": {
       "guards": [
         {
