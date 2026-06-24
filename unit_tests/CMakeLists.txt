@@ -82,6 +82,10 @@ target_link_libraries(crc_test PRIVATE tc8_crc)
 # Data ID feed order, little-endian CRC placement, and counter SM are verified.
 tc8_add_unit_test(e2e_test)
 target_link_libraries(e2e_test PRIVATE tc8_e2e)
+# COM signal packing: little-endian (Intel) and big-endian (Motorola sawtooth)
+# layouts pinned with hand-derived vectors + pack/unpack round-trips.
+tc8_add_unit_test(com_test)
+target_link_libraries(com_test PRIVATE tc8_com)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)

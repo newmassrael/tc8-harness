@@ -17,6 +17,7 @@
 #include "autosar/pn_filter.h"
 #include "autosar/crc.h"
 #include "autosar/e2e.h"
+#include "autosar/com.h"
 
 namespace {
 
@@ -62,6 +63,12 @@ int main() {
     tc8::e2e::Profile05Protector e2e{tc8::e2e::Profile05Config{0x0000, 0, 1}};
     e2e.protect(e2ePdu.data(), e2ePdu.size());
 
+    tc8::com::SignalEngine com{{tc8::com::PduDef{
+        1, 1, std::chrono::milliseconds{0}, std::chrono::milliseconds{0},
+        tc8::com::SendType::kCyclic, {tc8::com::SignalDef{1, 0, 4, tc8::com::Endianness::kLittle}}}}};
+    com.setSignal(1, 0);
+    const std::vector<std::uint8_t> comPdu = com.packPdu(1);
+
     // Observe every engine's result through a volatile sink so the out-of-tree
     // link genuinely depends on each exported lib (a dropped engine then fails
     // to link) without asserting any value here — that is the unit tests' job.
@@ -70,6 +77,7 @@ int main() {
     sink ^= static_cast<std::uint32_t>(crc8);
     sink ^= static_cast<std::uint32_t>(crc16);
     sink ^= static_cast<std::uint32_t>(e2ePdu[2]);
+    sink ^= static_cast<std::uint32_t>(comPdu[0]);
     (void)sink;
     return 0;
 }
