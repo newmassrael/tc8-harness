@@ -552,6 +552,9 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
         // chaddr no longer equals the client MAC (the conformant path wrote
         // dut_mac_). The L2 source MAC stays the real one, so is_dhcp_discover
         // still identifies the frame; only chaddr_matches_dut_mac diverges.
+        // Mutually exclusive with the chaddr_override above (a single
+        // OpStartDhcpClient routes to exactly one chaddr mutant), so this
+        // XOR never races the §4.7.6.5 USAGE_01 override.
         bp[28] ^= kFaultChaddrFlipMask;
     }
     if (set_reserved_flag_bit) {

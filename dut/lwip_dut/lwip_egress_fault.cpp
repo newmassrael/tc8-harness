@@ -110,9 +110,11 @@ constexpr std::uint16_t kIcmpEchoFieldFlip = 0x5A5A;
 // code changes off the spec value (the guard tests code != expected, so any flip works).
 constexpr std::uint8_t kIcmpCodeFlip = 0xFF;
 
-// §4.4 IPv4_HEADER_01: a sub-RFC-791-minimum total_length (20 is the minimum header).
+// §4.4 IPv4_HEADER_01: a total_length below kIpHdrLenMin (the RFC 791 20-byte
+// minimum header) — defined relative to that SSOT symbol, not a bare literal.
 // Non-zero so it is not read as the TCP-segmentation-offload sentinel (tot_len == 0).
-constexpr std::uint16_t kIpv4FaultBadTotalLen = 10;
+constexpr std::uint16_t kIpv4FaultBadTotalLen =
+    static_cast<std::uint16_t>(kIpHdrLenMin - 10);
 // §4.4 IPv4_VERSION_03: the IPv4 version nibble forced to 6 (!= 4), IHL preserved.
 constexpr std::uint8_t kIpv4FaultBadVersion = 6;
 
