@@ -1217,7 +1217,7 @@ inline constexpr std::uint8_t kDhcpFlavorRenewingEntryNoDelay           = 0x20;
 // T2 onto T1 so it fires right after RENEWING and the last-ACK->REBINDING
 // interval falls below T2 - ParamToleranceTime. The conformant path (None)
 // keeps T2.
-inline constexpr std::uint8_t kDhcpFlavorRebindingEntryEarly           = 0x21;
+inline constexpr std::uint8_t kDhcpFlavorRebindingEntryEarly            = 0x21;
 // §4.7.6.8 REACQUISITION_05: behavioural timing mutant — RFC 2131 §4.4.5 has
 // the RENEWING client retransmit after half the time remaining to T2;
 // runBoundPhaseMachine collapses that wait to 0 so the inter-RENEWING interval
