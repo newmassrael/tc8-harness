@@ -543,6 +543,20 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tc8-utm)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tc8-utm-config.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tc8-utm COMPONENT utm-sdk)
+
+    # Make the export a verified gate: a CTest that installs the utm-sdk to a
+    # temp prefix and builds examples/oem-utm-consumer against it via
+    # find_package(tc8-utm). Runs in the same `ctest` the build-test CI job runs,
+    # so a dropped header or broken install-interface fails CI, not a human.
+    if(TC8_BUILD_UNIT_TESTS)
+        add_test(NAME utm_export_smoke
+            COMMAND ${CMAKE_COMMAND}
+                -DTC8_BUILD_DIR=${CMAKE_BINARY_DIR}
+                -DTC8_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+                -DTC8_CMAKE=${CMAKE_COMMAND}
+                -DTC8_GENERATOR=${CMAKE_GENERATOR}
+                -P ${PROJECT_SOURCE_DIR}/cmake/verify-utm-export.cmake)
+    endif()
 endif()
 
 option(TC8_AUTO_SETCAP
