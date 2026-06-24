@@ -384,6 +384,10 @@ in `tools/fault_injection_coverage.json`):
   (`kTcpFaultSynMssDefault`) — walk the active-OPEN SYN's TCP options to the kind=2
   MSS option and zero its value (11) or force it to the 536 default (12), gated on
   the pure SYN so the passive SYN,ACK is untouched.
+- `TCP_MSS_OPTIONS_10_NEG` (`kTcpFaultDataSegTruncate`) — shrink a DUT data segment's IP
+  total_length so libtins re-slices the dissected payload to 64 B (!= the 536 default),
+  gated on payload so the handshake control segments keep their length. The same
+  total_length-truncation as the ICMP echo `kIcmpFaultEchoPayloadTruncate`.
 - `TCP_HEADER_01_NEG` (`kTcpFaultDataChecksumWrong`, reused) — self-validates
   HEADER_01's *checksum* conjunct only; its data_offset conjunct is unreachable
   (below).

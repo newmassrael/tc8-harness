@@ -5376,6 +5376,18 @@
         {
           "file": "tests/tcp_mss_options_12_neg/tcp_mss_options_12_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_mss_options_10_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_10_neg/tcp_mss_options_10_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

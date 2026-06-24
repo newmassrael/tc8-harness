@@ -102,6 +102,13 @@ constexpr std::uint32_t kTcpSeqAckFlip = 0xA5A5A5A5;
 // the advertised MSS to it is the precise violation.
 constexpr std::uint16_t kRfcDefaultMss = 536;
 
+// §4.8.6.9 MSS_OPTIONS_06/09/10 truncation: shrink a DUT data segment's IP total_length so the
+// dissected TCP payload carries only 64 bytes (20 B IP + 20 B TCP + 64). libtins slices the inner
+// PDU by total_length, so payload_len becomes 64 — distinct from every spec MSS (200/536/1460),
+// tripping the data-segment-size guard. Mirrors kIpv4FaultTruncTotalLen for the ICMP echo case.
+constexpr std::uint16_t kTcpFaultTruncTotalLen =
+    static_cast<std::uint16_t>(kIpHdrLenMin + kTcpMinHdrLen + 64);
+
 // XOR sentinel for the 16-bit ICMP echo identifier / sequence fields: guarantees the
 // field changes off the echoed value (a fixed value could collide with it).
 constexpr std::uint16_t kIcmpEchoFieldFlip = 0x5A5A;
@@ -188,6 +195,14 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
                 const std::uint16_t m = tcpMssValueOffset(f, tcp);
                 if (m != 0) put16(f, m, kRfcDefaultMss);
             }
+            break;
+        // TCP_MSS_OPTIONS_06/09/10: shrink a DATA segment's IP total_length so libtins re-slices
+        // the dissected payload to 64 B (< every spec MSS), tripping payload_len != <mss>. Gated on
+        // payload so the handshake's control segments keep their length and the connection still
+        // reaches the data-emitting state. The TCP header (20 B) stays within the shrunk length, so
+        // libtins still dissects the segment as TCP with a 64 B payload.
+        case ut::kTcpFaultDataSegTruncate:
+            if (tcpHasPayload(f, tcp)) put16(f, kIpTotalLenOff, kTcpFaultTruncTotalLen);
             break;
         default: break;  // None / non-TCP flavor: no-op
     }

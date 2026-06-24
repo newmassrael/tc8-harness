@@ -2266,15 +2266,6 @@
         }
       ]
     },
-    "TCP_MSS_OPTIONS_10": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_data_segment_size_not_default_536",
-          "property": "DUT's data segment must honour the RFC 1122 default 536 MSS when none is advertised; fail iff oversized"
-        }
-      ]
-    },
     "TCP_NAGLE_02": {
       "guards": [
         {

@@ -912,7 +912,12 @@ inline constexpr std::uint8_t kIcmpFaultEchoPayloadByteWrong = 0x17;  // RFC 792
 // echoed Data bytes (libtins slices the inner PDU by total_length) — the truncation half of
 // the same 576-octet echo guard, distinct from the wrong-bytes half above.
 inline constexpr std::uint8_t kIcmpFaultEchoPayloadTruncate = 0x18;  // RFC 791 §3.1 total length: §4.4 IPv4_HEADER_05 (data truncated)
-inline constexpr std::uint8_t kEgressFaultMax         = kIcmpFaultEchoPayloadTruncate;
+// Shrink a DUT TCP DATA segment's IP total_length so libtins re-slices the dissected payload
+// below the spec segment size (the same total_length-truncation as the ICMP echo truncate above,
+// gated on a TCP segment carrying payload) — the guard reads payload_len, which drops off the
+// expected MSS.
+inline constexpr std::uint8_t kTcpFaultDataSegTruncate = 0x19;  // RFC 1122 §4.2.2.6 segment size: §4.8 MSS_OPTIONS_06/09/10 (data segment truncated below the MSS)
+inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultDataSegTruncate;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself
