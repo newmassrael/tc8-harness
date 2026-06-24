@@ -1218,6 +1218,12 @@ inline constexpr std::uint8_t kDhcpFlavorRenewingEntryNoDelay           = 0x20;
 // interval falls below T2 - ParamToleranceTime. The conformant path (None)
 // keeps T2.
 inline constexpr std::uint8_t kDhcpFlavorRebindingEntryEarly           = 0x21;
+// §4.7.6.8 REACQUISITION_05: behavioural timing mutant — RFC 2131 §4.4.5 has
+// the RENEWING client retransmit after half the time remaining to T2;
+// runBoundPhaseMachine collapses that wait to 0 so the inter-RENEWING interval
+// falls below the [1, 3] s bound. The conformant path (None) keeps the
+// half-remaining schedule.
+inline constexpr std::uint8_t kDhcpFlavorRenewingRetxNoDelay            = 0x22;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

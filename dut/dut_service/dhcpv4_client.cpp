@@ -944,7 +944,8 @@ bool Dhcpv4Client::pollForReply(int                        sk,
             case Dhcpv4BehaviorFlavor::NakRestartNoDelay:
             case Dhcpv4BehaviorFlavor::RenewingEntryNoDelay:
             case Dhcpv4BehaviorFlavor::RebindingEntryEarly:
-                break;  // not a reply-acceptance mutant (Retx*/NakRestart*/*Entry* fault runLoop/phase timing)
+            case Dhcpv4BehaviorFlavor::RenewingRetxNoDelay:
+                break;  // not a reply-acceptance mutant (these fault runLoop/phase timing)
         }
     }
 
@@ -1388,6 +1389,8 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
         (behavior_flavor_ == Dhcpv4BehaviorFlavor::RenewingEntryNoDelay);
     const bool rebinding_entry_early =
         (behavior_flavor_ == Dhcpv4BehaviorFlavor::RebindingEntryEarly);
+    const bool renewing_retx_no_delay =
+        (behavior_flavor_ == Dhcpv4BehaviorFlavor::RenewingRetxNoDelay);
 
     // Arm the T1 / T2 / lease_end schedule from a BOUND instant (RFC 2131
     // §4.4.5: T1 = lease/2, T2 = lease*7/8). Factored so the initial arming
@@ -1405,6 +1408,14 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
     };
     armPhaseTimers(clock::now());
     Phase phase = Phase::Bound;
+
+    // §4.7.6.8 REACQUISITION_05_NEG: the next RENEWING retransmission instant.
+    // The conformant path waits half the time remaining until T2 (RFC 2131
+    // §4.4.5); the RenewingRetxNoDelay mutant collapses the wait to 0 so the
+    // inter-RENEWING interval falls below the [1, 3] s bound.
+    auto renewingRetxAt = [&](clock::time_point now) {
+        return renewing_retx_no_delay ? now : now + (t2 - now) / 2;
+    };
 
     // RFC 2131 §4.4.5 in-state retransmission scheduling:
     //   * RENEWING: if no DHCPACK within half the time remaining until
@@ -1430,7 +1441,7 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
             // it on the fast envelope (spec REACQUISITION_05 /
             // ALLOCATING_10 use HIGH-LEASE-TIME to keep half-of-
             // remaining above 60s naturally).
-            next_retx = now + (t2 - now) / 2;
+            next_retx = renewingRetxAt(now);
         }
         if (phase == Phase::Renewing && now >= t2) {
             phase = Phase::Rebinding;
@@ -1445,7 +1456,7 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
         // arrived), re-emit and schedule the next halving.
         if (phase == Phase::Renewing && now >= next_retx && now < t2) {
             emitDhcpRequestRenewing(xid_be, client_addr_be, server_id_be);
-            next_retx = now + (t2 - now) / 2;
+            next_retx = renewingRetxAt(now);
         }
         if (phase == Phase::Rebinding && now >= next_retx && now < lease_end) {
             emitDhcpRequestRebinding(xid_be, client_addr_be);

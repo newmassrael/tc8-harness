@@ -58,6 +58,10 @@
       "timing_serial": true,
       "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
     },
+    "DHCPV4_CLIENT_REACQUISITION_05_NEG": {
+      "timing_serial": true,
+      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+    },
     "DHCPV4_CLIENT_REACQUISITION_06": {
       "timing_serial": true,
       "timing_serial_ref": "memory/reference_timing_serial_cadence.md"

@@ -223,7 +223,8 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
                        fb == ut::kDhcpFlavorRetxExceedCap ||
                        fb == ut::kDhcpFlavorNakRestartNoDelay ||
                        fb == ut::kDhcpFlavorRenewingEntryNoDelay ||
-                       fb == ut::kDhcpFlavorRebindingEntryEarly) {
+                       fb == ut::kDhcpFlavorRebindingEntryEarly ||
+                       fb == ut::kDhcpFlavorRenewingRetxNoDelay) {
                 params.behavior_flavor = static_cast<Dhcpv4BehaviorFlavor>(fb);
             } else {
                 params.flavor = static_cast<Dhcpv4ClientFlavor>(fb);

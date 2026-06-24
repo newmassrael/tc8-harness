@@ -121,6 +121,10 @@ enum class Dhcpv4BehaviorFlavor : std::uint8_t {
     // REQUEST fires below its RFC 2131 §4.4.5 interval bound.
     RenewingEntryNoDelay     = ::tc8::ut::kDhcpFlavorRenewingEntryNoDelay,
     RebindingEntryEarly      = ::tc8::ut::kDhcpFlavorRebindingEntryEarly,
+    // §4.7.6.8 REACQUISITION_05: runBoundPhaseMachine collapses the RENEWING
+    // half-remaining retransmission wait to 0 so the inter-RENEWING interval
+    // falls below the RFC 2131 §4.4.5 bound.
+    RenewingRetxNoDelay      = ::tc8::ut::kDhcpFlavorRenewingRetxNoDelay,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

@@ -37,5 +37,6 @@
   <sce:use template="../_templates/dhcpv4_renewing_retx_field.sce-template.xml"
            pass_expr="true"
            fail_state="fail_unreachable"
-           fail_reason="unreachable_pass_expr_always_true"/>
+           fail_reason="unreachable_pass_expr_always_true"
+           fail_role="observed_violation"/>
 </scxml>
