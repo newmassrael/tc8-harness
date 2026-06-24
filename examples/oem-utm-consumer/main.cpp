@@ -55,8 +55,8 @@ int main() {
     const std::vector<std::uint8_t> pdu{0x00};
     const bool relevant = filter.relevant(pdu.data(), pdu.size(), {0x00});
 
-    const std::uint8_t crc8 = tc8::crc::crc8SaeJ1850(pdu.data(), pdu.size());
-    const std::uint16_t crc16 = tc8::crc::crc16Ccitt(pdu.data(), pdu.size());
+    const std::uint8_t crc8 = tc8::crc::crc8SaeJ1850(pdu.data(), pdu.size(), 0x00, true);
+    const std::uint16_t crc16 = tc8::crc::crc16Ccitt(pdu.data(), pdu.size(), 0x0000, true);
 
     std::vector<std::uint8_t> e2ePdu(8, 0x00);
     tc8::e2e::Profile05Protector e2e{tc8::e2e::Profile05Config{0x0000, 0, 1}};

@@ -17,22 +17,32 @@ namespace {
 const std::vector<std::uint8_t> kCheck = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
 TEST(Crc8SaeJ1850, CatalogCheckValue) {
-    EXPECT_EQ(crc8SaeJ1850(kCheck.data(), kCheck.size()), 0x4B);
+    EXPECT_EQ(crc8SaeJ1850(kCheck.data(), kCheck.size(), 0x00, true), 0x4B);
 }
 
 TEST(Crc16Ccitt, CatalogCheckValue) {
-    EXPECT_EQ(crc16Ccitt(kCheck.data(), kCheck.size()), 0x29B1);
+    EXPECT_EQ(crc16Ccitt(kCheck.data(), kCheck.size(), 0x0000, true), 0x29B1);
 }
 
-// Empty input returns the initial value with the final XOR applied: CRC-8 is
+// Empty first call returns the initial value with the final XOR applied: CRC-8 is
 // 0xFF ^ 0xFF = 0x00; CRC-16 is 0xFFFF with no final XOR. Also exercises the
 // null-at-zero-length contract.
 TEST(Crc8SaeJ1850, EmptyInput) {
-    EXPECT_EQ(crc8SaeJ1850(nullptr, 0), 0x00);
+    EXPECT_EQ(crc8SaeJ1850(nullptr, 0, 0x00, true), 0x00);
 }
 
 TEST(Crc16Ccitt, EmptyInput) {
-    EXPECT_EQ(crc16Ccitt(nullptr, 0), 0xFFFF);
+    EXPECT_EQ(crc16Ccitt(nullptr, 0, 0x0000, true), 0xFFFF);
+}
+
+// A two-segment CRC resumed across calls equals a single pass over the
+// concatenation — the property the E2E profiles rely on (Data ID then data).
+TEST(Crc16Ccitt, ChainedEqualsContiguous) {
+    const std::vector<std::uint8_t> whole = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+    const std::uint16_t one = crc16Ccitt(whole.data(), whole.size(), 0x0000, true);
+    const std::uint16_t part = crc16Ccitt(whole.data(), 4, 0x0000, true);
+    const std::uint16_t two = crc16Ccitt(whole.data() + 4, whole.size() - 4, part, false);
+    EXPECT_EQ(two, one);
 }
 
 }  // namespace

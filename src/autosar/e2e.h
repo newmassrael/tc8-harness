@@ -58,4 +58,49 @@ private:
     bool have_last_;
 };
 
+// Profile 11 Data ID inclusion mode (AUTOSAR E2E_P11DataIDMode): BOTH feeds the
+// whole 16-bit Data ID into the CRC; NIBBLE feeds the low byte plus a zero byte
+// into the CRC and also writes the Data ID's low-nibble-of-high-byte into the
+// header so the receiver can recover it.
+enum class DataIdMode { kBoth, kNibble };
+
+// AUTOSAR FO PRS E2EProtocol Profile 11: CRC-8/SAE-J1850, a 4-bit counter (range
+// 0..14, wraps modulo 15), and a 16-bit Data ID. The 2-byte header sits at byte
+// `offset`: CRC at offset+0, the counter in the low nibble of offset+1, and (in
+// NIBBLE mode) the Data ID nibble in the high nibble of offset+1.
+struct Profile11Config {
+    std::uint16_t data_id;
+    DataIdMode    data_id_mode;
+    std::size_t   offset;             // byte offset of the E2E header in the PDU
+    std::uint8_t  max_delta_counter;  // largest tolerated counter gap on the receiver
+};
+
+class Profile11Protector {
+public:
+    explicit Profile11Protector(Profile11Config config);
+
+    // Advance the counter (mod 15), write the counter and — in NIBBLE mode — the
+    // Data ID nibble, then compute and write the CRC. `len` must cover the header
+    // (offset + 2) or std::invalid_argument is thrown.
+    void protect(std::uint8_t* data, std::size_t len);
+
+private:
+    Profile11Config config_;
+    std::uint8_t counter_;
+};
+
+class Profile11Checker {
+public:
+    explicit Profile11Checker(Profile11Config config);
+
+    // Verify the CRC and classify the counter progression. `len` must cover the
+    // header (offset + 2) or std::invalid_argument is thrown.
+    CheckStatus check(const std::uint8_t* data, std::size_t len);
+
+private:
+    Profile11Config config_;
+    std::uint8_t last_counter_;
+    bool have_last_;
+};
+
 }  // namespace tc8::e2e

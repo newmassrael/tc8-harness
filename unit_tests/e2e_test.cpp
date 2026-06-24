@@ -102,5 +102,70 @@ TEST(E2eP05, RejectsPduShorterThanHeader) {
     EXPECT_THROW(p.protect(pdu.data(), pdu.size()), std::invalid_argument);
 }
 
+// AUTOSAR FO PRS E2EProtocol Profile 11 examples (Data ID 0x123). As with P05,
+// first protect reproduces the counter==1 example and check() pins counter==0.
+constexpr std::uint16_t kP11DataId = 0x123;
+
+TEST(E2eP11Protect, BothModeFirstProtectVector) {
+    std::vector<std::uint8_t> pdu(8, 0x00);
+    Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    p.protect(pdu.data(), pdu.size());
+    EXPECT_EQ(toHex(pdu), "9101000000000000");
+}
+
+TEST(E2eP11Protect, NibbleModeFirstProtectVector) {
+    std::vector<std::uint8_t> pdu(8, 0x00);
+    Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kNibble, 0, 1}};
+    p.protect(pdu.data(), pdu.size());
+    EXPECT_EQ(toHex(pdu), "7711000000000000");
+}
+
+TEST(E2eP11Protect, NibbleModeOffset8Vector) {
+    std::vector<std::uint8_t> pdu(16, 0x00);
+    Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kNibble, 8, 1}};
+    p.protect(pdu.data(), pdu.size());
+    EXPECT_EQ(toHex(pdu), "00000000000000002011000000000000");
+}
+
+TEST(E2eP11Check, BothModeAcceptsCounter0Vector) {
+    const std::vector<std::uint8_t> pdu{0xcc, 0x00, 0, 0, 0, 0, 0, 0};
+    Profile11Checker c{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);
+}
+
+TEST(E2eP11Check, BothModeRejectsCorruptedFrame) {
+    const std::vector<std::uint8_t> pdu{0xcc, 0x10, 0, 0, 0, 0, 0, 0};
+    Profile11Checker c{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kError);
+}
+
+TEST(E2eP11Check, NibbleModeAcceptsCounter0Vector) {
+    const std::vector<std::uint8_t> pdu{0x2a, 0x10, 0, 0, 0, 0, 0, 0};
+    Profile11Checker c{Profile11Config{kP11DataId, DataIdMode::kNibble, 0, 1}};
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);
+}
+
+TEST(E2eP11Check, NibbleModeOffset8AcceptsVector) {
+    const std::vector<std::uint8_t> pdu{0, 0, 0, 0, 0, 0, 0, 0, 0x7d, 0x10, 0, 0, 0, 0, 0, 0};
+    Profile11Checker c{Profile11Config{kP11DataId, DataIdMode::kNibble, 8, 1}};
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);
+}
+
+TEST(E2eP11RoundTrip, ConsecutiveCountersAreOk) {
+    Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kNibble, 0, 1}};
+    Profile11Checker c{Profile11Config{kP11DataId, DataIdMode::kNibble, 0, 1}};
+    std::vector<std::uint8_t> pdu(8, 0x00);
+    p.protect(pdu.data(), pdu.size());
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);
+    p.protect(pdu.data(), pdu.size());
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);
+}
+
+TEST(E2eP11, RejectsPduShorterThanHeader) {
+    std::vector<std::uint8_t> pdu(1, 0x00);
+    Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    EXPECT_THROW(p.protect(pdu.data(), pdu.size()), std::invalid_argument);
+}
+
 }  // namespace
 }  // namespace tc8::e2e
