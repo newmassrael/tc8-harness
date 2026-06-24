@@ -2444,15 +2444,6 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_10": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rst_to_unacc_ack_finwait2",
-          "property": "DUT's challenge response to an unacceptable ACK in FIN-WAIT-2 must be an ACK not a RST; fail iff it emits a RST"
-        }
-      ]
-    },
     "TCP_UNACCEPTABLE_11": {
       "guards": [
         {

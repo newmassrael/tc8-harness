@@ -4756,6 +4756,14 @@
         {
           "file": "tests/tcp_unacceptable_02_neg/tcp_unacceptable_02_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_unacceptable_10_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_10_neg/tcp_unacceptable_10_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

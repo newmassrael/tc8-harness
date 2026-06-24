@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_10 negative — lwIP TCP behavioral-synthesis self-validation
+  of the positive _10 must-ACK-not-RST guard. A conformant DUT in FIN-WAIT-2 returns an empty
+  ACK (not a RST) to a segment carrying an unacceptable ACK and stays in FIN-WAIT-2 (RFC 793
+  §3.4); the positive's fail-final fires iff the DUT emits a RST (the Linux FW2-substate
+  deviation). This negative arms kTcpSynthRstOnDisruptive so the lwIP netif input hook
+  synthesizes the prohibited RST on the connection's 4-tuple when the PSH-bearing unacc-ACK
+  segment arrives (the disruptive-flag gate fires on PSH), and passes only when that
+  synthesized RST is observed. lwIP-only (capability-gated on kCapIngressFault).
+
+  Chain mirrors the positive's prelude to FIN-WAIT-2, then watches for the synthesized RST:
+    * listening_handshake_ack — observe the DUT handshake third-leg ACK on the 4-tuple.
+    * listening_dut_fin — observe the DUT FIN+ACK (CLOSE -> FIN-WAIT-1; tester auto-ACK ->
+      FIN-WAIT-2), confirming the state under test.
+    * watch_synth_rst — 8 s window; the positive's fail predicate (is_dut_rst) lands on pass
+      here, because the synthesized RST appears right after the injected unacc-ACK. The DUT's
+      own conformant empty ACK carries no RST, so it does not trip pass; the deadline means the
+      DUT stayed RST-silent despite the armed flavor (fault inert).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_10_neg"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry>
+      <send event="deadline_handshake" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable10LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable10LocalOffset)"
+                target="listening_dut_fin"/>
+    <transition event="deadline_handshake" target="inconclusive_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_fin">
+    <onentry>
+      <send event="deadline_dut_fin" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable10LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable10LocalOffset)"
+                target="watch_synth_rst"/>
+    <transition event="deadline_dut_fin" target="inconclusive_no_dut_fin"/>
+  </state>
+
+  <state id="watch_synth_rst">
+    <onentry>
+      <send event="deadline_synth_rst" delay="8s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable10LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable10LocalOffset)"
+                target="pass"/>
+    <transition event="deadline_synth_rst" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_handshake_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_dut_fin">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_fin_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silent_despite_synth_rst_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</scxml>

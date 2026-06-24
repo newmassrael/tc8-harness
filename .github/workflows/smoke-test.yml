@@ -318,7 +318,8 @@ jobs:
       # Single-guard must-not-respond siblings on the same kTcpSynthRstOnDisruptive flavor close
       # out the family: TCP_FLAGS_INVALID_01_NEG (§4.8.6.6, SYN+RST in LISTEN), TCP_CLOSING_03_NEG
       # (§4.8.6.8, RST-with-data in ESTABLISHED), TCP_CLOSING_13_NEG (§4.8.6.8, bare RST to a
-      # closed port) and TCP_UNACCEPTABLE_02_NEG (§4.8.6.3, unacceptable RST in SYN-RECEIVED) —
+      # closed port), TCP_UNACCEPTABLE_02_NEG (§4.8.6.3, unacceptable RST in SYN-RECEIVED) and
+      # TCP_UNACCEPTABLE_10_NEG (§4.8.6.3, must-ACK-not-RST an unacceptable ACK in FIN-WAIT-2) —
       # each passes only when the synthesized DUT-origin RST is observed. The §4.8.6.4
       # CALL_RECEIVE_05 graduates its 2 fail-finals (_NEG = RST in CLOSE-WAIT via
       # kTcpSynthRstOnDisruptive, _NEG2 = FIN in CLOSE-WAIT via the new kTcpSynthFinOnDisruptive
@@ -396,7 +397,7 @@ jobs:
             TCP_FLAGS_PROCESSING_09_NEG3 \
             TCP_CALL_RECEIVE_05_NEG TCP_CALL_RECEIVE_05_NEG2 \
             TCP_FLAGS_INVALID_01_NEG TCP_CLOSING_03_NEG TCP_CLOSING_13_NEG \
-            TCP_UNACCEPTABLE_02_NEG
+            TCP_UNACCEPTABLE_02_NEG TCP_UNACCEPTABLE_10_NEG
 
       # Observable ETH INTERFACE_DOWN/UP service primitive check (PRS_TPSP
       # §6.10). A Topology-2 dual-veth netns + the standalone tc8-utm:
