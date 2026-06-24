@@ -531,6 +531,15 @@ option(TC8_BUILD_UNIT_TESTS
 if(TC8_BUILD_UNIT_TESTS)
     enable_testing()
     add_subdirectory(unit_tests)
+
+    # NDA-hygiene lint (UTM SDK Part F): fail the build if a confidentiality
+    # banner — the signature of pasted OEM-proprietary content — lands in the
+    # tracked source. A source-only grep, so it runs in the same `ctest` the
+    # build-test CI job runs, alongside utm_export_smoke.
+    add_test(NAME nda_hygiene
+        COMMAND ${CMAKE_COMMAND}
+            -DTC8_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -P ${PROJECT_SOURCE_DIR}/cmake/check-nda-hygiene.cmake)
 endif()
 
 # ── Out-of-tree UTM SDK (PRS_TPSP §6.6 stateful extension) ──
