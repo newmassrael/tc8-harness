@@ -157,6 +157,15 @@ tc8_lwip_app(tc8-lwip-dut
     lwip_ut_extensions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/upper_tester/ut_server.cpp)
 
+# The vendor-neutral AUTOSAR engines (src/autosar/) — pure byte math, the same
+# sources the POSIX build compiles via tc8_add_engine. Globbed (CONFIGURE_DEPENDS)
+# so a new engine joins the lwIP build with no second source list to keep in sync,
+# and compiled into the UTM (not the conformance DUT) because they are the
+# mechanisms an OEM middleware module on the lwIP UTM composes. Building them here
+# proves the engines compile under the embedded lwIP toolchain, not only the host.
+file(GLOB _tc8_autosar_engine_srcs CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/autosar/*.cpp)
+
 # The standalone, OEM-deployable AUTOSAR Testability UTM: stack + testability
 # endpoint only (no opcode UT). The lwIP analog of dut/utm (tc8-utm).
-tc8_lwip_app(tc8-lwip-utm lwip_utm_main.cpp)
+tc8_lwip_app(tc8-lwip-utm lwip_utm_main.cpp ${_tc8_autosar_engine_srcs})
