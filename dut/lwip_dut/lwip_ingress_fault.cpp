@@ -18,6 +18,9 @@
 //     disruptive segment the DUT must answer with silence — the §4.8 must-not-respond family
 //     spanning SYN-SENT / EST / the close-states, FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08,
 //     CLOSING_07/08/09), swapped from the inbound trigger.
+//   * §4.8.6.6 TCP must-move-to-CLOSED — DROP the inbound RST so the buggy DUT never
+//     leaves SYN-SENT and keeps retransmitting its SYN (FLAGS_INVALID_05); the absence
+//     of the required CLOSED transition, not a forbidden emission.
 //   * §4.6.5.4 UDP prohibited acceptance — zero the inbound datagram's UDP checksum
 //     so lwIP's validation gate skips and delivers it to the receive-counting app
 //     (UDP_FIELDS_09/10/15).
@@ -311,6 +314,25 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 if ((flags & (kTcpFlagRst | kTcpFlagFin | kTcpFlagUrg | kTcpFlagPsh)) != 0U) {
                     emitProhibitedTcpSegment(nif, f, kTcpFlagFin | kTcpFlagAck);
                 }
+            }
+        } else if (flavor == ut::kTcpDropDisruptiveRst &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
+                   f[kIpProtoOff] == kIpProtoTcp &&
+                   p->len >= l4RegionOffset(f) + kTcpMinHdrLen) {
+            // §4.8.6.6 FLAGS_INVALID_05: a buggy DUT in SYN-SENT that fails to move to
+            // CLOSED on an inbound RST + acceptable ACK. The conformant DUT processes the
+            // RST, cancels its SYN retransmit, and goes silent; this hook swallows the
+            // RST-bearing segment before lwIP's TCP sees it, so lwIP stays in SYN-SENT and
+            // keeps retransmitting its SYN at the fixed 1 s cadence — the continued-SYN
+            // violation the positive's 3 s absence window forbids. Drop seam (pbuf_free,
+            // never forwarded — the kUdpFaultRejectValid sibling), not a tcp_in.c patch. The
+            // gate is the RST flag, which both the phase-1 SYN+ACK+RST and phase-2 ACK+RST
+            // probes carry; lwIP's own SYN retransmits are egress (not seen by this input
+            // hook) and the UDP UT arm frame is not TCP, so only the injected RST is dropped.
+            const std::uint16_t tcp = l4RegionOffset(f);
+            if ((f[tcp + kTcpFlagsOff] & kTcpFlagRst) != 0U) {
+                pbuf_free(p);  // swallow — the DUT wrongly ignores a RST it must act on
+                return ERR_OK;
             }
         }
     }

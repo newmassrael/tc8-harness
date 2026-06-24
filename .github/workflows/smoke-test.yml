@@ -324,7 +324,11 @@ jobs:
       # kTcpSynthRstOnDisruptive, _NEG2 = FIN in CLOSE-WAIT via the new kTcpSynthFinOnDisruptive
       # flavor, which synthesizes a prohibited FIN+ACK on the same disruptive-flag gate) — the
       # DUT in CW must return queued data on RECEIVE without emitting a FIN or RST before the app
-      # closes, and each _neg passes only when the synthesized segment is observed. ~22 min.
+      # closes, and each _neg passes only when the synthesized segment is observed. The §4.8.6.6
+      # CALL-to-CLOSED sibling TCP_FLAGS_INVALID_05 graduates its 2 fail-finals (_NEG = SYN+ACK+RST,
+      # _NEG2 = ACK+RST in SYN-SENT) via the new kTcpDropDisruptiveRst flavor, a DROP seam (not a
+      # synthesis): the hook swallows the RST so lwIP never moves to CLOSED and keeps retransmitting
+      # its SYN, and each _neg passes only when that continued SYN is observed. ~22 min.
       - name: Build lwIP DUT (pinned)
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
@@ -378,6 +382,7 @@ jobs:
             TCP_HEADER_07_NEG TCP_HEADER_08_NEG TCP_HEADER_09_NEG TCP_HEADER_11_NEG \
             TCP_CHECKSUM_02_NEG \
             TCP_FLAGS_INVALID_03_NEG TCP_FLAGS_INVALID_04_NEG TCP_FLAGS_PROCESSING_11_NEG \
+            TCP_FLAGS_INVALID_05_NEG TCP_FLAGS_INVALID_05_NEG2 \
             TCP_CLOSING_07_NEG TCP_CLOSING_08_NEG TCP_CLOSING_09_NEG \
             TCP_FLAGS_PROCESSING_07_NEG TCP_FLAGS_PROCESSING_07_NEG2 \
             TCP_FLAGS_PROCESSING_07_NEG3 TCP_FLAGS_PROCESSING_07_NEG4 \

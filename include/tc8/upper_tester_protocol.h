@@ -980,7 +980,14 @@ inline constexpr std::uint8_t kTcpSynthRstOnDisruptive   = 0x0A;  // §4.8 must-
 // to avoid renumbering 0x05-0x0A — the dispatch keys on the value, not its order.
 inline constexpr std::uint8_t kIcmpFaultSynthTimeExceeded = 0x0B;  // §4.3.3.2 TYPE_04 (incomplete reassembly, fragment zero never arrives): synthesize a Time Exceeded (type 11)
 inline constexpr std::uint8_t kTcpSynthFinOnDisruptive   = 0x0C;  // §4.8.6.4 CALL_RECEIVE_05 (FIN in CLOSE-WAIT before app close): synthesize the prohibited FIN+ACK (RFC 793 §3.5 MUST NOT)
-inline constexpr std::uint8_t kIngressFaultMax           = kTcpSynthFinOnDisruptive;
+// §4.8 TCP must-MOVE-to-CLOSED — a DROP seam (not a synthesis): swallow the inbound
+// RST-bearing segment at the netif input so lwIP's TCP never sees it, modelling a DUT
+// that fails to honour the reset. The kUdpFaultRejectValid sibling (pbuf_free; never
+// forwarded), not a tcp_in.c patch. Unlike the synth family above, the violation here is
+// the ABSENCE of the required CLOSED transition — observed as the DUT continuing to
+// retransmit its SYN (lwIP's fixed 1 s SYN cadence) instead of going quiet:
+inline constexpr std::uint8_t kTcpDropDisruptiveRst      = 0x0D;  // §4.8.6.6 FLAGS_INVALID_05 (SYN-SENT must move to CLOSED on RST+acceptable-ACK): drop the RST so the DUT stays open and keeps retransmitting its SYN
+inline constexpr std::uint8_t kIngressFaultMax           = kTcpDropDisruptiveRst;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_05 negative (phase 1) — lwIP TCP drop-seam
+  self-validation of the positive _05 must-move-to-CLOSED guard. A conformant DUT in
+  SYN-SENT moves to CLOSED on a SYN+ACK+RST carrying an acceptable ACK (RFC 793 §3.9
+  p67), cancelling its SYN retransmit; the positive asserts that silence (no further
+  DUT SYN, no pure ACK). This negative arms kTcpDropDisruptiveRst so the lwIP netif
+  input hook swallows the RST-bearing segment before lwIP's TCP sees it — lwIP stays in
+  SYN-SENT and keeps retransmitting its SYN at the fixed 1 s cadence — and passes only
+  when that continued SYN (or a pure ACK) is observed. lwIP-only (capability-gated on
+  kCapIngressFault).
+
+  Two-state chain mirrors the positive's phase-1 path, with the absence window's fail
+  predicate flipped to the pass trigger:
+    * listening_dut_syn — observe the DUT's active-OPEN SYN on the case 4-tuple, the same
+      SYN-SENT precondition the positive confirms (deadline -> inconclusive: no SYN means
+      the DUT never reached the state under test).
+    * watch_continued_syn — 8 s window; the positive's absence-fail predicate
+      (is_dut_syn or is_pure_dut_ack on the 4-tuple) lands on pass here, because a DUT
+      that never processed the dropped RST keeps retransmitting its SYN; the deadline
+      means the DUT went silent despite the armed flavor (fault inert).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_05_neg"
+       datamodel="null"
+       initial="listening_dut_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_dut_syn">
+    <onentry>
+      <send event="deadline_dut_syn" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset)"
+                target="watch_continued_syn"/>
+    <transition event="deadline_dut_syn" target="inconclusive_no_dut_syn"/>
+  </state>
+
+  <state id="watch_continued_syn">
+    <onentry>
+      <send event="deadline_continued_syn" delay="8s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset)"
+                target="pass"/>
+    <transition event="deadline_continued_syn" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_dut_syn">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_to_active_open","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_silent_despite_rst_drop_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</scxml>

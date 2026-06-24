@@ -40,6 +40,10 @@
       "dut_emitted_rst_in_cw": "TCP_CALL_RECEIVE_05_NEG",
       "dut_emitted_fin_in_cw_without_close": "TCP_CALL_RECEIVE_05_NEG2"
     },
+    "TCP_FLAGS_INVALID_05": {
+      "dut_did_not_close_on_syn_ack_rst_with_acceptable_ack": "TCP_FLAGS_INVALID_05_NEG",
+      "dut_did_not_close_on_ack_rst_with_acceptable_ack": "TCP_FLAGS_INVALID_05_NEG2"
+    },
     "TCP_FLAGS_INVALID_15": {
       "dut_emitted_response_to_otw_rst_in_syn_rcvd": "TCP_FLAGS_INVALID_15_NEG",
       "dut_emitted_response_to_otw_rst_in_est": "TCP_FLAGS_INVALID_15_NEG2",

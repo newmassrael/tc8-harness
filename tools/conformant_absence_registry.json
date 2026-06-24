@@ -2078,20 +2078,6 @@
         }
       ]
     },
-    "TCP_FLAGS_INVALID_05": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_did_not_close_on_ack_rst_with_acceptable_ack",
-          "property": "Silence is conformant: DUT must close silently on an ACK-RST with an acceptable ACK; fail iff it emits a response showing it stayed open"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_did_not_close_on_syn_ack_rst_with_acceptable_ack",
-          "property": "Silence is conformant: DUT must close silently on a SYN-ACK-RST with an acceptable ACK; fail iff it emits a response showing it stayed open"
-        }
-      ]
-    },
     "TCP_FLAGS_INVALID_06": {
       "guards": [
         {

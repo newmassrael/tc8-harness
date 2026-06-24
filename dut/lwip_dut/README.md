@@ -267,9 +267,17 @@ a post-delivery application decision, below the netif glue's reach:
       `is_dut_fin_ack` (`§4.8.6.4` CALL_RECEIVE_05: the DUT in CLOSE-WAIT must return queued data
       on RECEIVE without emitting a FIN before the application closes). FIN+ACK (not a bare FIN)
       matches the guard; the same pure-ACK / bare-SYN exclusion keeps the handshake clear.
+    - `kTcpDropDisruptiveRst` — a **drop** seam, not a synthesis: swallow the inbound RST-bearing
+      segment (`pbuf_free`, never forwarded — the `kUdpFaultRejectValid` sibling) so lwIP's TCP
+      never sees it. For `§4.8.6.6` FLAGS_INVALID_05, where the DUT in SYN-SENT must *move to
+      CLOSED* on a RST + acceptable ACK and stop retransmitting, the dropped RST leaves lwIP in
+      SYN-SENT retransmitting its SYN at the fixed 1 s cadence, so each `_neg` passes only when
+      that continued SYN is observed. The violation is the *absence* of the required CLOSED
+      transition, not a forbidden emission.
 
-    This is the behavioural seam the egress field-fault cannot reach — there is no DUT-emitted
-    segment to corrupt, so the hook synthesizes the whole frame.
+    These behavioural flavors are the seam the egress field-fault cannot reach — the conformant
+    DUT emits nothing to corrupt, so the hook either synthesizes the whole forbidden frame or
+    drops the trigger that should have silenced the DUT.
   - *§4.6.5.4 UDP prohibited acceptance* — `kUdpFaultAcceptBadChecksum` zeroes the
     inbound UDP checksum so lwIP's `chksum != 0` gate skips and delivers a datagram
     it must drop.
