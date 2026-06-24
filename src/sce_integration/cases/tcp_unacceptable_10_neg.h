@@ -83,6 +83,9 @@ struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
         unacc.seq_num  = seq_range->snd_nxt;                          // in-window
         unacc.ack_num  = seq_range->rcv_nxt + kUnacceptableAckOffset;  // unacceptable ACK
         unacc.flags    = ::tc8::stimulus::kTcpFlagPsh | ::tc8::stimulus::kTcpFlagAck;
+        // Filler payload — the synth-RST gate fires on the PSH flag, not the bytes, so this is not
+        // an SSOT dependency on the positive's kCorruptPayload (a per-case member, not a shared
+        // invariant); 4 bytes mirror the positive's data-segment shape for fidelity.
         unacc.payload  = std::vector<std::uint8_t>{0xCAU, 0xFEU, 0xBAU, 0xBEU};
         emitTcpFrame(cfg, iface, cfg.dut.mac, unacc, /*initial_wait=*/kFlavorArmSettle);
 

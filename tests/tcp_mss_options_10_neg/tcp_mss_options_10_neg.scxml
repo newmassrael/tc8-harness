@@ -51,7 +51,7 @@
 
   <final id="fail_compliant">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_segmented_at_536_despite_truncate_flavor","role":"fault_injection_inert"}</content>
+      <content>{"verdict":"fail","reason":"dut_segment_size_correct_despite_truncate_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 

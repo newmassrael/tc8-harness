@@ -31,21 +31,17 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
         "If an MSS option is not received at connection setup, DUT "
         "MUST default send MSS to 536 bytes (RFC 1122 §4.2.2.6 p85).";
 
-    static void stimulus(Captured& /*c*/,
+    // Drive the default-MSS scenario once: passive ACCEPT with no MSS
+    // option (DUT defaults its send MSS to 536), a 1024 B SEND, grace for
+    // the first segment, then close. Factored out of stimulus() so the
+    // _neg reuses the exact drive (SSOT) — the data shape (pattern byte,
+    // total length) and the empty-options accept live here once, matching
+    // the MSS_OPTIONS_06/09 runPhase reuse pattern. The TesterAutoRstDrop
+    // scope is the caller's (held across the post-handshake data window).
+    static void runPhase(::tc8::sce::IDutControl& dut,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         std::string_view iface) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
-
-        // Outer RstDrop scope — keeps tester-kernel RSTs against the
-        // orphaned 4-tuple suppressed across the post-handshake data
-        // window. The seam ACCEPT also installs the rule internally;
-        // iptables -A is additive, dtor symmetry preserves the outer
-        // rule until our scope ends.
-        TesterAutoRstDrop rst_drop(cfg);
-        (void)rst_drop;
-
         // Empty SYN options: Linux defaults `tp->rx_opt.mss_clamp` to
         // 536 when no kind=2 MSS arrived at handshake (RFC 1122
         // §4.2.2.6). Subsequent ::send() segments cap at 536 B.
@@ -67,6 +63,24 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+    }
+
+    static void stimulus(Captured& /*c*/,
+                         const ::tc8::TestConfig& cfg,
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
+        using namespace ::tc8::sce::tcp;
+        std::this_thread::sleep_for(kTcpUtBootWait);
+
+        // Outer RstDrop scope — keeps tester-kernel RSTs against the
+        // orphaned 4-tuple suppressed across the post-handshake data
+        // window. The seam ACCEPT also installs the rule internally;
+        // iptables -A is additive, dtor symmetry preserves the outer
+        // rule until our scope ends.
+        TesterAutoRstDrop rst_drop(cfg);
+        (void)rst_drop;
+
+        runPhase(dut, cfg, iface);
     }
 };
 

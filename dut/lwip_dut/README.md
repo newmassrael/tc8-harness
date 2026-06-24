@@ -388,8 +388,8 @@ in `tools/fault_injection_coverage.json`):
   (`kTcpFaultDataSegTruncate`) — shrink a DUT data segment's IP total_length so libtins
   re-slices the dissected payload to 64 B, != the spec segment size (536 default / 200
   advertised / 1460 clamp), gated on payload so the handshake control segments keep their
-  length. The 06/09 per-phase variants reuse the positive's `runPhase` (SSOT). Same
-  total_length-truncation as the ICMP echo `kIcmpFaultEchoPayloadTruncate`.
+  length. All three reuse the positive's `runPhase` (SSOT) so the data shape cannot drift.
+  Same total_length-truncation as the ICMP echo `kIcmpFaultEchoPayloadTruncate`.
 - `TCP_HEADER_01_NEG` (`kTcpFaultDataChecksumWrong`, reused) — self-validates
   HEADER_01's *checksum* conjunct only; its data_offset conjunct is unreachable
   (below).

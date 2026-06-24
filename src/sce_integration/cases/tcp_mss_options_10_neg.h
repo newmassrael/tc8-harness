@@ -11,8 +11,8 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/cases/_tcp_seam.h"
-#include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/cases/tcp_mss_options_10.h"  // SSOT: positive runPhase + listen ports
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
@@ -40,10 +40,12 @@ struct TestCaseTraits<cases::TcpMssOptions10NegSM>
         "Self-validation of TCP_MSS_OPTIONS_10: the lwIP kTcpFaultDataSegTruncate egress flavor "
         "shrinks the DUT data segment below 536 B; a conformant DUT segments at the 536 default";
 
-    // Arm the data-segment truncate, then drive the same passive ACCEPT (no MSS option) + 1024 B
-    // SEND the positive uses. The flavor is payload-gated, so the handshake's control segments are
-    // untouched and the connection reaches the data-emitting state; the DUT's 536 B data segment is
-    // emitted with a shrunk IP total_length, so the dissected payload_len drops to 64 (!= 536).
+    // Arm the data-segment truncate, then reuse the positive's runPhase (SSOT) — the same passive
+    // ACCEPT (no MSS option) + 1024 B SEND drive, so the data shape cannot drift from the positive,
+    // matching the MSS_OPTIONS_06/09 reuse pattern. The flavor is payload-gated, so the handshake's
+    // control segments are untouched and the connection reaches the data-emitting state; the DUT's
+    // 536 B data segment is emitted with a shrunk IP total_length, so the dissected payload_len
+    // drops to 64 (!= 536).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
@@ -55,17 +57,7 @@ struct TestCaseTraits<cases::TcpMssOptions10NegSM>
         (void)rst_drop;
 
         emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultDataSegTruncate);
-
-        auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
-            kTcpMssOptionsListenPort10,
-            std::vector<std::uint8_t>{},  // no MSS option -> DUT default send MSS 536
-            kTcpMssOptionsTesterSrcPort10);
-        if (!open.conn) return;
-
-        seamSendTcpPattern(dut, open.conn->socket, /*pattern=*/0xAAU, /*total_len=*/1024U);
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+        TestCaseTraits<cases::TcpMssOptions10SM>::runPhase(dut, cfg, iface);
     }
 };
 
