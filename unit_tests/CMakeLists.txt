@@ -90,6 +90,15 @@ target_link_libraries(com_test PRIVATE tc8_com)
 # deterministically through mainFunction()/requestNetwork()/rxNmPdu().
 tc8_add_unit_test(nm_test)
 target_link_libraries(nm_test PRIVATE tc8_nm)
+# Synthetic demo middleware module: a fake MiddlewareContext + in-memory backend
+# drive the module's lifecycle hermetically, proving the seam composes with the
+# engines (the SDK template, examples/demo_middleware_module/).
+tc8_add_unit_test(demo_module_test)
+target_sources(demo_module_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/demo_middleware_module/demo_module.cpp)
+target_include_directories(demo_module_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/demo_middleware_module)
+target_link_libraries(demo_module_test PRIVATE tc8_nm tc8_com tc8_e2e tc8_crypto)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)
