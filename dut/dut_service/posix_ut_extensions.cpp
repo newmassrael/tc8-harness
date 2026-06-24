@@ -204,40 +204,37 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
             iface_index = p[23];
         }
         // §4.5.6.1 / §4.7.6.9 Phase F DHCP-client fault-injection slot. The
-        // single flavor byte selects EXACTLY ONE of: an ARP-frame field mutant
-        // (Dhcpv4ArpFlavor), a behavioural mutant (Dhcpv4BehaviorFlavor:
-        // post-BOUND leak / reply-acceptance bypass), or a DHCP-message field
-        // mutant (Dhcpv4ClientFlavor) — route by value so each firmware
-        // dispatch site switches over only its own domain. Unknown bytes leave
-        // all three at None (compliant), so a zero-padded legacy request can
-        // never inject a fault.
+        // single flavor byte selects EXACTLY ONE Params selector, routed by its
+        // domain (ut::dhcpFlavorDomain, the SSOT classification from
+        // dhcpv4_flavors.def). switch-no-default over DhcpFlavorDomain forces
+        // every domain to be handled here, so a new flavor can never silently
+        // route to the wrong selector. Unknown / None bytes leave all selectors
+        // at None (compliant) — a zero-padded legacy request never injects.
         if (n >= 25) {
             const std::uint8_t fb = p[24];
-            if (fb == ut::kDhcpFlavorProbeSenderIpNonzero ||
-                fb == ut::kDhcpFlavorAnnounceSenderIpWrong) {
-                params.arp_flavor = static_cast<Dhcpv4ArpFlavor>(fb);
-            } else if (fb == ut::kDhcpFlavorLeakLinkLocalAfterBind ||
-                       fb == ut::kDhcpFlavorAcceptMismatchedXidOffer ||
-                       fb == ut::kDhcpFlavorProceedOnLoneAck ||
-                       fb == ut::kDhcpFlavorRetxNoBackoff ||
-                       fb == ut::kDhcpFlavorRetxExceedCap ||
-                       fb == ut::kDhcpFlavorNakRestartNoDelay ||
-                       fb == ut::kDhcpFlavorRenewingEntryNoDelay ||
-                       fb == ut::kDhcpFlavorRebindingEntryEarly ||
-                       fb == ut::kDhcpFlavorRenewingRetxNoDelay) {
-                params.behavior_flavor = static_cast<Dhcpv4BehaviorFlavor>(fb);
-            } else if (fb == ut::kDhcpFlavorShareChaddrAcrossIface) {
-                // §4.7.6.5 USAGE_01: a secondary-iface client reuses iface-0's
-                // MAC as its DHCP chaddr (RFC 2131 §3.6 violation — ifaces must
-                // be independent). Copy iface-0's bound MAC into the override;
-                // a primary-iface (index 0) request leaves it unset (no self-
-                // collision to inject).
-                if (iface_index > 0 && !dhcpv4_clients_.empty()) {
-                    params.chaddr_override     = dhcpv4_clients_[0]->boundMac();
-                    params.chaddr_override_set = true;
-                }
-            } else {
-                params.flavor = static_cast<Dhcpv4ClientFlavor>(fb);
+            switch (ut::dhcpFlavorDomain(fb)) {
+                case ut::DhcpFlavorDomain::Arp:
+                    params.arp_flavor = static_cast<Dhcpv4ArpFlavor>(fb);
+                    break;
+                case ut::DhcpFlavorDomain::Behavior:
+                    params.behavior_flavor = static_cast<Dhcpv4BehaviorFlavor>(fb);
+                    break;
+                case ut::DhcpFlavorDomain::Message:
+                    params.flavor = static_cast<Dhcpv4ClientFlavor>(fb);
+                    break;
+                case ut::DhcpFlavorDomain::ChaddrOverride:
+                    // §4.7.6.5 USAGE_01: a secondary-iface client reuses iface-0's
+                    // MAC as its DHCP chaddr (RFC 2131 §3.6 violation — ifaces
+                    // must be independent). Copy iface-0's bound MAC into the
+                    // override; a primary-iface (index 0) request has no self-
+                    // collision to inject.
+                    if (iface_index > 0 && !dhcpv4_clients_.empty()) {
+                        params.chaddr_override     = dhcpv4_clients_[0]->boundMac();
+                        params.chaddr_override_set = true;
+                    }
+                    break;
+                case ut::DhcpFlavorDomain::None:
+                    break;  // compliant / unknown — leave every selector at None
             }
         }
         // Out-of-range index is a tester bug worth surfacing, not a transport

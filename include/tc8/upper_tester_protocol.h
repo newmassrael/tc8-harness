@@ -1022,220 +1022,47 @@ inline constexpr std::uint8_t kEtsFaultResetSkip              = 0x02;  // §5.1.
 inline constexpr std::uint8_t kEtsFaultSetterEchoWrong        = 0x03;  // SOMEIPSRV_RPC_11: the field setter (0x42) response echoes value ^ 0xFF; the store is left correct, and this is distinct from the getter fault so the get/set/get _neg cases keep a correct setter echo
 inline constexpr std::uint8_t kEtsFaultMax                    = kEtsFaultSetterEchoWrong;
 
-// `OpStartDhcpClient` fault-injection flavor byte (the append-only slot
-// at param offset 24). A separate family from kFlavor* (which is the LL
-// machine's frame-shape selector): these values name deliberately
-// non-conformant Dhcpv4Client lifecycle code paths the §4.7 / §4.5.6.1
-// negative cases drive. Like kFlavor*, the firmware enum is derived 1:1
-// from these constants (single source of truth) and unknown values fall
-// through to kDhcpFlavorNone, so a short or zero-padded request from an
-// older caller can never accidentally inject a fault.
-inline constexpr std::uint8_t kDhcpFlavorNone                     = 0x00;
-// RFC 3927 §1.9 SHOULD NOT: a host with an operable routable address
-// (here a bound DHCP lease) must not also assign an IPv4 Link-Local
-// address on the same interface. This flavor makes tc8-dut's DHCP
-// client emit one prohibited 169.254/16 ARP Probe after reaching BOUND
-// — the leak §4.5.6.1 INTRO_01 guards against. Conformant emit (None)
-// stays silent, so the negative case's compliant-silence branch is a
-// live conformant-DUT outcome, not an infra-only dead branch.
-inline constexpr std::uint8_t kDhcpFlavorLeakLinkLocalAfterBind   = 0x01;
-
-// §4.7 DHCPDISCOVER field-shape mutants (Phase F). Each value makes the
-// Dhcpv4Client emit one deliberately non-conformant field on its
-// DUT-emitted messages so the matching §4.7 positive case's
-// otherwise-dead field-violation branch becomes reachable, proving the
-// guard catches a buggy client (mutation testing). Conformant emit
-// (None) satisfies every invariant, so each negative's fail_compliant_*
-// branch is a live conformant-DUT outcome, not an infra-only dead path.
-// RFC clauses cited per value; see dut/dut_service/dhcpv4_client.cpp
-// emitDhcpMessage for the wire-level mutation.
+// `OpStartDhcpClient` fault-injection flavor byte (the append-only slot at
+// param offset 24). A separate family from kFlavor* (the LL machine's frame-
+// shape selector): these name deliberately non-conformant Dhcpv4Client code
+// paths the §4.7 / §4.5.6.1 negative cases drive.
 //
-// RFC 2131 §3 / RFC 1497: the first four 'options' octets MUST be the
-// magic cookie 99,130,83,99. Mutant corrupts the first cookie byte.
-// (§4.7.6.2 PROTOCOL_01)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverMagicCookieCorrupt = 0x02;
-// RFC 2131 §3: every DHCP message MUST carry Option 53 (DHCP Message
-// Type). Mutant replaces the Option 53 TLV with PAD bytes.
-// (§4.7.6.2 PROTOCOL_02)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverOmitMessageType    = 0x03;
-// RFC 2131 §2: the reserved bits of the 'flags' field MUST be zero.
-// Mutant sets a reserved bit. (§4.7.6.1 SUMMARY_04)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverReservedFlagsSet   = 0x04;
-// RFC 2131 §3.1: the client broadcasts DHCPDISCOVER — IPv4 destination
-// MUST be 255.255.255.255. Mutant unicasts it. (§4.7.6.3 ALLOCATING_01)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverDstUnicast         = 0x05;
-// RFC 2131 §4.1: the last option MUST be the END option (0xFF). Mutant
-// replaces END with a PAD byte. (§4.7.6.7 CONSTRUCTING_MESSAGES_01)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverDropEnd            = 0x06;
-// RFC 2131 §4.1: a pre-binding DHCPDISCOVER has IP source = 0. Mutant
-// sources it from a non-zero IP. (§4.7.6.7 CONSTRUCTING_MESSAGES_03)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverSrcNonzero         = 0x07;
+// SINGLE SOURCE OF TRUTH: include/tc8/dhcpv4_flavors.def co-locates each
+// flavor's name + value + routing domain. The constants below, the
+// DhcpFlavorDomain map, the UT-server router (posix_ut_extensions.cpp), and the
+// firmware enums (dhcpv4_client.h) all DERIVE from that one list — so a new
+// flavor cannot be added without declaring its domain, and a wrong domain is a
+// compile error (the dispatch-site switch loses/gains the enumerator under
+// -Werror=switch), never a silently-misrouted vacuous _neg. Unknown bytes map
+// to None (conformant), so a short/zero-padded request from an older caller can
+// never accidentally inject a fault.
+inline constexpr std::uint8_t kDhcpFlavorNone = 0x00;
+#define TC8_DHCP_FLAVOR(Name, value, Domain) \
+    inline constexpr std::uint8_t kDhcpFlavor##Name = value;
+#include "dhcpv4_flavors.def"
+#undef TC8_DHCP_FLAVOR
 
-// §4.7 SELECTING DHCPREQUEST field-shape mutants (Phase F). Like the
-// Discover* family but gated to the post-OFFER DHCPREQUEST so the
-// preceding DHCPDISCOVER stays conformant (the harness OFFER still
-// matches it and the lifecycle reaches REQUEST). Each makes the
-// emitted REQUEST violate one §4.7 invariant; the conformant client
-// (None) satisfies them all.
-//
-// RFC 2131 §4.1: the REQUEST source IP is 0 in REQUESTING state.
-// Mutant sources it from a non-zero IP. (§4.7.6.7 CM_04)
-inline constexpr std::uint8_t kDhcpFlavorRequestSrcNonzero          = 0x08;
-// RFC 2131 §3.1: the SELECTING REQUEST is broadcast. Mutant unicasts
-// it. (§4.7.6.3 ALLOCATING_05)
-inline constexpr std::uint8_t kDhcpFlavorRequestDstUnicast          = 0x09;
-// RFC 2131 §4.3.2: the REQUEST 'ciaddr' is 0 in REQUESTING state.
-// Mutant fills it with the requested address. (§4.7.6.8 REQUEST_01)
-inline constexpr std::uint8_t kDhcpFlavorRequestCiaddrNonzero       = 0x0A;
-// RFC 2131 §3.1: the REQUEST echoes the OFFER's server-id in Option 54.
-// Mutant writes a wrong server-id. (§4.7.6.3 ALLOCATING_03)
-inline constexpr std::uint8_t kDhcpFlavorRequestServerIdCorrupt     = 0x0B;
-// RFC 2131 §4.3.2: the REQUEST carries the offered IP in Option 50.
-// Mutant writes a wrong requested IP. (§4.7.6.8 REQUEST_02)
-inline constexpr std::uint8_t kDhcpFlavorRequestRequestedIpCorrupt  = 0x0C;
+// Routing domain for the flavor byte. The UT server switches on
+// dhcpFlavorDomain() to set exactly one of Params.{flavor, arp_flavor,
+// behavior_flavor, chaddr_override}. Generated from the same .def, so the
+// router can never disagree with the enum partition.
+enum class DhcpFlavorDomain : std::uint8_t {
+    None,
+    Message,
+    Arp,
+    Behavior,
+    ChaddrOverride,
+};
 
-// §4.7 RENEWING/REBINDING (reacquisition) DHCPREQUEST field-shape mutants
-// (Phase F). Gated to the reacquisition REQUEST (ciaddr != 0) so the
-// preceding DISCOVER + SELECTING REQUEST stay conformant and the
-// lifecycle reaches BOUND. RFC 2131 §4.3.6 table 5 forbids Option 50 +
-// Option 54 in RENEWING and REBINDING REQUESTs alike (one invariant),
-// so the include mutants serve both phases.
-//
-// RFC 2131 §4.3.6 table 5: reacquisition REQUEST MUST NOT carry Option 54
-// (Server Identifier). Mutant force-includes it. (§4.7.6.8 REQUEST_06/_09)
-inline constexpr std::uint8_t kDhcpFlavorReacqRequestIncludeServerId    = 0x0D;
-// RFC 2131 §4.3.6 table 5: reacquisition REQUEST MUST NOT carry Option 50
-// (Requested IP). Mutant force-includes it. (§4.7.6.8 REQUEST_07/_10)
-inline constexpr std::uint8_t kDhcpFlavorReacqRequestIncludeRequestedIp = 0x0E;
-// RFC 2131 §4.4.5: reacquisition REQUEST 'ciaddr' MUST equal the bound IP.
-// Mutant writes a wrong ciaddr. (§4.7.6.8 REQUEST_08/_11)
-inline constexpr std::uint8_t kDhcpFlavorReacqRequestCiaddrWrong        = 0x0F;
-// RFC 2131 §4.4.5: the RENEWING REQUEST MUST be unicast to the server-id.
-// Mutant sends it to a wrong destination. (§4.7.6.7 CM_02 / §4.7.6.8
-// REACQUISITION_01)
-inline constexpr std::uint8_t kDhcpFlavorRenewingRequestDstWrong        = 0x10;
-// RFC 2131 §4.4.5: the REBINDING REQUEST MUST be broadcast. Mutant
-// unicasts it to a sentinel distinct from both the broadcast and the
-// server-id, so the harness can tell a unicast REBINDING apart from a
-// RENEWING retransmission (which is unicast to the server). (§4.7.6.8
-// REQUEST_12)
-inline constexpr std::uint8_t kDhcpFlavorRebindingDstUnicast            = 0x11;
-
-// §4.7.6.9 INIT_ALLOC duplicate-address-detection (DAD) reaction mutants
-// (Phase F). The post-BOUND DAD sequence (ARP Probe -> conflict-listen ->
-// DHCPDECLINE | gratuitous ARP Announce) carries a checkable field shape;
-// each mutant corrupts exactly one field of one reaction so the matching
-// _neg case's violation guard becomes reachable. Applied in emitArpProbe /
-// emitArpAnnounce / emitDhcpMessage (Decline phase); the conformant path
-// (kDhcpFlavorNone) emits the correct shape, which is the _neg's live
-// fail_compliant outcome.
-//
-// RFC 2131 §4.4.1 / RFC 5227 §2.1.1: the ARP Probe MUST carry
-// sender_proto_ip = 0 (the client has not yet claimed the address).
-// Mutant writes a non-zero sender IP. (INIT_ALLOC_08)
-inline constexpr std::uint8_t kDhcpFlavorProbeSenderIpNonzero           = 0x12;
-// RFC 2131 §4.4.1 / table 5: the DHCPDECLINE MUST carry the declined
-// address in Option 50 (Requested IP Address). Mutant writes a wrong
-// Option 50 value. (INIT_ALLOC_09)
-inline constexpr std::uint8_t kDhcpFlavorDeclineRequestedIpWrong        = 0x13;
-// RFC 2131 §4.4.1: the gratuitous ARP Announce MUST carry the committed
-// (bound) IP as sender_proto_ip. Mutant writes a wrong sender IP.
-// (INIT_ALLOC_10)
-inline constexpr std::uint8_t kDhcpFlavorAnnounceSenderIpWrong          = 0x14;
-
-// §4.7 SELECTING DHCPREQUEST ↔ DISCOVER continuity mutants (Phase F). RFC
-// 2131 requires the post-OFFER REQUEST to carry the same identifying field
-// values the originating DISCOVER did. Each mutant corrupts exactly one of
-// those fields on the SELECTING REQUEST (gated to DhcpPhase::Selecting in
-// emitDhcpMessage), leaving the DISCOVER conformant so the OFFER still
-// matches and the lifecycle reaches the REQUEST under test. The conformant
-// path (kDhcpFlavorNone) echoes the DISCOVER's values, which is the _neg's
-// live fail_compliant outcome.
-//
-// RFC 2131 §4.3.2: the REQUEST's BOOTP 'secs' MUST equal the DISCOVER's.
-// Mutant writes a nonzero 'secs' (the conformant client emits 0 in both).
-// (§4.7.6.3 ALLOCATING_04)
-inline constexpr std::uint8_t kDhcpFlavorRequestSecsMismatch            = 0x15;
-// RFC 2131 §4.3.2 / §4.4.1: the REQUEST MUST echo the DISCOVER's 'xid'
-// (which the OFFER carries). Mutant emits a different xid. (§4.7.6.9
-// INIT_ALLOC_06)
-inline constexpr std::uint8_t kDhcpFlavorRequestXidMismatch             = 0x16;
-// RFC 2131 §4.3.6: if the DISCOVER carries Option 55 (Parameter Request
-// List), the REQUEST MUST repeat the same byte sequence. Mutant corrupts
-// one list byte. (§4.7.6.5 PARAMETERS_04)
-inline constexpr std::uint8_t kDhcpFlavorRequestParamListMismatch       = 0x17;
-
-// §4.7 DHCPDISCOVER / SELECTING REQUEST identity-field mutants (Phase F).
-// Each corrupts exactly one BOOTP identity field the DUT emits, gated to
-// its phase in emitDhcpMessage; the conformant path (kDhcpFlavorNone)
-// emits the correct shape, which is the _neg's live fail_compliant outcome.
-//
-// RFC 2131 §4.4.1: the DHCPDISCOVER's 'ciaddr' MUST be 0 in INIT state.
-// Mutant writes a nonzero ciaddr. (§4.7.6.9 INIT_ALLOC_02)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverCiaddrNonzero          = 0x18;
-// RFC 2131 §4.4.1: the DHCPDISCOVER's 'chaddr' MUST be the client's
-// hardware address. Mutant writes a different chaddr (the L2 source MAC
-// stays the real one). (§4.7.6.9 INIT_ALLOC_03)
-inline constexpr std::uint8_t kDhcpFlavorDiscoverChaddrMismatch         = 0x19;
-// RFC 2131 §3: every DHCP message MUST carry Option 53 (Message Type).
-// Mutant drops Option 53 from the SELECTING REQUEST. (§4.7.6.2 PROTOCOL_03)
-inline constexpr std::uint8_t kDhcpFlavorRequestOmitMessageType         = 0x1A;
-
-// §4.7 SELECTING-phase input-validation mutants (Phase F, prohibited).
-// RFC 2131 §4.4.1 requires the client to silently discard a reply that
-// fails validation; a conformant client therefore stays silent (no
-// DHCPREQUEST), which is the _neg's live fail_compliant outcome. Each
-// mutant relaxes one pollForReply acceptance gate so the buggy client
-// wrongly proceeds to DHCPREQUEST. Behavioural (no emitted-field change):
-// emitDhcpMessage treats them as conformant emits.
-//
-// RFC 2131 §4.4.1: a DHCPOFFER whose 'xid' does not match the most recent
-// DHCPDISCOVER MUST be silently discarded. Mutant accepts it. (INIT_ALLOC_04)
-inline constexpr std::uint8_t kDhcpFlavorAcceptMismatchedXidOffer       = 0x1B;
-// RFC 2131 §4.4.1: a DHCPACK arriving in INIT/SELECTING (no accepted
-// OFFER) MUST be silently discarded. Mutant proceeds on it. (INIT_ALLOC_05)
-inline constexpr std::uint8_t kDhcpFlavorProceedOnLoneAck               = 0x1C;
-// §4.7.6.7 CONSTRUCTING_MESSAGES_13: behavioural timing mutant — runLoop
-// collapses the DHCPDISCOVER retransmission wait to 0, so the inter-DISCOVER
-// intervals fall far below the RFC 2131 §4.1 exponential-backoff range. The
-// conformant path (None) keeps the backoff, which is the _neg's fail_compliant
-// outcome.
-inline constexpr std::uint8_t kDhcpFlavorRetxNoBackoff                  = 0x1D;
-// §4.7.6.7 CONSTRUCTING_MESSAGES_12: behavioural timing mutant — runLoop forces
-// the retransmission wait to 2x the backoff cap, so the saturation interval
-// exceeds the RFC 2131 §4.1 ceiling. The conformant path (None) clamps at the
-// cap, which is the _neg's fail_compliant outcome.
-inline constexpr std::uint8_t kDhcpFlavorRetxExceedCap                  = 0x1E;
-// §4.7.6.9 INITIALIZATION_ALLOCATION_01: behavioural timing mutant — runLoop
-// skips the RFC 2131 §4.4.1 SHOULD random [1, 10] s desync wait between a
-// DHCPNAK (RENEWING) and the restart DHCPDISCOVER, so the NAK->DISCOVER
-// interval collapses below the 1 s floor. The conformant path (None) honours
-// the window, which is the _neg's fail_compliant outcome.
-inline constexpr std::uint8_t kDhcpFlavorNakRestartNoDelay              = 0x1F;
-// §4.7.6.8 REACQUISITION_03: behavioural timing mutant — RFC 2131 §4.4.5 puts
-// the RENEWING DHCPREQUEST at T1 = lease/2; runBoundPhaseMachine collapses T1
-// onto BOUND so it fires at once and the last-ACK->RENEWING interval falls
-// below T1 - ParamToleranceTime. The conformant path (None) keeps T1.
-inline constexpr std::uint8_t kDhcpFlavorRenewingEntryNoDelay           = 0x20;
-// §4.7.6.8 REACQUISITION_04: behavioural timing mutant — RFC 2131 §4.4.5 puts
-// the REBINDING DHCPREQUEST at T2 = lease*7/8; runBoundPhaseMachine collapses
-// T2 onto T1 so it fires right after RENEWING and the last-ACK->REBINDING
-// interval falls below T2 - ParamToleranceTime. The conformant path (None)
-// keeps T2.
-inline constexpr std::uint8_t kDhcpFlavorRebindingEntryEarly            = 0x21;
-// §4.7.6.8 REACQUISITION_05: behavioural timing mutant — RFC 2131 §4.4.5 has
-// the RENEWING client retransmit after half the time remaining to T2;
-// runBoundPhaseMachine collapses that wait to 0 so the inter-RENEWING interval
-// falls below the [1, 3] s bound. The conformant path (None) keeps the
-// half-remaining schedule.
-inline constexpr std::uint8_t kDhcpFlavorRenewingRetxNoDelay            = 0x22;
-// §4.7.6.5 USAGE_01: multi-iface chaddr-reuse mutant — RFC 2131 §3.6 requires
-// each interface to use DHCP independently. When set on a secondary-iface
-// (iface_index > 0) OpStartDhcpClient, the UT server copies iface-0's bound
-// MAC into the client's chaddr_override so its DHCPDISCOVER carries iface-0's
-// chaddr (colliding with iface-0). The conformant path uses each iface's own
-// MAC. Handled by the UT server (a Params override), not a flavor_ enum.
-inline constexpr std::uint8_t kDhcpFlavorShareChaddrAcrossIface         = 0x23;
+inline constexpr DhcpFlavorDomain dhcpFlavorDomain(std::uint8_t fb) {
+    switch (fb) {
+#define TC8_DHCP_FLAVOR(Name, value, Domain) \
+        case value: return DhcpFlavorDomain::Domain;
+#include "dhcpv4_flavors.def"
+#undef TC8_DHCP_FLAVOR
+        default: return DhcpFlavorDomain::None;  // None (0x00) + unknown = conformant
+    }
+}
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

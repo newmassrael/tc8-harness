@@ -3032,10 +3032,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_protocol_01_neg/dhcpv4_client_protocol_01_neg.scxml",
           "kind": "implements"
         },
@@ -3127,10 +3123,6 @@
         },
         {
           "file": "tests/dhcpv4_client_allocating_10/dhcpv4_client_allocating_10.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
         {
@@ -3370,10 +3362,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_constructing_messages_01_neg/dhcpv4_client_constructing_messages_01_neg.scxml",
           "kind": "implements"
         },
@@ -3520,10 +3508,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_request_01_neg/dhcpv4_client_request_01_neg.scxml",
           "kind": "implements"
         },
@@ -3655,10 +3639,6 @@
         },
         {
           "file": "tests/dhcpv4_client_initialization_allocation_10/dhcpv4_client_initialization_allocation_10.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
         {

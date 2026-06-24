@@ -1,0 +1,84 @@
+// Single source of truth for the OpStartDhcpClient flavor byte (kDhcpFlavor*).
+//
+// X-macro form:
+//   TC8_DHCP_FLAVOR(Name, value, Domain)
+//     Domain ∈ Message | Arp | Behavior | ChaddrOverride
+//
+// `None` (0x00) is defined directly (not via the macro) because every routing
+// domain's firmware enum carries its own `None` enumerator.
+//
+// Domain is the routing SSOT: the UT server's flavor-byte router
+// (posix_ut_extensions.cpp) switches on dhcpFlavorDomain(), and each firmware
+// enum (Dhcpv4ClientFlavor=Message, Dhcpv4ArpFlavor=Arp,
+// Dhcpv4BehaviorFlavor=Behavior; ChaddrOverride routes to a Params override,
+// no enum) is generated from this file FILTERED by Domain. So a new flavor =
+// ONE line here with its Domain — the constant, the domain map, the enum
+// membership, and the router branch all derive. A wrong/missing Domain becomes
+// a compile error (the dispatch-site switch loses/gains the enumerator under
+// -Werror=switch), never a silently-misrouted vacuous _neg.
+//
+// Comments cite the case ID (+ RFC clause); the TC8 section number lives in the
+// case file / case_inventory (keeps this header citation-light).
+//
+// Consumed by: include/tc8/upper_tester_protocol.h (constants + DhcpFlavorDomain
+// + dhcpFlavorDomain) and dut/dut_service/dhcpv4_client.h (the 3 enums).
+
+// Post-BOUND behaviour (RFC 3927 §1.9):
+TC8_DHCP_FLAVOR(LeakLinkLocalAfterBind,         0x01, Behavior)  // INTRO_01: emit a prohibited 169.254/16 ARP Probe after bind
+
+// DHCPDISCOVER message-field mutants (RFC 2131 §4.1 / §4.4.1):
+TC8_DHCP_FLAVOR(DiscoverMagicCookieCorrupt,     0x02, Message)   // PROTOCOL_01: corrupt the RFC 1497 magic cookie
+TC8_DHCP_FLAVOR(DiscoverOmitMessageType,        0x03, Message)   // PROTOCOL_02: drop Option 53
+TC8_DHCP_FLAVOR(DiscoverReservedFlagsSet,       0x04, Message)   // SUMMARY_04: set a reserved 'flags' bit
+TC8_DHCP_FLAVOR(DiscoverDstUnicast,             0x05, Message)   // ALLOCATING_01: unicast the DISCOVER
+TC8_DHCP_FLAVOR(DiscoverDropEnd,                0x06, Message)   // CM_01: replace the END option with PAD
+TC8_DHCP_FLAVOR(DiscoverSrcNonzero,             0x07, Message)   // CM_03: non-zero IPv4 source
+
+// SELECTING DHCPREQUEST message-field mutants (RFC 2131 §4.3.2):
+TC8_DHCP_FLAVOR(RequestSrcNonzero,              0x08, Message)   // CM_04: non-zero source
+TC8_DHCP_FLAVOR(RequestDstUnicast,              0x09, Message)   // ALLOCATING_05: unicast the REQUEST
+TC8_DHCP_FLAVOR(RequestCiaddrNonzero,           0x0A, Message)   // REQUEST_01: fill ciaddr
+TC8_DHCP_FLAVOR(RequestServerIdCorrupt,         0x0B, Message)   // ALLOCATING_03: wrong Option 54
+TC8_DHCP_FLAVOR(RequestRequestedIpCorrupt,      0x0C, Message)   // REQUEST_02: wrong Option 50
+
+// RENEWING/REBINDING (reacquisition) REQUEST message-field mutants (RFC 2131 §4.4.5):
+TC8_DHCP_FLAVOR(ReacqRequestIncludeServerId,    0x0D, Message)   // REQUEST_06/09: force-include Option 54
+TC8_DHCP_FLAVOR(ReacqRequestIncludeRequestedIp, 0x0E, Message)   // REQUEST_07/10: force-include Option 50
+TC8_DHCP_FLAVOR(ReacqRequestCiaddrWrong,        0x0F, Message)   // REQUEST_08/11: wrong ciaddr
+TC8_DHCP_FLAVOR(RenewingRequestDstWrong,        0x10, Message)   // CM_02 / REACQUISITION_01: RENEWING dst not server-id
+TC8_DHCP_FLAVOR(RebindingDstUnicast,            0x11, Message)   // REQUEST_12 / REACQUISITION_02: REBINDING not broadcast
+
+// INIT_ALLOC ARP-frame field mutant (RFC 2131 §4.4.1):
+TC8_DHCP_FLAVOR(ProbeSenderIpNonzero,           0x12, Arp)       // INIT_ALLOC_08: non-zero ARP Probe sender IP
+
+// DHCPDECLINE message-field mutant (RFC 2131 §4.4.4):
+TC8_DHCP_FLAVOR(DeclineRequestedIpWrong,        0x13, Message)   // INIT_ALLOC_09: wrong Option 50 in DECLINE
+
+// INIT_ALLOC ARP-frame field mutant (RFC 2131 §4.4.1):
+TC8_DHCP_FLAVOR(AnnounceSenderIpWrong,          0x14, Arp)       // INIT_ALLOC_10: wrong gratuitous-ARP sender IP
+
+// SELECTING REQUEST <-> DISCOVER continuity mutants (RFC 2131 §4.3.2 / §4.3.6):
+TC8_DHCP_FLAVOR(RequestSecsMismatch,            0x15, Message)   // ALLOCATING_04: 'secs' != DISCOVER
+TC8_DHCP_FLAVOR(RequestXidMismatch,             0x16, Message)   // INIT_ALLOC_06: 'xid' != DISCOVER
+TC8_DHCP_FLAVOR(RequestParamListMismatch,       0x17, Message)   // PARAMETERS_04: Option 55 != DISCOVER
+
+// BOOTP identity-field mutants (RFC 2131 §4.4.1 / §3):
+TC8_DHCP_FLAVOR(DiscoverCiaddrNonzero,          0x18, Message)   // INIT_ALLOC_02: non-zero DISCOVER ciaddr
+TC8_DHCP_FLAVOR(DiscoverChaddrMismatch,         0x19, Message)   // INIT_ALLOC_03: DISCOVER chaddr != client MAC
+TC8_DHCP_FLAVOR(RequestOmitMessageType,         0x1A, Message)   // PROTOCOL_03: SELECTING REQUEST drops Option 53
+
+// Behavioural reply-acceptance bypasses (RFC 2131 §4.4.1):
+TC8_DHCP_FLAVOR(AcceptMismatchedXidOffer,       0x1B, Behavior)  // INIT_ALLOC_04 / SUMMARY_02: accept a mismatched-xid OFFER
+TC8_DHCP_FLAVOR(ProceedOnLoneAck,               0x1C, Behavior)  // INIT_ALLOC_05: proceed on a lone DHCPACK
+
+// Behavioural timing mutants (RFC 2131 §4.1 / §4.4.1 / §4.4.5):
+TC8_DHCP_FLAVOR(RetxNoBackoff,                  0x1D, Behavior)  // CM_13: DISCOVER retx below the backoff range
+TC8_DHCP_FLAVOR(RetxExceedCap,                  0x1E, Behavior)  // CM_12: DISCOVER retx above the backoff cap
+TC8_DHCP_FLAVOR(NakRestartNoDelay,              0x1F, Behavior)  // INIT_ALLOC_01: NAK->DISCOVER below the [1,11]s window
+TC8_DHCP_FLAVOR(RenewingEntryNoDelay,           0x20, Behavior)  // REACQUISITION_03: T1 onto BOUND
+TC8_DHCP_FLAVOR(RebindingEntryEarly,            0x21, Behavior)  // REACQUISITION_04: T2 onto T1
+TC8_DHCP_FLAVOR(RenewingRetxNoDelay,            0x22, Behavior)  // REACQUISITION_05: RENEWING retx below the [1,3]s bound
+
+// Cross-iface chaddr reuse — parameterized by runtime data (iface-0's MAC),
+// so it routes to a Params override, not a flavor enum (RFC 2131 §3.6):
+TC8_DHCP_FLAVOR(ShareChaddrAcrossIface,         0x23, ChaddrOverride)  // USAGE_01: iface-1 reuses iface-0's chaddr

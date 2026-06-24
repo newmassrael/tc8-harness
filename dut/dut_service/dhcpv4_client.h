@@ -12,120 +12,62 @@
 
 namespace tc8::dut {
 
-// §4.7 DHCP-message field-shape mutant selector for the DHCP client. Each
-// enumerator corrupts exactly one DUT-emitted DHCP-message field and is
-// applied in emitDhcpMessage (switch-no-default, -Werror=switch). Its wire
-// byte is **derived** from the single source of truth `tc8::ut::kDhcpFlavor*`
-// (the protocol header the harness and this firmware both consume), so a
-// renumber in the header flows here at compile time. Default (`None`) emits
-// the fully-compliant message — what the §4.7 positive cases need, and what
-// makes the negative cases' compliant branch a live conformant outcome.
-// Behavioural mutants (the post-BOUND link-local leak, the pollForReply
-// input-validation bypasses) live in Dhcpv4BehaviorFlavor below, not here —
-// emitDhcpMessage would otherwise carry them as no-op passive breaks.
+// §4.7 / §4.5.6.1 DHCP fault-injection flavor enums, GENERATED from
+// include/tc8/dhcpv4_flavors.def (the single source of truth, filtered by
+// Domain) so the harness wire byte (kDhcpFlavor*), this firmware's enum
+// membership, the UT-server router, and the dispatch-site switches can never
+// drift. Adding a flavor = one .def line with its Domain; a wrong Domain lands
+// the enumerator in the wrong enum and fails the matching emit/poll
+// switch-no-default under -Werror=switch.
+//
+//   * Dhcpv4ClientFlavor (Message): one DHCP-message field corrupted in
+//     emitDhcpMessage (DISCOVER / SELECTING / reacquisition REQUEST / DECLINE).
+//   * Dhcpv4ArpFlavor (Arp): an ARP Probe/Announce field (emitArpProbe /
+//     emitArpAnnounce).
+//   * Dhcpv4BehaviorFlavor (Behavior): a runtime-behaviour mutant (post-BOUND
+//     leak, reply-acceptance bypass, timing) in runLoop / runBoundPhaseMachine
+//     / pollForReply.
+//   * The ChaddrOverride domain (USAGE_01) routes to Params.chaddr_override,
+//     not an enum (it carries cross-instance data), so it appears in none here.
+//
+// `None` (the compliant path) is in every enum: positive cases set it and see
+// no behavioural change; it makes each _neg's fail_compliant branch live.
+#define TC8_DHCP_FLAVOR(Name, value, Domain) TC8_DHCP_EMIT_##Domain(Name)
+#define TC8_DHCP_EMIT_Message(Name)
+#define TC8_DHCP_EMIT_Arp(Name)
+#define TC8_DHCP_EMIT_Behavior(Name)
+#define TC8_DHCP_EMIT_ChaddrOverride(Name)
+
+#undef TC8_DHCP_EMIT_Message
+#define TC8_DHCP_EMIT_Message(Name) Name = ::tc8::ut::kDhcpFlavor##Name,
 enum class Dhcpv4ClientFlavor : std::uint8_t {
-    None                  = ::tc8::ut::kDhcpFlavorNone,
-    // §4.7 DHCPDISCOVER field-shape mutants — each corrupts exactly one
-    // DUT-emitted field so the matching §4.7 positive case's
-    // field-violation branch becomes reachable. Applied in
-    // emitDhcpMessage (switch-no-default). See kDhcpFlavor* for the RFC
-    // clause each violates.
-    DiscoverMagicCookieCorrupt = ::tc8::ut::kDhcpFlavorDiscoverMagicCookieCorrupt,
-    DiscoverOmitMessageType    = ::tc8::ut::kDhcpFlavorDiscoverOmitMessageType,
-    DiscoverReservedFlagsSet   = ::tc8::ut::kDhcpFlavorDiscoverReservedFlagsSet,
-    DiscoverDstUnicast         = ::tc8::ut::kDhcpFlavorDiscoverDstUnicast,
-    DiscoverDropEnd            = ::tc8::ut::kDhcpFlavorDiscoverDropEnd,
-    DiscoverSrcNonzero         = ::tc8::ut::kDhcpFlavorDiscoverSrcNonzero,
-    // §4.7 SELECTING DHCPREQUEST field-shape mutants — gated to the
-    // post-OFFER REQUEST (msg_type=3) in emitDhcpMessage so the preceding
-    // DISCOVER stays conformant and the OFFER lifecycle still completes.
-    RequestSrcNonzero          = ::tc8::ut::kDhcpFlavorRequestSrcNonzero,
-    RequestDstUnicast          = ::tc8::ut::kDhcpFlavorRequestDstUnicast,
-    RequestCiaddrNonzero       = ::tc8::ut::kDhcpFlavorRequestCiaddrNonzero,
-    RequestServerIdCorrupt     = ::tc8::ut::kDhcpFlavorRequestServerIdCorrupt,
-    RequestRequestedIpCorrupt  = ::tc8::ut::kDhcpFlavorRequestRequestedIpCorrupt,
-    // §4.7 RENEWING/REBINDING (reacquisition) REQUEST mutants — gated to
-    // the reacquisition REQUEST (ciaddr != 0) in emitDhcpMessage. The
-    // include mutants serve both RENEWING and REBINDING (one RFC 2131
-    // §4.3.6 table 5 invariant); the dst mutant is RENEWING-specific.
-    ReacqRequestIncludeServerId    = ::tc8::ut::kDhcpFlavorReacqRequestIncludeServerId,
-    ReacqRequestIncludeRequestedIp = ::tc8::ut::kDhcpFlavorReacqRequestIncludeRequestedIp,
-    ReacqRequestCiaddrWrong        = ::tc8::ut::kDhcpFlavorReacqRequestCiaddrWrong,
-    RenewingRequestDstWrong        = ::tc8::ut::kDhcpFlavorRenewingRequestDstWrong,
-    RebindingDstUnicast            = ::tc8::ut::kDhcpFlavorRebindingDstUnicast,
-    // §4.7.6.9 INIT_ALLOC_09: DHCPDECLINE Option 50 mutant — a DHCP-message
-    // field mutation gated to the Decline phase in emitDhcpMessage. (The
-    // INIT_ALLOC_08/_10 ARP-frame mutants live in Dhcpv4ArpFlavor below so the
-    // ARP emit builders switch over their own small domain, not the whole
-    // DHCP-message flavor set.)
-    DeclineRequestedIpWrong        = ::tc8::ut::kDhcpFlavorDeclineRequestedIpWrong,
-    // §4.7 SELECTING REQUEST ↔ DISCOVER continuity mutants — each corrupts
-    // one field the post-OFFER REQUEST must echo from the DISCOVER (gated to
-    // the SELECTING phase in emitDhcpMessage so the DISCOVER stays conformant
-    // and the OFFER lifecycle still completes). See kDhcpFlavor* for the RFC
-    // clause each violates.
-    RequestSecsMismatch            = ::tc8::ut::kDhcpFlavorRequestSecsMismatch,
-    RequestXidMismatch             = ::tc8::ut::kDhcpFlavorRequestXidMismatch,
-    RequestParamListMismatch       = ::tc8::ut::kDhcpFlavorRequestParamListMismatch,
-    // §4.7 DHCPDISCOVER / SELECTING REQUEST identity-field mutants — each
-    // corrupts one BOOTP identity field, gated to its phase in
-    // emitDhcpMessage. See kDhcpFlavor* for the RFC clause each violates.
-    DiscoverCiaddrNonzero          = ::tc8::ut::kDhcpFlavorDiscoverCiaddrNonzero,
-    DiscoverChaddrMismatch         = ::tc8::ut::kDhcpFlavorDiscoverChaddrMismatch,
-    RequestOmitMessageType         = ::tc8::ut::kDhcpFlavorRequestOmitMessageType,
+    None = ::tc8::ut::kDhcpFlavorNone,
+#include "tc8/dhcpv4_flavors.def"
 };
+#undef TC8_DHCP_EMIT_Message
+#define TC8_DHCP_EMIT_Message(Name)
 
-// §4.7.6.9 INIT_ALLOC_08/_10 ARP-frame field mutants. Split out from
-// Dhcpv4ClientFlavor (DHCP-message field mutations) so emitArpProbe /
-// emitArpAnnounce do their switch-no-default over ONLY the ARP-emit domain
-// instead of enumerating every DHCP-message flavor as a passive break.
+#undef TC8_DHCP_EMIT_Arp
+#define TC8_DHCP_EMIT_Arp(Name) Name = ::tc8::ut::kDhcpFlavor##Name,
 enum class Dhcpv4ArpFlavor : std::uint8_t {
-    None                  = ::tc8::ut::kDhcpFlavorNone,
-    ProbeSenderIpNonzero  = ::tc8::ut::kDhcpFlavorProbeSenderIpNonzero,
-    AnnounceSenderIpWrong = ::tc8::ut::kDhcpFlavorAnnounceSenderIpWrong,
+    None = ::tc8::ut::kDhcpFlavorNone,
+#include "tc8/dhcpv4_flavors.def"
+};
+#undef TC8_DHCP_EMIT_Arp
+#define TC8_DHCP_EMIT_Arp(Name)
+
+#undef TC8_DHCP_EMIT_Behavior
+#define TC8_DHCP_EMIT_Behavior(Name) Name = ::tc8::ut::kDhcpFlavor##Name,
+enum class Dhcpv4BehaviorFlavor : std::uint8_t {
+    None = ::tc8::ut::kDhcpFlavorNone,
+#include "tc8/dhcpv4_flavors.def"
 };
 
-// §4.5.6.1 / §4.7 BEHAVIOURAL mutants — these change the client's runtime
-// behaviour (post-BOUND emit, reply acceptance) rather than the shape of a
-// single emitted message, so they are dispatched in runLoop / pollForReply,
-// NOT in emitDhcpMessage. Kept in their own enum (the Dhcpv4ArpFlavor split
-// rationale, applied to the behavioural axis) so each behavioural dispatch
-// site switches over this small domain under -Werror=switch — a new
-// behavioural flavor forgotten at a dispatch site then fails to compile
-// instead of silently never firing (a vacuous _neg). All three flavor enums
-// share the single OpStartDhcpClient flavor byte (kDhcpFlavor* is the wire
-// SSOT); the UT server routes the byte to exactly one of them by value.
-enum class Dhcpv4BehaviorFlavor : std::uint8_t {
-    None                  = ::tc8::ut::kDhcpFlavorNone,
-    // RFC 3927 §1.9: emit one prohibited 169.254/16 ARP Probe after the
-    // lease binds (runLoop). §4.5.6.1 INTRO_01_NEG drives this.
-    LeakLinkLocalAfterBind = ::tc8::ut::kDhcpFlavorLeakLinkLocalAfterBind,
-    // §4.7.6.9 INIT_ALLOC_04/_05: relax one pollForReply acceptance gate so
-    // the client wrongly proceeds to DHCPREQUEST on a reply RFC 2131 §4.4.1
-    // requires it to silently discard. Scoped to the SELECTING OFFER wait.
-    AcceptMismatchedXidOffer = ::tc8::ut::kDhcpFlavorAcceptMismatchedXidOffer,
-    ProceedOnLoneAck         = ::tc8::ut::kDhcpFlavorProceedOnLoneAck,
-    // §4.7.6.7 CONSTRUCTING_MESSAGES_13: runLoop collapses the inter-DISCOVER
-    // retransmission wait to 0, so the backoff intervals fall below RFC 2131
-    // §4.1 range.
-    RetxNoBackoff            = ::tc8::ut::kDhcpFlavorRetxNoBackoff,
-    // §4.7.6.7 CONSTRUCTING_MESSAGES_12: runLoop forces the wait to 2x the
-    // backoff cap, so the saturation interval exceeds the RFC 2131 §4.1 ceiling.
-    RetxExceedCap            = ::tc8::ut::kDhcpFlavorRetxExceedCap,
-    // §4.7.6.9 INITIALIZATION_ALLOCATION_01: runLoop skips the RFC 2131 §4.4.1
-    // SHOULD random desync wait between a DHCPNAK and the restart DHCPDISCOVER,
-    // so the NAK->DISCOVER interval collapses below the [1, 11] s window.
-    NakRestartNoDelay        = ::tc8::ut::kDhcpFlavorNakRestartNoDelay,
-    // §4.7.6.8 REACQUISITION_03/_04: runBoundPhaseMachine collapses a phase-
-    // entry timer (T1 onto BOUND / T2 onto T1) so the RENEWING / REBINDING
-    // REQUEST fires below its RFC 2131 §4.4.5 interval bound.
-    RenewingEntryNoDelay     = ::tc8::ut::kDhcpFlavorRenewingEntryNoDelay,
-    RebindingEntryEarly      = ::tc8::ut::kDhcpFlavorRebindingEntryEarly,
-    // §4.7.6.8 REACQUISITION_05: runBoundPhaseMachine collapses the RENEWING
-    // half-remaining retransmission wait to 0 so the inter-RENEWING interval
-    // falls below the RFC 2131 §4.4.5 bound.
-    RenewingRetxNoDelay      = ::tc8::ut::kDhcpFlavorRenewingRetxNoDelay,
-};
+#undef TC8_DHCP_EMIT_Message
+#undef TC8_DHCP_EMIT_Arp
+#undef TC8_DHCP_EMIT_Behavior
+#undef TC8_DHCP_EMIT_ChaddrOverride
+#undef TC8_DHCP_FLAVOR
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.
 //
