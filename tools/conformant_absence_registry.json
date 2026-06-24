@@ -1304,15 +1304,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_dhcp_discover_nak_to_discover_outside_1_to_11_seconds",
-          "property": "DUT's DHCPDISCOVER retransmission after a DHCPNAK must occur within 1-11 seconds (RFC 2131 §3.1); fail iff outside the window"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_REACQUISITION_02": {
       "guards": [
         {

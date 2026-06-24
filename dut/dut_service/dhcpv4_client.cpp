@@ -941,7 +941,8 @@ bool Dhcpv4Client::pollForReply(int                        sk,
             case Dhcpv4BehaviorFlavor::LeakLinkLocalAfterBind:
             case Dhcpv4BehaviorFlavor::RetxNoBackoff:
             case Dhcpv4BehaviorFlavor::RetxExceedCap:
-                break;  // not a reply-acceptance mutant (RetxNoBackoff/RetxExceedCap fault runLoop timing)
+            case Dhcpv4BehaviorFlavor::NakRestartNoDelay:
+                break;  // not a reply-acceptance mutant (Retx*/NakRestart* fault runLoop timing)
         }
     }
 
@@ -1332,7 +1333,13 @@ void Dhcpv4Client::runLoop(Params params) {
         // before the restart DISCOVER. INIT_ALLOC_01 trait requests
         // [1000, 10000] ms; other lifecycle cases keep the default
         // [0, 0] for instant restart (matches pre-S9 behaviour).
-        if (params.nak_to_discover_max_ms.count() > 0 && !stop_requested_.load()) {
+        // §4.7.6.9 INIT_ALLOC_01_NEG: the NakRestartNoDelay timing mutant
+        // skips the wait even when the window is opted-in, so the buggy
+        // client restarts immediately (NAK->DISCOVER below the 1 s floor).
+        const bool nak_restart_no_delay =
+            (behavior_flavor_ == Dhcpv4BehaviorFlavor::NakRestartNoDelay);
+        if (params.nak_to_discover_max_ms.count() > 0 && !stop_requested_.load() &&
+            !nak_restart_no_delay) {
             drawAndSleepRandomMs(
                 rng, stop_requested_,
                 params.nak_to_discover_min_ms.count(),

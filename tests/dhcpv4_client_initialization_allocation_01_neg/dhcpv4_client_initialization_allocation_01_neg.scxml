@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.7.6.9 DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_01 negative — the
+  client SHOULD wait a random [1, 10] s between a DHCPNAK (RENEWING) and the
+  restart DHCPDISCOVER (RFC 2131 §4.4.1). The positive's out-of-window branch
+  is unreachable against a conformant tc8-dut, which always draws inside
+  [1, 10] s + ParamToleranceTime.
+
+  Fault injection is a real firmware mutant: the kDhcpFlavorNakRestartNoDelay
+  flavor makes the harness-owned runLoop skip the desync wait, so the restart
+  DHCPDISCOVER follows the NAK immediately (interval far below the 1 s floor).
+  A conformant client (flavor None) honours the window, so this negative's
+  fail_compliant branch is the live conformant-DUT outcome.
+
+  Same 4-state lifecycle as the positive (DISCOVER -> OFFER -> REQUEST -> ACK
+  -> RENEWING REQUEST -> NAK -> restart DISCOVER); only the state-4 pass guard
+  is inverted (pass = the desync interval is OUTSIDE the [1, 11] s window).
+  Inline like the positive (INIT_ALLOC_03/05_neg precedent — this lifecycle's
+  timing split has no shared template).
+
+  tc8-dut-only (the lwIP fixture carries no DHCP client).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="dhcpv4_client_initialization_allocation_01_neg"
+       datamodel="null"
+       initial="listening_for_discover">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="inconclusive_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="8s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_second_discover"/>
+    <transition event="s3_deadline" target="inconclusive_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_second_discover">
+    <onentry>
+      <send event="s4_deadline" delay="13s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and !captured.nak_to_discover_within_us(1000000, 11000000)"
+                target="pass"/>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover()
+                      and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)
+                      and captured.nak_to_discover_within_us(1000000, 11000000)"
+                target="fail_compliant"/>
+    <transition event="s4_deadline" target="inconclusive_no_second_discover"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_dhcp_discover_nak_to_discover_within_window_despite_no_delay_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_first_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_renewing_request_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_second_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_second_discover_after_init_return","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+</scxml>

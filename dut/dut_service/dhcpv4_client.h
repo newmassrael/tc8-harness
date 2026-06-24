@@ -112,6 +112,10 @@ enum class Dhcpv4BehaviorFlavor : std::uint8_t {
     // §4.7.6.7 CONSTRUCTING_MESSAGES_12: runLoop forces the wait to 2x the
     // backoff cap, so the saturation interval exceeds the RFC 2131 §4.1 ceiling.
     RetxExceedCap            = ::tc8::ut::kDhcpFlavorRetxExceedCap,
+    // §4.7.6.9 INITIALIZATION_ALLOCATION_01: runLoop skips the RFC 2131 §4.4.1
+    // SHOULD random desync wait between a DHCPNAK and the restart DHCPDISCOVER,
+    // so the NAK->DISCOVER interval collapses below the [1, 11] s window.
+    NakRestartNoDelay        = ::tc8::ut::kDhcpFlavorNakRestartNoDelay,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.

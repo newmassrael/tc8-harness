@@ -1201,6 +1201,12 @@ inline constexpr std::uint8_t kDhcpFlavorRetxNoBackoff                  = 0x1D;
 // exceeds the RFC 2131 §4.1 ceiling. The conformant path (None) clamps at the
 // cap, which is the _neg's fail_compliant outcome.
 inline constexpr std::uint8_t kDhcpFlavorRetxExceedCap                  = 0x1E;
+// §4.7.6.9 INITIALIZATION_ALLOCATION_01: behavioural timing mutant — runLoop
+// skips the RFC 2131 §4.4.1 SHOULD random [1, 10] s desync wait between a
+// DHCPNAK (RENEWING) and the restart DHCPDISCOVER, so the NAK->DISCOVER
+// interval collapses below the 1 s floor. The conformant path (None) honours
+// the window, which is the _neg's fail_compliant outcome.
+inline constexpr std::uint8_t kDhcpFlavorNakRestartNoDelay              = 0x1F;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
