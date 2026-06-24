@@ -33,13 +33,9 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation08SM>
         // Opt into the post-BOUND ARP Probe firmware path with a 1500 ms
         // listen window — fast envelope shrink of the 10 s spec
         // ParamListenTime (Q4 decision).
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac,
-            /*retry_count=*/1,
-            /*retry_interval_ms=*/1000,
-            /*nak_to_discover_min_ms=*/0,
-            /*nak_to_discover_max_ms=*/0,
-            /*arp_probe_listen_ms=*/1500);
+        ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
+        sc.arp_probe_listen_ms = 1500;
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_first_request),
             iface, c.dhcpv4, /*message_type=*/2);

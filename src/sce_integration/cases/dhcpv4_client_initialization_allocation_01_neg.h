@@ -39,21 +39,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01NegSM>
         // Same fast envelope + [1000, 10000] ms desync window as the positive
         // plus the NakRestartNoDelay flavor byte: only the random wait is
         // faulted (the DISCOVER shape and the lifecycle stay conformant).
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac,
-            /*retry_count=*/1,
-            /*retry_interval_ms=*/1000,
-            /*nak_to_discover_min_ms=*/1000,
-            /*nak_to_discover_max_ms=*/10000,
-            /*arp_probe_listen_ms=*/0,
-            /*decline_to_discover_min_ms=*/0,
-            /*decline_to_discover_max_ms=*/0,
-            /*retx_first_ms=*/0,
-            /*retx_cap_ms=*/0,
-            /*retx_jitter_ms=*/0,
-            /*iface_index=*/0,
-            /*apply_initial_wait=*/true,
-            /*flavor=*/::tc8::ut::kDhcpFlavorNakRestartNoDelay);
+        ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
+        sc.nak_to_discover_min_ms = 1000;
+        sc.nak_to_discover_max_ms = 10000;
+        sc.flavor = ::tc8::ut::kDhcpFlavorNakRestartNoDelay;
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
         ::tc8::sce::dhcpv4::scheduleRenewingNakSchedule<SM>(
             scheduler, iface, c);
     }

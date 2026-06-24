@@ -3212,6 +3212,10 @@
         {
           "file": "dut/dut_service/posix_ut_extensions.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/dhcpv4_pilot_common.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3379,6 +3383,10 @@
         },
         {
           "file": "tests/dhcpv4_client_constructing_messages_03/dhcpv4_client_constructing_messages_03.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/dhcpv4_pilot_common.h",
           "kind": "implements"
         }
       ]

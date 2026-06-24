@@ -45,21 +45,14 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12NegSM>
                          std::string_view iface) {
         // Same fast-envelope as the positive (cases::kCm12* SSOT) plus the
         // RetxExceedCap flavor byte: only the cap enforcement is faulted.
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac,
-            /*retry_count=*/cases::kCm12RetryCount,
-            /*retry_interval_ms=*/0U,
-            /*nak_to_discover_min_ms=*/0U,
-            /*nak_to_discover_max_ms=*/0U,
-            /*arp_probe_listen_ms=*/0U,
-            /*decline_to_discover_min_ms=*/0U,
-            /*decline_to_discover_max_ms=*/0U,
-            /*retx_first_ms=*/cases::kCm12RetxFirstMs,
-            /*retx_cap_ms=*/cases::kCm12RetxCapMs,
-            /*retx_jitter_ms=*/cases::kCm12RetxJitterMs,
-            /*iface_index=*/0U,
-            /*apply_initial_wait=*/true,
-            /*flavor=*/::tc8::ut::kDhcpFlavorRetxExceedCap);
+        ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
+        sc.retry_count = cases::kCm12RetryCount;
+        sc.retry_interval_ms = 0U;
+        sc.retx_first_ms = cases::kCm12RetxFirstMs;
+        sc.retx_cap_ms = cases::kCm12RetxCapMs;
+        sc.retx_jitter_ms = cases::kCm12RetxJitterMs;
+        sc.flavor = ::tc8::ut::kDhcpFlavorRetxExceedCap;
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
     }
 };
 

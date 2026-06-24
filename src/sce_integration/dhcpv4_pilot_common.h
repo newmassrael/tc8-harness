@@ -45,48 +45,60 @@ inline constexpr std::uint32_t kFastEnvelopeLeaseSeconds = 6U;
 // case_timeout budget.
 inline constexpr std::uint32_t kRetransmissionLeaseSeconds = 12U;
 
-// Issue an OpStartDhcpClient RPC to the tc8-dut. Default fast envelope:
-// 2 s OFFER wait + 2 s ACK wait + retry_count=1 (single attempt).
-// retry_count=2 + retry_interval_ms=1000 covers §4.7.6.3 ALLOCATING_06
-// (RFC 2131 §3.1: client times out and retransmits DISCOVER on no OFFER —
-// 2 s + 1 s + 2 s = 5 s wall, fits the SCE 6 s pilot deadline). Future
-// REACQUISITION cases will pass higher retry counts and per-attempt
-// envelope overrides via additional defaults.
+// OpStartDhcpClient envelope. A config struct (not a 16-positional-param
+// signature) so a call site sets only the fields it overrides — the common
+// `emitStartDhcpClient(cfg, iface, mac)` keeps the fast-envelope defaults, and
+// adding a knob never re-orders an existing call. Field names match the wire
+// slots. (C++17: named-field assignment, not C++20 designated init.)
+struct Dhcpv4StartConfig {
+    std::uint8_t  retry_count                = 1;
+    std::uint16_t retry_interval_ms          = 1000;
+    // §4.7.6.9 INIT_ALLOC_01 NAK->DISCOVER desync window (RFC 2131 §4.4.1).
+    std::uint16_t nak_to_discover_min_ms     = 0;
+    std::uint16_t nak_to_discover_max_ms     = 0;
+    // §4.7.6.9 INIT_ALLOC_08/_09/_10 post-BOUND ARP Probe listen window.
+    std::uint16_t arp_probe_listen_ms        = 0;
+    // §4.7.6.3 ALLOCATING_08 post-DECLINE restart window (RFC 2131 §3.1).
+    std::uint16_t decline_to_discover_min_ms = 0;
+    std::uint16_t decline_to_discover_max_ms = 0;
+    // §4.7.6.7 CM_12/_13 exponential-backoff retransmission envelope.
+    std::uint16_t retx_first_ms              = 0;
+    std::uint16_t retx_cap_ms                = 0;
+    std::uint16_t retx_jitter_ms             = 0;
+    // §4.7.6.5 USAGE_01 Topology-2 secondary client.
+    std::uint8_t  iface_index                = 0;
+    // False when the 1.5 s pilot wait was already paid by an earlier call.
+    bool          apply_initial_wait         = true;
+    // §4.5.6.1 / §4.7 Phase F fault-injection flavor byte (kDhcpFlavor*).
+    std::uint8_t  flavor                     = 0;
+};
+
+// Issue an OpStartDhcpClient RPC to the tc8-dut. Default fast envelope (2 s
+// OFFER wait + 2 s ACK wait + retry_count=1). Override via the config struct,
+// e.g. ALLOCATING_06's retransmission (retry_count=2 + retry_interval_ms=1000).
 inline void emitStartDhcpClient(const ::tc8::TestConfig& cfg,
                                  std::string_view iface,
                                  const std::array<std::uint8_t, 6>& dut_mac,
-                                 std::uint8_t  retry_count                = 1,
-                                 std::uint16_t retry_interval_ms          = 1000,
-                                 std::uint16_t nak_to_discover_min_ms     = 0,
-                                 std::uint16_t nak_to_discover_max_ms     = 0,
-                                 std::uint16_t arp_probe_listen_ms        = 0,
-                                 std::uint16_t decline_to_discover_min_ms = 0,
-                                 std::uint16_t decline_to_discover_max_ms = 0,
-                                 std::uint16_t retx_first_ms              = 0,
-                                 std::uint16_t retx_cap_ms                = 0,
-                                 std::uint16_t retx_jitter_ms             = 0,
-                                 std::uint8_t  iface_index                = 0,
-                                 bool          apply_initial_wait         = true,
-                                 std::uint8_t  flavor                     = 0) {
-    if (apply_initial_wait) {
+                                 const Dhcpv4StartConfig& c = {}) {
+    if (c.apply_initial_wait) {
         std::this_thread::sleep_for(kDhcpv4PilotInitialWait);
     }
     const auto req = ::tc8::stimulus::buildStartDhcpClientRequest(
         /*req_id=*/1,
         /*offer_wait_ms=*/2000,
         /*ack_wait_ms=*/2000,
-        retry_count,
-        retry_interval_ms,
-        nak_to_discover_min_ms,
-        nak_to_discover_max_ms,
-        arp_probe_listen_ms,
-        decline_to_discover_min_ms,
-        decline_to_discover_max_ms,
-        retx_first_ms,
-        retx_cap_ms,
-        retx_jitter_ms,
-        iface_index,
-        flavor);
+        c.retry_count,
+        c.retry_interval_ms,
+        c.nak_to_discover_min_ms,
+        c.nak_to_discover_max_ms,
+        c.arp_probe_listen_ms,
+        c.decline_to_discover_min_ms,
+        c.decline_to_discover_max_ms,
+        c.retx_first_ms,
+        c.retx_cap_ms,
+        c.retx_jitter_ms,
+        c.iface_index,
+        c.flavor);
     ::tc8::stimulus::sendUpperTesterRequest(
         iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
         /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);

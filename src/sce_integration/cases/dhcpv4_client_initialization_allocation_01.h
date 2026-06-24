@@ -35,12 +35,10 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01SM>
         // the spec-mandated random wait between NAK ingest and the
         // restart DISCOVER. Defaults preserved everywhere else
         // (instant restart per S6b precedent).
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac,
-            /*retry_count=*/1,
-            /*retry_interval_ms=*/1000,
-            /*nak_to_discover_min_ms=*/1000,
-            /*nak_to_discover_max_ms=*/10000);
+        ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
+        sc.nak_to_discover_min_ms = 1000;
+        sc.nak_to_discover_max_ms = 10000;
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
         // OFFER + ACK on the SELECTING-phase listening states (drives
         // DUT to BOUND) plus DHCPNAK on listening_for_second_discover
         // entry — the runBoundPhaseMachine NAK ingest path returns

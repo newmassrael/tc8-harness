@@ -31,13 +31,9 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation09SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac,
-            /*retry_count=*/1,
-            /*retry_interval_ms=*/1000,
-            /*nak_to_discover_min_ms=*/0,
-            /*nak_to_discover_max_ms=*/0,
-            /*arp_probe_listen_ms=*/1500);
+        ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
+        sc.arp_probe_listen_ms = 1500;
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_first_request),
             iface, c.dhcpv4, /*message_type=*/2);

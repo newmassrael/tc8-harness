@@ -44,18 +44,13 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac,
-            /*retry_count=*/cases::kCm13RetryCount,
-            /*retry_interval_ms=*/0U,
-            /*nak_to_discover_min_ms=*/0U,
-            /*nak_to_discover_max_ms=*/0U,
-            /*arp_probe_listen_ms=*/0U,
-            /*decline_to_discover_min_ms=*/0U,
-            /*decline_to_discover_max_ms=*/0U,
-            /*retx_first_ms=*/cases::kCm13RetxFirstMs,
-            /*retx_cap_ms=*/cases::kCm13RetxCapMs,
-            /*retx_jitter_ms=*/cases::kCm13RetxJitterMs);
+        ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
+        sc.retry_count = cases::kCm13RetryCount;
+        sc.retry_interval_ms = 0U;
+        sc.retx_first_ms = cases::kCm13RetxFirstMs;
+        sc.retx_cap_ms = cases::kCm13RetxCapMs;
+        sc.retx_jitter_ms = cases::kCm13RetxJitterMs;
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
     }
 };
 

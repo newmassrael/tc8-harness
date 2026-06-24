@@ -43,20 +43,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01NegSM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac,
-            /*retry_count=*/1,
-            /*retry_interval_ms=*/1000,
-            /*nak_to_discover_min_ms=*/0,
-            /*nak_to_discover_max_ms=*/0,
-            /*arp_probe_listen_ms=*/0,
-            /*decline_to_discover_min_ms=*/0,
-            /*decline_to_discover_max_ms=*/0,
-            /*retx_first_ms=*/0,
-            /*retx_cap_ms=*/0,
-            /*retx_jitter_ms=*/0,
-            /*iface_index=*/0,
-            /*apply_initial_wait=*/true);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac);
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
@@ -65,21 +52,12 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01NegSM>
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
             [&cfg, iface_copy = std::string(iface)]() {
+                ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
+                sc.iface_index = 1;
+                sc.apply_initial_wait = false;
+                sc.flavor = ::tc8::ut::kDhcpFlavorShareChaddrAcrossIface;
                 ::tc8::sce::dhcpv4::emitStartDhcpClient(
-                    cfg, iface_copy, cfg.dut.mac,
-                    /*retry_count=*/1,
-                    /*retry_interval_ms=*/1000,
-                    /*nak_to_discover_min_ms=*/0,
-                    /*nak_to_discover_max_ms=*/0,
-                    /*arp_probe_listen_ms=*/0,
-                    /*decline_to_discover_min_ms=*/0,
-                    /*decline_to_discover_max_ms=*/0,
-                    /*retx_first_ms=*/0,
-                    /*retx_cap_ms=*/0,
-                    /*retx_jitter_ms=*/0,
-                    /*iface_index=*/1,
-                    /*apply_initial_wait=*/false,
-                    /*flavor=*/::tc8::ut::kDhcpFlavorShareChaddrAcrossIface);
+                    cfg, iface_copy, cfg.dut.mac, sc);
             });
     }
 };
