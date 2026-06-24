@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "net/socket_backend.h"
+#include "testability/middleware.h"
 #include "tc8/testability_protocol.h"
 
 namespace tc8::testability {
@@ -129,7 +130,23 @@ public:
     // read-only while the server thread runs.
     void registerPrimitive(std::uint8_t gid, std::uint8_t pid, SpHandler handler);
 
+    // Register a stateful OEM service group (PRS_TPSP §6.6). Call before start():
+    // the module's onStart() runs at start() and onStop() at stop()/dtor on a
+    // dedicated executor; primitives for its owned GID(s) are marshaled there and
+    // the single Response awaited, so the module stays lock-free. Consulted
+    // before the built-in groups, after the registerPrimitive table.
+    void registerModule(std::unique_ptr<MiddlewareModule> module);
+
 private:
+    // Per-module executor + timer/task scheduler + MiddlewareContext impl. Hosts
+    // one MiddlewareModule on a dedicated thread (defined in the .cpp).
+    struct ModuleRuntime;
+
+    void startModules();              // launch each module's executor + onStart()
+    void stopModules();               // onStop() + join each executor
+    void broadcastStartTest();        // GENERAL START_TEST -> every module
+    void broadcastEndTest();          // GENERAL END_TEST -> every module
+
     void serverLoop();
     void dispatch(const Header &req, const std::uint8_t *dat, std::size_t dat_len,
                   const Endpoint &peer, std::uint8_t &rid_out,
@@ -205,6 +222,12 @@ private:
     std::uint16_t next_socket_id_ = 1;
 
     std::map<std::uint16_t, SpHandler> oem_handlers_;
+
+    // Stateful OEM groups: the runtimes own the modules + executors; the index
+    // routes a GID to its owning runtime (set at registerModule, read-only while
+    // serving). Declared last so they tear down (stopModules) before the sockets.
+    std::vector<std::unique_ptr<ModuleRuntime>> modules_;
+    std::map<std::uint8_t, ModuleRuntime *> gid_to_module_;
 };
 
 }  // namespace tc8::testability

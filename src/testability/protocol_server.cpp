@@ -1,6 +1,9 @@
 #include "testability/protocol_server.h"
 
+#include <condition_variable>
 #include <cstring>
+#include <deque>
+#include <future>
 #include <utility>
 
 #include "wire/icmp_echo.h"
@@ -45,6 +48,193 @@ Endpoint endpointFromWire(const std::uint8_t *addr_be4, std::uint16_t host_port)
 
 }  // namespace
 
+// Per-module executor (PRS_TPSP §6.6 stateful extension). A single thread runs
+// the module's onStart / onPrimitive / timers / posted tasks strictly one at a
+// time, so the module is single-threaded by construction and needs no internal
+// locking. It is the MiddlewareContext the module sees: backend access, timers,
+// Event emission, post. The server-thread entry points (startExecutor /
+// invokePrimitiveSync / startTest / endTest / stopExecutor) marshal onto this
+// thread and block, preserving the synchronous request/response of the
+// dispatch loop.
+struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
+    ModuleRuntime(ProtocolServer *server, std::unique_ptr<MiddlewareModule> module)
+        : server_(server), module_(std::move(module)), groups_(module_->groups()) {}
+
+    const std::vector<std::uint8_t> &ownedGroups() const { return groups_; }
+
+    // ── server-thread lifecycle ──
+
+    void startExecutor() {
+        running_ = true;  // visible to the new thread (thread creation synchronises)
+        exec_ = std::thread([this] { runLoop(); });
+        runOnExecutor([this] { module_->onStart(*this); });  // ready before serving
+    }
+
+    void stopExecutor() {
+        if (!exec_.joinable()) {
+            return;  // never started, or already stopped (idempotent)
+        }
+        runOnExecutor([this] {
+            module_->onStop();
+            std::lock_guard<std::mutex> lk(mu_);
+            timers_.clear();   // nothing fires after onStop
+            running_ = false;  // exit the loop after this task
+        });
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            cv_.notify_all();
+        }
+        exec_.join();
+    }
+
+    // Marshal a primitive onto the executor and block for its Response — keeps it
+    // serialized with the module's timers (run-to-completion) while preserving
+    // the synchronous request/response of PRS_TPSP §6.2. `dat` / `rid_out` /
+    // `resp_dat` stay valid because the caller blocks until the task completes.
+    void invokePrimitiveSync(const Header &req, const std::uint8_t *dat, std::size_t dat_len,
+                             const Endpoint &peer, std::uint8_t &rid_out,
+                             std::vector<std::uint8_t> &resp_dat) {
+        runOnExecutor([&] {
+            requester_ = peer;
+            service_id_ = req.service_id;
+            module_->onPrimitive(req, dat, dat_len, peer, rid_out, resp_dat);
+        });
+    }
+
+    void startTest() { runOnExecutor([this] { module_->onStartTest(); }); }
+    void endTest() { runOnExecutor([this] { module_->onEndTest(); }); }
+
+    // ── MiddlewareContext (invoked on the executor by module callbacks) ──
+
+    net::SocketBackend &backend() override { return *server_->backend_; }
+
+    TimerId scheduleEvery(std::chrono::milliseconds period, std::function<void()> fn) override {
+        return arm(period, std::move(fn), /*periodic=*/true);
+    }
+    TimerId scheduleOnce(std::chrono::milliseconds delay, std::function<void()> fn) override {
+        return arm(delay, std::move(fn), /*periodic=*/false);
+    }
+    void cancel(TimerId id) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        timers_.erase(static_cast<std::uint64_t>(id));
+    }
+    void emitEvent(std::uint8_t gid, std::uint8_t pid,
+                   const std::vector<std::uint8_t> &dat) override {
+        // To the requester of the module's most recent primitive (PRS_TPSP §6.2),
+        // serialised with the core's responses by ProtocolServer::emitEvent.
+        server_->emitEvent(service_id_, gid, pid, dat, requester_);
+    }
+    void post(std::function<void()> fn) override {
+        std::lock_guard<std::mutex> lk(mu_);
+        tasks_.push_back(std::move(fn));
+        cv_.notify_all();
+    }
+    std::chrono::steady_clock::time_point now() const override {
+        return std::chrono::steady_clock::now();
+    }
+
+private:
+    struct Timer {
+        std::chrono::steady_clock::time_point next;
+        std::chrono::milliseconds period;
+        std::function<void()> fn;
+        bool periodic;
+    };
+
+    TimerId arm(std::chrono::milliseconds period, std::function<void()> fn, bool periodic) {
+        std::lock_guard<std::mutex> lk(mu_);
+        const std::uint64_t id = next_timer_id_++;
+        timers_[id] = Timer{std::chrono::steady_clock::now() + period, period, std::move(fn),
+                            periodic};
+        cv_.notify_all();
+        return static_cast<TimerId>(id);
+    }
+
+    // Enqueue `fn` and block until the executor runs it (the server-thread entry
+    // points). Inline when already on the executor so a module callback that
+    // re-enters cannot self-deadlock.
+    void runOnExecutor(const std::function<void()> &fn) {
+        if (std::this_thread::get_id() == exec_.get_id()) {
+            fn();
+            return;
+        }
+        std::promise<void> done;
+        std::future<void> fut = done.get_future();
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            tasks_.push_back([&] {
+                fn();
+                done.set_value();
+            });
+            cv_.notify_all();
+        }
+        fut.wait();
+    }
+
+    void runLoop() {
+        std::unique_lock<std::mutex> lk(mu_);
+        while (running_) {
+            if (!tasks_.empty()) {  // tasks (posted work / marshaled calls) first, FIFO
+                std::function<void()> t = std::move(tasks_.front());
+                tasks_.pop_front();
+                lk.unlock();
+                t();
+                lk.lock();
+                continue;
+            }
+            const auto now = std::chrono::steady_clock::now();
+            bool have_due = false;
+            std::uint64_t due_id = 0;
+            std::chrono::steady_clock::time_point earliest = now + std::chrono::hours(1);
+            for (const auto &kv : timers_) {
+                if (kv.second.next <= now) {
+                    due_id = kv.first;
+                    have_due = true;
+                    break;
+                }
+                if (kv.second.next < earliest) {
+                    earliest = kv.second.next;
+                }
+            }
+            if (have_due) {
+                const auto it = timers_.find(due_id);
+                std::function<void()> fn = it->second.fn;  // copy: a periodic timer re-fires
+                if (it->second.periodic) {
+                    it->second.next = now + it->second.period;
+                } else {
+                    timers_.erase(it);
+                }
+                lk.unlock();
+                fn();
+                lk.lock();
+                continue;
+            }
+            if (timers_.empty()) {
+                cv_.wait(lk);
+            } else {
+                cv_.wait_until(lk, earliest);
+            }
+        }
+    }
+
+    ProtocolServer *server_;
+    std::unique_ptr<MiddlewareModule> module_;
+    std::vector<std::uint8_t> groups_;
+    std::thread exec_;
+
+    std::mutex mu_;
+    std::condition_variable cv_;
+    bool running_ = false;
+    std::deque<std::function<void()>> tasks_;
+    std::map<std::uint64_t, Timer> timers_;
+    std::uint64_t next_timer_id_ = 1;
+
+    // The requester of the module's most recent primitive — emitEvent's target
+    // (PRS_TPSP §6.2). Touched only on the executor thread.
+    Endpoint requester_{};
+    std::uint16_t service_id_ = kDefaultServiceId;
+};
+
 ProtocolServer::ProtocolServer(std::unique_ptr<SocketBackend> backend)
     : backend_(std::move(backend)) {}
 
@@ -65,6 +255,7 @@ bool ProtocolServer::start(std::uint16_t port) {
         fd_ = -1;
         return false;
     }
+    startModules();  // each module ready (onStart) before the first request
     thread_ = std::thread([this] { serverLoop(); });
     return true;
 }
@@ -75,6 +266,7 @@ void ProtocolServer::stop() {
         thread_.join();
     }
     joinEventThreads();
+    stopModules();  // onStop() + join executors while the control socket is open
     if (fd_ >= 0) {
         backend_->closeFd(fd_);
         fd_ = -1;
@@ -84,6 +276,38 @@ void ProtocolServer::stop() {
 
 void ProtocolServer::registerPrimitive(std::uint8_t gid, std::uint8_t pid, SpHandler handler) {
     oem_handlers_[methodId(gid, pid)] = std::move(handler);
+}
+
+void ProtocolServer::registerModule(std::unique_ptr<MiddlewareModule> module) {
+    auto rt = std::make_unique<ModuleRuntime>(this, std::move(module));
+    for (const std::uint8_t gid : rt->ownedGroups()) {
+        gid_to_module_[gid] = rt.get();
+    }
+    modules_.push_back(std::move(rt));
+}
+
+void ProtocolServer::startModules() {
+    for (const auto &rt : modules_) {
+        rt->startExecutor();
+    }
+}
+
+void ProtocolServer::stopModules() {
+    for (const auto &rt : modules_) {
+        rt->stopExecutor();
+    }
+}
+
+void ProtocolServer::broadcastStartTest() {
+    for (const auto &rt : modules_) {
+        rt->startTest();
+    }
+}
+
+void ProtocolServer::broadcastEndTest() {
+    for (const auto &rt : modules_) {
+        rt->endTest();
+    }
 }
 
 void ProtocolServer::serverLoop() {
@@ -133,6 +357,14 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
         return;
     }
 
+    // PRS_TPSP §6.6 stateful extension: a module owns a whole GID. Marshaled to
+    // the module's executor and awaited, after the registerPrimitive table and
+    // before the built-in groups.
+    if (const auto mit = gid_to_module_.find(gid); mit != gid_to_module_.end()) {
+        mit->second->invokePrimitiveSync(req, dat, dat_len, peer, rid_out, resp_dat);
+        return;
+    }
+
     if (gid == kGidGeneral) {
         switch (pid) {
             case kPidGetVersion:
@@ -142,6 +374,7 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
                 rid_out = kRidEOk;
                 return;
             case kPidStartTest:
+                broadcastStartTest();  // PRS_TPSP §6.10.1 trace boundary -> modules
                 rid_out = kRidEOk;
                 return;
             case kPidEndTest:
@@ -149,6 +382,7 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
                 joinEventThreads();
                 reset_events_ = false;
                 closeAllSockets();
+                broadcastEndTest();  // modules return to their inactive state
                 rid_out = kRidEOk;
                 return;
             default:

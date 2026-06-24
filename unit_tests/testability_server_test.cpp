@@ -20,6 +20,7 @@
 #include "sce_integration/dut_control.h"
 #include "stimulus/testability_client.h"
 #include "tc8/testability_protocol.h"
+#include "testability/middleware.h"
 #include "testability/protocol_server.h"
 
 // Server-side integration: drive the real DUT-side TestabilityServer (which is
@@ -1502,6 +1503,176 @@ TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
     EXPECT_EQ(v->major, 9u);  // the vendor override, not kVersionMajor
     EXPECT_EQ(v->minor, 9u);
     EXPECT_EQ(v->patch, 9u);
+}
+
+// ── Stateful middleware seam (registerModule, PRS_TPSP §6.6) ──
+//
+// A synthetic module owning an OEM-reserved GID (non-standard groups count down
+// from 0x7F) exercises the registerModule path: a routed/echoed primitive, an
+// unknown PID, a periodic timer advancing state on the module executor, END_TEST
+// reset, and an asynchronous Event from a one-shot timer.
+
+constexpr std::uint8_t kDemoGid = 0x7F;
+constexpr std::uint8_t kDemoPidEcho = 0x01;
+constexpr std::uint8_t kDemoPidArmTick = 0x02;
+constexpr std::uint8_t kDemoPidReadCount = 0x03;
+constexpr std::uint8_t kDemoPidArmEvent = 0x04;
+
+class DemoModule : public testability::MiddlewareModule {
+public:
+    std::vector<std::uint8_t> groups() const override { return {kDemoGid}; }
+    void onStart(testability::MiddlewareContext &ctx) override { ctx_ = &ctx; }
+    void onStop() override {}
+    void onEndTest() override {
+        if (static_cast<std::uint64_t>(tick_timer_) != 0) {
+            ctx_->cancel(tick_timer_);
+            tick_timer_ = testability::TimerId{};
+        }
+        tick_count_ = 0;  // executor thread — single-threaded, no lock
+    }
+    void onPrimitive(const tp::Header &req, const std::uint8_t *dat, std::size_t dat_len,
+                     const tc8::net::Endpoint &, std::uint8_t &rid,
+                     std::vector<std::uint8_t> &resp) override {
+        switch (tp::pidOf(req.method_id)) {
+            case kDemoPidEcho:
+                resp.assign(dat, dat + dat_len);
+                rid = tp::kRidEOk;
+                return;
+            case kDemoPidArmTick:
+                tick_timer_ = ctx_->scheduleEvery(std::chrono::milliseconds(5),
+                                                  [this] { ++tick_count_; });
+                rid = tp::kRidEOk;
+                return;
+            case kDemoPidReadCount:
+                tp::appendU16(resp, static_cast<std::uint16_t>(tick_count_));
+                rid = tp::kRidEOk;
+                return;
+            case kDemoPidArmEvent:
+                ctx_->scheduleOnce(std::chrono::milliseconds(5), [this] {
+                    const std::vector<std::uint8_t> ev = {0xAB, 0xCD};
+                    ctx_->emitEvent(kDemoGid, kDemoPidArmEvent, ev);
+                });
+                rid = tp::kRidEOk;
+                return;
+            default:
+                rid = tp::kRidENtf;
+                return;
+        }
+    }
+
+private:
+    testability::MiddlewareContext *ctx_ = nullptr;
+    testability::TimerId tick_timer_{};
+    std::uint32_t tick_count_ = 0;
+};
+
+stimulus::TestabilityConfig loopbackOn(std::uint16_t port) {
+    stimulus::TestabilityConfig cfg;
+    cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
+    cfg.dut_port = port;
+    return cfg;
+}
+
+TEST(MiddlewareSeam, ModulePrimitiveRoutesEchoesAndUnknownPidIsNotFound) {
+    constexpr std::uint16_t kPort = 39901;
+    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    server.registerModule(std::make_unique<DemoModule>());
+    ASSERT_TRUE(server.start(kPort));
+    const auto cfg = loopbackOn(kPort);
+
+    const std::vector<std::uint8_t> body = {0x11, 0x22, 0x33};
+    const auto echo = stimulus::testabilityCall(cfg, kDemoGid, kDemoPidEcho, body);
+    EXPECT_TRUE(echo.eok());
+    EXPECT_EQ(echo.dat, body);
+
+    const auto unknown = stimulus::testabilityCall(cfg, kDemoGid, 0xFE, {});
+    EXPECT_TRUE(unknown.ok);
+    EXPECT_EQ(unknown.rid, tp::kRidENtf);
+
+    server.stop();
+}
+
+TEST(MiddlewareSeam, TimerAdvancesStateAndEndTestResetsIt) {
+    constexpr std::uint16_t kPort = 39902;
+    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    server.registerModule(std::make_unique<DemoModule>());
+    ASSERT_TRUE(server.start(kPort));
+    const auto cfg = loopbackOn(kPort);
+
+    auto readCount = [&]() -> int {
+        const auto r = stimulus::testabilityCall(cfg, kDemoGid, kDemoPidReadCount, {});
+        EXPECT_TRUE(r.eok());
+        EXPECT_EQ(r.dat.size(), 2u);
+        return r.dat.size() == 2u ? ((r.dat[0] << 8) | r.dat[1]) : -1;
+    };
+
+    EXPECT_TRUE(stimulus::testabilityCall(cfg, kDemoGid, kDemoPidArmTick, {}).eok());
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    EXPECT_GT(readCount(), 0);  // periodic timer advanced the counter on the executor
+
+    EXPECT_TRUE(stimulus::testabilityEndTest(cfg, /*tc_id=*/1, "demo").eok());
+    EXPECT_EQ(readCount(), 0);  // END_TEST cancelled the timer + cleared the count
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(readCount(), 0);  // and it stays cancelled
+
+    server.stop();
+}
+
+TEST(MiddlewareSeam, ModuleEmitsAsyncEventToRequester) {
+    constexpr std::uint16_t kPort = 39903;
+    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    server.registerModule(std::make_unique<DemoModule>());
+    ASSERT_TRUE(server.start(kPort));
+
+    // A persistent UDP socket as the test system so the async Event (sent to the
+    // arm primitive's requester) reaches us — testabilityCall closes its socket
+    // after the Response.
+    const int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(s, 0);
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    la.sin_port = 0;
+    ASSERT_EQ(::bind(s, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    timeval tv{};
+    tv.tv_sec = 1;
+    ::setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    sockaddr_in dst{};
+    dst.sin_family = AF_INET;
+    dst.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    dst.sin_port = ::htons(kPort);
+
+    tp::Header h;
+    h.method_id = tp::methodId(kDemoGid, kDemoPidArmEvent);
+    h.tid = tp::kTidRequest;
+    const auto req = tp::buildMessage(h, nullptr, 0);
+    ASSERT_GT(::sendto(s, req.data(), req.size(), 0, reinterpret_cast<sockaddr *>(&dst),
+                       sizeof(dst)),
+              0);
+
+    std::uint8_t buf[64];
+    const int rn = ::recv(s, buf, sizeof(buf), 0);  // synchronous Response
+    ASSERT_GE(rn, static_cast<int>(tp::kHeaderSize));
+    const auto resp = tp::parseHeader(buf, static_cast<std::size_t>(rn));
+    ASSERT_TRUE(resp.has_value());
+    EXPECT_EQ(resp->tid, tp::kTidResponse);
+    EXPECT_EQ(resp->rid, tp::kRidEOk);
+
+    const int en = ::recv(s, buf, sizeof(buf), 0);  // async Event (~5 ms later)
+    ASSERT_GE(en, static_cast<int>(tp::kHeaderSize));
+    const auto ev = tp::parseHeader(buf, static_cast<std::size_t>(en));
+    ASSERT_TRUE(ev.has_value());
+    EXPECT_EQ(ev->tid, tp::kTidEvent);
+    EXPECT_TRUE(tp::isEvent(ev->method_id));
+    EXPECT_EQ(tp::gidOf(ev->method_id), kDemoGid);
+    EXPECT_EQ(tp::pidOf(ev->method_id), kDemoPidArmEvent);
+    ASSERT_EQ(static_cast<std::size_t>(en) - tp::kHeaderSize, 2u);
+    EXPECT_EQ(buf[tp::kHeaderSize], 0xABu);
+    EXPECT_EQ(buf[tp::kHeaderSize + 1], 0xCDu);
+
+    ::close(s);
+    server.stop();
 }
 
 }  // namespace
