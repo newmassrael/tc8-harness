@@ -3542,6 +3542,14 @@
         {
           "file": "tests/dhcpv4_client_request_12_neg/dhcpv4_client_request_12_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_reacquisition_03_neg/dhcpv4_client_reacquisition_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/dhcpv4_client_reacquisition_04_neg/dhcpv4_client_reacquisition_04_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

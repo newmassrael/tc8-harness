@@ -1313,24 +1313,6 @@
         }
       ]
     },
-    "DHCPv4_CLIENT_REACQUISITION_03": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_renewing_request_t1_interval_out_of_bounds",
-          "property": "DUT's RENEWING DHCPREQUEST must be sent within the T1 interval bounds (RFC 2131 §4.4.5); fail iff out of bounds"
-        }
-      ]
-    },
-    "DHCPv4_CLIENT_REACQUISITION_04": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "dut_rebinding_request_t2_interval_out_of_bounds",
-          "property": "DUT's REBINDING DHCPREQUEST must be sent within the T2 interval bounds (RFC 2131 §4.4.5); fail iff out of bounds"
-        }
-      ]
-    },
     "DHCPv4_CLIENT_REACQUISITION_05": {
       "guards": [
         {

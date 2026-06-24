@@ -942,7 +942,9 @@ bool Dhcpv4Client::pollForReply(int                        sk,
             case Dhcpv4BehaviorFlavor::RetxNoBackoff:
             case Dhcpv4BehaviorFlavor::RetxExceedCap:
             case Dhcpv4BehaviorFlavor::NakRestartNoDelay:
-                break;  // not a reply-acceptance mutant (Retx*/NakRestart* fault runLoop timing)
+            case Dhcpv4BehaviorFlavor::RenewingEntryNoDelay:
+            case Dhcpv4BehaviorFlavor::RebindingEntryEarly:
+                break;  // not a reply-acceptance mutant (Retx*/NakRestart*/*Entry* fault runLoop/phase timing)
         }
     }
 
@@ -1377,10 +1379,31 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
 
     enum class Phase : std::uint8_t { Bound, Renewing, Rebinding };
 
-    auto bound_at  = clock::now();
-    auto t1        = bound_at + std::chrono::seconds(lease_seconds / 2U);
-    auto t2        = bound_at + std::chrono::seconds(lease_seconds * 7U / 8U);
-    auto lease_end = bound_at + std::chrono::seconds(lease_seconds);
+    // §4.7.6.8 REACQUISITION_03/_04_NEG phase-entry timing mutants. Each
+    // collapses one RFC 2131 §4.4.5 interval so the matching _neg's
+    // out-of-bounds guard fires; the conformant path (None) keeps the spec
+    // timing (the _neg fail_compliant branch). pollForReply's switch already
+    // forces every behavior flavor to declare a disposition.
+    const bool renewing_entry_no_delay =
+        (behavior_flavor_ == Dhcpv4BehaviorFlavor::RenewingEntryNoDelay);
+    const bool rebinding_entry_early =
+        (behavior_flavor_ == Dhcpv4BehaviorFlavor::RebindingEntryEarly);
+
+    // Arm the T1 / T2 / lease_end schedule from a BOUND instant (RFC 2131
+    // §4.4.5: T1 = lease/2, T2 = lease*7/8). Factored so the initial arming
+    // and the renewal-ACK re-arm share one source — and the timing mutants
+    // apply consistently to both.
+    clock::time_point t1{}, t2{}, lease_end{};
+    auto armPhaseTimers = [&](clock::time_point base) {
+        t1        = base + std::chrono::seconds(lease_seconds / 2U);
+        t2        = base + std::chrono::seconds(lease_seconds * 7U / 8U);
+        lease_end = base + std::chrono::seconds(lease_seconds);
+        // REACQUISITION_03_NEG: T1 onto BOUND — RENEWING REQUEST fires at once.
+        if (renewing_entry_no_delay) t1 = base;
+        // REACQUISITION_04_NEG: T2 onto T1 — REBINDING fires right after RENEWING.
+        if (rebinding_entry_early) t2 = t1;
+    };
+    armPhaseTimers(clock::now());
     Phase phase = Phase::Bound;
 
     // RFC 2131 §4.4.5 in-state retransmission scheduling:
@@ -1468,10 +1491,7 @@ bool Dhcpv4Client::runBoundPhaseMachine(int           sk,
             // extension on the existing binding.
             lease_seconds = reply_lease;
             if (reply_server != 0U) server_id_be = reply_server;
-            bound_at  = clock::now();
-            t1        = bound_at + std::chrono::seconds(lease_seconds / 2U);
-            t2        = bound_at + std::chrono::seconds(lease_seconds * 7U / 8U);
-            lease_end = bound_at + std::chrono::seconds(lease_seconds);
+            armPhaseTimers(clock::now());
             phase     = Phase::Bound;
             next_retx = clock::time_point::max();
         }

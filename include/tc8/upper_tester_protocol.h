@@ -1207,6 +1207,17 @@ inline constexpr std::uint8_t kDhcpFlavorRetxExceedCap                  = 0x1E;
 // interval collapses below the 1 s floor. The conformant path (None) honours
 // the window, which is the _neg's fail_compliant outcome.
 inline constexpr std::uint8_t kDhcpFlavorNakRestartNoDelay              = 0x1F;
+// §4.7.6.8 REACQUISITION_03: behavioural timing mutant — RFC 2131 §4.4.5 puts
+// the RENEWING DHCPREQUEST at T1 = lease/2; runBoundPhaseMachine collapses T1
+// onto BOUND so it fires at once and the last-ACK->RENEWING interval falls
+// below T1 - ParamToleranceTime. The conformant path (None) keeps T1.
+inline constexpr std::uint8_t kDhcpFlavorRenewingEntryNoDelay           = 0x20;
+// §4.7.6.8 REACQUISITION_04: behavioural timing mutant — RFC 2131 §4.4.5 puts
+// the REBINDING DHCPREQUEST at T2 = lease*7/8; runBoundPhaseMachine collapses
+// T2 onto T1 so it fires right after RENEWING and the last-ACK->REBINDING
+// interval falls below T2 - ParamToleranceTime. The conformant path (None)
+// keeps T2.
+inline constexpr std::uint8_t kDhcpFlavorRebindingEntryEarly           = 0x21;
 
 // `OpConditionArpCache` action byte. Each value renders one TC8
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step

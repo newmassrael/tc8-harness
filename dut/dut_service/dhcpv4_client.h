@@ -116,6 +116,11 @@ enum class Dhcpv4BehaviorFlavor : std::uint8_t {
     // SHOULD random desync wait between a DHCPNAK and the restart DHCPDISCOVER,
     // so the NAK->DISCOVER interval collapses below the [1, 11] s window.
     NakRestartNoDelay        = ::tc8::ut::kDhcpFlavorNakRestartNoDelay,
+    // §4.7.6.8 REACQUISITION_03/_04: runBoundPhaseMachine collapses a phase-
+    // entry timer (T1 onto BOUND / T2 onto T1) so the RENEWING / REBINDING
+    // REQUEST fires below its RFC 2131 §4.4.5 interval bound.
+    RenewingEntryNoDelay     = ::tc8::ut::kDhcpFlavorRenewingEntryNoDelay,
+    RebindingEntryEarly      = ::tc8::ut::kDhcpFlavorRebindingEntryEarly,
 };
 
 // TC8 §4.7 DHCPv4 client lifecycle state machine, tc8-dut side.
