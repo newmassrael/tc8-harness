@@ -327,15 +327,23 @@ else
     CASES=("$@")
 fi
 
-# §4.7.6.5 USAGE_01 detection — the only case that needs the second veth
-# pair (DIface-1 / TIface-1) per Topology 2. Workers bring up the pair
-# only when the caller's case list includes USAGE_01, so 51 §4.7 + INTRO_01
-# and other-section runs stay on today's single-pair netns shape with zero
-# overhead. SECOND_VETH=1 is sticky for the whole script invocation, not
-# per-case, because workers bring up netns once at startup (not per-case).
+# Cases that need a second tester veth pair (DIface-1 / TIface-1) per TC8
+# Topology 2 — DATA-DRIVEN from the requires_secondary_iface inventory axis
+# (docs/spec/inventory_overrides.json, surfaced via --only-secondary-iface),
+# NOT a hardcoded case-ID list, so a new Topology-2 case is picked up with no
+# smoke-test edit. Computed once here (before the worker fan-out) so every
+# worker `&` subshell inherits it; space-padded for whole-token membership.
+SECONDARY_IFACE_CASES=" $("$HARNESS" test --list-cases --only-secondary-iface 2>/dev/null \
+    | awk '/^  [A-Z]/{print $1}' | tr '\n' ' ')"
+case_needs_secondary_iface() { [[ "$SECONDARY_IFACE_CASES" == *" $1 "* ]]; }
+
+# Workers bring the pair up only when the caller's case list includes a
+# secondary-iface case, so other-section runs stay on today's single-pair netns
+# shape with zero overhead. SECOND_VETH=1 is sticky for the whole invocation
+# (workers bring up netns once at startup, not per-case).
 NEED_SECOND_VETH=0
 for _case in "${CASES[@]}"; do
-    if [[ "$_case" == "DHCPv4_CLIENT_USAGE_01" || "$_case" == "DHCPv4_CLIENT_USAGE_01_NEG" ]]; then
+    if case_needs_secondary_iface "$_case"; then
         NEED_SECOND_VETH=1
         break
     fi
@@ -1501,14 +1509,14 @@ run_case() {
             ;;
     esac
 
-    # §4.7.6.5 USAGE_01 / Topology 2 multi-iface: harness opens a
-    # second `PcapSource` on TIface-1 so DUT-emitted DISCOVERs from
-    # DIface-1 reach the same pipeline as DIface-0's. Stimulus
-    # injection still uses the primary iface (UT server listens
-    # INADDR_ANY → dispatches by iface_index byte). A topology without
-    # a second tester interface cannot execute the case at all —
-    # explicit SKIP, never a misleading timeout FAIL.
-    if [[ "$case_id" == "DHCPv4_CLIENT_USAGE_01" || "$case_id" == "DHCPv4_CLIENT_USAGE_01_NEG" ]]; then
+    # TC8 Topology 2 multi-iface (e.g. USAGE_01): harness opens a second
+    # `PcapSource` on TIface-1 so DUT-emitted DISCOVERs from DIface-1 reach the
+    # same pipeline as DIface-0's. Stimulus injection still uses the primary
+    # iface (UT server listens INADDR_ANY → dispatches by iface_index byte). A
+    # topology without a second tester interface cannot execute the case at all
+    # — explicit SKIP, never a misleading timeout FAIL. Membership is
+    # data-driven (requires_secondary_iface inventory axis), not a case-ID list.
+    if case_needs_secondary_iface "$case_id"; then
         local sec_iface
         sec_iface=$(topology_tester_iface_secondary "$W")
         if [[ -z "$sec_iface" ]]; then

@@ -436,6 +436,8 @@ std::optional<SpecInventory> SpecInventory::load(
                 findBoolField(body, "timing_serial", false);
             std::string timing_serial_ref =
                 findStringField(body, "timing_serial_ref");
+            const bool requires_secondary_iface =
+                findBoolField(body, "requires_secondary_iface", false);
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
@@ -444,6 +446,7 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.platform_known_fail_ref = std::move(platform_known_fail_ref);
                     sc.timing_serial = timing_serial;
                     sc.timing_serial_ref = std::move(timing_serial_ref);
+                    sc.requires_secondary_iface = requires_secondary_iface;
                     break;
                 }
             }

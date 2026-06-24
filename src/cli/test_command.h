@@ -67,6 +67,11 @@ private:
     // exclusive in use; combinable with the other axes' filters.
     bool exclude_serial_ = false;
     bool only_serial_ = false;
+    // `--only-secondary-iface`: keep only cases marked requires_secondary_iface
+    // (TC8 Topology 2 dual-iface). The smoke harness lists these to decide which
+    // need a second tester veth + `--interface-secondary` — data-driven, not by
+    // hardcoded case-ID.
+    bool only_secondary_iface_ = false;
     std::string inventory_path_;
     std::string overrides_path_;
     // `--inventory-extra` (repeatable) — D5 out-of-tree injection hook.

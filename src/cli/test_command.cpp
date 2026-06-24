@@ -101,6 +101,11 @@ TestCommand::TestCommand(CLI::App &app) {
                    "timing_serial:true — CI runs these at --workers 1 so a "
                    "CPU-starved DUT does not skew the timing window.")
         ->excludes(exclude_serial_flag);
+    sub_->add_flag("--only-secondary-iface", only_secondary_iface_,
+                   "With --list-cases (no --vs-spec), keep ONLY cases marked "
+                   "requires_secondary_iface:true (TC8 Topology 2 dual-iface). "
+                   "The smoke harness lists these to bring up a second tester "
+                   "veth + pass --interface-secondary data-drivenly.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: docs/spec/case_inventory.json)");
@@ -167,7 +172,8 @@ int TestCommand::runListCases() const {
     // section copy (it would drift; cf. case_registry.h, where `category`
     // is likewise derived, not stored).
     const bool need_filter =
-        exclude_deferred_ || exclude_platform_known_fail_ || exclude_serial_ || only_serial_;
+        exclude_deferred_ || exclude_platform_known_fail_ || exclude_serial_ ||
+        only_serial_ || only_secondary_iface_;
     const std::string inv_path = inventory_path_.empty()
         ? std::string("docs/spec/case_inventory.json")
         : inventory_path_;
@@ -203,6 +209,14 @@ int TestCommand::runListCases() const {
                 continue;
             }
             if (exclude_serial_ && serial) {
+                continue;
+            }
+            // requires_secondary_iface defaults false; --only-secondary-iface
+            // keeps only the dual-iface (Topology 2) cases the smoke harness
+            // must give a second tester veth.
+            const bool secondary_iface =
+                (sc != nullptr) && sc->requires_secondary_iface;
+            if (only_secondary_iface_ && !secondary_iface) {
                 continue;
             }
             if (sc != nullptr) {

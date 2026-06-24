@@ -3170,10 +3170,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/iface_enumeration.h",
           "kind": "implements"
         },

@@ -47,6 +47,14 @@ struct SpecCase {
     // away from the parallel lane via `--exclude-serial`.
     bool timing_serial = false;
     std::string timing_serial_ref;
+    // Fourth (independent) axis: `requires_secondary_iface:true` marks a case
+    // the smoke harness must execute with a second tester interface (TC8
+    // Topology 2 dual-broadcast-domain, e.g. USAGE_01). It is a harness-wiring
+    // need, NOT the spec `kTopology` number (which is overloaded — UDP
+    // "Topology 2" is two source hosts on ONE iface). Surfaced via
+    // `--only-secondary-iface` so the smoke harness brings up the second veth
+    // and passes `--interface-secondary` data-drivenly rather than by case-ID.
+    bool requires_secondary_iface = false;
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json
