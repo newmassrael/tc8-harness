@@ -62,6 +62,11 @@ tc8_add_unit_test(bpf_filter_test)
 target_include_directories(bpf_filter_test PRIVATE ${PCAP_INCLUDE_DIR})
 target_link_libraries(bpf_filter_test PRIVATE ${PCAP_LIBRARY})
 tc8_add_unit_test(case_registry_test)
+# AES-CMAC engine: the RFC 4493 published vectors (the four example MACs plus the
+# key-length guard) pin FIPS-197 AES-128 and the CMAC construction. Pure byte
+# math, no I/O — links the tc8_crypto engine on top of the shared testable lib.
+tc8_add_unit_test(aes_cmac_test)
+target_link_libraries(aes_cmac_test PRIVATE tc8_crypto)
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)

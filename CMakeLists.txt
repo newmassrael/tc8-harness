@@ -125,6 +125,17 @@ add_library(tc8_wire STATIC
 target_include_directories(tc8_wire PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 tc8_enable_strict_warnings(tc8_wire)
 
+# Vendor-neutral AUTOSAR engines (src/autosar/) — the public mechanisms a
+# separate, private OEM UTM repo composes with its own config. First engine:
+# tc8::crypto AES-CMAC (FIPS-197 AES-128 + RFC 4493), the SecOC MAC primitive.
+# Pure byte math — no syscalls, no third-party deps, no OEM content (keys are
+# passed per call by the caller) — so it cross-compiles alongside tc8_wire.
+add_library(tc8_crypto STATIC
+    src/autosar/aes_cmac.cpp
+)
+target_include_directories(tc8_crypto PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+tc8_enable_strict_warnings(tc8_crypto)
+
 # Portability check: cross-compile the dependency-light core — the SCE
 # engine plus every wire builder / SOME/IP dissector where the
 # endianness- and bit-layout-sensitive code lives — without needing a
