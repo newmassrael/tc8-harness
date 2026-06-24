@@ -5388,6 +5388,38 @@
         {
           "file": "tests/tcp_mss_options_10_neg/tcp_mss_options_10_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_mss_options_06_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_mss_options_06_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_mss_options_09_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_mss_options_09_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_06_neg/tcp_mss_options_06_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_06_neg2/tcp_mss_options_06_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_09_neg/tcp_mss_options_09_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_09_neg2/tcp_mss_options_09_neg2.scxml",
+          "kind": "implements"
         }
       ]
     },

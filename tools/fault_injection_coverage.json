@@ -69,6 +69,14 @@
       "dut_emitted_rst_after_dup_fin_ack_in_closing": "TCP_FLAGS_PROCESSING_09_NEG",
       "dut_emitted_rst_after_dup_fin_ack_in_la": "TCP_FLAGS_PROCESSING_09_NEG2",
       "dut_state_changed_after_dup_fin_ack_in_cw": "TCP_FLAGS_PROCESSING_09_NEG3"
+    },
+    "TCP_MSS_OPTIONS_06": {
+      "phase1_segment_size_not_advertised_mss_200": "TCP_MSS_OPTIONS_06_NEG",
+      "phase2_segment_size_not_dut_mss_1460": "TCP_MSS_OPTIONS_06_NEG2"
+    },
+    "TCP_MSS_OPTIONS_09": {
+      "phase1_segment_size_not_advertised_mss_200": "TCP_MSS_OPTIONS_09_NEG",
+      "phase2_segment_size_not_dut_mss_1460": "TCP_MSS_OPTIONS_09_NEG2"
     }
   }
 }

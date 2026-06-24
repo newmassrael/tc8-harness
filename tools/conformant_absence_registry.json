@@ -2238,34 +2238,6 @@
         }
       ]
     },
-    "TCP_MSS_OPTIONS_06": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "phase1_segment_size_not_advertised_mss_200",
-          "property": "DUT's phase-1 data segment must not exceed the advertised MSS of 200; fail iff larger"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "phase2_segment_size_not_dut_mss_1460",
-          "property": "DUT's phase-2 data segment must respect its own 1460 MSS; fail iff larger"
-        }
-      ]
-    },
-    "TCP_MSS_OPTIONS_09": {
-      "guards": [
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "phase1_segment_size_not_advertised_mss_200",
-          "property": "DUT's phase-1 data segment must not exceed the advertised MSS of 200; fail iff larger"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "phase2_segment_size_not_dut_mss_1460",
-          "property": "DUT's phase-2 data segment must respect its own 1460 MSS; fail iff larger"
-        }
-      ]
-    },
     "TCP_NAGLE_02": {
       "guards": [
         {

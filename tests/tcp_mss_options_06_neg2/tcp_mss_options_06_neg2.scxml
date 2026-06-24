@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_06 negative (phase 2) — lwIP TCP egress field-fault
+  self-validation of the positive _06 DUT-MSS clamp. With an advertised MSS of 2000 (> the
+  DUT MSS), a conformant DUT clamps the SEND segment to the 1460 B DUT MSS (RFC 1122
+  §4.2.2.6); the positive's phase-2 fail-final fires iff the first DUT data segment is not
+  1460 B. This negative arms kTcpFaultDataSegTruncate so the lwIP link-output hook shrinks
+  the DUT data segment's IP total_length — libtins re-slices the dissected payload to 64 B —
+  and passes only when that wrong-size (!= 1460) segment is observed. lwIP-only
+  (kCapEgressFault). Twin of tcp_mss_options_06_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_06_neg2"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06b, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort06b) and captured.payload_len != 1460U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpMssOptionsListenPort06b, ::tc8::sce::tcp::kTcpMssOptionsTesterSrcPort06b) and captured.payload_len == 1460U"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_segment_size_correct_despite_truncate_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_data_segment_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

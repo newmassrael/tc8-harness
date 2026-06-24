@@ -6,4 +6,4 @@
 # run `--write-floor`). Monotonic: --write-floor only raises, never lowers, so a
 # regression on one DUT cannot be masked by a gain on the other.
 tc8_dut 68
-lwip 106
+lwip 108

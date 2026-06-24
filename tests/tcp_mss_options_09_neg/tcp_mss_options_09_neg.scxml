@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_09 negative (phase 1) — lwIP TCP egress field-fault
+  self-validation of the positive _09 SYN,ACK-advertised-MSS clamp. With a SYN,ACK MSS of
+  200 (< the DUT MSS), a conformant DUT (active open) segments a SEND at 200 B (RFC 1122
+  §4.2.2.5); the positive's phase-1 fail-final fires iff the first DUT data segment is not
+  200 B. This negative arms kTcpFaultDataSegTruncate so the lwIP link-output hook shrinks the
+  DUT data segment's IP total_length — libtins re-slices the dissected payload to 64 B — and
+  passes only when that wrong-size (!= 200) segment is observed. lwIP-only (kCapEgressFault).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_09_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset)) and captured.payload_len != 200U"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_data_segment(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions09Phase1LocalOffset)) and captured.payload_len == 200U"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_segment_size_correct_despite_truncate_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_data_segment_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>
