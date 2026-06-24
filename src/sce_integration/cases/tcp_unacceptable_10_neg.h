@@ -89,7 +89,7 @@ struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
         unacc.payload  = std::vector<std::uint8_t>{0xCAU, 0xFEU, 0xBAU, 0xBEU};
         emitTcpFrame(cfg, iface, cfg.dut.mac, unacc, /*initial_wait=*/kFlavorArmSettle);
 
-        std::this_thread::sleep_for(kSynthRstObserveHold);
+        std::this_thread::sleep_for(kSynthObserveHold);
         silentlyCloseTesterFd(tester_fd);
     }
 };

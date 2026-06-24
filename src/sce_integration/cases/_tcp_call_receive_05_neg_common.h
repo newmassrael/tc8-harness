@@ -70,7 +70,7 @@ inline void driveCwAndArm(::tc8::sce::IDutControl& dut,
     emitTcpFrame(cfg, iface, cfg.dut.mac, fin_data,
                  /*initial_wait=*/std::chrono::milliseconds(0));
 
-    std::this_thread::sleep_for(kSynthRstObserveHold);
+    std::this_thread::sleep_for(kSynthObserveHold);
 
     // Silent tester disposal — no tester FIN/RST that could itself confuse the observation.
     silentlyCloseTesterFd(tester_fd);

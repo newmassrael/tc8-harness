@@ -74,7 +74,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07Neg2SM>
             urg.ack_num  = 0U;
             urg.flags    = ::tc8::stimulus::kTcpFlagUrg;
             emitTcpFrame(cfg, iface, cfg.dut.mac, urg, /*initial_wait=*/kFlavorArmSettle);
-            std::this_thread::sleep_for(kSynthRstObserveHold);
+            std::this_thread::sleep_for(kSynthObserveHold);
         }
         silentlyCloseTesterFd(tester_fd);
     }

@@ -82,7 +82,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02NegSM>
             rst.ack_num  = 0U;
             rst.flags    = ::tc8::stimulus::kTcpFlagRst;
             emitTcpFrame(cfg, iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
-            std::this_thread::sleep_for(kSynthRstObserveHold);
+            std::this_thread::sleep_for(kSynthObserveHold);
         }
     }
 };

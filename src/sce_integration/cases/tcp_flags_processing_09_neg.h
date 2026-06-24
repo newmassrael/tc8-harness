@@ -80,7 +80,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing09NegSM>
             dup.ack_num  = info.tester_ack_post_fin - 1U;
             dup.flags    = ::tc8::stimulus::kTcpFlagFin | ::tc8::stimulus::kTcpFlagAck;
             emitTcpFrame(cfg, iface, cfg.dut.mac, dup, /*initial_wait=*/kFlavorArmSettle);
-            std::this_thread::sleep_for(kSynthRstObserveHold);
+            std::this_thread::sleep_for(kSynthObserveHold);
         }
         silentlyCloseTesterFd(tester_fd);
     }

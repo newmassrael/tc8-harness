@@ -3768,10 +3768,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/cases/tcp_header_04.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/tcp_retransmission_to_06.h",
           "kind": "implements"
         },
@@ -3886,6 +3882,10 @@
         {
           "file": "src/sce_integration/cases/tcp_flags_processing_09_neg3.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_header_04_neg.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3975,10 +3975,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6 — auto-seeded TC8-internal sub-section (27 code citations at baseline).",
       "bindings": [
-        {
-          "file": "src/sce_integration/cases/tcp_header_04.h",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/tcp_captured.h",
           "kind": "implements"
@@ -4441,6 +4437,18 @@
         },
         {
           "file": "tests/tcp_header_11_neg/tcp_header_11_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/tcp_pilot_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_header_04_neg/tcp_header_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/cases/tcp_header_04_neg.h",
           "kind": "implements"
         }
       ]

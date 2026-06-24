@@ -83,7 +83,7 @@ struct TestCaseTraits<cases::TcpClosing08NegSM>
         data.payload.assign(kPayloadLen, 0x3CU);
         emitTcpFrame(cfg, iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
 
-        std::this_thread::sleep_for(kSynthRstObserveHold);
+        std::this_thread::sleep_for(kSynthObserveHold);
         (void)tester_fd;
     }
 };

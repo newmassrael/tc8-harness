@@ -190,6 +190,17 @@ inline constexpr std::uint32_t kOutOfWindowSeqOffset = 0x1000000U;
 // RFC 793 §3.4 unacceptable-ACK RST path.
 inline constexpr std::uint32_t kUnacceptableAckOffset = 0x10000000U;
 
+// §4.8.6.16 TCP_HEADER_04 raw-inject "wrong" tester SOURCE port (PORT2). The case drives an
+// EST connection on (kBasicsActiveLocalPort + kTcpHeader04LocalOffset, kBasicsActiveRemotePort
+// + kTcpHeader04LocalOffset), then raw-injects an in-window data segment FROM this source port
+// — deliberately the REMOTE base + 132, ~100 above the §4.8.6 HEADER cluster's +30..+38
+// active-OPEN block, so it matches no connection and a conformant DUT drops it per the
+// RFC 793 §3.1 / §3.9 4-tuple demux. The +132 numerically aliases kTcpNagle02LocalOffset = 132
+// on the LOCAL axis only (different base, no actual port collision). One SSOT definition, shared
+// by the positive and its _NEG (which only arms the source-port-blind fault flavor) — a different
+// axis from the shared 4-tuple offset in tcp_active_open_offsets.def, so it lives here, not there.
+inline constexpr std::uint16_t kTcpHeader04WrongRemotePort = kBasicsActiveRemotePort + 132U;
+
 // §4.8.6.9 TCP_MSS_OPTIONS raw-passive-handshake reservation block.
 // One DUT-side listen port + one tester source port per case so a
 // case's TIME-WAIT residue (Linux's hardcoded 60 s timer) on a worker

@@ -17,7 +17,9 @@
 //     multicast segment the DUT must drop / HEADER_07/08/09/11, or a RST in response to a
 //     disruptive segment the DUT must answer with silence — the §4.8 must-not-respond family
 //     spanning SYN-SENT / EST / the close-states, FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08,
-//     CLOSING_07/08/09), swapped from the inbound trigger.
+//     CLOSING_07/08/09), swapped from the inbound trigger — or, for a source-port-blind demux
+//     (HEADER_04), a pure ACK on the established 4-tuple recovered from an active-pcb walk, since
+//     the wrong-source-port trigger does not carry the connection's real remote port to swap.
 //   * §4.8.6.6 TCP must-move-to-CLOSED — DROP the inbound RST so the buggy DUT never
 //     leaves SYN-SENT and keeps retransmitting its SYN (FLAGS_INVALID_05); the absence
 //     of the required CLOSED transition, not a forbidden emission.
@@ -35,7 +37,12 @@
 #include "lwip/etharp.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
+#include "lwip/tcp.h"
 #include "lwip/tcpip.h"
+// tcp_active_pcbs (the ESTABLISHED-pcb list the source-port-blind synth walks) and the
+// full tcp_pcb / enum tcp_state definitions live in this private header. Its extern "C"
+// block covers every declaration, so no wrapper (matches lwip_stack_probe.cpp).
+#include "lwip/priv/tcp_priv.h"
 
 #include "tc8/upper_tester_protocol.h"
 #include "wire/ip_checksum.h"
@@ -130,22 +137,17 @@ void emitProhibitedIcmpReply(struct netif *nif, const std::uint8_t *rx,
     pbuf_free(p);
 }
 
-// kTcpSynth*: a buggy DUT emitting a forbidden TCP response to a segment it must silently
-// accept or drop — a RST on a pure ACK in ESTABLISHED (kTcpSynthRst, §4.8.6.18
-// ACKNOWLEDGEMENT_04 + §4.8.6.7 FLAGS_PROCESSING_11), a challenge ACK on a malformed/multicast
-// segment (kTcpSynthAck, §4.8.6.16 HEADER_07/08/09/11), or a RST on a disruptive segment the
-// DUT must answer with silence (kTcpSynthRstOnDisruptive, the §4.8 must-not-respond family —
-// FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08, CLOSING_07/08/09).
-// `rx` points at the inbound trigger; the synthesized segment
-// carries `tcp_flags` on the connection's 4-tuple, derived by swapping the trigger's source
-// for the destination — except the source IP, which is the DUT's own netif address so a
-// multicast-destination trigger (HEADER_11) still yields a DUT-sourced reply. The case guards
-// (is_dut_rst / is_pure_dut_ack) check only that 4-tuple + the flag, never seq/ack, so those
-// stay 0 (a real segment's seq is connection-state-derived, which this stateless hook does not
-// track). Both checksums use the shared tc8::wire SSOT (IPv4 header via inetChecksum, TCP via
-// tcpChecksum's pseudo-header fold) so the frame is valid at every layer. Sent via
-// nif->linkoutput like the ARP/ICMP synthesis.
-void emitProhibitedTcpSegment(struct netif *nif, const std::uint8_t *rx, std::uint8_t tcp_flags) {
+// emitTcpReply: build + emit a 20-byte TCP segment (no options, no payload) on an explicit
+// (src_port, dst_port) 4-tuple, addressed back to the inbound trigger's sender with the DUT's
+// own source identity — the source IP is the DUT's own netif address so a multicast-destination
+// trigger (HEADER_11) still yields a DUT-sourced reply. seq/ack stay 0: the §4.8 guards
+// (is_dut_rst / is_pure_dut_ack) read only the 4-tuple + flag, never seq/ack (a real segment's
+// seq is connection-state-derived, which this hook does not track). Both checksums use the shared
+// tc8::wire SSOT (IPv4 header via inetChecksum, TCP via tcpChecksum's pseudo-header fold) so the
+// frame is valid at every layer. The frame-build core both TCP synthesis callers below share;
+// sent via nif->linkoutput like the ARP/ICMP synthesis.
+void emitTcpReply(struct netif *nif, const std::uint8_t *rx,
+                  std::uint16_t src_port, std::uint16_t dst_port, std::uint8_t tcp_flags) {
     constexpr std::uint16_t kL4Off    = kEthHdrLen + kIpHdrLenMin;        // 34
     constexpr std::uint16_t kFrameLen = kL4Off + kTcpMinHdrLen;          // 54
     struct pbuf *p = pbuf_alloc(PBUF_RAW, kFrameLen, PBUF_RAM);
@@ -167,15 +169,62 @@ void emitProhibitedTcpSegment(struct netif *nif, const std::uint8_t *rx, std::ui
     put16(o, kIpHdrChecksumOff, ::tc8::wire::inetChecksum(o + kEthHdrLen, kIpHdrLenMin));
     std::uint32_t tester_ip = 0;
     std::memcpy(&tester_ip, rx + kIpSrcOff, 4);           // trigger's IPv4 src (NBO) for the pseudo-header
-    const std::uint16_t rx_l4 = l4RegionOffset(rx);
-    put16(o, kL4Off + kTcpSrcPortOff, get16(rx, rx_l4 + kTcpDstPortOff));  // src port = DUT local port
-    put16(o, kL4Off + kTcpDstPortOff, get16(rx, rx_l4 + kTcpSrcPortOff));  // dst port = tester remote port
+    put16(o, kL4Off + kTcpSrcPortOff, src_port);
+    put16(o, kL4Off + kTcpDstPortOff, dst_port);
     o[kL4Off + kTcpDataOffOff] = 0x50;                    // data offset 5 (20 B header, no options)
     o[kL4Off + kTcpFlagsOff]   = tcp_flags;               // RST or ACK
     put16(o, kL4Off + kTcpChecksumOff,
           ::tc8::wire::tcpChecksum(dut_ip, tester_ip, o + kL4Off, kTcpMinHdrLen));
     nif->linkoutput(nif, p);
     pbuf_free(p);
+}
+
+// kTcpSynth*: a buggy DUT emitting a forbidden TCP response to a segment it must silently
+// accept or drop — a RST on a pure ACK in ESTABLISHED (kTcpSynthRst, §4.8.6.18
+// ACKNOWLEDGEMENT_04 + §4.8.6.7 FLAGS_PROCESSING_11), a challenge ACK on a malformed/multicast
+// segment (kTcpSynthAck, §4.8.6.16 HEADER_07/08/09/11), or a RST on a disruptive segment the
+// DUT must answer with silence (kTcpSynthRstOnDisruptive, the §4.8 must-not-respond family —
+// FLAGS_INVALID_03/04/15, FLAGS_PROCESSING_07/08, CLOSING_07/08/09). `rx` points at the inbound
+// trigger; the synthesized segment carries `tcp_flags` on the connection's 4-tuple, derived by
+// swapping the trigger's source for the destination.
+void emitProhibitedTcpSegment(struct netif *nif, const std::uint8_t *rx, std::uint8_t tcp_flags) {
+    const std::uint16_t rx_l4 = l4RegionOffset(rx);
+    emitTcpReply(nif, rx,
+                 /*src_port=*/get16(rx, rx_l4 + kTcpDstPortOff),   // src = DUT local port
+                 /*dst_port=*/get16(rx, rx_l4 + kTcpSrcPortOff),   // dst = tester remote port (swap)
+                 tcp_flags);
+}
+
+// kTcpSynthAckSrcPortBlind (§4.8.6.16 HEADER_04): a buggy DUT that demultiplexes an inbound data
+// segment by its local (destination) port alone, ignoring the source port — so it accepts and
+// ACKs a segment whose source port differs from the established peer's, which a conformant DUT
+// (RFC 793 §3.1 / §3.9 full-4-tuple demux) drops silently. The connection's real remote port is
+// NOT in the trigger (the trigger's source port is the wrong one), so emitProhibitedTcpSegment's
+// port swap would reply to that wrong port — never the EST 4-tuple the positive's is_pure_dut_ack
+// guard watches. Instead walk tcp_active_pcbs (read-only, under the core lock — this rx thread is
+// not the tcpip thread, the learnDropFrameAddress precedent) for the ESTABLISHED connection on the
+// segment's destination port whose remote port differs from the segment's source port (i.e. the
+// segment arrived from the wrong source port), then synthesize the prohibited pure ACK on that
+// connection's real 4-tuple (src = its local port = the segment's dst port, dst = its remote port).
+void emitSrcPortBlindAck(struct netif *nif, const std::uint8_t *rx) {
+    const std::uint16_t rx_l4      = l4RegionOffset(rx);
+    const std::uint16_t local_port = get16(rx, rx_l4 + kTcpDstPortOff);  // DUT local port (segment dst)
+    const std::uint16_t wrong_src  = get16(rx, rx_l4 + kTcpSrcPortOff);  // the deliberately-wrong tester port
+    std::uint16_t conn_remote_port = 0;
+    bool found = false;
+    LOCK_TCPIP_CORE();
+    for (const struct tcp_pcb *pcb = tcp_active_pcbs; pcb != nullptr; pcb = pcb->next) {
+        if (pcb->state == ESTABLISHED && pcb->local_port == local_port &&
+            pcb->remote_port != wrong_src) {  // a segment for this connection from the WRONG source port
+            conn_remote_port = pcb->remote_port;
+            found = true;
+            break;
+        }
+    }
+    UNLOCK_TCPIP_CORE();
+    if (found) {
+        emitTcpReply(nif, rx, /*src_port=*/local_port, /*dst_port=*/conn_remote_port, kTcpFlagAck);
+    }
 }
 
 // kArpFaultLearnFromDropFrame: a buggy DUT that wrongly accepted a malformed/foreign
@@ -333,6 +382,21 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
             if ((f[tcp + kTcpFlagsOff] & kTcpFlagRst) != 0U) {
                 pbuf_free(p);  // swallow — the DUT wrongly ignores a RST it must act on
                 return ERR_OK;
+            }
+        } else if (flavor == ut::kTcpSynthAckSrcPortBlind &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
+                   f[kIpProtoOff] == kIpProtoTcp &&
+                   p->len >= l4RegionOffset(f) + kTcpMinHdrLen) {
+            // §4.8.6.16 HEADER_04: a buggy DUT that ACKs an in-window data segment whose source
+            // port differs from the established peer's (source-port-blind demux). The gate here is
+            // an ACK-bearing data segment (the wrong-port PSH+ACK trigger carries payload); the
+            // pcb walk inside emitSrcPortBlindAck then fires only when an ESTABLISHED connection
+            // exists on the segment's destination port whose remote port differs from the segment's
+            // source port — so the handshake's control segments and any right-source-port segment
+            // (remote_port == source) never synthesize, only the deliberate wrong-port inject does.
+            const std::uint16_t tcp = l4RegionOffset(f);
+            if ((f[tcp + kTcpFlagsOff] & kTcpFlagAck) != 0U && tcpHasPayload(f, tcp)) {
+                emitSrcPortBlindAck(nif, f);
             }
         }
     }

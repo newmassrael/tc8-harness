@@ -2194,15 +2194,6 @@
         }
       ]
     },
-    "TCP_HEADER_04": {
-      "guards": [
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_acked_segment_with_wrong_source_port",
-          "property": "Silence is conformant: DUT must not accept a segment for the wrong source port; fail iff it ACKs it"
-        }
-      ]
-    },
     "TCP_MSS_OPTIONS_01": {
       "guards": [
         {

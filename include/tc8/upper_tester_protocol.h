@@ -992,7 +992,18 @@ inline constexpr std::uint8_t kTcpSynthFinOnDisruptive   = 0x0C;  // §4.8.6.4 C
 // the ABSENCE of the required CLOSED transition — observed as the DUT continuing to
 // retransmit its SYN (lwIP's fixed 1 s SYN cadence) instead of going quiet:
 inline constexpr std::uint8_t kTcpDropDisruptiveRst      = 0x0D;  // §4.8.6.6 FLAGS_INVALID_05 (SYN-SENT must move to CLOSED on RST+acceptable-ACK): drop the RST so the DUT stays open and keeps retransmitting its SYN
-inline constexpr std::uint8_t kIngressFaultMax           = kTcpDropDisruptiveRst;
+// §4.8.6.16 TCP source-port demultiplexing — a SYNTHESIS keyed on connection state.
+// The conformant DUT demultiplexes by the full 4-tuple (RFC 793 §3.1 / §3.9), so an
+// in-window data segment whose SOURCE port differs from the established peer's matches
+// no connection and is dropped silently. A source-port-blind DUT would match it to the
+// connection by local (destination) port alone and ACK it. The hook models that bug:
+// it walks tcp_active_pcbs for the ESTABLISHED connection on the segment's destination
+// port whose remote port differs from the segment's source port, then synthesizes the
+// prohibited pure ACK on that connection's real 4-tuple. The wrong source port is not the
+// connection's remote port, so the pcb walk is the only way to recover the real one —
+// the kTcpSynth* swap would reply to the wrong port, missing the EST-4-tuple guard:
+inline constexpr std::uint8_t kTcpSynthAckSrcPortBlind   = 0x0E;  // §4.8.6.16 HEADER_04 (must drop a segment from the wrong source port): synthesize the prohibited pure ACK on the EST 4-tuple recovered from the active-pcb walk
+inline constexpr std::uint8_t kIngressFaultMax           = kTcpSynthAckSrcPortBlind;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

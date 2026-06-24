@@ -86,7 +86,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01NegSM>
             syn_rst.ack_num  = 0U;
             syn_rst.flags    = ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagRst;
             emitTcpFrame(cfg, iface, cfg.dut.mac, syn_rst, /*initial_wait=*/kFlavorArmSettle);
-            std::this_thread::sleep_for(kSynthRstObserveHold);
+            std::this_thread::sleep_for(kSynthObserveHold);
         }
     }
 };
