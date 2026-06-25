@@ -29,6 +29,12 @@ Segmenter::Segmenter(std::size_t max_segment_payload) : max_segment_payload_(max
         throw std::invalid_argument(
             "tc8::someiptp::Segmenter: max_segment_payload must be a non-zero multiple of 16");
     }
+    // A segment's wire Length (kLengthCoveredHeaderBytes + TP header + payload) must fit
+    // its uint32 field.
+    if (max_segment_payload_ > 0xFFFFFFFFull - (kLengthCoveredHeaderBytes + kTpHeaderLen)) {
+        throw std::invalid_argument(
+            "tc8::someiptp::Segmenter: max_segment_payload overflows the SOME/IP Length field");
+    }
 }
 
 std::vector<std::vector<std::uint8_t>> Segmenter::segment(const MessageHeader& hdr,
@@ -37,6 +43,16 @@ std::vector<std::vector<std::uint8_t>> Segmenter::segment(const MessageHeader& h
     if (payload == nullptr && len != 0) {
         throw std::invalid_argument("tc8::someiptp::Segmenter::segment: null payload with len != 0");
     }
+    // The last segment starts at the largest multiple of max_segment_payload_ below len;
+    // it must be addressable by the 28-bit Offset field (PRS_SOMEIP_00724).
+    if (len != 0) {
+        const std::size_t last_offset = ((len - 1) / max_segment_payload_) * max_segment_payload_;
+        if (last_offset > kMaxByteOffset) {
+            throw std::length_error(
+                "tc8::someiptp::Segmenter::segment: payload too large for the SOME/IP-TP Offset field");
+        }
+    }
+
     std::vector<std::vector<std::uint8_t>> out;
     std::size_t offset = 0;
     do {
@@ -45,18 +61,18 @@ std::vector<std::vector<std::uint8_t>> Segmenter::segment(const MessageHeader& h
 
         std::vector<std::uint8_t> frame;
         frame.reserve(kSegmentHeaderLen + seg_len);
-        // SOME/IP header: the Length field covers Request ID onward — 8 bytes
-        // (Request ID .. Return Code) + the 4-byte TP header + this segment
-        // (PRS_SOMEIP_00728).
+        // SOME/IP header: the Length field covers Request ID onward —
+        // kLengthCoveredHeaderBytes (Request ID .. Return Code) + the 4-byte TP header +
+        // this segment (PRS_SOMEIP_00728).
         put32be(frame, hdr.message_id);
-        put32be(frame, static_cast<std::uint32_t>(8 + kTpHeaderLen + seg_len));
+        put32be(frame, static_cast<std::uint32_t>(kLengthCoveredHeaderBytes + kTpHeaderLen + seg_len));
         put32be(frame, hdr.request_id);
         frame.push_back(hdr.protocol_version);
         frame.push_back(hdr.interface_version);
         frame.push_back(static_cast<std::uint8_t>(hdr.message_type | kMessageTypeTpFlag));
         frame.push_back(hdr.return_code);
-        // TP header (PRS_SOMEIP_00723 / Table 4.8): the byte offset already has its
-        // low 4 bits zero (segments are 16-aligned), so it occupies the Offset field
+        // TP header (PRS_SOMEIP_00723 / Table 4.8): the byte offset is 16-aligned, so its
+        // low 4 bits are zero and it already occupies the upper-28-bit Offset field
         // directly; Reserved bits stay 0; bit 0 is the More-Segments flag.
         put32be(frame, static_cast<std::uint32_t>(offset) | (more ? 1u : 0u));
         if (seg_len != 0) {
@@ -69,58 +85,63 @@ std::vector<std::vector<std::uint8_t>> Segmenter::segment(const MessageHeader& h
     return out;
 }
 
-Reassembler::Reassembler(std::size_t max_message, std::chrono::milliseconds timeout)
-    : max_message_(max_message), timeout_(timeout) {}
+Reassembler::Reassembler(std::size_t max_message, std::size_t max_concurrent,
+                         std::chrono::milliseconds timeout)
+    : max_message_(max_message), max_concurrent_(max_concurrent), timeout_(timeout) {}
 
 Reassembler::Result Reassembler::feed(const std::uint8_t* segment, std::size_t len) {
-    Result res;
+    Result res;  // defaults to kError
     if (segment == nullptr || len < kSegmentHeaderLen) {
-        return res;  // kError
+        return res;
     }
 
-    MessageHeader      hdr;
+    MessageHeader       hdr;
     hdr.message_id = get32be(segment);
     const std::uint32_t length = get32be(segment + 4);
     hdr.request_id = get32be(segment + 8);
     hdr.protocol_version = segment[12];
     hdr.interface_version = segment[13];
-    const std::uint8_t raw_type = segment[14];
+    const std::uint8_t  raw_type = segment[14];
     hdr.return_code = segment[15];
     const std::uint32_t tp = get32be(segment + kSomeipHeaderLen);
 
     // Must carry the TP-Flag (PRS_SOMEIP_00722).
     if ((raw_type & kMessageTypeTpFlag) == 0) {
-        return res;  // kError
+        return res;
     }
     hdr.message_type = static_cast<std::uint8_t>(raw_type & ~kMessageTypeTpFlag);
 
     // Length covers Request ID onward (8) + TP header (4) + segment (PRS_SOMEIP_00728).
-    if (length < 8 + kTpHeaderLen) {
-        return res;  // kError
+    if (length < kLengthCoveredHeaderBytes + kTpHeaderLen) {
+        return res;
     }
-    const std::size_t seg_len = length - 8 - kTpHeaderLen;
+    const std::size_t seg_len = length - kLengthCoveredHeaderBytes - kTpHeaderLen;
     if (kSegmentHeaderLen + seg_len > len) {
-        return res;  // kError — frame truncated relative to its Length field
+        return res;  // frame truncated relative to its Length field
     }
 
-    // Offset field = upper 28 bits (low 4 bits / Reserved ignored, PRS_SOMEIP_00726).
+    // Offset field = upper 28 bits; low 4 bits / Reserved are ignored (PRS_SOMEIP_00726).
     const std::size_t offset = tp & ~static_cast<std::uint32_t>(kOffsetGranularity - 1);
     const bool        more = (tp & 1u) != 0;
 
-    // Non-last segments are 16-aligned in length (PRS_SOMEIP_00729).
-    if (more && (seg_len % kOffsetGranularity) != 0) {
-        return res;  // kError
+    // A non-last segment must carry a non-zero, 16-aligned length (PRS_SOMEIP_00729); a
+    // zero-length non-last segment advances nothing and would stall reassembly.
+    if (more && (seg_len == 0 || seg_len % kOffsetGranularity != 0)) {
+        return res;
     }
 
     const std::uint64_t key = transferKey(hdr.message_id, hdr.request_id);
 
     if (offset + seg_len > max_message_) {
-        pending_.erase(key);  // bound memory; drop any in-progress transfer for this id
-        return res;           // kError
+        pending_.erase(key);  // bound per-transfer memory; drop any transfer for this id
+        return res;
     }
 
     auto it = pending_.find(key);
     if (it == pending_.end()) {
+        if (pending_.size() >= max_concurrent_) {
+            return res;  // bound the number of concurrent transfers
+        }
         Pending p;
         p.header = hdr;
         it = pending_.emplace(key, std::move(p)).first;
@@ -132,21 +153,31 @@ Reassembler::Result Reassembler::feed(const std::uint8_t* segment, std::size_t l
             h.interface_version != hdr.interface_version || h.message_type != hdr.message_type ||
             h.return_code != hdr.return_code) {
             pending_.erase(it);
-            return res;  // kError
+            return res;
         }
     }
     Pending& p = it->second;
-    p.age = std::chrono::milliseconds{0};
 
+    // Once the final extent is known, reject anything inconsistent with it: data past
+    // the total, or a second "last" segment declaring a different total.
+    if (p.last_seen) {
+        if (offset + seg_len > p.total || (!more && offset + seg_len != p.total)) {
+            pending_.erase(it);
+            return res;
+        }
+    }
+
+    // Place / validate this offset. A repeat must agree on BOTH length and the
+    // More-Segments flag — a flipped flag at a known offset is malformed, not a dup.
     const auto seg_it = p.segs.find(offset);
     if (seg_it != p.segs.end()) {
-        if (seg_it->second != seg_len) {
+        if (seg_it->second.len != seg_len || seg_it->second.more != more) {
             pending_.erase(it);
-            return res;  // kError — same offset, conflicting length
+            return res;
         }
-        // Exact duplicate: already placed, ignore.
+        // Exact duplicate (retransmission): already placed.
     } else {
-        p.segs[offset] = seg_len;
+        p.segs[offset] = Segment{seg_len, more};
         if (p.buf.size() < offset + seg_len) {
             p.buf.resize(offset + seg_len, 0x00);
         }
@@ -157,21 +188,32 @@ Reassembler::Result Reassembler::feed(const std::uint8_t* segment, std::size_t l
     }
 
     if (!more) {
+        // This is the last segment — it fixes the total. Any already-recorded segment
+        // reaching past that total makes the transfer inconsistent.
+        const std::size_t total = offset + seg_len;
+        for (const auto& off_seg : p.segs) {
+            if (off_seg.first + off_seg.second.len > total) {
+                pending_.erase(it);
+                return res;
+            }
+        }
         p.last_seen = true;
-        p.total = offset + seg_len;
+        p.total = total;
     }
 
+    p.age = std::chrono::milliseconds{0};
+
     if (p.last_seen) {
-        // Complete once coverage is contiguous from 0 to total (gaps and overlaps
-        // both leave cursor != total, so neither completes here).
+        // Complete once coverage is contiguous from 0 to total. Gaps (off > cursor) and
+        // overlaps (off < cursor) both leave cursor != total, so neither completes here.
         std::size_t cursor = 0;
         bool        contiguous = true;
-        for (const auto& off_len : p.segs) {
-            if (off_len.first != cursor) {
+        for (const auto& off_seg : p.segs) {
+            if (off_seg.first != cursor) {
                 contiguous = false;
                 break;
             }
-            cursor += off_len.second;
+            cursor += off_seg.second.len;
         }
         if (contiguous && cursor == p.total) {
             res.status = Status::kComplete;
@@ -187,7 +229,7 @@ Reassembler::Result Reassembler::feed(const std::uint8_t* segment, std::size_t l
     return res;
 }
 
-std::size_t Reassembler::tick(std::chrono::milliseconds elapsed) {
+std::size_t Reassembler::mainFunction(std::chrono::milliseconds elapsed) {
     std::vector<std::uint64_t> expired;
     for (auto& key_pending : pending_) {
         key_pending.second.age += elapsed;
