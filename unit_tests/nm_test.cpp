@@ -148,5 +148,30 @@ TEST(NmStateMachine, RejectsLayoutBeyondPdu) {
     EXPECT_THROW(StateMachine(timing(), PduLayout{4, 0, 1, 2, 6}, 0x00), std::invalid_argument);
 }
 
+// Repeat Message State also transmits cyclically (not just Normal Operation):
+// one message on entry, then one per msg_cycle.
+TEST(NmStateMachine, PeriodicTransmitInRepeatMessage) {
+    StateMachine sm = make();
+    int tx = 0;
+    sm.onTransmit = [&](const std::vector<std::uint8_t>&) { ++tx; };
+    sm.requestNetwork();        // -> Repeat Message, transmits on entry
+    EXPECT_EQ(tx, 1);
+    sm.mainFunction(ms{50});    // one msg_cycle, still in Repeat Message
+    EXPECT_EQ(tx, 2);
+}
+
+// A received NM PDU wakes the node out of Prepare Bus Sleep, passively.
+TEST(NmStateMachine, PrepareBusSleepWakesOnRx) {
+    StateMachine sm = make();
+    sm.requestNetwork();
+    sm.mainFunction(ms{100});   // -> Normal Operation
+    sm.releaseNetwork();        // -> Ready Sleep
+    sm.mainFunction(ms{200});   // NM-Timeout -> Prepare Bus Sleep
+    ASSERT_EQ(sm.state(), State::kPrepareBusSleep);
+    const std::vector<std::uint8_t> pdu(8, 0x00);
+    sm.rxNmPdu(pdu.data(), pdu.size());
+    EXPECT_EQ(sm.state(), State::kRepeatMessage);
+}
+
 }  // namespace
 }  // namespace tc8::nm

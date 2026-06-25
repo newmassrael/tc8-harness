@@ -8,22 +8,12 @@
 #include <gtest/gtest.h>
 
 #include "autosar/aes_cmac.h"
+#include "hex.h"
 
 namespace tc8::crypto {
 namespace {
 
-// Render a 16-byte tag as lowercase hex so a vector mismatch prints the actual
-// vs expected MAC rather than two opaque byte arrays.
-std::string toHex(const std::array<std::uint8_t, 16>& v) {
-    static const char* digits = "0123456789abcdef";
-    std::string out;
-    out.reserve(32);
-    for (std::uint8_t b : v) {
-        out.push_back(digits[b >> 4]);
-        out.push_back(digits[b & 0x0FU]);
-    }
-    return out;
-}
+using tc8::test::toHex;
 
 // RFC 4493 §4: the example key K and the 64-byte example message M. Each example
 // MACs a leading prefix of M, so one buffer covers all four cases.

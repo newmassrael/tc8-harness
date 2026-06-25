@@ -138,6 +138,9 @@ function(tc8_add_engine name)
     target_include_directories(${name} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
     tc8_enable_strict_warnings(${name})
+    # Record the engine in the single list the UTM export iterates, so adding an
+    # engine stays one line and the install/EXPORT never drifts from the build.
+    set(TC8_UTM_ENGINES ${TC8_UTM_ENGINES} ${name} PARENT_SCOPE)
 endfunction()
 
 # tc8::crypto — AES-CMAC (FIPS-197 AES-128 + RFC 4493), the SecOC MAC primitive.
@@ -565,23 +568,16 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     target_include_directories(tc8_testability_server INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     # AUTOSAR engines join the same exported surface so the OEM repo links the
-    # mechanism it composes with its config. Each new engine adds itself here as
-    # part of its definition-of-done — the utm_export_smoke gate (the consumer
-    # actually calls each engine) then fails if one is dropped from the export.
-    target_include_directories(tc8_crypto INTERFACE
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    target_include_directories(tc8_pn INTERFACE
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    target_include_directories(tc8_crc INTERFACE
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    target_include_directories(tc8_e2e INTERFACE
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    target_include_directories(tc8_com INTERFACE
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    target_include_directories(tc8_nm INTERFACE
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    # mechanism it composes with its config. The set is TC8_UTM_ENGINES, built up
+    # by tc8_add_engine() — there is one engine list, so the export cannot drift
+    # from the build. The utm_export_smoke gate (the consumer calls each engine)
+    # then fails if one is dropped from the export.
+    foreach(_eng ${TC8_UTM_ENGINES})
+        target_include_directories(${_eng} INTERFACE
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    endforeach()
 
-    install(TARGETS tc8_testability_server tc8_wire tc8_crypto tc8_pn tc8_crc tc8_e2e tc8_com tc8_nm
+    install(TARGETS tc8_testability_server tc8_wire ${TC8_UTM_ENGINES}
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
 
@@ -597,13 +593,11 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             ${PROJECT_SOURCE_DIR}/src/wire/icmp_echo.h
             ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wire COMPONENT utm-sdk)
-    install(FILES
-            ${PROJECT_SOURCE_DIR}/src/autosar/aes_cmac.h
-            ${PROJECT_SOURCE_DIR}/src/autosar/pn_filter.h
-            ${PROJECT_SOURCE_DIR}/src/autosar/crc.h
-            ${PROJECT_SOURCE_DIR}/src/autosar/e2e.h
-            ${PROJECT_SOURCE_DIR}/src/autosar/com.h
-            ${PROJECT_SOURCE_DIR}/src/autosar/nm.h
+    # One engine header per engine, globbed so a new engine's header installs
+    # without a second list (same source of truth as the lwIP src/autosar glob).
+    file(GLOB _tc8_autosar_headers CONFIGURE_DEPENDS
+        ${PROJECT_SOURCE_DIR}/src/autosar/*.h)
+    install(FILES ${_tc8_autosar_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/autosar COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/dut_service/posix_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)

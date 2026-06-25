@@ -77,6 +77,10 @@ void StateMachine::rxNmPdu(const std::uint8_t* /*pdu*/, std::size_t /*len*/) {
 }
 
 void StateMachine::mainFunction(std::chrono::milliseconds elapsed) {
+    // The NM-Timeout runs across Network Mode but is only acted on in Ready Sleep:
+    // Repeat Message and Normal Operation transmit every msg_cycle, and each tx
+    // restarts the NM-Timeout, so it can only elapse where there is no tx — Ready
+    // Sleep — from which it drives the transition to Prepare Bus Sleep.
     switch (state_) {
         case State::kBusSleep:
             break;

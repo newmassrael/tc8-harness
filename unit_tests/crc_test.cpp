@@ -45,5 +45,23 @@ TEST(Crc16Ccitt, ChainedEqualsContiguous) {
     EXPECT_EQ(two, one);
 }
 
+// CRC-8 resume is the subtler case (it re-applies the final XOR on resume) and is
+// the exact path E2E Profile 11 uses — so it gets its own chaining test.
+TEST(Crc8SaeJ1850, ChainedEqualsContiguous) {
+    const std::vector<std::uint8_t> whole = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+    const std::uint8_t one = crc8SaeJ1850(whole.data(), whole.size(), 0x00, true);
+    const std::uint8_t part = crc8SaeJ1850(whole.data(), 4, 0x00, true);
+    const std::uint8_t two = crc8SaeJ1850(whole.data() + 4, whole.size() - 4, part, false);
+    EXPECT_EQ(two, one);
+}
+
+// start_value is ignored on the first call (AUTOSAR Crc_CalculateCRCx contract):
+// is_first_call always starts from the algorithm's initial value.
+TEST(Crc8SaeJ1850, StartValueIgnoredOnFirstCall) {
+    const std::vector<std::uint8_t> d = {0x12, 0x34, 0x56};
+    EXPECT_EQ(crc8SaeJ1850(d.data(), d.size(), 0xAB, true),
+              crc8SaeJ1850(d.data(), d.size(), 0x00, true));
+}
+
 }  // namespace
 }  // namespace tc8::crc

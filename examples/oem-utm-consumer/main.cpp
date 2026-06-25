@@ -65,8 +65,7 @@ int main() {
     e2e.protect(e2ePdu.data(), e2ePdu.size());
 
     tc8::com::SignalEngine com{{tc8::com::PduDef{
-        1, 1, std::chrono::milliseconds{0}, std::chrono::milliseconds{0},
-        tc8::com::SendType::kCyclic, {tc8::com::SignalDef{1, 0, 4, tc8::com::Endianness::kLittle}}}}};
+        1, 1, {tc8::com::SignalDef{1, 0, 4, tc8::com::Endianness::kLittle}}}}};
     com.setSignal(1, 0);
     const std::vector<std::uint8_t> comPdu = com.packPdu(1);
 

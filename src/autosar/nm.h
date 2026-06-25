@@ -31,8 +31,11 @@ struct Timing {
 };
 
 // NM PDU field layout (OEM config). Offsets are byte offsets within a PDU of
-// pdu_length bytes: the source node id, the control bit vector, and the user
-// data region.
+// pdu_length bytes. control_bit_vector_off is the wire position of the Control
+// Bit Vector; this core machine validates its placement but leaves the byte zero
+// — the CBV bits (repeat-message request, sleep-ready, ...) are not modeled here,
+// so the offset documents the wire layout an OEM populates rather than driving
+// behavior.
 struct PduLayout {
     std::size_t pdu_length;
     std::size_t source_node_id_off;

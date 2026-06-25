@@ -7,24 +7,14 @@
 #include <gtest/gtest.h>
 
 #include "autosar/com.h"
+#include "hex.h"
 
 namespace tc8::com {
 namespace {
 
-std::string toHex(const std::vector<std::uint8_t>& v) {
-    static const char* digits = "0123456789abcdef";
-    std::string out;
-    for (std::uint8_t b : v) {
-        out.push_back(digits[b >> 4]);
-        out.push_back(digits[b & 0x0FU]);
-    }
-    return out;
-}
+using tc8::test::toHex;
 
-PduDef onePdu(SignalDef sig, std::size_t length) {
-    return PduDef{1, length, std::chrono::milliseconds{0}, std::chrono::milliseconds{0},
-                  SendType::kCyclic, {sig}};
-}
+PduDef onePdu(SignalDef sig, std::size_t length) { return PduDef{1, length, {sig}}; }
 
 // Little endian places bits LSb-first, linearly. A 10-bit all-ones signal at
 // start bit 2 fills bits 2..11 -> byte0 0xFC, byte1 0x0F (the CAN/Intel layout).
@@ -61,8 +51,7 @@ TEST(ComBigEndian, ByteAlignedIsIdentity) {
 // pack -> unpack round-trips the value for both byte orders, including a value
 // that exceeds the signal width (masked to bit_size).
 TEST(ComRoundTrip, LittleAndBigPreserveValue) {
-    SignalEngine eng{{PduDef{2, 4, std::chrono::milliseconds{0}, std::chrono::milliseconds{0},
-                             SendType::kCyclic,
+    SignalEngine eng{{PduDef{2, 4,
                              {SignalDef{100, 3, 12, Endianness::kLittle},
                               SignalDef{101, 23, 9, Endianness::kBig}}}}};
     eng.setSignal(100, 0xABC);
@@ -92,7 +81,7 @@ TEST(ComConfig, RejectsBadBitSize) {
 }
 
 TEST(ComConfig, RejectsDuplicateSignalId) {
-    PduDef pdu{1, 2, std::chrono::milliseconds{0}, std::chrono::milliseconds{0}, SendType::kCyclic,
+    PduDef pdu{1, 2,
                {SignalDef{5, 0, 4, Endianness::kLittle}, SignalDef{5, 8, 4, Endianness::kLittle}}};
     EXPECT_THROW(SignalEngine{{pdu}}, std::invalid_argument);
 }

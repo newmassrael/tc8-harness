@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -16,10 +15,6 @@ namespace tc8::com {
 // network bit number is 8*(s/8) + (7 - s%8) (AUTOSAR ComBitPosition / DBC).
 enum class Endianness { kBig, kLittle };
 
-// AUTOSAR COM transmission mode (ComTxModeMode). Carried as config for the module
-// that schedules transmission; the packing engine itself does not time anything.
-enum class SendType { kCyclic, kOnChange, kCyclicAndOnChange };
-
 // One signal's placement inside an I-PDU. All fields are injected OEM config; the
 // packing mechanism is the public standard. bit_size is 1..64 (integer signals);
 // start_bit is the LSb position (little endian) or the sawtooth MSb position
@@ -31,15 +26,13 @@ struct SignalDef {
     Endianness    endian;
 };
 
-// One I-PDU: a fixed-length byte buffer carrying its signals, plus the cyclic
-// transmission timing the owning module uses to schedule sends.
+// One I-PDU: a fixed-length byte buffer carrying its signals. Transmission timing
+// (cycle, send mode) is the owning module's scheduling concern, not the packing
+// engine's, so it is not modeled here — the module holds that config itself.
 struct PduDef {
-    std::uint32_t             id;
-    std::size_t               length;  // bytes
-    std::chrono::milliseconds cycle;
-    std::chrono::milliseconds start_delay;
-    SendType                  send_type;
-    std::vector<SignalDef>    signals;
+    std::uint32_t          id;
+    std::size_t            length;  // bytes
+    std::vector<SignalDef> signals;
 };
 
 // AUTOSAR COM signal packing/unpacking (SWS COM). Holds the PDU/signal database

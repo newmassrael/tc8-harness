@@ -6,9 +6,12 @@
 #include <gtest/gtest.h>
 
 #include "autosar/e2e.h"
+#include "hex.h"
 
 namespace tc8::e2e {
 namespace {
+
+using tc8::test::toHex;
 
 // Worked vectors are the AUTOSAR FO PRS E2EProtocol Profile 5 examples (Data ID
 // 0x1234), as published in the spec and reproduced by independent E2E libraries.
@@ -16,16 +19,6 @@ namespace {
 // protect reproduces the counter==1 example; the counter==0 example is verified
 // through check(), which together pin the CRC for both counter values.
 constexpr std::uint16_t kDataId = 0x1234;
-
-std::string toHex(const std::vector<std::uint8_t>& v) {
-    static const char* digits = "0123456789abcdef";
-    std::string out;
-    for (std::uint8_t b : v) {
-        out.push_back(digits[b >> 4]);
-        out.push_back(digits[b & 0x0FU]);
-    }
-    return out;
-}
 
 // First protect of an all-zero PDU -> counter 1, CRC 0x8dcf written little-endian.
 TEST(E2eP05Protect, FirstProtectMatchesCounter1Vector) {
@@ -102,8 +95,12 @@ TEST(E2eP05, RejectsPduShorterThanHeader) {
     EXPECT_THROW(p.protect(pdu.data(), pdu.size()), std::invalid_argument);
 }
 
-// AUTOSAR FO PRS E2EProtocol Profile 11 examples (Data ID 0x123). As with P05,
-// first protect reproduces the counter==1 example and check() pins counter==0.
+// AUTOSAR FO PRS E2EProtocol Profile 11 (Data ID 0x123). The CRC is CRC-8/SAE-J1850
+// (polynomial 0x1D) but with start value AND XOR value 0x00 (PRS_E2E_00070; Profile
+// 11 is bus-compatible to Profile 1) — i.e. Crc_CalculateCRC8 seeded with the
+// complement 0xFF. The expected bytes below were independently recomputed from that
+// rule (cc/91 BOTH, 2a/77 NIBBLE), so they are spec-anchored, not round-trip-only.
+// As with P05, first protect reproduces the counter==1 case; check() pins counter==0.
 constexpr std::uint16_t kP11DataId = 0x123;
 
 TEST(E2eP11Protect, BothModeFirstProtectVector) {
@@ -165,6 +162,34 @@ TEST(E2eP11, RejectsPduShorterThanHeader) {
     std::vector<std::uint8_t> pdu(1, 0x00);
     Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
     EXPECT_THROW(p.protect(pdu.data(), pdu.size()), std::invalid_argument);
+}
+
+// The P11 counter is 4-bit and wraps modulo 15 (max 0x0E, 0x0F reserved). The
+// checker's delta must stay correct across the 14 -> 0 wrap.
+TEST(E2eP11RoundTrip, CounterWrapsModulo15) {
+    Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    Profile11Checker c{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    std::vector<std::uint8_t> pdu(8, 0x00);
+    for (int i = 0; i < 14; ++i) {  // counters 1..14, each accepted
+        p.protect(pdu.data(), pdu.size());
+        ASSERT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);
+    }
+    p.protect(pdu.data(), pdu.size());          // counter (14 + 1) % 15 = 0
+    EXPECT_EQ(pdu[1] & 0x0F, 0x00);             // low nibble holds the wrapped counter
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);  // delta 14->0 is 1
+}
+
+// A duplicate frame is Repeated; a jump past max_delta_counter is WrongSequence.
+TEST(E2eP11RoundTrip, RepeatedAndWrongSequence) {
+    Profile11Protector p{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    Profile11Checker c{Profile11Config{kP11DataId, DataIdMode::kBoth, 0, 1}};
+    std::vector<std::uint8_t> pdu(8, 0x00);
+    p.protect(pdu.data(), pdu.size());
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kOk);
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kRepeated);
+    p.protect(pdu.data(), pdu.size());  // counter 2 (dropped)
+    p.protect(pdu.data(), pdu.size());  // counter 3
+    EXPECT_EQ(c.check(pdu.data(), pdu.size()), CheckStatus::kWrongSequence);
 }
 
 }  // namespace

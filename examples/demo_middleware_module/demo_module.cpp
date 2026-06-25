@@ -30,7 +30,7 @@ tc8::com::SignalEngine makeCom() {
     // Signal sits after the 3-byte E2E header (CRC[0..1] + counter[2]) so protect
     // does not overwrite it; the E2E CRC then covers the signal bytes.
     return tc8::com::SignalEngine({tc8::com::PduDef{
-        kComPduId, 8, kComCycle, 0ms, tc8::com::SendType::kCyclic,
+        kComPduId, 8,
         {tc8::com::SignalDef{kSpeedSignalId, 24, 16, tc8::com::Endianness::kLittle}}}});
 }
 
@@ -47,11 +47,13 @@ std::vector<std::uint8_t> DemoModule::groups() const { return {kGroup}; }
 void DemoModule::onStart(tc8::testability::MiddlewareContext& ctx) {
     ctx_ = &ctx;
     sock_ = ctx.backend().createUdp();
-    ctx.backend().bindV4(sock_, 0, 0);
+    // Do not ignore the socket setup: a failed createUdp/bindV4 (e.g. the port is
+    // taken on lwIP) leaves no data plane, so we skip arming the periodic tx —
+    // control primitives are still answered. sock_ < 0 also disables the guards.
+    const bool socket_ready = sock_ >= 0 && ctx.backend().bindV4(sock_, 0, 0);
 
-    // NM transmits through the data-plane socket and announces each transition.
     nm_.onTransmit = [this](const std::vector<std::uint8_t>& pdu) {
-        if (ctx_ != nullptr) {
+        if (ctx_ != nullptr && sock_ >= 0) {
             ctx_->backend().sendToV4(sock_, pdu.data(), pdu.size(), kPeer);
         }
     };
@@ -61,8 +63,10 @@ void DemoModule::onStart(tc8::testability::MiddlewareContext& ctx) {
         }
     };
 
-    nm_timer_ = ctx.scheduleEvery(kNmTick, [this] { nm_.mainFunction(kNmTick); });
-    com_timer_ = ctx.scheduleEvery(kComCycle, [this] { transmitSignalPdu(); });
+    if (socket_ready) {
+        nm_timer_ = ctx.scheduleEvery(kNmTick, [this] { nm_.mainFunction(kNmTick); });
+        com_timer_ = ctx.scheduleEvery(kComCycle, [this] { transmitSignalPdu(); });
+    }
 }
 
 void DemoModule::onStop() {
@@ -79,7 +83,7 @@ void DemoModule::onStop() {
 void DemoModule::transmitSignalPdu() {
     std::vector<std::uint8_t> pdu = com_.packPdu(kComPduId);
     e2e_.protect(pdu.data(), pdu.size());  // CRC-16 + counter over the signal PDU
-    if (ctx_ != nullptr) {
+    if (ctx_ != nullptr && sock_ >= 0) {
         ctx_->backend().sendToV4(sock_, pdu.data(), pdu.size(), kPeer);
     }
 }

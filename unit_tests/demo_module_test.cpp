@@ -24,8 +24,9 @@ public:
         tc8::net::Endpoint dst;
     };
     std::vector<Sent> sent;
+    bool createUdpFails = false;
 
-    int createUdp() override { return 1; }
+    int createUdp() override { return createUdpFails ? -1 : 1; }
     int createTcp() override { return 2; }
     void setReuseAddr(int) override {}
     void setBroadcast(int) override {}
@@ -196,6 +197,21 @@ TEST(DemoModule, UnknownPidNotFound) {
     m.onStart(ctx);
     std::vector<std::uint8_t> resp;
     EXPECT_EQ(callPrimitive(m, 0x00, {}, resp), tc8::testability::kRidENtf);
+    m.onStop();
+}
+
+// If the data-plane socket cannot be set up, the module degrades cleanly: no
+// periodic transmit is armed (nothing is sent), but control primitives still work.
+TEST(DemoModule, DegradesWhenSocketSetupFails) {
+    DemoModule m;
+    FakeContext ctx;
+    ctx.be.createUdpFails = true;
+    m.onStart(ctx);
+    ctx.fire(ms{100});
+    ctx.fire(ms{500});
+    EXPECT_TRUE(ctx.be.sent.empty());
+    std::vector<std::uint8_t> resp;
+    EXPECT_EQ(callPrimitive(m, DemoModule::kPidGetNmState, {}, resp), tc8::testability::kRidEOk);
     m.onStop();
 }
 
