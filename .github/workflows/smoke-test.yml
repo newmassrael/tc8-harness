@@ -84,6 +84,17 @@ jobs:
         # for the vsomeip patch-series and sudoers rationale.
         uses: ./.github/actions/build-harness
 
+      - name: Run host unit tests (DUT + engines, ctest)
+        # build-test runs ctest too, but with -DTC8_BUILD_MOCK_DUT=OFF, so the
+        # DUT-gated suites never execute there: testability_server_test (incl. the
+        # neighbor / ARP-cache backend ops), posix_neighbor_privileged, reactor_test,
+        # utm_export_smoke. This runner built the harness with the mock DUT ON
+        # (build-harness default), so the assertions only become a CI gate here.
+        # No sudo: the privileged neighbor test self-wraps in an unprivileged
+        # user+net namespace (scripts/run-netns-test.sh) and SKIPs (exit 77) where
+        # userns is unavailable, rather than failing.
+        run: ctest --test-dir build --output-on-failure -j4
+
       - name: Run positive smoke (--workers 4 + JUnit)
         # Two harness-side filters apply, both reading
         # docs/spec/inventory_overrides.json as the single source of
@@ -334,6 +345,13 @@ jobs:
         # Shared with lwip-sweep.yml — pin + cache + pin-forward policy
         # live in .github/actions/build-lwip-dut/action.yml.
         uses: ./.github/actions/build-lwip-dut
+
+      - name: Run lwIP unit tests (ctest)
+        # The build-lwip-dut action compiles the in-process lwIP runtime tests
+        # (lwip_reactor_test, lwip_arp_multicast_test) but nothing ran them in CI.
+        # Both run entirely over the loopback / a stub netif — no tap, netns, or
+        # root — so gate them here now that the binaries exist.
+        run: ctest --test-dir build-lwip-dut --output-on-failure
 
       - name: lwIP DUT regression (tap fixture)
         run: |
