@@ -169,3 +169,14 @@ file(GLOB _tc8_autosar_engine_srcs CONFIGURE_DEPENDS
 # The standalone, OEM-deployable AUTOSAR Testability UTM: stack + testability
 # endpoint only (no opcode UT). The lwIP analog of dut/utm (tc8-utm).
 tc8_lwip_app(tc8-lwip-utm lwip_utm_main.cpp ${_tc8_autosar_engine_srcs})
+
+# In-process runtime test for the middleware rx reactor on the lwIP backend (the
+# lwIP IoMultiplexer: lwip_select poll() + the 127.0.0.1 socket-pair Waker). Runs
+# entirely over the loopback netif — no tap/netns/root — so it exercises the one
+# lwIP-specific path the host POSIX tests cannot. Registered as a CTest with a
+# hard timeout so a regression that hangs the reactor fails fast. Needs no AUTOSAR
+# engines (it tests the reactor, not the engines).
+enable_testing()
+tc8_lwip_app(tc8-lwip-reactor-test lwip_reactor_test.cpp)
+add_test(NAME lwip_reactor_test COMMAND tc8-lwip-reactor-test)
+set_tests_properties(lwip_reactor_test PROPERTIES TIMEOUT 30)
