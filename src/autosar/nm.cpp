@@ -51,13 +51,16 @@ void StateMachine::transitionTo(State next) {
             wait_bus_sleep_rem_ = timing_.wait_bus_sleep;
             break;
         case State::kReadySleep:   // no tx; the running NM-Timeout decides sleep
-        case State::kBusSleep:     // dormant
+            break;
+        case State::kBusSleep:
+            active_wakeup_ = false;  // the active-wakeup indication clears on full sleep
             break;
     }
 }
 
 void StateMachine::requestNetwork() {
     network_requested_ = true;
+    active_wakeup_ = true;  // a local request is an active wakeup -> set the CBV bit on tx
     if (state_ == State::kBusSleep || state_ == State::kPrepareBusSleep) {
         transitionTo(State::kRepeatMessage);
     } else if (state_ == State::kReadySleep) {
@@ -159,11 +162,15 @@ void StateMachine::setUserData(const std::uint8_t* data, std::size_t len) {
 std::vector<std::uint8_t> StateMachine::buildPdu() const {
     std::vector<std::uint8_t> pdu(layout_.pdu_length, 0x00);
     pdu[layout_.source_node_id_off] = node_id_;
-    // The Repeat Message Request bit is set while this node is driving node
-    // detection (Repeat Message State entered via requestRepeatMessage); the other
-    // CBV bits stay an OEM concern and are left zero.
+    // CBV bits this machine models: the Repeat Message Request bit while driving
+    // node detection (Repeat Message State entered via requestRepeatMessage), and
+    // the Active Wakeup bit while the node holds the bus awake by its own request.
+    // The other CBV bits stay an OEM concern and are left zero.
     if (repeat_requested_ && state_ == State::kRepeatMessage) {
         pdu[layout_.control_bit_vector_off] |= kCbvRepeatMessageRequest;
+    }
+    if (active_wakeup_) {
+        pdu[layout_.control_bit_vector_off] |= kCbvActiveWakeup;
     }
     for (std::size_t i = 0; i < layout_.user_data_len; ++i) {
         pdu[layout_.user_data_off + i] = user_data_[i];

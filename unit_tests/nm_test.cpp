@@ -236,5 +236,46 @@ TEST(NmStateMachine, RepeatMessageRequestIgnoredInBusSleep) {
     EXPECT_EQ(sm.state(), State::kBusSleep);
 }
 
+// ── Active Wakeup Bit (SWS Nm CBV bit 5) ──
+
+// An active local request sets the Active Wakeup bit in transmitted PDUs and is
+// reported by activeWakeup(); it persists across the Network Mode sub-states.
+TEST(NmStateMachine, ActiveWakeupSetByLocalRequest) {
+    StateMachine sm = make();
+    std::vector<std::uint8_t> last;
+    sm.onTransmit = [&](const std::vector<std::uint8_t>& p) { last = p; };
+    EXPECT_FALSE(sm.activeWakeup());
+    sm.requestNetwork();  // active wakeup; tx on entry to Repeat Message
+    EXPECT_TRUE(sm.activeWakeup());
+    ASSERT_EQ(last.size(), 8u);
+    EXPECT_NE(last[1] & kCbvActiveWakeup, 0);  // CBV bit 5 set (CBV at off 1)
+    sm.mainFunction(ms{100});                  // -> Normal Operation, still active
+    EXPECT_TRUE(sm.activeWakeup());
+    EXPECT_NE(sm.buildPdu()[1] & kCbvActiveWakeup, 0);
+}
+
+// A node woken passively (by a received NM PDU) does not set the Active Wakeup
+// bit — it did not request the network itself.
+TEST(NmStateMachine, ActiveWakeupClearOnPassiveStartup) {
+    StateMachine sm = make();
+    const std::vector<std::uint8_t> pdu(8, 0x00);
+    sm.rxNmPdu(pdu.data(), pdu.size());  // passive startup -> Repeat Message
+    ASSERT_EQ(sm.state(), State::kRepeatMessage);
+    EXPECT_FALSE(sm.activeWakeup());
+    EXPECT_EQ(sm.buildPdu()[1] & kCbvActiveWakeup, 0);
+}
+
+// The Active Wakeup indication clears once the node returns to Bus Sleep.
+TEST(NmStateMachine, ActiveWakeupClearsOnBusSleep) {
+    StateMachine sm = make();
+    sm.requestNetwork();         // active wakeup
+    sm.mainFunction(ms{100});    // -> Normal Operation
+    sm.releaseNetwork();         // -> Ready Sleep
+    sm.mainFunction(ms{200});    // NM-Timeout -> Prepare Bus Sleep
+    sm.mainFunction(ms{150});    // wait-bus-sleep -> Bus Sleep
+    ASSERT_EQ(sm.state(), State::kBusSleep);
+    EXPECT_FALSE(sm.activeWakeup());
+}
+
 }  // namespace
 }  // namespace tc8::nm

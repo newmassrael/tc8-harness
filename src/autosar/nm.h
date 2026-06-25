@@ -30,18 +30,23 @@ struct Timing {
     std::chrono::milliseconds wait_bus_sleep;
 };
 
-// SWS Nm Control Bit Vector — the Repeat Message Request bit at its
-// AUTOSAR-standard position (CBV bit 0). Set by a node that triggers node
-// detection; every receiver that sees it set re-enters Repeat Message State so
-// newly-joined nodes are re-announced cluster-wide.
+// SWS Nm Control Bit Vector bits at their AUTOSAR-standard positions.
+//  * Repeat Message Request (bit 0): set by a node triggering node detection;
+//    every receiver that sees it re-enters Repeat Message State so newly-joined
+//    nodes are re-announced cluster-wide.
+//  * Active Wakeup (bit 5): set while the node is in Network Mode because it
+//    requested the network itself (Nm_NetworkRequest), and clear when it joined
+//    passively (woke on a received NM message). Lets a coordinator tell which
+//    nodes actively want the bus awake.
 inline constexpr std::uint8_t kCbvRepeatMessageRequest = 0x01;
+inline constexpr std::uint8_t kCbvActiveWakeup = 0x20;
 
 // NM PDU field layout (OEM config). Offsets are byte offsets within a PDU of
 // pdu_length bytes. control_bit_vector_off is the wire position of the Control
-// Bit Vector. The machine models the standard Repeat Message Request bit
-// (kCbvRepeatMessageRequest) within it for node detection — reading it on rx and
-// setting it on tx; the remaining CBV bits (sleep-ready, partial-network, ...)
-// stay an OEM concern and are left zero.
+// Bit Vector. The machine models the standard Repeat Message Request and Active
+// Wakeup bits within it — reading the former on rx and setting both on tx; the
+// remaining CBV bits (sleep-ready, partial-network, ...) stay an OEM concern and
+// are left zero.
 struct PduLayout {
     std::size_t pdu_length;
     std::size_t source_node_id_off;
@@ -82,9 +87,15 @@ public:
 
     State state() const { return state_; }
 
-    // Assemble the current NM PDU per the layout (source node id, a zero control
-    // bit vector, user data).
+    // Assemble the current NM PDU per the layout: source node id, the modeled
+    // Control Bit Vector bits (Repeat Message Request / Active Wakeup), and user
+    // data; all other CBV bits left zero.
     std::vector<std::uint8_t> buildPdu() const;
+
+    // True while this node holds the bus awake by its own request (the Active
+    // Wakeup Bit it sets on tx). Exposed so a module / coordinator can read the
+    // local wake reason without parsing a PDU.
+    bool activeWakeup() const { return active_wakeup_; }
 
     std::function<void(const std::vector<std::uint8_t>&)> onTransmit;   // module -> socket
     std::function<void(State from, State to)>             onTransition;  // optional observer
@@ -100,6 +111,7 @@ private:
     State                     state_ = State::kBusSleep;
     bool                      network_requested_ = false;
     bool                      repeat_requested_ = false;  // set RMR bit on tx while true
+    bool                      active_wakeup_ = false;     // set Active Wakeup bit on tx while true
     std::chrono::milliseconds nm_timeout_rem_{0};
     std::chrono::milliseconds repeat_msg_rem_{0};
     std::chrono::milliseconds wait_bus_sleep_rem_{0};
