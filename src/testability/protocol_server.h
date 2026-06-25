@@ -14,6 +14,7 @@
 
 #include "net/socket_backend.h"
 #include "testability/middleware.h"
+#include "testability/reactor.h"
 #include "tc8/testability_protocol.h"
 
 namespace tc8::testability {
@@ -21,22 +22,6 @@ namespace tc8::testability {
 // The shared socket seam lives in tc8::net (src/net/socket_backend.h); the
 // testability core speaks its endpoint type, so import the name here.
 using net::Endpoint;
-
-// A cross-thread wakeup for a poll() loop, modeled as the resource it is: it owns
-// its underlying fd(s) and frees them on destruction (RAII). The reactor holds one
-// by unique_ptr, places pollFd() in poll()'s set, calls signal() from any thread to
-// break a blocked poll(), and drain()s it on the poll thread once readable. POSIX
-// wraps an eventfd; lwIP wraps a loopback UDP socket pair (the executor reads one
-// end, the server writes the other) — neither shape leaks into the consumer, which
-// sees only this interface, so there is no fd to "remember" and no paired-fd
-// bookkeeping outside the object.
-class Waker {
-public:
-    virtual ~Waker() = default;
-    virtual int pollFd() const = 0;  // the fd to include in poll()'s set
-    virtual void signal() = 0;        // any thread: make pollFd() readable
-    virtual void drain() = 0;         // poll thread: consume pending signal(s)
-};
 
 // The testability-specific extension of the shared socket seam
 // (tc8::net::SocketBackend): the operations whose result is a PRS_TPSP
@@ -46,24 +31,13 @@ public:
 // seam so that layer stays free of testability protocol vocabulary; the Upper
 // Tester server, which has none of these primitives, depends on the generic
 // base alone and reuses the very same adapters.
-class SocketBackend : public net::SocketBackend {
+//
+// It also implements IoMultiplexer (poll + createWaker, src/testability/reactor.h)
+// — the narrow capability the per-module Reactor needs. Segregated this way, the
+// Reactor depends only on IoMultiplexer (not this fat class), and the Upper Tester
+// depends only on net::SocketBackend (not the multiplexer it never uses).
+class SocketBackend : public net::SocketBackend, public IoMultiplexer {
 public:
-    // The per-module reactor's I/O multiplexer + cross-thread wake. These live on
-    // the testability seam (not the generic net base) because only the stateful
-    // module executor (ProtocolServer::ModuleRuntime) needs an event loop — the
-    // Upper Tester, the other generic-base consumer, does not.
-    //
-    // poll(): block until an fd in `fds[0..n)` is readable or `timeout_ms` elapses
-    // (`timeout_ms` < 0 = indefinite). `readable` is cleared and filled with the
-    // readable subset. Returns the readable count (0 on timeout), or -1 on error.
-    virtual int poll(const int *fds, std::size_t n, int timeout_ms,
-                     std::vector<int> &readable) = 0;
-
-    // Construct a cross-thread Waker for the reactor's poll() loop (see Waker
-    // above), or nullptr if this backend has no wake primitive. The caller owns the
-    // returned Waker; its destruction releases the underlying fd(s).
-    virtual std::unique_ptr<Waker> createWaker() = 0;
-
     // CONFIGURE_SOCKET parameter application -> testability result id
     // (E_OK / E_NOK / E_NTF / E_INV). The supported parameter set is
     // backend-specific (a stack lacking an option answers E_NOK).

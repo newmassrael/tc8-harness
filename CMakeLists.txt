@@ -586,6 +586,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     install(FILES
             ${PROJECT_SOURCE_DIR}/src/testability/middleware.h
             ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.h
+            ${PROJECT_SOURCE_DIR}/src/testability/reactor.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/testability COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/src/net/socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/net COMPONENT utm-sdk)

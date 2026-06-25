@@ -121,6 +121,12 @@ tc8_add_unit_test(testability_client_test)
 if(TARGET tc8_testability_server)
     tc8_add_unit_test(testability_server_test)
     target_link_libraries(testability_server_test PRIVATE tc8_testability_server)
+    # The reusable Reactor (src/testability/reactor.h) exercised in isolation
+    # against the real POSIX IoMultiplexer — no ProtocolServer/module — proving the
+    # extracted event loop stands on its own. Links tc8_testability_server for
+    # PosixSocketBackend (the IoMultiplexer) and the server header include path.
+    tc8_add_unit_test(reactor_test)
+    target_link_libraries(reactor_test PRIVATE tc8_testability_server)
 endif()
 # Server-side integration: drives the real DUT-side Upper Tester server core
 # (tc8::ut::UpperTesterServer) over loopback with injected POSIX adapters,

@@ -1,0 +1,297 @@
+#pragma once
+
+#include <cassert>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <deque>
+#include <functional>
+#include <future>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <thread>
+#include <vector>
+
+#include "testability/middleware.h"  // TimerId / WatchId / kNoTimer / kNoWatch
+
+namespace tc8::testability {
+
+// A cross-thread wakeup for a poll() loop, modeled as the resource it is: it owns
+// its underlying fd(s) and frees them on destruction (RAII). A Reactor holds one
+// by unique_ptr, places pollFd() in poll()'s set, calls signal() from any thread to
+// break a blocked poll(), and drain()s it on the poll thread once readable. A POSIX
+// backend wraps an eventfd; an lwIP backend wraps a loopback UDP socket pair — the
+// shape never leaks into the consumer, which sees only this interface, so there is
+// no fd to "remember" and no paired-fd bookkeeping outside the object.
+class Waker {
+public:
+    virtual ~Waker() = default;
+    virtual int pollFd() const = 0;  // the fd to include in poll()'s set
+    virtual void signal() = 0;        // any thread: make pollFd() readable
+    virtual void drain() = 0;         // poll thread: consume pending signal(s)
+};
+
+// The I/O multiplexing capability a Reactor needs from a backend: a multi-fd
+// readiness wait plus a cross-thread Waker. Segregated from the data-plane
+// net::SocketBackend (which a module uses) and from the testability primitives, so
+// the Reactor depends only on this narrow surface — it knows nothing of sockets'
+// application semantics or of the testability protocol.
+class IoMultiplexer {
+public:
+    virtual ~IoMultiplexer() = default;
+
+    // Block until an fd in `fds[0..n)` is readable or `timeout_ms` elapses
+    // (`timeout_ms` < 0 = indefinite). `readable` is cleared and filled with the
+    // readable subset. Returns the readable count (0 on timeout), or -1 on error.
+    virtual int poll(const int *fds, std::size_t n, int timeout_ms,
+                     std::vector<int> &readable) = 0;
+
+    // A Waker to include in poll()'s set, or nullptr if this backend has none (the
+    // Reactor then falls back to its bounded liveness wait). Caller owns it.
+    virtual std::unique_ptr<Waker> createWaker() = 0;
+};
+
+// A single-threaded event-loop reactor: posted tasks, periodic/one-shot timers,
+// and fd-readiness watches, all run run-to-completion on one owned thread, so a
+// client carries no internal locks. The thread blocks in IoMultiplexer::poll over
+// the watched fds plus the Waker, woken by (a) a watched fd becoming readable
+// (genuine readiness — never a drain timer), (b) the next timer coming due (the
+// poll timeout), or (c) the Waker, signalled after a cross-thread post() so a
+// marshaled task runs promptly. Reusable and unit-testable in isolation against a
+// fake IoMultiplexer — it has no dependency on the testability protocol or modules.
+//
+// Threading: post() is the only cross-thread entry (it marshals + blocks); timers
+// and watches are mutated only on the loop thread (armEvery/armOnce/cancel/addWatch/
+// removeWatch assert this), so only the task queue needs a lock.
+class Reactor {
+public:
+    explicit Reactor(IoMultiplexer &mux) : mux_(mux) {}
+    ~Reactor() { stop(); }  // idempotent; joins the thread if still running
+    Reactor(const Reactor &) = delete;
+    Reactor &operator=(const Reactor &) = delete;
+
+    // Liveness backstop: cap an otherwise-indefinite poll wait at this heartbeat so
+    // a lost cross-thread wake (a Waker::signal() is best-effort — e.g. a droppable
+    // loopback datagram) delays a posted task by at most this, never wedges it. NOT
+    // rx polling: a watched fd's readiness still wakes poll() immediately.
+    static constexpr int kBackstopMs = 1000;
+
+    // Spawn the loop thread. createWaker() runs here (before the thread) so post()
+    // can immediately signal it.
+    void start() {
+        running_ = true;  // visible to the new thread (thread creation synchronises)
+        waker_ = mux_.createWaker();
+        thread_ = std::thread([this] { runLoop(); });
+        thread_id_ = thread_.get_id();
+    }
+
+    // Run `final_task` (if any) on the loop thread, then stop and join. Idempotent:
+    // a no-op if never started or already stopped. The Waker is freed after the
+    // join, so no concurrent poll can touch it.
+    void stop(const std::function<void()> &final_task = {}) {
+        if (!thread_.joinable()) {
+            return;
+        }
+        post([&] {
+            if (final_task) {
+                final_task();
+            }
+            timers_.clear();   // nothing fires after the final task (loop-thread state)
+            watches_.clear();
+            running_ = false;  // exit the loop after this task
+        });
+        thread_.join();
+        waker_.reset();
+    }
+
+    // Enqueue `fn` and block until the loop runs it. Inline when already on the loop
+    // thread so a re-entrant call cannot self-deadlock. The Waker breaks the loop
+    // out of poll(); enqueue-before-signal means a signal landing before poll() just
+    // leaves the wake fd readable, so the task is never lost (a dropped best-effort
+    // signal only delays it to the next backstop wakeup).
+    void post(const std::function<void()> &fn) {
+        if (std::this_thread::get_id() == thread_id_) {
+            fn();
+            return;
+        }
+        std::promise<void> done;
+        std::future<void> fut = done.get_future();
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            tasks_.push_back([&] {
+                fn();
+                done.set_value();
+            });
+        }
+        if (waker_) {
+            waker_->signal();
+        }
+        fut.wait();
+    }
+
+    TimerId armEvery(std::chrono::milliseconds period, std::function<void()> fn) {
+        return arm(period, std::move(fn), /*periodic=*/true);
+    }
+    TimerId armOnce(std::chrono::milliseconds delay, std::function<void()> fn) {
+        return arm(delay, std::move(fn), /*periodic=*/false);
+    }
+    void cancel(TimerId id) {
+        assertOnLoop();
+        timers_.erase(static_cast<std::uint64_t>(id));  // loop-thread only, no lock
+    }
+    WatchId addWatch(int fd, std::function<void()> fn) {
+        assertOnLoop();
+        if (fd < 0) {
+            return kNoWatch;
+        }
+        const std::uint64_t id = next_watch_id_++;
+        watches_[id] = Watch{fd, std::move(fn)};  // picked up on the next poll
+        return static_cast<WatchId>(id);
+    }
+    void removeWatch(WatchId id) {
+        assertOnLoop();
+        watches_.erase(static_cast<std::uint64_t>(id));  // loop-thread only, no lock
+    }
+
+    // True when called on the reactor's loop thread (the precondition for the
+    // lock-free timer/watch mutators).
+    bool onLoop() const { return std::this_thread::get_id() == thread_id_; }
+
+private:
+    struct Timer {
+        std::chrono::steady_clock::time_point next;
+        std::chrono::milliseconds period;
+        std::function<void()> fn;
+        bool periodic;
+    };
+    struct Watch {
+        int fd;
+        std::function<void()> fn;
+    };
+
+    // The lock-free timer/watch state is safe only because every mutator runs on
+    // the loop thread. Assert it in debug builds rather than trust the convention.
+    void assertOnLoop() const { assert(std::this_thread::get_id() == thread_id_); }
+
+    TimerId arm(std::chrono::milliseconds period, std::function<void()> fn, bool periodic) {
+        assertOnLoop();
+        const std::uint64_t id = next_timer_id_++;
+        timers_[id] = Timer{std::chrono::steady_clock::now() + period, period, std::move(fn),
+                            periodic};
+        return static_cast<TimerId>(id);
+    }
+
+    // Run every queued task FIFO, then return.
+    void drainTasks() {
+        for (;;) {
+            std::function<void()> t;
+            {
+                std::lock_guard<std::mutex> lk(mu_);
+                if (tasks_.empty()) {
+                    return;
+                }
+                t = std::move(tasks_.front());
+                tasks_.pop_front();
+            }
+            t();  // outside the lock: a task may enqueue more / arm timers / watch
+        }
+    }
+
+    void runLoop() {
+        while (running_) {
+            drainTasks();
+            if (!running_) {
+                break;  // a task (stop) cleared running_
+            }
+            // Fire the earliest due timer, else note the next due time. Ordered map,
+            // linear due-scan (n small).
+            const auto now = std::chrono::steady_clock::now();
+            bool have_due = false;
+            std::uint64_t due_id = 0;
+            std::optional<std::chrono::steady_clock::time_point> earliest;
+            for (const auto &kv : timers_) {
+                if (kv.second.next <= now) {
+                    due_id = kv.first;
+                    have_due = true;
+                    break;
+                }
+                if (!earliest || kv.second.next < *earliest) {
+                    earliest = kv.second.next;
+                }
+            }
+            if (have_due) {
+                const auto it = timers_.find(due_id);
+                std::function<void()> fn = it->second.fn;  // copy: a periodic timer re-fires
+                if (it->second.periodic) {
+                    it->second.next = now + it->second.period;
+                } else {
+                    timers_.erase(it);
+                }
+                fn();
+                continue;  // re-scan: the handler may have armed/cancelled timers
+            }
+            // Build the poll set: the wake fd plus every watched fd.
+            poll_fds_.clear();
+            if (waker_) {
+                poll_fds_.push_back(waker_->pollFd());
+            }
+            for (const auto &kv : watches_) {
+                poll_fds_.push_back(kv.second.fd);
+            }
+            int timeout_ms = kBackstopMs;
+            if (earliest) {
+                const auto d =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(*earliest - now).count();
+                const int until = (d < 0) ? 0 : static_cast<int>(d);
+                if (until < timeout_ms) {
+                    timeout_ms = until;
+                }
+            }
+            mux_.poll(poll_fds_.data(), poll_fds_.size(), timeout_ms, readable_);
+            // Collect the watch IDs to fire, then dispatch by re-looking-up each — a
+            // handler may unwatch another watch readable this round, so membership is
+            // re-checked at fire time. The wake fd is drained, never dispatched.
+            fire_.clear();
+            for (const int fd : readable_) {
+                if (waker_ && fd == waker_->pollFd()) {
+                    waker_->drain();
+                    continue;
+                }
+                for (const auto &kv : watches_) {
+                    if (kv.second.fd == fd) {
+                        fire_.push_back(kv.first);
+                    }
+                }
+            }
+            for (const std::uint64_t id : fire_) {
+                const auto it = watches_.find(id);
+                if (it != watches_.end()) {  // still watched (a prior handler may have removed it)
+                    it->second.fn();
+                }
+            }
+        }
+    }
+
+    IoMultiplexer &mux_;
+    std::thread thread_;
+    std::thread::id thread_id_;
+
+    std::mutex mu_;                 // guards tasks_ only (the cross-thread queue)
+    bool running_ = false;          // loop-thread state after start()
+    std::deque<std::function<void()>> tasks_;
+    std::unique_ptr<Waker> waker_;  // cross-thread wake for poll(); null if unsupported
+
+    // Loop-thread-only state (no lock): timers, fd watches, and the poll scratch
+    // buffers reused each iteration.
+    std::map<std::uint64_t, Timer> timers_;
+    std::uint64_t next_timer_id_ = 1;
+    std::map<std::uint64_t, Watch> watches_;
+    std::uint64_t next_watch_id_ = 1;
+    std::vector<int> poll_fds_;
+    std::vector<int> readable_;
+    std::vector<std::uint64_t> fire_;  // watch ids to dispatch this round
+};
+
+}  // namespace tc8::testability
