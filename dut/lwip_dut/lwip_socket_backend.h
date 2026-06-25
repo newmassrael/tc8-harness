@@ -31,6 +31,10 @@ public:
     bool joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) override;
     bool leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) override;
     bool flushDynamicArp(const std::string &ifname) override;
+    bool addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
+                           const std::uint8_t *mac) override;
+    bool removeNeighbor(const std::string &ifname, std::uint32_t addr_be) override;
+    bool setNeighborReachableMs(const std::string &ifname, int reachable_ms) override;
     int recv(int fd, void *buf, std::size_t len) override;
     int send(int fd, const void *buf, std::size_t len) override;
     bool connectBoundedV4(int fd, const tc8::net::Endpoint &dst, int timeout_ms) override;

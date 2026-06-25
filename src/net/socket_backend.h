@@ -61,6 +61,30 @@ public:
     // such control (surfaced). Per-interface, so it takes no fd.
     virtual bool flushDynamicArp(const std::string &ifname) = 0;
 
+    // Install a static (permanent) IPv4 ARP/neighbor entry on `ifname` mapping
+    // `addr_be` (network byte order) to the 6-byte MAC at `mac` — the ARP-cache
+    // pre-conditioning a module needs to suppress an ARP request for a peer it
+    // already knows. true on success; false on an unknown interface, insufficient
+    // privilege, or a stack with no static-entry support (surfaced). Pairs with
+    // removeNeighbor; the data plane stays the stack's own API, never a shell-out.
+    virtual bool addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
+                                   const std::uint8_t *mac) = 0;
+
+    // Remove the single IPv4 neighbor entry for `addr_be` on `ifname`, whatever
+    // its kind (static or learned) — the per-IP counterpart of flushDynamicArp,
+    // used both to drop a pre-installed static entry and to force a re-ARP for one
+    // peer. true on success, including when no such entry exists (idempotent);
+    // false on an unknown interface, insufficient privilege, or no such control.
+    virtual bool removeNeighbor(const std::string &ifname, std::uint32_t addr_be) = 0;
+
+    // Set the base reachable time (milliseconds) for learned IPv4 neighbor entries
+    // on `ifname` — the ARP-cache aging control a module uses to drive entries
+    // stale and provoke revalidation. true on success; false on an unknown
+    // interface, insufficient privilege, or a stack whose aging is fixed at
+    // compile time and cannot be changed at runtime (surfaced, not silently
+    // accepted). The caller restores the prior value if it needs to.
+    virtual bool setNeighborReachableMs(const std::string &ifname, int reachable_ms) = 0;
+
     // Stream I/O. < 0 error, 0 peer close, else byte count.
     virtual int recv(int fd, void *buf, std::size_t len) = 0;
     virtual int send(int fd, const void *buf, std::size_t len) = 0;

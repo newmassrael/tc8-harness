@@ -118,6 +118,65 @@ struct in6_rtmsg {
     int ifindex;
 };
 
+// Append a netlink rtattr (type + payload) at byte offset *off within `buf`,
+// advancing *off past the RTA-aligned attribute. The caller sizes `buf` for the
+// fixed, small neighbor messages built below.
+void nlAppendAttr(char *buf, std::size_t *off, std::uint16_t type, const void *payload,
+                  std::size_t plen) {
+    auto *rta = reinterpret_cast<::rtattr *>(buf + *off);
+    rta->rta_type = type;
+    rta->rta_len = static_cast<unsigned short>(RTA_LENGTH(plen));
+    std::memcpy(RTA_DATA(rta), payload, plen);
+    *off += RTA_ALIGN(rta->rta_len);
+}
+
+// Build and send a single RTM_NEWNEIGH / RTM_DELNEIGH over a transient
+// NETLINK_ROUTE socket and check the kernel ACK — the request+ACK sibling of
+// flushDynamicArp's dump, the same "speak netlink, never shell out to `ip neigh`"
+// stance (fork+exec is slow and unsafe in this multi-threaded server). A non-null
+// `mac` adds an NDA_LLADDR (an add carries it, a delete does not). Returns true on
+// a zero-error ACK; `enoent_ok` additionally treats -ENOENT ("entry already
+// absent") as success, making a delete idempotent. The write needs CAP_NET_ADMIN,
+// so a privilege-less host gets false (surfaced, not silently accepted).
+bool sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type, std::uint16_t extra_flags,
+                    std::uint16_t ndm_state, std::uint32_t dst_be, const std::uint8_t *mac,
+                    bool enoent_ok) {
+    char buf[256] = {};
+    auto *nlh = reinterpret_cast<::nlmsghdr *>(buf);
+    nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ndmsg));
+    nlh->nlmsg_type = nlmsg_type;
+    nlh->nlmsg_flags = static_cast<std::uint16_t>(NLM_F_REQUEST | NLM_F_ACK | extra_flags);
+    auto *nd = static_cast<::ndmsg *>(NLMSG_DATA(nlh));
+    nd->ndm_family = AF_INET;
+    nd->ndm_ifindex = static_cast<int>(ifindex);
+    nd->ndm_state = ndm_state;
+    std::size_t off = NLMSG_ALIGN(nlh->nlmsg_len);
+    nlAppendAttr(buf, &off, NDA_DST, &dst_be, sizeof(dst_be));
+    if (mac != nullptr) {
+        nlAppendAttr(buf, &off, NDA_LLADDR, mac, 6);
+    }
+    nlh->nlmsg_len = static_cast<std::uint32_t>(off);
+
+    const int nl = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+    if (nl < 0) {
+        return false;
+    }
+    bool ok = false;
+    if (::send(nl, buf, nlh->nlmsg_len, 0) >= 0) {
+        char rbuf[512];
+        const ssize_t r = ::recv(nl, rbuf, sizeof(rbuf), 0);
+        if (r >= static_cast<ssize_t>(NLMSG_LENGTH(sizeof(::nlmsgerr)))) {
+            const auto *rh = reinterpret_cast<const ::nlmsghdr *>(rbuf);
+            if (rh->nlmsg_type == NLMSG_ERROR) {
+                const auto *e = static_cast<const ::nlmsgerr *>(NLMSG_DATA(rh));
+                ok = e->error == 0 || (enoent_ok && e->error == -ENOENT);
+            }
+        }
+    }
+    ::close(nl);
+    return ok;
+}
+
 }  // namespace
 
 int PosixSocketBackend::createUdp() {
@@ -295,6 +354,50 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
     }
     ::close(nl);
     return ok;
+}
+
+bool PosixSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
+                                           const std::uint8_t *mac) {
+    const unsigned ifindex = ::if_nametoindex(ifname.c_str());
+    if (ifindex == 0) {
+        return false;  // unknown interface
+    }
+    // NUD_PERMANENT = a static entry (never aged out); NLM_F_CREATE|NLM_F_REPLACE
+    // so an existing entry for this address is overwritten rather than rejected.
+    return sendNeighborOp(ifindex, RTM_NEWNEIGH, NLM_F_CREATE | NLM_F_REPLACE, NUD_PERMANENT,
+                          addr_be, mac, /*enoent_ok=*/false);
+}
+
+bool PosixSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t addr_be) {
+    const unsigned ifindex = ::if_nametoindex(ifname.c_str());
+    if (ifindex == 0) {
+        return false;  // unknown interface
+    }
+    // No NDA_LLADDR and no state filter: the named entry is deleted whatever its
+    // kind (static or learned), and a missing entry is success (-ENOENT) so the
+    // remove is idempotent per the seam contract.
+    return sendNeighborOp(ifindex, RTM_DELNEIGH, /*extra_flags=*/0, /*ndm_state=*/0, addr_be,
+                          /*mac=*/nullptr, /*enoent_ok=*/true);
+}
+
+bool PosixSocketBackend::setNeighborReachableMs(const std::string &ifname, int reachable_ms) {
+    if (reachable_ms < 0 || ::if_nametoindex(ifname.c_str()) == 0) {
+        return false;  // nonsensical aging time, or unknown interface
+    }
+    // Per-interface neighbor aging is the procfs sysctl
+    // /proc/sys/net/ipv4/neigh/<dev>/base_reachable_time_ms, written via the file
+    // API (sysctl(2) is deprecated on Linux). if_nametoindex above already rejects
+    // an unknown / malformed name, so the constructed path cannot escape the dir.
+    // The write needs CAP_NET_ADMIN, so a privilege-less host gets false.
+    const std::string path = "/proc/sys/net/ipv4/neigh/" + ifname + "/base_reachable_time_ms";
+    const int fd = ::open(path.c_str(), O_WRONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return false;
+    }
+    const std::string val = std::to_string(reachable_ms);
+    const ssize_t w = ::write(fd, val.c_str(), val.size());
+    ::close(fd);
+    return w == static_cast<ssize_t>(val.size());
 }
 
 int PosixSocketBackend::recv(int fd, void *buf, std::size_t len) {

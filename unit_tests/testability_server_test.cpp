@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <memory>
 #include <stdexcept>
 #include <thread>
@@ -1837,6 +1838,51 @@ TEST(PosixBackendArp, FlushDynamicArpResolvesInterfaceAndSucceedsOnEmpty) {
     dut::PosixSocketBackend be;
     EXPECT_FALSE(be.flushDynamicArp("tc8_no_such_iface")) << "unknown interface must be rejected";
     EXPECT_TRUE(be.flushDynamicArp("lo")) << "flush on an entry-free interface should succeed";
+}
+
+// Neighbor ops (POSIX): each resolves the interface unprivileged FIRST (via
+// if_nametoindex / the procfs path), so an unknown interface is rejected on any
+// host, no CAP_NET_ADMIN needed. The privileged success paths — installing a
+// static entry on a real L2 interface in particular — are left to an OEM UTM's
+// own integration test under NET_ADMIN, as the add/remove writes require it and a
+// permanent ARP entry cannot meaningfully attach to loopback.
+TEST(PosixBackendNeighbor, UnknownInterfaceRejected) {
+    dut::PosixSocketBackend be;
+    const std::uint8_t mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
+    EXPECT_FALSE(be.addStaticNeighbor("tc8_no_such_iface", ip_be, mac));
+    EXPECT_FALSE(be.removeNeighbor("tc8_no_such_iface", ip_be));
+    EXPECT_FALSE(be.setNeighborReachableMs("tc8_no_such_iface", 30000));
+}
+
+// Where the process holds CAP_NET_ADMIN, the writes themselves are exercised on
+// loopback (harmless: lo has the neigh sysctls and no real neighbors). The aging
+// sysctl round-trips its value, and a per-IP delete of an absent entry is success
+// (idempotent). Without privilege the test skips rather than asserting the host's
+// lack of it (mirrors EthInterfaceUpLoopbackReturnsEOk).
+TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
+    if (::geteuid() != 0) {
+        GTEST_SKIP() << "neighbor writes need CAP_NET_ADMIN on this host";
+    }
+    dut::PosixSocketBackend be;
+    constexpr const char *kPath = "/proc/sys/net/ipv4/neigh/lo/base_reachable_time_ms";
+    int original = 0;
+    {
+        std::ifstream in(kPath);
+        ASSERT_TRUE(static_cast<bool>(in >> original)) << "could not read " << kPath;
+    }
+    EXPECT_TRUE(be.setNeighborReachableMs("lo", 45000)) << "privileged aging write should succeed";
+    int after = 0;
+    {
+        std::ifstream in(kPath);
+        ASSERT_TRUE(static_cast<bool>(in >> after));
+    }
+    EXPECT_EQ(after, 45000) << "the aging time should read back as written";
+    EXPECT_TRUE(be.setNeighborReachableMs("lo", original)) << "restore the prior value";
+
+    // Deleting an entry that does not exist is idempotent success (-ENOENT).
+    EXPECT_TRUE(be.removeNeighbor("lo", ::htonl(0x0A0000FE)))
+        << "removing an absent neighbor should succeed (idempotent)";
 }
 
 }  // namespace

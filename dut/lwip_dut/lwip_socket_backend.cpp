@@ -124,6 +124,31 @@ bool LwipSocketBackend::flushDynamicArp(const std::string & /*ifname*/) {
     return false;
 }
 
+bool LwipSocketBackend::addStaticNeighbor(const std::string & /*ifname*/,
+                                          std::uint32_t /*addr_be*/,
+                                          const std::uint8_t * /*mac*/) {
+    // lwIP's etharp does have etharp_add_static_entry(), but reaching it needs a
+    // core-locked call against the resolved netif — deferred to the lwIP multicast/
+    // etharp round (R3). Surfaced as false until then, like the other stubs.
+    return false;
+}
+
+bool LwipSocketBackend::removeNeighbor(const std::string & /*ifname*/,
+                                       std::uint32_t /*addr_be*/) {
+    // The etharp_remove_static_entry() counterpart of addStaticNeighbor, deferred
+    // to the same R3 round (needs the core lock + netif resolution). Surfaced false.
+    return false;
+}
+
+bool LwipSocketBackend::setNeighborReachableMs(const std::string & /*ifname*/,
+                                               int /*reachable_ms*/) {
+    // lwIP ages ARP entries on a fixed ARP_MAXAGE (a compile-time constant, units of
+    // ARP_TMR_INTERVAL ticks), with no per-interface runtime knob. This is a genuine
+    // platform limitation, not a deferral: the value cannot change at runtime on this
+    // stack, so the control is surfaced as false rather than silently accepted.
+    return false;
+}
+
 int LwipSocketBackend::recv(int fd, void *buf, std::size_t len) {
     return lwip_recv(fd, buf, len, 0);
 }
