@@ -173,5 +173,68 @@ TEST(NmStateMachine, PrepareBusSleepWakesOnRx) {
     EXPECT_EQ(sm.state(), State::kRepeatMessage);
 }
 
+// ── Node detection (Repeat Message Request, SWS Nm CBV bit 0) ──
+
+// A local repeat-message request re-enters Repeat Message from Normal Operation
+// and sets the Repeat Message Request bit in the transmitted PDU's CBV (offset 1).
+TEST(NmStateMachine, RepeatMessageRequestReentersAndSetsBit) {
+    StateMachine sm = make();
+    std::vector<std::uint8_t> last;
+    sm.onTransmit = [&](const std::vector<std::uint8_t>& p) { last = p; };
+    sm.requestNetwork();
+    sm.mainFunction(ms{100});  // -> Normal Operation
+    ASSERT_EQ(sm.state(), State::kNormalOperation);
+    sm.requestRepeatMessage();
+    EXPECT_EQ(sm.state(), State::kRepeatMessage);
+    ASSERT_EQ(last.size(), 8u);
+    EXPECT_NE(last[1] & kCbvRepeatMessageRequest, 0);  // RMR bit set on tx (CBV at off 1)
+}
+
+// A peer's PDU with the RMR bit set drives a receiver back into Repeat Message
+// (node detection); the same PDU without the bit leaves it in Normal Operation.
+TEST(NmStateMachine, RxRepeatMessageBitReentersRepeatMessage) {
+    StateMachine sm = make();
+    sm.requestNetwork();
+    sm.mainFunction(ms{100});  // -> Normal Operation
+    ASSERT_EQ(sm.state(), State::kNormalOperation);
+    std::vector<std::uint8_t> pdu(8, 0x00);
+    pdu[1] = kCbvRepeatMessageRequest;  // peer requests repeat (CBV at off 1)
+    sm.rxNmPdu(pdu.data(), pdu.size());
+    EXPECT_EQ(sm.state(), State::kRepeatMessage);
+}
+
+TEST(NmStateMachine, RxWithoutRepeatBitStaysInNormalOperation) {
+    StateMachine sm = make();
+    sm.requestNetwork();
+    sm.mainFunction(ms{100});  // -> Normal Operation
+    ASSERT_EQ(sm.state(), State::kNormalOperation);
+    const std::vector<std::uint8_t> pdu(8, 0x00);  // CBV clear
+    sm.rxNmPdu(pdu.data(), pdu.size());
+    EXPECT_EQ(sm.state(), State::kNormalOperation);
+}
+
+// A receiver re-entering Repeat Message because of a peer's request must not set
+// its own RMR bit (only the originator does), so the request cannot storm.
+TEST(NmStateMachine, ReceiverReenteringDoesNotSetOwnBit) {
+    StateMachine sm = make();
+    std::vector<std::uint8_t> last;
+    sm.onTransmit = [&](const std::vector<std::uint8_t>& p) { last = p; };
+    sm.requestNetwork();
+    sm.mainFunction(ms{100});  // -> Normal Operation
+    std::vector<std::uint8_t> rmr(8, 0x00);
+    rmr[1] = kCbvRepeatMessageRequest;
+    sm.rxNmPdu(rmr.data(), rmr.size());  // re-enter via the peer request (tx on entry)
+    ASSERT_EQ(sm.state(), State::kRepeatMessage);
+    ASSERT_EQ(last.size(), 8u);
+    EXPECT_EQ(last[1] & kCbvRepeatMessageRequest, 0);  // the receiver does not propagate
+}
+
+// Outside Network Mode there is nothing to repeat: the request is a no-op.
+TEST(NmStateMachine, RepeatMessageRequestIgnoredInBusSleep) {
+    StateMachine sm = make();
+    sm.requestRepeatMessage();
+    EXPECT_EQ(sm.state(), State::kBusSleep);
+}
+
 }  // namespace
 }  // namespace tc8::nm

@@ -30,12 +30,18 @@ struct Timing {
     std::chrono::milliseconds wait_bus_sleep;
 };
 
+// SWS Nm Control Bit Vector — the Repeat Message Request bit at its
+// AUTOSAR-standard position (CBV bit 0). Set by a node that triggers node
+// detection; every receiver that sees it set re-enters Repeat Message State so
+// newly-joined nodes are re-announced cluster-wide.
+inline constexpr std::uint8_t kCbvRepeatMessageRequest = 0x01;
+
 // NM PDU field layout (OEM config). Offsets are byte offsets within a PDU of
 // pdu_length bytes. control_bit_vector_off is the wire position of the Control
-// Bit Vector; this core machine validates its placement but leaves the byte zero
-// — the CBV bits (repeat-message request, sleep-ready, ...) are not modeled here,
-// so the offset documents the wire layout an OEM populates rather than driving
-// behavior.
+// Bit Vector. The machine models the standard Repeat Message Request bit
+// (kCbvRepeatMessageRequest) within it for node detection — reading it on rx and
+// setting it on tx; the remaining CBV bits (sleep-ready, partial-network, ...)
+// stay an OEM concern and are left zero.
 struct PduLayout {
     std::size_t pdu_length;
     std::size_t source_node_id_off;
@@ -58,6 +64,13 @@ public:
     void requestNetwork();   // ComM full-com: the network is needed
     void releaseNetwork();   // ComM no-com: the network is no longer needed
     void rxNmPdu(const std::uint8_t* pdu, std::size_t len);  // an NM PDU arrived
+
+    // Trigger node detection (the Nm_RepeatMessageRequest analog): re-enter Repeat
+    // Message State and set the Repeat Message Request bit in transmitted PDUs for
+    // its duration, so the whole cluster re-enters Repeat Message and re-announces.
+    // A no-op outside Network Mode (Bus Sleep / Prepare Bus Sleep have nothing to
+    // repeat).
+    void requestRepeatMessage();
 
     // Advance the machine by `elapsed`; call periodically with a period finer
     // than the configured timers (AUTOSAR Nm_MainFunction model).
@@ -86,6 +99,7 @@ private:
     std::vector<std::uint8_t> user_data_;
     State                     state_ = State::kBusSleep;
     bool                      network_requested_ = false;
+    bool                      repeat_requested_ = false;  // set RMR bit on tx while true
     std::chrono::milliseconds nm_timeout_rem_{0};
     std::chrono::milliseconds repeat_msg_rem_{0};
     std::chrono::milliseconds wait_bus_sleep_rem_{0};

@@ -32,6 +32,9 @@ void StateMachine::transitionTo(State next) {
     }
     const State from = state_;
     state_ = next;
+    if (next != State::kRepeatMessage) {
+        repeat_requested_ = false;  // the request bit lives only during Repeat Message
+    }
     if (onTransition) {
         onTransition(from, next);
     }
@@ -69,10 +72,40 @@ void StateMachine::releaseNetwork() {
     }
 }
 
-void StateMachine::rxNmPdu(const std::uint8_t* /*pdu*/, std::size_t /*len*/) {
+void StateMachine::requestRepeatMessage() {
+    // Only meaningful in Network Mode; Bus Sleep / Prepare Bus Sleep have nothing
+    // to repeat. Mark the request (so buildPdu sets the RMR bit) and re-enter — or,
+    // if already there, restart — Repeat Message State.
+    if (state_ != State::kNormalOperation && state_ != State::kReadySleep &&
+        state_ != State::kRepeatMessage) {
+        return;
+    }
+    repeat_requested_ = true;
+    if (state_ == State::kRepeatMessage) {
+        repeat_msg_rem_ = timing_.repeat_message;  // restart the bounded window
+    } else {
+        transitionTo(State::kRepeatMessage);
+    }
+}
+
+void StateMachine::rxNmPdu(const std::uint8_t* pdu, std::size_t len) {
     nm_timeout_rem_ = timing_.msg_timeout;  // any received NM PDU restarts the NM-Timeout
     if (state_ == State::kBusSleep || state_ == State::kPrepareBusSleep) {
         transitionTo(State::kRepeatMessage);  // passive startup
+        return;
+    }
+    // Node detection: a peer that set the Repeat Message Request bit makes every
+    // receiver in Network Mode re-enter (or restart) Repeat Message State and
+    // re-announce. The receiver does not set its own request bit — only the
+    // originator does (repeat_requested_ stays false) — so the request does not
+    // storm on a shared medium.
+    if (len > layout_.control_bit_vector_off &&
+        (pdu[layout_.control_bit_vector_off] & kCbvRepeatMessageRequest) != 0) {
+        if (state_ == State::kRepeatMessage) {
+            repeat_msg_rem_ = timing_.repeat_message;
+        } else {  // Normal Operation or Ready Sleep
+            transitionTo(State::kRepeatMessage);
+        }
     }
 }
 
@@ -126,8 +159,12 @@ void StateMachine::setUserData(const std::uint8_t* data, std::size_t len) {
 std::vector<std::uint8_t> StateMachine::buildPdu() const {
     std::vector<std::uint8_t> pdu(layout_.pdu_length, 0x00);
     pdu[layout_.source_node_id_off] = node_id_;
-    // control bit vector left at 0 (the optional repeat-message / sleep bits are
-    // not modeled by this core machine).
+    // The Repeat Message Request bit is set while this node is driving node
+    // detection (Repeat Message State entered via requestRepeatMessage); the other
+    // CBV bits stay an OEM concern and are left zero.
+    if (repeat_requested_ && state_ == State::kRepeatMessage) {
+        pdu[layout_.control_bit_vector_off] |= kCbvRepeatMessageRequest;
+    }
     for (std::size_t i = 0; i < layout_.user_data_len; ++i) {
         pdu[layout_.user_data_off + i] = user_data_[i];
     }
