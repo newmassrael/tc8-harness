@@ -78,7 +78,10 @@ external_section_prefixes = ["RFC"]
 # W3C SCXML (2026-06-15) — the SCE-integration .scxml mechanism comments cite the
 # W3C SCXML Recommendation by section (e.g. "W3C SCXML §3.13" for transition
 # selection); specific multi-word doc name, not a generic token.
-external_section_prefixes_bare = ["TR_SOMEIP", "SOMEIPSD", "SWS_SD", "PRS_TPSP", "W3C SCXML"]
+# PRS_SOMEIP (2026-06-26) — AUTOSAR FO PRS SOME/IP Protocol (Document ID 696,
+# R24-11); the planned SOME/IP-TP transport engine cites its §4.2.1.4 (TP header /
+# segmentation; requirements PRS_SOMEIP_00720..731, 00931).
+external_section_prefixes_bare = ["TR_SOMEIP", "SOMEIPSD", "SWS_SD", "PRS_TPSP", "W3C SCXML", "PRS_SOMEIP"]
 # Phase F 2026-05-13 — baseline 0 도달 후 reject 승격. 새 위반 = build fail.
 severity_missing = "reject"
 severity_binding = "reject"
