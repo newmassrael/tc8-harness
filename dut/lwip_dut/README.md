@@ -584,6 +584,21 @@ ETH (0x0B) — the same set the Linux endpoint serves.
   (`IP_MTU_DISCOVER`), IP timestamp-option (`IP_OPTIONS`) and MSS
   (`TCP_MAXSEG`) parameters have no lwIP socket option and answer E_NOK
   — surfaced, not silently accepted.
+- The network-management backend ops an out-of-tree middleware module composes
+  (`net::SocketBackend`, not PRS_TPSP primitives) split by capability.
+  `joinMulticast` / `leaveMulticast` are real only in `tc8-lwip-utm`, whose own
+  core enables `LWIP_IGMP` (`utm/lwipopts.h`, R2) and maps them to
+  `IP_ADD_MEMBERSHIP` / `IP_DROP_MEMBERSHIP`; the conformance core builds IGMP
+  off (where the option is not even defined) and returns false. `addStaticNeighbor`
+  / `removeNeighbor` use `etharp_add_static_entry` / `etharp_remove_static_entry`
+  under the core lock (`ETHARP_SUPPORT_STATIC_ENTRIES`, on in both cores), with
+  the named interface required to be the route to the address. Two lwIP limits are
+  surfaced as false, not masked: `removeNeighbor` drops only *static* entries
+  (lwIP has no public per-IP dynamic-entry removal, the same gap as
+  `flushDynamicArp`), and `setNeighborReachableMs` cannot work at all — lwIP ages
+  ARP on a fixed compile-time `ARP_MAXAGE`, with no per-interface runtime knob.
+  Exercised in-process (loopback + a stub ethernet netif, no tap/root) by
+  `lwip_arp_multicast_test`.
 - Response and asynchronous Event egress on the shared listener socket
   are serialised by a send mutex: lwIP gives no cross-thread send
   ordering on one netconn, unlike the Linux kernel the original relies

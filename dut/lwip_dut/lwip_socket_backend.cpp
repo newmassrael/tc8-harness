@@ -1,14 +1,18 @@
 #include "lwip_socket_backend.h"
 
 #include <cerrno>
+#include <cstring>
 #include <memory>
 
 #include "wire/ip_checksum.h"
 
 #include "lwip/api.h"
+#include "lwip/etharp.h"
+#include "lwip/ip4.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
+#include "lwip/prot/ethernet.h"
 #include "lwip/prot/ip.h"
 #include "lwip/raw.h"
 #include "lwip/sockets.h"
@@ -93,26 +97,45 @@ int LwipSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const 
     return lwip_sendto(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d));
 }
 
-bool LwipSocketBackend::joinMulticast(int /*fd*/, std::uint32_t /*group_be*/,
-                                      std::uint32_t /*ifaddr_be*/) {
-    // IPv4 multicast reception needs LWIP_IGMP, which this fixture deliberately
-    // builds OFF. A single shared lwipopts.h compiles the lwIP core ONCE for BOTH
-    // tc8-lwip-dut (conformance) and tc8-lwip-utm; enabling IGMP would add
-    // all-systems (224.0.0.1) membership and IGMP report emission to the
-    // conformance DUT's wire behaviour, perturbing the broadcast/multicast
-    // silent-discard cases (UDP_INTRODUCTION_02 et al.). So multicast rx is
-    // deferred for the lwIP backend: report false (surfaced, not silently
-    // dropped) — a module that needs the group degrades exactly as on a failed
-    // bind. A UTM-only deployment that opts into LWIP_IGMP would implement this as
-    // lwip_setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &ip_mreq{group, iface}).
+#if LWIP_IGMP
+// One socket-level IGMP membership setsockopt (IP_ADD_MEMBERSHIP /
+// IP_DROP_MEMBERSHIP), shared by join and leave: build the ip_mreq and report
+// success on a zero return. ifaddr_be == 0 selects the default interface.
+static bool ipMembership(int fd, int optname, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+    ip_mreq mreq{};
+    mreq.imr_multiaddr.s_addr = group_be;
+    mreq.imr_interface.s_addr = ifaddr_be;
+    return lwip_setsockopt(fd, IPPROTO_IP, optname, &mreq, sizeof(mreq)) == 0;
+}
+#endif
+
+bool LwipSocketBackend::joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+#if LWIP_IGMP
+    // The UTM core builds with LWIP_IGMP (utm/lwipopts.h); IP_ADD_MEMBERSHIP joins
+    // the group on the netif carrying ifaddr_be (0 = default). Returns false on a
+    // setsockopt rejection (e.g. no IGMP-capable netif) — surfaced, not dropped.
+    return ipMembership(fd, IP_ADD_MEMBERSHIP, group_be, ifaddr_be);
+#else
+    // The conformance core (lwipopts.h) builds IGMP OFF to stay wire-silent on the
+    // broadcast/multicast discard cases; IP_ADD_MEMBERSHIP is not even defined
+    // there. Surfaced as false — a module that needs the group degrades exactly as
+    // on a failed bind.
+    (void)fd;
+    (void)group_be;
+    (void)ifaddr_be;
     return false;
+#endif
 }
 
-bool LwipSocketBackend::leaveMulticast(int /*fd*/, std::uint32_t /*group_be*/,
-                                       std::uint32_t /*ifaddr_be*/) {
-    // The joinMulticast counterpart: deferred for the same reason (LWIP_IGMP is
-    // OFF to keep the shared conformance core wire-silent). Surfaced as false.
-    return false;
+bool LwipSocketBackend::leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+#if LWIP_IGMP
+    return ipMembership(fd, IP_DROP_MEMBERSHIP, group_be, ifaddr_be);
+#else
+    (void)fd;
+    (void)group_be;
+    (void)ifaddr_be;
+    return false;  // IGMP off in the conformance core (see joinMulticast)
+#endif
 }
 
 bool LwipSocketBackend::flushDynamicArp(const std::string & /*ifname*/) {
@@ -124,20 +147,57 @@ bool LwipSocketBackend::flushDynamicArp(const std::string & /*ifname*/) {
     return false;
 }
 
-bool LwipSocketBackend::addStaticNeighbor(const std::string & /*ifname*/,
-                                          std::uint32_t /*addr_be*/,
-                                          const std::uint8_t * /*mac*/) {
-    // lwIP's etharp does have etharp_add_static_entry(), but reaching it needs a
-    // core-locked call against the resolved netif — deferred to the lwIP multicast/
-    // etharp round (R3). Surfaced as false until then, like the other stubs.
+bool LwipSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
+                                          const std::uint8_t *mac) {
+#if ETHARP_SUPPORT_STATIC_ENTRIES
+    ip4_addr_t ip{};
+    ip4_addr_set_u32(&ip, addr_be);
+    struct eth_addr eth{};
+    std::memcpy(eth.addr, mac, 6);
+    bool ok = false;
+    LOCK_TCPIP_CORE();
+    // etharp_add_static_entry attaches the entry to whatever netif lwIP routes the
+    // address through, with no ifname parameter. Honor the seam's "on ifname"
+    // contract by requiring the named interface to be that route (on the typical
+    // single-netif UTM they coincide); an unknown interface, or an address not
+    // reachable via it, is false.
+    struct netif *nif = netif_find(ifname.c_str());
+    if (nif != nullptr && ip4_route(&ip) == nif) {
+        ok = etharp_add_static_entry(&ip, &eth) == ERR_OK;
+    }
+    UNLOCK_TCPIP_CORE();
+    return ok;
+#else
+    (void)ifname;
+    (void)addr_be;
+    (void)mac;
     return false;
+#endif
 }
 
-bool LwipSocketBackend::removeNeighbor(const std::string & /*ifname*/,
-                                       std::uint32_t /*addr_be*/) {
-    // The etharp_remove_static_entry() counterpart of addStaticNeighbor, deferred
-    // to the same R3 round (needs the core lock + netif resolution). Surfaced false.
+bool LwipSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t addr_be) {
+#if ETHARP_SUPPORT_STATIC_ENTRIES
+    ip4_addr_t ip{};
+    ip4_addr_set_u32(&ip, addr_be);
+    bool ok = false;
+    LOCK_TCPIP_CORE();
+    struct netif *nif = netif_find(ifname.c_str());
+    if (nif != nullptr) {
+        // ERR_OK = a static entry was removed; ERR_MEM = none was there. Both leave
+        // the end-state "no static entry for this IP", so both are success
+        // (idempotent, matching the POSIX backend). ERR_ARG (a *dynamic* entry
+        // exists) is false: lwIP has no public per-IP dynamic-entry removal, so the
+        // entry persists — surfaced, not masked. See the README known-limitation.
+        const err_t e = etharp_remove_static_entry(&ip);
+        ok = (e == ERR_OK || e == ERR_MEM);
+    }
+    UNLOCK_TCPIP_CORE();
+    return ok;
+#else
+    (void)ifname;
+    (void)addr_be;
     return false;
+#endif
 }
 
 bool LwipSocketBackend::setNeighborReachableMs(const std::string & /*ifname*/,

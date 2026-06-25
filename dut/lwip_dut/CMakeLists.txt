@@ -226,3 +226,14 @@ enable_testing()
 tc8_lwip_app(tc8-lwip-reactor-test SRCS lwip_reactor_test.cpp)
 add_test(NAME lwip_reactor_test COMMAND tc8-lwip-reactor-test)
 set_tests_properties(lwip_reactor_test PROPERTIES TIMEOUT 30)
+
+# In-process runtime test for the lwIP backend's multicast (IGMP) + static ARP
+# (etharp) ops. Built against the IGMP-on UTM core — the conformance core has IGMP
+# off, where joinMulticast compiles to its false stub. Runs over loopback plus a
+# stub ethernet netif (no tap/netns/root). Hard timeout so a hang fails fast.
+tc8_lwip_app(tc8-lwip-arp-mcast-test
+    LWIPOPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utm"
+    LWIP_LIBS lwipcontribportunix_utm lwipcore_utm
+    SRCS lwip_arp_multicast_test.cpp)
+add_test(NAME lwip_arp_multicast_test COMMAND tc8-lwip-arp-mcast-test)
+set_tests_properties(lwip_arp_multicast_test PROPERTIES TIMEOUT 30)
