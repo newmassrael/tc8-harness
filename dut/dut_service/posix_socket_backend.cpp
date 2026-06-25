@@ -9,6 +9,8 @@
 #include <net/route.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <poll.h>
+#include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -170,6 +172,13 @@ int PosixSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const
         ::sendto(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d)));
 }
 
+bool PosixSocketBackend::joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+    ip_mreq mreq{};
+    mreq.imr_multiaddr.s_addr = group_be;
+    mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
+    return ::setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
+}
+
 int PosixSocketBackend::recv(int fd, void *buf, std::size_t len) {
     return static_cast<int>(::recv(fd, buf, len, 0));
 }
@@ -260,6 +269,59 @@ int PosixSocketBackend::waitReadable(int fd, int timeout_us) {
         return (errno == EINTR) ? 0 : -1;
     }
     return 1;
+}
+
+int PosixSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
+                             std::vector<int> &readable) {
+    readable.clear();
+    // ::poll (not select) so a long-lived UTM with many sockets is not bounded by
+    // FD_SETSIZE. POLLHUP/POLLERR are treated as readable so a closed/errored
+    // watched fd surfaces to its handler (whose recv() then sees 0 / -1) instead
+    // of spinning silently.
+    std::vector<pollfd> pfds;
+    pfds.reserve(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        if (fds[i] >= 0) {
+            pfds.push_back(pollfd{fds[i], POLLIN, 0});
+        }
+    }
+    const int sr = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), timeout_ms);
+    if (sr <= 0) {
+        return (sr < 0 && errno != EINTR) ? -1 : 0;  // EINTR -> treat as a timeout
+    }
+    for (const pollfd &p : pfds) {
+        if ((p.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
+            readable.push_back(p.fd);
+        }
+    }
+    return static_cast<int>(readable.size());
+}
+
+int PosixSocketBackend::createWaker() {
+    // An eventfd is a self-contained pollable counter — the canonical Linux
+    // self-pipe. EFD_NONBLOCK so drainWaker() never blocks; the single fd is both
+    // the read end (in poll's set) and the write end (signalWaker).
+    return ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+}
+
+void PosixSocketBackend::signalWaker(int waker_fd) {
+    const std::uint64_t one = 1;
+    const ssize_t w = ::write(waker_fd, &one, sizeof(one));
+    (void)w;  // best-effort: a saturated counter is already "signaled"
+}
+
+void PosixSocketBackend::drainWaker(int waker_fd) {
+    // A single read returns and zeroes the accumulated count (eventfd semantics);
+    // the loop just defends against a concurrent signal between reads.
+    std::uint64_t sink = 0;
+    while (::read(waker_fd, &sink, sizeof(sink)) == static_cast<ssize_t>(sizeof(sink))) {
+    }
+}
+
+bool PosixSocketBackend::wakerLossless() const {
+    // The eventfd counter saturates rather than dropping a signal, so a wake is
+    // never lost — the executor may wait in poll() indefinitely.
+    return true;
 }
 
 void PosixSocketBackend::closeFd(int fd) {

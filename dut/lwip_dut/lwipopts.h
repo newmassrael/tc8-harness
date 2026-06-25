@@ -65,7 +65,29 @@ void sys_check_core_locking(void);
 #define LWIP_NETBUF_RECVINFO       1
 /* No IGMP/DNS/SNMP/mDNS/DHCP/AUTOIP: nothing in the swept TC8 areas
  * needs them, and a quiet DUT keeps per-case pcaps reviewable. DHCP and
- * AUTOIP become build-time opt-ins when their UT opcodes are ported. */
+ * AUTOIP become build-time opt-ins when their UT opcodes are ported.
+ * IGMP in particular stays OFF: it would add all-systems (224.0.0.1)
+ * membership + IGMP report emission to the wire, perturbing the
+ * broadcast/multicast silent-discard cases — so the UTM's joinMulticast
+ * is deferred for lwIP (lwip_socket_backend.cpp), not enabled here. */
+
+/* The tc8-lwip-utm middleware reactor's cross-thread waker is a 127.0.0.1 UDP
+ * socket pair that signals itself with a 1-byte datagram (lwip_socket_backend.cpp
+ * createWaker/signalWaker) — lwIP has no eventfd/pipe and lwip_select waits only on
+ * lwIP sockets, so the wake must traverse the loopback path. NOTE LWIP_HAVE_LOOPIF
+ * is DERIVED (opt.h: LWIP_NETIF_LOOPBACK && !LWIP_SINGLE_NETIF), so enabling this
+ * DOES register a 127.0.0.0/8 loop netif. Conformance impact on tc8-lwip-dut (which
+ * shares this compiled core) is nil, verified against the lwIP source:
+ *  - tc8-lwip-dut registers no MiddlewareModule, so no waker socket is created.
+ *  - The only OUTPUT-path change: a packet the DUT sends to its own / a 127.x
+ *    address now loops internally instead of hitting the wire; no TC8 case has the
+ *    DUT transmit to such an address.
+ *  - The 127/8 must-not-reply guard (IPv4_ADDRESSING_03) is UNCHANGED: in ip4_input
+ *    the loopback-accept clause stays compiled OUT (LWIP_NETIF_LOOPBACK && !LWIP_HAVE_LOOPIF
+ *    == 0) and the martian guard stays compiled IN (!LWIP_NETIF_LOOPBACK || LWIP_HAVE_LOOPIF
+ *    == 1), dropping a 127/8 wire packet before the netif scan — the loop netif is
+ *    never consulted for wire input. Identical input handling before and after. */
+#define LWIP_NETIF_LOOPBACK        1
 
 /* ---------- TC8 alignments (each entry cites its case) ---------- */
 /* The harness fixes <ipIniReassembleTimeout> at 3 s (mirroring the

@@ -73,11 +73,15 @@ with your real configuration and nothing else in this repo changes.
 
 ## Status
 
-The demo is transmit + control only: it ticks an NM state machine, packs and
-E2E-protects a COM signal PDU cyclically, answers control primitives, and emits a
-state-change EVENT. Inbound PDU reception (`watchReadable`) is the one seam
-capability still pending — it lands with the event-driven rx reactor.
+The demo exercises every seam capability. Transmit + control: it ticks an NM
+state machine, packs and E2E-protects a COM signal PDU cyclically, answers control
+primitives, and emits a state-change EVENT. Receive: it binds a data socket and
+registers it with `watchReadable`, so the executor's event-driven rx reactor
+(`backend().poll` over the watched fds + a cross-thread waker — no drain timer)
+delivers each inbound datagram on the module thread, where the COM engine unpacks
+it; the unpacked value is exposed via an rx EVENT and a `GetLastSignal` primitive.
 
 A hermetic test (`unit_tests/demo_module_test.cpp`) drives this module through a
-fake `MiddlewareContext` and in-memory backend, with no network — the pattern to
-copy for testing your own module.
+fake `MiddlewareContext` and in-memory backend, with no network — including the rx
+path by delivering a queued datagram to the watch handler. The pattern to copy for
+testing your own module.

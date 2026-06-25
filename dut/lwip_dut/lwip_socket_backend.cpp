@@ -21,16 +21,18 @@ extern "C" {
 }
 
 // lwIP's LWIP_COMPAT_SOCKETS layer (sockets.h) defines recv/send/accept/listen/
-// shutdown as function-like macros aliasing the lwip_* forms. They collide with
-// this backend's SocketBackend override names (which are the natural socket-API
-// verbs the interface declares); the bodies call the lwip_* forms explicitly, so
-// drop just these five macros for this TU. Compat sockets stay enabled
-// elsewhere, and the interface keeps its clean names.
+// shutdown/poll as function-like macros aliasing the lwip_* forms. They collide
+// with this backend's SocketBackend override names (which are the natural
+// socket-API verbs the interface declares); the bodies call the lwip_* forms
+// explicitly (poll() multiplexes via lwip_select), so drop just these six macros
+// for this TU. Compat sockets stay enabled elsewhere, and the interface keeps
+// its clean names.
 #undef recv
 #undef send
 #undef accept
 #undef listen
 #undef shutdown
+#undef poll
 
 namespace tc8::lwip_dut {
 
@@ -88,6 +90,21 @@ int LwipSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const 
     d.sin_addr.s_addr = dst.addr_be;
     d.sin_port = lwip_htons(dst.port);
     return lwip_sendto(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d));
+}
+
+bool LwipSocketBackend::joinMulticast(int /*fd*/, std::uint32_t /*group_be*/,
+                                      std::uint32_t /*ifaddr_be*/) {
+    // IPv4 multicast reception needs LWIP_IGMP, which this fixture deliberately
+    // builds OFF. A single shared lwipopts.h compiles the lwIP core ONCE for BOTH
+    // tc8-lwip-dut (conformance) and tc8-lwip-utm; enabling IGMP would add
+    // all-systems (224.0.0.1) membership and IGMP report emission to the
+    // conformance DUT's wire behaviour, perturbing the broadcast/multicast
+    // silent-discard cases (UDP_INTRODUCTION_02 et al.). So multicast rx is
+    // deferred for the lwIP backend: report false (surfaced, not silently
+    // dropped) — a module that needs the group degrades exactly as on a failed
+    // bind. A UTM-only deployment that opts into LWIP_IGMP would implement this as
+    // lwip_setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &ip_mreq{group, iface}).
+    return false;
 }
 
 int LwipSocketBackend::recv(int fd, void *buf, std::size_t len) {
@@ -170,7 +187,128 @@ int LwipSocketBackend::waitReadable(int fd, int timeout_us) {
     return 1;
 }
 
+int LwipSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
+                            std::vector<int> &readable) {
+    readable.clear();
+    // lwIP socket fds are small contiguous indices, so FD_SETSIZE bounds them
+    // comfortably and lwip_select is the natural multiplexer (mirrors waitReadable
+    // and connectBoundedV4). A negative timeout_ms is an indefinite wait (NULL
+    // timeval); otherwise convert to a timeval.
+    fd_set rset;
+    FD_ZERO(&rset);
+    int maxfd = -1;
+    for (std::size_t i = 0; i < n; ++i) {
+        if (fds[i] >= 0) {
+            FD_SET(fds[i], &rset);
+            if (fds[i] > maxfd) {
+                maxfd = fds[i];
+            }
+        }
+    }
+    timeval tv{};
+    timeval *ptv = nullptr;
+    if (timeout_ms >= 0) {
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        ptv = &tv;
+    }
+    const int sr = lwip_select(maxfd + 1, &rset, nullptr, nullptr, ptv);
+    if (sr <= 0) {
+        return (sr < 0 && errno != EINTR) ? -1 : 0;  // EINTR -> treat as a timeout
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+        if (fds[i] >= 0 && FD_ISSET(fds[i], &rset)) {
+            readable.push_back(fds[i]);
+        }
+    }
+    return static_cast<int>(readable.size());
+}
+
+int LwipSocketBackend::createWaker() {
+    // lwIP has no eventfd/pipe and lwip_select waits only on lwIP sockets, so the
+    // waker is a UDP socket PAIR over the 127.0.0.1 loopback netif (present because
+    // LWIP_NETIF_LOOPBACK is set): the executor thread owns the RECEIVER (poll +
+    // drainWaker), the server thread owns the SENDER (signalWaker). Two sockets,
+    // not one — so no lwIP socket is touched by two threads at once (which lwIP
+    // permits only with LWIP_NETCONN_FULLDUPLEX, off here). The sender is connected
+    // to the receiver's bound port, so signalWaker is a 1-byte send that loops back
+    // inside the stack (no wire emission). Runs on the server thread before the
+    // executor starts, so the getsockname() here touches a not-yet-shared socket.
+    const int rx = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (rx < 0) {
+        return -1;
+    }
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = PP_HTONL(IPADDR_LOOPBACK);  // 127.0.0.1 via the loopback netif
+    a.sin_port = 0;                                 // ephemeral
+    socklen_t al = sizeof(a);
+    if (lwip_bind(rx, reinterpret_cast<sockaddr *>(&a), sizeof(a)) != 0 ||
+        lwip_getsockname(rx, reinterpret_cast<sockaddr *>(&a), &al) != 0) {  // learn the port
+        lwip_close(rx);
+        return -1;
+    }
+    lwip_fcntl(rx, F_SETFL, lwip_fcntl(rx, F_GETFL, 0) | O_NONBLOCK);
+    const int tx = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (tx < 0) {
+        lwip_close(rx);
+        return -1;
+    }
+    if (lwip_connect(tx, reinterpret_cast<sockaddr *>(&a), sizeof(a)) != 0) {  // (127.0.0.1, rx port)
+        lwip_close(tx);
+        lwip_close(rx);
+        return -1;
+    }
+    {
+        std::lock_guard<std::mutex> lk(waker_mu_);
+        waker_sender_[rx] = tx;
+    }
+    return rx;
+}
+
+void LwipSocketBackend::signalWaker(int waker_fd) {
+    int tx = -1;
+    {
+        std::lock_guard<std::mutex> lk(waker_mu_);
+        const auto it = waker_sender_.find(waker_fd);
+        if (it != waker_sender_.end()) {
+            tx = it->second;
+        }
+    }
+    if (tx < 0) {
+        return;
+    }
+    const std::uint8_t b = 1;
+    lwip_send(tx, &b, 1, 0);  // connected sender -> loops to the receiver (best-effort)
+}
+
+void LwipSocketBackend::drainWaker(int waker_fd) {
+    // Non-blocking receiver: consume every queued wake datagram so the socket goes
+    // unreadable until the next signalWaker().
+    std::uint8_t sink[64];
+    while (lwip_recv(waker_fd, sink, sizeof(sink), 0) > 0) {
+    }
+}
+
+bool LwipSocketBackend::wakerLossless() const {
+    // The wake is a loopback UDP datagram, which lwIP can drop under pbuf
+    // exhaustion — so the executor caps its poll wait as a liveness backstop.
+    return false;
+}
+
 void LwipSocketBackend::closeFd(int fd) {
+    int tx = -1;
+    {
+        std::lock_guard<std::mutex> lk(waker_mu_);
+        const auto it = waker_sender_.find(fd);
+        if (it != waker_sender_.end()) {  // fd is a waker receiver -> close its sender too
+            tx = it->second;
+            waker_sender_.erase(it);
+        }
+    }
+    if (tx >= 0) {
+        lwip_close(tx);
+    }
     lwip_close(fd);
 }
 

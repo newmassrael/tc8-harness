@@ -1,8 +1,11 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <deque>
 #include <functional>
 #include <map>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -24,6 +27,7 @@ public:
         tc8::net::Endpoint dst;
     };
     std::vector<Sent> sent;
+    std::deque<std::vector<std::uint8_t>> inbound;  // queued datagrams recvFromV4 returns
     bool createUdpFails = false;
 
     int createUdp() override { return createUdpFails ? -1 : 1; }
@@ -32,12 +36,22 @@ public:
     void setBroadcast(int) override {}
     void setRecvTimeoutMs(int, int) override {}
     bool bindV4(int, std::uint32_t, std::uint16_t) override { return true; }
-    int recvFromV4(int, void*, std::size_t, tc8::net::Endpoint&) override { return -1; }
+    int recvFromV4(int, void* buf, std::size_t len, tc8::net::Endpoint&) override {
+        if (inbound.empty()) {
+            return -1;  // nothing queued
+        }
+        const std::vector<std::uint8_t> dg = std::move(inbound.front());
+        inbound.pop_front();
+        const std::size_t take = dg.size() < len ? dg.size() : len;
+        std::memcpy(buf, dg.data(), take);
+        return static_cast<int>(dg.size());  // true datagram length (MSG_TRUNC semantics)
+    }
     int sendToV4(int, const void* buf, std::size_t len, const tc8::net::Endpoint& dst) override {
         const auto* p = static_cast<const std::uint8_t*>(buf);
         sent.push_back({std::vector<std::uint8_t>(p, p + len), dst});
         return static_cast<int>(len);
     }
+    bool joinMulticast(int, std::uint32_t, std::uint32_t) override { return true; }
     int recv(int, void*, std::size_t) override { return -1; }
     int send(int, const void*, std::size_t) override { return -1; }
     bool connectBoundedV4(int, const tc8::net::Endpoint&, int) override { return false; }
@@ -73,6 +87,12 @@ public:
         return store(period, std::move(fn));
     }
     void cancel(tc8::testability::TimerId id) override { timers_.erase(id); }
+    tc8::testability::WatchId watchReadable(int fd, std::function<void()> fn) override {
+        const auto id = static_cast<tc8::testability::WatchId>(next_++);
+        watches_[id] = {fd, std::move(fn)};
+        return id;
+    }
+    void unwatch(tc8::testability::WatchId id) override { watches_.erase(id); }
     void emitEvent(std::uint8_t gid, std::uint8_t pid,
                    const std::vector<std::uint8_t>& dat) override {
         events.push_back({gid, pid, dat});
@@ -81,6 +101,16 @@ public:
     void fire(std::chrono::milliseconds period) {
         for (auto& kv : timers_) {
             if (kv.second.first == period) {
+                kv.second.second();
+            }
+        }
+    }
+
+    // Stand in for the reactor: invoke every watch handler registered on `fd`
+    // (the test queues a datagram in `be.inbound` first, mirroring poll readiness).
+    void deliverReadable(int fd) {
+        for (auto& kv : watches_) {
+            if (kv.second.first == fd) {
                 kv.second.second();
             }
         }
@@ -95,6 +125,7 @@ private:
     std::uint64_t next_ = 1;
     std::map<tc8::testability::TimerId, std::pair<std::chrono::milliseconds, std::function<void()>>>
         timers_;
+    std::map<tc8::testability::WatchId, std::pair<int, std::function<void()>>> watches_;
 };
 
 using ms = std::chrono::milliseconds;
@@ -212,6 +243,41 @@ TEST(DemoModule, DegradesWhenSocketSetupFails) {
     EXPECT_TRUE(ctx.be.sent.empty());
     std::vector<std::uint8_t> resp;
     EXPECT_EQ(callPrimitive(m, DemoModule::kPidGetNmState, {}, resp), tc8::testability::kRidEOk);
+    m.onStop();
+}
+
+// Inbound PDU path (the rx reactor's reason to exist): a datagram delivered to the
+// watched data socket is unpacked by the COM engine, recorded for GetLastSignal,
+// and surfaced as an rx EVENT — all on the executor, no private receive thread.
+TEST(DemoModule, InboundPduUnpackedRecordedAndEmitted) {
+    DemoModule m;
+    FakeContext ctx;
+    m.onStart(ctx);
+
+    // Before any inbound PDU, GetLastSignal is unambiguously "not found".
+    std::vector<std::uint8_t> resp;
+    EXPECT_EQ(callPrimitive(m, DemoModule::kPidGetLastSignal, {}, resp),
+              tc8::testability::kRidENtf);
+
+    // A COM I-PDU carrying the speed signal (start_bit 24, 16 bits, little-endian)
+    // = 0x1234 -> byte 3 = 0x34 (LSB), byte 4 = 0x12. Queue it and fire the watch.
+    std::vector<std::uint8_t> pdu(8, 0x00);
+    pdu[3] = 0x34;
+    pdu[4] = 0x12;
+    ctx.be.inbound.push_back(pdu);
+    ctx.deliverReadable(/*fd=*/1);  // FakeBackend::createUdp() returned 1
+
+    // The rx EVENT carries the unpacked value (2 bytes, little-endian).
+    ASSERT_FALSE(ctx.events.empty());
+    EXPECT_EQ(ctx.events.back().gid, DemoModule::kGroup);
+    EXPECT_EQ(ctx.events.back().pid, DemoModule::kPidSignalRxEvent);
+    EXPECT_EQ(ctx.events.back().dat, (std::vector<std::uint8_t>{0x34, 0x12}));
+
+    // GetLastSignal now reflects the consumed signal.
+    resp.clear();
+    EXPECT_EQ(callPrimitive(m, DemoModule::kPidGetLastSignal, {}, resp),
+              tc8::testability::kRidEOk);
+    EXPECT_EQ(resp, (std::vector<std::uint8_t>{0x34, 0x12}));
     m.onStop();
 }
 

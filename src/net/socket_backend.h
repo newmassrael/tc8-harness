@@ -41,6 +41,13 @@ public:
     virtual int recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) = 0;
     virtual int sendToV4(int fd, const void *buf, std::size_t len, const Endpoint &dst) = 0;
 
+    // Join the IPv4 multicast group `group_be` (network byte order) on a bound
+    // UDP `fd`, receiving on the interface carrying `ifaddr_be` (0 = the default
+    // interface). true on success. A backend whose stack has no multicast/IGMP
+    // support answers false (surfaced, not silently dropped) — a module that
+    // needs the group then degrades the same way it does on a failed bind.
+    virtual bool joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) = 0;
+
     // Stream I/O. < 0 error, 0 peer close, else byte count.
     virtual int recv(int fd, void *buf, std::size_t len) = 0;
     virtual int send(int fd, const void *buf, std::size_t len) = 0;

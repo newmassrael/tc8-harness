@@ -1,6 +1,5 @@
 #include "testability/protocol_server.h"
 
-#include <condition_variable>
 #include <cstring>
 #include <deque>
 #include <future>
@@ -50,13 +49,20 @@ Endpoint endpointFromWire(const std::uint8_t *addr_be4, std::uint16_t host_port)
 }  // namespace
 
 // Per-module executor (PRS_TPSP §6.6 stateful extension). A single thread runs
-// the module's onStart / onPrimitive / timers / posted tasks strictly one at a
-// time, so the module is single-threaded by construction and needs no internal
-// locking. It is the MiddlewareContext the module sees: backend access, timers,
-// Event emission, post. The server-thread entry points (startExecutor /
-// invokePrimitiveSync / startTest / endTest / stopExecutor) marshal onto this
-// thread and block, preserving the synchronous request/response of the
-// dispatch loop.
+// the module's onStart / onPrimitive / timers / watched-fd handlers / posted
+// tasks strictly one at a time, so the module is single-threaded by construction
+// and needs no internal locking. It is the MiddlewareContext the module sees:
+// backend access, timers, fd watches, Event emission.
+//
+// The thread blocks in backend().poll(the watched fds + a cross-thread wake fd,
+// timeout = the next timer's due time). It wakes on (a) a watched fd becoming
+// readable (inbound PDU — genuine readiness, never a drain timer), (b) a timer
+// coming due (the poll timeout), or (c) the wake fd, which the server-thread
+// entry points (startExecutor / invokePrimitiveSync / startTest / endTest /
+// stopExecutor) signal after enqueuing a task — so a marshaled primitive is
+// serviced promptly without a periodic poll. Timers and watches are touched only
+// on this thread (the MiddlewareContext methods all run here), so they need no
+// lock; only the cross-thread task queue is mutex-guarded.
 struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
     ModuleRuntime(ProtocolServer *server, std::unique_ptr<MiddlewareModule> module)
         : server_(server), module_(std::move(module)), groups_(module_->groups()) {}
@@ -67,6 +73,12 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
 
     void startExecutor() {
         running_ = true;  // visible to the new thread (thread creation synchronises)
+        // Create the wake fd on this thread BEFORE the executor starts, so the
+        // runOnExecutor() below can signal it to deliver onStart. A backend with
+        // no wake primitive returns -1; runLoop() then substitutes a bounded poll
+        // timeout (the single place a timeout stands in for the waker).
+        waker_fd_ = server_->backend_->createWaker();
+        waker_lossless_ = server_->backend_->wakerLossless();
         exec_ = std::thread([this] { runLoop(); });
         runOnExecutor([this] { module_->onStart(*this); });  // ready before serving
     }
@@ -77,15 +89,15 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
         }
         runOnExecutor([this] {
             module_->onStop();
-            std::lock_guard<std::mutex> lk(mu_);
-            timers_.clear();   // nothing fires after onStop
+            timers_.clear();   // nothing fires after onStop (executor-thread state)
+            watches_.clear();
             running_ = false;  // exit the loop after this task
         });
-        {
-            std::lock_guard<std::mutex> lk(mu_);
-            cv_.notify_all();
-        }
         exec_.join();
+        if (waker_fd_ >= 0) {
+            server_->backend_->closeFd(waker_fd_);  // after the join — no concurrent poll
+            waker_fd_ = -1;
+        }
     }
 
     // Marshal a primitive onto the executor and block for its Response — keeps it
@@ -116,8 +128,18 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
         return arm(delay, std::move(fn), /*periodic=*/false);
     }
     void cancel(TimerId id) override {
-        std::lock_guard<std::mutex> lk(mu_);
-        timers_.erase(static_cast<std::uint64_t>(id));
+        timers_.erase(static_cast<std::uint64_t>(id));  // executor-thread only, no lock
+    }
+    WatchId watchReadable(int fd, std::function<void()> on_readable) override {
+        if (fd < 0) {
+            return kNoWatch;
+        }
+        const std::uint64_t id = next_watch_id_++;
+        watches_[id] = Watch{fd, std::move(on_readable)};  // picked up on the next poll
+        return static_cast<WatchId>(id);
+    }
+    void unwatch(WatchId id) override {
+        watches_.erase(static_cast<std::uint64_t>(id));  // executor-thread only, no lock
     }
     void emitEvent(std::uint8_t gid, std::uint8_t pid,
                    const std::vector<std::uint8_t> &dat) override {
@@ -135,19 +157,24 @@ private:
         std::function<void()> fn;
         bool periodic;
     };
+    struct Watch {
+        int fd;
+        std::function<void()> fn;
+    };
 
     TimerId arm(std::chrono::milliseconds period, std::function<void()> fn, bool periodic) {
-        std::lock_guard<std::mutex> lk(mu_);
+        // Armed from a module callback (onStart / onPrimitive / a timer or watch
+        // handler) — all on the executor thread — so no lock and no wake: the loop
+        // re-reads timers_ before its next poll.
         const std::uint64_t id = next_timer_id_++;
         timers_[id] = Timer{std::chrono::steady_clock::now() + period, period, std::move(fn),
                             periodic};
-        cv_.notify_all();
         return static_cast<TimerId>(id);
     }
 
     // Enqueue `fn` and block until the executor runs it (the server-thread entry
     // points). Inline when already on the executor so a module callback that
-    // re-enters cannot self-deadlock.
+    // re-enters cannot self-deadlock. The wake fd breaks the executor out of poll.
     void runOnExecutor(const std::function<void()> &fn) {
         if (std::this_thread::get_id() == exec_.get_id()) {
             fn();
@@ -161,27 +188,46 @@ private:
                 fn();
                 done.set_value();
             });
-            cv_.notify_all();
+        }
+        // Signal AFTER enqueuing (happens-before the executor's next task read): a
+        // signal that lands before poll() leaves the wake fd readable, so poll
+        // returns immediately and the loop top re-reads tasks_ — the task is never
+        // lost.
+        if (waker_fd_ >= 0) {
+            server_->backend_->signalWaker(waker_fd_);
         }
         fut.wait();
     }
 
-    void runLoop() {
-        std::unique_lock<std::mutex> lk(mu_);
-        while (running_) {
-            if (!tasks_.empty()) {  // tasks (posted work / marshaled calls) first, FIFO
-                std::function<void()> t = std::move(tasks_.front());
+    // Run every queued task FIFO (posted work / marshaled calls), then return.
+    void drainTasks() {
+        for (;;) {
+            std::function<void()> t;
+            {
+                std::lock_guard<std::mutex> lk(mu_);
+                if (tasks_.empty()) {
+                    return;
+                }
+                t = std::move(tasks_.front());
                 tasks_.pop_front();
-                lk.unlock();
-                t();
-                lk.lock();
-                continue;
             }
+            t();  // outside the lock: a task may enqueue more / arm timers / watch
+        }
+    }
+
+    void runLoop() {
+        while (running_) {
+            drainTasks();              // marshaled primitives + lifecycle first
+            if (!running_) {
+                break;                 // a task (stopExecutor) cleared running_
+            }
+            // Fire the earliest due timer, else note the next due time. Ordered
+            // map, linear due-scan (n small), matching the pre-reactor executor.
             const auto now = std::chrono::steady_clock::now();
             bool have_due = false;
             std::uint64_t due_id = 0;
             std::optional<std::chrono::steady_clock::time_point> earliest;
-            for (const auto &kv : timers_) {  // ordered map, linear due-scan (n small)
+            for (const auto &kv : timers_) {
                 if (kv.second.next <= now) {
                     due_id = kv.first;
                     have_due = true;
@@ -199,15 +245,60 @@ private:
                 } else {
                     timers_.erase(it);
                 }
-                lk.unlock();
                 fn();
-                lk.lock();
-                continue;
+                continue;  // re-scan: the handler may have armed/cancelled timers
             }
+            // Build the poll set: the wake fd plus every watched data socket.
+            poll_fds_.clear();
+            if (waker_fd_ >= 0) {
+                poll_fds_.push_back(waker_fd_);
+            }
+            for (const auto &kv : watches_) {
+                poll_fds_.push_back(kv.second.fd);
+            }
+            // Timeout = until the next timer (0 if already past), or indefinite
+            // when none — the wake fd / a readable watch ends the wait. Liveness
+            // backstop: an indefinite/long wait is only safe behind a LOSSLESS
+            // waker (a POSIX eventfd never drops a signal). With no waker, or a
+            // lossy one (the lwIP loopback datagram can drop under buffer
+            // exhaustion), cap the wait so a missed wake cannot wedge the executor.
+            // This is a liveness floor, NOT rx polling — rx stays genuine readiness
+            // on the watched fds.
+            int timeout_ms = -1;
             if (earliest) {
-                cv_.wait_until(lk, *earliest);
-            } else {
-                cv_.wait(lk);  // no timers armed — wake only on a new task/timer
+                const auto d =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(*earliest - now).count();
+                timeout_ms = (d < 0) ? 0 : static_cast<int>(d);
+            }
+            const bool lossless_wake = waker_fd_ >= 0 && waker_lossless_;
+            if (!lossless_wake) {
+                const int cap = (waker_fd_ >= 0) ? 1000 : 50;  // lossy waker present : no waker
+                if (timeout_ms < 0 || timeout_ms > cap) {
+                    timeout_ms = cap;
+                }
+            }
+            server_->backend_->poll(poll_fds_.data(), poll_fds_.size(), timeout_ms, readable_);
+            // Collect the watch IDs to fire (not the callbacks), then dispatch by
+            // re-looking-up each — a handler may unwatch another watch that was also
+            // readable this round, so membership is re-checked at fire time. The
+            // wake fd is drained, never dispatched.
+            fire_.clear();
+            for (const int fd : readable_) {
+                if (fd == waker_fd_) {
+                    server_->backend_->drainWaker(waker_fd_);
+                    continue;
+                }
+                for (const auto &kv : watches_) {
+                    if (kv.second.fd == fd) {
+                        fire_.push_back(kv.first);
+                    }
+                }
+            }
+            for (const std::uint64_t id : fire_) {
+                const auto it = watches_.find(id);
+                if (it != watches_.end()) {  // still watched (a prior handler may have unwatched it)
+                    it->second.fn();
+                }
             }
         }
     }
@@ -217,12 +308,21 @@ private:
     std::vector<std::uint8_t> groups_;
     std::thread exec_;
 
-    std::mutex mu_;
-    std::condition_variable cv_;
-    bool running_ = false;
+    std::mutex mu_;                 // guards tasks_ only (the cross-thread queue)
+    bool running_ = false;          // executor-thread state after startExecutor
     std::deque<std::function<void()>> tasks_;
+    int waker_fd_ = -1;             // cross-thread wake fd (backend->createWaker)
+    bool waker_lossless_ = false;   // cached backend->wakerLossless() (set at start)
+
+    // Executor-thread-only state (no lock): timers, fd watches, and the poll
+    // scratch buffers reused each iteration.
     std::map<std::uint64_t, Timer> timers_;
     std::uint64_t next_timer_id_ = 1;
+    std::map<std::uint64_t, Watch> watches_;
+    std::uint64_t next_watch_id_ = 1;
+    std::vector<int> poll_fds_;
+    std::vector<int> readable_;
+    std::vector<std::uint64_t> fire_;  // watch ids to dispatch this round (re-checked at fire)
 
     // The requester of the module's most recent primitive — emitEvent's target
     // (PRS_TPSP §6.2). Touched only on the executor thread.

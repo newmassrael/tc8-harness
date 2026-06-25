@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
+#include <mutex>
 #include <string>
 
 #include "net/socket_backend.h"
@@ -27,6 +29,7 @@ public:
     int recvFromV4(int fd, void *buf, std::size_t len, tc8::net::Endpoint &src) override;
     int sendToV4(int fd, const void *buf, std::size_t len,
                  const tc8::net::Endpoint &dst) override;
+    bool joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) override;
     int recv(int fd, void *buf, std::size_t len) override;
     int send(int fd, const void *buf, std::size_t len) override;
     bool connectBoundedV4(int fd, const tc8::net::Endpoint &dst, int timeout_ms) override;
@@ -35,6 +38,12 @@ public:
     bool shutdown(int fd, int how) override;
     void setNonBlocking(int fd, bool on) override;
     int waitReadable(int fd, int timeout_us) override;
+    int poll(const int *fds, std::size_t n, int timeout_ms,
+             std::vector<int> &readable) override;
+    int createWaker() override;
+    void signalWaker(int waker_fd) override;
+    void drainWaker(int waker_fd) override;
+    bool wakerLossless() const override;
     void closeFd(int fd) override;
     void closeWithAbort(int fd) override;
     std::uint8_t configureOption(int fd, std::uint16_t param_id, const std::uint8_t *val,
@@ -52,6 +61,18 @@ public:
                                     std::uint8_t prefix) override;
     std::uint8_t setStaticRouteV6(const std::string &ifname, const std::uint8_t *subnet16,
                                   std::uint8_t prefix, const std::uint8_t *gateway16) override;
+
+private:
+    // The waker is a socket PAIR, so no lwIP socket is ever touched by two threads
+    // at once (lwIP needs LWIP_NETCONN_FULLDUPLEX — off here — for that): the
+    // executor thread owns the receiver (poll + drainWaker), the server thread owns
+    // the sender (signalWaker). createWaker returns the receiver fd and records its
+    // paired sender here; closeFd(receiver) also closes the sender. The map is
+    // written only outside the executor's run (create before it starts, erase after
+    // it joins) but read by signalWaker / closeFd, so a mutex guards it against a
+    // second module's createWaker racing this module's closeFd.
+    std::mutex waker_mu_;
+    std::map<int, int> waker_sender_;  // receiver fd -> paired sender fd
 };
 
 }  // namespace tc8::lwip_dut

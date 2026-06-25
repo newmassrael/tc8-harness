@@ -1518,12 +1518,23 @@ constexpr std::uint8_t kDemoPidEcho = 0x01;
 constexpr std::uint8_t kDemoPidArmTick = 0x02;
 constexpr std::uint8_t kDemoPidReadCount = 0x03;
 constexpr std::uint8_t kDemoPidArmEvent = 0x04;
+constexpr std::uint8_t kDemoPidArmRx = 0x05;    // open+bind a data socket, watchReadable it
+constexpr std::uint8_t kDemoPidReadRx = 0x06;   // return the last datagram the watch consumed
+constexpr std::uint16_t kDemoRxPort = 39902;    // the module's data-plane UDP port
 
 class DemoModule : public testability::MiddlewareModule {
 public:
     std::vector<std::uint8_t> groups() const override { return {kDemoGid}; }
     void onStart(testability::MiddlewareContext &ctx) override { ctx_ = &ctx; }
-    void onStop() override {}
+    void onStop() override {
+        if (ctx_ != nullptr) {
+            ctx_->unwatch(rx_watch_);
+            if (rx_sock_ >= 0) {
+                ctx_->backend().closeFd(rx_sock_);
+                rx_sock_ = -1;
+            }
+        }
+    }
     void onEndTest() override {
         if (tick_timer_ != testability::kNoTimer) {
             ctx_->cancel(tick_timer_);
@@ -1555,6 +1566,21 @@ public:
                 });
                 rid = tp::kRidEOk;
                 return;
+            case kDemoPidArmRx:
+                // Open the data plane and register it with the reactor — all on the
+                // executor, so no lock guards rx_sock_ / rx_watch_ / last_rx_.
+                rx_sock_ = ctx_->backend().createUdp();
+                if (rx_sock_ >= 0 && ctx_->backend().bindV4(rx_sock_, 0, kDemoRxPort)) {
+                    rx_watch_ = ctx_->watchReadable(rx_sock_, [this] { onRx(); });
+                    rid = tp::kRidEOk;
+                } else {
+                    rid = tp::kRidENok;
+                }
+                return;
+            case kDemoPidReadRx:
+                resp = last_rx_;  // executor thread — same thread as onRx, no lock
+                rid = tp::kRidEOk;
+                return;
             default:
                 rid = tp::kRidENtf;
                 return;
@@ -1562,9 +1588,23 @@ public:
     }
 
 private:
+    // Reactor-delivered: a datagram is readable on rx_sock_. Drain one and record
+    // it so kDemoPidReadRx can read it back. Level-triggered: must consume.
+    void onRx() {
+        std::uint8_t buf[256];
+        tc8::net::Endpoint src{};
+        const int n = ctx_->backend().recvFromV4(rx_sock_, buf, sizeof(buf), src);
+        if (n > 0) {
+            last_rx_.assign(buf, buf + n);
+        }
+    }
+
     testability::MiddlewareContext *ctx_ = nullptr;
     testability::TimerId tick_timer_ = testability::kNoTimer;
     std::uint32_t tick_count_ = 0;
+    int rx_sock_ = -1;
+    testability::WatchId rx_watch_ = testability::kNoWatch;
+    std::vector<std::uint8_t> last_rx_;
 };
 
 // A module that (illegally) claims the core GENERAL group — for the fail-fast test.
@@ -1709,6 +1749,80 @@ TEST(MiddlewareSeam, RegisterModuleRejectsDuplicateAndCoreGid) {
     server.registerModule(std::make_unique<DemoModule>());
     EXPECT_THROW(server.registerModule(std::make_unique<DemoModule>()), std::invalid_argument);
     EXPECT_THROW(server.registerModule(std::make_unique<CoreGidModule>()), std::invalid_argument);
+}
+
+// The rx reactor end to end over real loopback sockets: ARM_RX opens a data
+// socket and registers it via watchReadable; a datagram sent to that port is
+// consumed by the module on its executor (genuine poll readiness, no drain
+// timer) and read back through READ_RX. Because the module arms no timer, the
+// executor blocks in poll() indefinitely — so the READ_RX primitive returning at
+// all proves the cross-thread waker broke that poll (otherwise this would hang).
+TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
+    ASSERT_TRUE(stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidArmRx, {}).eok());
+
+    // Tester -> the module's data port.
+    const int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(s, 0);
+    sockaddr_in to{};
+    to.sin_family = AF_INET;
+    to.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    to.sin_port = htons(kDemoRxPort);
+    const std::vector<std::uint8_t> payload = {0xDE, 0xAD, 0xBE, 0xEF};
+    ASSERT_EQ(::sendto(s, payload.data(), payload.size(), 0,
+                       reinterpret_cast<sockaddr *>(&to), sizeof(to)),
+              static_cast<ssize_t>(payload.size()));
+    ::close(s);
+
+    // Poll READ_RX until it reflects the payload (rx is asynchronous) or a 2 s
+    // deadline — a fixed sleep could false-fail a loaded host (timing-flake history).
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    std::vector<std::uint8_t> got;
+    do {
+        const auto r = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidReadRx, {});
+        if (r.eok() && r.dat == payload) {
+            got = r.dat;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    } while (std::chrono::steady_clock::now() < deadline);
+    EXPECT_EQ(got, payload);
+}
+
+// joinMulticast (POSIX): a socket joined to an admin-scoped group receives a
+// datagram sent to that group over the default interface (IP_MULTICAST_LOOP is on
+// by default), proving the IP_ADD_MEMBERSHIP mapping with a real consumer — not
+// just an E_OK. (The lwIP backend defers multicast; see lwip_socket_backend.cpp.)
+TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
+    dut::PosixSocketBackend be;
+    constexpr std::uint16_t kMcPort = 39903;
+    const std::uint32_t group_be = ::htonl(0xEF010203);  // 239.1.2.3 (admin-scoped)
+
+    const int rx = be.createUdp();
+    ASSERT_GE(rx, 0);
+    be.setReuseAddr(rx);
+    be.setRecvTimeoutMs(rx, 2000);  // bound the recv so a non-multicast host cannot hang
+    ASSERT_TRUE(be.bindV4(rx, 0, kMcPort));
+    ASSERT_TRUE(be.joinMulticast(rx, group_be, 0))  // 0 = default interface
+        << "IP_ADD_MEMBERSHIP failed";
+
+    const int tx = be.createUdp();
+    ASSERT_GE(tx, 0);
+    const int loop_on = 1;  // ensure the sender's own host receives the multicast
+    ::setsockopt(tx, IPPROTO_IP, IP_MULTICAST_LOOP, &loop_on, sizeof(loop_on));
+
+    const std::vector<std::uint8_t> payload = {0x4D, 0x43, 0x41, 0x53, 0x54};  // "MCAST"
+    tc8::net::Endpoint grp{group_be, kMcPort};
+    ASSERT_EQ(be.sendToV4(tx, payload.data(), payload.size(), grp),
+              static_cast<int>(payload.size()));
+
+    std::uint8_t buf[64];
+    tc8::net::Endpoint src{};
+    const int n = be.recvFromV4(rx, buf, sizeof(buf), src);
+    ASSERT_EQ(n, static_cast<int>(payload.size())) << "joined group datagram not received";
+    EXPECT_EQ(std::vector<std::uint8_t>(buf, buf + n), payload);
+
+    be.closeFd(tx);
+    be.closeFd(rx);
 }
 
 }  // namespace

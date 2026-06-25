@@ -34,6 +34,13 @@ enum class TimerId : std::uint64_t {};
 // a caller holding a TimerId member (compare against it instead of casting).
 inline constexpr TimerId kNoTimer{0};
 
+// Opaque cancellation handle for a watched fd (watchReadable). The zero value is
+// never returned by the host and denotes "no watch".
+enum class WatchId : std::uint64_t {};
+
+// The "no watch" sentinel — the counterpart of kNoTimer for a WatchId member.
+inline constexpr WatchId kNoWatch{0};
+
 class MiddlewareContext;
 
 // A stateful service group supplied out-of-tree (PRS_TPSP §6.6 extension).
@@ -92,6 +99,21 @@ public:
 
     // Cancel a timer (no-op if it already fired, was cancelled, or never existed).
     virtual void cancel(TimerId id) = 0;
+
+    // Watch a module-owned socket: `on_readable` is delivered on the module
+    // executor whenever `fd` is readable, until unwatch() / onStop(). This is how
+    // a module consumes inbound PDUs without a private receive thread — the host
+    // adds `fd` to the executor's poll set. The handler MUST consume the available
+    // data: the reactor is level-triggered, so it re-fires while `fd` stays
+    // readable. Returns kNoWatch if the host has no readiness multiplexer (the
+    // module then has no inbound data plane, degrading as on a failed bind). Call
+    // on the module executor (from a module callback such as onStart).
+    virtual WatchId watchReadable(int fd, std::function<void()> on_readable) = 0;
+
+    // Stop delivering a watchReadable() handler (no-op if already removed, or never
+    // existed). The fd stays the module's to close — always unwatch() BEFORE
+    // closeFd(), so the reactor never polls a closed/reused fd. Call on the executor.
+    virtual void unwatch(WatchId id) = 0;
 
     // Emit an asynchronous testability EVENT (PRS_TPSP §6.2, EVB set, TID
     // kTidEvent) for (gid,pid) to the test system that issued this module's most

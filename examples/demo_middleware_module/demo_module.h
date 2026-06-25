@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "autosar/com.h"
@@ -24,9 +25,11 @@ namespace tc8::demo {
 // Every value here is fabricated (no OEM frames/ports/keys); a real module would
 // inject its proprietary configuration in the same shapes.
 //
-// All callbacks run on the module executor, serialized — no locking. (Inbound
-// PDU reception via watchReadable is intentionally not exercised yet: the rx
-// reactor is the deferred seam piece, so this module is transmit + control only.)
+// All callbacks run on the module executor, serialized — no locking. The module
+// also consumes inbound PDUs: its data socket is registered with the context via
+// watchReadable, so the executor's poll/waker reactor delivers each received
+// datagram on the same thread (no private receive thread), and the COM engine
+// unpacks it — the rx counterpart of the cyclic tx path.
 class DemoModule : public tc8::testability::MiddlewareModule {
 public:
     DemoModule();
@@ -38,9 +41,16 @@ public:
         kPidGetNmState = 0x03,
         kPidSetSignal = 0x04,    // dat = signal value, little-endian
         kPidAuthenticate = 0x05,  // dat = message; resp = AES-CMAC (zero key)
+        kPidGetLastSignal = 0x06,  // resp = last inbound signal value (2 bytes LE)
     };
     static constexpr std::uint8_t kGroup = 0x7F;
-    static constexpr std::uint8_t kPidStateEvent = 0x70;  // EVENT pid for NM state change
+    static constexpr std::uint8_t kPidStateEvent = 0x70;     // EVENT: NM state change
+    static constexpr std::uint8_t kPidSignalRxEvent = 0x71;  // EVENT: inbound signal value
+
+    // The UDP port the module binds for its data plane (PDU tx + rx). Fabricated,
+    // like every value here; the OEM module would inject its own. Public so a test
+    // system / the hermetic test knows where to send inbound PDUs.
+    static constexpr std::uint16_t kDataPort = 30491;
 
     std::vector<std::uint8_t> groups() const override;
     void onStart(tc8::testability::MiddlewareContext& ctx) override;
@@ -52,11 +62,14 @@ public:
 
 private:
     void transmitSignalPdu();  // pack -> E2E protect -> send
+    void onDataReadable();     // recv -> COM unpack -> record + emit rx EVENT
 
     tc8::testability::MiddlewareContext* ctx_ = nullptr;
     int sock_ = -1;
     tc8::testability::TimerId nm_timer_ = tc8::testability::kNoTimer;
     tc8::testability::TimerId com_timer_ = tc8::testability::kNoTimer;
+    tc8::testability::WatchId rx_watch_ = tc8::testability::kNoWatch;
+    std::optional<std::uint64_t> last_rx_signal_;  // most recent unpacked signal value
 
     tc8::nm::StateMachine nm_;
     tc8::com::SignalEngine com_;

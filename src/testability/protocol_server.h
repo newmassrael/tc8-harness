@@ -32,6 +32,33 @@ using net::Endpoint;
 // base alone and reuses the very same adapters.
 class SocketBackend : public net::SocketBackend {
 public:
+    // The per-module reactor's I/O multiplexer + cross-thread wake. These live on
+    // the testability seam (not the generic net base) because only the stateful
+    // module executor (ProtocolServer::ModuleRuntime) needs an event loop — the
+    // Upper Tester, the other generic-base consumer, does not. Keeping them here
+    // mirrors how the generic seam stays free of operations its other consumers
+    // never call.
+    //
+    // poll(): block until an fd in `fds[0..n)` is readable or `timeout_ms` elapses
+    // (`timeout_ms` < 0 = indefinite). `readable` is cleared and filled with the
+    // readable subset. Returns the readable count (0 on timeout), or -1 on error.
+    virtual int poll(const int *fds, std::size_t n, int timeout_ms,
+                     std::vector<int> &readable) = 0;
+
+    // createWaker(): a pollable fd to include in poll()'s set (or -1 if
+    // unavailable); signalWaker() makes it readable from ANY thread so a blocked
+    // poll() returns; drainWaker() consumes the pending signal(s) after poll()
+    // reports it readable. Close it with closeFd(). Lets the executor sleep in
+    // poll() yet still service a primitive marshaled from the server thread — with
+    // no periodic poll. wakerLossless() is true when a signal can never be dropped
+    // (e.g. a POSIX eventfd counter); when false (e.g. an lwIP loopback datagram,
+    // droppable under buffer exhaustion) the executor caps its wait as a liveness
+    // backstop.
+    virtual int createWaker() = 0;
+    virtual void signalWaker(int waker_fd) = 0;
+    virtual void drainWaker(int waker_fd) = 0;
+    virtual bool wakerLossless() const = 0;
+
     // CONFIGURE_SOCKET parameter application -> testability result id
     // (E_OK / E_NOK / E_NTF / E_INV). The supported parameter set is
     // backend-specific (a stack lacking an option answers E_NOK).
