@@ -16,6 +16,13 @@ constexpr std::uint32_t kComPduId = 1;
 constexpr std::uint32_t kSpeedSignalId = 10;
 constexpr std::chrono::milliseconds kNmTick{500};
 constexpr std::chrono::milliseconds kComCycle{100};
+constexpr std::chrono::milliseconds kTpTick{500};      // SOME/IP-TP reassembly timer
+constexpr std::chrono::milliseconds kTpTimeout{2000};  // incomplete-transfer reception timeout
+constexpr std::size_t kTpMaxSegment = 16;   // small so a fabricated payload actually splits
+constexpr std::size_t kTpMaxMessage = 4096;
+constexpr std::size_t kTpMaxConcurrent = 4;
+constexpr std::size_t kPnOffset = 3;        // PNC bit-vector byte offset in the NM PDU
+constexpr std::size_t kPnLen = 1;           // PNC bit-vector width (bytes)
 
 // Synthetic loopback destination for the data-plane PDUs. addr_be is network byte
 // order: 0x0100007F == htonl(127.0.0.1) on a little-endian host (the build targets
@@ -44,9 +51,19 @@ tc8::e2e::Profile05Protector makeE2e() {
     return tc8::e2e::Profile05Protector(tc8::e2e::Profile05Config{0x0BAD, 0, 1});
 }
 
+tc8::pn::PnFilter makePn() { return tc8::pn::PnFilter(tc8::pn::PnConfig{kPnOffset, kPnLen}); }
+
+tc8::someiptp::Segmenter makeTpSeg() { return tc8::someiptp::Segmenter(kTpMaxSegment); }
+
+tc8::someiptp::Reassembler makeTpRe() {
+    return tc8::someiptp::Reassembler(kTpMaxMessage, kTpMaxConcurrent, kTpTimeout);
+}
+
 }  // namespace
 
-DemoModule::DemoModule() : nm_(makeNm()), com_(makeCom()), e2e_(makeE2e()) {}
+DemoModule::DemoModule()
+    : nm_(makeNm()), com_(makeCom()), e2e_(makeE2e()), pn_(makePn()), tp_seg_(makeTpSeg()),
+      tp_re_(makeTpRe()) {}
 
 std::vector<std::uint8_t> DemoModule::groups() const { return {kGroup}; }
 
@@ -70,9 +87,18 @@ void DemoModule::onStart(tc8::testability::MiddlewareContext& ctx) {
         }
     };
 
+    // A SOME/IP-TP reception timeout drops the incomplete transfer; surface it as an
+    // EVENT so a test system sees the abandonment (the onTimeout routing).
+    tp_re_.onTimeout = [this](const tc8::someiptp::MessageHeader&) {
+        if (ctx_ != nullptr) {
+            ctx_->emitEvent(kGroup, kPidTpTimeoutEvent, {});
+        }
+    };
+
     if (socket_ready) {
         nm_timer_ = ctx.scheduleEvery(kNmTick, [this] { nm_.mainFunction(kNmTick); });
         com_timer_ = ctx.scheduleEvery(kComCycle, [this] { transmitSignalPdu(); });
+        tp_timer_ = ctx.scheduleEvery(kTpTick, [this] { tp_re_.mainFunction(kTpTick); });
         // Inbound data plane: deliver each received datagram on the executor.
         rx_watch_ = ctx.watchReadable(sock_, [this] { onDataReadable(); });
     }
@@ -82,6 +108,7 @@ void DemoModule::onStop() {
     if (ctx_ != nullptr) {
         ctx_->cancel(nm_timer_);
         ctx_->cancel(com_timer_);
+        ctx_->cancel(tp_timer_);
         ctx_->unwatch(rx_watch_);  // stop watching before the fd closes
         if (sock_ >= 0) {
             ctx_->backend().closeFd(sock_);
@@ -101,7 +128,23 @@ void DemoModule::onDataReadable() {
     if (n <= 0) {
         return;
     }
-    com_.unpackInto(kComPduId, buf, static_cast<std::size_t>(n));
+    const std::size_t got = static_cast<std::size_t>(n);
+    // Route by frame shape: a SOME/IP-TP segment is at least the fixed segment header
+    // and carries the Message-Type TP-flag (byte 14); a shorter datagram is a plain COM
+    // I-PDU. (A real module routes by destination port / PDU id; shape is an
+    // unambiguous discriminator for the two fabricated data planes here.)
+    if (got >= tc8::someiptp::kSegmentHeaderLen &&
+        (buf[14] & tc8::someiptp::kMessageTypeTpFlag) != 0) {
+        const tc8::someiptp::Reassembler::Result r = tp_re_.feed(buf, got);
+        if (r.status == tc8::someiptp::Reassembler::Status::kComplete) {
+            last_tp_len_ = r.payload.size();
+            ctx_->emitEvent(kGroup, kPidTpRxEvent,
+                            {static_cast<std::uint8_t>(r.payload.size() & 0xFF),
+                             static_cast<std::uint8_t>((r.payload.size() >> 8) & 0xFF)});
+        }
+        return;
+    }
+    com_.unpackInto(kComPduId, buf, got);
     const std::optional<std::uint64_t> v = com_.lastReceived(kSpeedSignalId);
     if (!v.has_value()) {
         return;
@@ -165,6 +208,40 @@ void DemoModule::onPrimitive(const tc8::testability::Header& req, const std::uin
             const std::uint64_t v = *last_rx_signal_;
             resp_dat.push_back(static_cast<std::uint8_t>(v & 0xFF));
             resp_dat.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
+            rid_out = tc8::testability::kRidEOk;
+            return;
+        }
+        case kPidSendLarge: {
+            // Segment the supplied payload into SOME/IP-TP segments and send each (the
+            // tx "send loop"). The SOME/IP identity is fabricated (zeros); an OEM module
+            // injects its real Service / Method / Client / Session ids.
+            const auto segs = tp_seg_.segment(tc8::someiptp::MessageHeader{}, dat, dat_len);
+            if (ctx_ != nullptr && sock_ >= 0) {
+                for (const std::vector<std::uint8_t>& s : segs) {
+                    ctx_->backend().sendToV4(sock_, s.data(), s.size(), kPeer);
+                }
+            }
+            rid_out = tc8::testability::kRidEOk;
+            return;
+        }
+        case kPidGetLastTpLen: {
+            // The length of the message the rx path last reassembled (2 bytes LE);
+            // E_NTF until one completes, so a poll before any rx is unambiguous.
+            if (!last_tp_len_.has_value()) {
+                rid_out = tc8::testability::kRidENtf;
+                return;
+            }
+            resp_dat.push_back(static_cast<std::uint8_t>(*last_tp_len_ & 0xFF));
+            resp_dat.push_back(static_cast<std::uint8_t>((*last_tp_len_ >> 8) & 0xFF));
+            rid_out = tc8::testability::kRidEOk;
+            return;
+        }
+        case kPidPnRelevant: {
+            // The ECU's fabricated PNC membership mask (kPnLen bytes); a real module
+            // injects its own. Relevance = the PDU's PN range shares a set bit with it.
+            const std::vector<std::uint8_t> my_clusters(kPnLen, 0x01);
+            const bool rel = pn_.relevant(dat, dat_len, my_clusters);
+            resp_dat.push_back(rel ? 1 : 0);
             rid_out = tc8::testability::kRidEOk;
             return;
         }

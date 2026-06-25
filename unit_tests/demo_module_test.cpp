@@ -288,5 +288,72 @@ TEST(DemoModule, InboundPduUnpackedRecordedAndEmitted) {
     m.onStop();
 }
 
+// SOME/IP-TP composition: a tx primitive segments a payload and sends each segment;
+// looping those segments back through the rx reactor reassembles the original message
+// and emits its length as an EVENT (the hardest engine to wire, end to end).
+TEST(DemoModule, TpSegmentsAndReassemblesThroughModule) {
+    DemoModule m;
+    FakeContext ctx;
+    m.onStart(ctx);
+
+    std::vector<std::uint8_t> payload(40);  // > kTpMaxSegment (16) -> multiple segments
+    for (std::size_t i = 0; i < payload.size(); ++i) {
+        payload[i] = static_cast<std::uint8_t>(i);
+    }
+    std::vector<std::uint8_t> resp;
+    EXPECT_EQ(callPrimitive(m, DemoModule::kPidSendLarge, payload, resp),
+              tc8::testability::kRidEOk);
+    ASSERT_GE(ctx.be.sent.size(), 2u);  // genuinely segmented
+
+    // Loop every emitted segment back in as inbound and drive the rx reactor once per
+    // datagram (level-triggered: the handler drains exactly one each time).
+    for (const auto& s : ctx.be.sent) {
+        ctx.be.inbound.push_back(s.bytes);
+    }
+    const std::size_t segs = ctx.be.inbound.size();
+    for (std::size_t i = 0; i < segs; ++i) {
+        ctx.deliverReadable(/*fd=*/1);
+    }
+
+    bool reassembled = false;
+    for (const auto& e : ctx.events) {
+        if (e.pid == DemoModule::kPidTpRxEvent) {
+            EXPECT_EQ(e.dat, (std::vector<std::uint8_t>{40, 0}));  // original length, LE
+            reassembled = true;
+        }
+    }
+    EXPECT_TRUE(reassembled);
+
+    resp.clear();
+    EXPECT_EQ(callPrimitive(m, DemoModule::kPidGetLastTpLen, {}, resp),
+              tc8::testability::kRidEOk);
+    EXPECT_EQ(resp, (std::vector<std::uint8_t>{40, 0}));
+    m.onStop();
+}
+
+// Partial-Networking relevance: a PDU whose PN range shares the ECU's cluster bit is
+// relevant; one that does not is not.
+TEST(DemoModule, PnRelevanceFiltersByClusterMask) {
+    DemoModule m;
+    FakeContext ctx;
+    m.onStart(ctx);
+
+    std::vector<std::uint8_t> resp;
+    std::vector<std::uint8_t> relevant(8, 0x00);
+    relevant[3] = 0x01;  // PN range (offset 3) shares the fabricated mask bit 0x01
+    EXPECT_EQ(callPrimitive(m, DemoModule::kPidPnRelevant, relevant, resp),
+              tc8::testability::kRidEOk);
+    ASSERT_EQ(resp.size(), 1u);
+    EXPECT_EQ(resp[0], 1);
+
+    resp.clear();
+    std::vector<std::uint8_t> other(8, 0x00);
+    other[3] = 0x02;  // a different cluster bit -> not relevant to this ECU
+    callPrimitive(m, DemoModule::kPidPnRelevant, other, resp);
+    ASSERT_EQ(resp.size(), 1u);
+    EXPECT_EQ(resp[0], 0);
+    m.onStop();
+}
+
 }  // namespace
 }  // namespace tc8::demo

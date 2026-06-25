@@ -100,6 +100,9 @@ target_link_libraries(someiptp_test PRIVATE tc8_someiptp)
 tc8_add_unit_test(demo_module_test)
 target_sources(demo_module_test PRIVATE
     ${PROJECT_SOURCE_DIR}/examples/demo_middleware_module/demo_module.cpp)
+# nm/com/e2e/crypto resolve via tc8_harness_testable; pn and someiptp are their own
+# engine libs, so the demo (which now composes them too) links them explicitly.
+target_link_libraries(demo_module_test PRIVATE tc8_pn tc8_someiptp)
 target_include_directories(demo_module_test PRIVATE
     ${PROJECT_SOURCE_DIR}/examples/demo_middleware_module)
 target_link_libraries(demo_module_test PRIVATE tc8_nm tc8_com tc8_e2e tc8_crypto)
