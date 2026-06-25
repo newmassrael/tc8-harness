@@ -183,37 +183,68 @@ tc8_lwip_app(tc8-lwip-dut SRCS
 file(GLOB _tc8_autosar_engine_srcs CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/autosar/*.cpp)
 
-# tc8-lwip-utm enables IPv4 multicast (LWIP_IGMP via utm/lwipopts.h), which
-# changes lwIP struct layouts (struct netif). Mixing IGMP-on and IGMP-off
-# translation units in one link image is undefined, so the UTM gets its OWN core
-# and unix-port libraries, compiled against utm/lwipopts.h. The conformance
-# lwipcore / lwipcontribportunix above are left untouched, so tc8-lwip-dut's wire
-# behaviour is byte-for-byte unchanged. These reuse upstream's source lists (the
-# Filelists *_SRCS variables that lwipcore / lwipcontribportunix are built from);
-# only the lwipopts include directory differs.
-set(_tc8_lwip_utm_inc
-    "${CMAKE_CURRENT_SOURCE_DIR}/utm"
-    ${LWIP_INCLUDE_DIRS}
-    ${LWIP_MBEDTLS_INCLUDE_DIRS})
+# Build a SECOND, isolated lwIP core + unix-port library pair against an alternate
+# lwipopts.h (`lwipopts_dir`), for a binary whose stack config diverges from the
+# conformance one in a way that changes struct layout (here LWIP_IGMP, which alters
+# struct netif) — mixing such translation units in one link image is undefined.
+#
+# The recipe MIRRORS upstream's lwipcore / lwipcontribportunix (src/Filelists.cmake,
+# contrib/ports/unix/Filelists.cmake) FAITHFULLY — the same source-list variables,
+# flags, definitions, includes, AND the unix-port link deps (mbedtls link libs plus
+# the Linux util/pthread/rt / Darwin util that upstream attaches PUBLIC). Keeping the
+# whole recipe in one helper is the SSOT guard: the earlier hand-clone silently
+# dropped the link deps, so the conformance binary linked util/pthread/rt while the
+# UTM binary did not — masked on glibc (pthread/rt folded into libc) but a latent
+# link break on a split-lib toolchain. The conformance build deliberately keeps
+# using upstream's OWN lwipcore / lwipcontribportunix targets directly: re-deriving
+# those through this helper would risk perturbing the wire behaviour the TC8 ratchet
+# pins, for no benefit. Sets ${out_core} / ${out_port} in the caller scope.
+function(tc8_lwip_alt_core suffix lwipopts_dir out_core out_port)
+    set(_inc "${lwipopts_dir}" ${LWIP_INCLUDE_DIRS} ${LWIP_MBEDTLS_INCLUDE_DIRS})
 
-add_library(lwipcore_utm EXCLUDE_FROM_ALL ${lwipnoapps_SRCS})
-target_compile_options(lwipcore_utm PRIVATE ${LWIP_COMPILER_FLAGS})
-target_compile_definitions(lwipcore_utm PRIVATE ${LWIP_DEFINITIONS} ${LWIP_MBEDTLS_DEFINITIONS})
-target_include_directories(lwipcore_utm PRIVATE ${_tc8_lwip_utm_inc})
+    add_library(lwipcore${suffix} EXCLUDE_FROM_ALL ${lwipnoapps_SRCS})
+    target_compile_options(lwipcore${suffix} PRIVATE ${LWIP_COMPILER_FLAGS})
+    target_compile_definitions(lwipcore${suffix} PRIVATE
+        ${LWIP_DEFINITIONS} ${LWIP_MBEDTLS_DEFINITIONS})
+    target_include_directories(lwipcore${suffix} PRIVATE ${_inc})
 
-add_library(lwipcontribportunix_utm EXCLUDE_FROM_ALL
-    ${lwipcontribportunix_SRCS} ${lwipcontribportunixnetifs_SRCS})
-target_compile_options(lwipcontribportunix_utm PRIVATE ${LWIP_COMPILER_FLAGS})
-target_compile_definitions(lwipcontribportunix_utm PRIVATE
-    ${LWIP_DEFINITIONS} ${LWIP_MBEDTLS_DEFINITIONS})
-target_include_directories(lwipcontribportunix_utm PRIVATE ${_tc8_lwip_utm_inc})
+    add_library(lwipcontribportunix${suffix} EXCLUDE_FROM_ALL
+        ${lwipcontribportunix_SRCS} ${lwipcontribportunixnetifs_SRCS})
+    target_compile_options(lwipcontribportunix${suffix} PRIVATE ${LWIP_COMPILER_FLAGS})
+    target_compile_definitions(lwipcontribportunix${suffix} PRIVATE
+        ${LWIP_DEFINITIONS} ${LWIP_MBEDTLS_DEFINITIONS})
+    target_include_directories(lwipcontribportunix${suffix} PRIVATE ${_inc})
+    # The PUBLIC link deps upstream attaches to lwipcontribportunix — mirrored so a
+    # binary linking this alt port-lib gets the same system libs as the conformance
+    # one (this is the attribute the hand-clone dropped).
+    target_link_libraries(lwipcontribportunix${suffix} PUBLIC ${LWIP_MBEDTLS_LINK_LIBRARIES})
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_library(LIBUTIL util)
+        find_library(LIBPTHREAD pthread)
+        find_library(LIBRT rt)
+        target_link_libraries(lwipcontribportunix${suffix} PUBLIC
+            ${LIBUTIL} ${LIBPTHREAD} ${LIBRT})
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        find_library(LIBUTIL util)  # Darwin has no pthread/rt libs
+        target_link_libraries(lwipcontribportunix${suffix} PUBLIC ${LIBUTIL})
+    endif()
+
+    set(${out_core} lwipcore${suffix} PARENT_SCOPE)
+    set(${out_port} lwipcontribportunix${suffix} PARENT_SCOPE)
+endfunction()
+
+# The IGMP-enabled core for the UTM (and the multicast/etharp test below).
+tc8_lwip_alt_core(_utm "${CMAKE_CURRENT_SOURCE_DIR}/utm" _utm_core _utm_port)
+# The link arg list shared by every binary on the UTM core (one SSOT for the pair).
+set(_tc8_utm_core_args
+    LWIPOPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utm"
+    LWIP_LIBS ${_utm_port} ${_utm_core})
 
 # The standalone, OEM-deployable AUTOSAR Testability UTM: stack + testability
 # endpoint only (no opcode UT). The lwIP analog of dut/utm (tc8-utm). Built
 # against the IGMP-enabled core so a middleware module can join multicast groups.
 tc8_lwip_app(tc8-lwip-utm
-    LWIPOPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utm"
-    LWIP_LIBS lwipcontribportunix_utm lwipcore_utm
+    ${_tc8_utm_core_args}
     SRCS lwip_utm_main.cpp ${_tc8_autosar_engine_srcs})
 
 # In-process runtime test for the middleware rx reactor on the lwIP backend (the
@@ -232,8 +263,7 @@ set_tests_properties(lwip_reactor_test PROPERTIES TIMEOUT 30)
 # off, where joinMulticast compiles to its false stub. Runs over loopback plus a
 # stub ethernet netif (no tap/netns/root). Hard timeout so a hang fails fast.
 tc8_lwip_app(tc8-lwip-arp-mcast-test
-    LWIPOPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utm"
-    LWIP_LIBS lwipcontribportunix_utm lwipcore_utm
+    ${_tc8_utm_core_args}
     SRCS lwip_arp_multicast_test.cpp)
 add_test(NAME lwip_arp_multicast_test COMMAND tc8-lwip-arp-mcast-test)
 set_tests_properties(lwip_arp_multicast_test PROPERTIES TIMEOUT 30)

@@ -28,4 +28,13 @@
 
 #include "../lwipopts.h"
 
+/* The layering above relies on the conformance base NOT defining LWIP_IGMP (it
+ * only omits it, letting opt.h default it to 0 there). Enforce that invariant in
+ * code, not by trusting a comment: if a future edit makes the base predefine the
+ * symbol, this fails the build loudly instead of silently disabling multicast in
+ * the UTM (which would make joinMulticast quietly return rejection with no signal). */
+#if LWIP_IGMP != 1
+#error "base lwipopts.h must not predefine LWIP_IGMP; the UTM layer owns it"
+#endif
+
 #endif /* TC8_LWIP_UTM_LWIPOPTS_H */
