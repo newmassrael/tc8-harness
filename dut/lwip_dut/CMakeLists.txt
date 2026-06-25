@@ -121,12 +121,29 @@ set(_tc8_lwip_flags ${LWIP_COMPILER_FLAGS})
 list(REMOVE_ITEM _tc8_lwip_flags
     -Wmissing-prototypes -Waggregate-return -Wswitch-default)
 
-# Define one lwIP app executable: the shared core above plus the binary-specific
-# sources in ARGN, with the include dirs / compile flags / definitions / link
-# libraries every lwIP unix-port binary in this fixture needs.
+# Define one lwIP app executable: the shared core (_tc8_lwip_common_srcs) plus
+# the binary-specific SRCS, with the include dirs / compile flags / definitions /
+# link libraries every lwIP unix-port binary in this fixture needs.
+#
+#   tc8_lwip_app(<name> [LWIPOPTS_DIR <dir>] [LWIP_LIBS <lib>...] SRCS <src>...)
+#
+# By default the binary links the conformance lwIP core (lwipcore /
+# lwipcontribportunix, built against this directory's lwipopts.h). Pass
+# LWIPOPTS_DIR to compile the binary's own translation units against an alternate
+# lwipopts.h (prepended to the include path so its bare-name include wins) and
+# LWIP_LIBS to link a matching alternate core. The two go together: struct
+# layouts (e.g. struct netif under LWIP_IGMP) differ between configs, so every TU
+# in one link image must see the same lwipopts.h.
 function(tc8_lwip_app name)
-    add_executable(${name} ${ARGN} ${_tc8_lwip_common_srcs})
+    cmake_parse_arguments(APP "" "LWIPOPTS_DIR" "LWIP_LIBS;SRCS" ${ARGN})
+    if(NOT APP_LWIP_LIBS)
+        set(APP_LWIP_LIBS lwipcontribportunix lwipcore)
+    endif()
+    add_executable(${name} ${APP_SRCS} ${_tc8_lwip_common_srcs})
     target_include_directories(${name} PRIVATE
+        # Empty for the conformance config; the UTM's utm/ dir, prepended here,
+        # wins the bare "lwipopts.h" include over the conformance base below.
+        ${APP_LWIPOPTS_DIR}
         ${LWIP_INCLUDE_DIRS}
         # tc8/upper_tester_protocol.h + tc8/testability_protocol.h — single
         # source of truth for the UT + testability wire protocols, shared with
@@ -142,7 +159,7 @@ function(tc8_lwip_app name)
         $<$<COMPILE_LANGUAGE:C>:-Wswitch-default>
     )
     target_compile_definitions(${name} PRIVATE ${LWIP_DEFINITIONS})
-    target_link_libraries(${name} ${LWIP_SANITIZER_LIBS} lwipcontribportunix lwipcore)
+    target_link_libraries(${name} ${LWIP_SANITIZER_LIBS} ${APP_LWIP_LIBS})
 endfunction()
 
 # The conformance DUT fixture: stack + opcode Upper Tester + testability. The
@@ -151,7 +168,7 @@ endfunction()
 # (lwip_stack_probe = TCP-info / original-dst introspection) and the lwIP-only ARP
 # cache-conditioning opcode (lwip_ut_extensions). lwip_socket_backend (in the
 # common srcs) supplies the socket primitives for both the UT and testability.
-tc8_lwip_app(tc8-lwip-dut
+tc8_lwip_app(tc8-lwip-dut SRCS
     tc8_lwip_dut.cpp
     lwip_stack_probe.cpp
     lwip_ut_extensions.cpp
@@ -166,9 +183,38 @@ tc8_lwip_app(tc8-lwip-dut
 file(GLOB _tc8_autosar_engine_srcs CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/autosar/*.cpp)
 
+# tc8-lwip-utm enables IPv4 multicast (LWIP_IGMP via utm/lwipopts.h), which
+# changes lwIP struct layouts (struct netif). Mixing IGMP-on and IGMP-off
+# translation units in one link image is undefined, so the UTM gets its OWN core
+# and unix-port libraries, compiled against utm/lwipopts.h. The conformance
+# lwipcore / lwipcontribportunix above are left untouched, so tc8-lwip-dut's wire
+# behaviour is byte-for-byte unchanged. These reuse upstream's source lists (the
+# Filelists *_SRCS variables that lwipcore / lwipcontribportunix are built from);
+# only the lwipopts include directory differs.
+set(_tc8_lwip_utm_inc
+    "${CMAKE_CURRENT_SOURCE_DIR}/utm"
+    ${LWIP_INCLUDE_DIRS}
+    ${LWIP_MBEDTLS_INCLUDE_DIRS})
+
+add_library(lwipcore_utm EXCLUDE_FROM_ALL ${lwipnoapps_SRCS})
+target_compile_options(lwipcore_utm PRIVATE ${LWIP_COMPILER_FLAGS})
+target_compile_definitions(lwipcore_utm PRIVATE ${LWIP_DEFINITIONS} ${LWIP_MBEDTLS_DEFINITIONS})
+target_include_directories(lwipcore_utm PRIVATE ${_tc8_lwip_utm_inc})
+
+add_library(lwipcontribportunix_utm EXCLUDE_FROM_ALL
+    ${lwipcontribportunix_SRCS} ${lwipcontribportunixnetifs_SRCS})
+target_compile_options(lwipcontribportunix_utm PRIVATE ${LWIP_COMPILER_FLAGS})
+target_compile_definitions(lwipcontribportunix_utm PRIVATE
+    ${LWIP_DEFINITIONS} ${LWIP_MBEDTLS_DEFINITIONS})
+target_include_directories(lwipcontribportunix_utm PRIVATE ${_tc8_lwip_utm_inc})
+
 # The standalone, OEM-deployable AUTOSAR Testability UTM: stack + testability
-# endpoint only (no opcode UT). The lwIP analog of dut/utm (tc8-utm).
-tc8_lwip_app(tc8-lwip-utm lwip_utm_main.cpp ${_tc8_autosar_engine_srcs})
+# endpoint only (no opcode UT). The lwIP analog of dut/utm (tc8-utm). Built
+# against the IGMP-enabled core so a middleware module can join multicast groups.
+tc8_lwip_app(tc8-lwip-utm
+    LWIPOPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/utm"
+    LWIP_LIBS lwipcontribportunix_utm lwipcore_utm
+    SRCS lwip_utm_main.cpp ${_tc8_autosar_engine_srcs})
 
 # In-process runtime test for the middleware rx reactor on the lwIP backend (the
 # lwIP IoMultiplexer: lwip_select poll() + the 127.0.0.1 socket-pair Waker). Runs
@@ -177,6 +223,6 @@ tc8_lwip_app(tc8-lwip-utm lwip_utm_main.cpp ${_tc8_autosar_engine_srcs})
 # hard timeout so a regression that hangs the reactor fails fast. Needs no AUTOSAR
 # engines (it tests the reactor, not the engines).
 enable_testing()
-tc8_lwip_app(tc8-lwip-reactor-test lwip_reactor_test.cpp)
+tc8_lwip_app(tc8-lwip-reactor-test SRCS lwip_reactor_test.cpp)
 add_test(NAME lwip_reactor_test COMMAND tc8-lwip-reactor-test)
 set_tests_properties(lwip_reactor_test PROPERTIES TIMEOUT 30)

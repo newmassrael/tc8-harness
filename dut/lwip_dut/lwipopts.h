@@ -66,10 +66,12 @@ void sys_check_core_locking(void);
 /* No IGMP/DNS/SNMP/mDNS/DHCP/AUTOIP: nothing in the swept TC8 areas
  * needs them, and a quiet DUT keeps per-case pcaps reviewable. DHCP and
  * AUTOIP become build-time opt-ins when their UT opcodes are ported.
- * IGMP in particular stays OFF: it would add all-systems (224.0.0.1)
- * membership + IGMP report emission to the wire, perturbing the
- * broadcast/multicast silent-discard cases — so the UTM's joinMulticast
- * is deferred for lwIP (lwip_socket_backend.cpp), not enabled here. */
+ * IGMP in particular stays OFF in THIS (conformance) config: it would add
+ * all-systems (224.0.0.1) membership + IGMP report emission to the wire,
+ * perturbing the broadcast/multicast silent-discard cases. The UTM needs
+ * multicast, so it enables IGMP in its own layered config (utm/lwipopts.h)
+ * and links a separate core (lwipcore_utm) — the conformance DUT, which
+ * shares this file, is unaffected. */
 
 /* The tc8-lwip-utm middleware reactor's cross-thread waker is a 127.0.0.1 UDP
  * socket pair that signals itself with a 1-byte datagram (lwip_socket_backend.cpp
