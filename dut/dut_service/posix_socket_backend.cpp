@@ -19,6 +19,7 @@
 #include <cerrno>
 #include <cstring>
 #include <initializer_list>
+#include <memory>
 #include <optional>
 
 #include "wire/ip_checksum.h"
@@ -297,31 +298,44 @@ int PosixSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
     return static_cast<int>(readable.size());
 }
 
-int PosixSocketBackend::createWaker() {
-    // An eventfd is a self-contained pollable counter — the canonical Linux
-    // self-pipe. EFD_NONBLOCK so drainWaker() never blocks; the single fd is both
-    // the read end (in poll's set) and the write end (signalWaker).
-    return ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-}
-
-void PosixSocketBackend::signalWaker(int waker_fd) {
-    const std::uint64_t one = 1;
-    const ssize_t w = ::write(waker_fd, &one, sizeof(one));
-    (void)w;  // best-effort: a saturated counter is already "signaled"
-}
-
-void PosixSocketBackend::drainWaker(int waker_fd) {
-    // A single read returns and zeroes the accumulated count (eventfd semantics);
-    // the loop just defends against a concurrent signal between reads.
-    std::uint64_t sink = 0;
-    while (::read(waker_fd, &sink, sizeof(sink)) == static_cast<ssize_t>(sizeof(sink))) {
+namespace {
+// POSIX waker: a single eventfd. Its counter saturates rather than dropping a
+// signal (lossless), and the one fd is both the readable end (pollFd) and the
+// write end (signal). EFD_NONBLOCK so drain() never blocks. RAII-closes the fd.
+class EventfdWaker final : public tc8::testability::Waker {
+public:
+    explicit EventfdWaker(int fd) : fd_(fd) {}
+    ~EventfdWaker() override {
+        if (fd_ >= 0) {
+            ::close(fd_);
+        }
     }
-}
+    EventfdWaker(const EventfdWaker &) = delete;
+    EventfdWaker &operator=(const EventfdWaker &) = delete;
 
-bool PosixSocketBackend::wakerLossless() const {
-    // The eventfd counter saturates rather than dropping a signal, so a wake is
-    // never lost — the executor may wait in poll() indefinitely.
-    return true;
+    int pollFd() const override { return fd_; }
+    void signal() override {
+        const std::uint64_t one = 1;
+        const ssize_t w = ::write(fd_, &one, sizeof(one));
+        (void)w;  // best-effort: a saturated counter is already "signaled"
+    }
+    void drain() override {
+        std::uint64_t sink = 0;
+        while (::read(fd_, &sink, sizeof(sink)) == static_cast<ssize_t>(sizeof(sink))) {
+        }
+    }
+
+private:
+    int fd_;
+};
+}  // namespace
+
+std::unique_ptr<tc8::testability::Waker> PosixSocketBackend::createWaker() {
+    const int fd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (fd < 0) {
+        return nullptr;
+    }
+    return std::make_unique<EventfdWaker>(fd);
 }
 
 void PosixSocketBackend::closeFd(int fd) {

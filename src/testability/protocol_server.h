@@ -22,6 +22,22 @@ namespace tc8::testability {
 // testability core speaks its endpoint type, so import the name here.
 using net::Endpoint;
 
+// A cross-thread wakeup for a poll() loop, modeled as the resource it is: it owns
+// its underlying fd(s) and frees them on destruction (RAII). The reactor holds one
+// by unique_ptr, places pollFd() in poll()'s set, calls signal() from any thread to
+// break a blocked poll(), and drain()s it on the poll thread once readable. POSIX
+// wraps an eventfd; lwIP wraps a loopback UDP socket pair (the executor reads one
+// end, the server writes the other) — neither shape leaks into the consumer, which
+// sees only this interface, so there is no fd to "remember" and no paired-fd
+// bookkeeping outside the object.
+class Waker {
+public:
+    virtual ~Waker() = default;
+    virtual int pollFd() const = 0;  // the fd to include in poll()'s set
+    virtual void signal() = 0;        // any thread: make pollFd() readable
+    virtual void drain() = 0;         // poll thread: consume pending signal(s)
+};
+
 // The testability-specific extension of the shared socket seam
 // (tc8::net::SocketBackend): the operations whose result is a PRS_TPSP
 // service-primitive outcome rather than a raw socket value — CONFIGURE_SOCKET
@@ -35,9 +51,7 @@ public:
     // The per-module reactor's I/O multiplexer + cross-thread wake. These live on
     // the testability seam (not the generic net base) because only the stateful
     // module executor (ProtocolServer::ModuleRuntime) needs an event loop — the
-    // Upper Tester, the other generic-base consumer, does not. Keeping them here
-    // mirrors how the generic seam stays free of operations its other consumers
-    // never call.
+    // Upper Tester, the other generic-base consumer, does not.
     //
     // poll(): block until an fd in `fds[0..n)` is readable or `timeout_ms` elapses
     // (`timeout_ms` < 0 = indefinite). `readable` is cleared and filled with the
@@ -45,19 +59,10 @@ public:
     virtual int poll(const int *fds, std::size_t n, int timeout_ms,
                      std::vector<int> &readable) = 0;
 
-    // createWaker(): a pollable fd to include in poll()'s set (or -1 if
-    // unavailable); signalWaker() makes it readable from ANY thread so a blocked
-    // poll() returns; drainWaker() consumes the pending signal(s) after poll()
-    // reports it readable. Close it with closeFd(). Lets the executor sleep in
-    // poll() yet still service a primitive marshaled from the server thread — with
-    // no periodic poll. wakerLossless() is true when a signal can never be dropped
-    // (e.g. a POSIX eventfd counter); when false (e.g. an lwIP loopback datagram,
-    // droppable under buffer exhaustion) the executor caps its wait as a liveness
-    // backstop.
-    virtual int createWaker() = 0;
-    virtual void signalWaker(int waker_fd) = 0;
-    virtual void drainWaker(int waker_fd) = 0;
-    virtual bool wakerLossless() const = 0;
+    // Construct a cross-thread Waker for the reactor's poll() loop (see Waker
+    // above), or nullptr if this backend has no wake primitive. The caller owns the
+    // returned Waker; its destruction releases the underlying fd(s).
+    virtual std::unique_ptr<Waker> createWaker() = 0;
 
     // CONFIGURE_SOCKET parameter application -> testability result id
     // (E_OK / E_NOK / E_NTF / E_INV). The supported parameter set is

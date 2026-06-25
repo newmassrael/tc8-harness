@@ -2,8 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <map>
-#include <mutex>
+#include <memory>
 #include <string>
 
 #include "net/socket_backend.h"
@@ -40,10 +39,7 @@ public:
     int waitReadable(int fd, int timeout_us) override;
     int poll(const int *fds, std::size_t n, int timeout_ms,
              std::vector<int> &readable) override;
-    int createWaker() override;
-    void signalWaker(int waker_fd) override;
-    void drainWaker(int waker_fd) override;
-    bool wakerLossless() const override;
+    std::unique_ptr<tc8::testability::Waker> createWaker() override;
     void closeFd(int fd) override;
     void closeWithAbort(int fd) override;
     std::uint8_t configureOption(int fd, std::uint16_t param_id, const std::uint8_t *val,
@@ -61,18 +57,6 @@ public:
                                     std::uint8_t prefix) override;
     std::uint8_t setStaticRouteV6(const std::string &ifname, const std::uint8_t *subnet16,
                                   std::uint8_t prefix, const std::uint8_t *gateway16) override;
-
-private:
-    // The waker is a socket PAIR, so no lwIP socket is ever touched by two threads
-    // at once (lwIP needs LWIP_NETCONN_FULLDUPLEX — off here — for that): the
-    // executor thread owns the receiver (poll + drainWaker), the server thread owns
-    // the sender (signalWaker). createWaker returns the receiver fd and records its
-    // paired sender here; closeFd(receiver) also closes the sender. The map is
-    // written only outside the executor's run (create before it starts, erase after
-    // it joins) but read by signalWaker / closeFd, so a mutex guards it against a
-    // second module's createWaker racing this module's closeFd.
-    std::mutex waker_mu_;
-    std::map<int, int> waker_sender_;  // receiver fd -> paired sender fd
 };
 
 }  // namespace tc8::lwip_dut

@@ -1,5 +1,6 @@
 #include "testability/protocol_server.h"
 
+#include <cassert>
 #include <cstring>
 #include <deque>
 #include <future>
@@ -15,6 +16,14 @@ namespace {
 // Wake interval for the async-event SP worker threads' wait loop — bounds how
 // fast acceptLoop / receiveLoop notice the stop / reset flags.
 constexpr int kEventThreadWakeUs = 200 * 1000;  // 200 ms
+
+// Liveness backstop for the per-module reactor's poll() wait. A Waker signal is
+// best-effort (an lwIP loopback datagram can drop under buffer exhaustion; a POSIX
+// eventfd cannot), so the executor caps an otherwise-indefinite wait at this
+// heartbeat: a lost cross-thread wake then delays an enqueued task by at most this,
+// never wedges it. It is NOT rx polling — a watched fd's readiness still wakes
+// poll() immediately; this only floors the wait when nothing else is pending.
+constexpr int kReactorBackstopMs = 1000;
 
 // PRS_TPSP §6.10 SEND_DATA totalLen rule, shared by the UDP and TCP backends:
 // repeat `data` up to `total_len` bytes; if total_len < data_len send the full
@@ -77,9 +86,9 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
         // runOnExecutor() below can signal it to deliver onStart. A backend with
         // no wake primitive returns -1; runLoop() then substitutes a bounded poll
         // timeout (the single place a timeout stands in for the waker).
-        waker_fd_ = server_->backend_->createWaker();
-        waker_lossless_ = server_->backend_->wakerLossless();
+        waker_ = server_->backend_->createWaker();  // null if the backend has no waker
         exec_ = std::thread([this] { runLoop(); });
+        exec_id_ = exec_.get_id();  // stable id for the executor-thread asserts below
         runOnExecutor([this] { module_->onStart(*this); });  // ready before serving
     }
 
@@ -94,10 +103,7 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
             running_ = false;  // exit the loop after this task
         });
         exec_.join();
-        if (waker_fd_ >= 0) {
-            server_->backend_->closeFd(waker_fd_);  // after the join — no concurrent poll
-            waker_fd_ = -1;
-        }
+        waker_.reset();  // after the join — no concurrent poll; frees the waker fd(s)
     }
 
     // Marshal a primitive onto the executor and block for its Response — keeps it
@@ -128,9 +134,11 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
         return arm(delay, std::move(fn), /*periodic=*/false);
     }
     void cancel(TimerId id) override {
+        assertOnExecutor();
         timers_.erase(static_cast<std::uint64_t>(id));  // executor-thread only, no lock
     }
     WatchId watchReadable(int fd, std::function<void()> on_readable) override {
+        assertOnExecutor();
         if (fd < 0) {
             return kNoWatch;
         }
@@ -139,6 +147,7 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
         return static_cast<WatchId>(id);
     }
     void unwatch(WatchId id) override {
+        assertOnExecutor();
         watches_.erase(static_cast<std::uint64_t>(id));  // executor-thread only, no lock
     }
     void emitEvent(std::uint8_t gid, std::uint8_t pid,
@@ -162,10 +171,17 @@ private:
         std::function<void()> fn;
     };
 
+    // The lock-free timer/watch state below is safe only because every mutator is
+    // reached on the executor thread (the MiddlewareContext contract: "call on the
+    // module executor"). Assert that precondition in debug builds rather than trust
+    // the prose — a module that mutates from a thread it spawned trips here.
+    void assertOnExecutor() const { assert(std::this_thread::get_id() == exec_id_); }
+
     TimerId arm(std::chrono::milliseconds period, std::function<void()> fn, bool periodic) {
         // Armed from a module callback (onStart / onPrimitive / a timer or watch
         // handler) — all on the executor thread — so no lock and no wake: the loop
         // re-reads timers_ before its next poll.
+        assertOnExecutor();
         const std::uint64_t id = next_timer_id_++;
         timers_[id] = Timer{std::chrono::steady_clock::now() + period, period, std::move(fn),
                             periodic};
@@ -176,7 +192,7 @@ private:
     // points). Inline when already on the executor so a module callback that
     // re-enters cannot self-deadlock. The wake fd breaks the executor out of poll.
     void runOnExecutor(const std::function<void()> &fn) {
-        if (std::this_thread::get_id() == exec_.get_id()) {
+        if (std::this_thread::get_id() == exec_id_) {
             fn();
             return;
         }
@@ -192,9 +208,10 @@ private:
         // Signal AFTER enqueuing (happens-before the executor's next task read): a
         // signal that lands before poll() leaves the wake fd readable, so poll
         // returns immediately and the loop top re-reads tasks_ — the task is never
-        // lost.
-        if (waker_fd_ >= 0) {
-            server_->backend_->signalWaker(waker_fd_);
+        // lost. (Even a dropped best-effort signal only delays, never loses: the
+        // backstop wait re-enters drainTasks within kReactorBackstopMs.)
+        if (waker_) {
+            waker_->signal();
         }
         fut.wait();
     }
@@ -250,31 +267,22 @@ private:
             }
             // Build the poll set: the wake fd plus every watched data socket.
             poll_fds_.clear();
-            if (waker_fd_ >= 0) {
-                poll_fds_.push_back(waker_fd_);
+            if (waker_) {
+                poll_fds_.push_back(waker_->pollFd());
             }
             for (const auto &kv : watches_) {
                 poll_fds_.push_back(kv.second.fd);
             }
-            // Timeout = until the next timer (0 if already past), or indefinite
-            // when none — the wake fd / a readable watch ends the wait. Liveness
-            // backstop: an indefinite/long wait is only safe behind a LOSSLESS
-            // waker (a POSIX eventfd never drops a signal). With no waker, or a
-            // lossy one (the lwIP loopback datagram can drop under buffer
-            // exhaustion), cap the wait so a missed wake cannot wedge the executor.
-            // This is a liveness floor, NOT rx polling — rx stays genuine readiness
-            // on the watched fds.
-            int timeout_ms = -1;
+            // Wait until the next timer (0 if already past), capped at the liveness
+            // backstop (kReactorBackstopMs) so a lost cross-thread wake cannot wedge
+            // the executor — see the constant's note; this is not rx polling.
+            int timeout_ms = kReactorBackstopMs;
             if (earliest) {
                 const auto d =
                     std::chrono::duration_cast<std::chrono::milliseconds>(*earliest - now).count();
-                timeout_ms = (d < 0) ? 0 : static_cast<int>(d);
-            }
-            const bool lossless_wake = waker_fd_ >= 0 && waker_lossless_;
-            if (!lossless_wake) {
-                const int cap = (waker_fd_ >= 0) ? 1000 : 50;  // lossy waker present : no waker
-                if (timeout_ms < 0 || timeout_ms > cap) {
-                    timeout_ms = cap;
+                const int until = (d < 0) ? 0 : static_cast<int>(d);
+                if (until < timeout_ms) {
+                    timeout_ms = until;
                 }
             }
             server_->backend_->poll(poll_fds_.data(), poll_fds_.size(), timeout_ms, readable_);
@@ -284,8 +292,8 @@ private:
             // wake fd is drained, never dispatched.
             fire_.clear();
             for (const int fd : readable_) {
-                if (fd == waker_fd_) {
-                    server_->backend_->drainWaker(waker_fd_);
+                if (waker_ && fd == waker_->pollFd()) {
+                    waker_->drain();
                     continue;
                 }
                 for (const auto &kv : watches_) {
@@ -307,12 +315,12 @@ private:
     std::unique_ptr<MiddlewareModule> module_;
     std::vector<std::uint8_t> groups_;
     std::thread exec_;
+    std::thread::id exec_id_;       // executor thread id (for the executor-thread asserts)
 
     std::mutex mu_;                 // guards tasks_ only (the cross-thread queue)
     bool running_ = false;          // executor-thread state after startExecutor
     std::deque<std::function<void()>> tasks_;
-    int waker_fd_ = -1;             // cross-thread wake fd (backend->createWaker)
-    bool waker_lossless_ = false;   // cached backend->wakerLossless() (set at start)
+    std::unique_ptr<Waker> waker_;  // cross-thread wake for poll(); null if unsupported
 
     // Executor-thread-only state (no lock): timers, fd watches, and the poll
     // scratch buffers reused each iteration.

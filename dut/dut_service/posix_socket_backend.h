@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 
@@ -40,10 +41,7 @@ public:
     int waitReadable(int fd, int timeout_us) override;
     int poll(const int *fds, std::size_t n, int timeout_ms,
              std::vector<int> &readable) override;
-    int createWaker() override;
-    void signalWaker(int waker_fd) override;
-    void drainWaker(int waker_fd) override;
-    bool wakerLossless() const override;
+    std::unique_ptr<tc8::testability::Waker> createWaker() override;
     void closeFd(int fd) override;
     void closeWithAbort(int fd) override;
     std::uint8_t configureOption(int fd, std::uint16_t param_id, const std::uint8_t *val,

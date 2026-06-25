@@ -1513,18 +1513,19 @@ TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
 // unknown PID, a periodic timer advancing state on the module executor, END_TEST
 // reset, and an asynchronous Event from a one-shot timer.
 
-constexpr std::uint8_t kDemoGid = 0x7F;
-constexpr std::uint8_t kDemoPidEcho = 0x01;
-constexpr std::uint8_t kDemoPidArmTick = 0x02;
-constexpr std::uint8_t kDemoPidReadCount = 0x03;
-constexpr std::uint8_t kDemoPidArmEvent = 0x04;
-constexpr std::uint8_t kDemoPidArmRx = 0x05;    // open+bind a data socket, watchReadable it
-constexpr std::uint8_t kDemoPidReadRx = 0x06;   // return the last datagram the watch consumed
-constexpr std::uint16_t kDemoRxPort = 39902;    // the module's data-plane UDP port
+constexpr std::uint8_t kProbeGid = 0x7F;
+constexpr std::uint8_t kProbePidEcho = 0x01;
+constexpr std::uint8_t kProbePidArmTick = 0x02;
+constexpr std::uint8_t kProbePidReadCount = 0x03;
+constexpr std::uint8_t kProbePidArmEvent = 0x04;
+constexpr std::uint8_t kProbePidArmRx = 0x05;    // open+bind a data socket, watchReadable it
+constexpr std::uint8_t kProbePidReadRx = 0x06;   // return the last datagram the watch consumed
+constexpr std::uint16_t kProbeRxPort = 39902;    // the module's data-plane UDP port
+constexpr std::size_t kProbeRxBufLen = 256;      // inbound datagram read buffer
 
-class DemoModule : public testability::MiddlewareModule {
+class SeamProbeModule : public testability::MiddlewareModule {
 public:
-    std::vector<std::uint8_t> groups() const override { return {kDemoGid}; }
+    std::vector<std::uint8_t> groups() const override { return {kProbeGid}; }
     void onStart(testability::MiddlewareContext &ctx) override { ctx_ = &ctx; }
     void onStop() override {
         if (ctx_ != nullptr) {
@@ -1546,38 +1547,38 @@ public:
                      const tc8::net::Endpoint &, std::uint8_t &rid,
                      std::vector<std::uint8_t> &resp) override {
         switch (tp::pidOf(req.method_id)) {
-            case kDemoPidEcho:
+            case kProbePidEcho:
                 resp.assign(dat, dat + dat_len);
                 rid = tp::kRidEOk;
                 return;
-            case kDemoPidArmTick:
+            case kProbePidArmTick:
                 tick_timer_ = ctx_->scheduleEvery(std::chrono::milliseconds(5),
                                                   [this] { ++tick_count_; });
                 rid = tp::kRidEOk;
                 return;
-            case kDemoPidReadCount:
+            case kProbePidReadCount:
                 tp::appendU16(resp, static_cast<std::uint16_t>(tick_count_));
                 rid = tp::kRidEOk;
                 return;
-            case kDemoPidArmEvent:
+            case kProbePidArmEvent:
                 ctx_->scheduleOnce(std::chrono::milliseconds(5), [this] {
                     const std::vector<std::uint8_t> ev = {0xAB, 0xCD};
-                    ctx_->emitEvent(kDemoGid, kDemoPidArmEvent, ev);
+                    ctx_->emitEvent(kProbeGid, kProbePidArmEvent, ev);
                 });
                 rid = tp::kRidEOk;
                 return;
-            case kDemoPidArmRx:
+            case kProbePidArmRx:
                 // Open the data plane and register it with the reactor — all on the
                 // executor, so no lock guards rx_sock_ / rx_watch_ / last_rx_.
                 rx_sock_ = ctx_->backend().createUdp();
-                if (rx_sock_ >= 0 && ctx_->backend().bindV4(rx_sock_, 0, kDemoRxPort)) {
+                if (rx_sock_ >= 0 && ctx_->backend().bindV4(rx_sock_, 0, kProbeRxPort)) {
                     rx_watch_ = ctx_->watchReadable(rx_sock_, [this] { onRx(); });
                     rid = tp::kRidEOk;
                 } else {
                     rid = tp::kRidENok;
                 }
                 return;
-            case kDemoPidReadRx:
+            case kProbePidReadRx:
                 resp = last_rx_;  // executor thread — same thread as onRx, no lock
                 rid = tp::kRidEOk;
                 return;
@@ -1589,9 +1590,9 @@ public:
 
 private:
     // Reactor-delivered: a datagram is readable on rx_sock_. Drain one and record
-    // it so kDemoPidReadRx can read it back. Level-triggered: must consume.
+    // it so kProbePidReadRx can read it back. Level-triggered: must consume.
     void onRx() {
-        std::uint8_t buf[256];
+        std::uint8_t buf[kProbeRxBufLen];
         tc8::net::Endpoint src{};
         const int n = ctx_->backend().recvFromV4(rx_sock_, buf, sizeof(buf), src);
         if (n > 0) {
@@ -1631,7 +1632,7 @@ stimulus::TestabilityConfig loopbackOn(std::uint16_t port) {
 class MiddlewareSeamTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        server_.registerModule(std::make_unique<DemoModule>());
+        server_.registerModule(std::make_unique<SeamProbeModule>());
         ASSERT_TRUE(server_.start(kPort));
         cfg_ = loopbackOn(kPort);
     }
@@ -1644,7 +1645,7 @@ protected:
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         int v = 0;
         do {
-            const auto r = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidReadCount, {});
+            const auto r = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidReadCount, {});
             if (r.eok() && r.dat.size() == 2u) {
                 v = (r.dat[0] << 8) | r.dat[1];
                 if (v > 0) {
@@ -1657,7 +1658,7 @@ protected:
     }
 
     int readCount() {
-        const auto r = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidReadCount, {});
+        const auto r = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidReadCount, {});
         EXPECT_TRUE(r.eok());
         EXPECT_EQ(r.dat.size(), 2u);
         return r.dat.size() == 2u ? ((r.dat[0] << 8) | r.dat[1]) : -1;
@@ -1670,17 +1671,17 @@ protected:
 
 TEST_F(MiddlewareSeamTest, PrimitiveRoutesEchoesAndUnknownPidIsNotFound) {
     const std::vector<std::uint8_t> body = {0x11, 0x22, 0x33};
-    const auto echo = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidEcho, body);
+    const auto echo = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidEcho, body);
     EXPECT_TRUE(echo.eok());
     EXPECT_EQ(echo.dat, body);
 
-    const auto unknown = stimulus::testabilityCall(cfg_, kDemoGid, 0xFE, {});
+    const auto unknown = stimulus::testabilityCall(cfg_, kProbeGid, 0xFE, {});
     EXPECT_TRUE(unknown.ok);
     EXPECT_EQ(unknown.rid, tp::kRidENtf);
 }
 
 TEST_F(MiddlewareSeamTest, TimerAdvancesStateAndEndTestResetsIt) {
-    EXPECT_TRUE(stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidArmTick, {}).eok());
+    EXPECT_TRUE(stimulus::testabilityCall(cfg_, kProbeGid, kProbePidArmTick, {}).eok());
     EXPECT_GT(pollCounterPositive(), 0);  // periodic timer advanced the counter
 
     // END_TEST is synchronous (onEndTest awaited), so the count is cleared and the
@@ -1713,7 +1714,7 @@ TEST_F(MiddlewareSeamTest, EmitsAsyncEventToRequester) {
     dst.sin_port = ::htons(kPort);
 
     tp::Header h;
-    h.method_id = tp::methodId(kDemoGid, kDemoPidArmEvent);
+    h.method_id = tp::methodId(kProbeGid, kProbePidArmEvent);
     h.tid = tp::kTidRequest;
     const auto req = tp::buildMessage(h, nullptr, 0);
     ASSERT_GT(::sendto(s, req.data(), req.size(), 0, reinterpret_cast<sockaddr *>(&dst),
@@ -1734,8 +1735,8 @@ TEST_F(MiddlewareSeamTest, EmitsAsyncEventToRequester) {
     ASSERT_TRUE(ev.has_value());
     EXPECT_EQ(ev->tid, tp::kTidEvent);
     EXPECT_TRUE(tp::isEvent(ev->method_id));
-    EXPECT_EQ(tp::gidOf(ev->method_id), kDemoGid);
-    EXPECT_EQ(tp::pidOf(ev->method_id), kDemoPidArmEvent);
+    EXPECT_EQ(tp::gidOf(ev->method_id), kProbeGid);
+    EXPECT_EQ(tp::pidOf(ev->method_id), kProbePidArmEvent);
     ASSERT_EQ(static_cast<std::size_t>(en) - tp::kHeaderSize, 2u);
     EXPECT_EQ(buf[tp::kHeaderSize], 0xABu);
     EXPECT_EQ(buf[tp::kHeaderSize + 1], 0xCDu);
@@ -1746,8 +1747,8 @@ TEST_F(MiddlewareSeamTest, EmitsAsyncEventToRequester) {
 // registerModule must fail fast on a clashing GID rather than silently shadow.
 TEST(MiddlewareSeam, RegisterModuleRejectsDuplicateAndCoreGid) {
     testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
-    server.registerModule(std::make_unique<DemoModule>());
-    EXPECT_THROW(server.registerModule(std::make_unique<DemoModule>()), std::invalid_argument);
+    server.registerModule(std::make_unique<SeamProbeModule>());
+    EXPECT_THROW(server.registerModule(std::make_unique<SeamProbeModule>()), std::invalid_argument);
     EXPECT_THROW(server.registerModule(std::make_unique<CoreGidModule>()), std::invalid_argument);
 }
 
@@ -1758,7 +1759,7 @@ TEST(MiddlewareSeam, RegisterModuleRejectsDuplicateAndCoreGid) {
 // executor blocks in poll() indefinitely — so the READ_RX primitive returning at
 // all proves the cross-thread waker broke that poll (otherwise this would hang).
 TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
-    ASSERT_TRUE(stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidArmRx, {}).eok());
+    ASSERT_TRUE(stimulus::testabilityCall(cfg_, kProbeGid, kProbePidArmRx, {}).eok());
 
     // Tester -> the module's data port.
     const int s = ::socket(AF_INET, SOCK_DGRAM, 0);
@@ -1766,7 +1767,7 @@ TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
     sockaddr_in to{};
     to.sin_family = AF_INET;
     to.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
-    to.sin_port = htons(kDemoRxPort);
+    to.sin_port = htons(kProbeRxPort);
     const std::vector<std::uint8_t> payload = {0xDE, 0xAD, 0xBE, 0xEF};
     ASSERT_EQ(::sendto(s, payload.data(), payload.size(), 0,
                        reinterpret_cast<sockaddr *>(&to), sizeof(to)),
@@ -1778,7 +1779,7 @@ TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     std::vector<std::uint8_t> got;
     do {
-        const auto r = stimulus::testabilityCall(cfg_, kDemoGid, kDemoPidReadRx, {});
+        const auto r = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidReadRx, {});
         if (r.eok() && r.dat == payload) {
             got = r.dat;
             break;

@@ -1,6 +1,7 @@
 #include "lwip_socket_backend.h"
 
 #include <cerrno>
+#include <memory>
 
 #include "wire/ip_checksum.h"
 
@@ -193,7 +194,11 @@ int LwipSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
     // lwIP socket fds are small contiguous indices, so FD_SETSIZE bounds them
     // comfortably and lwip_select is the natural multiplexer (mirrors waitReadable
     // and connectBoundedV4). A negative timeout_ms is an indefinite wait (NULL
-    // timeval); otherwise convert to a timeval.
+    // timeval); otherwise convert to a timeval. Divergence from the POSIX ::poll
+    // backend: lwip_select is an fd_set API with no per-fd revents, so a
+    // hung-up/errored watched socket is NOT surfaced as readable here (the reactor
+    // contract requires unwatch-before-close, so a watched fd is never left closed
+    // in the set).
     fd_set rset;
     FD_ZERO(&rset);
     int maxfd = -1;
@@ -224,19 +229,50 @@ int LwipSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
     return static_cast<int>(readable.size());
 }
 
-int LwipSocketBackend::createWaker() {
-    // lwIP has no eventfd/pipe and lwip_select waits only on lwIP sockets, so the
-    // waker is a UDP socket PAIR over the 127.0.0.1 loopback netif (present because
-    // LWIP_NETIF_LOOPBACK is set): the executor thread owns the RECEIVER (poll +
-    // drainWaker), the server thread owns the SENDER (signalWaker). Two sockets,
-    // not one — so no lwIP socket is touched by two threads at once (which lwIP
-    // permits only with LWIP_NETCONN_FULLDUPLEX, off here). The sender is connected
-    // to the receiver's bound port, so signalWaker is a 1-byte send that loops back
-    // inside the stack (no wire emission). Runs on the server thread before the
-    // executor starts, so the getsockname() here touches a not-yet-shared socket.
+namespace {
+// lwIP waker: a 127.0.0.1 UDP socket PAIR (the loopback netif exists because
+// LWIP_NETIF_LOOPBACK is set). The executor reads/polls the RECEIVER; any thread
+// signals by sending 1 byte on the connected SENDER — two distinct sockets, so no
+// lwIP socket is ever touched by two threads at once (lwIP permits same-socket
+// multi-thread use only with LWIP_NETCONN_FULLDUPLEX, off here). The object owns
+// both fds and closes them on destruction (the sender first). signal() is
+// best-effort: a loopback datagram can drop under pbuf exhaustion, so the reactor
+// backstops liveness — a lost wake only delays, never loses, an enqueued task.
+class LoopbackWaker final : public tc8::testability::Waker {
+public:
+    LoopbackWaker(int rx, int tx) : rx_(rx), tx_(tx) {}
+    ~LoopbackWaker() override {
+        lwip_close(tx_);
+        lwip_close(rx_);
+    }
+    LoopbackWaker(const LoopbackWaker &) = delete;
+    LoopbackWaker &operator=(const LoopbackWaker &) = delete;
+
+    int pollFd() const override { return rx_; }
+    void signal() override {
+        const std::uint8_t b = 1;
+        lwip_send(tx_, &b, 1, 0);  // connected sender -> loops to the receiver
+    }
+    void drain() override {
+        std::uint8_t sink[64];
+        while (lwip_recv(rx_, sink, sizeof(sink), 0) > 0) {
+        }
+    }
+
+private:
+    int rx_;
+    int tx_;
+};
+}  // namespace
+
+std::unique_ptr<tc8::testability::Waker> LwipSocketBackend::createWaker() {
+    // Runs on the server thread before the executor starts, so the getsockname()
+    // here touches a not-yet-shared socket. Both sockets bind 127.0.0.1 (loopback
+    // netif); the sender is connected to the receiver's ephemeral port so signal()
+    // is a 1-byte send that loops back inside the stack (no wire emission).
     const int rx = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (rx < 0) {
-        return -1;
+        return nullptr;
     }
     sockaddr_in a{};
     a.sin_family = AF_INET;
@@ -246,69 +282,23 @@ int LwipSocketBackend::createWaker() {
     if (lwip_bind(rx, reinterpret_cast<sockaddr *>(&a), sizeof(a)) != 0 ||
         lwip_getsockname(rx, reinterpret_cast<sockaddr *>(&a), &al) != 0) {  // learn the port
         lwip_close(rx);
-        return -1;
+        return nullptr;
     }
     lwip_fcntl(rx, F_SETFL, lwip_fcntl(rx, F_GETFL, 0) | O_NONBLOCK);
     const int tx = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (tx < 0) {
         lwip_close(rx);
-        return -1;
+        return nullptr;
     }
     if (lwip_connect(tx, reinterpret_cast<sockaddr *>(&a), sizeof(a)) != 0) {  // (127.0.0.1, rx port)
         lwip_close(tx);
         lwip_close(rx);
-        return -1;
+        return nullptr;
     }
-    {
-        std::lock_guard<std::mutex> lk(waker_mu_);
-        waker_sender_[rx] = tx;
-    }
-    return rx;
-}
-
-void LwipSocketBackend::signalWaker(int waker_fd) {
-    int tx = -1;
-    {
-        std::lock_guard<std::mutex> lk(waker_mu_);
-        const auto it = waker_sender_.find(waker_fd);
-        if (it != waker_sender_.end()) {
-            tx = it->second;
-        }
-    }
-    if (tx < 0) {
-        return;
-    }
-    const std::uint8_t b = 1;
-    lwip_send(tx, &b, 1, 0);  // connected sender -> loops to the receiver (best-effort)
-}
-
-void LwipSocketBackend::drainWaker(int waker_fd) {
-    // Non-blocking receiver: consume every queued wake datagram so the socket goes
-    // unreadable until the next signalWaker().
-    std::uint8_t sink[64];
-    while (lwip_recv(waker_fd, sink, sizeof(sink), 0) > 0) {
-    }
-}
-
-bool LwipSocketBackend::wakerLossless() const {
-    // The wake is a loopback UDP datagram, which lwIP can drop under pbuf
-    // exhaustion — so the executor caps its poll wait as a liveness backstop.
-    return false;
+    return std::make_unique<LoopbackWaker>(rx, tx);
 }
 
 void LwipSocketBackend::closeFd(int fd) {
-    int tx = -1;
-    {
-        std::lock_guard<std::mutex> lk(waker_mu_);
-        const auto it = waker_sender_.find(fd);
-        if (it != waker_sender_.end()) {  // fd is a waker receiver -> close its sender too
-            tx = it->second;
-            waker_sender_.erase(it);
-        }
-    }
-    if (tx >= 0) {
-        lwip_close(tx);
-    }
     lwip_close(fd);
 }
 
