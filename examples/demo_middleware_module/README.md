@@ -49,9 +49,46 @@ server.registerModule(std::make_unique<MyOemModule>(/* my config */));
 server.start(/* port */);
 ```
 
-The same module source compiles unchanged against the lwIP backend for an embedded
-UTM (`tc8-lwip-utm`) — the engines are pure byte math and the I/O goes through
-`net::SocketBackend`.
+The export splits the protocol core from its socket adapter so the *same* module
+source builds against either backend — the engines are pure byte math and the I/O
+goes through `net::SocketBackend`. Link targets:
+
+| Target | Contents |
+|---|---|
+| `tc8::tc8_testability_core` | backend-agnostic protocol core — no socket syscalls |
+| `tc8::tc8_posix_backend` | POSIX `SocketBackend` adapter |
+| `tc8::tc8_testability_server` | convenience alias = `core` + `posix_backend` |
+
+### POSIX UTM
+
+Link `tc8::tc8_testability_core` + `tc8::tc8_posix_backend` (or the
+`tc8::tc8_testability_server` alias) and construct `PosixSocketBackend` in `main()`,
+as above.
+
+### lwIP UTM (embedded)
+
+Install the optional `utm-sdk-lwip` component alongside `utm-sdk`:
+
+```
+cmake --install <tc8-build> --component utm-sdk      --prefix <sdk>
+cmake --install <tc8-build> --component utm-sdk-lwip --prefix <sdk>
+```
+
+It ships the lwIP↔seam bridge as **source** — `lwip_socket_backend.{h,cpp}` plus a
+reference, layered `lwip/utm/lwipopts.h` — because the bridge must compile against
+*your* (target-specific) lwIP stack; the SDK ships the bridge, not the stack. Your
+build compiles `lwip/lwip_socket_backend.cpp` against your lwIP, links
+`tc8::tc8_testability_core` (the backend-agnostic core — no POSIX adapter), and
+swaps the backend in `main()`:
+
+```cpp
+tc8::testability::ProtocolServer server{std::make_unique<tc8::lwip_dut::LwipSocketBackend>()};
+```
+
+`LwipSocketBackend` requires `LWIP_IGMP` + `LWIP_MULTICAST_TX_OPTIONS`
+(`joinMulticast`/`leaveMulticast`); the shipped `lwip/utm/lwipopts.h` turns these
+on over the base config. The lwIP stack and your final `lwipopts.h` are yours — the
+shipped file is a working reference, not a mandate.
 
 ## Configuration schema — the injection boundary
 

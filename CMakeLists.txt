@@ -570,7 +570,12 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # are already BUILD_INTERFACE-scoped, so this is purely additive).
     target_include_directories(tc8_wire INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    target_include_directories(tc8_testability_server INTERFACE
+    # The core and the POSIX backend are the archive targets that carry the
+    # exported headers; the tc8_testability_server alias inherits the include via
+    # its links to both.
+    target_include_directories(tc8_testability_core INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_include_directories(tc8_posix_backend INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     # AUTOSAR engines join the same exported surface so the OEM repo links the
     # mechanism it composes with its config. The set is TC8_UTM_ENGINES, built up
@@ -582,7 +587,12 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     endforeach()
 
-    install(TARGETS tc8_testability_server tc8_wire ${TC8_UTM_ENGINES}
+    # Export the split archives (core + POSIX backend) AND the INTERFACE alias.
+    # install(EXPORT) checks the link closure, so the alias being in the set forces
+    # core + posix_backend to be exported too — a dropped one fails install, not a
+    # consumer.
+    install(TARGETS tc8_testability_server tc8_testability_core tc8_posix_backend
+            tc8_wire ${TC8_UTM_ENGINES}
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
 
@@ -607,6 +617,29 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/autosar COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/dut_service/posix_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)
+
+    # ── Optional lwIP backend (utm-sdk-lwip component) ──
+    # The lwIP SocketBackend bridge, shipped as SOURCE because it must compile
+    # against the OEM's own (target-specific) lwIP stack — the SDK ships the
+    # bridge to the testability seam, not the stack. These are the EXACT files the
+    # in-tree tc8-lwip-utm builds (dut/lwip_dut), so build-lwip-dut keeps them
+    # compiling — there is no hand-copy to drift. An lwIP OEM installs utm-sdk too
+    # (the bridge's header pulls in net/ + testability/, the .cpp pulls in wire/),
+    # compiles lwip_socket_backend.cpp into its UTM, and links
+    # tc8::tc8_testability_core (the backend-agnostic core, no POSIX adapter).
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk-lwip)
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.cpp
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
+    # Reference lwIP config: the in-tree tc8-lwip-utm's own, layered — utm/lwipopts.h
+    # turns on LWIP_IGMP + multicast TX (required by join/leaveMulticast) then
+    # includes the base via "../lwipopts.h". Both files ship preserving that
+    # relative layout, so point lwIP at lwip/utm/lwipopts.h. The lwIP stack and the
+    # final config are the OEM's; this is a working reference, not a mandate.
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwipopts.h
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/utm/lwipopts.h
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip/utm COMPONENT utm-sdk-lwip)
 
     install(EXPORT tc8-utm-targets
         NAMESPACE tc8::

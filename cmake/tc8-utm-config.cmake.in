@@ -1,9 +1,14 @@
 @PACKAGE_INIT@
 
 # tc8-utm — the vendor-neutral AUTOSAR Testability UTM core (ProtocolServer +
-# the MiddlewareModule extension seam + the POSIX SocketBackend). A separate,
-# private OEM repository find_package()es this, links tc8::tc8_testability_server,
-# and attaches its own MiddlewareModule groups. Public-standard surface only.
+# the MiddlewareModule extension seam + a SocketBackend adapter). A separate,
+# private OEM repository find_package()es this and attaches its own
+# MiddlewareModule groups. Public-standard surface only. Targets:
+#   tc8::tc8_testability_core   — backend-agnostic protocol core (no syscalls)
+#   tc8::tc8_posix_backend      — POSIX SocketBackend adapter
+#   tc8::tc8_testability_server — convenience alias = core + POSIX backend
+# A POSIX UTM links the alias (or core + posix_backend); an lwIP UTM links the
+# core and compiles the utm-sdk-lwip backend bridge against its own lwIP.
 
 include(CMakeFindDependencyMacro)
 find_dependency(Threads)
