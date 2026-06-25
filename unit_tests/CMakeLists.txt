@@ -121,6 +121,16 @@ tc8_add_unit_test(testability_client_test)
 if(TARGET tc8_testability_server)
     tc8_add_unit_test(testability_server_test)
     target_link_libraries(testability_server_test PRIVATE tc8_testability_server)
+    # The PosixBackendNeighbor privileged writes (rtnetlink RTM_NEW/DELNEIGH, the
+    # /proc neigh sysctl) self-skip without CAP_NET_ADMIN, so the plain run above
+    # only covers their error paths. Re-run them inside an unprivileged user+net
+    # namespace (no sudo) so the success paths are exercised in the hosted CI ctest
+    # too; the wrapper exits 77 (SKIP) where user namespaces are unavailable.
+    add_test(NAME posix_neighbor_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:testability_server_test>
+            --gtest_filter=PosixBackendNeighbor.*)
+    set_tests_properties(posix_neighbor_privileged PROPERTIES SKIP_RETURN_CODE 77)
     # The reusable Reactor (src/testability/reactor.h) exercised in isolation
     # against the real POSIX IoMultiplexer — no ProtocolServer/module — proving the
     # extracted event loop stands on its own. Links tc8_testability_server for

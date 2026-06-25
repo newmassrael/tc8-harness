@@ -1,4 +1,7 @@
 #include <arpa/inet.h>
+#include <linux/if_link.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
@@ -1840,12 +1843,90 @@ TEST(PosixBackendArp, FlushDynamicArpResolvesInterfaceAndSucceedsOnEmpty) {
     EXPECT_TRUE(be.flushDynamicArp("lo")) << "flush on an entry-free interface should succeed";
 }
 
+// ── rtnetlink test scaffolding: create / delete a "dummy" netdevice ──
+// addStaticNeighbor's success path needs an ARP-capable interface (loopback is
+// NOARP). These build a dummy device via rtnetlink so the privileged test runs
+// in-process; under `unshare --user --map-root-user --net` it needs no sudo. The
+// production backend never creates interfaces — this is test-only scaffolding.
+
+// Send a prebuilt netlink message on a fresh NETLINK_ROUTE socket and return the
+// kernel ACK error (0 on success, negative errno on rejection, -EPROTO on a
+// malformed reply).
+int nlSendAndAck(const void *req, std::size_t len) {
+    const int nl = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+    if (nl < 0) {
+        return -errno;
+    }
+    int rc = -EPROTO;
+    if (::send(nl, req, len, 0) >= 0) {
+        char buf[512];
+        const ssize_t r = ::recv(nl, buf, sizeof(buf), 0);
+        if (r >= static_cast<ssize_t>(NLMSG_LENGTH(sizeof(::nlmsgerr)))) {
+            const auto *nh = reinterpret_cast<const ::nlmsghdr *>(buf);
+            if (nh->nlmsg_type == NLMSG_ERROR) {
+                rc = static_cast<const ::nlmsgerr *>(NLMSG_DATA(nh))->error;
+            }
+        }
+    }
+    ::close(nl);
+    return rc;
+}
+
+// Create an up dummy interface `name`. false where the kernel lacks the dummy
+// driver or the privilege (the caller then skips).
+bool createDummyIface(const char *name) {
+    char buf[256] = {};
+    auto *nlh = reinterpret_cast<::nlmsghdr *>(buf);
+    nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ifinfomsg));
+    nlh->nlmsg_type = RTM_NEWLINK;
+    nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL;
+    auto *ifi = static_cast<::ifinfomsg *>(NLMSG_DATA(nlh));
+    ifi->ifi_family = AF_UNSPEC;
+    ifi->ifi_flags = IFF_UP;
+    ifi->ifi_change = IFF_UP;
+
+    std::size_t off = NLMSG_ALIGN(nlh->nlmsg_len);
+    auto put = [&](std::uint16_t type, const void *d, std::size_t l) -> ::rtattr * {
+        auto *rta = reinterpret_cast<::rtattr *>(buf + off);
+        rta->rta_type = type;
+        rta->rta_len = static_cast<unsigned short>(RTA_LENGTH(l));
+        if (l != 0) {
+            std::memcpy(RTA_DATA(rta), d, l);
+        }
+        off += RTA_ALIGN(rta->rta_len);
+        return rta;
+    };
+    put(IFLA_IFNAME, name, std::strlen(name) + 1);
+    const std::size_t li_start = off;
+    auto *linkinfo = put(IFLA_LINKINFO, nullptr, 0);  // nested container
+    put(IFLA_INFO_KIND, "dummy", 5);                  // strlen("dummy"), no NUL
+    linkinfo->rta_len = static_cast<unsigned short>(off - li_start);
+    nlh->nlmsg_len = static_cast<std::uint32_t>(off);
+    return nlSendAndAck(buf, nlh->nlmsg_len) == 0;
+}
+
+// Delete interface `name` so the test cleans up even when run as real root rather
+// than inside a throwaway netns.
+void deleteDummyIface(const char *name) {
+    const unsigned idx = ::if_nametoindex(name);
+    if (idx == 0) {
+        return;
+    }
+    struct {
+        ::nlmsghdr nlh;
+        ::ifinfomsg ifi;
+    } req{};
+    req.nlh.nlmsg_len = sizeof(req);
+    req.nlh.nlmsg_type = RTM_DELLINK;
+    req.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+    req.ifi.ifi_family = AF_UNSPEC;
+    req.ifi.ifi_index = static_cast<int>(idx);
+    nlSendAndAck(&req, sizeof(req));
+}
+
 // Neighbor ops (POSIX): each resolves the interface unprivileged FIRST (via
 // if_nametoindex / the procfs path), so an unknown interface is rejected on any
-// host, no CAP_NET_ADMIN needed. The privileged success paths — installing a
-// static entry on a real L2 interface in particular — are left to an OEM UTM's
-// own integration test under NET_ADMIN, as the add/remove writes require it and a
-// permanent ARP entry cannot meaningfully attach to loopback.
+// host, no CAP_NET_ADMIN needed.
 TEST(PosixBackendNeighbor, UnknownInterfaceRejected) {
     dut::PosixSocketBackend be;
     const std::uint8_t mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
@@ -1883,6 +1964,30 @@ TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
     // Deleting an entry that does not exist is idempotent success (-ENOENT).
     EXPECT_TRUE(be.removeNeighbor("lo", ::htonl(0x0A0000FE)))
         << "removing an absent neighbor should succeed (idempotent)";
+}
+
+// addStaticNeighbor's success path needs an ARP-capable interface; loopback is
+// NOARP, so create a dummy. This exercises the one neighbor message the loopback
+// test cannot: RTM_NEWNEIGH carrying NUD_PERMANENT + an NDA_LLADDR. Runs wherever
+// the process holds CAP_NET_ADMIN — including the no-sudo `unshare` netns the
+// posix_neighbor_privileged CTest uses — else it skips.
+TEST(PosixBackendNeighbor, PrivilegedAddStaticNeighborOnDummy) {
+    if (::geteuid() != 0) {
+        GTEST_SKIP() << "neighbor writes need CAP_NET_ADMIN "
+                        "(try: unshare --user --map-root-user --net)";
+    }
+    constexpr const char *kIf = "tc8dummy0";
+    if (!createDummyIface(kIf)) {
+        GTEST_SKIP() << "could not create a dummy interface (no dummy driver?)";
+    }
+    dut::PosixSocketBackend be;
+    const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
+    const std::uint8_t mac[6] = {0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
+    EXPECT_TRUE(be.addStaticNeighbor(kIf, ip_be, mac))
+        << "RTM_NEWNEIGH with NUD_PERMANENT + NDA_LLADDR was rejected";
+    EXPECT_TRUE(be.removeNeighbor(kIf, ip_be)) << "RTM_DELNEIGH of the static entry failed";
+    EXPECT_TRUE(be.removeNeighbor(kIf, ip_be)) << "removeNeighbor should be idempotent";
+    deleteDummyIface(kIf);
 }
 
 }  // namespace
