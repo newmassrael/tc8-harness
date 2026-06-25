@@ -3,7 +3,9 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <linux/inet_diag.h>
+#include <linux/neighbour.h>
 #include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 #include <linux/sock_diag.h>
 #include <net/if.h>
 #include <net/route.h>
@@ -21,6 +23,7 @@
 #include <initializer_list>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "wire/ip_checksum.h"
 
@@ -178,6 +181,120 @@ bool PosixSocketBackend::joinMulticast(int fd, std::uint32_t group_be, std::uint
     mreq.imr_multiaddr.s_addr = group_be;
     mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
     return ::setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
+}
+
+bool PosixSocketBackend::leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+    ip_mreq mreq{};
+    mreq.imr_multiaddr.s_addr = group_be;
+    mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
+    return ::setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
+}
+
+bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
+    // Delete the learned (non-permanent) IPv4 neighbor entries on `ifname` via a
+    // direct rtnetlink dump + per-entry RTM_DELNEIGH — the same "speak netlink, do
+    // not shell out to `ip neigh`" stance as destroyTimeWaitResidual (fork+exec is
+    // slow and unsafe in this multi-threaded server). The dump is unprivileged; the
+    // deletes need CAP_NET_ADMIN, so a flush with entries present returns false
+    // without it. Two-phase (collect during the dump, delete after it drains) so
+    // the delete ACKs never interleave with dump messages on the shared socket.
+    const unsigned ifindex = ::if_nametoindex(ifname.c_str());
+    if (ifindex == 0) {
+        return false;  // unknown interface
+    }
+    const int nl = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+    if (nl < 0) {
+        return false;
+    }
+
+    struct {
+        ::nlmsghdr nlh;
+        ::ndmsg nd;
+    } dump{};
+    dump.nlh.nlmsg_len = sizeof(dump);
+    dump.nlh.nlmsg_type = RTM_GETNEIGH;
+    dump.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+    dump.nd.ndm_family = AF_INET;
+    if (::send(nl, &dump, sizeof(dump), 0) < 0) {
+        ::close(nl);
+        return false;
+    }
+
+    std::vector<std::uint32_t> targets;  // NDA_DST (network order) of entries to flush
+    bool ok = true;
+    bool done = false;
+    char buf[8192];
+    while (!done) {
+        const ssize_t r = ::recv(nl, buf, sizeof(buf), 0);
+        if (r <= 0) {
+            ok = false;
+            break;
+        }
+        int len = static_cast<int>(r);
+        for (::nlmsghdr *nh = reinterpret_cast<::nlmsghdr *>(buf); NLMSG_OK(nh, len);
+             nh = NLMSG_NEXT(nh, len)) {
+            if (nh->nlmsg_type == NLMSG_DONE) {
+                done = true;
+                break;
+            }
+            if (nh->nlmsg_type == NLMSG_ERROR) {
+                ok = false;
+                done = true;
+                break;
+            }
+            if (nh->nlmsg_type != RTM_NEWNEIGH) {
+                continue;
+            }
+            const auto *nd = static_cast<const ::ndmsg *>(NLMSG_DATA(nh));
+            if (nd->ndm_ifindex != static_cast<int>(ifindex) ||
+                (nd->ndm_state & (NUD_PERMANENT | NUD_NOARP)) != 0) {
+                continue;  // other interface, or a static/no-ARP entry we must not flush
+            }
+            const ::rtattr *rta = reinterpret_cast<const ::rtattr *>(
+                reinterpret_cast<const char *>(nd) + NLMSG_ALIGN(sizeof(*nd)));
+            int rtlen = static_cast<int>(nh->nlmsg_len - NLMSG_LENGTH(sizeof(*nd)));
+            for (; RTA_OK(rta, rtlen); rta = RTA_NEXT(rta, rtlen)) {
+                if (rta->rta_type == NDA_DST && RTA_PAYLOAD(rta) == sizeof(std::uint32_t)) {
+                    std::uint32_t dst_be = 0;
+                    std::memcpy(&dst_be, RTA_DATA(rta), sizeof(dst_be));
+                    targets.push_back(dst_be);
+                }
+            }
+        }
+    }
+
+    for (const std::uint32_t dst_be : targets) {
+        struct {
+            ::nlmsghdr nlh;
+            ::ndmsg nd;
+            ::rtattr rta;
+            std::uint32_t dst;
+        } del{};
+        del.nlh.nlmsg_len = sizeof(del);
+        del.nlh.nlmsg_type = RTM_DELNEIGH;
+        del.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+        del.nd.ndm_family = AF_INET;
+        del.nd.ndm_ifindex = static_cast<int>(ifindex);
+        del.rta.rta_type = NDA_DST;
+        del.rta.rta_len = RTA_LENGTH(sizeof(std::uint32_t));
+        del.dst = dst_be;
+        if (::send(nl, &del, sizeof(del), 0) < 0) {
+            ok = false;
+            continue;
+        }
+        const ssize_t r = ::recv(nl, buf, sizeof(buf), 0);
+        if (r >= static_cast<ssize_t>(NLMSG_LENGTH(sizeof(::nlmsgerr)))) {
+            const auto *nh = reinterpret_cast<const ::nlmsghdr *>(buf);
+            if (nh->nlmsg_type == NLMSG_ERROR) {
+                const auto *e = static_cast<const ::nlmsgerr *>(NLMSG_DATA(nh));
+                if (e->error != 0 && e->error != -ENOENT) {  // -ENOENT = already gone (benign)
+                    ok = false;
+                }
+            }
+        }
+    }
+    ::close(nl);
+    return ok;
 }
 
 int PosixSocketBackend::recv(int fd, void *buf, std::size_t len) {

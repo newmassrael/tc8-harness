@@ -1822,8 +1822,21 @@ TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
     ASSERT_EQ(n, static_cast<int>(payload.size())) << "joined group datagram not received";
     EXPECT_EQ(std::vector<std::uint8_t>(buf, buf + n), payload);
 
+    // The leaveMulticast counterpart: dropping the membership succeeds.
+    EXPECT_TRUE(be.leaveMulticast(rx, group_be, 0)) << "IP_DROP_MEMBERSHIP failed";
+
     be.closeFd(tx);
     be.closeFd(rx);
+}
+
+// flushDynamicArp (POSIX): an unknown interface is rejected, and a real interface
+// with no learned entries flushes successfully (loopback has no dynamic neighbors,
+// so this needs no CAP_NET_ADMIN — the delete phase sends nothing). Flushing
+// entries that actually exist is exercised under NET_ADMIN in the netns fixture.
+TEST(PosixBackendArp, FlushDynamicArpResolvesInterfaceAndSucceedsOnEmpty) {
+    dut::PosixSocketBackend be;
+    EXPECT_FALSE(be.flushDynamicArp("tc8_no_such_iface")) << "unknown interface must be rejected";
+    EXPECT_TRUE(be.flushDynamicArp("lo")) << "flush on an entry-free interface should succeed";
 }
 
 }  // namespace

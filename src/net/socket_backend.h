@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace tc8::net {
 
@@ -47,6 +48,18 @@ public:
     // support answers false (surfaced, not silently dropped) — a module that
     // needs the group then degrades the same way it does on a failed bind.
     virtual bool joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) = 0;
+
+    // Leave a multicast group previously joined on `fd` (the joinMulticast
+    // counterpart). true on success; a stack without multicast answers false.
+    virtual bool leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) = 0;
+
+    // Flush the dynamic (learned, non-permanent) IPv4 ARP/neighbor entries on
+    // interface `ifname` — the network-stack reset a module backing an ARP
+    // cache-control primitive needs, done via the stack's own API rather than
+    // shelling out. true if the flush completed (including "nothing to flush");
+    // false on an unknown interface, insufficient privilege, or a stack with no
+    // such control (surfaced). Per-interface, so it takes no fd.
+    virtual bool flushDynamicArp(const std::string &ifname) = 0;
 
     // Stream I/O. < 0 error, 0 peer close, else byte count.
     virtual int recv(int fd, void *buf, std::size_t len) = 0;

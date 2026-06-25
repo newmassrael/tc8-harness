@@ -52,6 +52,8 @@ public:
         return static_cast<int>(len);
     }
     bool joinMulticast(int, std::uint32_t, std::uint32_t) override { return true; }
+    bool leaveMulticast(int, std::uint32_t, std::uint32_t) override { return true; }
+    bool flushDynamicArp(const std::string&) override { return true; }
     int recv(int, void*, std::size_t) override { return -1; }
     int send(int, const void*, std::size_t) override { return -1; }
     bool connectBoundedV4(int, const tc8::net::Endpoint&, int) override { return false; }

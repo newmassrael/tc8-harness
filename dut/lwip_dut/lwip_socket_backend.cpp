@@ -108,6 +108,22 @@ bool LwipSocketBackend::joinMulticast(int /*fd*/, std::uint32_t /*group_be*/,
     return false;
 }
 
+bool LwipSocketBackend::leaveMulticast(int /*fd*/, std::uint32_t /*group_be*/,
+                                       std::uint32_t /*ifaddr_be*/) {
+    // The joinMulticast counterpart: deferred for the same reason (LWIP_IGMP is
+    // OFF to keep the shared conformance core wire-silent). Surfaced as false.
+    return false;
+}
+
+bool LwipSocketBackend::flushDynamicArp(const std::string & /*ifname*/) {
+    // lwIP's socket layer exposes no per-interface dynamic-ARP flush (etharp has
+    // no public "drop learned entries on this netif" call), so this is surfaced as
+    // false rather than silently succeeding — consistent with the other
+    // unsupported-capability stubs. The conformance fixture conditions ARP per
+    // case by respawning the DUT (empty cache each case), not via this primitive.
+    return false;
+}
+
 int LwipSocketBackend::recv(int fd, void *buf, std::size_t len) {
     return lwip_recv(fd, buf, len, 0);
 }
