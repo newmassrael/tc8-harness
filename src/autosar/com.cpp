@@ -84,6 +84,10 @@ void SignalEngine::setSignal(std::uint32_t sig_id, std::uint64_t value) {
     tx_values_[sig_id] = value;
 }
 
+bool SignalEngine::hasSignal(std::uint32_t sig_id) const {
+    return sig_index_.find(sig_id) != sig_index_.end();
+}
+
 std::vector<std::uint8_t> SignalEngine::packPdu(std::uint32_t pdu_id) const {
     const auto it = pdus_.find(pdu_id);
     if (it == pdus_.end()) {

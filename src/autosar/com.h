@@ -47,7 +47,13 @@ public:
     explicit SignalEngine(std::vector<PduDef> db);
 
     // Set the value a later packPdu() will write for this signal (default 0).
+    // Throws std::invalid_argument if sig_id is not a configured signal.
     void setSignal(std::uint32_t sig_id, std::uint64_t value);
+
+    // True if sig_id is a configured (packable/unpackable) signal. A non-throwing
+    // membership query — lets a caller reject an unknown signal without catching the
+    // exception setSignal() throws for one.
+    bool hasSignal(std::uint32_t sig_id) const;
 
     // Pack every signal of the PDU into a freshly zeroed length-byte buffer.
     std::vector<std::uint8_t> packPdu(std::uint32_t pdu_id) const;

@@ -236,6 +236,56 @@ TEST(NmStateMachine, RepeatMessageRequestIgnoredInBusSleep) {
     EXPECT_EQ(sm.state(), State::kBusSleep);
 }
 
+// repeatMessageRequested() tracks the RMR bit the machine sets on tx: false until a
+// local request, true while driving node detection from Repeat Message State.
+TEST(NmStateMachine, RepeatMessageRequestedTracksLocalRequest) {
+    StateMachine sm = make();
+    EXPECT_FALSE(sm.repeatMessageRequested());
+    sm.requestNetwork();
+    sm.mainFunction(ms{100});  // -> Normal Operation
+    ASSERT_EQ(sm.state(), State::kNormalOperation);
+    EXPECT_FALSE(sm.repeatMessageRequested());
+    sm.requestRepeatMessage();
+    ASSERT_EQ(sm.state(), State::kRepeatMessage);
+    EXPECT_TRUE(sm.repeatMessageRequested());
+}
+
+// The flag lives only for the Repeat Message window: it clears when the machine
+// leaves Repeat Message State (in lockstep with the engine clearing the tx bit).
+TEST(NmStateMachine, RepeatMessageRequestedClearsOnLeavingRepeatMessage) {
+    StateMachine sm = make();
+    sm.requestNetwork();
+    ASSERT_EQ(sm.state(), State::kRepeatMessage);
+    sm.requestRepeatMessage();
+    ASSERT_TRUE(sm.repeatMessageRequested());
+    sm.mainFunction(ms{100});  // repeat-message window expires -> Normal Operation
+    ASSERT_EQ(sm.state(), State::kNormalOperation);
+    EXPECT_FALSE(sm.repeatMessageRequested());
+}
+
+// A receiver driven into Repeat Message by a peer's RMR bit (not its own request)
+// does not report repeatMessageRequested() — it reflects local node detection only.
+TEST(NmStateMachine, RepeatMessageRequestedFalseForPeerTriggered) {
+    StateMachine sm = make();
+    sm.requestNetwork();
+    sm.mainFunction(ms{100});  // -> Normal Operation
+    ASSERT_EQ(sm.state(), State::kNormalOperation);
+    std::vector<std::uint8_t> rmr(8, 0x00);
+    rmr[1] = kCbvRepeatMessageRequest;  // peer requests repeat (CBV at off 1)
+    sm.rxNmPdu(rmr.data(), rmr.size());
+    ASSERT_EQ(sm.state(), State::kRepeatMessage);
+    EXPECT_FALSE(sm.repeatMessageRequested());
+}
+
+// A passively-woken node enters Repeat Message but originated no request.
+TEST(NmStateMachine, RepeatMessageRequestedFalseOnPassiveStartup) {
+    StateMachine sm = make();
+    const std::vector<std::uint8_t> pdu(8, 0x00);
+    sm.rxNmPdu(pdu.data(), pdu.size());  // passive startup -> Repeat Message
+    ASSERT_EQ(sm.state(), State::kRepeatMessage);
+    EXPECT_FALSE(sm.repeatMessageRequested());
+}
+
 // ── Active Wakeup Bit (SWS Nm CBV bit 5) ──
 
 // An active local request sets the Active Wakeup bit in transmitted PDUs and is

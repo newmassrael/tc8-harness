@@ -93,5 +93,13 @@ TEST(ComLookup, UnknownSignalAndPduThrow) {
     EXPECT_EQ(eng.lastReceived(10), std::nullopt);
 }
 
+// hasSignal answers membership without throwing — the non-throwing complement of
+// setSignal's unknown-id throw, so a caller can validate before acting.
+TEST(ComLookup, HasSignalReportsMembership) {
+    SignalEngine eng{{onePdu(SignalDef{10, 0, 4, Endianness::kLittle}, 1)}};
+    EXPECT_TRUE(eng.hasSignal(10));
+    EXPECT_FALSE(eng.hasSignal(999));
+}
+
 }  // namespace
 }  // namespace tc8::com

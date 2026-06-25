@@ -101,6 +101,15 @@ public:
     // a module / coordinator can read the local wake reason without parsing a PDU.
     bool activeWakeup() const { return active_wakeup_; }
 
+    // True while this node is driving node detection it originated itself — i.e. the
+    // Repeat Message Request bit it sets on tx (requestRepeatMessage() in Network
+    // Mode, until the Repeat Message window elapses). A receiver re-entering Repeat
+    // Message because of a *peer's* request does not set this — it does not
+    // propagate the bit — so this reads "locally requested", not merely "in Repeat
+    // Message". Exposed so a module can read the local node-detection state without
+    // parsing a PDU.
+    bool repeatMessageRequested() const { return repeat_requested_; }
+
     std::function<void(const std::vector<std::uint8_t>&)> onTransmit;   // module -> socket
     std::function<void(State from, State to)>             onTransition;  // optional observer
 
