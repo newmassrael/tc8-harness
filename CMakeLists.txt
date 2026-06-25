@@ -171,6 +171,11 @@ tc8_add_engine(tc8_com src/autosar/com.cpp)
 # module drives it via mainFunction()/rxNmPdu() and onTransmit.
 tc8_add_engine(tc8_nm src/autosar/nm.cpp)
 
+# tc8::someiptp — AUTOSAR SOME/IP-TP transport (PRS_SOMEIP §4.2.1.4): segment a
+# large SOME/IP message into TP segments and reassemble received ones. Wire framing
+# only; OEM ids and any connection lifecycle are the owning module's config.
+tc8_add_engine(tc8_someiptp src/autosar/someiptp.cpp)
+
 # Portability check: cross-compile the dependency-light core — the SCE
 # engine plus every wire builder / SOME/IP dissector where the
 # endianness- and bit-layout-sensitive code lives — without needing a

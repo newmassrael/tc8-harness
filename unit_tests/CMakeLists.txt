@@ -90,6 +90,10 @@ target_link_libraries(com_test PRIVATE tc8_com)
 # deterministically through mainFunction()/requestNetwork()/rxNmPdu().
 tc8_add_unit_test(nm_test)
 target_link_libraries(nm_test PRIVATE tc8_nm)
+# SOME/IP-TP transport: segment/reassemble round-trips, the spec example vectors
+# (PRS_SOMEIP §4.2.1.4 Table 4.10), out-of-order, overflow, and reception timeout.
+tc8_add_unit_test(someiptp_test)
+target_link_libraries(someiptp_test PRIVATE tc8_someiptp)
 # Synthetic demo middleware module: a fake MiddlewareContext + in-memory backend
 # drive the module's lifecycle hermetically, proving the seam composes with the
 # engines (the SDK template, examples/demo_middleware_module/).

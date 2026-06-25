@@ -19,6 +19,7 @@
 #include "autosar/e2e.h"
 #include "autosar/com.h"
 #include "autosar/nm.h"
+#include "autosar/someiptp.h"
 
 namespace {
 
@@ -76,6 +77,10 @@ int main() {
     nm.requestNetwork();
     const std::vector<std::uint8_t> nmPdu = nm.buildPdu();
 
+    tc8::someiptp::Segmenter someipTp{16};
+    const auto someipSegs =
+        someipTp.segment(tc8::someiptp::MessageHeader{}, pdu.data(), pdu.size());
+
     // Observe every engine's result through a volatile sink so the out-of-tree
     // link genuinely depends on each exported lib (a dropped engine then fails
     // to link) without asserting any value here — that is the unit tests' job.
@@ -86,6 +91,7 @@ int main() {
     sink ^= static_cast<std::uint32_t>(e2ePdu[2]);
     sink ^= static_cast<std::uint32_t>(comPdu[0]);
     sink ^= static_cast<std::uint32_t>(nmPdu[0]);
+    sink ^= static_cast<std::uint32_t>(someipSegs.empty() ? 0U : someipSegs[0][0]);
     (void)sink;
     return 0;
 }
