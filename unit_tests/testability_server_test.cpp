@@ -1924,6 +1924,31 @@ void deleteDummyIface(const char *name) {
     nlSendAndAck(&req, sizeof(req));
 }
 
+// True iff this process can write neighbor state — probes the ACTUAL capability
+// (mirrors canSetLinkState()), not uid 0, so a CAP_NET_ADMIN-via-file-caps process
+// isn't wrongly skipped and a capability-less uid-0 container isn't run red. The
+// probe is a delete of an absent neighbor on loopback: a harmless no-op the kernel
+// still gates on CAP_NET_ADMIN (→ -ENOENT/true with it, -EPERM/false without).
+static bool canWriteNeigh() {
+    dut::PosixSocketBackend be;
+    return be.removeNeighbor("lo", ::htonl(0x0A0000FE));
+}
+
+// RAII: run a cleanup at scope exit even if an ASSERT_* early-returns or the test
+// aborts, so a privileged test never leaks host state. The netns CTest path is
+// already leak-proof via namespace teardown; this protects a direct real-root run.
+template <typename F>
+class ScopeExit {
+public:
+    explicit ScopeExit(F f) : fn_(std::move(f)) {}
+    ~ScopeExit() { fn_(); }
+    ScopeExit(const ScopeExit &) = delete;
+    ScopeExit &operator=(const ScopeExit &) = delete;
+
+private:
+    F fn_;
+};
+
 // Neighbor ops (POSIX): each resolves the interface unprivileged FIRST (via
 // if_nametoindex / the procfs path), so an unknown interface is rejected on any
 // host, no CAP_NET_ADMIN needed.
@@ -1942,7 +1967,7 @@ TEST(PosixBackendNeighbor, UnknownInterfaceRejected) {
 // (idempotent). Without privilege the test skips rather than asserting the host's
 // lack of it (mirrors EthInterfaceUpLoopbackReturnsEOk).
 TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
-    if (::geteuid() != 0) {
+    if (!canWriteNeigh()) {
         GTEST_SKIP() << "neighbor writes need CAP_NET_ADMIN on this host";
     }
     dut::PosixSocketBackend be;
@@ -1952,6 +1977,10 @@ TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
         std::ifstream in(kPath);
         ASSERT_TRUE(static_cast<bool>(in >> original)) << "could not read " << kPath;
     }
+    // Restore lo's aging value at scope exit no matter how the test leaves (an
+    // ASSERT below early-returns), so the host sysctl is never left mutated.
+    ScopeExit restore([&] { be.setNeighborReachableMs("lo", original); });
+
     EXPECT_TRUE(be.setNeighborReachableMs("lo", 45000)) << "privileged aging write should succeed";
     int after = 0;
     {
@@ -1959,7 +1988,6 @@ TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
         ASSERT_TRUE(static_cast<bool>(in >> after));
     }
     EXPECT_EQ(after, 45000) << "the aging time should read back as written";
-    EXPECT_TRUE(be.setNeighborReachableMs("lo", original)) << "restore the prior value";
 
     // Deleting an entry that does not exist is idempotent success (-ENOENT).
     EXPECT_TRUE(be.removeNeighbor("lo", ::htonl(0x0A0000FE)))
@@ -1972,7 +2000,7 @@ TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
 // the process holds CAP_NET_ADMIN — including the no-sudo `unshare` netns the
 // posix_neighbor_privileged CTest uses — else it skips.
 TEST(PosixBackendNeighbor, PrivilegedAddStaticNeighborOnDummy) {
-    if (::geteuid() != 0) {
+    if (!canWriteNeigh()) {
         GTEST_SKIP() << "neighbor writes need CAP_NET_ADMIN "
                         "(try: unshare --user --map-root-user --net)";
     }
@@ -1980,6 +2008,11 @@ TEST(PosixBackendNeighbor, PrivilegedAddStaticNeighborOnDummy) {
     if (!createDummyIface(kIf)) {
         GTEST_SKIP() << "could not create a dummy interface (no dummy driver?)";
     }
+    // Delete the dummy at scope exit unconditionally — even if an assertion below
+    // early-returns — so a direct real-root run never leaks tc8dummy0 (which would
+    // also make the next run's NLM_F_EXCL create self-mask as a skip).
+    ScopeExit cleanup([&] { deleteDummyIface(kIf); });
+
     dut::PosixSocketBackend be;
     const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
     const std::uint8_t mac[6] = {0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
@@ -1987,7 +2020,6 @@ TEST(PosixBackendNeighbor, PrivilegedAddStaticNeighborOnDummy) {
         << "RTM_NEWNEIGH with NUD_PERMANENT + NDA_LLADDR was rejected";
     EXPECT_TRUE(be.removeNeighbor(kIf, ip_be)) << "RTM_DELNEIGH of the static entry failed";
     EXPECT_TRUE(be.removeNeighbor(kIf, ip_be)) << "removeNeighbor should be idempotent";
-    deleteDummyIface(kIf);
 }
 
 }  // namespace

@@ -323,21 +323,21 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
     }
 
     for (const std::uint32_t dst_be : targets) {
-        struct {
-            ::nlmsghdr nlh;
-            ::ndmsg nd;
-            ::rtattr rta;
-            std::uint32_t dst;
-        } del{};
-        del.nlh.nlmsg_len = sizeof(del);
-        del.nlh.nlmsg_type = RTM_DELNEIGH;
-        del.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
-        del.nd.ndm_family = AF_INET;
-        del.nd.ndm_ifindex = static_cast<int>(ifindex);
-        del.rta.rta_type = NDA_DST;
-        del.rta.rta_len = RTA_LENGTH(sizeof(std::uint32_t));
-        del.dst = dst_be;
-        if (::send(nl, &del, sizeof(del), 0) < 0) {
+        // Build the RTM_DELNEIGH via nlAppendAttr — the one NDA_DST constructor,
+        // shared with sendNeighborOp — but send it on the SAME socket as the dump
+        // (the shared-socket reason this loop cannot call sendNeighborOp itself).
+        char del[256] = {};
+        auto *nlh = reinterpret_cast<::nlmsghdr *>(del);
+        nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ndmsg));
+        nlh->nlmsg_type = RTM_DELNEIGH;
+        nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+        auto *nd = static_cast<::ndmsg *>(NLMSG_DATA(nlh));
+        nd->ndm_family = AF_INET;
+        nd->ndm_ifindex = static_cast<int>(ifindex);
+        std::size_t off = NLMSG_ALIGN(nlh->nlmsg_len);
+        nlAppendAttr(del, &off, NDA_DST, &dst_be, sizeof(dst_be));
+        nlh->nlmsg_len = static_cast<std::uint32_t>(off);
+        if (::send(nl, del, nlh->nlmsg_len, 0) < 0) {
             ok = false;
             continue;
         }
@@ -381,14 +381,20 @@ bool PosixSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t
 }
 
 bool PosixSocketBackend::setNeighborReachableMs(const std::string &ifname, int reachable_ms) {
-    if (reachable_ms < 0 || ::if_nametoindex(ifname.c_str()) == 0) {
-        return false;  // nonsensical aging time, or unknown interface
+    // Reject a '/' in the name BEFORE building the procfs path: if_nametoindex does
+    // NOT screen out traversal — a colon-alias form like "lo:/../.." resolves to a
+    // real index (it matches the base device and ignores the suffix). The path
+    // happens not to escape (the literal "<alias>:" is not a real procfs directory,
+    // so open() fails ENOENT), but the safety must be enforced by code, not left to
+    // an accident of procfs layout — a '/' is the only character that could traverse.
+    if (reachable_ms < 0 || ifname.find('/') != std::string::npos ||
+        ::if_nametoindex(ifname.c_str()) == 0) {
+        return false;  // nonsensical aging time, traversal attempt, or unknown interface
     }
     // Per-interface neighbor aging is the procfs sysctl
     // /proc/sys/net/ipv4/neigh/<dev>/base_reachable_time_ms, written via the file
-    // API (sysctl(2) is deprecated on Linux). if_nametoindex above already rejects
-    // an unknown / malformed name, so the constructed path cannot escape the dir.
-    // The write needs CAP_NET_ADMIN, so a privilege-less host gets false.
+    // API (sysctl(2) is deprecated on Linux). The write needs CAP_NET_ADMIN, so a
+    // privilege-less host gets false.
     const std::string path = "/proc/sys/net/ipv4/neigh/" + ifname + "/base_reachable_time_ms";
     const int fd = ::open(path.c_str(), O_WRONLY | O_CLOEXEC);
     if (fd < 0) {

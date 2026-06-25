@@ -150,6 +150,9 @@ bool LwipSocketBackend::flushDynamicArp(const std::string & /*ifname*/) {
 bool LwipSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
                                           const std::uint8_t *mac) {
 #if ETHARP_SUPPORT_STATIC_ENTRIES
+    if (mac == nullptr) {
+        return false;  // the seam requires a 6-byte MAC for an add; guard the memcpy
+    }
     ip4_addr_t ip{};
     ip4_addr_set_u32(&ip, addr_be);
     struct eth_addr eth{};
@@ -181,8 +184,13 @@ bool LwipSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t 
     ip4_addr_set_u32(&ip, addr_be);
     bool ok = false;
     LOCK_TCPIP_CORE();
+    // Mirror addStaticNeighbor's "on ifname" scoping: etharp_remove_static_entry is
+    // interface-global (no netif arg), so require the named interface to be the
+    // route to the address — an entry added through this seam (which enforces the
+    // same predicate) is then removable through it, and an unknown / non-routing
+    // interface is false rather than silently removing a same-IP entry on another.
     struct netif *nif = netif_find(ifname.c_str());
-    if (nif != nullptr) {
+    if (nif != nullptr && ip4_route(&ip) == nif) {
         // ERR_OK = a static entry was removed; ERR_MEM = none was there. Both leave
         // the end-state "no static entry for this IP", so both are success
         // (idempotent, matching the POSIX backend). ERR_ARG (a *dynamic* entry

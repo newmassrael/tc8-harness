@@ -21,6 +21,7 @@
 #include "lwip_socket_backend.h"
 
 #include "lwip/etharp.h"
+#include "lwip/igmp.h"
 #include "lwip/init.h"
 #include "lwip/ip4.h"
 #include "lwip/netif.h"
@@ -104,6 +105,18 @@ bool staticEntryPresent(struct netif *nif, std::uint32_t addr_be) {
     return found;
 }
 
+// True if `nif` currently holds an IGMP membership for `group_be` — the multicast
+// analog of staticEntryPresent, so the join/leave tests observe the actual group
+// state, not just the setsockopt return code.
+bool groupJoined(struct netif *nif, std::uint32_t group_be) {
+    ip4_addr_t group{};
+    ip4_addr_set_u32(&group, group_be);
+    LOCK_TCPIP_CORE();
+    const bool joined = igmp_lookfor_group(nif, &group) != nullptr;
+    UNLOCK_TCPIP_CORE();
+    return joined;
+}
+
 }  // namespace
 
 int main() {
@@ -117,16 +130,20 @@ int main() {
 
     tc8::lwip_dut::LwipSocketBackend be;
 
-    // 1) Multicast join/leave on an IGMP-capable netif.
+    // 1) Multicast join/leave on an IGMP-capable netif — assert the membership
+    //    actually lands and is dropped, not just that setsockopt returned 0.
     const int sock = be.createUdp();
     check(sock >= 0, "createUdp");
     const std::uint32_t group_be = PP_HTONL(0xEF010203);  // 239.1.2.3 (admin-scoped)
+    check(!groupJoined(stub, group_be), "group not joined before join");
     check(be.joinMulticast(sock, group_be, 0), "joinMulticast on IGMP netif (default iface)");
+    check(groupJoined(stub, group_be), "IGMP membership present after join");
     check(be.leaveMulticast(sock, group_be, 0), "leaveMulticast on IGMP netif");
+    check(!groupJoined(stub, group_be), "IGMP membership gone after leave");
     be.closeFd(sock);
 
     // 2) Static ARP add / find / idempotent remove on the stub's subnet.
-    const std::uint32_t nbr_be = PP_HTONL(0xC0A83202);  // 192.168.50.2 (on st0's /24)
+    const std::uint32_t nbr_be = PP_HTONL(0xC0A83202);  // 192.168.50.2 (on the stub's /24)
     const std::uint8_t mac[6] = {0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
     check(!staticEntryPresent(stub, nbr_be), "no static entry before add");
     check(be.addStaticNeighbor(ifname, nbr_be, mac), "addStaticNeighbor on stub netif");

@@ -30,14 +30,18 @@ struct Timing {
     std::chrono::milliseconds wait_bus_sleep;
 };
 
-// SWS Nm Control Bit Vector bits at their AUTOSAR-standard positions.
+// Control Bit Vector bits at their AUTOSAR-standard bus-NM (CanNm / UdpNm)
+// positions.
 //  * Repeat Message Request (bit 0): set by a node triggering node detection;
 //    every receiver that sees it re-enters Repeat Message State so newly-joined
 //    nodes are re-announced cluster-wide.
-//  * Active Wakeup (bit 5): set while the node is in Network Mode because it
-//    requested the network itself (Nm_NetworkRequest), and clear when it joined
-//    passively (woke on a received NM message). Lets a coordinator tell which
-//    nodes actively want the bus awake.
+//  * Active Wakeup (bit 5): the node's wakeup REASON — set when this node itself
+//    requested the network (Nm_NetworkRequest) during the current Network Mode
+//    episode, and cleared on the return to Bus Sleep. It stays set for the rest of
+//    that episode even after the request is released (a released node held awake
+//    passively still carries the reason it woke), and is NEVER set on a purely
+//    passive startup (woke on a received NM message). Lets a coordinator tell which
+//    nodes' wakeups were active.
 inline constexpr std::uint8_t kCbvRepeatMessageRequest = 0x01;
 inline constexpr std::uint8_t kCbvActiveWakeup = 0x20;
 
@@ -92,9 +96,9 @@ public:
     // data; all other CBV bits left zero.
     std::vector<std::uint8_t> buildPdu() const;
 
-    // True while this node holds the bus awake by its own request (the Active
-    // Wakeup Bit it sets on tx). Exposed so a module / coordinator can read the
-    // local wake reason without parsing a PDU.
+    // True when this node's current Network Mode episode was actively requested by
+    // itself (the Active Wakeup Bit it sets on tx; see kCbvActiveWakeup). Exposed so
+    // a module / coordinator can read the local wake reason without parsing a PDU.
     bool activeWakeup() const { return active_wakeup_; }
 
     std::function<void(const std::vector<std::uint8_t>&)> onTransmit;   // module -> socket
