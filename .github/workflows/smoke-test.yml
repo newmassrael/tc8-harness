@@ -93,7 +93,10 @@ jobs:
         # No sudo: the privileged neighbor test self-wraps in an unprivileged
         # user+net namespace (scripts/run-netns-test.sh) and SKIPs (exit 77) where
         # userns is unavailable, rather than failing.
-        run: ctest --test-dir build --output-on-failure -j4
+        # --no-tests=error: ctest's default EXIT-0s an empty suite, so a build that
+        # silently stopped producing these tests would pass the gate vacuously;
+        # error out instead so the gate fails loud (verified: empty dir -> exit 8).
+        run: ctest --test-dir build --output-on-failure --no-tests=error -j4
 
       - name: Run positive smoke (--workers 4 + JUnit)
         # Two harness-side filters apply, both reading
@@ -350,8 +353,10 @@ jobs:
         # The build-lwip-dut action compiles the in-process lwIP runtime tests
         # (lwip_reactor_test, lwip_arp_multicast_test) but nothing ran them in CI.
         # Both run entirely over the loopback / a stub netif — no tap, netns, or
-        # root — so gate them here now that the binaries exist.
-        run: ctest --test-dir build-lwip-dut --output-on-failure
+        # root — so gate them here now that the binaries exist. --no-tests=error so
+        # a build that stopped emitting them fails the gate instead of EXIT-0ing an
+        # empty suite (ctest's default).
+        run: ctest --test-dir build-lwip-dut --output-on-failure --no-tests=error
 
       - name: lwIP DUT regression (tap fixture)
         run: |
