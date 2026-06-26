@@ -13,13 +13,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(tc8-utm REQUIRED)
 
 add_executable(oem-utm-consumer main.cpp)
-# Link the backend-agnostic core + the POSIX backend explicitly (the same
-# core + chosen-backend composition an lwIP OEM mirrors with its own backend),
+# Link the backend-agnostic core + the POSIX backend explicitly — the canonical
+# composition (core + chosen backend) an lwIP OEM mirrors with its own backend —
 # plus each exported AUTOSAR engine the OEM module would compose. Linking and
 # calling them here is what makes the export a verified gate: drop the core, the
 # POSIX backend, or an engine from the install/EXPORT and this out-of-tree build
-# fails to link. (The tc8::tc8_testability_server alias stays exported for
-# back-compat; install(EXPORT)'s closure check verifies it independently.)
+# fails to link. (The tc8::tc8_testability_server alias is the same two under one
+# name, for callers who want the convenience; install(EXPORT) verifies its closure.)
 target_link_libraries(oem-utm-consumer PRIVATE
     tc8::tc8_testability_core
     tc8::tc8_posix_backend
