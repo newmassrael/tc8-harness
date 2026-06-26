@@ -78,9 +78,11 @@ cmake --install <tc8-build> --component utm-sdk-lwip --prefix <sdk>
 against *your* lwIP — the SDK ships the bridge to the seam, not the stack:
 
 - `lwip_socket_backend.{h,cpp}` — the lwIP↔`SocketBackend` bridge
-- `lwipopts.h` — a self-contained UTM lwIP config: `LWIP_IGMP` +
+- `lwipopts_base.h` + `utm/lwipopts.h` — the UTM lwIP config: a product-neutral
+  infrastructure base plus a tiny `utm/` layer adding `LWIP_IGMP` +
   `LWIP_MULTICAST_TX_OPTIONS` (required by `joinMulticast`/`leaveMulticast`) and
-  lwIP's default assert. Not layered on the conformance config; a working reference.
+  lwIP's default assert. Point lwIP at `lwip/utm/` (its `lwipopts.h` includes
+  `../lwipopts_base.h`). Not layered on the conformance config; a working reference.
 
 **Example** (`share/tc8-utm/lwip/example/`), a replaceable starting point, not a
 stable API:
@@ -97,9 +99,9 @@ conformance fault seams stay in the in-tree DUT, installed via the `afterNetifUp
 callback a UTM never passes.
 
 Your build compiles `lwip/lwip_socket_backend.cpp` (and, if reused,
-`lwip/example/lwip_stack_bringup.cpp`) against your lwIP with `lwip/lwipopts.h`,
-links `tc8::tc8_testability_core` (the backend-agnostic core — no POSIX adapter) +
-the engines, and composes `main()`:
+`lwip/example/lwip_stack_bringup.cpp`) against your lwIP with `lwip/utm/` on the
+include path, links `tc8::tc8_testability_core` (the backend-agnostic core — no
+POSIX adapter) + the engines, and composes `main()`:
 
 ```cpp
 tc8::lwip_dut::BringUpLwipStack();                 // example bring-up (or your own)

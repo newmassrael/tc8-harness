@@ -636,12 +636,17 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk-lwip)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.cpp
         DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
-    # The self-contained UTM lwIP config (LWIP_IGMP + multicast TX for join/leave;
-    # lwIP's default assert — no fixture sink). Not layered on the conformance DUT's
-    # config; it is the exact file the in-tree tc8-lwip-utm compiles, so it cannot
-    # drift. The lwIP stack and the final config are the OEM's — a working reference.
-    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/utm/lwipopts.h
+    # The UTM lwIP config: lwipopts_base.h (the product-neutral infra shared with
+    # the conformance fixture — single source of truth) + the utm/ layer (LWIP_IGMP
+    # + multicast TX for join/leave; lwIP's default assert, no fixture sink) which
+    # #includes "../lwipopts_base.h". Both ship preserving that relative layout, so
+    # point lwIP at lwip/utm/. These are the exact files the in-tree tc8-lwip-utm
+    # compiles, so the reference cannot drift. The lwIP stack and the final config
+    # are the OEM's — a working reference.
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwipopts_base.h
         DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/utm/lwipopts.h
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip/utm COMPONENT utm-sdk-lwip)
 
     # EXAMPLE (not stable SDK surface): the stack bring-up. Bringing the stack up —
     # netif selection, address, RFC 6528 ISN seed, process park — is the composition
