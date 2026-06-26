@@ -321,5 +321,29 @@ TEST(SomeipTpReassembler, IncompleteTransferTimesOut) {
     EXPECT_EQ(re.pending(), 0u);
 }
 
+// parseTpHeader is the shared inverse of the Segmenter's TP word. Segment a 40-byte
+// payload at 16-byte segments (-> 3 segments) and decode each segment's TP header.
+TEST(TpParse, DecodesOffsetAndMoreSegments) {
+    const Segmenter seg(16);
+    const auto payload = ramp(40);
+    const auto segs = seg.segment(hdr(), payload.data(), payload.size());
+    ASSERT_EQ(segs.size(), 3u);
+
+    const std::size_t expect_offset[] = {0u, 16u, 32u};
+    const bool expect_more[] = {true, true, false};
+    for (std::size_t i = 0; i < segs.size(); ++i) {
+        TpSegmentHeader h;
+        ASSERT_TRUE(parseTpHeader(segs[i].data() + kSomeipHeaderLen, kTpHeaderLen, h));
+        EXPECT_EQ(h.offset, expect_offset[i]);
+        EXPECT_EQ(h.more_segments, expect_more[i]);
+    }
+}
+
+TEST(TpParse, RejectsHeaderShorterThanFourBytes) {
+    const std::uint8_t buf[3] = {0x00, 0x00, 0x00};
+    TpSegmentHeader h;
+    EXPECT_FALSE(parseTpHeader(buf, sizeof(buf), h));
+}
+
 }  // namespace
 }  // namespace tc8::someiptp

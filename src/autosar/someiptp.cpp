@@ -24,6 +24,18 @@ std::uint64_t transferKey(std::uint32_t message_id, std::uint32_t request_id) {
 
 }  // namespace
 
+bool parseTpHeader(const std::uint8_t* tp_header, std::size_t len, TpSegmentHeader& out) {
+    if (tp_header == nullptr || len < kTpHeaderLen) {
+        return false;
+    }
+    const std::uint32_t tp = get32be(tp_header);
+    // Offset field = upper 28 bits; the low 4 bits (Reserved + More-Segments) are
+    // masked off (PRS_SOMEIP_00724 / 00726). More-Segments is bit 0.
+    out.offset = tp & ~static_cast<std::uint32_t>(kOffsetGranularity - 1);
+    out.more_segments = (tp & 1u) != 0;
+    return true;
+}
+
 Segmenter::Segmenter(std::size_t max_segment_payload) : max_segment_payload_(max_segment_payload) {
     if (max_segment_payload_ == 0 || max_segment_payload_ % kOffsetGranularity != 0) {
         throw std::invalid_argument(
@@ -103,7 +115,6 @@ Reassembler::Result Reassembler::feed(const std::uint8_t* segment, std::size_t l
     hdr.interface_version = segment[13];
     const std::uint8_t  raw_type = segment[14];
     hdr.return_code = segment[15];
-    const std::uint32_t tp = get32be(segment + kSomeipHeaderLen);
 
     // Must carry the TP-Flag (PRS_SOMEIP_00722).
     if ((raw_type & kMessageTypeTpFlag) == 0) {
@@ -120,9 +131,12 @@ Reassembler::Result Reassembler::feed(const std::uint8_t* segment, std::size_t l
         return res;  // frame truncated relative to its Length field
     }
 
-    // Offset field = upper 28 bits; low 4 bits / Reserved are ignored (PRS_SOMEIP_00726).
-    const std::size_t offset = tp & ~static_cast<std::uint32_t>(kOffsetGranularity - 1);
-    const bool        more = (tp & 1u) != 0;
+    // Decode Offset / More-Segments via the shared parser (the len guard above
+    // guarantees the 4-byte TP header is present).
+    TpSegmentHeader tph;
+    parseTpHeader(segment + kSomeipHeaderLen, len - kSomeipHeaderLen, tph);
+    const std::size_t offset = tph.offset;
+    const bool        more = tph.more_segments;
 
     // A non-last segment must carry a non-zero, 16-aligned length (PRS_SOMEIP_00729); a
     // zero-length non-last segment advances nothing and would stall reassembly.

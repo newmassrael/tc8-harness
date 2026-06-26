@@ -12,6 +12,7 @@
 #include <cstring>
 #include <vector>
 
+#include "autosar/someiptp.h"
 #include "sce_integration/someip_captured.h"
 
 namespace {
@@ -220,4 +221,45 @@ TEST(SomeIpCapturedSdOptions, TruncatedOptionTailStopsParseEarly) {
 
     EXPECT_EQ(c.sd_options_len, 12u);
     EXPECT_EQ(c.sd_option_count, 0u);
+}
+
+// SOME/IP-TP capture: with the TP-Flag set, fillSomeIpCapturedFromFrame surfaces the
+// segment's offset / More-Segments / payload length (decoded via the shared
+// someiptp::parseTpHeader). Non-TP frames leave the fields default.
+TEST(SomeIpCapturedTp, ParsesTpHeaderWhenFlagSet) {
+    // TP word: offset 16 (0x10) | More-Segments (bit 0) = 0x00000011, then 16 segment
+    // bytes -> payload_len 20, tp_segment_len 16.
+    std::vector<std::uint8_t> payload = {0x00, 0x00, 0x00, 0x11};
+    payload.resize(4 + 16, 0xAB);
+
+    tc8::SomeIpFrame f;
+    f.service_id = 0x1234;  // not SD (0xFFFF)
+    f.message_type = static_cast<std::uint8_t>(0x80 | tc8::someiptp::kMessageTypeTpFlag);
+    f.payload_data = payload.data();
+    f.payload_len = static_cast<std::uint32_t>(payload.size());
+
+    tc8::SomeIpCaptured c;
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+
+    EXPECT_TRUE(c.is_tp);
+    EXPECT_EQ(c.tp_offset, 16u);
+    EXPECT_TRUE(c.tp_more_segments);
+    EXPECT_EQ(c.tp_segment_len, 16u);
+}
+
+TEST(SomeIpCapturedTp, NonTpFrameLeavesFieldsDefault) {
+    std::vector<std::uint8_t> payload(8, 0x00);
+    tc8::SomeIpFrame f;
+    f.service_id = 0x1234;
+    f.message_type = 0x80;  // Response, no TP-Flag
+    f.payload_data = payload.data();
+    f.payload_len = static_cast<std::uint32_t>(payload.size());
+
+    tc8::SomeIpCaptured c;
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+
+    EXPECT_FALSE(c.is_tp);
+    EXPECT_EQ(c.tp_offset, 0u);
+    EXPECT_FALSE(c.tp_more_segments);
+    EXPECT_EQ(c.tp_segment_len, 0u);
 }

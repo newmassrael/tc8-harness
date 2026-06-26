@@ -201,13 +201,14 @@ if(TC8_PORTABILITY_CHECK)
         src/stimulus/someip_rpc_builder.cpp
         src/stimulus/someip_sd_builder.cpp
         src/stimulus/udp_emit.cpp
+        src/stimulus/someip_tp_emit.cpp
         src/stimulus/tcp_segment_builder.cpp
         src/stimulus/udp_datagram_builder.cpp
         src/stimulus/upper_tester_client.cpp
         src/stimulus/testability_client.cpp
     )
     target_include_directories(tc8-core-portability PRIVATE src include)
-    target_link_libraries(tc8-core-portability PRIVATE sce_base tc8_wire)
+    target_link_libraries(tc8-core-portability PRIVATE sce_base tc8_wire tc8_someiptp)
     tc8_enable_strict_warnings(tc8-core-portability)
     message(STATUS
         "TC8: portability-check configuration — building "
@@ -259,6 +260,7 @@ add_executable(tc8-harness
     src/stimulus/someip_rpc_builder.cpp
     src/stimulus/someip_sd_builder.cpp
     src/stimulus/udp_emit.cpp
+    src/stimulus/someip_tp_emit.cpp
     src/stimulus/tcp_segment_builder.cpp
     src/stimulus/udp_datagram_builder.cpp
     src/stimulus/upper_tester_client.cpp
@@ -516,6 +518,7 @@ target_include_directories(tc8-harness PRIVATE
     ${LIBTINS_INCLUDE_DIR}
 )
 target_link_libraries(tc8-harness PRIVATE
+    tc8_someiptp
     vsomeip3
     CommonAPI
     CommonAPI-SomeIP

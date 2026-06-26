@@ -67,6 +67,10 @@ struct SomeIpAnyBase {
         if (sm.getCurrentState() != state_before) {
             c.prev_observed_ts_us = c.observed_ts_us;
             c.prev_sd_session_id = c.session_id;
+            // SOME/IP-TP cross-segment correlation: snapshot the just-observed
+            // segment's Session ID + offset for the next frame to compare against.
+            c.prev_tp_session_id = c.session_id;
+            c.prev_tp_offset = c.tp_offset;
         }
     }
 };

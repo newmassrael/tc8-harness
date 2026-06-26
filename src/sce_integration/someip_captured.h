@@ -8,6 +8,7 @@
 
 #include "tc8/protocol_frames/someip_frame.h"
 
+#include "autosar/someiptp.h"
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
@@ -158,6 +159,23 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // transition must not depend on the delta — phase 1 snapshots the
     // initial value, phase 2 onward asserts strict increase.
     std::uint16_t prev_sd_session_id = 0;
+
+    // SOME/IP-TP segment header (PRS_SOMEIP §4.2.1.4), parsed when the message_type
+    // carries the TP-Flag (someiptp::kMessageTypeTpFlag = 0x20). `is_tp` is false for a
+    // non-segmented message and the rest stay default. The header bit layout is decoded
+    // by someiptp::parseTpHeader — the single source of that wire format, shared with
+    // the Reassembler.
+    bool          is_tp = false;
+    std::uint32_t tp_offset = 0;        // byte offset of this segment's payload (16-aligned)
+    bool          tp_more_segments = false;
+    std::uint32_t tp_segment_len = 0;   // segment payload bytes (frame payload minus the 4-byte TP header)
+
+    // Snapshot of `session_id` / `tp_offset` from the previous fired TP segment, for
+    // cross-segment correlation (all segments of one message share a Session ID and
+    // carry ascending offsets, PRS_SOMEIP_00721 / 00724). Mirrors prev_sd_session_id,
+    // managed by the same dispatch hook.
+    std::uint16_t prev_tp_session_id = 0;
+    std::uint32_t prev_tp_offset = 0;
 
     // Transport 4-tuple (`src_ip` / `dst_ip` / `src_port` / `dst_port`)
     // from the encapsulating UDP datagram or TCP segment is inherited
@@ -404,6 +422,18 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
             if (udp_endpoint.port != 0) {
                 c.cached_offer_endpoint_udp_port = udp_endpoint.port;
             }
+        }
+    }
+    // SOME/IP-TP: when the message_type carries the TP-Flag, the payload leads with the
+    // 4-byte TP header (someiptp::parseTpHeader owns that layout) and the rest is this
+    // segment's payload. Cases read tp_offset / tp_more_segments / tp_segment_len.
+    if ((f.message_type & someiptp::kMessageTypeTpFlag) != 0) {
+        c.is_tp = true;
+        someiptp::TpSegmentHeader tph;
+        if (someiptp::parseTpHeader(f.payload_data, f.payload_len, tph)) {
+            c.tp_offset = static_cast<std::uint32_t>(tph.offset);
+            c.tp_more_segments = tph.more_segments;
+            c.tp_segment_len = static_cast<std::uint32_t>(f.payload_len - someiptp::kTpHeaderLen);
         }
     }
 }

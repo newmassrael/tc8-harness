@@ -29,6 +29,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/someip_sd_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/udp_emit.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/someip_tp_emit.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
@@ -40,7 +41,7 @@ target_include_directories(tc8_harness_testable PUBLIC
 )
 # Shared wire math (checksum + ICMP echo body); PUBLIC so every test executable
 # linking tc8_harness_testable inherits the one tc8_wire archive.
-target_link_libraries(tc8_harness_testable PUBLIC tc8_wire)
+target_link_libraries(tc8_harness_testable PUBLIC tc8_wire tc8_someiptp)
 tc8_enable_strict_warnings(tc8_harness_testable)
 
 function(tc8_add_unit_test name)
@@ -119,6 +120,9 @@ tc8_add_unit_test(udp_datagram_builder_test)
 # Fixed source-port UDP emit (sendUdpUnicast): loopback round-trip asserts the
 # datagram leaves from the caller-chosen source port.
 tc8_add_unit_test(udp_emit_test)
+# SOME/IP-TP tester-side emit: loopback round-trip (Segmenter -> sendUdpUnicast ->
+# Reassembler) proves the emitted segments are spec-valid.
+tc8_add_unit_test(someip_tp_emit_test)
 tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
 tc8_add_unit_test(tcp_captured_test)

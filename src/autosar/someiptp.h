@@ -84,6 +84,19 @@ private:
     std::size_t max_segment_payload_;
 };
 
+// Parsed view of a segment's 4-byte TP header (PRS_SOMEIP §4.2.1.4).
+struct TpSegmentHeader {
+    std::size_t offset = 0;          // byte offset of this segment's payload (16-aligned)
+    bool        more_segments = false;
+};
+
+// Decode the 4-byte TP header at `tp_header` (the bytes immediately after the 16-byte
+// SOME/IP header in a segment frame) into `out`. False if `len` is shorter than
+// kTpHeaderLen. The inverse of the Offset/More-Segments word the Segmenter writes —
+// the single decode the Reassembler and tester-side capture share, so the TP header
+// bit layout lives in exactly one place.
+bool parseTpHeader(const std::uint8_t* tp_header, std::size_t len, TpSegmentHeader& out);
+
 // Reassembles received SOME/IP-TP segments back into original messages. Holds one
 // in-progress buffer per (Message ID, Request ID) so concurrent transfers do not
 // collide (PRS_SOMEIP_00721 / 00731). Memory is bounded three ways — per-transfer size
