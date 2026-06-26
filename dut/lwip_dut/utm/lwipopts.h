@@ -22,4 +22,12 @@
 #define LWIP_IGMP                  1
 #define LWIP_MULTICAST_TX_OPTIONS  1
 
+/* RFC 6528 ISN via the tc8-owned AES-CMAC generator (tc8_lwip_tcp_isn.cpp), keyed
+ * by the bring-up's secret. Deliberately NOT the lwIP-contrib tcp_isn addon the
+ * conformance DUT uses: this generator reuses the AUTOSAR AES-CMAC engine the UTM
+ * already links and has no lwIP-contrib / PPP / MD5 dependency, so the exported UTM
+ * stack config builds from tc8-owned sources plus the OEM's lwIP checkout alone. */
+#define LWIP_HOOK_TCP_ISN          tc8_lwip_hook_tcp_isn
+#define LWIP_HOOK_FILENAME         "tc8_lwip_utm_hooks.h"
+
 #endif /* TC8_LWIP_UTM_LWIPOPTS_H */

@@ -14,6 +14,16 @@
 
 #include "lwipopts_base.h"
 
+/* RFC 6528 ISN via the lwIP-contrib tcp_isn addon (tc8_lwip_hooks.h pulls its
+ * header onto the include path; the addon + the PPP-polarssl MD5 it hashes with are
+ * compiled into tc8-lwip-dut by dut/lwip_dut/CMakeLists.txt). This is the
+ * conformance generator whose wire behaviour the TC8 ratchet pins, so it stays as
+ * is — the move out of lwipopts_base.h is config-location only, not a behaviour
+ * change. The UTM uses a tc8-owned AES-CMAC generator instead (utm/lwipopts.h). The
+ * seed is delivered through the tc8_lwip_isn.h seam (tc8_lwip_dut.cpp). */
+#define LWIP_HOOK_TCP_ISN          lwip_hook_tcp_isn
+#define LWIP_HOOK_FILENAME         "tc8_lwip_hooks.h"
+
 /* The §4.4.4.5 ADDRESSING data listener (OpGetReceivedUdp) must recover each
  * datagram's ORIGINAL wire destination to apply the RFC 1122 directed-broadcast
  * / multicast silent-discard (ADDRESSING_02 / UDP_INTRODUCTION_02). This appends

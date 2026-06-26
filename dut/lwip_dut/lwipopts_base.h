@@ -62,10 +62,15 @@ void sys_check_core_locking(void);
 #define TCP_SND_BUF                (8 * TCP_MSS)
 #define TCP_SND_QUEUELEN           (4 * TCP_SND_BUF / TCP_MSS)
 #define TCP_WND                    (8 * TCP_MSS)
-/* RFC 6528 ISN randomisation via the contrib tcp_isn addon (seeded at bring-up).
- * The addon + tc8_lwip_hooks.h ride the lwIP/contrib include path. */
-#define LWIP_HOOK_TCP_ISN          lwip_hook_tcp_isn
-#define LWIP_HOOK_FILENAME         "tc8_lwip_hooks.h"
+/* RFC 6528 ISN randomisation is intentionally NOT configured here: the generator is
+ * a product concern, not shared infrastructure, and each product owns a DIFFERENT
+ * one. The conformance DUT (lwipopts.h) wires the lwIP-contrib tcp_isn addon (whose
+ * wire behaviour the TC8 ratchet pins); the UTM (utm/lwipopts.h) wires a tc8-owned
+ * AES-CMAC generator with no contrib/PPP/MD5 dependency. Defining the hook here
+ * would force one product's generator — and its build tail — on the other, and on
+ * every SDK consumer, so this base stays self-contained (pure #defines, no external
+ * hook file). The seed for whichever generator a product picks is handed to the
+ * common bring-up via the tc8_lwip_isn.h seam. */
 
 /* ---------- memory sizing ---------- */
 #define MEM_ALIGNMENT              4

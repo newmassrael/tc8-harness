@@ -17,7 +17,7 @@
 extern "C" {
 #include "examples/example_app/default_netif.h"
 }
-#include "tcp_isn.h"
+#include "tc8_lwip_isn.h"
 
 // The LWIP_PLATFORM_ASSERT sink is NOT here: it is a conformance-verdict concern
 // (loud+fatal), wired only by the DUT config and defined in tc8_lwip_dut.cpp, so
@@ -59,7 +59,10 @@ ip4_addr_t BringUpLwipStack(PostNetifUpFn afterNetifUp) {
     const ip4_addr_t gw   = addrFromEnv("TC8_LWIP_DUT_GW",   "172.16.0.1");
 
     // RFC 6528 ISN secret — must be seeded before the first TCP pcb is created
-    // (LWIP_HOOK_TCP_ISN fires on every connect/listen ISS pick).
+    // (LWIP_HOOK_TCP_ISN fires on every connect/listen ISS pick). The concrete
+    // generator is a product concern reached through the tc8_lwip_isn.h seam: the
+    // conformance DUT seeds the lwIP-contrib addon, the UTM seeds its AES-CMAC
+    // generator. This bring-up only owns producing a strong secret.
     std::uint8_t isn_secret[16];
     if (getrandom(isn_secret, sizeof(isn_secret), 0) !=
         static_cast<ssize_t>(sizeof(isn_secret))) {
@@ -68,7 +71,7 @@ ip4_addr_t BringUpLwipStack(PostNetifUpFn afterNetifUp) {
                      "refusing to run with a predictable ISN\n");
         std::exit(1);
     }
-    lwip_init_tcp_isn(0, isn_secret);
+    SeedTcpIsn(isn_secret);
 
     sys_sem_t init_sem;
     if (sys_sem_new(&init_sem, 0) != ERR_OK) {

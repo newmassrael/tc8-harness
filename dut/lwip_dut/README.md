@@ -469,9 +469,15 @@ behaviour-shaping ones:
   reopening deterministic when multi-phase cases reuse port quads
   (seq-only comparison against a random ISN is a coin flip).
 - `LWIP_HOOK_TCP_ISN` + contrib `tcp_isn` addon — RFC 6528 ISN
-  randomisation, seeded from `getrandom` in `main`. lwIP's default ISN
-  is a near-constant tick counter: a security non-conformance, and the
+  randomisation, seeded by `getrandom` in the bring-up through the
+  product-neutral `tc8_lwip_isn.h` seam. lwIP's default ISN is a
+  near-constant tick counter: a security non-conformance, and the
   predictability kept colliding with tester-side TIME-WAIT remnants.
+  This contrib generator is the **conformance DUT's** (its wire
+  behaviour is ratchet-pinned); the UTM wires a tc8-owned AES-CMAC
+  generator (`tc8_lwip_tcp_isn.cpp`, named by `utm/lwipopts.h`) with no
+  contrib/PPP/MD5 dependency, so the exported `utm-sdk-lwip` stack
+  config builds from tc8-owned sources plus the OEM's lwIP checkout.
 - `ARP_QUEUEING 1` — the per-case respawn means the first UT exchange
   of every case runs on an empty ARP cache; the default single-packet
   pending queue dropped the UT response in favour of the SYN the same

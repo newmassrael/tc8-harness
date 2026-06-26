@@ -46,8 +46,10 @@ set(LWIP_INCLUDE_DIRS
     "${LWIP_DIR}/src/include"
     "${LWIP_CONTRIB_DIR}/"
     "${LWIP_CONTRIB_DIR}/ports/unix/port/include"
-    # tc8_lwip_hooks.h pulls tcp_isn.h into every core TU via
-    # LWIP_HOOK_FILENAME, so the core build needs this path too.
+    # The conformance DUT's tc8_lwip_hooks.h pulls the contrib tcp_isn.h into the DUT
+    # core's TUs via LWIP_HOOK_FILENAME, so the DUT core build needs this path. The
+    # UTM core uses tc8_lwip_utm_hooks.h (tc8 AES-CMAC) and does not need it — the
+    # path is harmless on the UTM core's include list and absent from the SDK export.
     "${LWIP_CONTRIB_DIR}/addons/tcp_isn"
 )
 
@@ -79,10 +81,29 @@ set(_tc8_lwip_common_srcs
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/wire/ip_checksum.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/wire/icmp_echo.cpp
     ${LWIP_CONTRIB_DIR}/ports/unix/example_app/default_netif.c
-    # RFC 6528 ISN generator wired through LWIP_HOOK_TCP_ISN (lwipopts.h).
+    # The RFC 6528 ISN generator is NOT shared here: it is a per-product concern. The
+    # conformance DUT links the lwIP-contrib tcp_isn addon (below); the UTM-core
+    # binaries link the tc8-owned AES-CMAC generator (_tc8_lwip_utm_isn_srcs). The
+    # bring-up reaches whichever one through the tc8_lwip_isn.h seam.
+)
+
+# The conformance DUT's RFC 6528 ISN: the lwIP-contrib tcp_isn addon, hashing with
+# the PPP-bundled polarssl MD5. DUT-only — keeping it off the shared set is what lets
+# the UTM (and the exported utm-sdk-lwip config) build without any lwIP-contrib / PPP
+# / MD5 dependency. The DUT's tc8_lwip_isn.h seam impl (tc8_lwip_dut.cpp) drives it.
+set(_tc8_lwip_dut_isn_srcs
     ${LWIP_CONTRIB_DIR}/addons/tcp_isn/tcp_isn.c
     ${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
 )
+
+# The UTM's RFC 6528 ISN: the tc8-owned AES-CMAC generator (tc8_lwip_tcp_isn.cpp),
+# reusing the vendor-neutral AES-CMAC engine. Linked by every binary built on the UTM
+# core (the UTM itself and the two UTM-core in-process tests), since the UTM core's
+# LWIP_HOOK_TCP_ISN names it. The UTM binary already pulls aes_cmac.cpp via the engine
+# glob below, so it adds only the generator; the test binaries (no engine glob) also
+# add the AES-CMAC source.
+set(_tc8_lwip_utm_isn_src   ${CMAKE_CURRENT_SOURCE_DIR}/tc8_lwip_tcp_isn.cpp)
+set(_tc8_aes_cmac_src       ${CMAKE_CURRENT_SOURCE_DIR}/../../src/autosar/aes_cmac.cpp)
 
 # tcp_isn.c hashes with the PPP-bundled polarssl MD5, whose implementation is
 # guarded by `#if PPP_SUPPORT && LWIP_INCLUDED_POLARSSL_MD5`
@@ -94,8 +115,9 @@ set(_tc8_lwip_common_srcs
 # MD5 from the PPP tree upstream, deferred with the rest of the lwIP upstream
 # work (P5). The alternative — vendoring a standalone MD5 here — is more
 # invasive and would diverge the DUT crypto from the shipped stack, so the
-# scoped define is the deliberate choice, not an unexamined hack. Source-file
-# properties are directory-scoped, so this applies to md5.c in both binaries.
+# scoped define is the deliberate choice, not an unexamined hack. This quirk is now
+# confined to the conformance DUT (the only binary that compiles md5.c): the UTM and
+# the exported SDK use the tc8 AES-CMAC generator and never pull MD5 / PPP at all.
 set_source_files_properties(${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
     PROPERTIES COMPILE_DEFINITIONS "PPP_SUPPORT=1;LWIP_INCLUDED_POLARSSL_MD5=1")
 
@@ -106,9 +128,9 @@ set_source_files_properties(${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
 # GCC warns the moment it parses the positive flag ("valid for C/ObjC but not for
 # C++"), before any later -Wno-. So strip the three ungated entries and re-add the two
 # without a surviving C-guarded form, scoped to the C TUs — the lwIP .c sources
-# compiled into these executables (default_netif.c, tcp_isn.c, md5.c) stay
-# strict while the C++ TUs build clean. The lwIP core/contrib libraries are
-# built by their own Filelists targets and are unaffected.
+# compiled into these executables (default_netif.c everywhere; tcp_isn.c + md5.c in
+# the conformance DUT) stay strict while the C++ TUs build clean. The lwIP
+# core/contrib libraries are built by their own Filelists targets and are unaffected.
 #   * -Waggregate-return — fires on every value-returned std::vector / map
 #     operator[] / pair; GCC documents it as not useful for C++.
 #   * -Wmissing-prototypes — the set lists it both ungated and C-guarded; only
@@ -179,6 +201,7 @@ tc8_lwip_app(tc8-lwip-dut SRCS
     lwip_ut_extensions.cpp
     lwip_egress_fault.cpp
     lwip_ingress_fault.cpp
+    ${_tc8_lwip_dut_isn_srcs}
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/upper_tester/ut_server.cpp)
 
 # The vendor-neutral AUTOSAR engines (src/autosar/) — pure byte math, the same
@@ -252,7 +275,7 @@ set(_tc8_utm_core_args
 # against the IGMP-enabled core so a middleware module can join multicast groups.
 tc8_lwip_app(tc8-lwip-utm
     ${_tc8_utm_core_args}
-    SRCS lwip_utm_main.cpp ${_tc8_autosar_engine_srcs})
+    SRCS lwip_utm_main.cpp ${_tc8_autosar_engine_srcs} ${_tc8_lwip_utm_isn_src})
 
 # In-process runtime test for the middleware rx reactor on the lwIP backend (the
 # lwIP IoMultiplexer: lwip_select poll() + the 127.0.0.1 socket-pair Waker). Runs
@@ -265,7 +288,7 @@ tc8_lwip_app(tc8-lwip-utm
 enable_testing()
 tc8_lwip_app(tc8-lwip-reactor-test
     ${_tc8_utm_core_args}
-    SRCS lwip_reactor_test.cpp)
+    SRCS lwip_reactor_test.cpp ${_tc8_lwip_utm_isn_src} ${_tc8_aes_cmac_src})
 add_test(NAME lwip_reactor_test COMMAND tc8-lwip-reactor-test)
 set_tests_properties(lwip_reactor_test PROPERTIES TIMEOUT 30)
 
@@ -275,6 +298,6 @@ set_tests_properties(lwip_reactor_test PROPERTIES TIMEOUT 30)
 # stub ethernet netif (no tap/netns/root). Hard timeout so a hang fails fast.
 tc8_lwip_app(tc8-lwip-arp-mcast-test
     ${_tc8_utm_core_args}
-    SRCS lwip_arp_multicast_test.cpp)
+    SRCS lwip_arp_multicast_test.cpp ${_tc8_lwip_utm_isn_src} ${_tc8_aes_cmac_src})
 add_test(NAME lwip_arp_multicast_test COMMAND tc8-lwip-arp-mcast-test)
 set_tests_properties(lwip_arp_multicast_test PROPERTIES TIMEOUT 30)

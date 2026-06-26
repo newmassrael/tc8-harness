@@ -647,14 +647,30 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/utm/lwipopts.h
         DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip/utm COMPONENT utm-sdk-lwip)
+    # The UTM's RFC 6528 ISN generator, named by utm/lwipopts.h's LWIP_HOOK_TCP_ISN /
+    # LWIP_HOOK_FILENAME. tc8-owned and self-contained: the hook header (named by the
+    # lwipopts so the OEM's lwIP core resolves it on the include path), the bring-up
+    # seed seam, and the AES-CMAC implementation. The OEM compiles tc8_lwip_tcp_isn.cpp
+    # into its UTM and links the already-exported AES-CMAC engine (utm-sdk's
+    # tc8::...crypto) — there is NO dependency on the lwIP-contrib tcp_isn addon, the
+    # PPP tree, or its MD5: the exported stack config builds from these files plus the
+    # OEM's own lwIP checkout. These are the exact files tc8-lwip-utm compiles, so the
+    # reference cannot drift. Shipped next to lwipopts_base.h (the dir the OEM puts on
+    # the include path for the hook header).
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/tc8_lwip_utm_hooks.h
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/tc8_lwip_isn.h
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/tc8_lwip_tcp_isn.cpp
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
 
     # EXAMPLE (not stable SDK surface): the stack bring-up. Bringing the stack up —
     # netif selection, address, RFC 6528 ISN seed, process park — is the composition
     # root's job and is target-specific (a real embedded netif replaces this
     # unix-tapif version). Shipped under example/ as a working reference the OEM
-    # copies and adapts; it needs the unix-port default_netif + tcp_isn addon on the
-    # OEM's lwIP/contrib include path. It is fixture-free (fault hooks come via the
-    # afterNetifUp callback, the assert sink stays in the DUT).
+    # copies and adapts; it needs the unix-port default_netif on the OEM's lwIP
+    # include path and the ISN seam impl above. It is fixture-free (fault hooks come
+    # via the afterNetifUp callback, the assert sink stays in the DUT), and it seeds
+    # the ISN through the tc8_lwip_isn.h seam, so it carries no contrib dependency.
     install(FILES
             ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.h
             ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.cpp

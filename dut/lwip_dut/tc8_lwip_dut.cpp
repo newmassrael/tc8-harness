@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <memory>
 
+#include <cstdint>
+
 #include "lwip/ip4_addr.h"
 #include "lwip/netif.h"
 
@@ -21,7 +23,9 @@
 #include "lwip_stack_probe.h"
 #include "lwip_ut_extensions.h"
 #include "tc8/testability_protocol.h"
+#include "tc8_lwip_isn.h"
 #include "testability/protocol_server.h"
+#include "tcp_isn.h"
 #include "upper_tester/ut_server.h"
 
 // The conformance DUT's LWIP_PLATFORM_ASSERT sink (wired by dut/lwip_dut/lwipopts.h):
@@ -32,6 +36,17 @@ extern "C" void tc8_lwip_platform_assert(const char *msg, int line, const char *
     std::fprintf(stderr, "tc8-lwip: assert \"%s\" at %s:%d\n", msg, file, line);
     std::abort();
 }
+
+// The conformance DUT's TcpIsn seed seam (tc8_lwip_isn.h): drive the lwIP-contrib
+// RFC 6528 generator (the tcp_isn addon) that the conformance core's
+// LWIP_HOOK_TCP_ISN names. Living here, not in the shared bring-up, is what keeps
+// the bring-up depending only on the product-neutral seam — the UTM supplies a
+// contrib-free AES-CMAC generator for the same seam (tc8_lwip_tcp_isn.cpp).
+// Boot-time base 0 matches the prior direct call, so the ISN wire behaviour the TC8
+// ratchet pins is unchanged.
+namespace tc8::lwip_dut {
+void SeedTcpIsn(const std::uint8_t secret[16]) { lwip_init_tcp_isn(0, secret); }
+}  // namespace tc8::lwip_dut
 
 namespace {
 
