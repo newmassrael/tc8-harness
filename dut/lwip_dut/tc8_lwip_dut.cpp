@@ -8,12 +8,14 @@
 // topology conf is the single place that knows the fixture subnet.
 
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 
 #include "lwip/ip4_addr.h"
 #include "lwip/netif.h"
 
-#include "lwip_fault_hooks.h"
+#include "lwip_egress_fault.h"
+#include "lwip_ingress_fault.h"
 #include "lwip_socket_backend.h"
 #include "lwip_stack_bringup.h"
 #include "lwip_stack_probe.h"
@@ -22,12 +24,31 @@
 #include "testability/protocol_server.h"
 #include "upper_tester/ut_server.h"
 
+// The conformance DUT's LWIP_PLATFORM_ASSERT sink (wired by dut/lwip_dut/lwipopts.h):
+// loud + fatal, because a tripped stack invariant means every verdict after it is
+// untrustworthy. A conformance concern, so it lives with the DUT — not in the
+// shared bring-up the UTM SDK ships.
+extern "C" void tc8_lwip_platform_assert(const char *msg, int line, const char *file) {
+    std::fprintf(stderr, "tc8-lwip: assert \"%s\" at %s:%d\n", msg, file, line);
+    std::abort();
+}
+
+namespace {
+
+// The conformance DUT's post-netif-up hook, passed to BringUpLwipStack and run
+// under the core lock the instant the netif is up: wrap egress + ingress with the
+// fault seams (both inert until an OpSet*Flavor opcode arms them). Egress first —
+// the ingress ARP flavor's synthesized Reply leaves via netif->linkoutput, which
+// the egress hook passes through untouched while no egress flavor is armed.
+void installDutFaultHooks(struct netif *nif) {
+    tc8::lwip_dut::installEgressFaultHook(nif);
+    tc8::lwip_dut::installIngressFaultHook(nif);
+}
+
+}  // namespace
+
 int main() {
-    const ip4_addr_t addr = tc8::lwip_dut::BringUpLwipStack();
-    // Arm the conformance fault seams (egress field / ingress reaction), kept out
-    // of the exported bring-up so the UTM carries no fixture fault code. Before
-    // any server starts, so no flavor can be armed in the meantime.
-    tc8::lwip_dut::installFaultHooks();
+    const ip4_addr_t addr = tc8::lwip_dut::BringUpLwipStack(&installDutFaultHooks);
 
     // TC8 §4.8.5 Upper Tester channel, running on the platform-agnostic
     // UpperTesterServer core (shared verbatim with the Linux tc8-dut) paired with

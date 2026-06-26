@@ -167,15 +167,16 @@ endfunction()
 # (lwip_stack_probe = TCP-info / original-dst introspection) and the lwIP-only ARP
 # cache-conditioning opcode (lwip_ut_extensions). lwip_socket_backend (in the
 # common srcs) supplies the socket primitives for both the UT and testability.
-# The fault seams + their installer live HERE, not in the common srcs — DUT-only,
-# so the UTM bring-up stays fault-free. Egress field-fault (OpSetEgressFlavor) +
-# ingress reaction-fault (OpSetIngressFlavor — ARP emission §4.2.4.2 + UDP
-# acceptance §4.6.5.4).
+# The fault seams live HERE, not in the common srcs — DUT-only, so the UTM
+# bring-up stays fault-free. tc8_lwip_dut.cpp installs them via BringUpLwipStack's
+# post-netif-up callback (under the core lock, atomic with bring-up); the bring-up
+# TU never names them. Egress field-fault (OpSetEgressFlavor) + ingress
+# reaction-fault (OpSetIngressFlavor — ARP emission §4.2.4.2 + UDP acceptance
+# §4.6.5.4).
 tc8_lwip_app(tc8-lwip-dut SRCS
     tc8_lwip_dut.cpp
     lwip_stack_probe.cpp
     lwip_ut_extensions.cpp
-    lwip_fault_hooks.cpp
     lwip_egress_fault.cpp
     lwip_ingress_fault.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/upper_tester/ut_server.cpp)
@@ -258,9 +259,13 @@ tc8_lwip_app(tc8-lwip-utm
 # entirely over the loopback netif — no tap/netns/root — so it exercises the one
 # lwIP-specific path the host POSIX tests cannot. Registered as a CTest with a
 # hard timeout so a regression that hangs the reactor fails fast. Needs no AUTOSAR
-# engines (it tests the reactor, not the engines).
+# engines (it tests the reactor, not the engines). Built against the UTM core/config
+# (the reactor is a UTM-side feature), so it uses lwIP's default assert and needs
+# no conformance sink.
 enable_testing()
-tc8_lwip_app(tc8-lwip-reactor-test SRCS lwip_reactor_test.cpp)
+tc8_lwip_app(tc8-lwip-reactor-test
+    ${_tc8_utm_core_args}
+    SRCS lwip_reactor_test.cpp)
 add_test(NAME lwip_reactor_test COMMAND tc8-lwip-reactor-test)
 set_tests_properties(lwip_reactor_test PROPERTIES TIMEOUT 30)
 

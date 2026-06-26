@@ -622,36 +622,37 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)
 
     # ── Optional lwIP backend (utm-sdk-lwip component) ──
-    # The lwIP SocketBackend bridge AND the stack bring-up, shipped as SOURCE
-    # because they must compile against the OEM's own (target-specific) lwIP stack
-    # — the SDK ships the bridge + bring-up to the testability seam, not the stack.
+    # SDK surface: the lwIP SocketBackend bridge + the self-contained UTM lwipopts.
+    # Shipped as SOURCE because they compile against the OEM's own (target-specific)
+    # lwIP stack — the SDK ships the bridge to the testability seam, not the stack.
     # These are the EXACT files the in-tree tc8-lwip-utm builds (dut/lwip_dut), so
-    # build-lwip-dut keeps them compiling — there is no hand-copy to drift. An lwIP
-    # OEM installs utm-sdk too (the bridge's header pulls in net/ + testability/,
-    # the .cpp pulls in wire/), compiles lwip_socket_backend.cpp + the bring-up
-    # into its UTM, and links tc8::tc8_testability_core (the backend-agnostic core,
-    # no POSIX adapter). The bring-up is fault-free (the conformance fault seams
-    # live only in tc8-lwip-dut) but unix-port specific: it brings the stack up on
-    # the unix tapif via examples/example_app/default_netif.h + the tcp_isn addon
-    # (both on the OEM's lwIP/contrib include path). A real embedded netif replaces
-    # the bring-up; shipping the unix-port one makes the host/CI reference build work.
-    install(FILES
-            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.h
-            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.h
+    # build-lwip-dut keeps them compiling — no hand-copy to drift. An lwIP OEM
+    # installs utm-sdk too (the bridge's header pulls in net/ + testability/, the
+    # .cpp pulls in wire/), compiles lwip_socket_backend.cpp into its UTM against
+    # lwip/lwipopts.h, and links tc8::tc8_testability_core (the backend-agnostic
+    # core, no POSIX adapter).
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk-lwip)
-    install(FILES
-            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.cpp
-            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.cpp
+    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.cpp
         DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
-    # Reference lwIP config: the in-tree tc8-lwip-utm's own, layered — utm/lwipopts.h
-    # turns on LWIP_IGMP + multicast TX (required by join/leaveMulticast) then
-    # includes the base via "../lwipopts.h". Both files ship preserving that
-    # relative layout, so point lwIP at lwip/utm/lwipopts.h. The lwIP stack and the
-    # final config are the OEM's; this is a working reference, not a mandate.
-    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwipopts.h
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
+    # The self-contained UTM lwIP config (LWIP_IGMP + multicast TX for join/leave;
+    # lwIP's default assert — no fixture sink). Not layered on the conformance DUT's
+    # config; it is the exact file the in-tree tc8-lwip-utm compiles, so it cannot
+    # drift. The lwIP stack and the final config are the OEM's — a working reference.
     install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/utm/lwipopts.h
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip/utm COMPONENT utm-sdk-lwip)
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
+
+    # EXAMPLE (not stable SDK surface): the stack bring-up. Bringing the stack up —
+    # netif selection, address, RFC 6528 ISN seed, process park — is the composition
+    # root's job and is target-specific (a real embedded netif replaces this
+    # unix-tapif version). Shipped under example/ as a working reference the OEM
+    # copies and adapts; it needs the unix-port default_netif + tcp_isn addon on the
+    # OEM's lwIP/contrib include path. It is fixture-free (fault hooks come via the
+    # afterNetifUp callback, the assert sink stays in the DUT).
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.h
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.cpp
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip/example COMPONENT utm-sdk-lwip)
 
     install(EXPORT tc8-utm-targets
         NAMESPACE tc8::

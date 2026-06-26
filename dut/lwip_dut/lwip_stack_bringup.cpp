@@ -19,15 +19,10 @@ extern "C" {
 }
 #include "tcp_isn.h"
 
-// lwipopts.h routes LWIP_PLATFORM_ASSERT here: loud + fatal, because a tripped
-// stack invariant means every verdict after it is untrustworthy. Defined once
-// here so every binary that links this bring-up TU gets the sink (the core
-// lwIP TUs reference it via the LWIP_PLATFORM_ASSERT macro).
-extern "C" void tc8_lwip_platform_assert(const char *msg, int line,
-                                         const char *file) {
-    std::fprintf(stderr, "tc8-lwip: assert \"%s\" at %s:%d\n", msg, file, line);
-    std::abort();
-}
+// The LWIP_PLATFORM_ASSERT sink is NOT here: it is a conformance-verdict concern
+// (loud+fatal), wired only by the DUT config and defined in tc8_lwip_dut.cpp, so
+// this bring-up — shipped as the utm-sdk-lwip reference an OEM replaces — carries
+// no fixture diagnostic and the UTM config uses lwIP's default assert.
 
 namespace tc8::lwip_dut {
 namespace {
@@ -58,7 +53,7 @@ ip4_addr_t addrFromEnv(const char *var, const char *fallback) {
 
 }  // namespace
 
-ip4_addr_t BringUpLwipStack() {
+ip4_addr_t BringUpLwipStack(PostNetifUpFn afterNetifUp) {
     const ip4_addr_t addr = addrFromEnv("TC8_LWIP_DUT_IP",   "172.16.0.2");
     const ip4_addr_t mask = addrFromEnv("TC8_LWIP_DUT_MASK", "255.255.255.0");
     const ip4_addr_t gw   = addrFromEnv("TC8_LWIP_DUT_GW",   "172.16.0.1");
@@ -88,12 +83,14 @@ ip4_addr_t BringUpLwipStack() {
     init_default_netif(&addr, &mask, &gw);
     netif_set_up(netif_default);
     netif_set_link_up(netif_default);
+    // The fixture installs its link-layer hooks here — atomically with bring-up,
+    // still under the core lock, before any frame can be processed. A UTM passes
+    // no callback, so its bring-up carries no fixture code.
+    if (afterNetifUp != nullptr) {
+        afterNetifUp(netif_default);
+    }
     UNLOCK_TCPIP_CORE();
 
-    // Fault-injection hooks are NOT installed here: a UTM is not a fault fixture,
-    // and this bring-up is exported (utm-sdk-lwip) for out-of-tree UTMs. The
-    // conformance DUT calls installFaultHooks() (lwip_fault_hooks.h) right after
-    // this returns; see that header for why the gap between the two is benign.
     return addr;
 }
 

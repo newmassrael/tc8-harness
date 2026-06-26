@@ -74,37 +74,40 @@ cmake --install <tc8-build> --component utm-sdk      --prefix <sdk>
 cmake --install <tc8-build> --component utm-sdk-lwip --prefix <sdk>
 ```
 
-It ships, as **source** (the SDK ships the bridge + bring-up to the seam, not the
-stack — they must compile against *your* lwIP):
+**SDK surface** (`share/tc8-utm/lwip/`), shipped as source because it compiles
+against *your* lwIP — the SDK ships the bridge to the seam, not the stack:
 
 - `lwip_socket_backend.{h,cpp}` — the lwIP↔`SocketBackend` bridge
-- `lwip_stack_bringup.{h,cpp}` — `BringUpLwipStack()` (threaded `tcpip_init`, netif
-  setup, static address from `TC8_LWIP_*` env, RFC 6528 ISN seed) + `ParkUntilSigterm()`
-- a reference, layered `lwip/utm/lwipopts.h`
+- `lwipopts.h` — a self-contained UTM lwIP config: `LWIP_IGMP` +
+  `LWIP_MULTICAST_TX_OPTIONS` (required by `joinMulticast`/`leaveMulticast`) and
+  lwIP's default assert. Not layered on the conformance config; a working reference.
 
-Your build compiles `lwip/lwip_socket_backend.cpp` + `lwip/lwip_stack_bringup.cpp`
-against your lwIP, links `tc8::tc8_testability_core` (the backend-agnostic core — no
-POSIX adapter) + the engines, and composes `main()`:
+**Example** (`share/tc8-utm/lwip/example/`), a replaceable starting point, not a
+stable API:
+
+- `lwip_stack_bringup.{h,cpp}` — `BringUpLwipStack(afterNetifUp = nullptr)`
+  (threaded `tcpip_init`, unix-tapif netif, static address from `TC8_LWIP_*` env,
+  RFC 6528 ISN seed) + `ParkUntilSigterm()`.
+
+Bringing the stack up is the composition root's job and is target-specific, so it
+is shipped as an example: it is **unix-port specific** (the OEM needs
+`examples/example_app/default_netif.h` + the `tcp_isn` addon on its lwIP/contrib
+include path), and a real embedded netif replaces it. It is **fault-free** — the
+conformance fault seams stay in the in-tree DUT, installed via the `afterNetifUp`
+callback a UTM never passes.
+
+Your build compiles `lwip/lwip_socket_backend.cpp` (and, if reused,
+`lwip/example/lwip_stack_bringup.cpp`) against your lwIP with `lwip/lwipopts.h`,
+links `tc8::tc8_testability_core` (the backend-agnostic core — no POSIX adapter) +
+the engines, and composes `main()`:
 
 ```cpp
-tc8::lwip_dut::BringUpLwipStack();                 // from utm-sdk-lwip
+tc8::lwip_dut::BringUpLwipStack();                 // example bring-up (or your own)
 tc8::testability::ProtocolServer server{std::make_unique<tc8::lwip_dut::LwipSocketBackend>()};
 server.registerModule(std::make_unique<MyOemModule>(/* my config */));
 server.start(/* port */);
 tc8::lwip_dut::ParkUntilSigterm();
 ```
-
-The shipped bring-up is **fault-free** (the conformance fault seams stay in the
-in-tree DUT only) but **unix-port specific**: it brings the stack up on the unix
-tapif, so the OEM must have `examples/example_app/default_netif.h` and the `tcp_isn`
-addon on its lwIP/contrib include path. A real embedded netif replaces the
-bring-up; shipping the unix-port one makes the host/CI reference build work out of
-the box, as the bridge does.
-
-`LwipSocketBackend` requires `LWIP_IGMP` + `LWIP_MULTICAST_TX_OPTIONS`
-(`joinMulticast`/`leaveMulticast`); the shipped `lwip/utm/lwipopts.h` turns these
-on over the base config. The lwIP stack and your final `lwipopts.h` are yours — the
-shipped file is a working reference, not a mandate.
 
 ## Configuration schema — the injection boundary
 
