@@ -1,19 +1,18 @@
 #include "stimulus/someip_sd_builder.h"
 
-#include <arpa/inet.h>
-#include <cerrno>
 #include <cstdio>
-#include <cstring>
-#include <ifaddrs.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#include <string>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <thread>
-#include <unistd.h>
+
+#include "stimulus/iface_addr.h"
+#include "stimulus/udp_emit.h"
+#include "tc8/dut_config.h"
 
 namespace tc8::stimulus {
+
+// The SOME/IP-SD port (30490) — single source of truth in tc8::dut. Pulled in
+// unqualified so every SD emit binds the same source port without re-stamping
+// the literal (tc8::dut::kSdPort warns that divergence silently breaks cases).
+using tc8::dut::kSdPort;
 
 namespace {
 
@@ -34,34 +33,6 @@ void putBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
     b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
     b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
     b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
-// Looks up the first IPv4 address bound to `iface_name`. Returns 0 if the
-// interface is absent or carries no IPv4 address.
-std::uint32_t ipv4OfInterface(std::string_view iface_name) {
-    ifaddrs *head = nullptr;
-    if (getifaddrs(&head) != 0 || head == nullptr) {
-        return 0;
-    }
-    std::uint32_t addr = 0;
-    for (ifaddrs *a = head; a != nullptr; a = a->ifa_next) {
-        if (a->ifa_addr == nullptr) {
-            continue;
-        }
-        if (a->ifa_addr->sa_family != AF_INET) {
-            continue;
-        }
-        if (a->ifa_name == nullptr) {
-            continue;
-        }
-        if (iface_name != a->ifa_name) {
-            continue;
-        }
-        addr = reinterpret_cast<sockaddr_in *>(a->ifa_addr)->sin_addr.s_addr;
-        break;
-    }
-    freeifaddrs(head);
-    return addr;
 }
 
 }  // namespace
@@ -335,144 +306,19 @@ int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
 
 int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
                     std::string_view mcast_group, std::uint16_t mcast_port) {
-    const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        std::fprintf(stderr, "stimulus: socket() failed: %s\n", std::strerror(errno));
-        return -1;
-    }
-
-    // Pin multicast egress to the intended interface. On veth setups the
-    // default-route choice is fragile, and in test netns we want the
-    // FindService to leave via veth-tester deterministically.
-    const std::uint32_t if_addr = ipv4OfInterface(iface_name);
-    if (if_addr == 0) {
-        std::fprintf(stderr,
-                     "stimulus: interface '%.*s' has no IPv4 address — "
-                     "cannot pin multicast egress\n",
-                     static_cast<int>(iface_name.size()), iface_name.data());
-        ::close(sock);
-        return -2;
-    }
-
-    // Bind the source port to the SD port (= mcast_port). vsomeip enforces
-    // "SD source port must equal SD port" and silently drops messages from
-    // ephemeral ports with `Ignored SD message from unknown port (NNNNN)`.
-    // Without this bind, our FindService would never reach vsomeip's SD
-    // dispatcher and the DUT would never schedule a solicited reply.
-    // SO_REUSEADDR lets successive boot emits skip TIME_WAIT recycling on
-    // the same source port.
-    const int reuse = 1;
-    if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        std::fprintf(stderr, "stimulus: setsockopt(SO_REUSEADDR) failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -7;
-    }
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = htons(mcast_port);
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: bind(SD port %u) failed: %s\n", mcast_port, std::strerror(errno));
-        ::close(sock);
-        return -7;
-    }
-
-    in_addr mcast_if{};
-    mcast_if.s_addr = if_addr;
-    if (::setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, &mcast_if, sizeof(mcast_if)) < 0) {
-        std::fprintf(stderr, "stimulus: setsockopt(IP_MULTICAST_IF) failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -3;
-    }
-
-    // TTL=1 is the vsomeip default for SD multicast — don't escape the
-    // local link.
-    const std::uint8_t ttl = 1;
-    if (::setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
-        std::fprintf(stderr, "stimulus: setsockopt(IP_MULTICAST_TTL) failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -4;
-    }
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(mcast_port);
-    if (::inet_pton(AF_INET, std::string(mcast_group).c_str(), &dst.sin_addr) != 1) {
-        std::fprintf(stderr, "stimulus: inet_pton('%.*s') failed\n", static_cast<int>(mcast_group.size()),
-                     mcast_group.data());
-        ::close(sock);
-        return -5;
-    }
-
-    const ssize_t n =
-        ::sendto(sock, datagram.data(), datagram.size(), 0, reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    const int saved_errno = errno;
-    ::close(sock);
-
-    if (n < 0 || static_cast<std::size_t>(n) != datagram.size()) {
-        std::fprintf(stderr, "stimulus: sendto(%.*s:%u) failed: %s (sent=%zd of %zu)\n",
-                     static_cast<int>(mcast_group.size()), mcast_group.data(), mcast_port, std::strerror(saved_errno),
-                     n, datagram.size());
-        return -6;
-    }
-    return 0;
+    // vsomeip enforces "SD source port must equal the SD port" and silently
+    // drops SD messages from ephemeral ports (`Ignored SD message from unknown
+    // port`), so the source port is the SD port (= mcast_port). The generic
+    // bind / IP_MULTICAST_IF / sendto mechanics live in sendUdpMulticast.
+    return sendUdpMulticast(datagram, iface_name, /*src_port=*/mcast_port, mcast_group, mcast_port);
 }
 
 int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
                   std::uint32_t dst_ip_be, std::uint16_t dst_port) {
-    constexpr std::uint16_t kSdPort = 30490;
-
-    const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        std::fprintf(stderr, "stimulus: socket() failed: %s\n", std::strerror(errno));
-        return -1;
-    }
-
-    const std::uint32_t if_addr = ipv4OfInterface(iface_name);
-    if (if_addr == 0) {
-        std::fprintf(stderr,
-                     "stimulus: interface '%.*s' has no IPv4 address — "
-                     "cannot bind unicast SD source\n",
-                     static_cast<int>(iface_name.size()), iface_name.data());
-        ::close(sock);
-        return -2;
-    }
-
-    const int reuse = 1;
-    if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        std::fprintf(stderr, "stimulus: setsockopt(SO_REUSEADDR) failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -7;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = htons(kSdPort);
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: bind(SD port %u) failed: %s\n", kSdPort, std::strerror(errno));
-        ::close(sock);
-        return -7;
-    }
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dst_port);
-    dst.sin_addr.s_addr = dst_ip_be;
-
-    const ssize_t n =
-        ::sendto(sock, datagram.data(), datagram.size(), 0, reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    const int saved_errno = errno;
-    ::close(sock);
-
-    if (n < 0 || static_cast<std::size_t>(n) != datagram.size()) {
-        std::fprintf(stderr, "stimulus: sendto(unicast %u.%u.%u.%u:%u) failed: %s (sent=%zd of %zu)\n",
-                     (dst_ip_be >> 0) & 0xFFU, (dst_ip_be >> 8) & 0xFFU,
-                     (dst_ip_be >> 16) & 0xFFU, (dst_ip_be >> 24) & 0xFFU, dst_port,
-                     std::strerror(saved_errno), n, datagram.size());
-        return -6;
-    }
-    return 0;
+    // Source port bound to the SD port so vsomeip's "SD source port must equal
+    // SD port" check accepts the message (else it logs `Ignored SD message from
+    // unknown port`). The generic emit mechanics live in sendUdpUnicast.
+    return sendUdpUnicast(datagram, iface_name, /*src_port=*/kSdPort, dst_ip_be, dst_port);
 }
 
 int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target, const BootTiming &timing) {
@@ -665,43 +511,16 @@ namespace {
 // iface captures the Ack regardless of whether anything is bound there.
 int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags, std::uint16_t session_id,
                   std::string_view iface, const SubscribeDestination &dest, std::uint8_t l4proto = 0x11) {
-    constexpr std::uint16_t kSdPort = 30490;
-
-    const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        std::fprintf(stderr, "stimulus: socket() failed: %s\n", std::strerror(errno));
-        return -1;
-    }
-
+    // The tester's own IPv4 is advertised inside the Subscribe option (the DUT
+    // replies to it), so resolve it for the payload before delegating the wire
+    // send to sendUdpUnicast (which re-resolves it to bind the SD source port).
     const std::uint32_t if_addr = ipv4OfInterface(iface);
     if (if_addr == 0) {
         std::fprintf(stderr,
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in subscribe option\n",
                      static_cast<int>(iface.size()), iface.data());
-        ::close(sock);
         return -2;
-    }
-
-    // SO_REUSEADDR so two successive emits on the same SD port don't
-    // race each other during TIME_WAIT recycling; vsomeip/DUT also holds
-    // 30490 if the tester netns shares port namespace (it doesn't here,
-    // but the flag is harmless on an otherwise-idle port).
-    const int reuse = 1;
-    if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        std::fprintf(stderr, "stimulus: setsockopt(SO_REUSEADDR) failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -7;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = htons(kSdPort);
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: bind(SD port %u) failed: %s\n", kSdPort, std::strerror(errno));
-        ::close(sock);
-        return -7;
     }
 
     SubscribeEventgroupParams p{};
@@ -711,24 +530,7 @@ int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags
     p.tester_endpoint.l4proto = l4proto;
     p.session_id = session_id;
     p.sd_flags = sd_flags;
-    const auto datagram = buildSubscribeEventgroup(p);
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dest.port);
-    dst.sin_addr.s_addr = dest.ipv4_be;
-
-    const ssize_t n =
-        ::sendto(sock, datagram.data(), datagram.size(), 0, reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    const int saved_errno = errno;
-    ::close(sock);
-
-    if (n < 0 || static_cast<std::size_t>(n) != datagram.size()) {
-        std::fprintf(stderr, "stimulus: sendto(unicast dut:%u) failed: %s (sent=%zd of %zu)\n", dest.port,
-                     std::strerror(saved_errno), n, datagram.size());
-        return -6;
-    }
-    return 0;
+    return sendUdpUnicast(buildSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dest.ipv4_be, dest.port);
 }
 
 }  // namespace
@@ -821,42 +623,13 @@ int emitMultiSubscribeEventgroup(std::string_view iface,
         return 0;
     }
 
-    constexpr std::uint16_t kSdPort = 30490;
-
-    const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        std::fprintf(stderr, "stimulus: multi-subscribe socket() failed: %s\n",
-                     std::strerror(errno));
-        return -1;
-    }
-
     const std::uint32_t if_addr = ipv4OfInterface(iface);
     if (if_addr == 0) {
         std::fprintf(stderr,
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in multi-subscribe option\n",
                      static_cast<int>(iface.size()), iface.data());
-        ::close(sock);
         return -2;
-    }
-
-    const int reuse = 1;
-    if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        std::fprintf(stderr, "stimulus: multi-subscribe SO_REUSEADDR failed: %s\n",
-                     std::strerror(errno));
-        ::close(sock);
-        return -3;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = htons(kSdPort);
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: multi-subscribe bind(SD port %u) failed: %s\n",
-                     kSdPort, std::strerror(errno));
-        ::close(sock);
-        return -4;
     }
 
     MultiSubscribeEventgroupParams p{};
@@ -866,24 +639,8 @@ int emitMultiSubscribeEventgroup(std::string_view iface,
     p.tester_endpoint.l4proto = 0x11;
     p.session_id = 0x0001;
     p.sd_flags = 0xC0;
-    const auto datagram = buildMultiSubscribeEventgroup(p);
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dest.port);
-    dst.sin_addr.s_addr = dest.ipv4_be;
-
-    const ssize_t n = ::sendto(sock, datagram.data(), datagram.size(), 0,
-                               reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    const int saved_errno = errno;
-    ::close(sock);
-
-    if (n < 0 || static_cast<std::size_t>(n) != datagram.size()) {
-        std::fprintf(stderr, "stimulus: multi-subscribe sendto(dut:%u) failed: %s (sent=%zd of %zu)\n",
-                     dest.port, std::strerror(saved_errno), n, datagram.size());
-        return -5;
-    }
-    return 0;
+    return sendUdpUnicast(buildMultiSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dest.ipv4_be,
+                          dest.port);
 }
 
 int emitMultiSubscribeEventgroupRaw(std::string_view iface,
@@ -896,44 +653,16 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
         return 0;
     }
 
-    constexpr std::uint16_t kSdPort = 30490;
-
-    const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        std::fprintf(stderr, "stimulus: multi-subscribe-raw socket() failed: %s\n",
-                     std::strerror(errno));
-        return -1;
-    }
-
     const std::uint32_t if_addr = ipv4OfInterface(iface);
     if (if_addr == 0) {
         std::fprintf(stderr,
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in multi-subscribe-raw option\n",
                      static_cast<int>(iface.size()), iface.data());
-        ::close(sock);
         return -2;
     }
 
-    const int reuse = 1;
-    if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        std::fprintf(stderr, "stimulus: multi-subscribe-raw SO_REUSEADDR failed: %s\n",
-                     std::strerror(errno));
-        ::close(sock);
-        return -3;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = htons(kSdPort);
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: multi-subscribe-raw bind(SD port %u) failed: %s\n",
-                     kSdPort, std::strerror(errno));
-        ::close(sock);
-        return -4;
-    }
-
+    // Honor a caller-supplied tester endpoint; otherwise advertise this iface.
     if (params.tester_endpoint.ipv4_be == 0) {
         params.tester_endpoint.ipv4_be = if_addr;
         params.tester_endpoint.port = kSdPort;
@@ -941,24 +670,8 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
             params.tester_endpoint.l4proto = 0x11;
         }
     }
-    const auto datagram = buildMultiSubscribeEventgroup(params);
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dest.port);
-    dst.sin_addr.s_addr = dest.ipv4_be;
-
-    const ssize_t n = ::sendto(sock, datagram.data(), datagram.size(), 0,
-                               reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    const int saved_errno = errno;
-    ::close(sock);
-
-    if (n < 0 || static_cast<std::size_t>(n) != datagram.size()) {
-        std::fprintf(stderr, "stimulus: multi-subscribe-raw sendto(dut:%u) failed: %s (sent=%zd of %zu)\n",
-                     dest.port, std::strerror(saved_errno), n, datagram.size());
-        return -5;
-    }
-    return 0;
+    return sendUdpUnicast(buildMultiSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dest.ipv4_be,
+                          dest.port);
 }
 
 int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgroupTarget &target,
@@ -993,42 +706,16 @@ int emitSubscribeEventgroupOnce(std::string_view iface,
 int emitSubscribeEventgroupRaw(std::string_view iface,
                                SubscribeEventgroupParams params,
                                const SubscribeDestination &dest) {
-    constexpr std::uint16_t kSdPort = 30490;
-
-    const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        std::fprintf(stderr, "stimulus: subscribe-raw socket() failed: %s\n", std::strerror(errno));
-        return -1;
-    }
-
     const std::uint32_t if_addr = ipv4OfInterface(iface);
     if (if_addr == 0) {
         std::fprintf(stderr,
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in subscribe-raw option\n",
                      static_cast<int>(iface.size()), iface.data());
-        ::close(sock);
         return -2;
     }
 
-    const int reuse = 1;
-    if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        std::fprintf(stderr, "stimulus: subscribe-raw SO_REUSEADDR failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -3;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = htons(kSdPort);
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: subscribe-raw bind(SD port %u) failed: %s\n", kSdPort,
-                     std::strerror(errno));
-        ::close(sock);
-        return -4;
-    }
-
+    // Honor a caller-supplied tester endpoint; otherwise advertise this iface.
     if (params.tester_endpoint.ipv4_be == 0) {
         params.tester_endpoint.ipv4_be = if_addr;
         params.tester_endpoint.port = kSdPort;
@@ -1036,24 +723,8 @@ int emitSubscribeEventgroupRaw(std::string_view iface,
             params.tester_endpoint.l4proto = 0x11;
         }
     }
-    const auto datagram = buildSubscribeEventgroup(params);
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dest.port);
-    dst.sin_addr.s_addr = dest.ipv4_be;
-
-    const ssize_t n = ::sendto(sock, datagram.data(), datagram.size(), 0,
-                               reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    const int saved_errno = errno;
-    ::close(sock);
-
-    if (n < 0 || static_cast<std::size_t>(n) != datagram.size()) {
-        std::fprintf(stderr, "stimulus: subscribe-raw sendto(dut:%u) failed: %s (sent=%zd of %zu)\n",
-                     dest.port, std::strerror(saved_errno), n, datagram.size());
-        return -5;
-    }
-    return 0;
+    return sendUdpUnicast(buildSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dest.ipv4_be,
+                          dest.port);
 }
 
 }  // namespace tc8::stimulus

@@ -4,15 +4,14 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <ifaddrs.h>
-#include <net/if.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
-#include <string>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
+
+#include "stimulus/iface_addr.h"
 
 namespace tc8::stimulus {
 
@@ -31,25 +30,6 @@ void putBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
     b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
     b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
     b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
-std::uint32_t ipv4OfInterface(std::string_view iface_name) {
-    ifaddrs *head = nullptr;
-    if (getifaddrs(&head) != 0 || head == nullptr) {
-        return 0;
-    }
-    std::uint32_t addr = 0;
-    for (ifaddrs *a = head; a != nullptr; a = a->ifa_next) {
-        if (a->ifa_addr == nullptr || a->ifa_addr->sa_family != AF_INET) {
-            continue;
-        }
-        if (a->ifa_name != nullptr && iface_name == a->ifa_name) {
-            addr = reinterpret_cast<sockaddr_in *>(a->ifa_addr)->sin_addr.s_addr;
-            break;
-        }
-    }
-    freeifaddrs(head);
-    return addr;
 }
 
 }  // namespace

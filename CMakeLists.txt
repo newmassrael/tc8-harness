@@ -200,6 +200,7 @@ if(TC8_PORTABILITY_CHECK)
         src/stimulus/icmpv4_builder.cpp
         src/stimulus/someip_rpc_builder.cpp
         src/stimulus/someip_sd_builder.cpp
+        src/stimulus/udp_emit.cpp
         src/stimulus/tcp_segment_builder.cpp
         src/stimulus/udp_datagram_builder.cpp
         src/stimulus/upper_tester_client.cpp
@@ -257,6 +258,7 @@ add_executable(tc8-harness
     src/stimulus/icmpv4_builder.cpp
     src/stimulus/someip_rpc_builder.cpp
     src/stimulus/someip_sd_builder.cpp
+    src/stimulus/udp_emit.cpp
     src/stimulus/tcp_segment_builder.cpp
     src/stimulus/udp_datagram_builder.cpp
     src/stimulus/upper_tester_client.cpp

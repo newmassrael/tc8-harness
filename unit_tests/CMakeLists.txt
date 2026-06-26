@@ -28,6 +28,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/someip_sd_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/udp_emit.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
@@ -115,6 +116,9 @@ tc8_add_unit_test(icmpv4_builder_test)
 tc8_add_unit_test(ipv4_decode_test)
 tc8_add_unit_test(tcp_segment_builder_test)
 tc8_add_unit_test(udp_datagram_builder_test)
+# Fixed source-port UDP emit (sendUdpUnicast): loopback round-trip asserts the
+# datagram leaves from the caller-chosen source port.
+tc8_add_unit_test(udp_emit_test)
 tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
 tc8_add_unit_test(tcp_captured_test)
