@@ -619,17 +619,26 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)
 
     # ── Optional lwIP backend (utm-sdk-lwip component) ──
-    # The lwIP SocketBackend bridge, shipped as SOURCE because it must compile
-    # against the OEM's own (target-specific) lwIP stack — the SDK ships the
-    # bridge to the testability seam, not the stack. These are the EXACT files the
-    # in-tree tc8-lwip-utm builds (dut/lwip_dut), so build-lwip-dut keeps them
-    # compiling — there is no hand-copy to drift. An lwIP OEM installs utm-sdk too
-    # (the bridge's header pulls in net/ + testability/, the .cpp pulls in wire/),
-    # compiles lwip_socket_backend.cpp into its UTM, and links
-    # tc8::tc8_testability_core (the backend-agnostic core, no POSIX adapter).
-    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.h
+    # The lwIP SocketBackend bridge AND the stack bring-up, shipped as SOURCE
+    # because they must compile against the OEM's own (target-specific) lwIP stack
+    # — the SDK ships the bridge + bring-up to the testability seam, not the stack.
+    # These are the EXACT files the in-tree tc8-lwip-utm builds (dut/lwip_dut), so
+    # build-lwip-dut keeps them compiling — there is no hand-copy to drift. An lwIP
+    # OEM installs utm-sdk too (the bridge's header pulls in net/ + testability/,
+    # the .cpp pulls in wire/), compiles lwip_socket_backend.cpp + the bring-up
+    # into its UTM, and links tc8::tc8_testability_core (the backend-agnostic core,
+    # no POSIX adapter). The bring-up is fault-free (the conformance fault seams
+    # live only in tc8-lwip-dut) but unix-port specific: it brings the stack up on
+    # the unix tapif via examples/example_app/default_netif.h + the tcp_isn addon
+    # (both on the OEM's lwIP/contrib include path). A real embedded netif replaces
+    # the bring-up; shipping the unix-port one makes the host/CI reference build work.
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.h
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk-lwip)
-    install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.cpp
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.cpp
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_stack_bringup.cpp
         DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
     # Reference lwIP config: the in-tree tc8-lwip-utm's own, layered — utm/lwipopts.h
     # turns on LWIP_IGMP + multicast TX (required by join/leaveMulticast) then

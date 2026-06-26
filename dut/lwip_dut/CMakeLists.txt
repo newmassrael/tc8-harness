@@ -68,12 +68,11 @@ include(${LWIP_CONTRIB_DIR}/ports/unix/Filelists.cmake)
 set(_tc8_lwip_common_srcs
     lwip_stack_bringup.cpp
     lwip_socket_backend.cpp
-    # Fixture fault seams installed by lwip_stack_bringup (inert until armed): the
-    # generic egress field-fault hook (OpSetEgressFlavor) and the ingress
-    # reaction-fault hook (OpSetIngressFlavor — ARP emission §4.2.4.2 + UDP acceptance
-    # §4.6.5.4). Both link into both binaries via the bring-up TU.
-    lwip_egress_fault.cpp
-    lwip_ingress_fault.cpp
+    # The fixture fault seams (lwip_egress_fault / lwip_ingress_fault) are NOT
+    # here: they are conformance-DUT only and are carried by tc8-lwip-dut's own
+    # SRCS, not by the bring-up TU. Keeping them out of the shared set is what
+    # makes the UTM (and the exported utm-sdk-lwip bring-up) genuinely fault-free
+    # — tc8-lwip-utm building without them proves the bring-up has no fault dep.
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/testability/protocol_server.cpp
     # tc8::wire (icmp echo body + ip checksum): syscall-free, shared with the
     # harness/Linux tc8-dut.
@@ -168,10 +167,17 @@ endfunction()
 # (lwip_stack_probe = TCP-info / original-dst introspection) and the lwIP-only ARP
 # cache-conditioning opcode (lwip_ut_extensions). lwip_socket_backend (in the
 # common srcs) supplies the socket primitives for both the UT and testability.
+# The fault seams + their installer live HERE, not in the common srcs — DUT-only,
+# so the UTM bring-up stays fault-free. Egress field-fault (OpSetEgressFlavor) +
+# ingress reaction-fault (OpSetIngressFlavor — ARP emission §4.2.4.2 + UDP
+# acceptance §4.6.5.4).
 tc8_lwip_app(tc8-lwip-dut SRCS
     tc8_lwip_dut.cpp
     lwip_stack_probe.cpp
     lwip_ut_extensions.cpp
+    lwip_fault_hooks.cpp
+    lwip_egress_fault.cpp
+    lwip_ingress_fault.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/upper_tester/ut_server.cpp)
 
 # The vendor-neutral AUTOSAR engines (src/autosar/) — pure byte math, the same

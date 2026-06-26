@@ -74,16 +74,32 @@ cmake --install <tc8-build> --component utm-sdk      --prefix <sdk>
 cmake --install <tc8-build> --component utm-sdk-lwip --prefix <sdk>
 ```
 
-It ships the lwIP↔seam bridge as **source** — `lwip_socket_backend.{h,cpp}` plus a
-reference, layered `lwip/utm/lwipopts.h` — because the bridge must compile against
-*your* (target-specific) lwIP stack; the SDK ships the bridge, not the stack. Your
-build compiles `lwip/lwip_socket_backend.cpp` against your lwIP, links
-`tc8::tc8_testability_core` (the backend-agnostic core — no POSIX adapter), and
-swaps the backend in `main()`:
+It ships, as **source** (the SDK ships the bridge + bring-up to the seam, not the
+stack — they must compile against *your* lwIP):
+
+- `lwip_socket_backend.{h,cpp}` — the lwIP↔`SocketBackend` bridge
+- `lwip_stack_bringup.{h,cpp}` — `BringUpLwipStack()` (threaded `tcpip_init`, netif
+  setup, static address from `TC8_LWIP_*` env, RFC 6528 ISN seed) + `ParkUntilSigterm()`
+- a reference, layered `lwip/utm/lwipopts.h`
+
+Your build compiles `lwip/lwip_socket_backend.cpp` + `lwip/lwip_stack_bringup.cpp`
+against your lwIP, links `tc8::tc8_testability_core` (the backend-agnostic core — no
+POSIX adapter) + the engines, and composes `main()`:
 
 ```cpp
+tc8::lwip_dut::BringUpLwipStack();                 // from utm-sdk-lwip
 tc8::testability::ProtocolServer server{std::make_unique<tc8::lwip_dut::LwipSocketBackend>()};
+server.registerModule(std::make_unique<MyOemModule>(/* my config */));
+server.start(/* port */);
+tc8::lwip_dut::ParkUntilSigterm();
 ```
+
+The shipped bring-up is **fault-free** (the conformance fault seams stay in the
+in-tree DUT only) but **unix-port specific**: it brings the stack up on the unix
+tapif, so the OEM must have `examples/example_app/default_netif.h` and the `tcp_isn`
+addon on its lwIP/contrib include path. A real embedded netif replaces the
+bring-up; shipping the unix-port one makes the host/CI reference build work out of
+the box, as the bridge does.
 
 `LwipSocketBackend` requires `LWIP_IGMP` + `LWIP_MULTICAST_TX_OPTIONS`
 (`joinMulticast`/`leaveMulticast`); the shipped `lwip/utm/lwipopts.h` turns these

@@ -13,6 +13,7 @@
 #include "lwip/ip4_addr.h"
 #include "lwip/netif.h"
 
+#include "lwip_fault_hooks.h"
 #include "lwip_socket_backend.h"
 #include "lwip_stack_bringup.h"
 #include "lwip_stack_probe.h"
@@ -23,6 +24,10 @@
 
 int main() {
     const ip4_addr_t addr = tc8::lwip_dut::BringUpLwipStack();
+    // Arm the conformance fault seams (egress field / ingress reaction), kept out
+    // of the exported bring-up so the UTM carries no fixture fault code. Before
+    // any server starts, so no flavor can be armed in the meantime.
+    tc8::lwip_dut::installFaultHooks();
 
     // TC8 §4.8.5 Upper Tester channel, running on the platform-agnostic
     // UpperTesterServer core (shared verbatim with the Linux tc8-dut) paired with

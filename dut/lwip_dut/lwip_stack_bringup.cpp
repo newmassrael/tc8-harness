@@ -19,9 +19,6 @@ extern "C" {
 }
 #include "tcp_isn.h"
 
-#include "lwip_ingress_fault.h"
-#include "lwip_egress_fault.h"
-
 // lwipopts.h routes LWIP_PLATFORM_ASSERT here: loud + fatal, because a tripped
 // stack invariant means every verdict after it is untrustworthy. Defined once
 // here so every binary that links this bring-up TU gets the sink (the core
@@ -91,17 +88,12 @@ ip4_addr_t BringUpLwipStack() {
     init_default_netif(&addr, &mask, &gw);
     netif_set_up(netif_default);
     netif_set_link_up(netif_default);
-    // Wrap the tap link-output with the egress field-fault hook (inert until an
-    // OpSetEgressFlavor sets a non-None flavor). Under the core lock with the rest of
-    // the netif setup, before any frame can leave.
-    installEgressFaultHook(netif_default);
-    // Wrap the tap input with the ingress reaction-fault hook (inert until an
-    // OpSetIngressFlavor sets a non-None flavor). After the egress hook — the ARP
-    // flavor's synthesized Reply is sent via netif->linkoutput, which the egress hook
-    // leaves untouched while no egress flavor is armed.
-    installIngressFaultHook(netif_default);
     UNLOCK_TCPIP_CORE();
 
+    // Fault-injection hooks are NOT installed here: a UTM is not a fault fixture,
+    // and this bring-up is exported (utm-sdk-lwip) for out-of-tree UTMs. The
+    // conformance DUT calls installFaultHooks() (lwip_fault_hooks.h) right after
+    // this returns; see that header for why the gap between the two is benign.
     return addr;
 }
 
