@@ -570,11 +570,13 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # are already BUILD_INTERFACE-scoped, so this is purely additive).
     target_include_directories(tc8_wire INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    # The core and the POSIX backend are the archive targets that carry the
-    # exported headers; the tc8_testability_server alias inherits the include via
-    # its links to both.
-    target_include_directories(tc8_testability_core INTERFACE
+    # The ports target carries the install-tree include root for the seam headers;
+    # the core, the POSIX backend, and the alias all inherit it via their link to
+    # the ports.
+    target_include_directories(tc8_testability_ports INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    # The POSIX adapter also installs its own header (posix_socket_backend.h) at the
+    # include root, so it carries the install include for consumers of that header.
     target_include_directories(tc8_posix_backend INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     # AUTOSAR engines join the same exported surface so the OEM repo links the
@@ -587,12 +589,12 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     endforeach()
 
-    # Export the split archives (core + POSIX backend) AND the INTERFACE alias.
-    # install(EXPORT) checks the link closure, so the alias being in the set forces
-    # core + posix_backend to be exported too — a dropped one fails install, not a
-    # consumer.
+    # Export the ports (the seam), the split archives (core + POSIX adapter), and
+    # the INTERFACE convenience union. install(EXPORT) checks the link closure, so
+    # every target any exported one links must itself be exported — a dropped one
+    # fails install, not a consumer.
     install(TARGETS tc8_testability_server tc8_testability_core tc8_posix_backend
-            tc8_wire ${TC8_UTM_ENGINES}
+            tc8_testability_ports tc8_wire ${TC8_UTM_ENGINES}
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
 
@@ -601,6 +603,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     install(FILES
             ${PROJECT_SOURCE_DIR}/src/testability/middleware.h
             ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.h
+            ${PROJECT_SOURCE_DIR}/src/testability/socket_backend.h
             ${PROJECT_SOURCE_DIR}/src/testability/reactor.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/testability COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/src/net/socket_backend.h

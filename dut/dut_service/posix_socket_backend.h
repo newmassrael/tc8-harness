@@ -10,7 +10,7 @@
 #include <string>
 
 #include "net/socket_backend.h"
-#include "testability/protocol_server.h"
+#include "testability/socket_backend.h"
 
 namespace tc8::dut {
 

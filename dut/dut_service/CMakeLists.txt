@@ -1,16 +1,18 @@
-# The AUTOSAR testability endpoint. Ports & adapters, split into two archives so
-# a non-POSIX consumer (an out-of-tree lwIP UTM) can link the protocol core
-# WITHOUT the POSIX adapter — the core has no socket syscalls, only the
-# SocketBackend seam:
+# The AUTOSAR testability endpoint, structured as ports & adapters so a non-POSIX
+# consumer (an out-of-tree lwIP UTM) links the protocol core WITHOUT the POSIX
+# adapter, and neither adapter depends on the application:
 #
+#   tc8_testability_ports  — header-only INTERFACE: the interfaces the core owns
+#                            and adapters implement (net::SocketBackend +
+#                            testability::SocketBackend + the Reactor's
+#                            IoMultiplexer/Waker). No archive, just the seam.
 #   tc8_testability_core   — the platform-agnostic protocol core
-#                            (src/testability/protocol_server.cpp). Depends only
-#                            on tc8_wire + Threads and the SocketBackend seam.
-#   tc8_posix_backend      — the POSIX SocketBackend adapter (posix_socket_backend).
-#   tc8_testability_server — INTERFACE convenience alias = core + POSIX backend,
-#                            preserving the historical target name so existing
-#                            consumers (tc8-dut, tc8-utm, the unit tests, and the
-#                            utm-sdk export) link one name and still get both.
+#                            (src/testability/protocol_server.cpp). Depends on the
+#                            ports + tc8_wire + Threads. No socket syscalls.
+#   tc8_posix_backend      — the POSIX adapter (posix_socket_backend). Depends on
+#                            the ports + tc8_wire — NOT on the core.
+#   tc8_testability_server — INTERFACE convenience union = core + POSIX adapter,
+#                            under one name (consumers may equally link the two).
 #
 # Built once as libraries so the DUT service, the standalone tc8-utm, and the
 # unit tests all link the same translation units. The lwIP DUT fixture compiles
@@ -19,34 +21,34 @@
 # logic across both platforms.
 find_package(Threads REQUIRED)
 
+# The ports (the seam). Both the core and every adapter depend on THIS, never on
+# each other's implementation — that is the ports-and-adapters direction.
+add_library(tc8_testability_ports INTERFACE)
+target_include_directories(tc8_testability_ports INTERFACE
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+)
+
 add_library(tc8_testability_core STATIC
     ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.cpp
 )
-target_include_directories(tc8_testability_core PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
-# The ICMP ECHO_REQUEST primitive frames its packet via the shared wire layer
-# (RFC 1071 checksum + RFC 792 echo body); PUBLIC so consumers inherit tc8_wire
-# transitively rather than each naming the source. Threads is PUBLIC too: the
-# ProtocolServer and the MiddlewareModule executors use std::thread, so an
-# out-of-tree consumer linking the core gets -pthread.
-target_link_libraries(tc8_testability_core PUBLIC tc8_wire Threads::Threads)
+# tc8_wire: the ICMP ECHO_REQUEST primitive frames via the shared wire layer
+# (RFC 1071 checksum + RFC 792 echo body). Threads: the ProtocolServer and the
+# MiddlewareModule executors use std::thread, so a consumer linking the core gets
+# -pthread. All PUBLIC so an out-of-tree consumer inherits them transitively.
+target_link_libraries(tc8_testability_core PUBLIC
+    tc8_testability_ports tc8_wire Threads::Threads)
 
-# The POSIX adapter implements the seam declared by the core's headers and frames
-# ICMP via tc8_wire; it does not call into the ProtocolServer. Link the core so
-# the seam's typeinfo/headers resolve and a consumer linking only the backend
-# still gets the core transitively.
+# The POSIX adapter implements the testability port and frames ICMP via tc8_wire;
+# it does NOT call into the ProtocolServer, so it depends on the ports + tc8_wire,
+# never on the core. Its own dir is PUBLIC so consumers find posix_socket_backend.h.
 add_library(tc8_posix_backend STATIC
     posix_socket_backend.cpp
 )
 target_include_directories(tc8_posix_backend PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-target_link_libraries(tc8_posix_backend PUBLIC tc8_testability_core)
+target_link_libraries(tc8_posix_backend PUBLIC tc8_testability_ports tc8_wire)
 
 add_library(tc8_testability_server INTERFACE)
 target_link_libraries(tc8_testability_server INTERFACE
