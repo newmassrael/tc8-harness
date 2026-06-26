@@ -55,6 +55,20 @@ public:
     // exception setSignal() throws for one.
     bool hasSignal(std::uint32_t sig_id) const;
 
+    // Database introspection (const, non-throwing like hasSignal): the PDU/signal
+    // facts a caller needs to size and frame a response without copying the
+    // injected database. An unknown id answers 0 / empty rather than throwing.
+
+    // Byte width of a signal, ceil(bit_size / 8); 0 if sig_id is not configured.
+    std::size_t signalWidth(std::uint32_t sig_id) const;
+
+    // The signal ids a PDU carries, in database (definition) order; empty if
+    // pdu_id is not configured.
+    std::vector<std::uint32_t> pduSignals(std::uint32_t pdu_id) const;
+
+    // A PDU's length in bytes; 0 if pdu_id is not configured.
+    std::size_t pduLength(std::uint32_t pdu_id) const;
+
     // Pack every signal of the PDU into a freshly zeroed length-byte buffer.
     std::vector<std::uint8_t> packPdu(std::uint32_t pdu_id) const;
 

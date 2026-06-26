@@ -101,5 +101,28 @@ TEST(ComLookup, HasSignalReportsMembership) {
     EXPECT_FALSE(eng.hasSignal(999));
 }
 
+// The introspection accessors expose the injected database (signal width, PDU
+// membership, PDU length) without copying it — the SSOT a module frames its
+// responses from instead of duplicating the database.
+TEST(ComIntrospection, ReportsWidthMembersAndLength) {
+    // Two signals in one 3-byte PDU: a 10-bit (-> 2 bytes) and a 4-bit (-> 1 byte).
+    SignalEngine eng{{PduDef{7, 3, {SignalDef{10, 0, 10, Endianness::kLittle},
+                                    SignalDef{11, 12, 4, Endianness::kLittle}}}}};
+
+    EXPECT_EQ(eng.signalWidth(10), 2u);  // ceil(10 / 8)
+    EXPECT_EQ(eng.signalWidth(11), 1u);  // ceil(4 / 8)
+    EXPECT_EQ(eng.pduLength(7), 3u);
+    EXPECT_EQ(eng.pduSignals(7), (std::vector<std::uint32_t>{10, 11}));  // definition order
+}
+
+// Unknown ids answer 0 / empty rather than throwing, matching hasSignal's
+// non-throwing contract (a caller can probe without catching).
+TEST(ComIntrospection, UnknownIdsAreZeroAndEmpty) {
+    SignalEngine eng{{onePdu(SignalDef{10, 0, 4, Endianness::kLittle}, 1)}};
+    EXPECT_EQ(eng.signalWidth(999), 0u);
+    EXPECT_EQ(eng.pduLength(999), 0u);
+    EXPECT_TRUE(eng.pduSignals(999).empty());
+}
+
 }  // namespace
 }  // namespace tc8::com

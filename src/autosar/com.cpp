@@ -88,6 +88,34 @@ bool SignalEngine::hasSignal(std::uint32_t sig_id) const {
     return sig_index_.find(sig_id) != sig_index_.end();
 }
 
+std::size_t SignalEngine::signalWidth(std::uint32_t sig_id) const {
+    const auto it = sig_index_.find(sig_id);
+    if (it == sig_index_.end()) {
+        return 0;
+    }
+    const PduDef& pdu = pdus_.at(it->second.first);
+    const std::size_t bits = pdu.signals[it->second.second].bit_size;
+    return (bits + 7u) / 8u;  // ceil(bit_size / 8)
+}
+
+std::vector<std::uint32_t> SignalEngine::pduSignals(std::uint32_t pdu_id) const {
+    const auto it = pdus_.find(pdu_id);
+    if (it == pdus_.end()) {
+        return {};
+    }
+    std::vector<std::uint32_t> ids;
+    ids.reserve(it->second.signals.size());
+    for (const SignalDef& sig : it->second.signals) {
+        ids.push_back(sig.id);
+    }
+    return ids;
+}
+
+std::size_t SignalEngine::pduLength(std::uint32_t pdu_id) const {
+    const auto it = pdus_.find(pdu_id);
+    return it == pdus_.end() ? 0 : it->second.length;
+}
+
 std::vector<std::uint8_t> SignalEngine::packPdu(std::uint32_t pdu_id) const {
     const auto it = pdus_.find(pdu_id);
     if (it == pdus_.end()) {
