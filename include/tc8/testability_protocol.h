@@ -297,6 +297,13 @@ inline void appendU16(std::vector<std::uint8_t> &dat, std::uint16_t v) {
     detail::putBe16(dat, v);
 }
 
+// PRS_TPSP §6.7 uint32 scalar — the uint16 pair's 32-bit sibling (EthTP carries
+// ConnectionID / MessageID as uint32). A thin export of the encoding the header
+// already owns, exactly as appendU16 wraps putBe16.
+inline void appendU32(std::vector<std::uint8_t> &dat, std::uint32_t v) {
+    detail::putBe32(dat, v);
+}
+
 // PRS_TPSP §6.7 vint8: uint16 length prefix followed by the n bytes.
 inline void appendVint8(std::vector<std::uint8_t> &dat, const std::uint8_t *p,
                         std::size_t n) {
@@ -336,6 +343,10 @@ inline void appendText(std::vector<std::uint8_t> &dat, const std::string &text) 
 
 inline std::uint16_t readU16(const std::uint8_t *p) {
     return detail::getBe16(p);
+}
+
+inline std::uint32_t readU32(const std::uint8_t *p) {
+    return detail::getBe32(p);
 }
 
 // Parse a PRS_TPSP §6.7 vint8 at dat[off]: advance `off` past the field and point

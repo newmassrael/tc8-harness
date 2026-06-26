@@ -209,6 +209,18 @@ TEST(TestabilityParams, Vint8RoundTripAndBounds) {
     EXPECT_FALSE(tp::readVint8(truncated, sizeof(truncated), toff, out, out_len));
 }
 
+// appendU32/readU32 are the uint32 PRS_TPSP §6.7 scalar pair (EthTP carries
+// ConnectionID / MessageID as uint32). Big-endian round trip through the SSOT,
+// the 32-bit counterpart of the appendU16/readU16 path.
+TEST(TestabilityParams, U32RoundTrip) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU32(dat, 0x01020304u);
+    ASSERT_EQ(dat.size(), 4u);
+    EXPECT_EQ(dat[0], 0x01u);  // big-endian: most significant byte first
+    EXPECT_EQ(dat[3], 0x04u);
+    EXPECT_EQ(tp::readU32(dat.data()), 0x01020304u);
+}
+
 // ── Hermetic socket round trip: a loopback SOME/IP echo responder ──
 
 // Minimal in-process testability responder: bind a UDP socket on 127.0.0.1,
