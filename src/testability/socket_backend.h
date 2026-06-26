@@ -5,7 +5,7 @@
 #include <string>
 
 #include "net/socket_backend.h"
-#include "testability/reactor.h"
+#include "testability/io_multiplexer.h"
 
 namespace tc8::testability {
 
@@ -22,7 +22,7 @@ using net::Endpoint;
 // Tester server, which has none of these primitives, depends on the generic
 // base alone and reuses the very same adapters.
 //
-// It also implements IoMultiplexer (poll + createWaker, src/testability/reactor.h)
+// It also implements IoMultiplexer (poll + createWaker, testability/io_multiplexer.h)
 // — the narrow capability the per-module Reactor needs. Segregated this way, the
 // Reactor depends only on IoMultiplexer (not this fat class), and the Upper Tester
 // depends only on net::SocketBackend (not the multiplexer it never uses).

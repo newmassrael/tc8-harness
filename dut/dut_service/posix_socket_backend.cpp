@@ -25,6 +25,7 @@
 #include <optional>
 #include <vector>
 
+#include "tc8/testability_protocol.h"
 #include "wire/ip_checksum.h"
 
 namespace tc8::dut {

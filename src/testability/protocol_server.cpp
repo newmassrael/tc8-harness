@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include "testability/reactor.h"
 #include "wire/icmp_echo.h"
 
 namespace tc8::testability {

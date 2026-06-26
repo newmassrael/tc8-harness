@@ -40,6 +40,7 @@
 #include "tc8/testability_protocol.h"
 #include "testability/middleware.h"
 #include "testability/protocol_server.h"
+#include "testability/reactor.h"
 
 #include "lwip/init.h"
 #include "lwip/sockets.h"
