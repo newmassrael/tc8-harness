@@ -91,20 +91,18 @@ CaseRegistry &CaseRegistry::instance() {
 
 void CaseRegistry::add(CaseEntry entry) {
     for (const auto &existing : entries_) {
-        if (equalsIgnoreAsciiCase(existing.id, entry.id)) {
-            // Two TestCaseTraits<> specializations claim the same kCaseId
-            // (case-insensitively). This is almost always a copy-paste bug
-            // where a new case header was duplicated without updating the
-            // string — the silent first-wins behaviour it would produce is
-            // worse than aborting. The check is case-insensitive because
-            // find() now resolves the same way: two ids equal under ASCII
-            // case would make resolution ambiguous, so the registry's
-            // canonical-uniqueness invariant must reject them at the source.
+        // Identity is (suite, id): the SAME id in a DIFFERENT suite is allowed
+        // (that is the whole point of suites — an OEM catalog reusing the
+        // literal spec ids). Only a same-(suite, id) pair is a duplicate, which
+        // is almost always a copy-paste bug; aborting beats silent first-wins.
+        if (equalsIgnoreAsciiCase(existing.suite, entry.suite) &&
+            equalsIgnoreAsciiCase(existing.id, entry.id)) {
             std::fprintf(stderr,
-                         "tc8-harness: duplicate case registration for '%.*s'"
-                         " — two TestCaseTraits<> specializations share the"
-                         " same kCaseId (case-insensitively). Aborting before"
-                         " main().\n",
+                         "tc8-harness: duplicate case registration for "
+                         "'%.*s:%.*s' — two TestCaseTraits<> specializations "
+                         "share the same (suite, kCaseId) (case-insensitively). "
+                         "Aborting before main().\n",
+                         static_cast<int>(entry.suite.size()), entry.suite.data(),
                          static_cast<int>(entry.id.size()), entry.id.data());
             std::abort();
         }
@@ -113,8 +111,22 @@ void CaseRegistry::add(CaseEntry entry) {
 }
 
 const CaseEntry *CaseRegistry::find(std::string_view id) const {
+    const CaseEntry *match = nullptr;
     for (const auto &e : entries_) {
         if (equalsIgnoreAsciiCase(e.id, id)) {
+            if (match != nullptr) {
+                // Ambiguous across suites — caller must qualify as suite:id.
+                return nullptr;
+            }
+            match = &e;
+        }
+    }
+    return match;
+}
+
+const CaseEntry *CaseRegistry::find(std::string_view suite, std::string_view id) const {
+    for (const auto &e : entries_) {
+        if (equalsIgnoreAsciiCase(e.suite, suite) && equalsIgnoreAsciiCase(e.id, id)) {
             return &e;
         }
     }
@@ -131,6 +143,12 @@ std::vector<const CaseEntry *> CaseRegistry::listSorted(bool include_deprecated)
         out.push_back(&e);
     }
     std::sort(out.begin(), out.end(), [](const CaseEntry *a, const CaseEntry *b) {
+        // Suite is the primary axis so each catalog groups together; the in-tree
+        // "tc8" suite sorts first by convention (it is the lexicographic min vs
+        // typical OEM names, and the only suite when none are injected).
+        if (a->suite != b->suite) {
+            return a->suite < b->suite;
+        }
         const auto sa = splitCaseId(a->id);
         const auto sb = splitCaseId(b->id);
         if (sa.category != sb.category) {

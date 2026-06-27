@@ -13,6 +13,15 @@
 #include "test_config.h"
 #include "test_runner.h"
 
+// A case's catalog ("suite"). The in-tree catalog is "tc8"; an injected OEM
+// catalog defines this (via its CMake-generated register stub) to its own name
+// so it can reuse the same literal spec case-ids as the in-tree catalog without
+// colliding. A case's identity is the pair (suite, id) at every layer. Default
+// here so an unguarded include (or an in-tree stub) resolves to "tc8".
+#ifndef TC8_CASE_SUITE
+#define TC8_CASE_SUITE "tc8"
+#endif
+
 namespace tc8::sce {
 
 // Flat metadata copy of TestCaseTraits<SM>, carried by value so the CLI and
@@ -43,6 +52,10 @@ struct CaseEntry {
     // in the selected --dut-control backend's capabilities() (Tier 2 2b#4).
     std::uint32_t required_capabilities = 0;
     std::function<std::unique_ptr<ITestRunner>(const ::tc8::TestConfig &)> factory;
+    // Catalog this case belongs to. Defaults to "tc8" so every existing
+    // construction (which omits it) stays in the in-tree suite; the OEM-suite
+    // register stub sets it via TC8_CASE_SUITE. Identity is (suite, id).
+    std::string_view suite = "tc8";
 };
 
 // Meyers-singleton registry populated at static-init time by each case
@@ -55,7 +68,13 @@ public:
 
     void add(CaseEntry entry);
 
+    // Unqualified lookup: resolves an id that is unique across all suites.
+    // Returns nullptr if no match OR if the id is ambiguous (present in more
+    // than one suite) — callers then qualify via find(suite, id).
     const CaseEntry *find(std::string_view id) const;
+
+    // Qualified lookup by (suite, id) — both compared case-insensitively.
+    const CaseEntry *find(std::string_view suite, std::string_view id) const;
 
     // Returns non-owning pointers into the internal vector. Pointers stay
     // valid for the lifetime of the program (registry is never mutated
@@ -95,7 +114,8 @@ template <typename StateMachine> struct CaseRegistrar {
                       T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(), requiredCapabilitiesOf<T>(),
                       [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
-                      }});
+                      },
+                      TC8_CASE_SUITE});
     }
 };
 

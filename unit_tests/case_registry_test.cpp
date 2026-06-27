@@ -49,6 +49,13 @@ CaseEntry makeEntry(std::string_view id, bool deprecated = false) {
         }};
 }
 
+// Same as makeEntry but in an explicit suite (the OEM-catalog axis).
+CaseEntry makeEntryInSuite(std::string_view suite, std::string_view id) {
+    CaseEntry e = makeEntry(id);
+    e.suite = suite;
+    return e;
+}
+
 TEST(IsWellFormedCaseId, AcceptsRealTc8Ids) {
     EXPECT_TRUE(isWellFormedCaseId("SOMEIPSRV_FORMAT_01"));
     EXPECT_TRUE(isWellFormedCaseId("ARP_49"));
@@ -230,8 +237,34 @@ TEST(CaseRegistry, FactoryProducesFreshRunner) {
 TEST(CaseRegistryDeathTest, DuplicateIdAborts) {
     ::testing::FLAGS_gtest_death_test_style = "threadsafe";
     CaseRegistry reg;
-    reg.add(makeEntry("ARP_01"));
-    EXPECT_DEATH_IF_SUPPORTED(reg.add(makeEntry("ARP_01")), "duplicate case registration for 'ARP_01'");
+    reg.add(makeEntry("ARP_01"));  // suite defaults to "tc8"
+    EXPECT_DEATH_IF_SUPPORTED(reg.add(makeEntry("ARP_01")),
+                              "duplicate case registration for 'tc8:ARP_01'");
+}
+
+// The suite axis: the same literal case id in two different suites coexists
+// (an OEM catalog reusing in-tree spec ids), resolves via qualified find, and
+// is ambiguous (nullptr) via the unqualified find.
+TEST(CaseRegistry, SameIdDifferentSuitesCoexist) {
+    CaseRegistry reg;
+    reg.add(makeEntry("ARP_01"));                 // suite "tc8"
+    reg.add(makeEntryInSuite("hkmc", "ARP_01"));  // must NOT abort
+    const CaseEntry *t = reg.find("tc8", "ARP_01");
+    const CaseEntry *h = reg.find("hkmc", "ARP_01");
+    ASSERT_NE(t, nullptr);
+    ASSERT_NE(h, nullptr);
+    EXPECT_EQ(t->suite, "tc8");
+    EXPECT_EQ(h->suite, "hkmc");
+    EXPECT_EQ(reg.find("ARP_01"), nullptr);  // ambiguous across suites
+}
+
+// A duplicate within the SAME suite still aborts.
+TEST(CaseRegistryDeathTest, DuplicateSuiteIdAborts) {
+    ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+    CaseRegistry reg;
+    reg.add(makeEntryInSuite("hkmc", "ARP_01"));
+    EXPECT_DEATH_IF_SUPPORTED(reg.add(makeEntryInSuite("hkmc", "ARP_01")),
+                              "duplicate case registration for 'hkmc:ARP_01'");
 }
 
 // Out-of-tree capture-filter escape hatch: bpfExpressionOf<T>() reads the
