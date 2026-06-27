@@ -157,9 +157,10 @@ interface EnhancedTestability {
     }
 
     <** @description: Reliable (TCP) test event — OA TC8 v3.0 Table 2 (p414)
-      TestEventUINT8Reliable, Event ID 0x8003, eventgroup 0x0002, served over
-      TCP (SomeIpReliable=true in ets.fdepl). Trigger-driven via
-      triggerEventUINT8Reliable. **>
+      TestEventUINT8Reliable, Event ID 0x8003, served over TCP
+      (SomeIpReliable=true in ets.fdepl). Trigger-driven via
+      triggerEventUINT8Reliable. Eventgroup binding is isolated in ets.fdepl
+      (see the deviation note there) to avoid poisoning the UDP eventgroup. **>
     broadcast TestEventUINT8Reliable {
         out { UInt8 value }
     }

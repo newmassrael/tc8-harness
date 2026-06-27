@@ -107,12 +107,22 @@ define org.genivi.commonapi.someip.deployment for interface org.tc8.ets.Enhanced
         SomeIpReliable = false
     }
 
-    // OA TC8 v3.0 Table 2 (p414) — TestEventUINT8Reliable, Event ID 0x8003,
-    // eventgroup 0x0002. SomeIpReliable=true routes the Notification over the
-    // TCP unicast endpoint (port 30501 in the provider block).
+    // OA TC8 v3.0 Table 2 (p414) — TestEventUINT8Reliable, Event ID 0x8003.
+    // SomeIpReliable=true routes the Notification over the TCP unicast endpoint
+    // (port 30501 in the provider block).
+    //
+    // DEVIATION: the spec places 0x8003 on eventgroup 0x0002 (mixed with the
+    // unreliable events). vsomeip then NACKs any SubscribeEventgroup that does
+    // not also carry a valid TCP endpoint option ("event reliability 3 not
+    // matching provided endpoint options") — but the harness's
+    // emitSubscribeEventgroupBoot offers only a UDP endpoint, so a mixed eg
+    // 0x0002 breaks every UDP-only Subscribe (147/148/149/150/121). Until the
+    // SD builder can offer a dual UDP+TCP endpoint Subscribe (the faithful
+    // ETS_151 follow-up), 0x8003 is isolated in its own reliable-only eventgroup
+    // 0x0007 so it stays offered/subscribable without poisoning eg 0x0002.
     broadcast TestEventUINT8Reliable {
         SomeIpEventID = 0x8003
-        SomeIpEventGroups = { 0x0002 }
+        SomeIpEventGroups = { 0x0007 }
         SomeIpReliable = true
     }
 
