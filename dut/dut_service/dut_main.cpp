@@ -8,6 +8,9 @@
 
 #include <CommonAPI/CommonAPI.hpp>
 
+#include "ets_emission.h"
+#include "ets_extension.h"
+#include "ets_factory.h"
 #include "ets_fault.h"
 #include "ets_impl.h"
 #include "ets_impl_2.h"
@@ -47,7 +50,7 @@ int main() {
     std::signal(SIGTERM, onSignal);
 
     auto runtime = CommonAPI::Runtime::get();
-    auto impl = std::make_shared<tc8::dut::EtsImpl>();
+    auto impl = tc8::dut::createEtsStub();
 
     if (!runtime->registerService(kDomain, kInstance, impl)) {
         std::fprintf(stderr, "tc8-dut: registerService failed\n");
@@ -57,6 +60,29 @@ int main() {
     }
     std::printf("tc8-dut: %s registered (domain=%s instance=%s)\n",
                 kInterface, kDomain, kInstance);
+
+    // OA TC8 v3.0 trigger-driven emission (Table 1 p413). Each source fires only
+    // after its triggerEventX Method (so must-NOT-send cases hold); the legacy
+    // 250 ms TestEventUINT8 loop further below stays intact for the existing
+    // suite. The controller is stopped before _Exit (which skips dtors).
+    tc8::dut::EmissionController emission;
+    emission.addSource(std::string(tc8::dut::ets_event::kUint8),
+                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8Event(v++); });
+    emission.addSource(std::string(tc8::dut::ets_event::kArray),
+                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8ArrayEvent({v, v, v}); ++v; });
+    emission.addSource(std::string(tc8::dut::ets_event::kReliable),
+                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8ReliableEvent(v++); });
+    emission.addSource(std::string(tc8::dut::ets_event::kE2E),
+                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8E2EEvent(v++); });
+    emission.addSource(std::string(tc8::dut::ets_event::kMulticast),
+                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8MulticastEvent(v++); });
+    impl->setEmissionController(&emission);
+    emission.start();
+
+    // OEM extend seam (O2): no-op in the public DUT. An OEM TU's strong
+    // createEtsExtension() offers its NDA event surface via raw vsomeip here.
+    std::unique_ptr<tc8::dut::IEtsExtension> ets_extension = tc8::dut::createEtsExtension();
+    ets_extension->onRegister();
 
     // §5.1.6 SOMEIP_ETS_089 — bind suspendInterface override to a
     // detached unregister/re-register cycle. CommonAPI's
@@ -174,12 +200,15 @@ int main() {
     });
 
     while (!g_stop.load()) {
+        ets_extension->onTick();
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
     if (event_thread.joinable()) {
         event_thread.join();
     }
+    emission.stop();
+    ets_extension->onStop();
     testability.stop();
     upper_tester.stop();
     if (impl_si2) {

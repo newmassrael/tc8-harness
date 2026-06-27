@@ -91,6 +91,68 @@ define org.genivi.commonapi.someip.deployment for interface org.tc8.ets.Enhanced
         SomeIpReliable = false
     }
 
+    // OA TC8 v3.0 Table 2 (p414) — TestEventUINT8Array, Event ID 0x8002,
+    // eventgroups 0x0002/0x0005. UDP.
+    broadcast TestEventUINT8Array {
+        SomeIpEventID = 0x8002
+        SomeIpEventGroups = { 0x0002, 0x0005 }
+        SomeIpReliable = false
+    }
+
+    // OA TC8 v3.0 Table 2 (p414) — TestEventUINT8E2E, Event ID 0x8004,
+    // eventgroups 0x0002/0x0005. UDP.
+    broadcast TestEventUINT8E2E {
+        SomeIpEventID = 0x8004
+        SomeIpEventGroups = { 0x0002, 0x0005 }
+        SomeIpReliable = false
+    }
+
+    // OA TC8 v3.0 Table 2 (p414) — TestEventUINT8Reliable, Event ID 0x8003,
+    // eventgroup 0x0002. SomeIpReliable=true routes the Notification over the
+    // TCP unicast endpoint (port 30501 in the provider block).
+    broadcast TestEventUINT8Reliable {
+        SomeIpEventID = 0x8003
+        SomeIpEventGroups = { 0x0002 }
+        SomeIpReliable = true
+    }
+
+    // OA TC8 v3.0 Table 2 (p414) — TestEventUINT8Multicast, Event ID 0x800B,
+    // eventgroups 0x0002/0x0005/0x0006. Eventgroup 0x0006 already carries a
+    // multicast endpoint in vsomeip.json, so a SubscribeEventgroupAck for it
+    // returns the IPv4 Multicast Option.
+    broadcast TestEventUINT8Multicast {
+        SomeIpEventID = 0x800B
+        SomeIpEventGroups = { 0x0002, 0x0005, 0x0006 }
+        SomeIpReliable = false
+    }
+
+    // OA TC8 v3.0 Table 1 (p413) — trigger methods (fireAndForget). The DUT-
+    // side EmissionController (ets_emission.h) does the wait/period/duration.
+    method triggerEventUINT8          { SomeIpMethodID = 0x03  SomeIpReliable = false }
+    method triggerEventUINT8Array     { SomeIpMethodID = 0x04  SomeIpReliable = false }
+    method triggerEventUINT8Reliable  { SomeIpMethodID = 0x05  SomeIpReliable = false }
+    method triggerEventUINT8E2E       { SomeIpMethodID = 0x06  SomeIpReliable = false }
+    method triggerEventUINT8Multicast { SomeIpMethodID = 0x3A  SomeIpReliable = false }
+
+    // OA TC8 v3.0 Table 2 (p414) — TestFieldUINT8 field: Getter 0x26,
+    // Setter 0x27, Notifier 0x8006, eventgroups 0x0002/0x0005.
+    //
+    // CommonAPI 3.2.15 quirk: the validator deprecates `SomeIpEventGroups` for
+    // attributes in favour of `SomeIpNotifierEventGroups`, but in this
+    // generator build only `SomeIpEventGroups` actually binds — the StubAdapter
+    // then emits `registerEvent(0x8006, {0x2,0x5}, ET_FIELD)`. Using
+    // `SomeIpNotifierEventGroups` registers the notifier with
+    // UNDEFINED_EVENTGROUP_ID (verified in generated ProbeSomeIPStubAdapter).
+    // So `SomeIpEventGroups` is intentional; the one deprecation warning at
+    // codegen time is the cost of a correctly-bound notifier eventgroup.
+    attribute TestFieldUINT8 {
+        SomeIpGetterID   = 0x26
+        SomeIpSetterID   = 0x27
+        SomeIpNotifierID = 0x8006
+        SomeIpEventGroups = { 0x0002, 0x0005 }
+        SomeIpNotifierReliable = false
+    }
+
     method getFieldA {
         SomeIpMethodID = 0x40
         SomeIpReliable = false

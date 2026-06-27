@@ -76,6 +76,9 @@ add_executable(tc8-dut
     client_mode_proxy.cpp
     dhcpv4_client.cpp
     dut_main.cpp
+    ets_emission.cpp
+    ets_extension.cpp
+    ets_factory.cpp
     ets_impl.cpp
     ets_impl_2.cpp
     linklocal_autoconf.cpp

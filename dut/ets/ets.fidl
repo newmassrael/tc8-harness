@@ -140,6 +140,75 @@ interface EnhancedTestability {
         }
     }
 
+    <** @description: UINT8[] test event — OA TC8 v3.0 Table 2 (p414)
+      TestEventUINT8Array, Event ID 0x8002, eventgroups 0x0002/0x0005.
+      Trigger-driven via triggerEventUINT8Array. **>
+    broadcast TestEventUINT8Array {
+        out { UInt8[] value }
+    }
+
+    <** @description: E2E test event — OA TC8 v3.0 Table 2 (p414)
+      TestEventUINT8E2E, Event ID 0x8004, eventgroups 0x0002/0x0005.
+      Payload modeled as a plain UInt8 (the E2E header framing is the same
+      Req-mirrors-Res idiom as echoUINT8E2E §5.1.6 SOMEIP_ETS_034 and is not
+      recomputed by the DUT). Trigger-driven via triggerEventUINT8E2E. **>
+    broadcast TestEventUINT8E2E {
+        out { UInt8 value }
+    }
+
+    <** @description: Reliable (TCP) test event — OA TC8 v3.0 Table 2 (p414)
+      TestEventUINT8Reliable, Event ID 0x8003, eventgroup 0x0002, served over
+      TCP (SomeIpReliable=true in ets.fdepl). Trigger-driven via
+      triggerEventUINT8Reliable. **>
+    broadcast TestEventUINT8Reliable {
+        out { UInt8 value }
+    }
+
+    <** @description: Multicast test event — OA TC8 v3.0 Table 2 (p414)
+      TestEventUINT8Multicast, Event ID 0x800B, eventgroups 0x0002/0x0005/0x0006.
+      Trigger-driven via triggerEventUINT8Multicast. **>
+    broadcast TestEventUINT8Multicast {
+        out { UInt8 value }
+    }
+
+    <** @description: TestFieldUINT8 field — OA TC8 v3.0 Table 2 (p414):
+      Getter 0x26, Setter 0x27, Notifier 0x8006, eventgroups 0x0002/0x0005.
+      Modeled as a Franca attribute (not a method getter/setter pair) so
+      CommonAPI emits the standard SOME/IP field surface AND fires the notifier
+      with the current value on each SubscribeEventgroupAck — i.e. "Explicit
+      Initial Data Control" is the standard field-subscription behaviour, no
+      hand-rolled initial-data code. IDs pinned in ets.fdepl. **>
+    attribute UInt8 TestFieldUINT8
+
+    <** @description: OA TC8 v3.0 Table 1 (p413) trigger methods (all
+      fireAndForget, args start/duration/debounceTime per Table 3 p421-440:
+      "waits start seconds and triggers a periodical event, periodically in
+      debounce-time, for duration"). Each arms the matching TestEvent in the
+      DUT's EmissionController so the event fires ONLY after its trigger —
+      which is what lets must-NOT-send negative cases hold. Method IDs:
+      triggerEventUINT8 0x03, triggerEventUINT8Array 0x04,
+      triggerEventUINT8Reliable 0x05, triggerEventUINT8E2E 0x06,
+      triggerEventUINT8Multicast 0x3A. **>
+    method triggerEventUINT8 fireAndForget {
+        in { UInt32 start  UInt32 duration  UInt32 debounceTime }
+    }
+
+    method triggerEventUINT8Array fireAndForget {
+        in { UInt32 start  UInt32 duration  UInt32 debounceTime }
+    }
+
+    method triggerEventUINT8Reliable fireAndForget {
+        in { UInt32 start  UInt32 duration  UInt32 debounceTime }
+    }
+
+    method triggerEventUINT8E2E fireAndForget {
+        in { UInt32 start  UInt32 duration  UInt32 debounceTime }
+    }
+
+    method triggerEventUINT8Multicast fireAndForget {
+        in { UInt32 start  UInt32 duration  UInt32 debounceTime }
+    }
+
     <** @description: Field-A getter — empty Request, Response carries
       the cached fieldA value. Exercises §5.1.5.7 RPC_03's
       METHOD-ID-GET-SI-1 (getter) shape. **>

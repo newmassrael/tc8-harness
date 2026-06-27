@@ -6,6 +6,7 @@
 
 #include "tc8/upper_tester_protocol.h"
 
+#include "ets_emission.h"
 #include "ets_fault.h"
 
 namespace tc8::dut {
@@ -396,6 +397,52 @@ void EtsImpl::resetInterface(
         return;
     }
     fieldA_ = 0;
+}
+
+// OA TC8 v3.0 Table 1 (p413) trigger methods — each arms the matching source in
+// the EmissionController (set by dut_main). The controller fires the event per
+// the trigger semantics (after `start` s, every `debounceTime` ms, for
+// `duration` s). When no
+// controller is wired (e.g. a host build without an event loop) the call is a
+// no-op, so the event simply never fires.
+void EtsImpl::triggerEventUINT8(
+    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
+    uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
+    if (emission_) {
+        emission_->onTrigger(ets_event::kUint8, _start, _duration, _debounceTime);
+    }
+}
+
+void EtsImpl::triggerEventUINT8Array(
+    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
+    uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
+    if (emission_) {
+        emission_->onTrigger(ets_event::kArray, _start, _duration, _debounceTime);
+    }
+}
+
+void EtsImpl::triggerEventUINT8Reliable(
+    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
+    uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
+    if (emission_) {
+        emission_->onTrigger(ets_event::kReliable, _start, _duration, _debounceTime);
+    }
+}
+
+void EtsImpl::triggerEventUINT8E2E(
+    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
+    uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
+    if (emission_) {
+        emission_->onTrigger(ets_event::kE2E, _start, _duration, _debounceTime);
+    }
+}
+
+void EtsImpl::triggerEventUINT8Multicast(
+    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
+    uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
+    if (emission_) {
+        emission_->onTrigger(ets_event::kMulticast, _start, _duration, _debounceTime);
+    }
 }
 
 }  // namespace tc8::dut

@@ -14,6 +14,8 @@
 
 namespace tc8::dut {
 
+class EmissionController;
+
 // ETS MVP implementation — only overrides where spec-defined behaviour
 // differs from the generated default (which simply echoes zero-initialised
 // out-parameters). Other methods fall through to StubDefault until B-2
@@ -285,6 +287,37 @@ public:
     void resetInterface(
         const std::shared_ptr<CommonAPI::ClientId> _client) override;
 
+    // OA TC8 v3.0 Table 1 (p413) trigger methods. Each forwards to the
+    // EmissionController, which fires the matching event per the trigger
+    // semantics (after `start` s, every `debounceTime` ms, for `duration` s).
+    // No controller set (default) -> the trigger is a no-op, so a unit/host
+    // build without an event loop stays inert.
+    void triggerEventUINT8(
+        const std::shared_ptr<CommonAPI::ClientId> _client,
+        uint32_t _start, uint32_t _duration, uint32_t _debounceTime) override;
+
+    void triggerEventUINT8Array(
+        const std::shared_ptr<CommonAPI::ClientId> _client,
+        uint32_t _start, uint32_t _duration, uint32_t _debounceTime) override;
+
+    void triggerEventUINT8Reliable(
+        const std::shared_ptr<CommonAPI::ClientId> _client,
+        uint32_t _start, uint32_t _duration, uint32_t _debounceTime) override;
+
+    void triggerEventUINT8E2E(
+        const std::shared_ptr<CommonAPI::ClientId> _client,
+        uint32_t _start, uint32_t _duration, uint32_t _debounceTime) override;
+
+    void triggerEventUINT8Multicast(
+        const std::shared_ptr<CommonAPI::ClientId> _client,
+        uint32_t _start, uint32_t _duration, uint32_t _debounceTime) override;
+
+    // Non-owning; set by dut_main after the controller is constructed. The
+    // controller outlives the dispatcher threads that call the triggers.
+    void setEmissionController(EmissionController* controller) {
+        emission_ = controller;
+    }
+
 private:
     uint8_t fieldA_ = 0;
     std::vector<uint8_t> testFieldUint8Array_{};
@@ -299,6 +332,7 @@ private:
     ClientModeRunner client_mode_{};
     ClientModeProxyRunner client_mode_proxy_{};
     SuspendCallback suspend_callback_{};
+    EmissionController* emission_ = nullptr;
 };
 
 }  // namespace tc8::dut

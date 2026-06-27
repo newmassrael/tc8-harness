@@ -1,5 +1,19 @@
 # ETS interface library — CommonAPI Proxy/Stub generated from ets.fidl/.fdepl.
 
+# OEM extend seam (O1): the public ETS interface is the in-tree ets.fidl/.fdepl
+# by default, but an OEM points TC8_ETS_FIDL/TC8_ETS_FDEPL at its private
+# superset (public surface + its NDA events/methods, same ServiceID) to
+# extend the service WITHOUT forking tc8-harness. The `if(NOT DEFINED)` guard
+# mirrors the TC8_*_CASE_DIRS hardening (commit 46981678): under CMP0126 OLD
+# (cmake 3.16) an unconditional set() would wipe a superproject's plain set().
+# See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+if(NOT DEFINED TC8_ETS_FIDL)
+    set(TC8_ETS_FIDL  "${CMAKE_CURRENT_SOURCE_DIR}/ets.fidl")
+endif()
+if(NOT DEFINED TC8_ETS_FDEPL)
+    set(TC8_ETS_FDEPL "${CMAKE_CURRENT_SOURCE_DIR}/ets.fdepl")
+endif()
+
 set(GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(GEN_SUBDIR ${GEN_DIR}/v1/org/tc8/ets)
 
@@ -23,19 +37,19 @@ set(SOMEIP_GENERATED
 add_custom_command(
     OUTPUT ${CORE_GENERATED}
     COMMAND ${COMMONAPI_CORE_GEN} -d ${GEN_DIR} -sk Default
-            ${CMAKE_CURRENT_SOURCE_DIR}/ets.fidl
-    DEPENDS ets.fidl
-    COMMENT "CommonAPI core codegen (ets.fidl)"
+            ${TC8_ETS_FIDL}
+    DEPENDS ${TC8_ETS_FIDL}
+    COMMENT "CommonAPI core codegen (${TC8_ETS_FIDL})"
     VERBATIM
 )
 
 add_custom_command(
     OUTPUT ${SOMEIP_GENERATED}
     COMMAND ${COMMONAPI_SOMEIP_GEN} -d ${GEN_DIR}
-            ${CMAKE_CURRENT_SOURCE_DIR}/ets.fdepl
-    DEPENDS ets.fdepl ets.fidl ${CORE_GENERATED}
+            ${TC8_ETS_FDEPL}
+    DEPENDS ${TC8_ETS_FDEPL} ${TC8_ETS_FIDL} ${CORE_GENERATED}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "CommonAPI SOME/IP codegen (ets.fdepl)"
+    COMMENT "CommonAPI SOME/IP codegen (${TC8_ETS_FDEPL})"
     VERBATIM
 )
 
