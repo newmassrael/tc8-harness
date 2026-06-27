@@ -13,13 +13,30 @@
 #include "test_config.h"
 #include "test_runner.h"
 
-// A case's catalog ("suite"). The in-tree catalog is "tc8"; an injected OEM
-// catalog defines this (via its CMake-generated register stub) to its own name
-// so it can reuse the same literal spec case-ids as the in-tree catalog without
-// colliding. A case's identity is the pair (suite, id) at every layer. Default
-// here so an unguarded include (or an in-tree stub) resolves to "tc8".
+namespace tc8::sce {
+
+// SSOT for the in-tree catalog name. The TC8_CASE_SUITE macro defaults to this,
+// the CaseEntry.suite field defaults to this, and the CLI's default-suite gate
+// compares against this — so the literal "tc8" lives in exactly one place.
+inline constexpr std::string_view kDefaultSuite = "tc8";
+
+}  // namespace tc8::sce
+
+// A case's catalog ("suite"). The in-tree catalog is kDefaultSuite ("tc8"); an
+// injected OEM catalog defines this macro (via its CMake-generated register stub)
+// to its own name so it can reuse the same literal spec case-ids as the in-tree
+// catalog without colliding. A case's identity is the pair (suite, id) at every
+// layer.
+//
+// ODR INVARIANT: an OEM stub that overrides TC8_CASE_SUITE MUST also generate its
+// state machines under a matching --cpp-namespace-prefix, yielding DISTINCT SM
+// types. gRegisterCase<SM> is an inline variable template — registering the SAME
+// SM type from two TUs that saw different TC8_CASE_SUITE values is an ODR
+// violation (one definition silently wins). Distinct suite => distinct
+// cpp-namespace-prefix => distinct SM type => safe. Never reuse an SM type across
+// suites.
 #ifndef TC8_CASE_SUITE
-#define TC8_CASE_SUITE "tc8"
+#define TC8_CASE_SUITE (::tc8::sce::kDefaultSuite)
 #endif
 
 namespace tc8::sce {
@@ -52,10 +69,10 @@ struct CaseEntry {
     // in the selected --dut-control backend's capabilities() (Tier 2 2b#4).
     std::uint32_t required_capabilities = 0;
     std::function<std::unique_ptr<ITestRunner>(const ::tc8::TestConfig &)> factory;
-    // Catalog this case belongs to. Defaults to "tc8" so every existing
+    // Catalog this case belongs to. Defaults to kDefaultSuite so every existing
     // construction (which omits it) stays in the in-tree suite; the OEM-suite
     // register stub sets it via TC8_CASE_SUITE. Identity is (suite, id).
-    std::string_view suite = "tc8";
+    std::string_view suite = kDefaultSuite;
 };
 
 // Meyers-singleton registry populated at static-init time by each case

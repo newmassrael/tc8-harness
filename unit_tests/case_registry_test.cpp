@@ -258,6 +258,20 @@ TEST(CaseRegistry, SameIdDifferentSuitesCoexist) {
     EXPECT_EQ(reg.find("ARP_01"), nullptr);  // ambiguous across suites
 }
 
+TEST(CaseRegistry, FindSuiteIdNonexistentSuiteReturnsNull) {
+    CaseRegistry reg;
+    reg.add(makeEntry("ARP_03"));  // suite "tc8"
+    EXPECT_EQ(reg.find("nosuch", "ARP_03"), nullptr);  // wrong suite
+    EXPECT_NE(reg.find("tc8", "ARP_03"), nullptr);     // right suite
+}
+
+TEST(CaseRegistry, FindSuiteIdIsCaseInsensitiveOnBothAxes) {
+    CaseRegistry reg;
+    reg.add(makeEntryInSuite("hkmc", "SOMEIPSRV_RPC_01"));
+    EXPECT_NE(reg.find("HKMC", "someipsrv_rpc_01"), nullptr);  // suite + id both ci
+    EXPECT_NE(reg.find("hkmc", "SOMEIPSRV_RPC_01"), nullptr);
+}
+
 // A duplicate within the SAME suite still aborts.
 TEST(CaseRegistryDeathTest, DuplicateSuiteIdAborts) {
     ::testing::FLAGS_gtest_death_test_style = "threadsafe";

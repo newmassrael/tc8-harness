@@ -56,6 +56,21 @@ bool equalsIgnoreAsciiCase(std::string_view a, std::string_view b) {
     return true;
 }
 
+// Case-insensitive ordering — keeps the listSorted suite axis coherent with the
+// case-insensitive identity used by add()/find() (so "TC8" and "tc8" group as
+// one suite rather than sorting into separate blocks).
+bool lessIgnoreAsciiCase(std::string_view a, std::string_view b) {
+    const std::size_t n = std::min(a.size(), b.size());
+    for (std::size_t i = 0; i < n; ++i) {
+        const int ca = std::toupper(static_cast<unsigned char>(a[i]));
+        const int cb = std::toupper(static_cast<unsigned char>(b[i]));
+        if (ca != cb) {
+            return ca < cb;
+        }
+    }
+    return a.size() < b.size();
+}
+
 SplitId splitCaseId(std::string_view id) {
     std::string_view variant_tag;
     std::string_view core = id;
@@ -143,11 +158,12 @@ std::vector<const CaseEntry *> CaseRegistry::listSorted(bool include_deprecated)
         out.push_back(&e);
     }
     std::sort(out.begin(), out.end(), [](const CaseEntry *a, const CaseEntry *b) {
-        // Suite is the primary axis so each catalog groups together; the in-tree
-        // "tc8" suite sorts first by convention (it is the lexicographic min vs
-        // typical OEM names, and the only suite when none are injected).
-        if (a->suite != b->suite) {
-            return a->suite < b->suite;
+        // Suite is the primary axis so each catalog groups together. Inter-suite
+        // order is deterministic-but-arbitrary (case-insensitive lexicographic);
+        // it is NOT guaranteed that "tc8" sorts first — an OEM suite like "hkmc"
+        // sorts before it. With no injected suite this is a no-op (single suite).
+        if (!equalsIgnoreAsciiCase(a->suite, b->suite)) {
+            return lessIgnoreAsciiCase(a->suite, b->suite);
         }
         const auto sa = splitCaseId(a->id);
         const auto sb = splitCaseId(b->id);

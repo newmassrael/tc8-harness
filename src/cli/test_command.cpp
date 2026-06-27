@@ -196,6 +196,7 @@ int TestCommand::runListCases() const {
     }
 
     const auto entries = sce::CaseRegistry::instance().listSorted(list_all_);
+    std::string_view current_suite;
     std::string_view current_category;
     std::size_t emitted = 0;
     for (const auto *e : entries) {
@@ -228,6 +229,22 @@ int TestCommand::runListCases() const {
                 }
             }
         }
+        // Group by (suite, category) — matching listSorted's sort key. A suite
+        // change prints a banner and resets the category so its header re-emits
+        // inside the new suite (otherwise a category shared by two suites would
+        // fold under one header). The default tc8 suite prints no banner, so
+        // single-suite output stays byte-identical to before any injection.
+        if (e->suite != current_suite) {
+            if (!current_suite.empty()) {
+                std::puts("");
+            }
+            if (e->suite != sce::kDefaultSuite) {
+                std::printf("== suite: %.*s ==\n", static_cast<int>(e->suite.size()),
+                            e->suite.data());
+            }
+            current_suite = e->suite;
+            current_category = {};
+        }
         if (e->category != current_category) {
             if (!current_category.empty()) {
                 std::puts("");
@@ -238,10 +255,10 @@ int TestCommand::runListCases() const {
         const std::string section = sectionOf(sc);
         const char *tag = e->deprecated ? " [deprecated]" : "";
         // Non-default suites print the qualified "suite:id" so the listed token
-        // is the exact `--case` arg to run it; the in-tree "tc8" suite stays
-        // bare (output byte-identical to before any suite injection).
+        // is the exact `--case` arg to run it; the in-tree suite stays bare
+        // (output byte-identical to before any suite injection).
         std::string display_id;
-        if (e->suite != "tc8") {
+        if (e->suite != sce::kDefaultSuite) {
             display_id.assign(e->suite);
             display_id.append(":");
         }

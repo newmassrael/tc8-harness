@@ -17,18 +17,25 @@ using SomeipEts151SM = ::SCE::Generated::someip_ets_151::someip_ets_151;
 
 namespace tc8::sce {
 
-// TC8 v3.0 §5.1.6 SOMEIP_ETS_151 — SD_Send_triggerEventUINT8_Eventgroup_2.
-// Tester subscribes to eg 0x02 then triggers triggerEventUINT8; DUT must
-// Ack and emit TestEventUINT8 to the IP+port advertised in the Subscribe
-// option. tc8-dut's cyclic 250 ms TestEventUINT8 fires regardless of an
-// explicit trigger Method (which is not declared in ets.fdepl), so the
-// Subscribe Ack + any MSB-set notification on eg 0x02 satisfies the wire
-// invariant per the §5.1.5.5 BASIC_03 / §5.1.6 ETS_086 lenient pattern.
+// TC8 v3.0 §5.1.6 SOMEIP_ETS_151 — SD_Send_triggerEventUINT8Reliable_Eventgroup_2.
+//
+// LENIENT — NOT YET FAITHFUL (tracked debt). The faithful case would trigger
+// triggerEventUINT8Reliable (Method 0x05) and observe TestEventUINT8Reliable
+// (Event 0x8003) delivered over TCP. That requires the tester to issue a Subscribe
+// carrying BOTH a UDP and a valid TCP endpoint option (mixed-reliability eg) and
+// to listen on TCP for the delivery — the dual-endpoint Subscribe the SD builder
+// does not yet have. Until then, 0x8003 is isolated in eg 0x0007 (see ets.fdepl)
+// and this case stays lenient: it subscribes eg 0x02 and accepts the always-on
+// cyclic TestEventUINT8 (0x8001) per the §5.1.5.5 BASIC_03 pattern, verifying only
+// the SD Ack — NOT the reliable event. Sibling 148/149/150 ARE faithful; 151 is
+// the one still gated on dual-endpoint Subscribe. Do not count this as reliable-
+// event coverage.
 template <>
 struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_151";
     static constexpr std::string_view kDescription =
-        "Subscribe eg 0x02 + trigger triggerEventUINT8Reliable — DUT Ack + MSB-set notification";
+        "Subscribe eg 0x02 — DUT Ack + cyclic notification (LENIENT; reliable "
+        "0x8003 pending dual-endpoint Subscribe)";
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

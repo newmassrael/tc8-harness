@@ -96,7 +96,7 @@
 
   <final id="inconclusive_phase3_no_notification">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_notification_with_event_msb_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_testeventuint8multicast_0x800b_after_trigger_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>
