@@ -237,7 +237,17 @@ int TestCommand::runListCases() const {
         }
         const std::string section = sectionOf(sc);
         const char *tag = e->deprecated ? " [deprecated]" : "";
-        std::printf("  %-28.*s  §%-10.*s %.*s%s\n", static_cast<int>(e->id.size()), e->id.data(),
+        // Non-default suites print the qualified "suite:id" so the listed token
+        // is the exact `--case` arg to run it; the in-tree "tc8" suite stays
+        // bare (output byte-identical to before any suite injection).
+        std::string display_id;
+        if (e->suite != "tc8") {
+            display_id.assign(e->suite);
+            display_id.append(":");
+        }
+        display_id.append(e->id);
+        std::printf("  %-28.*s  §%-10.*s %.*s%s\n",
+                    static_cast<int>(display_id.size()), display_id.data(),
                     static_cast<int>(section.size()), section.data(),
                     static_cast<int>(e->description.size()), e->description.data(), tag);
         ++emitted;
@@ -409,9 +419,24 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         return 2;
     }
 
-    const auto *entry = sce::CaseRegistry::instance().find(case_id_);
+    // Accept an optional "suite:" qualifier (e.g. "hkmc:SOMEIPSRV_RPC_01"). An
+    // unqualified id resolves only if it is unique across suites; a cross-suite
+    // id (same id in tc8 + an injected catalog) is ambiguous and must be
+    // qualified. The in-tree single-suite case is unaffected (unique id).
+    const sce::CaseEntry *entry = nullptr;
+    const auto suite_sep = case_id_.find(':');
+    if (suite_sep != std::string::npos) {
+        const std::string_view qualified{case_id_};
+        entry = sce::CaseRegistry::instance().find(qualified.substr(0, suite_sep),
+                                                   qualified.substr(suite_sep + 1));
+    } else {
+        entry = sce::CaseRegistry::instance().find(case_id_);
+    }
     if (entry == nullptr) {
-        std::fprintf(stderr, "error: unknown case '%s' (try --list-cases)\n", case_id_.c_str());
+        std::fprintf(stderr,
+                     "error: unknown or ambiguous case '%s' (try --list-cases; "
+                     "qualify a cross-suite id as suite:ID)\n",
+                     case_id_.c_str());
         return 2;
     }
     if (entry->deprecated) {
