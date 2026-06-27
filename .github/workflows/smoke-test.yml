@@ -84,6 +84,13 @@ jobs:
         # for the vsomeip patch-series and sudoers rationale.
         uses: ./.github/actions/build-harness
 
+      - name: Suite producer coexistence ratchet
+        # Full proof that an out-of-tree OEM suite reusing an in-tree case id
+        # builds + registers + coexists (the link/compile half the build-test
+        # configure gate cannot reach). Self-hosted: a clean harness-only build
+        # is cheap here. Asserts tc8:/demo:SOMEIPSRV_OPTIONS_01 both list.
+        run: ./scripts/check-suite-producer.sh "${{ runner.temp }}/suite-producer" 4
+
       - name: Run host unit tests (DUT + engines, ctest)
         # build-test runs ctest too, but with -DTC8_BUILD_MOCK_DUT=OFF, so the
         # DUT-gated suites never execute there: testability_server_test (incl. the

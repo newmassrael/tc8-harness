@@ -51,6 +51,8 @@ using SM = ::SCE::Generated::TC8_CASE_SUITE_NS::<name>::<name>;
 // kCaseId stays the literal spec id; CaseRegistrar reads TC8_CASE_SUITE.
 ```
 
-Because the suite name lives only in those macros, the header text is suite-
-agnostic — the same case can be built under any suite. See
+Because the suite name lives only in those macros, the header text works under
+any **non-default** suite — always via that suite's generated stub, which stamps
+the macros (the header has no in-tree fallback and `#error`s if pulled in bare).
+An in-tree case, by contrast, binds `::SCE::Generated::<name>` directly. See
 `someipsrv_options_01/someipsrv_options_01.h`.

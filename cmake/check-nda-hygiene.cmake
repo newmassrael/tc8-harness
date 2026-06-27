@@ -19,7 +19,11 @@ if(NOT DEFINED TC8_SOURCE_DIR)
 endif()
 
 set(_markers "CONFIDENTIAL|DO NOT DISTRIBUTE|INTERNAL USE ONLY|RESTRICTED DISTRIBUTION|PROPRIETARY AND CONFIDENTIAL")
-set(_roots src include dut examples)
+# Interface/case-definition files (.fidl/.fdepl/.scxml) are scanned too: they
+# are exactly the surfaces whose public/OEM boundary the ETS and case headers
+# document, so a banner pasted into a fidl or a case SCXML must fail here, not
+# slip through because the gate only looked at C++.
+set(_roots src include dut examples tests)
 set(_hits "")
 
 foreach(root ${_roots})
@@ -28,7 +32,10 @@ foreach(root ${_roots})
         ${TC8_SOURCE_DIR}/${root}/*.hpp
         ${TC8_SOURCE_DIR}/${root}/*.c
         ${TC8_SOURCE_DIR}/${root}/*.cpp
-        ${TC8_SOURCE_DIR}/${root}/*.md)
+        ${TC8_SOURCE_DIR}/${root}/*.md
+        ${TC8_SOURCE_DIR}/${root}/*.fidl
+        ${TC8_SOURCE_DIR}/${root}/*.fdepl
+        ${TC8_SOURCE_DIR}/${root}/*.scxml)
     foreach(f ${files})
         file(STRINGS ${f} matched REGEX "${_markers}")
         if(matched)
@@ -46,4 +53,4 @@ if(NOT _hits STREQUAL "")
         "must not enter this public repo:\n${_hits}")
 endif()
 
-message(STATUS "NDA-hygiene: clean (no confidentiality banners in src/include/dut/examples).")
+message(STATUS "NDA-hygiene: clean (no confidentiality banners in src/include/dut/examples/tests, incl. .fidl/.fdepl/.scxml).")

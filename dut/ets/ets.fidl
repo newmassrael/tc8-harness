@@ -8,11 +8,13 @@ package org.tc8.ets
   field. Method/event/field IDs come from TC8 §5.1.4 Table 1 and Table 2.
 
   Boundary: this file carries ONLY the public §5.1.4 surface. A vendor's
-  additional (NDA) ETS events and their trigger/setter methods MUST NOT be
-  added here — they belong in the OEM's private superset fidl selected via
-  TC8_ETS_FIDL/TC8_ETS_FDEPL, or are emitted through the IEtsExtension
-  (TC8_ETS_EXTENSION_SRC) seam. Keeping vendor-confidential IDs out of this
-  public file is the ETS half of the repo's no-NDA invariant. See
+  additional (NDA) ETS events/methods MUST NOT be added here. Trigger-driven or
+  method-backed additions go in the OEM's private superset fidl/fdepl
+  (TC8_ETS_FIDL/TC8_ETS_FDEPL) together with its matching implementation
+  (TC8_ETS_FACTORY_SRC); a self-driven (periodic / on-register) event may
+  instead be emitted raw through the IEtsExtension seam (TC8_ETS_EXTENSION_SRC).
+  Keeping vendor-confidential IDs out of this public file is the ETS half of the
+  repo's no-NDA invariant. See
   claudedocs/ets-dut-public-completion-and-oem-seam-design.md. **>
 interface EnhancedTestability {
     version { major 1 minor 0 }

@@ -319,58 +319,137 @@ endif()
 #                            suite "tc8" (kDefaultSuite).
 if(NOT DEFINED TC8_EXTRA_CASE_SUITES)
     set(TC8_EXTRA_CASE_SUITES "" CACHE STRING
-        "Suite name per TC8_EXTRA_CASE_DIRS root (;-aligned); empty/missing => 'tc8'")
+        "Suite name per TC8_EXTRA_CASE_DIRS root (;-aligned); empty/missing => default")
 endif()
 
-# gen/ holds both the registration stubs and the per-suite codegen output. Its
+# The in-tree default suite name has its single source of truth in the C++
+# constant kDefaultSuite (src/sce_integration/case_registry.h). Derive it here
+# rather than restating the literal, so the configure-time suite logic and the
+# runtime registry can never disagree on the default suite's name.
+file(STRINGS src/sce_integration/case_registry.h _tc8_kdefault_line
+     REGEX "kDefaultSuite[ \t]*=[ \t]*\"[^\"]+\"")
+if(NOT _tc8_kdefault_line)
+    message(FATAL_ERROR
+        "TC8: could not derive the default suite name from kDefaultSuite in "
+        "src/sce_integration/case_registry.h — update the SSOT-extraction regex")
+endif()
+string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" TC8_DEFAULT_SUITE "${_tc8_kdefault_line}")
+
+# gen/ holds the registration stubs and the per-suite codegen output, and its
 # root is on the tc8-harness include path so a non-default suite's generated SM
 # header resolves via its suite-qualified path "<suite>/<case_id>_sm.h" (stamped
-# by tc8_add_case) without colliding with the in-tree "<case_id>_sm.h" that
-# carries the same case id. gen/ itself holds no top-level *_sm.h, so an in-tree
-# bare include still resolves only against the default "generated/" dir.
+# by tc8_add_case). The in-tree "<case_id>_sm.h" lives in the default
+# "generated/" dir; SCE (SCECodegen.cmake) also adds each per-suite
+# "gen/<suite>/" dir to the include path, so an in-tree bare include is
+# disambiguated by SEARCH ORDER: Pass 2 (in-tree -> "generated/") is collected
+# before Pass 3 (extra suites), so "generated/" precedes any "gen/<suite>/" and
+# the in-tree case binds its own header. That pass ordering IS the isolation
+# invariant — do not reorder the passes.
 set(TC8_CASE_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/gen)
 set(TC8_CASE_STUBS_DIR ${TC8_CASE_GEN_DIR}/cases_stubs)
 file(MAKE_DIRECTORY ${TC8_CASE_STUBS_DIR})
 set(TC8_CASE_STUBS)
 
+# Fail loud at configure time if the resolved sce-codegen accepts but does NOT
+# honour --cpp-namespace-prefix (some builds parse the flag yet emit un-nested
+# headers — verified to happen). Without nesting, a non-default suite's SM type
+# equals the in-tree type and the two collide silently (ODR / one-definition-
+# wins) the moment they share a case id. Probes once per configure, only when a
+# non-default suite is actually requested, so the default build pays nothing.
+function(tc8_assert_codegen_nests)
+    get_property(_done GLOBAL PROPERTY _TC8_CODEGEN_NEST_CHECKED)
+    if(_done)
+        return()
+    endif()
+    set_property(GLOBAL PROPERTY _TC8_CODEGEN_NEST_CHECKED 1)
+    set(_probe ${TC8_CASE_GEN_DIR}/_codegen_probe)
+    file(MAKE_DIRECTORY ${_probe})
+    file(WRITE ${_probe}/tc8_probe.scxml
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<scxml xmlns=\"http://www.w3.org/2005/07/scxml\" version=\"1.0\" "
+        "name=\"tc8_probe\" datamodel=\"null\" initial=\"s0\">\n"
+        "  <state id=\"s0\"><transition target=\"s1\"/></state>\n"
+        "  <final id=\"s1\"/>\n</scxml>\n")
+    set(_probe_cmd ${SCE_CODEGEN} generate ${_probe}/tc8_probe.scxml
+                   -o ${_probe} -l cpp --cpp-namespace-prefix __tc8_probe)
+    if(SCE_TEMPLATE_DIR)
+        set(_probe_cmd ${CMAKE_COMMAND} -E env
+            "SCE_TEMPLATE_DIR=${SCE_TEMPLATE_DIR}" ${_probe_cmd})
+    endif()
+    execute_process(COMMAND ${_probe_cmd}
+        RESULT_VARIABLE _rc OUTPUT_QUIET ERROR_QUIET)
+    if(NOT _rc EQUAL 0)
+        message(FATAL_ERROR
+            "TC8: sce-codegen probe failed (rc=${_rc}) using ${SCE_CODEGEN}")
+    endif()
+    file(STRINGS ${_probe}/tc8_probe_sm.h _ns
+         REGEX "namespace SCE::Generated::__tc8_probe")
+    if(NOT _ns)
+        message(FATAL_ERROR
+            "TC8: sce-codegen (${SCE_CODEGEN}) accepts but does not honour "
+            "--cpp-namespace-prefix — the probe header is not nested under "
+            "::SCE::Generated::__tc8_probe. A non-default case suite needs a "
+            "codegen that nests, else two suites sharing a case id collide "
+            "(ODR). Update sce-codegen (>= the pinned third_party/sce VERSION).")
+    endif()
+endfunction()
+
 # Registers one case directory: SCXML codegen + traits-header resolution +
 # registration-stub TU. Appends the stub to TC8_CASE_STUBS in the caller's
 # scope. `origin` is "in-tree", "override", or "extra" — out-of-tree
 # origins are logged per case (the in-tree bulk is already covered by the
-# per-machine SCE codegen lines).
+# per-machine SCE codegen lines). `suite` is the catalog name (empty or the
+# default-suite name => the in-tree default; any other => a nested OEM suite).
 function(tc8_add_case case_dir origin suite)
     get_filename_component(case_id ${case_dir} NAME)
 
-    # Default suite ("tc8" or empty): today's behavior, byte-identical. The SM
-    # generates as ::SCE::Generated::<name> into the shared "generated/" dir and
-    # the stub carries no suite define, so the ~750 in-tree cases are untouched.
-    #
-    # A non-default suite nests the SM under ::SCE::Generated::<suite>::<name> in
-    # a per-suite output dir (so identical case ids never share a generated
-    # file) and the stub stamps three tokens the OEM case header binds against,
-    # suite-agnostically: TC8_CASE_SUITE (the registry identity string),
-    # TC8_CASE_SUITE_NS (the C++ namespace token), and TC8_CASE_SM_HEADER (the
-    # suite-qualified generated-header path). Distinct suite => distinct
-    # namespace => distinct SM type => the gRegisterCase<SM> ODR invariant in
-    # case_registry.h holds.
-    if(suite STREQUAL "" OR suite STREQUAL "tc8")
+    # Suite identity matches the registry's, which is case-insensitive: normalise
+    # to lower case so a root declared "HKMC" and the registry's "hkmc" never
+    # diverge across the configure/runtime boundary. Empty or the default-suite
+    # name selects the in-tree default.
+    string(TOLOWER "${suite}" _suite)
+
+    # Default suite: byte-identical to the pre-suite build. The SM generates as
+    # ::SCE::Generated::<name> into the shared "generated/" dir and the stub
+    # carries no suite define, so the ~750 in-tree cases are untouched.
+    if(_suite STREQUAL "" OR _suite STREQUAL "${TC8_DEFAULT_SUITE}")
         sce_add_state_machines_from_dir(
             TARGET    tc8-harness
             SCXML_DIR ${case_dir})
         set(stub_dir ${TC8_CASE_STUBS_DIR})
         set(suite_defines "")
     else()
+        # The suite name becomes a C++ namespace token, a path segment, and a
+        # registry string — reject anything that is not a plain C++ identifier so
+        # a bad name fails fast here instead of as a cryptic codegen/compile error
+        # downstream.
+        if(NOT _suite MATCHES "^[a-z_][a-z0-9_]*$")
+            message(FATAL_ERROR
+                "TC8: suite name '${suite}' is not a valid C++ identifier "
+                "([A-Za-z_][A-Za-z0-9_]*) — it nests the generated namespace "
+                "::SCE::Generated::<suite>::")
+        endif()
+        # Guard the ODR-distinctness invariant: a codegen that ignored the prefix
+        # would silently un-nest this suite onto the in-tree type.
+        tc8_assert_codegen_nests()
+        # A non-default suite nests the SM under ::SCE::Generated::<suite>::<name>
+        # in a per-suite output dir (so identical case ids never share a generated
+        # file) and the stub stamps three tokens the OEM case header binds against:
+        # TC8_CASE_SUITE (registry identity string), TC8_CASE_SUITE_NS (C++
+        # namespace token), TC8_CASE_SM_HEADER (the suite-qualified header path).
+        # Distinct suite => distinct namespace => distinct SM type => the
+        # gRegisterCase<SM> ODR invariant in case_registry.h holds.
         sce_add_state_machines_from_dir(
             TARGET               tc8-harness
             SCXML_DIR            ${case_dir}
-            OUTPUT_DIR           ${TC8_CASE_GEN_DIR}/${suite}
-            CPP_NAMESPACE_PREFIX ${suite})
-        set(stub_dir ${TC8_CASE_STUBS_DIR}/${suite})
+            OUTPUT_DIR           ${TC8_CASE_GEN_DIR}/${_suite}
+            CPP_NAMESPACE_PREFIX ${_suite})
+        set(stub_dir ${TC8_CASE_STUBS_DIR}/${_suite})
         file(MAKE_DIRECTORY ${stub_dir})
         set(suite_defines
-            "#define TC8_CASE_SUITE \"${suite}\"\n"
-            "#define TC8_CASE_SUITE_NS ${suite}\n"
-            "#define TC8_CASE_SM_HEADER \"${suite}/${case_id}_sm.h\"\n")
+            "#define TC8_CASE_SUITE \"${_suite}\"\n"
+            "#define TC8_CASE_SUITE_NS ${_suite}\n"
+            "#define TC8_CASE_SM_HEADER \"${_suite}/${case_id}_sm.h\"\n")
     endif()
 
     set(case_header ${case_dir}/${case_id}.h)
@@ -387,9 +466,14 @@ function(tc8_add_case case_dir origin suite)
             "src/sce_integration/cases/${case_id}.h")
     endif()
 
+    if(_suite STREQUAL "")
+        set(_suite_disp "${TC8_DEFAULT_SUITE}")
+    else()
+        set(_suite_disp "${_suite}")
+    endif()
     if(NOT origin STREQUAL "in-tree")
         message(STATUS
-            "TC8: ${origin} case '${suite}:${case_id}' collected from "
+            "TC8: ${origin} case '${_suite_disp}:${case_id}' collected from "
             "${case_dir} (traits: ${traits_kind})")
     endif()
 
@@ -490,10 +574,10 @@ foreach(case_dir ${TC8_CASE_DIRS})
         continue()
     endif()
     if(case_id IN_LIST _tc8_override_ids)
-        tc8_add_case(${_tc8_override_dir_${case_id}} override tc8)
+        tc8_add_case(${_tc8_override_dir_${case_id}} override "")
         math(EXPR _tc8_overrides_applied "${_tc8_overrides_applied} + 1")
     else()
-        tc8_add_case(${case_dir} in-tree tc8)
+        tc8_add_case(${case_dir} in-tree "")
         math(EXPR _tc8_intree_count "${_tc8_intree_count} + 1")
     endif()
 endforeach()
@@ -512,22 +596,36 @@ endif()
 
 # Pass 3 — out-of-tree additional cases. Each injection root carries a suite
 # (TC8_EXTRA_CASE_SUITES, index-aligned with TC8_EXTRA_CASE_DIRS; an empty or
-# missing entry defaults to "tc8"). Identity is (suite, case_id): a case id
-# shared with an in-tree case is allowed ONLY under a non-default suite — that
-# is the suite axis. A default-suite extra that shadows tests/<id>/ stays an
-# error (replacing a case must be explicit via TC8_CASE_OVERRIDE_DIRS).
+# missing entry, or the default-suite name, selects the in-tree default).
+# Identity is (suite, case_id): a case id shared with an in-tree case is allowed
+# ONLY under a non-default suite — that is the suite axis. A default-suite extra
+# that shadows tests/<id>/ stays an error (replacing a case must be explicit via
+# TC8_CASE_OVERRIDE_DIRS).
+list(LENGTH TC8_EXTRA_CASE_DIRS _tc8_dir_count)
+list(LENGTH TC8_EXTRA_CASE_SUITES _tc8_suite_count)
+if(_tc8_suite_count GREATER _tc8_dir_count)
+    message(FATAL_ERROR
+        "TC8_EXTRA_CASE_SUITES has ${_tc8_suite_count} entries but "
+        "TC8_EXTRA_CASE_DIRS has ${_tc8_dir_count} — the two lists are "
+        "index-aligned; remove the surplus suite name(s)")
+endif()
 set(_tc8_extra_keys "")
 set(_tc8_extra_root_index 0)
-list(LENGTH TC8_EXTRA_CASE_SUITES _tc8_suite_count)
 foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
     tc8_check_injection_root(${extra_root} TC8_EXTRA_CASE_DIRS)
     if(_tc8_extra_root_index LESS _tc8_suite_count)
-        list(GET TC8_EXTRA_CASE_SUITES ${_tc8_extra_root_index} _tc8_root_suite)
+        list(GET TC8_EXTRA_CASE_SUITES ${_tc8_extra_root_index} _tc8_raw_suite)
     else()
-        set(_tc8_root_suite "")
+        set(_tc8_raw_suite "")
     endif()
-    if(_tc8_root_suite STREQUAL "")
-        set(_tc8_root_suite "tc8")
+    # Normalise to the registry's case-insensitive identity; an empty entry or
+    # the default name both resolve to the in-tree default suite.
+    string(TOLOWER "${_tc8_raw_suite}" _tc8_root_suite)
+    if(_tc8_root_suite STREQUAL "" OR _tc8_root_suite STREQUAL "${TC8_DEFAULT_SUITE}")
+        set(_tc8_root_suite "${TC8_DEFAULT_SUITE}")
+        set(_tc8_root_is_default TRUE)
+    else()
+        set(_tc8_root_is_default FALSE)
     endif()
     set(_tc8_root_hits 0)
     file(GLOB _tc8_extra_case_dirs LIST_DIRECTORIES true CONFIGURE_DEPENDS
@@ -543,7 +641,7 @@ foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
                 "(leading underscore)")
             continue()
         endif()
-        if(_tc8_root_suite STREQUAL "tc8" AND
+        if(_tc8_root_is_default AND
            IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/${case_id})
             message(FATAL_ERROR
                 "TC8_EXTRA_CASE_DIRS: '${case_dir}' collides with in-tree "
@@ -558,7 +656,7 @@ foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
                 "provided by more than one directory")
         endif()
         list(APPEND _tc8_extra_keys ${_tc8_key})
-        tc8_add_case(${case_dir} extra ${_tc8_root_suite})
+        tc8_add_case(${case_dir} extra "${_tc8_root_suite}")
         math(EXPR _tc8_root_hits "${_tc8_root_hits} + 1")
     endforeach()
     if(_tc8_root_hits EQUAL 0)

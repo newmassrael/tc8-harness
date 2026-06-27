@@ -161,6 +161,24 @@ jobs:
       - name: Run unit tests
         run: ctest --test-dir build --output-on-failure -j4
 
+      - name: Suite producer configure gate
+        # Configures the harness with examples/demo-suite injected under suite
+        # "demo" (which reuses an in-tree case id) — no compile, so it is cheap.
+        # This fires the configure-time guards: the sce-codegen
+        # --cpp-namespace-prefix probe (a stale codegen that silently ignores the
+        # flag FATALs here), suite-name validation, the SUITES/DIRS length-
+        # alignment check, and the suite-aware collision logic. The full
+        # link/coexistence proof runs on the self-hosted smoke job
+        # (scripts/check-suite-producer.sh).
+        run: |
+          export CMAKE_PREFIX_PATH=/opt/someip-stack:$CMAKE_PREFIX_PATH
+          cmake -S . -B build-suite-cfg \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTC8_SCE_FIND_PACKAGE=OFF \
+            -DTC8_BUILD_MOCK_DUT=OFF \
+            -DTC8_EXTRA_CASE_DIRS="$PWD/examples/demo-suite" \
+            -DTC8_EXTRA_CASE_SUITES=demo
+
       - name: Verdict donedata SSOT gate
         # Enforces the single-source verdict invariant in two layers:
         #  1. the taxonomy + role policy generated mirrors (python/bash/doc) are

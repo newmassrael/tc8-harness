@@ -13,14 +13,24 @@
 //                         CaseRegistrar via case_registry.h
 //
 // Because the suite name lives only in those macros, the same header text works
-// under any suite. Reusing the in-tree id SOMEIPSRV_OPTIONS_01 here proves the
-// (suite, id) identity keeps the two cases distinct at every layer.
+// under ANY non-default suite — but ONLY via that suite's stub: the macros have
+// no in-tree fallback, so this header is never compiled bare or in the default
+// suite (an in-tree case binds `::SCE::Generated::<name>` directly instead).
+// Reusing the in-tree id SOMEIPSRV_OPTIONS_01 here proves the (suite, id)
+// identity keeps the two cases distinct at every layer.
 
 #include <string_view>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
+
+// Fail loud if this header is pulled in outside its per-suite register stub
+// (which stamps the macros below) — far clearer than a cryptic "TC8_CASE_SM_HEADER
+// was not declared" / "no member 'TC8_CASE_SUITE_NS'".
+#ifndef TC8_CASE_SM_HEADER
+#error "compile this case via its CMake-generated per-suite register stub (see tc8_add_case)"
+#endif
 
 #include TC8_CASE_SM_HEADER
 
