@@ -107,6 +107,17 @@ std::vector<std::uint8_t> buildConfigOption(const std::vector<std::string> &item
     return opt;
 }
 
+// Wrap a caller-supplied (possibly malformed) config string in the Configuration
+// Option header (Length + Type 0x01 + Reserved) — for negative/bounds tests.
+std::vector<std::uint8_t> buildConfigOptionRaw(const std::vector<std::uint8_t> &config_string) {
+    std::vector<std::uint8_t> opt;
+    appendBe16(opt, static_cast<std::uint16_t>(1 + config_string.size()));  // Length = Reserved + cs
+    opt.push_back(0x01);
+    opt.push_back(0x00);
+    opt.insert(opt.end(), config_string.begin(), config_string.end());
+    return opt;
+}
+
 }  // namespace
 
 TEST(SomeIpCapturedSdOptions, EmptyOptionsArrayKeepsCountsZero) {
@@ -318,4 +329,94 @@ TEST(SomeIpCapturedConfigOption, EmptyValueAndKeyOnly) {
     EXPECT_EQ(c.sd_config_value_of("key"), "");  // "key=" -> present, empty value
     EXPECT_TRUE(c.sd_config_has_key("lone"));
     EXPECT_EQ(c.sd_config_value_of("lone"), "");  // "lone" -> no value
+}
+
+// An item longer than the capture cap records its true on-wire length but stores only
+// the capped bytes (captured < len) — no over-read, and the truncation is detectable.
+TEST(SomeIpCapturedConfigOption, ItemLongerThanCapTruncatesContent) {
+    const std::string big(100, 'x');  // > kMaxSdConfigItemLen (64)
+    const auto payload = buildSdPayload(findServiceEntry(), buildConfigOption({big}));
+
+    tc8::SomeIpCaptured c;
+    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
+    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+
+    ASSERT_EQ(c.sd_config_item_count, 1u);
+    EXPECT_EQ(c.sd_config_items[0].len, 100u);                          // true on-wire length
+    EXPECT_EQ(c.sd_config_items[0].captured, tc8::kMaxSdConfigItemLen);  // stored bytes capped
+}
+
+// More items than the array holds: parsing stops at the cap, no overflow.
+TEST(SomeIpCapturedConfigOption, CapsAtMaxItems) {
+    std::vector<std::string> items;
+    for (int i = 0; i < 12; ++i) {  // > kMaxSdConfigItems (8)
+        items.push_back("k" + std::to_string(i));
+    }
+    const auto payload = buildSdPayload(findServiceEntry(), buildConfigOption(items));
+
+    tc8::SomeIpCaptured c;
+    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
+    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+
+    EXPECT_EQ(c.sd_config_item_count, tc8::SomeIpCaptured::kMaxSdConfigItems);
+}
+
+// Two Configuration Options in one message: only the first is parsed into the items.
+TEST(SomeIpCapturedConfigOption, OnlyFirstConfigOptionParsed) {
+    auto options = buildConfigOption({"a=1"});
+    const auto second = buildConfigOption({"b=2"});
+    options.insert(options.end(), second.begin(), second.end());
+    const auto payload = buildSdPayload(findServiceEntry(), options);
+
+    tc8::SomeIpCaptured c;
+    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
+    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+
+    EXPECT_EQ(c.sd_option_count, 2u);          // both options seen
+    ASSERT_EQ(c.sd_config_item_count, 1u);     // only the first parsed into items
+    EXPECT_TRUE(c.sd_config_has_key("a"));
+    EXPECT_FALSE(c.sd_config_has_key("b"));
+}
+
+// A length byte claiming more bytes than the option body holds: the truncated item is
+// dropped, no over-read past the option.
+TEST(SomeIpCapturedConfigOption, TruncatedItemDropped) {
+    // config string: length byte 9, but only "abc" (3 bytes) follow.
+    const auto payload =
+        buildSdPayload(findServiceEntry(), buildConfigOptionRaw({0x09, 'a', 'b', 'c'}));
+
+    tc8::SomeIpCaptured c;
+    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
+    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+
+    EXPECT_EQ(c.sd_config_item_count, 0u);
+}
+
+// The capture context is reused across frames: a TP frame then a non-TP frame on the
+// same context must clear the TP fields, so is_tp never reads stale-true.
+TEST(SomeIpCapturedTp, StaleStateClearedOnNonTpFrame) {
+    tc8::SomeIpCaptured c;
+
+    std::vector<std::uint8_t> tp_payload = {0x00, 0x00, 0x00, 0x11};  // offset 16, more=1
+    tp_payload.resize(4 + 16, 0xAB);
+    tc8::SomeIpFrame tp{};
+    tp.service_id = 0x1234;
+    tp.message_type = static_cast<std::uint8_t>(0x80 | tc8::someiptp::kMessageTypeTpFlag);
+    tp.payload_data = tp_payload.data();
+    tp.payload_len = static_cast<std::uint32_t>(tp_payload.size());
+    tc8::fillSomeIpCapturedFromFrame(c, tp);
+    ASSERT_TRUE(c.is_tp);
+
+    std::vector<std::uint8_t> plain(8, 0x00);
+    tc8::SomeIpFrame nf{};
+    nf.service_id = 0x1234;
+    nf.message_type = 0x80;  // no TP-Flag
+    nf.payload_data = plain.data();
+    nf.payload_len = static_cast<std::uint32_t>(plain.size());
+    tc8::fillSomeIpCapturedFromFrame(c, nf);
+
+    EXPECT_FALSE(c.is_tp);
+    EXPECT_EQ(c.tp_offset, 0u);
+    EXPECT_FALSE(c.tp_more_segments);
+    EXPECT_EQ(c.tp_segment_len, 0u);
 }

@@ -40,7 +40,10 @@ TEST(SomeIpTpEmit, SegmentsRoundTripThroughLoopback) {
         payload[i] = static_cast<std::uint8_t>(i);
     }
 
-    const int rc = emitSomeIpTpSegments("lo", /*src_port=*/23460, hdr, payload.data(), payload.size(),
+    // A fixed source port below the ephemeral range, so the OS will not have
+    // auto-assigned it (mirrors udp_emit_test's rationale).
+    const std::uint16_t kSrcPort = 23460;
+    const int rc = emitSomeIpTpSegments("lo", kSrcPort, hdr, payload.data(), payload.size(),
                                         htonl(INADDR_LOOPBACK), rx_port, /*max_segment_payload=*/16);
     ASSERT_EQ(rc, 0);
 

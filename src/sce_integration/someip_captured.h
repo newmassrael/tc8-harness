@@ -184,13 +184,6 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     bool          tp_more_segments = false;
     std::uint32_t tp_segment_len = 0;   // segment payload bytes (frame payload minus the 4-byte TP header)
 
-    // Snapshot of `session_id` / `tp_offset` from the previous fired TP segment, for
-    // cross-segment correlation (all segments of one message share a Session ID and
-    // carry ascending offsets, PRS_SOMEIP_00721 / 00724). Mirrors prev_sd_session_id,
-    // managed by the same dispatch hook.
-    std::uint16_t prev_tp_session_id = 0;
-    std::uint32_t prev_tp_offset = 0;
-
     // Transport 4-tuple (`src_ip` / `dst_ip` / `src_port` / `dst_port`)
     // from the encapsulating UDP datagram or TCP segment is inherited
     // from `CapturedL3Endpoints` + `CapturedL4Ports`. §5.1.5.6 ONWIRE_01
@@ -278,34 +271,37 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     std::uint8_t sd_config_item_count = 0;
     SdConfigItem sd_config_items[kMaxSdConfigItems]{};
 
-    // True if any parsed config item is `key` (no value) or `key=...`.
-    bool sd_config_has_key(std::string_view key) const {
+    // The first parsed config item matching `key` ("key" exactly, or "key=..."), or
+    // nullptr if absent. The single match site the has-key / value-of helpers share.
+    const SdConfigItem *sd_config_item_for(std::string_view key) const {
         for (std::uint8_t i = 0; i < sd_config_item_count; ++i) {
             const std::string_view item(reinterpret_cast<const char *>(sd_config_items[i].bytes),
                                         sd_config_items[i].captured);
-            if (item == key) {
-                return true;  // "key" with no value
-            }
-            if (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
-                item[key.size()] == '=') {
-                return true;  // "key=..."
+            if (item == key || (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
+                                 item[key.size()] == '=')) {
+                return &sd_config_items[i];
             }
         }
-        return false;
+        return nullptr;
     }
 
+    // True if any parsed config item is `key` (no value) or `key=...`.
+    bool sd_config_has_key(std::string_view key) const { return sd_config_item_for(key) != nullptr; }
+
     // The value after `key=` for the first matching item; empty if the key is absent or
-    // present without a value (`key` or `key=`).
+    // present without a value (`key` or `key=`). Reliable only when the matched item was
+    // not truncated (its `captured == len`); a value longer than the capture cap is
+    // silently clipped, which a caller needing exactness detects via that field pair.
     std::string sd_config_value_of(std::string_view key) const {
-        for (std::uint8_t i = 0; i < sd_config_item_count; ++i) {
-            const std::string_view item(reinterpret_cast<const char *>(sd_config_items[i].bytes),
-                                        sd_config_items[i].captured);
-            if (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
-                item[key.size()] == '=') {
-                return std::string(item.substr(key.size() + 1));
-            }
+        const SdConfigItem *it = sd_config_item_for(key);
+        if (it == nullptr) {
+            return std::string();
         }
-        return std::string();
+        const std::string_view item(reinterpret_cast<const char *>(it->bytes), it->captured);
+        if (item.size() <= key.size()) {
+            return std::string();  // "key" with no value
+        }
+        return std::string(item.substr(key.size() + 1));  // after "key="
     }
 
     // §5.1.5.3.2 SOMEIPSRV_SD_MESSAGE_02 dynamic instance extraction.
@@ -475,13 +471,18 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
             }
         }
     }
-    // SOME/IP-TP: when the message_type carries the TP-Flag, the payload leads with the
-    // 4-byte TP header (someiptp::parseTpHeader owns that layout) and the rest is this
-    // segment's payload. Cases read tp_offset / tp_more_segments / tp_segment_len.
+    // SOME/IP-TP: the capture context is reused across frames, so reset per frame, then
+    // populate from the TP header only when the TP-Flag is set AND the header parses, so
+    // is_tp never reports true on a stale prior frame or a frame too short to carry one.
+    // someiptp::parseTpHeader owns the 4-byte header layout; the rest is the payload.
+    c.is_tp = false;
+    c.tp_offset = 0;
+    c.tp_more_segments = false;
+    c.tp_segment_len = 0;
     if ((f.message_type & someiptp::kMessageTypeTpFlag) != 0) {
-        c.is_tp = true;
         someiptp::TpSegmentHeader tph;
         if (someiptp::parseTpHeader(f.payload_data, f.payload_len, tph)) {
+            c.is_tp = true;
             c.tp_offset = static_cast<std::uint32_t>(tph.offset);
             c.tp_more_segments = tph.more_segments;
             c.tp_segment_len = static_cast<std::uint32_t>(f.payload_len - someiptp::kTpHeaderLen);

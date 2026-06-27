@@ -29,8 +29,9 @@ bool parseTpHeader(const std::uint8_t* tp_header, std::size_t len, TpSegmentHead
         return false;
     }
     const std::uint32_t tp = get32be(tp_header);
-    // Offset field = upper 28 bits; the low 4 bits (Reserved + More-Segments) are
-    // masked off (PRS_SOMEIP_00724 / 00726). More-Segments is bit 0.
+    // The 16-byte-granular offset occupies the upper 28 bits, so masking off the low 4
+    // bits (kOffsetGranularity-1) drops the Reserved (3) + More-Segments (1) field that
+    // shares them (PRS_SOMEIP_00724 / 00726). More-Segments is bit 0.
     out.offset = tp & ~static_cast<std::uint32_t>(kOffsetGranularity - 1);
     out.more_segments = (tp & 1u) != 0;
     return true;
