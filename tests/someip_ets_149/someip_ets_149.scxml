@@ -2,27 +2,24 @@
 <!--
   TC8 v3.0 §5.1.6 SOMEIP_ETS_149: SD_Send_triggerEventUINT8E2E_Eventgroup_2.
 
-  Tester subscribes to eventgroup 0x02 on SERVICE-ID-1; DUT must reply
-  with SubscribeEventgroupAck (Type 2 entry, type=0x07, ttl > 0) and
-  emit at least one Notification with method-ID highest bit set.
+  Tester subscribes to eventgroup 0x02 on SERVICE-ID-1, then calls
+  triggerEventUINT8E2E (Method 0x06, Fire&Forget). DUT must reply with
+  SubscribeEventgroupAck (Type 2 entry, type=0x07, ttl > 0) and emit
+  TestEventUINT8E2E (Event 0x8004) to the IP+port advertised in the
+  Subscribe option.
 
-  The spec body lists 4 method-IDs (0x8005..0x8008 — Interface Version
-  + 3 TestField events) the DUT should emit. tc8-dut's vsomeip.json
-  exposes only TestEventUINT8 (0x8001) under eventgroup 0x02, so the
-  observable surface is reduced to a single Notification with MSB set.
-  Pass cond accepts any such Notification — the spec's PRS_SOMEIPSD
-  invariants (Ack on Subscribe + initial events on subscribed eg) are
-  preserved without requiring extra TestField events. The "TCP" axis
-  in the case name is not separately observable on this DUT (event
-  0x8001 is is_reliable=false in vsomeip.json); the lenient
-  interpretation matches BASIC_03's approach.
+  Spec-faithful observation: phase 3 matches the specific Event 0x8004,
+  not a generic MSB-set Notification — so the always-on cyclic
+  TestEventUINT8 (0x8001 on the same eg) does NOT satisfy it; only the
+  triggered E2E event does. Wire proof that triggerEventUINT8E2E drives
+  TestEventUINT8E2E.
 
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1
             with sd_ipv4_endpoint_count >= 1.
     Phase 2 (listening_phase2): SubscribeEventgroupAck for eventgroup
             0x0002 (Type 2 entry, ttl > 0). ttl == 0 -> Nack -> fail.
-    Phase 3 (listening_phase3): Notification with method_id high bit
-            set (0x8000) on SERVICE-ID-1.
+    Phase 3 (listening_phase3): Notification carrying Event 0x8004
+            (TestEventUINT8E2E) on SERVICE-ID-1.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -68,7 +65,7 @@
       <send event="phase3_deadline_exceeded" delay="4s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and (captured.method_id &amp; 0x8000) == 0x8000"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8004"
                 target="pass"/>
     <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_notification"/>
   </state>

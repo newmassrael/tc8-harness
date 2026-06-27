@@ -61,6 +61,15 @@ int main() {
     std::printf("tc8-dut: %s registered (domain=%s instance=%s)\n",
                 kInterface, kDomain, kInstance);
 
+    // §5.1.6 SOMEIP_ETS_121 — seed TestFieldUINT8 (notifier 0x8006) with a
+    // non-default value so CommonAPI has a payload to send as the field's
+    // initial Notification on each SubscribeEventgroupAck. Without a set value
+    // vsomeip logs "Event payload not (yet) set" and skips the initial event,
+    // so the Explicit Initial Data Control path stays unobservable. A non-zero
+    // value is required because the setter only pushes to vsomeip when the value
+    // changes from its default-constructed 0.
+    impl->setTestFieldUINT8Attribute(static_cast<uint8_t>(0x42));
+
     // Single emission engine (one producer per event). 0x8001/TestEventUINT8 is
     // a CYCLIC source — the DUT's pre-existing unconditional 250 ms cadence the
     // §5.1.5 suite relies on. The four new events are TRIGGERED — they fire only

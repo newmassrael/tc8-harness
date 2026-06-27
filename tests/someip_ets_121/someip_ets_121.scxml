@@ -4,21 +4,21 @@
 
   Tester sends a SubscribeEventgroup for eventgroup 0x05 on
   SERVICE-ID-1; DUT must reply with SubscribeEventgroupAck (Type 2
-  entry, type=0x07, ttl > 0) and emit the initial fields/events for
-  the subscribed eventgroup. tc8-dut's vsomeip.json maps
-  TestEventUINT8 (0x8001) to eventgroup 0x05, so the observable
-  initial-event surface is a single Notification with method-ID high
-  bit set. Mirror of ETS_087 wire shape — the spec wording differs
-  ("initial fields" vs "Eventgroup_EventsAndFieldsUnreliable_5") but
-  both case bodies stimulate Subscribe(eg 0x05) and observe Ack +
-  MSB-set Notification per PRS_SOMEIPSD_00386 / 00391.
+  entry, type=0x07, ttl > 0) and emit the initial fields for the
+  subscribed eventgroup. The TestFieldUINT8 field (notifier 0x8006) is
+  bound to eg 0x05, so its current value is sent as an initial
+  Notification on the Ack (Explicit Initial Data Control,
+  PRS_SOMEIPSD_00386 / 00391). Phase 3 observes the specific field
+  notifier 0x8006 — the cyclic TestEventUINT8 (0x8001) is not a field
+  and does not satisfy the initial-data assertion. The DUT seeds the
+  field value at startup (see dut_main) so the notifier has a payload.
 
   Phase 1 (listening_phase1): OfferService for SERVICE-ID-1 with
           sd_ipv4_endpoint_count >= 1.
   Phase 2 (listening_phase2): SubscribeEventgroupAck for eventgroup
           0x0005 (Type 2 entry, ttl > 0). ttl == 0 -> Nack -> fail.
-  Phase 3 (listening_phase3): Notification with method_id high bit
-          set (0x8000) on SERVICE-ID-1.
+  Phase 3 (listening_phase3): initial field Notification carrying the
+          TestFieldUINT8 notifier 0x8006 on SERVICE-ID-1.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -64,7 +64,7 @@
       <send event="phase3_deadline_exceeded" delay="4s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and (captured.method_id &amp; 0x8000) == 0x8000"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8006"
                 target="pass"/>
     <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_initial_event"/>
   </state>
@@ -95,7 +95,7 @@
 
   <final id="inconclusive_phase3_no_initial_event">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_initial_event_with_method_msb_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_initial_field_notifier_0x8006_after_subscribe_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>
