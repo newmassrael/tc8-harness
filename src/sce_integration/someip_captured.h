@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <string_view>
 
 #include "tc8/protocol_frames/someip_frame.h"
 
@@ -98,6 +99,19 @@ struct SdOption {
     std::uint8_t reserved2 = 0;
     std::uint8_t l4_proto = 0;
     std::uint16_t port = 0;
+};
+
+// Cap on a captured Configuration Option item's content bytes — config strings
+// ("key=value") are short, so a longer item is truncated to this for assertion.
+inline constexpr std::size_t kMaxSdConfigItemLen = 64;
+
+// One length-prefixed item of a Configuration Option (type 0x01) body — the DNS
+// TXT-like "key[=value]" encoding (PRS_SOMEIPSD / SWS_SD §7.3). `len` is the on-wire
+// length byte; `bytes`/`captured` hold the item's content (truncated to the cap).
+struct SdConfigItem {
+    std::uint8_t len = 0;                          // on-wire length byte
+    std::uint8_t captured = 0;                     // bytes stored (min(len, cap))
+    std::uint8_t bytes[kMaxSdConfigItemLen] = {};  // item content (key / key=value)
 };
 
 // Type values defined by SOMEIPSD §4.2.2 / SWS_SD §7.3 Table 11.
@@ -256,6 +270,43 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     static constexpr std::size_t kMaxSdOptions = 8;
     std::uint8_t sd_option_count = 0;
     SdOption sd_options[kMaxSdOptions]{};
+
+    // SOME/IP-SD Configuration Option (type 0x01) body — the DNS TXT-like sequence of
+    // length-prefixed "key[=value]" items, zero-length-terminated (PRS_SOMEIPSD /
+    // SWS_SD §7.3). Populated by parseSdOptionsInto from the first type-0x01 option.
+    static constexpr std::size_t kMaxSdConfigItems = 8;
+    std::uint8_t sd_config_item_count = 0;
+    SdConfigItem sd_config_items[kMaxSdConfigItems]{};
+
+    // True if any parsed config item is `key` (no value) or `key=...`.
+    bool sd_config_has_key(std::string_view key) const {
+        for (std::uint8_t i = 0; i < sd_config_item_count; ++i) {
+            const std::string_view item(reinterpret_cast<const char *>(sd_config_items[i].bytes),
+                                        sd_config_items[i].captured);
+            if (item == key) {
+                return true;  // "key" with no value
+            }
+            if (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
+                item[key.size()] == '=') {
+                return true;  // "key=..."
+            }
+        }
+        return false;
+    }
+
+    // The value after `key=` for the first matching item; empty if the key is absent or
+    // present without a value (`key` or `key=`).
+    std::string sd_config_value_of(std::string_view key) const {
+        for (std::uint8_t i = 0; i < sd_config_item_count; ++i) {
+            const std::string_view item(reinterpret_cast<const char *>(sd_config_items[i].bytes),
+                                        sd_config_items[i].captured);
+            if (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
+                item[key.size()] == '=') {
+                return std::string(item.substr(key.size() + 1));
+            }
+        }
+        return std::string();
+    }
 
     // §5.1.5.3.2 SOMEIPSRV_SD_MESSAGE_02 dynamic instance extraction.
     // The spec body (steps 6-7) extracts instance IDs from a 2-entry
@@ -585,6 +636,7 @@ inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, s
     std::uint8_t parsed = 0;
     std::uint8_t endpoint_count = 0;
     std::uint8_t multicast_count = 0;
+    bool config_seen = false;
     while (parsed < SomeIpCaptured::kMaxSdOptions && cursor + 3 <= declared_options_bytes &&
            options_start + cursor + 3 <= payload_len) {
         const std::uint8_t *o = payload + options_start + cursor;
@@ -622,6 +674,36 @@ inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, s
             dst.reserved2 = o[8];
             dst.l4_proto = o[9];
             dst.port = static_cast<std::uint16_t>((static_cast<std::uint16_t>(o[10]) << 8) | o[11]);
+        }
+
+        // Configuration Option (type 0x01): a Reserved byte then the DNS TXT-like
+        // config string — length-prefixed "key[=value]" items, zero-length-terminated
+        // (PRS_SOMEIPSD / SWS_SD §7.3). Parse the first such option's items.
+        if (opt_type == sd_option_type::kConfiguration && !config_seen && opt_len >= 1) {
+            config_seen = true;
+            dst.reserved1 = o[3];
+            const std::uint8_t *cs = o + 4;           // after Length(2) + Type(1) + Reserved(1)
+            const std::size_t cs_len = opt_len - 1u;  // option body minus the Reserved byte
+            std::size_t p = 0;
+            std::uint8_t items = 0;
+            while (p < cs_len && items < SomeIpCaptured::kMaxSdConfigItems) {
+                const std::uint8_t item_len = cs[p];
+                if (item_len == 0) {
+                    break;  // zero-length byte terminates the sequence
+                }
+                ++p;
+                if (p + item_len > cs_len) {
+                    break;  // item runs past the option body — truncated
+                }
+                SdConfigItem &item = c.sd_config_items[items];
+                item.len = item_len;
+                item.captured = static_cast<std::uint8_t>(
+                    item_len < kMaxSdConfigItemLen ? item_len : kMaxSdConfigItemLen);
+                std::memcpy(item.bytes, cs + p, item.captured);
+                p += item_len;
+                ++items;
+            }
+            c.sd_config_item_count = items;
         }
 
         if (opt_type == sd_option_type::kIpv4Endpoint) {

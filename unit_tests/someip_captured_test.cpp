@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "autosar/someiptp.h"
@@ -86,6 +87,24 @@ std::vector<std::uint8_t> buildSdPayload(const std::vector<std::uint8_t> &entrie
 // consistent so parseSdHeaderInto reaches the options block.
 std::vector<std::uint8_t> findServiceEntry() {
     return std::vector<std::uint8_t>(16, 0x00);
+}
+
+// Build a Configuration Option (type 0x01) wire block: Length(2B) + Type(0x01) +
+// Reserved(1B) + the DNS TXT-like config string ([len][item bytes]... terminated by a
+// zero-length byte). `items` are the "key=value" / "key=" / "key" strings, in order.
+std::vector<std::uint8_t> buildConfigOption(const std::vector<std::string> &items) {
+    std::vector<std::uint8_t> cs;  // the config string (option body after the Reserved byte)
+    for (const std::string &it : items) {
+        cs.push_back(static_cast<std::uint8_t>(it.size()));
+        cs.insert(cs.end(), it.begin(), it.end());
+    }
+    cs.push_back(0x00);  // zero-length terminator
+    std::vector<std::uint8_t> opt;
+    appendBe16(opt, static_cast<std::uint16_t>(1 + cs.size()));  // Length = Reserved + config string
+    opt.push_back(0x01);  // Type = Configuration Option
+    opt.push_back(0x00);  // Reserved
+    opt.insert(opt.end(), cs.begin(), cs.end());
+    return opt;
 }
 
 }  // namespace
@@ -262,4 +281,41 @@ TEST(SomeIpCapturedTp, NonTpFrameLeavesFieldsDefault) {
     EXPECT_EQ(c.tp_offset, 0u);
     EXPECT_FALSE(c.tp_more_segments);
     EXPECT_EQ(c.tp_segment_len, 0u);
+}
+
+// SOME/IP-SD Configuration Option (type 0x01): parseSdOptionsInto decodes the DNS
+// TXT-like length-prefixed "key[=value]" items the option body carries.
+TEST(SomeIpCapturedConfigOption, ParsesItemsAndKeyValues) {
+    const auto opt = buildConfigOption({"key=value", "k2"});
+    const auto payload = buildSdPayload(findServiceEntry(), opt);
+
+    tc8::SomeIpCaptured c;
+    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
+    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+
+    ASSERT_EQ(c.sd_option_count, 1u);
+    EXPECT_EQ(c.sd_options[0].type, tc8::sd_option_type::kConfiguration);
+    ASSERT_EQ(c.sd_config_item_count, 2u);
+    EXPECT_EQ(c.sd_config_items[0].len, 9u);  // "key=value" = 3 + 1 + 5
+    EXPECT_EQ(c.sd_config_items[1].len, 2u);  // "k2"
+    EXPECT_TRUE(c.sd_config_has_key("key"));
+    EXPECT_EQ(c.sd_config_value_of("key"), "value");
+    EXPECT_TRUE(c.sd_config_has_key("k2"));     // key present with no value
+    EXPECT_EQ(c.sd_config_value_of("k2"), "");  // no '=' -> empty value
+    EXPECT_FALSE(c.sd_config_has_key("absent"));
+}
+
+TEST(SomeIpCapturedConfigOption, EmptyValueAndKeyOnly) {
+    const auto opt = buildConfigOption({"key=", "lone"});  // empty value; no '='
+    const auto payload = buildSdPayload(findServiceEntry(), opt);
+
+    tc8::SomeIpCaptured c;
+    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
+    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+
+    ASSERT_EQ(c.sd_config_item_count, 2u);
+    EXPECT_TRUE(c.sd_config_has_key("key"));
+    EXPECT_EQ(c.sd_config_value_of("key"), "");  // "key=" -> present, empty value
+    EXPECT_TRUE(c.sd_config_has_key("lone"));
+    EXPECT_EQ(c.sd_config_value_of("lone"), "");  // "lone" -> no value
 }
