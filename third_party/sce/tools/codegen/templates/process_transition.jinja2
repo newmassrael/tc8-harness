@@ -115,7 +115,17 @@
 {% endif %}
 {% endif %}
 {% endmacro %}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
+{# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP markers
+   above the per-function `processTransition`, `executeMicrostep`,
+   `tryTransitionInState`, and `executeTransitionActions` headers.
+   The `#line` directive remaps subsequent line positions for the
+   function body; each successive function gets its own marker so
+   per-function attribution stays coherent across the translation
+   unit. #}
+    {{ sce_map.source_marker(model.source_location, "cpp") }}
     template <typename Engine>
     // W3C SCXML 3.13: Always non-static (uses lastTransitionSourceState_ via tryTransitionInState)
     [[gnu::hot]]
@@ -351,6 +361,7 @@ private:
     // W3C SCXML Appendix D.2: Execute microstep with proper ordering
     // ARCHITECTURE.MD: Zero Duplication Principle - Uses ParallelTransitionHelper (Single Source of Truth)
     // Exit all → Transition content all → Enter all
+    {{ sce_map.source_marker(model.source_location, "cpp") }}
     template <typename Engine>
     void executeMicrostep(const ::std::vector<TransitionInfo>& transitions,
                          [[maybe_unused]] State& currentState,
@@ -523,6 +534,7 @@ private:
     // - collectMode = nullptr: Immediate execution (traditional behavior)
     // - collectMode = vector: Collection only (for optimal transition set)
 {% endif %}
+    {{ sce_map.source_marker(model.source_location, "cpp") }}
     template <typename Engine>
     [[gnu::hot]]
     bool tryTransitionInState([[maybe_unused]] State checkState, [[maybe_unused]] Event event,
@@ -571,6 +583,11 @@ private:
 {% elif trans.is_pure_in_predicate %}
                 // W3C SCXML 5.9.2: Pure In() predicate - direct C++ call (no JSEngine)
                 if ({{ trans.cond_cpp }}) SCE_LIKELY {
+{% elif trans.native_payload_guard %}
+                // NL→IR Item C1 Path A: native typed `_event.data` guard — cond
+                // "{{ trans.cond }}" lowered to a tag-checked field comparison on
+                // the lifted pending<Event>Payload_ (no script engine).
+                if ({{ trans.native_payload_guard }}) SCE_LIKELY {
 {% elif model.needs_script_engine %}
                 // W3C SCXML 5.9: ECMAScript expression - JSEngine evaluation
                 if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), "{{ trans.cond | escape_cpp }}", engine)) SCE_LIKELY {
@@ -716,6 +733,7 @@ private:
 
 public:
     // W3C SCXML 3.13: Execute transition actions (called between exit and entry)
+    {{ sce_map.source_marker(model.source_location, "cpp") }}
     template <typename Engine>
     void executeTransitionActions([[maybe_unused]] Engine& engine) {
 {% if model.has_transition_actions %}
@@ -735,7 +753,7 @@ public:
             {
                 switch (lastTransitionIndex_) {
 {% for trans in state.transitions %}
-                case {{ loop.index0 }}:  // Transition {{ loop.index0 }}
+                case {{ loop.index0 }}:  // Transition {{ loop.index0 }}{{ annot.annotation_comment(trans, "cpp", "                    ") }}
                     {
                         AOT_DEBUG("AOT executeTransitionActions: Executing transition {{ loop.index0 }} actions");
 {% if model.needs_script_engine %}
@@ -743,6 +761,9 @@ public:
                         [[maybe_unused]] auto& scriptEngine = getScriptEngine();
 {% endif %}
 {% for action in trans.actions %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "cpp", "                        ") -}}
+{%- endif %}
 {% include 'actions/' + action.type + '.jinja2' %}
 {% endfor %}
                     }

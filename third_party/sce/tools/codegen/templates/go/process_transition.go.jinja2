@@ -13,9 +13,14 @@
     - Event-triggered transitions use direct enum comparison or prefix matching
     - Eventless transitions do NOT bubble to parent states
 #}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
 // ProcessTransition evaluates guards and takes a matching transition (W3C SCXML 3.13).
 // Returns true if a transition was taken.
+{# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP markers
+   above each Go transition function. #}
+{{ sce_map.source_marker(model.source_location, "go") }}
 func (p *{{ machine_name }}Policy) ProcessTransition(currentState *{{ machine_name }}State, event {{ machine_name }}Event, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) bool {
 {% if model.needs_script_engine %}
 	// W3C SCXML 5.10: Bind _event system variable for guard evaluation
@@ -140,6 +145,7 @@ func (p *{{ machine_name }}Policy) ProcessTransition(currentState *{{ machine_na
 
 {% if model.has_parallel_states %}
 // tryCollectTransition checks if a state has a matching transition and returns it as transitionInfo.
+{{ sce_map.source_marker(model.source_location, "go") }}
 func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_name }}State, event {{ machine_name }}Event, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) *transitionInfo {
 	switch checkState {
 {% for state_id, state in model.states | dictsort %}
@@ -152,6 +158,11 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% if trans.cond %}
 {% if trans.is_pure_in_predicate %}
 			if {{ trans.cond_cpp | to_in_predicate_go }} {
+{% elif trans.native_payload_guard %}
+			// NL→IR Item C1 Path A: native typed `_event.data` guard — cond
+			// "{{ trans.cond }}" lowered to a tag-checked field comparison on
+			// the lifted `pending<Event>Payload` (no script engine).
+			if {{ trans.native_payload_guard }} {
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
@@ -191,6 +202,11 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% if trans.cond %}
 {% if trans.is_pure_in_predicate %}
 			if {{ trans.cond_cpp | to_in_predicate_go }} {
+{% elif trans.native_payload_guard %}
+			// NL→IR Item C1 Path A: native typed `_event.data` guard — cond
+			// "{{ trans.cond }}" lowered to a tag-checked field comparison on
+			// the lifted `pending<Event>Payload` (no script engine).
+			if {{ trans.native_payload_guard }} {
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
@@ -223,6 +239,7 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% endif %}
 
 // tryTransitionInState checks transitions for a single state.
+{{ sce_map.source_marker(model.source_location, "go") }}
 func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_name }}State, event {{ machine_name }}Event, currentState *{{ machine_name }}State, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) bool {
 	switch checkState {
 {% for state_id, state in model.states | dictsort %}
@@ -235,6 +252,11 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 {% if trans.cond %}
 {% if trans.is_pure_in_predicate %}
 			if {{ trans.cond_cpp | to_in_predicate_go }} {
+{% elif trans.native_payload_guard %}
+			// NL→IR Item C1 Path A: native typed `_event.data` guard — cond
+			// "{{ trans.cond }}" lowered to a tag-checked field comparison on
+			// the lifted `pending<Event>Payload` (no script engine).
+			if {{ trans.native_payload_guard }} {
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
@@ -278,6 +300,11 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 {% if trans.cond %}
 {% if trans.is_pure_in_predicate %}
 			if {{ trans.cond_cpp | to_in_predicate_go }} {
+{% elif trans.native_payload_guard %}
+			// NL→IR Item C1 Path A: native typed `_event.data` guard — cond
+			// "{{ trans.cond }}" lowered to a tag-checked field comparison on
+			// the lifted `pending<Event>Payload` (no script engine).
+			if {{ trans.native_payload_guard }} {
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
@@ -313,6 +340,7 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 }
 
 // ExecuteTransitionActions executes actions for the last taken transition (W3C SCXML 3.13).
+{{ sce_map.source_marker(model.source_location, "go") }}
 func (p *{{ machine_name }}Policy) ExecuteTransitionActions(engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {
 {% if model.has_transition_actions %}
 {% if model.needs_script_engine %}
@@ -326,8 +354,11 @@ func (p *{{ machine_name }}Policy) ExecuteTransitionActions(engine *sce.Engine[{
 {% for state_id, state in model.states | dictsort %}
 {% for trans in state.transitions %}
 {% if trans.actions %}
-	if source == {{ machine_name }}State{{ state_id | to_state_variant }} && idx == {{ trans.transition_index | default(loop.index0) }} {
+	if source == {{ machine_name }}State{{ state_id | to_state_variant }} && idx == {{ trans.transition_index | default(loop.index0) }} {  {{- annot.annotation_comment(trans, "go", "		") }}
 {% for action in trans.actions %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "go", "		") -}}
+{%- endif %}
 		{% include 'actions/' ~ action.type ~ '.go.jinja2' %}
 
 {% endfor %}

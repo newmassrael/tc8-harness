@@ -13,8 +13,13 @@
 
     Ports from C++ process_transition.jinja2.
 #}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
     // W3C SCXML 3.13: Evaluate guards and take a matching transition
+    {# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP marker
+       above `process_transition` and `execute_transition_actions`. #}
+    {{ sce_map.source_marker(model.source_location, "rust") }}
     fn process_transition(
         &mut self,
         current_state: &mut Self::State,
@@ -98,11 +103,11 @@
         // W3C SCXML 3.4 + 3.12 + Appendix D: Parallel state transition handling
         if event == Self::null_event() {
             // W3C SCXML Appendix D: Eventless transitions - collect then execute
-            let mut enabled_transitions: Vec<TransitionInfo> = Vec::new();
+            let mut enabled_transitions: TransitionList = TransitionList::new();
             let mut states_to_check = self.active_states.clone();
 
             // Sort by document order for consistent processing
-            states_to_check.sort_by_key(|&s| Self::get_document_order(s));
+            ::sce_rust_runtime::stable_sort_by_key(&mut states_to_check, |&s| Self::get_document_order(s));
 
             for active_state in &states_to_check {
                 // W3C SCXML 3.13: Eventless transitions do NOT bubble to parent states
@@ -120,7 +125,7 @@
             }
         } else {
             // W3C SCXML Appendix D: External events - collect then execute
-            let mut enabled_transitions: Vec<TransitionInfo> = Vec::new();
+            let mut enabled_transitions: TransitionList = TransitionList::new();
 
             for &active_state in &self.active_states.clone() {
                 let is_non_atomic = Self::is_compound_state(active_state) || Self::is_parallel_state(active_state);
@@ -151,24 +156,18 @@
             // W3C SCXML 3.13: Deduplicate transitions collected from multiple descendants
             // of the same ancestor (e.g., both parallel regions bubble up to the same parent
             // transition; test 504). Preserves first-match document order.
-{% if no_std %}
-            // Watching-zenoh RFC §5.J.2: heapless::FnvIndexSet replaces
-            // the std HashSet under --no-std. The 64-entry cap is the
-            // per-microstep enabled-transitions ceiling — exceed it and panic
-            // loudly rather than silently dropping transitions (which would
-            // violate W3C SCXML Appendix D.2 semantics).
-            let mut seen: heapless::FnvIndexSet<({{ machine_name }}State, usize), 64> =
-                heapless::FnvIndexSet::new();
-            enabled_transitions.retain(|t| {
-                seen.insert((t.source, t.transition_index))
-                    .expect("microstep enabled-transitions exceeded 64-entry no_std cap")
-            });
-{% else %}
-            let mut seen = std::collections::HashSet::new();
-            enabled_transitions.retain(|t| {
-                seen.insert((t.source, t.transition_index))
-            });
-{% endif %}
+            // The runtime owns the std-vs-heapless set choice through the
+            // profile-resolving `SceDedupSet` alias + `dedup_insert` helper
+            // (single source of truth, like `SceString` / `StateChain`), so this
+            // one emission compiles on both runtime profiles: a `HashSet` under
+            // std, a capacity-bounded `heapless::FnvIndexSet` under no_std
+            // (`MAX_MICROSTEP_DEDUP_SLOTS`). `dedup_insert` fails loud on no_std
+            // overflow rather than silently dropping transitions — that would
+            // violate W3C SCXML Appendix D.2 semantics.
+            let mut seen: ::sce_rust_runtime::SceDedupSet<({{ machine_name }}State, usize)> =
+                ::sce_rust_runtime::SceDedupSet::new();
+            enabled_transitions
+                .retain(|t| ::sce_rust_runtime::dedup_insert(&mut seen, (t.source, t.transition_index)));
 
             // W3C SCXML Appendix D.2: Remove conflicting transitions
             if !enabled_transitions.is_empty() {
@@ -211,6 +210,7 @@
     }
 
     // W3C SCXML 3.13: Execute transition actions (called between exit and entry)
+    {{ sce_map.source_marker(model.source_location, "rust") }}
     fn execute_transition_actions(&mut self, engine: &mut sce_rust_runtime::Engine<Self>) {
 {% if model.has_transition_actions %}
         if !self.has_transition_actions {
@@ -226,9 +226,12 @@
                 match self.last_transition_index {
 {% for trans in state.transitions %}
 {% if trans.actions %}
-                    {{ loop.index0 }} => {
+                    {{ loop.index0 }} => {  {{- annot.annotation_comment(trans, "rust", "                        ") }}
                         // W3C SCXML 3.13: Transition {{ loop.index0 }} actions
 {% for action in trans.actions %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "rust", "                        ") -}}
+{%- endif %}
                         {% include 'actions/' ~ action.type ~ '.rs.jinja2' %}
 
 {% endfor %}

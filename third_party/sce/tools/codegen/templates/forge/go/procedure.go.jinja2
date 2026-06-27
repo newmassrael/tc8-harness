@@ -1,6 +1,9 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{{ sce_map.source_marker(source_location, "go", module_level=true) }}
+
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="procedure")
 // Runtime: {{ runtime_dep }}
 // Do not edit — regenerate from the source SCXML file.
@@ -203,9 +206,8 @@ func (p *policy) ProcessTransition(s int, ev int) (int, int, bool, bool) {
 }
 
 // Returns (raised, ok). When ok is true the loop re-processes the
-// source state with the raised event (RFC
-// `claudedocs/rfc-forge-bytes-bounded.md` §3 B4 bytes cap violation
-// raises eventErrorExecution); ok=false signals normal flow.
+// source state with the raised event (a bytes-cap violation raises
+// eventErrorExecution); ok=false signals normal flow.
 func (p *policy) ExecuteTransitionActions(source int, trIndex int) (int, bool) {
 	_ = source
 	_ = trIndex

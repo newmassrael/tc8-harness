@@ -1,6 +1,9 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{{ sce_map.source_marker(source_location, "rust", module_level=true) }}
+
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="procedure")
 // Runtime: {{ runtime_dep }}
 // Do not edit — regenerate from the source SCXML file.
@@ -232,8 +235,7 @@ impl ProcedurePolicy for {{ struct_name }} {
 
     fn execute_transition_actions(&mut self, source: State, tr_index: usize) -> Option<Event> {
         // Returns None for normal flow; Some(Event) when an assign-time
-        // check (RFC `claudedocs/rfc-forge-bytes-bounded.md` §3 B4 bytes
-        // cap violation) raises an internal event that the shared
+        // bytes-cap check raises an internal event that the shared
         // run_procedure() loop re-pumps through process_transition.
         let _ = (source, tr_index);  // pacify unused-warning for empty bodies
 {% for s in states_with_assigns %}

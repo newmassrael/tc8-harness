@@ -1,25 +1,39 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
-{# RFC §5.J.1 — C11 statechart implementation (paired with state_machine.h.jinja2).
+{# RFC §synth-5-J-1 — C11 statechart implementation (paired with state_machine.h.jinja2).
    The C++ codegen splits its output across `_sm.h` (Policy struct + SM
    class shell) and `_sm.inl` (Policy method bodies, textually included
    from inside the struct). C11 has no in-class definitions, so the
    policy methods, the RTC core, and the queue helpers all land in this
-   single translation unit alongside the per-fixture data layout. T3
-   (jinja2 inline) per c11_design_decisions.md.                            #}
+   single translation unit alongside the per-fixture data layout
+   (jinja2-inline-only contract, no shared runtime .c).                            #}
 
 {% include 'license_header.jinja2' %}
 {%- import 'c/scriptengine.jinja2' as se %}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{# Watching-zenoh RFC §5.O Atomic 0b: SCE-MAP marker anchoring the
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
+{# Watching-zenoh RFC §synth-5-O: SCE-MAP marker anchoring the
    generated C11 implementation. Module-level form is a comment per
-   the same rationale as the header — Atomic 0c switches to `#line`
-   for per-function emission where the redirect scope is local. #}
+   the same rationale as the header — per-function emission switches
+   to `#line`, where the redirect scope is local. #}
 
 {{ sce_map.source_marker(model.source_location, "c", module_level=true) }}
 
 #include "{{ model.name }}_sm.h"
+{# Watching-zenoh RFC §5.2 — author-declared driver headers.
+   Each top-level `<sce:driver href="..."/>` on the SCXML root is
+   resolved at compile-model time (`resolve_driver_refs` /
+   `resolve_driver_refs_with_root` in `sce-build/src/lib.rs`) against
+   either the SCXML file's parent directory (the default)
+   or `deploy.yaml`'s `platform.driver_root` (override). The resolver
+   confirms file existence only; cross-TU symbol verification is
+   delegated to the C compiler. Empty `driver_refs`
+   skips the loop entirely so the byte-stable output of every existing
+   fixture stays unchanged. #}
+{%- for d in model.driver_refs %}
+#include "{{ d.resolved_path or d.href }}"
+{%- endfor %}
 
 {% if (model.invokes | scxml_family) %}
 /* W3C SCXML 6.4: invoke lifecycle includes — sce/invoke.h supplies
@@ -31,13 +45,32 @@
 {% endif %}
 
 #include <string.h>
+
+/* Watching-zenoh RFC §5.2 — C11 section attribute prefix
+   for every statechart function definition emitted below. When
+   `deploy.yaml`'s `platform.c11_section_attribute.class` is set, the
+   macro expands to `__attribute__((section("<name>")))` so the linker
+   places every function in the named section (C11-side wiring;
+   non-C11 backends are rejected at the orchestrator
+   pass). When unset, the macro expands to nothing — author-side
+   override remains possible via a pre-include `#define SCE_SM_FN ...`
+   or compiler `-DSCE_SM_FN=...`. The `#ifndef` guard makes the
+   override stable across includes / unity builds. */
+#ifndef SCE_SM_FN
+{% if model.c11_section_attribute_class %}
+#define SCE_SM_FN __attribute__((section("{{ model.c11_section_attribute_class }}")))
+{% else %}
+#define SCE_SM_FN
+{% endif %}
+#endif
+
 {% if model.needs_script_engine %}
 #include <stdio.h>  /* snprintf for body-bearing <foreach> per-iter set */
 {% endif %}
 {% if model.needs_dom_helper %}
 /* W3C SCXML B.2: XML DOM helper (sce-c-runtime/include/sce/lua_dom_binding.h).
    cpp `LuaDOMBinding` 1:1 algorithmic mirror in pure C — pugixml is
-   C++-only and would break the C11 R3 zero-deps lock-in. Lives in the
+   C++-only and would break the C11 zero-dependency contract (RFC §synth-5-J-1). Lives in the
    `sce_c_scripting` tier (Lua-bound), built atop the freestanding-C
    `sce_c_base` DOM parser. See ARCHITECTURE.md §"C11 backend layering". */
 #include <sce/lua_dom_binding.h>
@@ -80,14 +113,14 @@
    queues and macrostep helpers they belong with. The forward decl keeps
    `-Werror=implicit-function-declaration` quiet without reordering the
    logical sections of the generated source. */
-static SCE_C_UNUSED void scheduled_push({{ model.name }}_t *sm,
+static SCE_C_UNUSED SCE_SM_FN void scheduled_push({{ model.name }}_t *sm,
                            uint64_t fire_time_ms,
                            {{ model.name }}_event_t event,
                            const char *send_id
 {%- if model.needs_script_engine %},
                            int payload_lua_ref
 {%- endif %});
-static SCE_C_UNUSED void scheduled_cancel({{ model.name }}_t *sm, const char *send_id);
+static SCE_C_UNUSED SCE_SM_FN void scheduled_cancel({{ model.name }}_t *sm, const char *send_id);
 {% if model.has_parent_communication %}
 /* W3C SCXML 6.2 + 6.4 (test187): delayed `<send target="#_parent">` —
    distinct entry-point from `scheduled_push` so the local-event arm
@@ -96,7 +129,7 @@ static SCE_C_UNUSED void scheduled_cancel({{ model.name }}_t *sm, const char *se
    the same `scheduled_queue_t` so `_tick`'s pop-by-fire-time ordering
    stays unified, and `scheduled_cancel`'s send_id walk catches
    to-parent entries the same way as local entries. */
-static SCE_C_UNUSED void scheduled_push_parent({{ model.name }}_t *sm,
+static SCE_C_UNUSED SCE_SM_FN void scheduled_push_parent({{ model.name }}_t *sm,
                                   uint64_t fire_time_ms,
                                   const char *event_name,
                                   const char *send_id);
@@ -112,10 +145,10 @@ static SCE_C_UNUSED void scheduled_push_parent({{ model.name }}_t *sm,
    set of names, same UPPER + dot/dash → underscore transform. Unknown
    names collapse to `EVENT_NONE` and the surrounding arm declines to
    raise. Linear scan is fine: the W3C C.2 corpus events are bounded by
-   the document's transition set (≤ ~10 names). T3 inline lock-in says
+   the document's transition set (≤ ~10 names). The jinja2-inline contract puts
    no helper functions in the runtime; the fixture-side static helper
    is generated source, so it is in scope. */
-static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *name, size_t len) {
+static {{ model.name }}_event_t SCE_SM_FN {{ model.name }}_event_from_name(const char *name, size_t len) {
     if (name == NULL || len == 0u) {
         return {{ model.name | upper }}_EVENT_NONE;
     }
@@ -128,7 +161,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
 }
 {% endif %}
 
-{# RFC §5.J.1: recursive action emitter. Mirrors the C++ tree's
+{# RFC §synth-5-J-1: recursive action emitter. Mirrors the C++ tree's
    `actions/<type>.jinja2` include dispatch but inlines every variant in
    one local macro so the C11 backend stays a two-template tree (header
    + source) until a second consumer fixture justifies splitting. The
@@ -321,8 +354,8 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                just before raising, mirroring cpp's
                `EventDataHelper::buildEventDataJson` → `EventWithMetadata::data`
                → `LuaEngine::setCurrentEvent` round-trip — same per-entry
-               ownership shape, lua-native carry instead of JSON string per
-               P1 lock-in (Lua 5.4 only). */
+               ownership shape, lua-native carry instead of JSON string —
+               Lua 5.4 is the backend's only engine. */
             (void)luaL_dostring(sm->L, "_pending_donedata = {}");
 {% for param in action.params %}
 {{ se.lua_eval_send_param_expr(param.name, param.expr) }}
@@ -373,8 +406,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
             {{ model.name }}_event_with_meta_t _err_evt;
             memset(&_err_evt, 0, sizeof(_err_evt));
             _err_evt.event = {{ model.name | upper }}_EVENT_ERROR_EXECUTION;
-            strncpy(_err_evt.send_id, "{{ action.auto_send_id | escape_c }}", (size_t)SCE_MAX_ID_LEN - 1u);
-            _err_evt.send_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            sce_copy_bounded_id(_err_evt.send_id, "{{ action.auto_send_id | escape_c }}");
             {{ model.name }}_raise(sm, &_err_evt);
             return;
 {% elif action.event and action.idlocation and not action.target and not action.eventexpr and not action.delay and not action.delayexpr and not action.params and not action.namelist and not action.content and not action.contentexpr and (not action.send_type or action.send_type == 'http://www.w3.org/TR/scxml/#SCXMLEventProcessor') and not action.typeexpr and not action.targetexpr %}
@@ -387,14 +419,13 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                cpp `actions/send.jinja2` lines 26-35 (idlocation store) +
                780-812 (bare-external raise paths) — cpp passes sendId
                through `EventWithMetadata`'s constructor; C11 strncpy's it
-               into the meta struct's send_id field directly per T3. */
+               into the meta struct's send_id field directly (jinja2-inline). */
             (void)luaL_dostring(sm->L,
                 "{{ action.idlocation }} = '{{ action.auto_send_id | escape_c }}'");
             {{ model.name }}_event_with_meta_t _send_evt;
             memset(&_send_evt, 0, sizeof(_send_evt));
             _send_evt.event = {{ model.name | upper }}_EVENT_{{ action.event | upper | replace('.', '_') | replace('-', '_') }};
-            strncpy(_send_evt.send_id, "{{ action.auto_send_id | escape_c }}", (size_t)SCE_MAX_ID_LEN - 1u);
-            _send_evt.send_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            sce_copy_bounded_id(_send_evt.send_id, "{{ action.auto_send_id | escape_c }}");
             {{ model.name }}_raise_external(sm, &_send_evt);
 {% elif (not in_foreach) and action.event and action.target and action.target.startswith('!') and not action.eventexpr and not action.delay and not action.delayexpr and not action.params and not action.namelist and not action.content and not action.contentexpr and (not action.send_type or action.send_type == 'http://www.w3.org/TR/scxml/#SCXMLEventProcessor') and not action.typeexpr and not action.targetexpr and not action.idlocation %}
             /* W3C SCXML 6.2 (test159): static-event + invalid target whose
@@ -540,8 +571,8 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                the event-name string to the child's event enum and
                enqueues onto the child's external queue. Mirrors
                cpp's `SendHelper::resolveSessionTarget` for the
-               session-prefix case, collapsed to a static call per
-               C11 T3 lock-in (no runtime registry lookup needed
+               session-prefix case, collapsed to a static call
+               (no runtime registry lookup needed
                because the invoke id is known at codegen time). */
             {{ _matching.invoke.child_name }}_raise_external_by_name(&sm->child_{{ _matching.invoke.field_suffix }}, "{{ action.event }}");
 {% endif %}
@@ -555,7 +586,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                cpp `actions/send.jinja2` lines 598/628/664/694/784/806
                (`isInternalTarget(action.target)` true-branch) — cpp emits
                a runtime if/else around isInternalTarget; C11 inlines the
-               codegen-time decision per T3 lock-in. */
+               codegen-time decision. */
             {{ model.name }}_event_with_meta_t _send_evt;
             memset(&_send_evt, 0, sizeof(_send_evt));
             _send_evt.event = {{ model.name | upper }}_EVENT_{{ action.event | upper | replace('.', '_') | replace('-', '_') }};
@@ -569,7 +600,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                598/628/664/694/784/806 (`isInternalTarget("")` false-branch
                → `raiseExternal`) — the empty-target literal naturally
                falls into raiseExternal at runtime in cpp; C11 collapses
-               the runtime branch into a codegen-time choice per T3.
+               the runtime branch into a codegen-time choice.
 
                W3C SCXML 5.10.1 (test351): when the author specified a
                literal `id="..."` on `<send>`, propagate it through the
@@ -586,8 +617,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
             memset(&_send_evt, 0, sizeof(_send_evt));
             _send_evt.event = {{ model.name | upper }}_EVENT_{{ action.event | upper | replace('.', '_') | replace('-', '_') }};
             {% if action.id %}
-            strncpy(_send_evt.send_id, "{{ action.id | escape_c }}", (size_t)SCE_MAX_ID_LEN - 1u);
-            _send_evt.send_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            sce_copy_bounded_id(_send_evt.send_id, "{{ action.id | escape_c }}");
             {% endif %}
             {{ model.name }}_raise_external(sm, &_send_evt);
 {% elif action.event and action.params and not action.target and not action.eventexpr and not action.delay and not action.delayexpr and not action.namelist and not action.content and not action.contentexpr and (not action.send_type or action.send_type == 'http://www.w3.org/TR/scxml/#SCXMLEventProcessor') and not action.typeexpr and not action.targetexpr and not action.idlocation %}
@@ -618,13 +648,15 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                Param eval failure: silent-drop with empty-string fallback
                per cpp send (W3C 6.2 ≠ 5.7); see
                `scriptengine.jinja2::lua_eval_send_param_expr` docstring. */
-            (void)luaL_dostring(sm->L, "_pending_donedata = {}");
+            (void)luaL_dostring(sm->L,
+                "_pending_donedata = {}; _sce_send_data_pairs = {}");
             {% for param in action.params %}
             {{ se.lua_eval_send_param_expr(param.name, param.expr) }}
             {% endfor %}
             {{ model.name }}_event_with_meta_t _send_evt;
             memset(&_send_evt, 0, sizeof(_send_evt));
             _send_evt.event = {{ model.name | upper }}_EVENT_{{ action.event | upper | replace('.', '_') | replace('-', '_') }};
+            {{ se.lua_marshal_send_event_data('_send_evt') }}
             {{ model.name }}_raise_external(sm, &_send_evt);
 {% elif (not in_foreach) and action.event and action.namelist and action.params and not action.target and not action.eventexpr and not action.delay and not action.delayexpr and not action.content and not action.contentexpr and (not action.send_type or action.send_type == 'http://www.w3.org/TR/scxml/#SCXMLEventProcessor') and not action.typeexpr and not action.targetexpr and not action.idlocation %}
             /* W3C SCXML 5.10 + 6.2 + C.1 (test354): static-event with both
@@ -646,7 +678,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                chunk promotes the combined table onto `_event.data` so the
                receiving transitions can read both `_event.data.<var>` and
                `_event.data.<param>` from one dispatch. SCXMLEventProcessor
-               URI literal carve-out (옵션 ρ.send_type, 0df747ef) accepts
+               URI literal handling (commit 0df747ef) accepts
                `type="http://www.w3.org/TR/scxml/#SCXMLEventProcessor"`
                alongside the empty-default; the BasicHTTP URI literal is
                served by the BasicHTTP arm further below (W3C C.2 send),
@@ -732,7 +764,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                Mirrors cpp `actions/send.jinja2` lines 68-102 — cpp evaluates
                into `dynamicTarget` then calls SendHelper helpers; the C11
                port collapses the helper calls into a stack-buffer prefix
-               check (T3 inline). The 64-byte buffer matches `_send_evt_name`
+               check (jinja2-inline). The 64-byte buffer matches `_send_evt_name`
                sizing — fixtures forcing longer targets raise the cap with
                their first force fixture. Eval failure raises
                `error.execution` and stops subsequent executable content
@@ -812,7 +844,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                the supported processor list. cpp `SendHelper::isSupportedSendType`
                (`sce/include/common/SendHelper.h`) returns true for the
                SCXMLEventProcessor URI plus the empty string default; the
-               C11 port inlines the literal compare per T3. Eval failure
+               C11 port inlines the literal compare. Eval failure
                falls back to the default SCXMLEventProcessor URI per cpp
                line 47 ("Invalid typeexpr → use default SCXMLEventProcessor")
                so a transient eval error doesn't cascade into a spurious
@@ -975,7 +1007,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                applies the same shape (`scriptengine.jinja2` lines 397-416).
                No fixture in the C11 batch forces this arm yet; lifted now
                for spec-mirror parity since the cpp branch is the contract
-               (`feedback_built_but_unconsumed.md` carve-out: reference
+               (`feedback_spec_mirror_parity.md` carve-out: reference
                backend's branch ≡ contract). First force fixture exercises
                the path. */
             {{ se.lua_eval_donedata_content_expr(action.contentexpr) }}
@@ -991,7 +1023,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                that returns false for any literal that is neither empty,
                SCXMLEventProcessor, nor BasicHTTPEventProcessor; the false-fall
                raises Error_execution and returns from the enclosing executor.
-               C11 lowers the decision to codegen time (T3 inline-only
+               C11 lowers the decision to codegen time (inline-only
                lock-in) — the literal is known here, so the check collapses
                to "type is set, not the SCXMLEventProcessor URI, not the
                BasicHTTPEventProcessor URI" and emits the raise + return
@@ -1016,7 +1048,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                emits a runtime check inside the no-target arm. With a
                literal BasicHTTP `send_type` and no `target`/`targetexpr`,
                the check is decidable at codegen time, so C11 inlines the
-               raise + return per T3 lock-in (mirrors the test159 invalid-
+               raise + return inline (mirrors the test159 invalid-
                target arm above). The W3C 5.10 mandate to halt subsequent
                executable content is satisfied by the `return` from the
                enclosing entry/exit/transition executor. The BasicHTTP
@@ -1031,8 +1063,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
 {% elif (not in_foreach) and action.send_type == 'http://www.w3.org/TR/scxml/#BasicHTTPEventProcessor' and (action.targetexpr or (action.target and (action.target.startswith('http://') or action.target.startswith('https://')))) and not action.eventexpr and not action.delay and not action.delayexpr %}
             /* W3C SCXML C.2: BasicHTTP send to HTTP target (literal `target`
                or runtime `targetexpr`). Synchronous POST against the
-               standalone server (Pattern B-i, see RFC
-               `claudedocs/rfc-c11-option-m-http.md` §3.2) followed by
+               standalone server, followed by
                event-name dispatch and optional `_event.data` promotion
                onto the `_pending_donedata` Lua slot. Mirrors cpp
                `actions/send.jinja2:347-428` `engine.performHttpSend()`,
@@ -1147,7 +1178,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                 }
 {% endif %}
                 /* W3C SCXML C.2: parse target URL. Literal `target` is
-                   decided at codegen time per T3 inline lock-in;
+                   decided at codegen time (jinja2-inline);
                    `targetexpr` reads the runtime-populated `_target_buf`
                    above. */
                 sce_test_http_url_t _http_url;
@@ -1327,7 +1358,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
             /* W3C 5.9.2 pure In() predicate — native C lower via
                `to_in_predicate_c11` (mirrors transition cond's pure-In branch).
                Avoids both the dead `sm->L` reference (when the fixture is
-               otherwise lua-free) and a phantom lua trampoline (T3). */
+               otherwise lua-free) and a phantom lua trampoline (jinja2-inline). */
             if ({{ action.cond | to_in_predicate_c11(model.name, model.history_states | list) }}) {
                 {% for sub in action.then_actions %}
                 {{ emit_action(sub, in_foreach) }}
@@ -1380,15 +1411,14 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
            `actions/log.jinja2`: success path emits the evaluated expression
            via the host log sink (fprintf to stderr, the C11 equivalent of
            cpp's `SCE_LOG_INFO`); evaluation failure emits an error line so
-           a fixture's log output remains diagnosable. Read-from-_event
-           metadata fields (`_event.raw`, `_event.invokeid`) match cpp's
-           TODO carve-out — comment-only emit until the first reader
-           fixture lifts both backends together. */
+           a fixture's log output remains diagnosable. `_event.raw` and
+           `_event.invokeid` route through the same Lua eval path — the
+           `set_current_event` helper binds both fields onto `_event` from
+           the `_pending_event_raw`/`_pending_event_invokeid` globals
+           seeded above so the script engine sees them like any other
+           `_event` member. */
 {% if action.expr %}
-{% if '_event.raw' in action.expr or '_event.invokeid' in action.expr %}
-        /* TODO: log {{ action.expr }} — _event.raw / _event.invokeid carve-out
-           (mirrors cpp `actions/log.jinja2` line 6-7). */
-{% elif model.needs_script_engine %}
+{% if model.needs_script_engine %}
         {
             char _log_buf[256];
             bool _log_ok;
@@ -1408,7 +1438,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
            Mirrors cpp `actions/log.jinja2:19-21`'s no-script-engine path —
            single-quote → double-quote substitution turns SCXML's JS-style
            `'hello'` into a valid C string literal, then fprintf to stderr.
-           Spec-mirror parity per `feedback_built_but_unconsumed.md`: emit
+           Spec-mirror parity per `feedback_spec_mirror_parity.md`: emit
            the cpp shape 1:1 even without a current corpus fixture forcing
            the path, so the first MCU/null-datamodel consumer sees aligned
            behaviour with cpp. */
@@ -1425,7 +1455,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
            the cancel target. cpp `actions/cancel.jinja2` calls
            `engine.cancelEvent(...)` which routes through PullScheduler;
            C11 inlines a stack-buffer compaction in `scheduled_cancel` per
-           T3. Static `sendid` ships as a literal string at codegen time;
+           Static `sendid` ships as a literal string at codegen time;
            dynamic `sendidexpr` evaluates the expression via
            `lua_eval_to_string` (consumer-agnostic to-string helper) and
            passes the resulting buffer to the same helper, mirroring cpp's
@@ -1435,8 +1465,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
            `validation/require-either`) hard-rejects the empty-shape
            `<cancel/>` (no sendid, no sendidexpr) per W3C 6.3, so the
            codegen never sees that shape. Mirrors cpp/rust/go/kotlin
-           `cancel.jinja2` post-`20676dcc` per
-           `claudedocs/rfc-c11-error-guards-lift.md` v2 Layer 4. */
+           `cancel.jinja2`. */
 {% if action.sendid %}
         scheduled_cancel(sm, "{{ action.sendid | escape_c }}");
 {% elif action.sendidexpr %}
@@ -1465,10 +1494,10 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
                failure raises error.execution per W3C 5.10, mirroring the
                cpp `engine.raise(EventWithMetadata(Event::Error_execution,
                errorMsg))` shape. The is_cpp_function / is_kt_function
-               carve-outs from cpp's parser path never apply to C11 (the
-               parser-side native code transform skips C11 — there is no
-               C11-equivalent code-injection variant), so this branch only
-               handles the lua-eval shape; src= attribute on inline
+               dispatch in cpp's parser path is not applicable to C11
+               (the parser-side native code transform skips C11 — there
+               is no C11-equivalent code-injection variant), so this
+               branch only handles the lua-eval shape; src= attribute on inline
                <script> is rejected at parser time (parse_global_scripts
                handles top-level src; inline `<script src="...">` is
                outside W3C 5.8's scope per the corpus). */
@@ -1497,7 +1526,7 @@ static {{ model.name }}_event_t {{ model.name }}_event_from_name(const char *nam
    on capacity-via-policy; the C11 backend instead bakes a per-fixture
    circular buffer with `SCE_MAX_EVENTS` slots. Overflow drops silently —
    matching the C++ behaviour when the underlying queue rejects a push.    #}
-static void event_queue_push({{ model.name }}_event_queue_t *q,
+static void SCE_SM_FN event_queue_push({{ model.name }}_event_queue_t *q,
                              const {{ model.name }}_event_with_meta_t *evt) {
     if (q->count >= (uint16_t)SCE_MAX_EVENTS) {
         return;
@@ -1507,7 +1536,7 @@ static void event_queue_push({{ model.name }}_event_queue_t *q,
     q->count = (uint16_t)(q->count + 1u);
 }
 
-static bool event_queue_pop({{ model.name }}_event_queue_t *q,
+static bool SCE_SM_FN event_queue_pop({{ model.name }}_event_queue_t *q,
                             {{ model.name }}_event_with_meta_t *out) {
     if (q->count == 0u) {
         return false;
@@ -1537,7 +1566,7 @@ static bool event_queue_pop({{ model.name }}_event_queue_t *q,
     return {{ model.name | upper }}_STATE_{{ model.initial | upper | replace('-', '_') | replace('.', '_') }};
 }
 
-bool {{ model.name }}_is_final_state({{ model.name }}_state_t s) {
+SCE_SM_FN bool {{ model.name }}_is_final_state({{ model.name }}_state_t s) {
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
     {% if state.is_final %}
@@ -1554,7 +1583,7 @@ bool {{ model.name }}_is_final_state({{ model.name }}_state_t s) {
    state, no parent" from "self-parent" (which never occurs in well-formed
    SCXML but the contract is still explicit so callers do not need a
    sentinel value baked into the State enum). */
-static SCE_C_UNUSED {{ model.name }}_state_t state_get_parent({{ model.name }}_state_t s, bool *has_parent) {
+static SCE_C_UNUSED SCE_SM_FN {{ model.name }}_state_t state_get_parent({{ model.name }}_state_t s, bool *has_parent) {
     *has_parent = true;
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
@@ -1571,7 +1600,7 @@ static SCE_C_UNUSED {{ model.name }}_state_t state_get_parent({{ model.name }}_s
 
 /* W3C SCXML 3.3: Compound-state predicate (true if state has an
    `initial` attribute or non-empty `<initial>` child). */
-static SCE_C_UNUSED bool state_is_compound({{ model.name }}_state_t s) {
+static SCE_C_UNUSED SCE_SM_FN bool state_is_compound({{ model.name }}_state_t s) {
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
     {% if state.initial %}
@@ -1588,7 +1617,7 @@ static SCE_C_UNUSED bool state_is_compound({{ model.name }}_state_t s) {
    activates every region child simultaneously (mirrors cpp
    StateRegistry::isParallel + the parallel-entry branch in
    HierarchicalStateHelper::buildEntryChain). */
-static SCE_C_UNUSED bool state_is_parallel({{ model.name }}_state_t s) {
+static SCE_C_UNUSED SCE_SM_FN bool state_is_parallel({{ model.name }}_state_t s) {
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
     {% if state.is_parallel %}
@@ -1603,7 +1632,7 @@ static SCE_C_UNUSED bool state_is_parallel({{ model.name }}_state_t s) {
 
 /* W3C SCXML 3.6: Initial child of a compound state. Returns the state
    itself if not compound (callers loop until `child == self` for descend). */
-static SCE_C_UNUSED {{ model.name }}_state_t state_get_initial_child({{ model.name }}_state_t s) {
+static SCE_C_UNUSED SCE_SM_FN {{ model.name }}_state_t state_get_initial_child({{ model.name }}_state_t s) {
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
     {% if state.initial_children and state.initial_children | length > 0 %}
@@ -1621,18 +1650,18 @@ static SCE_C_UNUSED {{ model.name }}_state_t state_get_initial_child({{ model.na
    sets parent ancestors AND the leaf bit (mirrors cpp activeStates_ which
    holds compound states alongside their leaves). Mirrors of cpp
    StaticExecutionEngine::activeStates_ helpers — bitmap operations are
-   inlined per the T3 lock-in (no helper-class dispatch). #}
-static SCE_C_UNUSED uint32_t state_bit({{ model.name }}_state_t s) {
+   inlined (no helper-class dispatch). #}
+static SCE_C_UNUSED SCE_SM_FN uint32_t state_bit({{ model.name }}_state_t s) {
     return (uint32_t)1u << (uint32_t)s;
 }
 
-static SCE_C_UNUSED bool config_in(uint32_t active, {{ model.name }}_state_t s) {
+static SCE_C_UNUSED SCE_SM_FN bool config_in(uint32_t active, {{ model.name }}_state_t s) {
     return (active & state_bit(s)) != 0u;
 }
 
 /* W3C SCXML 3.2: descendant test via parent walk-up. Used by the exit
    chain to identify the active subtree under a transition's source. */
-static SCE_C_UNUSED bool is_descendant_of({{ model.name }}_state_t child,
+static SCE_C_UNUSED SCE_SM_FN bool is_descendant_of({{ model.name }}_state_t child,
                                          {{ model.name }}_state_t ancestor) {
     {{ model.name }}_state_t cur = child;
     while (true) {
@@ -1652,7 +1681,7 @@ static SCE_C_UNUSED bool is_descendant_of({{ model.name }}_state_t child,
    no active children (single-leaf invariant; <parallel> generalisation
    lands when its first fixture forces multi-leaf walking — at that point
    process_transition will iterate every leaf instead of just the first). */
-static SCE_C_UNUSED {{ model.name }}_state_t config_leaf(uint32_t active) {
+static SCE_C_UNUSED SCE_SM_FN {{ model.name }}_state_t config_leaf(uint32_t active) {
     for (uint32_t s = 0u; s < (uint32_t){{ model.name | upper }}_STATE_COUNT; ++s) {
         if ((active & ((uint32_t)1u << s)) == 0u) {
             continue;
@@ -1679,7 +1708,7 @@ static SCE_C_UNUSED {{ model.name }}_state_t config_leaf(uint32_t active) {
 /* W3C SCXML 3.2: enter `s` and every ancestor on its parent chain. Mirrors
    cpp HierarchicalStateHelper::buildEntryChain followed by the configuration
    set inserts. Idempotent — re-entering an already-active state is a no-op. */
-static SCE_C_UNUSED uint32_t config_enter_chain(uint32_t active, {{ model.name }}_state_t s) {
+static SCE_C_UNUSED SCE_SM_FN uint32_t config_enter_chain(uint32_t active, {{ model.name }}_state_t s) {
     uint32_t out = active | state_bit(s);
     {{ model.name }}_state_t cur = s;
     while (true) {
@@ -1711,18 +1740,18 @@ static SCE_C_UNUSED uint32_t config_enter_chain(uint32_t active, {{ model.name }
    appears (mutual recursion: parallel → regions → enter_state_recursive →
    compound/leaf). The body switches on the parallel state and emits one
    enter_state_recursive call per region child in document order. */
-static void enter_state_recursive({{ model.name }}_t *sm, {{ model.name }}_state_t s);
-static void execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state_t s);
+static void SCE_SM_FN enter_state_recursive({{ model.name }}_t *sm, {{ model.name }}_state_t s);
+static void SCE_SM_FN execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state_t s);
 {% if model.has_history_states %}
 /* enter_state_recursive's compound-with-history dispatch routes to
    enter_history_state, which is defined alongside the rest of the
    history machinery further down. The forward decl keeps that backward
    call resolved in the same translation unit without reordering the
    logical sections. */
-static void enter_history_state({{ model.name }}_t *sm, {{ model.name }}_history_t hid);
+static void SCE_SM_FN enter_history_state({{ model.name }}_t *sm, {{ model.name }}_history_t hid);
 {% endif %}
 
-static void enter_parallel_regions({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
+static void SCE_SM_FN enter_parallel_regions({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
     (void)sm;
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
@@ -1760,7 +1789,7 @@ static void enter_parallel_regions({{ model.name }}_t *sm, {{ model.name }}_stat
 
    Mirrors cpp HierarchicalStateHelper::buildEntryChain followed by the
    StaticExecutionEngine::executeMicrostep parallel re-entry pass. */
-static void enter_state_recursive({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
+static void SCE_SM_FN enter_state_recursive({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
     if (config_in(sm->active, s)) {
         return;
     }
@@ -1868,8 +1897,8 @@ static void enter_state_recursive({{ model.name }}_t *sm, {{ model.name }}_state
 {# Mirrors the C++ entry_exit_actions.jinja2 dispatch: each `<onentry>` /
    `<onexit>` block lowers via the `emit_action` macro defined above for
    every action it contains. C11 inlines the action body directly (no
-   `std::function` wrapper, no EntryExitHelper delegation) — T3 lock-in
-   per c11_design_decisions.md.
+   `std::function` wrapper, no EntryExitHelper delegation) — the
+   backend's jinja2-inline-only contract.
 
    The case is emitted whenever a state has either `on_entry_blocks` or
    `<datamodel>` under late binding (W3C 5.3): late-binding init must run
@@ -1892,12 +1921,21 @@ static void enter_state_recursive({{ model.name }}_t *sm, {{ model.name }}_state
    block, and the enclosing switch case calls the next helper in
    sequence. Single-block fixtures retain the same observable behavior
    (function ends after the one helper call). #}
+{# Watching-zenoh RFC §synth-5-O — per-state on_entry / on_exit
+   block helpers each get a `#line N "file"` directive pointing at the
+   <state> element they lower from. The next directive (next helper or
+   the dispatcher below) resets the redirect, so the scope stays
+   bounded to one helper's body. #}
 {% for state_id, state in model.states | dictsort %}
 {% if state.on_entry_blocks %}
 {% for block in state.on_entry_blocks %}
-static void {{ model.name }}_on_entry_{{ state_id | lower | replace('-', '_') | replace('.', '_') }}_block_{{ loop.index }}({{ model.name }}_t *sm) {
+{{ sce_map.source_marker(state.source_location, "c") }}
+static void SCE_SM_FN {{ model.name }}_on_entry_{{ state_id | lower | replace('-', '_') | replace('.', '_') }}_block_{{ loop.index }}({{ model.name }}_t *sm) {  {{- annot.annotation_comment(state, "c", "    ") }}
     (void)sm;
     {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "c", "    ") -}}
+{%- endif %}
     {{ emit_action(action) }}
     {% endfor %}
 }
@@ -1907,16 +1945,21 @@ static void {{ model.name }}_on_entry_{{ state_id | lower | replace('-', '_') | 
 {% for state_id, state in model.states | dictsort %}
 {% if state.on_exit_blocks %}
 {% for block in state.on_exit_blocks %}
-static void {{ model.name }}_on_exit_{{ state_id | lower | replace('-', '_') | replace('.', '_') }}_block_{{ loop.index }}({{ model.name }}_t *sm) {
+{{ sce_map.source_marker(state.source_location, "c") }}
+static void SCE_SM_FN {{ model.name }}_on_exit_{{ state_id | lower | replace('-', '_') | replace('.', '_') }}_block_{{ loop.index }}({{ model.name }}_t *sm) {  {{- annot.annotation_comment(state, "c", "    ") }}
     (void)sm;
     {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "c", "    ") -}}
+{%- endif %}
     {{ emit_action(action) }}
     {% endfor %}
 }
 {% endfor %}
 {% endif %}
 {% endfor %}
-static void execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
+{{ sce_map.source_marker(model.source_location, "c") }}
+static void SCE_SM_FN execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
     (void)sm;
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
@@ -1955,8 +1998,7 @@ static void execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state
             {% if invoke_info.invoke_id and not invoke_info.invoke_id.startswith('_invoke_') %}
             /* W3C SCXML 3.12.1: author-supplied id="{{ invoke_info.invoke_id }}"
                wins over the auto-generated format. */
-            strncpy(_invoke_id_buf, "{{ invoke_info.invoke_id }}", (size_t)SCE_MAX_ID_LEN - 1u);
-            _invoke_id_buf[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+            sce_copy_bounded_id(_invoke_id_buf, "{{ invoke_info.invoke_id }}");
             {% else %}
             sce_invoke_format_id(_invoke_id_buf, sizeof(_invoke_id_buf),
                                  "{{ state_id }}", (const void *)sm, {{ loop.index0 }});
@@ -2026,7 +2068,7 @@ static void execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state
            `content.kind == "literal"`. The C11 emit collapses the cpp
            SSoT helper calls (DoneDataHelper::evaluateContent /
            evaluateParams / emitContentLiteral) to inline lua chunks per
-           T3 lock-in. */
+           jinja2-inline contract. */
         {% if state.donedata.params %}
         {# Codegen-time structural-error pre-check: W3C 5.7 says an empty
            param `location` (no usable expr fallback either) is a structural
@@ -2137,7 +2179,7 @@ static void execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state
            `ParallelCompletionHelper::areAllRegionsInFinal` (Zero
            Duplication helper). The cpp helper iterates regions at
            runtime; C11 expands the `regions × final-children` enumeration
-           at codegen-time per T3 inline-only lock-in. Direct-child only
+           at codegen time (inline-only). Direct-child only
            (cpp `getParent(active) == region`), no descendant final. */
         {
             bool _parallel_complete = true;
@@ -2175,7 +2217,8 @@ static void execute_entry_actions({{ model.name }}_t *sm, {{ model.name }}_state
     }
 }
 
-static void execute_exit_actions({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
+{{ sce_map.source_marker(model.source_location, "c") }}
+static void SCE_SM_FN execute_exit_actions({{ model.name }}_t *sm, {{ model.name }}_state_t s) {
     (void)sm;
     switch (s) {
     {% for state_id, state in model.states | dictsort %}
@@ -2259,7 +2302,8 @@ static void execute_exit_actions({{ model.name }}_t *sm, {{ model.name }}_state_
 {% endfor %}
 {% endif %}
 {% endfor %}
-static void execute_transition_actions({{ model.name }}_t *sm) {
+{{ sce_map.source_marker(model.source_location, "c") }}
+static void SCE_SM_FN execute_transition_actions({{ model.name }}_t *sm) {
 {% if any_transition_actions.value %}
     switch (sm->policy.last_transition_source_state) {
     {% for state_id, state in model.states | dictsort %}
@@ -2269,9 +2313,12 @@ static void execute_transition_actions({{ model.name }}_t *sm) {
         switch (sm->policy.last_transition_index) {
         {% for trans in state.transitions %}
         {% if trans.actions %}
-        case {{ trans.transition_index }}: {
+        case {{ trans.transition_index }}: {  {{- annot.annotation_comment(trans, "c", "            ") }}
             /* W3C SCXML 3.13: transition body for `<transition{% if trans.event %} event="{{ trans.event }}"{% endif %}{% if trans.target %} target="{{ trans.target }}"{% endif %}>` */
             {% for action in trans.actions %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "c", "            ") -}}
+{%- endif %}
             {{ emit_action(action) }}
             {% endfor %}
             break;
@@ -2295,7 +2342,7 @@ static void execute_transition_actions({{ model.name }}_t *sm) {
 /* ── W3C SCXML 3.13: Transition processing ────────────────────────── */
 {# Mirrors the C++ `tryTransitionInState` switch-on-source-state pattern.
    Guarded transitions evaluate `cond` against the Lua datamodel inline
-   (no helper/event_matching split — T3 lock-in). Wildcard `event="*"`
+   (no helper/event_matching split — jinja2-inline contract). Wildcard `event="*"`
    matches every event except the eventless sentinel `EVENT_NONE`
    (eventless transitions have no `event` attribute and are checked via
    `check_eventless_transitions` with `EVENT_NONE` — wildcard must NOT
@@ -2335,7 +2382,7 @@ static void execute_transition_actions({{ model.name }}_t *sm) {
            cpp/rust emit a runtime `matchesEventDescriptor` call into a
            shared helper here (process_transition.jinja2:546-549,
            rust/state_machine.rs.jinja2:694-697); C11 inlines the list
-           at codegen time per T3 inline-only lock-in. The set is
+           at codegen time (inline-only). The set is
            computed by analyzer.rs::build_prefix_matching using the same
            algorithm as EventMatchingHelper.h. #}
         if ({% for ev in trans.prefix_matching_events %}event == {{ model.name | upper }}_EVENT_{{ ev | upper | replace('.', '_') | replace('-', '_') }}{{ ' || ' if not loop.last }}{% endfor %})
@@ -2361,7 +2408,7 @@ static void execute_transition_actions({{ model.name }}_t *sm) {
                that need a higher cap raise it via -D, mirroring how
                SCE_MAX_EVENTS scales with the queue. The exit set is
                computed at collect time so conflict resolution reduces to
-               bitmap intersection (no helper-class dispatch — T3 lock-in). */
+               bitmap intersection (no helper-class dispatch). */
             if (*out_count < (uint8_t)SCE_MAX_ENABLED_TRANSITIONS) {
                 {{ model.name }}_transition_info_t *_ti = &out_list[*out_count];
                 _ti->source = check_state;
@@ -2381,7 +2428,7 @@ static void execute_transition_actions({{ model.name }}_t *sm) {
 
 /* ── W3C SCXML App.D: optimal enabled transition set helpers ──────── */
 {# Mirrors cpp ParallelTransitionHelper + ConflictResolutionHelper. The
-   C11 backend inlines the algorithm bodies here (T3 lock-in: no helper
+   C11 backend inlines the algorithm bodies here (jinja2-inline: no helper
    class dispatch). compute_exit_set is called at collect time so each
    transition_info_t carries its exit_set as a uint32_t — conflict
    detection then reduces to bitmap intersection plus a small parallel-
@@ -2408,7 +2455,7 @@ static void execute_transition_actions({{ model.name }}_t *sm) {
    strict-descendant). compute_exit_set treats both with the same
    "exit everything active" semantics, matching cpp
    StaticExecutionEngine::handleHierarchicalTransition's no-LCA branch. */
-static SCE_C_UNUSED {{ model.name }}_state_t find_lcca({{ model.name }}_state_t source,
+static SCE_C_UNUSED SCE_SM_FN {{ model.name }}_state_t find_lcca({{ model.name }}_state_t source,
                                                         {{ model.name }}_state_t target,
                                                         bool *out_has) {
     bool hp = false;
@@ -2440,7 +2487,7 @@ static SCE_C_UNUSED {{ model.name }}_state_t find_lcca({{ model.name }}_state_t 
      compound asymmetric transitions (target not a sibling of source) and
      parallel-region transitions both fall through this path, so test403c
      and test505/506 share one implementation. */
-static SCE_C_UNUSED uint32_t compute_exit_set(uint32_t active,
+static SCE_C_UNUSED SCE_SM_FN uint32_t compute_exit_set(uint32_t active,
                                               {{ model.name }}_state_t source,
                                               {{ model.name }}_state_t target,
                                               bool is_internal, bool is_targetless) {
@@ -2504,7 +2551,7 @@ static SCE_C_UNUSED uint32_t compute_exit_set(uint32_t active,
    Mirrors cpp ConflictResolutionAlgorithms::removeConflictingTransitions.
    Working buffer reuses the SCE_MAX_ENABLED_TRANSITIONS cap so no
    heap traffic; final result copied back into the caller's list. */
-static SCE_C_UNUSED uint8_t remove_conflicting_transitions({{ model.name }}_transition_info_t *list,
+static SCE_C_UNUSED SCE_SM_FN uint8_t remove_conflicting_transitions({{ model.name }}_transition_info_t *list,
                                                             uint8_t count) {
     {{ model.name }}_transition_info_t filtered[SCE_MAX_ENABLED_TRANSITIONS];
     uint8_t filtered_count = 0u;
@@ -2612,7 +2659,7 @@ static SCE_C_UNUSED uint8_t remove_conflicting_transitions({{ model.name }}_tran
    whose transition graph is sparse — the casts are no-ops once the
    switch arms reference sm->active (compute_exit_set) and `event`
    (matcher branches). */
-static bool try_match_in_state({{ model.name }}_t *sm,
+static bool SCE_SM_FN try_match_in_state({{ model.name }}_t *sm,
                                 {{ model.name }}_state_t check_state,
                                 {{ model.name }}_event_t event,
                                 {{ model.name }}_transition_info_t *out_list,
@@ -2629,16 +2676,30 @@ static bool try_match_in_state({{ model.name }}_t *sm,
             {% for trans in state.transitions %}
             {{ emit_transition_match_check(trans) }} {
             {% if trans.cond %}
+            {% set native_payload_guard_expr = trans.native_payload_guard %}
             {% if trans.is_pure_in_predicate %}
                 /* W3C SCXML 3.13 + 5.9.2: cond="{{ trans.cond | escape_c }}" pure
                    In() predicate — native C lower via `to_in_predicate_c11`
                    filter (mirrors cpp `parser::convert_in_to_cpp` of `this->
                    isStateActive("...")`). Routes In('xx') → `<machine>_in_state(
                    sm, <MACHINE>_STATE_<XX>)` so the chunk is compiler-checked
-                   instead of runtime-resolved through a lua trampoline (T3
+                   instead of runtime-resolved through a lua trampoline (inline
                    inline-only lock-in). The filter also unblocks pure-In conds
                    in fixtures that don't otherwise need script-engine. */
                 if ({{ trans.cond | to_in_predicate_c11(model.name, model.history_states | list) }}) {
+                    {{ emit_transition_body(trans) }}
+                }
+            {% elif native_payload_guard_expr %}
+                /* W3C SCXML 3.13 + NL→IR Item C1 Path A:
+                   cond="{{ trans.cond | escape_c }}" reads a typed
+                   `_event.data.<field>` of an EventSchema-imported event —
+                   lowered to a native tagged-union comparison (no script
+                   engine, MCU-clean). The tag check guards against an event
+                   delivered without a typed payload (`_PAYLOAD_NONE`); the
+                   field comparison is `expr.rs::transpile_typed` over the
+                   live `pending_payload` member (twin of the Rust
+                   `matches!(&self.pending_payload, …)` guard). */
+                if ({{ native_payload_guard_expr }}) {
                     {{ emit_transition_body(trans) }}
                 }
             {% elif model.needs_script_engine %}
@@ -2686,7 +2747,8 @@ static bool try_match_in_state({{ model.name }}_t *sm,
    Compound and parallel ancestors are excluded as candidate leaves; a
    future fixture forcing done.state events on a compound/parallel target
    relaxes that filter alongside the cpp `isDoneStateEvent` mirror. */
-static bool process_transition({{ model.name }}_t *sm,
+{{ sce_map.source_marker(model.source_location, "c") }}
+static bool SCE_SM_FN process_transition({{ model.name }}_t *sm,
                                 {{ model.name }}_event_t event,
                                 {{ model.name }}_transition_info_t *out_list,
                                 uint8_t *out_count) {
@@ -2739,7 +2801,7 @@ static bool process_transition({{ model.name }}_t *sm,
    to `true` even when the captured bitmap is empty — that is what
    distinguishes "never visited" (default-target replay) from "visited
    but currently empty" (restore-as-empty), per W3C 3.10. */
-static void capture_histories({{ model.name }}_t *sm, uint32_t exit_union) {
+static void SCE_SM_FN capture_histories({{ model.name }}_t *sm, uint32_t exit_union) {
     {% for hid, info in model.history_states | dictsort %}
     {% set parent_enum = model.name | upper ~ '_STATE_' ~ (info.parent | upper | replace('-', '_') | replace('.', '_')) %}
     /* <history id="{{ hid }}" type="{{ info.type }}"> child of {{ info.parent }} */
@@ -2793,7 +2855,7 @@ static void capture_histories({{ model.name }}_t *sm, uint32_t exit_union) {
    been captured, subsequent re-entries restore it verbatim, matching
    the W3C "default transition body executes only when no stored history"
    contract that test579 verifies. */
-static void enter_history_state({{ model.name }}_t *sm, {{ model.name }}_history_t hid) {
+static void SCE_SM_FN enter_history_state({{ model.name }}_t *sm, {{ model.name }}_history_t hid) {
     switch (hid) {
     {% for hid, info in model.history_states | dictsort %}
     case {{ model.name | upper }}_HIST_{{ hid | upper | replace('-', '_') | replace('.', '_') }}:
@@ -2826,7 +2888,7 @@ static void enter_history_state({{ model.name }}_t *sm, {{ model.name }}_history
             is idempotent so duplicate / converging targets collapse
    Mirrors cpp StaticExecutionEngine::executeMicrostep +
    ParallelTransitionHelper::computeStatesToExit / sortTransitionsBySource /
-   sortTransitionsByTarget, inlined into one function per the T3 lock-in.
+   sortTransitionsByTarget, inlined into one function (jinja2-inline contract).
    compute_exit_set is the LCA-based cpp mirror so the pre-collected
    exit_set bitmap drives both conflict resolution and the actual exit
    walk in one pass. Sort keys use enum-value order — alphabetic sort
@@ -2834,7 +2896,7 @@ static void enter_history_state({{ model.name }}_t *sm, {{ model.name }}_history
    (s01p > s01p1 > s01p11 ordering); a fixture whose alphabetic order
    diverges from doc-order will force a codegen-time doc-order table
    (cpp's StateRegistry mirror). */
-static void handle_microstep({{ model.name }}_t *sm,
+static void SCE_SM_FN handle_microstep({{ model.name }}_t *sm,
                              {{ model.name }}_transition_info_t *list,
                              uint8_t count) {
     if (count == 0u) {
@@ -2908,21 +2970,31 @@ static void handle_microstep({{ model.name }}_t *sm,
 }
 
 {% if (model.invokes | scxml_family) %}
-/* ── W3C SCXML 6.4: Invoke lifecycle helpers (per-SM, T3 inline) ───── */
+/* ── W3C SCXML 6.4: Invoke lifecycle helpers (per-SM, inline) ──────── */
 {% include 'c/invoke_methods.jinja2' %}
 {% endif %}
 
 /* ── W3C SCXML 6.2: External-facing raise APIs ────────────────────── */
 
-void {{ model.name }}_raise({{ model.name }}_t *sm,
+SCE_SM_FN void {{ model.name }}_raise({{ model.name }}_t *sm,
                             const {{ model.name }}_event_with_meta_t *evt) {
     event_queue_push(&sm->internal_queue, evt);
 }
 
-void {{ model.name }}_raise_external({{ model.name }}_t *sm,
+SCE_SM_FN void {{ model.name }}_raise_external({{ model.name }}_t *sm,
                                      const {{ model.name }}_event_with_meta_t *evt) {
     event_queue_push(&sm->external_queue, evt);
 }
+
+{% if event_payload_active %}
+/* NL→IR Item C1 Path A: per-event typed-payload inject
+   entries (see the header decls for the watching-zenoh ownership
+   boundary). Each binds the event enum + payload tag + union member in
+   one site, so the name↔type pairing is impossible to construct
+   inconsistently. `= {0}` zero-inits the whole record (no <string.h>
+   dependency — the datamodel-less native path does not include it). */
+{{ event_payload_entry_defs }}
+{% endif %}
 
 {% if model.has_parent_communication %}
 /* W3C SCXML 6.4 / 3.4 (test236): natural-termination exit walk.
@@ -2939,7 +3011,7 @@ void {{ model.name }}_raise_external({{ model.name }}_t *sm,
    through this helper — `execute_exit_actions` in the parent NULLs
    `parent_dispatch` first so any in-flight child sends drop, mirroring
    W3C 6.4 cancellation drop semantics (test252). */
-void {{ model.name }}_finalize_session({{ model.name }}_t *sm) {
+SCE_SM_FN void {{ model.name }}_finalize_session({{ model.name }}_t *sm) {
     if (!sm->is_running) {
         return;
     }
@@ -2962,7 +3034,7 @@ void {{ model.name }}_finalize_session({{ model.name }}_t *sm) {
    static `_dispatch_external_by_name` shim (used for the reverse
    direction with an `invoke_id` carry); this public form is the
    minimal entry point for the parent→child path. */
-void {{ model.name }}_raise_external_by_name({{ model.name }}_t *sm, const char *event_name) {
+SCE_SM_FN void {{ model.name }}_raise_external_by_name({{ model.name }}_t *sm, const char *event_name) {
     if (sm == NULL || event_name == NULL) {
         return;
     }
@@ -2991,7 +3063,7 @@ void {{ model.name }}_raise_external_by_name({{ model.name }}_t *sm, const char 
    error rather than silent loss); the entry being inserted is the one
    dropped, matching the bounded-resource contract documented at the
    `SCE_MAX_SCHEDULED` define site in `sce/types.h`. #}
-static void scheduled_push({{ model.name }}_t *sm,
+static void SCE_SM_FN scheduled_push({{ model.name }}_t *sm,
                            uint64_t fire_time_ms,
                            {{ model.name }}_event_t event,
                            const char *send_id
@@ -3036,12 +3108,7 @@ static void scheduled_push({{ model.name }}_t *sm,
     {{ model.name }}_scheduled_entry_t *slot = &sm->scheduled_queue.buf[pos];
     slot->fire_time_ms = fire_time_ms;
     slot->event = event;
-    if (send_id != NULL) {
-        strncpy(slot->send_id, send_id, (size_t)SCE_MAX_ID_LEN - 1u);
-        slot->send_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
-    } else {
-        slot->send_id[0] = '\0';
-    }
+    sce_copy_bounded_id(slot->send_id, send_id);
 {% if model.needs_script_engine %}
     slot->payload_lua_ref = payload_lua_ref;
 {% endif %}
@@ -3063,7 +3130,7 @@ static void scheduled_push({{ model.name }}_t *sm,
    this SM, so the routing target travels as an event NAME in
    `to_parent_event`. Capacity overflow drops the entry the same way
    the local arm does (raise error.execution + return). */
-static void scheduled_push_parent({{ model.name }}_t *sm,
+static void SCE_SM_FN scheduled_push_parent({{ model.name }}_t *sm,
                                   uint64_t fire_time_ms,
                                   const char *event_name,
                                   const char *send_id) {
@@ -3089,12 +3156,7 @@ static void scheduled_push_parent({{ model.name }}_t *sm,
     {{ model.name }}_scheduled_entry_t *slot = &sm->scheduled_queue.buf[pos];
     slot->fire_time_ms = fire_time_ms;
     slot->event = {{ model.name | upper }}_EVENT_NONE;
-    if (send_id != NULL) {
-        strncpy(slot->send_id, send_id, (size_t)SCE_MAX_ID_LEN - 1u);
-        slot->send_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
-    } else {
-        slot->send_id[0] = '\0';
-    }
+    sce_copy_bounded_id(slot->send_id, send_id);
 {% if model.needs_script_engine %}
     slot->payload_lua_ref = LUA_NOREF;
 {% endif %}
@@ -3113,7 +3175,7 @@ static void scheduled_push_parent({{ model.name }}_t *sm,
    Returns true and writes the matured entry into `out` when ready, false otherwise.
    Mirrors cpp `SchedulerQueueCore::popReadyEvent(now, …)` — the head element
    is always the earliest-firing thanks to `scheduled_push`'s sorted insert. */
-static bool scheduled_pop_ready({{ model.name }}_t *sm,
+static bool SCE_SM_FN scheduled_pop_ready({{ model.name }}_t *sm,
                                 uint64_t now_ms,
                                 {{ model.name }}_scheduled_entry_t *out) {
     if (sm->scheduled_queue.count == 0u) {
@@ -3135,7 +3197,7 @@ static bool scheduled_pop_ready({{ model.name }}_t *sm,
    matches `send_id`. The cpp engine routes `<cancel>` to
    `StaticExecutionEngine::cancelEvent` → `PullScheduler::cancelEvent`
    (`sce/include/core/PullScheduler.h`) which iterates the std::map and
-   erases matches; C11 walks the bounded array in place per T3 lock-in.
+   erases matches; C11 walks the bounded array in place (jinja2-inline).
    Multiple entries can share a send_id (cpp guarantees uniqueness via
    `SendHelper::generateSendId`, but a fixture-supplied static `id="foo"`
    could repeat across a parallel region). The compaction loop tolerates
@@ -3144,7 +3206,7 @@ static bool scheduled_pop_ready({{ model.name }}_t *sm,
    `if (sendid.empty()) return`). The action is silent on a miss, mirroring
    the spec: W3C 6.3 doesn't require an error if the send_id is unknown
    (cpp's `cancelEvent` ignores the result of `erase`). */
-static SCE_C_UNUSED void scheduled_cancel({{ model.name }}_t *sm, const char *send_id) {
+static SCE_C_UNUSED SCE_SM_FN void scheduled_cancel({{ model.name }}_t *sm, const char *send_id) {
     if (send_id == NULL || send_id[0] == '\0') {
         return;
     }
@@ -3199,14 +3261,14 @@ static SCE_C_UNUSED void scheduled_cancel({{ model.name }}_t *sm, const char *se
 
    The other W3C 5.10.1 metadata fields (.type/.sendid/.origin/
    .origintype/.invokeid) land with the first fixture that reads them
-   (built-but-unconsumed carve-out per feedback_built_but_unconsumed.md).
+   (spec-mirror parity carve-out per feedback_spec_mirror_parity.md).
    The helper is emitted only when the fixture uses the script engine;
    datamodel-less fixtures have no lua_State and no consumer for _event.
    The (void) casts keep the helper warning-free under -Wextra when the
    fixture declares no events (then both the switch and the parameters
    fall through unused). #}
 {% if model.needs_script_engine %}
-static void set_current_event(lua_State *L, const {{ model.name }}_event_with_meta_t *evt) {
+static void SCE_SM_FN set_current_event(lua_State *L, const {{ model.name }}_event_with_meta_t *evt) {
     (void)L;
     (void)evt;
     /* W3C SCXML 5.10.1 (test332): expose `evt->send_id` to the lua side
@@ -3262,7 +3324,7 @@ static void set_current_event(lua_State *L, const {{ model.name }}_event_with_me
        milestone activates (cpp `Event::setInvokeId(invokeId)` at
        the invoke handler is the seed site to mirror). Lifted as
        spec-mirror parity rather than waiting for the first
-       force fixture (feedback_built_but_unconsumed.md
+       force fixture (feedback_spec_mirror_parity.md
        §"Spec-mirror parity (N-backend codegen)" — cpp's branch
        is the contract; missing the field would be silent
        semantic drift on the W3C 5.10.1 metadata family. */
@@ -3290,6 +3352,20 @@ static void set_current_event(lua_State *L, const {{ model.name }}_event_with_me
         lua_pushnil(L);
     }
     lua_setglobal(L, "_pending_event_invokeid");
+    /* W3C SCXML testing extension (.raw): cpp `JSEngineImpl.cpp:510` sets
+       `_event.raw` to the unparsed event data string before donedata
+       evaluation rewrites the slot into a typed table. C11 mirrors via
+       `_pending_event_raw` seeded from `evt->data` (the raw bounded
+       string buffer in `event_with_meta_t`); the per-enum chunk below
+       binds it onto `_event.raw`. Empty data buffer maps to lua nil so
+       `_event.raw` reads as the same falsy contract cpp surfaces for
+       events arrived without a data payload. */
+    if (evt->data[0] != '\0') {
+        lua_pushstring(L, evt->data);
+    } else {
+        lua_pushnil(L);
+    }
+    lua_setglobal(L, "_pending_event_raw");
     switch (evt->event) {
     {% for event_name in model.events | sort %}
     case {{ model.name | upper }}_EVENT_{{ event_name | upper | replace('.', '_') | replace('-', '_') }}:
@@ -3304,13 +3380,15 @@ static void set_current_event(lua_State *L, const {{ model.name }}_event_with_me
               "origintype = _pending_event_origintype, "
               "invokeid = _pending_event_invokeid, "
               "data = _pending_donedata, "
+              "raw = _pending_event_raw, "
               "sendid = _pending_send_id}; "
             "_pending_donedata = nil; "
             "_pending_send_id = nil; "
             "_pending_event_type = nil; "
             "_pending_event_origin = nil; "
             "_pending_event_origintype = nil; "
-            "_pending_event_invokeid = nil");
+            "_pending_event_invokeid = nil; "
+            "_pending_event_raw = nil");
         break;
     {% endfor %}
     default:
@@ -3338,7 +3416,7 @@ static void set_current_event(lua_State *L, const {{ model.name }}_event_with_me
    sequence matches the cpp `processMacrostep` body. Forward declared
    so the eventless loop and queue drain can call each other; the
    eventless function definition follows. */
-static void check_eventless_transitions({{ model.name }}_t *sm);
+static void SCE_SM_FN check_eventless_transitions({{ model.name }}_t *sm);
 
 {% if model.has_autoforward_invoke %}
 /* W3C SCXML 6.4 (test229): forward each non-platform external event to
@@ -3353,7 +3431,7 @@ static void check_eventless_transitions({{ model.name }}_t *sm);
    (cpp filters them via `isPlatformEvent`). The shim ignores names not
    in the child's enum (silently falls through), so a child SM with a
    smaller event vocabulary than the parent is safely tolerated. */
-static void {{ model.name }}_forward_to_autoforward_children({{ model.name }}_t *sm,
+static void SCE_SM_FN {{ model.name }}_forward_to_autoforward_children({{ model.name }}_t *sm,
         const {{ model.name }}_event_with_meta_t *evt) {
     switch (evt->event) {
         {% for ev_name in model.events | sort %}
@@ -3377,14 +3455,19 @@ static void {{ model.name }}_forward_to_autoforward_children({{ model.name }}_t 
 }
 {% endif %}
 
-static void process_event_queues({{ model.name }}_t *sm) {
+static void SCE_SM_FN process_event_queues({{ model.name }}_t *sm) {
     {{ model.name }}_event_with_meta_t evt;
     {{ model.name }}_transition_info_t enabled[SCE_MAX_ENABLED_TRANSITIONS];
     uint8_t count;
 
     while (event_queue_pop(&sm->internal_queue, &evt)) {
-        strncpy(sm->current_event_invoke_id, evt.invoke_id, (size_t)SCE_MAX_ID_LEN - 1u);
-        sm->current_event_invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+        sce_copy_bounded_id(sm->current_event_invoke_id, evt.invoke_id);
+        {% if event_payload_active %}
+        /* NL→IR Item C1 Path A: lift the dequeued event's typed payload so
+           native transition guards read `sm->pending_payload.as.<event>`.
+           Twin of the Rust policy's `populate_event_payload`. */
+        sm->pending_payload = evt.payload;
+        {% endif %}
         {% if model.needs_script_engine %}
         /* W3C SCXML 5.10.1 (test331): seed `_event.type` carry — internal
            queue pop is the spec's 'internal' category. set_current_event's
@@ -3411,8 +3494,15 @@ static void process_event_queues({{ model.name }}_t *sm) {
     }
 
     while (event_queue_pop(&sm->external_queue, &evt)) {
-        strncpy(sm->current_event_invoke_id, evt.invoke_id, (size_t)SCE_MAX_ID_LEN - 1u);
-        sm->current_event_invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
+        sce_copy_bounded_id(sm->current_event_invoke_id, evt.invoke_id);
+        {% if event_payload_active %}
+        /* NL→IR Item C1 Path A: lift the dequeued event's typed payload so
+           native transition guards read `sm->pending_payload.as.<event>`.
+           Twin of the Rust policy's `populate_event_payload`. The external
+           queue is where the per-event `raise_<event>_typed` entries
+           enqueue. */
+        sm->pending_payload = evt.payload;
+        {% endif %}
         {% if model.needs_script_engine %}
         /* W3C SCXML 5.10.1 (test331/336): seed `_event.type` /
            `_event.origin` / `_event.origintype` carry — external
@@ -3525,7 +3615,7 @@ static void process_event_queues({{ model.name }}_t *sm) {
    the C++ guard against pathological cycles (`MAX_ITERATIONS`). Each
    iteration's enabled list is built fresh, conflict-resolved, then
    executed atomically — same shape as cpp's per-microstep collection. */
-static void check_eventless_transitions({{ model.name }}_t *sm) {
+static void SCE_SM_FN check_eventless_transitions({{ model.name }}_t *sm) {
     {{ model.name }}_transition_info_t enabled[SCE_MAX_ENABLED_TRANSITIONS];
     uint8_t count;
     int iter = 0;
@@ -3542,7 +3632,7 @@ static void check_eventless_transitions({{ model.name }}_t *sm) {
     }
 }
 
-void {{ model.name }}_step({{ model.name }}_t *sm) {
+SCE_SM_FN void {{ model.name }}_step({{ model.name }}_t *sm) {
     process_event_queues(sm);
     check_eventless_transitions(sm);
     {% if (model.invokes | scxml_family) %}
@@ -3575,7 +3665,7 @@ void {{ model.name }}_step({{ model.name }}_t *sm) {
    The host calls this in a loop alongside its sleep / poll-interval
    primitive; the W3C spec is silent on poll cadence so the choice
    belongs to the runner. */
-void {{ model.name }}_tick({{ model.name }}_t *sm) {
+SCE_SM_FN void {{ model.name }}_tick({{ model.name }}_t *sm) {
     if (!sm->is_running) {
         return;
     }
@@ -3639,7 +3729,7 @@ void {{ model.name }}_tick({{ model.name }}_t *sm) {
 }
 {% endif %}
 
-void {{ model.name }}_run({{ model.name }}_t *sm) {
+SCE_SM_FN void {{ model.name }}_run({{ model.name }}_t *sm) {
     sm->is_running = true;
     while (sm->is_running && !{{ model.name }}_is_in_final_state(sm)) {
         uint32_t before = sm->active;
@@ -3664,7 +3754,7 @@ void {{ model.name }}_run({{ model.name }}_t *sm) {
 }
 
 {% if not model.has_parent_communication %}
-void {{ model.name }}_init({{ model.name }}_t *sm) {
+SCE_SM_FN void {{ model.name }}_init({{ model.name }}_t *sm) {
     memset(sm, 0, sizeof(*sm));
     /* W3C SCXML 6.2: SM is running from the moment the configuration is
        seeded. cpp `StaticExecutionEngine::initialize` sets `isRunning_`
@@ -3716,7 +3806,7 @@ void {{ model.name }}_init({{ model.name }}_t *sm) {
     }
 }
 {% else %}
-void {{ model.name }}_init_with_parent({{ model.name }}_t *sm,
+SCE_SM_FN void {{ model.name }}_init_with_parent({{ model.name }}_t *sm,
                                        void *parent_sm,
                                        void (*dispatch)(void *parent_sm, const char *event_name, const char *invoke_id, const char *event_data),
                                        const char *invoke_id) {
@@ -3731,10 +3821,7 @@ void {{ model.name }}_init_with_parent({{ model.name }}_t *sm,
        child's id at the parent's transition time (test338). */
     sm->parent_sm = parent_sm;
     sm->parent_dispatch = dispatch;
-    if (invoke_id != NULL) {
-        strncpy(sm->invoke_id, invoke_id, (size_t)SCE_MAX_ID_LEN - 1u);
-        sm->invoke_id[(size_t)SCE_MAX_ID_LEN - 1u] = '\0';
-    }
+    sce_copy_bounded_id(sm->invoke_id, invoke_id);
     sm->is_running = true;
     {% if model.needs_script_engine %}
     /* W3C SCXML 5.10: Open Lua engine and seed datamodel before any
@@ -3758,7 +3845,7 @@ void {{ model.name }}_init_with_parent({{ model.name }}_t *sm,
 }
 {% endif %}
 
-void {{ model.name }}_destroy({{ model.name }}_t *sm) {
+SCE_SM_FN void {{ model.name }}_destroy({{ model.name }}_t *sm) {
     {% if (model.invokes | scxml_family) %}
     /* W3C SCXML 6.4: tear down any active invoke children before the
        parent's own resources (lua state, scheduler payload refs) go
@@ -3788,45 +3875,44 @@ void {{ model.name }}_destroy({{ model.name }}_t *sm) {
     {% endif %}
 }
 
-uint32_t {{ model.name }}_active_states(const {{ model.name }}_t *sm) {
+SCE_SM_FN uint32_t {{ model.name }}_active_states(const {{ model.name }}_t *sm) {
     return sm->active;
 }
 
-bool {{ model.name }}_in_state(const {{ model.name }}_t *sm,
+SCE_SM_FN bool {{ model.name }}_in_state(const {{ model.name }}_t *sm,
                                {{ model.name }}_state_t s) {
     return config_in(sm->active, s);
 }
 
-bool {{ model.name }}_is_in_final_state(const {{ model.name }}_t *sm) {
+SCE_SM_FN bool {{ model.name }}_is_in_final_state(const {{ model.name }}_t *sm) {
     return (sm->active & {{ model.name | upper }}_FINAL_MASK) != 0u;
 }
 {% if model.on_sample_links %}
 
-/* ── watching-zenoh RFC §5.E B7-η' codegen wire-up ────────────────── */
+/* ── watching-zenoh RFC §synth-5-E sample-callback codegen wire-up ────────────────── */
 {# Per-link Sample delivery surface, C11 mirror of the Rust
    `<MachineName>LinkRx::deliver_link_<X>_sample` method on
    `Engine<...Policy>`. Each function:
      1. iterates the active configuration via `<machine>_in_state`
         for every state declaring `<sce:on-sample link="X">`,
-     2. raises `event="Y"` onto the external queue per Q-Wire-3
-        (callback path is Rust-only on Q-Callback-2 v1; the C11
-        backend ignores `<sce:on-sample callback="rust:...">` for
-        now — a future `c:`-prefix axis lands as a separate atomic
-        when an MCU consumer asks for it),
+     2. raises `event="Y"` onto the external queue — the event is
+        always raised (the callback path is Rust-only; the C11
+        backend ignores `<sce:on-sample callback="rust:...">` and
+        a `c:`-prefix callback axis is consumer-gated),
      3. drops the borrow at function exit; the slot returns to the
         pool through the host's `sce_sub_callback_t` contract.
-   Q-Wire-4 lock: `event_data` is the empty string. #}
+   `event_data` is the empty string. #}
 {% for link in model.on_sample_links %}
-void {{ model.name }}_deliver_link_{{ link | to_snake_case }}_sample(
+SCE_SM_FN void {{ model.name }}_deliver_link_{{ link | to_snake_case }}_sample(
     {{ model.name }}_t *sm,
     const sce_sample_t *sample) {
-    (void)sample;  /* borrow held; W1.4 callback wiring future */
+    (void)sample;  /* borrow held; C11 callback dispatch is consumer-gated */
 {% for state_id, state in model.states | dictsort %}
 {% for block in state.on_sample_blocks %}
 {% if block.link == link %}
     if ({{ model.name }}_in_state(sm, {{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }})) {
-        /* Q-Wire-3 lock: event always raised; callback ignored
-           (Rust-only in Q-Callback-2 v1). */
+        /* Event always raised; callback ignored (callback
+           dispatch is Rust-only). */
         {{ model.name }}_event_with_meta_t _on_sample_evt = {0};
         _on_sample_evt.event = {{ model.name | upper }}_EVENT_{{ block.event | upper | replace('.', '_') | replace('-', '_') }};
         {{ model.name }}_raise_external(sm, &_on_sample_evt);

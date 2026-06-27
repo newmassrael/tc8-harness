@@ -1,13 +1,19 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{{ sce_map.source_marker(source_location, "kotlin", module_level=true) }}
+
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
 // Runtime: {{ runtime_dep }}
 // Do not edit — regenerate from the source SCXML file.
 
 package com.sce.generated.{{ package }}
 
+import com.sce.forge.runtime.CodecError
+import com.sce.forge.runtime.MutableListSink
 import com.sce.forge.runtime.SceCursor
+import com.sce.forge.runtime.SceSink
 {% for imp in all_imports %}
 {% if imp.include_stmt %}
 {{ imp.include_stmt }}
@@ -15,7 +21,7 @@ import com.sce.forge.runtime.SceCursor
 {% endfor %}
 
 {% if has_variant %}
-// RFC §5.B variant primitive (B1-β): discriminated-union body for the
+// RFC §synth-5-B variant primitive: discriminated-union body for the
 // codec's tag-field suffix. Each arm wraps an imported codec's decoded
 // value; the optional Default arm preserves the runtime tag value
 // alongside its catch-all body. Arm body types are referenced by FQN
@@ -32,7 +38,7 @@ sealed class {{ struct_name }}Variant {
 
 {% endif %}
 {% if has_no_fields %}
-// RFC §5.B B5-α empty body — Kotlin's `data class` requires at least
+// RFC §synth-5-B empty body — Kotlin's `data class` requires at least
 // one primary-ctor parameter, so empty-body codecs (e.g. Zenoh
 // KeepAlive) emit as a plain class with a no-arg constructor.
 class {{ struct_name }} {
@@ -43,10 +49,19 @@ class {{ struct_name }} {
 // mirror the zero-initialized shape that decode() fills in on success.
 data class {{ struct_name }}(
 {% for field in fields %}
-    var {{ field.id }}: {{ field.kt_type }} = {{ field.kt_default }}{{ "," if not loop.last or has_variant else "" }}
+    var {{ field.id }}: {{ field.kt_type }} = {% if field.kt_flag_default_literal is defined %}{{ field.kt_flag_default_literal }}{% else %}{{ field.kt_default }}{% endif %}{{ "," if not loop.last or has_variant else "" }}
 {% endfor %}
 {% if has_variant %}
-{% if variant.arms %}
+{% set ns = namespace(default_arm=none) %}
+{% for arm in variant.arms %}{% if arm.is_default %}{% set ns.default_arm = arm %}{% endif %}{% endfor %}
+{% if ns.default_arm %}
+    // RFC variant-default-uniformity (Kotlin): pick the declared
+    // default arm (`<sce:arm default="true"/>`) instead of the first
+    // alternative so a freshly-constructed envelope round-trips byte-
+    // exactly through `encode() -> decode()`. Paired with the inner
+    // codec's `<sce:flag value=>`-baked default fields above.
+    var body: {{ struct_name }}Variant = {{ struct_name }}Variant.{{ ns.default_arm.variant_name }}({{ ns.default_arm.body_type }}())
+{% elif variant.arms %}
     var body: {{ struct_name }}Variant = {{ struct_name }}Variant.{{ variant.arms[0].variant_name }}({{ variant.arms[0].body_type }}())
 {% else %}
     var body: {{ struct_name }}Variant = {{ struct_name }}Variant.{{ variant.default_arm.variant_name }}(tag = {{ variant.kt_zero_tag_literal }}, body = {{ variant.default_arm.body_type }}())
@@ -54,8 +69,34 @@ data class {{ struct_name }}(
 {% endif %}
 ) {
 {% endif %}
+{% if has_quantity %}
+    // NL→IR Mapping Roadmap Item 4 — physical-quantity raw↔physical
+    // accessor pair. Each `sce:quantity=…`-annotated field emits a
+    // `<id>Phys()` reader returning `Double` and a `set<Id>Phys()`
+    // writer truncating the inverse to the raw Kotlin numeric type.
+{% for field in fields %}
+{% if field.quantity_accessor %}
+    /**
+     * Physical reading in `{{ field.quantity_accessor.unit }}` —
+     * `raw * {{ field.quantity_accessor.scale_repr }} + {{ field.quantity_accessor.offset_repr }}`.
+     */
+    fun {{ field.quantity_accessor.getter_name }}(): {{ field.quantity_accessor.phys_type }} {
+        return {{ field.quantity_accessor.raw_to_phys_expr }}
+    }
+
+    /**
+     * Set the physical reading in `{{ field.quantity_accessor.unit }}`;
+     * the inverse is truncated to the raw `{{ field.kt_type }}` slot.
+     */
+    fun {{ field.quantity_accessor.setter_name }}(value: {{ field.quantity_accessor.phys_type }}) {
+        {{ field.quantity_accessor.raw_assign_lhs }} = {{ field.quantity_accessor.phys_to_raw_expr }}
+    }
+
+{% endif %}
+{% endfor %}
+{% endif %}
 {% if has_flags %}
-    // RFC §5.B B1-γ + B5-α flags primitive: per-bit-range accessors over
+    // RFC §synth-5-B flags primitive: per-bit-range accessors over
     // the carrier field. Single-bit (width=1) reads as Boolean; multi-
     // bit (width>=2) reads as the smallest unsigned Kotlin type that
     // fits (UByte / UShort / UInt / ULong). UByte/UShort widen through
@@ -93,22 +134,33 @@ data class {{ struct_name }}(
 {% endif %}
 {% endfor %}
 {% endif %}
-{% if has_parent_flags %}
+    /// RFC §synth-5-B encode-side primary: write `self` into the
+    /// caller-owned `w` sink. Returns `null` on success;
+    /// `CodecError.BufferOverflow` from a bounded sink when the
+    /// destination has insufficient remaining capacity; growable
+    /// sinks (e.g. `MutableListSink`) are effectively infallible.
+{% if has_parent_flags or has_flag_inputs %}
     @Suppress("UNUSED_PARAMETER")
 {% endif %}
-    fun encode({{ parent_flags_param_first }}): ByteArray {
+    fun encode(w: SceSink{{ params_after_first_arg }}): CodecError? {
+{% if has_parent_tag_derivation %}
+        // RFC §synth-5-B parent-tag carriers — derive carrier bits from each embedded
+        // parent-tag variant's active arm before the carrier byte is
+        // emitted. Each `_derived<Carrier>` val is OR'd into the
+        // carrier's encode site.
+{{ parent_tag_derivation_block }}
+{% endif %}
 {% if has_no_fields %}
-        // RFC §5.B B5-α empty body — zero-byte payload.
-        return ByteArray(0)
+        // RFC §synth-5-B empty body — zero-byte payload.
+        return null
 {% elif has_variant %}
 {% if variant.has_streaming_prefix %}
-        // RFC §5.B Y3 atomic 2b-ii peek-byte / 2b-iv streaming-prefix:
+        // RFC §synth-5-B peek-byte / streaming-prefix:
         // streaming prefix encode. Peek-byte mode: arm body's encode
         // prepends its own header byte (which the decoder peeked); no
         // separate tag byte here. Streaming-prefix mode (own-field):
         // carrier is part of the prefix fields and emits via the same
         // per-field path.
-        val r = mutableListOf<Byte>()
 {% for field in fields %}
 {% if field.is_repeat %}
 {{ field.repeat_encode_block }}
@@ -125,28 +177,29 @@ data class {{ struct_name }}(
         // The tag value is read from the struct field, NOT derived from
         // the body discriminant — keeping author-set tag / body in sync
         // is the caller's responsibility (v1 keeps the layout simple).
-        val r = mutableListOf<Byte>()
 {% for expr in encode_exprs %}
-        r.add({{ expr }})
+        w.writeU8({{ expr }})?.let { return it }
 {% endfor %}
 {% endif %}
-        // Append the active arm body's encoded bytes.
+        // Append the active arm body's encoded bytes via the same sink.
         when (val _b = this.body) {
 {% for arm in variant.arms %}
-            is {{ struct_name }}Variant.{{ arm.variant_name }} -> r.addAll(_b.body.encode({{ arm.body_parent_flags_arg_first }}).toList())
+            is {{ struct_name }}Variant.{{ arm.variant_name }} -> _b.body.encode(w{{ arm.body_encode_args_with_leading_comma }})?.let { return it }
 {% endfor %}
 {% if variant.default_arm %}
-            is {{ struct_name }}Variant.{{ variant.default_arm.variant_name }} -> r.addAll(_b.body.encode({{ variant.default_arm.body_parent_flags_arg_first }}).toList())
+            is {{ struct_name }}Variant.{{ variant.default_arm.variant_name }} -> _b.body.encode(w{{ variant.default_arm.body_encode_args_with_leading_comma }})?.let { return it }
 {% endif %}
         }
-        return r.toByteArray()
-{% elif has_present_if_fields %}
-        // RFC §5.B B1-δ + B2-β present-if encode: per-field byte
-        // append. Gated fields skip the append when the optional is
-        // null. Per-field `is_repeat` routes Repeat fields to the
-        // dedicated helper. Branch fires before has_vle_fields so a
-        // codec mixing VLE + present-if uses the unified encode path.
-        val r = mutableListOf<Byte>()
+        return null
+{% elif needs_streaming %}
+        // Streaming cursor encode (SSOT selection: `needs_streaming`).
+        // Mirrors the streaming decode: every field appends its own bytes
+        // in declaration order through the per-field encode blocks, so a
+        // gated field skips its append when null, and a fixed field after
+        // a variable-length payload lands after the payload (the positional
+        // path appends variable fields last, placing it ahead on the wire).
+        // Per-field `is_repeat` / `is_tlv_chain` / `is_embed` route to their
+        // dedicated helpers; everything else uses `present_if_encode_block`.
 {% for field in fields %}
 {% if field.is_repeat %}
 {{ field.repeat_encode_block }}
@@ -158,78 +211,50 @@ data class {{ struct_name }}(
 {{ field.present_if_encode_block }}
 {% endif %}
 {% endfor %}
-        return r.toByteArray()
-{% elif has_vle_fields %}
-        // RFC §5.B B4: per-field bit-size dispatch routes Fixed /
-        // LengthRef siblings of VLE fields through
-        // `present_if_encode_block` (predicate=None arms). Pure-VLE
-        // codecs stay byte-stable.
-        val r = mutableListOf<Byte>()
-{% for field in fields %}
-{% if field.is_repeat %}
-{{ field.repeat_encode_block }}
-{% elif field.is_tlv_chain %}
-{{ field.tlv_chain_encode_block }}
-{% elif field.is_embed %}
-{{ field.embed_encode_block }}
-{% else %}
-{{ field.present_if_encode_block }}
-{% endif %}
-{% endfor %}
-        return r.toByteArray()
-{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
-        // RFC §5.B B2 encode: fixed prefix appends byte-by-byte;
-        // repeat fields iterate the host MutableList and splice each
-        // element's encode().toList() into the parent buffer. Author
-        // keeps count field == list length (trust contract).
-        val r = mutableListOf<Byte>()
-{% for field in fields %}
-{% if field.is_repeat %}
-{{ field.repeat_encode_block }}
-{% elif field.is_tlv_chain %}
-{{ field.tlv_chain_encode_block }}
-{% elif field.is_embed %}
-{{ field.embed_encode_block }}
-{% else %}
-{{ field.present_if_encode_block }}
-{% endif %}
-{% endfor %}
-        return r.toByteArray()
+        return null
 {% elif has_variable_fields %}
-        val r = mutableListOf<Byte>()
 {% for expr in encode_exprs %}
-        r.add({{ expr }})
+        w.writeU8({{ expr }})?.let { return it }
 {% endfor %}
 {% for field in fields %}
 {% if field.is_variable %}
-        r.addAll({{ field.id }}.toList())
+        w.writeBytes({{ field.id }})?.let { return it }
 {% endif %}
 {% endfor %}
-        return r.toByteArray()
+        return null
 {% else %}
-        return byteArrayOf(
 {% for expr in encode_exprs %}
-            {{ expr }}{{ "," if not loop.last else "" }}
+        w.writeU8({{ expr }})?.let { return it }
 {% endfor %}
-        )
+        return null
 {% endif %}
+    }
+
+    /// Heap-backed convenience facade. Runs `encode` over a
+    /// `MutableListSink` and returns the freshly-encoded ByteArray.
+    /// Callers targeting zero-alloc hot paths should call `encode`
+    /// directly against a caller-owned sink (e.g. `ByteArraySink`).
+    fun encodeToByteArray({{ params_first_arg }}): ByteArray {
+        val _list = mutableListOf<Byte>()
+        encode(MutableListSink(_list){{ params_first_arg_with_comma }})
+        return _list.toByteArray()
     }
 
     companion object {
         /// Decode the next frame from `cursor`. On success the cursor
         /// advances past the consumed bytes; returns `null` when the
         /// cursor's tail is shorter than the declared minimum frame
-        /// (RFC §5.B L494-519).
-{% if has_parent_flags %}
+        /// (RFC §synth-5-B L494-519).
+{% if has_parent_flags or has_caller_tag or has_flag_inputs %}
         @Suppress("UNUSED_PARAMETER")
 {% endif %}
-        fun decode(cursor: SceCursor{{ parent_flags_param_decl }}): {{ struct_name }}? {
+        fun decode(cursor: SceCursor{{ params_after_first_arg }}{{ dispatch_tag_param_decl }}): {{ struct_name }}? {
 {% if has_no_fields %}
-            // RFC §5.B B5-α empty body — zero-byte payload, no cursor work.
+            // RFC §synth-5-B empty body — zero-byte payload, no cursor work.
             return {{ struct_name }}()
 {% elif has_variant %}
 {% if variant.has_streaming_prefix %}
-            // RFC §5.B Y3 atomic 2b-ii peek-byte / 2b-iv streaming-
+            // RFC §synth-5-B peek-byte / streaming-
             // prefix: streaming prefix decode (variable-length fields
             // supported via per-field present_if/tlv-chain/embed/repeat
             // helpers). Peek-byte mode additionally peeks the cursor's
@@ -250,12 +275,14 @@ data class {{ struct_name }}(
             {{ variant.peek_byte_decode_stmt }}
 {% endif %}
 {% else %}
-            // Decode fixed prefix (RFC §5.B variant B1-β: fields before tag suffix).
+{% if fields %}
+            // Decode fixed prefix (RFC §synth-5-B variant: fields before tag suffix).
             val raw = cursor.peekSlice({{ min_bytes }}) ?: return null
 {% for field in fields %}
             val {{ field.id }} = {{ field.decode_expr }}
 {% endfor %}
             if (!cursor.advance({{ min_bytes }})) return null
+{% endif %}
 {% endif %}
             // Dispatch on the tag field; each arm decodes its body codec
             // from the cursor. The default arm (when declared) carries
@@ -264,13 +291,13 @@ data class {{ struct_name }}(
             val body: {{ struct_name }}Variant = when ({{ variant.tag_match_expr }}) {
 {% for arm in variant.arms %}
                 {{ arm.value_literal }} -> {
-                    val _arm = {{ arm.body_type }}.decode(cursor{{ arm.body_parent_flags_arg }}) ?: return null
+                    val _arm = {{ arm.body_type }}.decode(cursor{{ arm.body_decode_args_after_cursor }}) ?: return null
                     {{ struct_name }}Variant.{{ arm.variant_name }}(_arm)
                 }
 {% endfor %}
                 else -> {
 {% if variant.default_arm %}
-                    val _arm = {{ variant.default_arm.body_type }}.decode(cursor{{ variant.default_arm.body_parent_flags_arg }}) ?: return null
+                    val _arm = {{ variant.default_arm.body_type }}.decode(cursor{{ variant.default_arm.body_decode_args_after_cursor }}) ?: return null
                     {{ struct_name }}Variant.{{ variant.default_arm.variant_name }}(tag = {{ variant.tag_store_expr }}, body = _arm)
 {% else %}
                     // codec/variant-arm-unreachable rejected this case at parse time.
@@ -284,62 +311,19 @@ data class {{ struct_name }}(
 {% endfor %}
                 body = body
             )
-{% elif has_present_if_fields %}
-            // RFC §5.B B1-δ + B2-β present-if primitive: streaming
-            // decode advances the cursor per field. Gated fields wrap
-            // their read inside an `if predicate ... else null` block.
-            // B2-β extends gating to Tail / LengthRef / Vle bit-sizes
-            // via dispatch inside `present_if_decode_stmt`. Per-field
-            // `is_repeat` routes Repeat fields to the dedicated
-            // helper. Branch fires before has_vle_fields so a codec
-            // mixing VLE + present-if uses the unified streaming path.
-{% for field in fields %}
-{% if field.is_repeat %}
-            {{ field.repeat_decode_stmt }}
-{% elif field.is_tlv_chain %}
-            {{ field.tlv_chain_decode_stmt }}
-{% elif field.is_embed %}
-            {{ field.embed_decode_stmt }}
-{% else %}
-            {{ field.present_if_decode_stmt }}
-{% endif %}
-{% endfor %}
-            return {{ struct_name }}(
-{% for field in fields %}
-                {{ field.id }} = {{ field.id }}{{ "," if not loop.last else "" }}
-{% endfor %}
-            )
-{% elif has_vle_fields %}
-            // Streaming codec: each field reads from cursor directly
-            // (VLE base-128 chain). RFC §5.B B4: per-field bit-size
-            // dispatch routes Fixed / LengthRef siblings of VLE fields
-            // through `present_if_decode_stmt` (predicate=None arms).
-            // Pure-VLE codecs stay byte-stable.
-{% for field in fields %}
-{% if field.is_repeat %}
-            {{ field.repeat_decode_stmt }}
-{% elif field.is_tlv_chain %}
-            {{ field.tlv_chain_decode_stmt }}
-{% elif field.is_embed %}
-            {{ field.embed_decode_stmt }}
-{% else %}
-            {{ field.present_if_decode_stmt }}
-{% endif %}
-{% endfor %}
-            return {{ struct_name }}(
-{% for field in fields %}
-                {{ field.id }} = {{ field.id }}{{ "," if not loop.last else "" }}
-{% endfor %}
-            )
-{% elif has_repeat_fields or has_tlv_chain_fields or has_embed_fields or has_string_fields %}
-            // RFC §5.B B2 repeat primitive: streaming decode mixes
-            // plain fixed-width reads (per-field via the present-if
-            // helper's non-gated arm) with `mutableListOf<T>().also { ... }`
-            // loops that iterate the imported codec's `decode()`
-            // either `count_ref.toInt()` times (length-field) or
-            // until cursor exhaustion (until-eof). Element bodies
-            // recurse into their own codec — each may itself surface
-            // null, unwinding the partial frame via `?: return null`.
+{% elif needs_streaming %}
+            // Streaming cursor decode (SSOT selection: `needs_streaming`).
+            // The positional `raw[byte_off]` path is valid only when every
+            // field's absolute offset is fixed at codegen time; this branch
+            // handles every codec where it is not — present-if-gated fields
+            // (runtime presence), VLE / repeat / TLV-chain / embed fields
+            // (runtime width), string fields (UTF-8 decode), and a fixed
+            // field after a variable-length payload (offset depends on the
+            // payload length). Each field reads its own bytes from the
+            // cursor and advances past what it consumed. Per-field
+            // `is_repeat` / `is_tlv_chain` / `is_embed` route to their
+            // dedicated helpers; every other field flows through
+            // `present_if_decode_stmt`.
 {% for field in fields %}
 {% if field.is_repeat %}
             {{ field.repeat_decode_stmt }}
@@ -360,22 +344,30 @@ data class {{ struct_name }}(
             val frameLen = cursor.remaining()
             if (frameLen < {{ min_bytes }}) return null
             val raw = cursor.peekSlice(frameLen) ?: return null
-            val value = {{ struct_name }}(
 {% for field in fields %}
-                {{ field.id }} = {{ field.decode_expr }}{{ "," if not loop.last else "" }}
+            val {{ field.id }} = {{ field.decode_expr }}
+{% endfor %}
+            if (!cursor.advance(frameLen)) return null
+            // Construct in the `return` (no intermediate local) so a field
+            // literally named `value` cannot shadow a result-struct local.
+            return {{ struct_name }}(
+{% for field in fields %}
+                {{ field.id }} = {{ field.id }}{{ "," if not loop.last else "" }}
 {% endfor %}
             )
-            if (!cursor.advance(frameLen)) return null
-            return value
 {% else %}
             val raw = cursor.peekSlice({{ min_bytes }}) ?: return null
-            val value = {{ struct_name }}(
 {% for field in fields %}
-                {{ field.id }} = {{ field.decode_expr }}{{ "," if not loop.last else "" }}
+            val {{ field.id }} = {{ field.decode_expr }}
+{% endfor %}
+            if (!cursor.advance({{ min_bytes }})) return null
+            // Construct in the `return` (no intermediate local) so a field
+            // literally named `value` cannot shadow a result-struct local.
+            return {{ struct_name }}(
+{% for field in fields %}
+                {{ field.id }} = {{ field.id }}{{ "," if not loop.last else "" }}
 {% endfor %}
             )
-            if (!cursor.advance({{ min_bytes }})) return null
-            return value
 {% endif %}
         }
     }

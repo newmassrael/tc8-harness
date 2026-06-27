@@ -167,7 +167,7 @@ public:
     std::future<ScriptResult> setVariable(const std::string &sessionId, const std::string &name, const ScriptValue &value) override;
 
     /**
-     * @brief Set a variable to an XML DOM object (W3C SCXML B.2)
+     * @brief Set a variable to an XML DOM object (§scxml-B-2)
      * @param sessionId Target session
      * @param name Variable name
      * @param xmlContent XML string to parse as DOM
@@ -196,7 +196,7 @@ public:
     // === SCXML-specific Features ===
 
     /**
-     * @brief Set current event object in JavaScript context (W3C SCXML 5.10)
+     * @brief Set current event object in JavaScript context (§scxml-5.10)
      *
      * Overload 1: For Interpreter engine with Event objects
      * @param sessionId Target session
@@ -206,22 +206,15 @@ public:
     std::future<ScriptResult> setCurrentEvent(const std::string &sessionId, const std::shared_ptr<Event> &event) override;
 
     /**
-     * @brief Set current event object in JavaScript context (W3C SCXML 5.10)
+     * @brief Set current event object in JavaScript context (§scxml-5.10)
      *
-     * Overload 2: For AOT engine with string literals
+     * Overload 2: For AOT engine with W3C 5.10 field bundle (string literals
+     * resolved at code generation time, packed into SetCurrentEventArgs).
      * @param sessionId Target session
-     * @param eventName Event name (compile-time constant)
-     * @param eventData Event data as JSON string (compile-time constant)
-     * @param eventType Event type (default: "internal")
-     * @param sendId Send ID for events triggered by <send> (W3C SCXML 5.10.1, test332)
-     * @param origin Origin URL for bidirectional communication (W3C SCXML 5.10.1, test336)
-     * @param invokeId Invoke ID for child-to-parent events (W3C SCXML 6.4.1, test338)
+     * @param args SetCurrentEventArgs bundling eventName + 6 metadata fields
      * @return Future indicating success/failure
      */
-    std::future<ScriptResult> setCurrentEvent(const std::string &sessionId, const std::string &eventName,
-                                          const std::string &eventData = "", const std::string &eventType = "internal",
-                                          const std::string &sendId = "", const std::string &origin = "",
-                                          const std::string &originType = "", const std::string &invokeId = "") override;
+    std::future<ScriptResult> setCurrentEvent(const std::string &sessionId, const SetCurrentEventArgs &args) override;
 
     /**
      * @brief Setup SCXML system variables for a session
@@ -415,7 +408,7 @@ private:
             preInitializedVars;  // Variables set before datamodel initialization (e.g., invoke data)
         // SOLID: Single Responsibility - session management includes invoke relationships
         std::shared_ptr<class IEventRaiser> eventRaiser;
-        // W3C SCXML 5.10: Track _event object initialization for lazy binding
+        // §scxml-5.10: Track _event object initialization for lazy binding
         bool eventObjectInitialized = false;
         // Bound native method storage for bindNativeObject lifetime management
         std::vector<std::unique_ptr<NativeMethod>> boundMethods;
@@ -444,7 +437,7 @@ private:
         std::string code;                       // for EXECUTE_SCRIPT, EVALUATE_EXPRESSION
         std::string variableName;               // for SET_VARIABLE, GET_VARIABLE
         ScriptValue variableValue;              // for SET_VARIABLE
-        bool isDOMObject = false;               // for SET_VARIABLE: XML DOM object (W3C SCXML B.2)
+        bool isDOMObject = false;               // for SET_VARIABLE: XML DOM object (§scxml-B-2)
         std::shared_ptr<Event> event;           // for SET_CURRENT_EVENT
         std::string sessionName;                // for SETUP_SYSTEM_VARIABLES
         std::vector<std::string> ioProcessors;  // for SETUP_SYSTEM_VARIABLES

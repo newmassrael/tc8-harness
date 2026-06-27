@@ -15,11 +15,11 @@
 // Source: {{ model.scxml_source_path }}
 // Generator: SCE Kotlin Code Generator v1.0
 {% import '_macros/sce_map_marker.jinja2' as sce_map %}
-{# Watching-zenoh RFC §5.O Atomic 0b: SCE-MAP marker anchoring the
+{# Watching-zenoh RFC §synth-5-O: SCE-MAP marker anchoring the
    generated Kotlin file to the `<scxml>` root element's source. #}
 {{ sce_map.source_marker(model.source_location, "kotlin", module_level=true) }}
 
-package com.sce.generated.{{ model.name | lower }}
+package {{ kotlin_package_prefix | default("com.sce.generated") }}.{{ model.name | lower }}
 
 import com.sce.runtime.*
 {% if model.invokes | hybrid %}
@@ -30,6 +30,10 @@ import com.sce.interpreter.ScxmlRuntimeInterpreter
 
 {% include 'events.kt.jinja2' %}
 
+{% if event_payload_active %}
+// ── NL→IR Item C1 Path A: typed `_event.data` payload classes ─────────
+{{ event_payload_defs }}
+{% endif %}
 // --- State Machine (W3C SCXML) ---
 
 {% if model.context_objects %}
@@ -43,8 +47,12 @@ class {{ machine_name }}StateMachine(
 {% for ctx in model.context_objects %}
     val {{ ctx.id | to_camel_case }}: {{ ctx.kt_type if ctx.kt_type else 'Any' }},
 {% endfor %}
-    scriptEngine: ScxmlScriptEngine? = null
+{% if model.needs_script_engine %}
+    scriptEngine: ScxmlScriptEngine,
 ) : StateMachineEngine<{{ machine_name }}State, {{ machine_name }}Event>(scriptEngine) {
+{% else %}
+) : StateMachineEngine<{{ machine_name }}State, {{ machine_name }}Event>() {
+{% endif %}
 {% if model.variables %}
 
     // Datamodel (W3C SCXML 5.3)
@@ -58,6 +66,22 @@ class {{ machine_name }}StateMachine(
 
     // ── SCE Forge: Inline kind member functions ──────────────
 {{ inline_kind_code }}
+{% endif %}
+{% if event_payload_active %}
+
+    // NL→IR Item C1 Path A: the current event's typed `_event.data` payload(s),
+    // lifted from the dequeued event by populateTypedPayload and read by the
+    // native transition guards. `null` between events / for untyped events.
+{{ event_payload_policy_fields }}
+    // NL→IR Item C1 Path A: lift the dequeued event's type-erased typed payload
+    // into the matching nullable field (a non-typed carrier resets all to null,
+    // so every typed guard fails). Twin of the Go policy's PopulateEventMetadata
+    // type-switch / the C11 pop loop's `sm->pending_payload = evt.payload`.
+    override fun populateTypedPayload(metadata: EventMetadata) {
+{{ event_payload_populate }}    }
+
+    // NL→IR Item C1 Path A: per-event typed `_event.data` inject seams.
+{{ event_payload_inject }}
 {% endif %}
 
     override val initialState: {{ machine_name }}State = {{ machine_name }}State.{{ model.initial_leaf | to_state_class_name if model.initial_leaf else model.initial | to_state_class_name }}

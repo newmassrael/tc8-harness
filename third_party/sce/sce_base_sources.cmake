@@ -48,4 +48,7 @@ set(SCE_BASE_INCLUDE_DIRS
     scripting
     runtime
     backends
+    model
+    actions
+    states
 )

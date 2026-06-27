@@ -1,7 +1,7 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
-{# RFC §5.B B2-test-vector: per-fixture C11 test-vector sidecar.
+{# RFC §synth-5-B test-vector: per-fixture C11 test-vector sidecar.
    Aggregates every `<sce:test-vector>` row into a single
    `static inline int test_vector_<fixture>(void)` that returns the
    row-failure count. The C11 conformance harness folds the return
@@ -12,7 +12,7 @@
    sibling algorithm header so the symbol resolves regardless of
    include order in the harness TU. #}
 
-/* SCE Forge: Auto-generated test-vector sidecar (RFC §5.B B2) */
+/* SCE Forge: Auto-generated test-vector sidecar (RFC §synth-5-B B2) */
 /* Companion to {{ name }}.h — do not edit; regenerate from the source SCXML. */
 
 #ifndef {{ guard }}
@@ -33,14 +33,14 @@ static inline int test_vector_{{ name }}(void) {
         memcpy(input.data, row_bytes, sizeof row_bytes);
         input.len = sizeof row_bytes;
 {% endif %}
-        {{ return_type }} actual = {{ name }}(input);
+        {{ return_type }} actual = {{ primary_symbol }}((sce_forge_bytes_view_t){ input.data, input.len });
 {% else %}
-        {{ return_type }} actual = {{ name }}();
+        {{ return_type }} actual = {{ primary_symbol }}();
 {% endif %}
         const {{ return_type }} expected = {{ tv.value_literal_c }};
         if (actual != expected) {
             fprintf(stderr,
-                "FAIL: {{ name }} test_vector @SCXML L{{ tv.source_line }}: actual={{ tv.printf_fmt }} expected={{ tv.printf_fmt }}\n",
+                "FAIL: {{ primary_symbol }} test_vector @SCXML L{{ tv.source_line }}: actual={{ tv.printf_fmt }} expected={{ tv.printf_fmt }}\n",
                 ({{ tv.printf_cast }})actual, ({{ tv.printf_cast }})expected);
             ++failures;
         }

@@ -46,7 +46,15 @@
       Impact: W3C SCXML 5.5 _event.data now correctly populated for all donedata content/param tests
       Verification: Test 527 (donedata content expr) passes with _event.data == 'foo' guard evaluation
 #}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
+{# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP marker
+   above `executeEntryActions`. `#line N "file"` inside a function
+   body remaps subsequent line numbers for the function only; the
+   next per-function marker (executeExitActions below) resets the
+   directive's effect for the rest of the translation unit. #}
+    {{ sce_map.source_marker(model.source_location, "cpp") }}
     template <typename Engine>
 {% if not model.execute_entry_actions_needs_this %}    [[gnu::hot]] static void executeEntryActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine) {
 {% else %}    [[gnu::hot]] void executeEntryActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine) {
@@ -73,7 +81,7 @@
 {% if model.has_entry_actions %}
         switch (state) {
 {% for state_id, state in model.states | dictsort %}
-        case State::{{ state_id | capitalize }}:
+        case State::{{ state_id | capitalize }}:{{ annot.annotation_comment(state, "cpp", "                ") }}
 {% if state.datamodel or state.on_entry_blocks or state.invokes | scxml or state.invokes | scxml_remote or state.invokes | hybrid or state.invokes | mesh_rpc or (state.is_final and state.donedata) or (state.is_final and state.parent) %}
                 {
 {% if state.datamodel and model.binding == 'late' %}
@@ -156,13 +164,18 @@
                         // child's events via the same sessionId the local
                         // path uses. `sessionId` is filled by onInvokeStarted
                         // when wire-15 arrives (§9.6.3 L1463).
-                        activeInvokes_["{{ invoke_info.invoke_id }}"] = ChildSession{
-                            "",  // filled on wire-15 InvokeStarted
-                            "{{ invoke_info.invoke_id }}",
-                            sessionId_.has_value() ? sessionId_.value() : "",
-                            {{ 'true' if invoke_info.autoforward else 'false' }},
-                            "{{ invoke_info.finalize_content | replace('"', '\"') }}"
-                        };
+                        // SCE_MESH.md §16.7 row 5 sub-atomic C — guard the
+                        // write against concurrent peer-down callbacks.
+                        {
+                            std::lock_guard<std::mutex> __sce_active_invokes_lk(activeInvokesMutex_);
+                            activeInvokes_["{{ invoke_info.invoke_id }}"] = ChildSession{
+                                "",  // filled on wire-15 InvokeStarted
+                                "{{ invoke_info.invoke_id }}",
+                                sessionId_.has_value() ? sessionId_.value() : "",
+                                {{ 'true' if invoke_info.autoforward else 'false' }},
+                                "{{ invoke_info.finalize_content | replace('"', '\"') }}"
+                            };
+                        }
                         pendingDoneInvoke_{{ invoke_info.invoke_id }}_ = false;
                     } else {
                         // Transport-absent deployment — raise locally with
@@ -349,6 +362,9 @@
                     entryBlocks.push_back([{% if model.needs_nonstatic_method %}this, {% endif %}&engine]() {
                         // Onentry block {{ loop.index }}/{{ state.on_entry_blocks|length }}
 {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "cpp", "                        ") -}}
+{%- endif %}
                         {% set in_entry_exit = true %}
                         {% include 'actions/' + action.type + '.jinja2' %}
 
@@ -474,14 +490,15 @@
                 }
 {% endif %}
 {% if model.states[state.parent].parent and model.states[model.states[state.parent].parent].is_parallel %}
-{# SCE_MESH.md §14 rule 12 scaffolding carve-out (L2844):           #}
+{# SCE_MESH.md §14 rule 12 (landed 2026-04-20, atomic bundle):       #}
 {# delegate <parallel>-final completion emission to                 #}
 {# `mesh/cpp/parallel_final.jinja2` when the machine is listed in   #}
 {# any `partitions.<name>.machines:` entry. The delegate's P0 body  #}
 {# is byte-identical to the inline branch below; the partition-     #}
-{# aware rewrite lands atomically with §16.5 and the rule 12        #}
-{# validator. The guard is pure existence — no partition value is   #}
-{# read here — to stay within the carve-out.                         #}
+{# aware rewrite landed atomically with §16.5 and the rule 12       #}
+{# validator. The guard reads only existence — no partition value   #}
+{# is needed here since the branch decision is binary               #}
+{# (delegate / inline) per partition_context_present.               #}
 {% if model.partition_context_present %}
 {% include 'mesh/cpp/parallel_final.jinja2' %}
 {% else %}
@@ -563,6 +580,7 @@
 {% endif %}
     }
 
+    {{ sce_map.source_marker(model.source_location, "cpp") }}
     template <typename Engine>
 {# W3C SCXML 3.11: history recording mutates the non-static history_{id}   #}
 {# members declared in the Policy class, so executeExitActions must be an  #}
@@ -656,7 +674,7 @@
         switch (state) {
 {% for state_id, state in model.states | dictsort %}
 {% if state.on_exit_blocks or state.invokes | scxml or state.invokes | hybrid or state.invokes | mesh_rpc or state.invokes | scxml_remote %}
-        case State::{{ state_id | capitalize }}:
+        case State::{{ state_id | capitalize }}:{{ annot.annotation_comment(state, "cpp", "                ") }}
                 AOT_DEBUG("AOT executeExitActions: Processing exit actions for state {} ({{ state_id }})", static_cast<int>(state));
 {% if state.on_exit_blocks or state.invokes | scxml or state.invokes | hybrid or state.invokes | mesh_rpc or state.invokes | scxml_remote %}
                 {
@@ -672,7 +690,12 @@
 {% endif %}
                     child_{{ invoke_info.field_suffix }}_.reset();
                 }
-                activeInvokes_.erase("{{ invoke_info.invoke_id }}");
+                // SCE_MESH.md §16.7 row 5 sub-atomic C — erase is shared
+                // with the peer-down callback path; guard with the mutex.
+                {
+                    std::lock_guard<std::mutex> __sce_active_invokes_lk(activeInvokesMutex_);
+                    activeInvokes_.erase("{{ invoke_info.invoke_id }}");
+                }
 {% endfor %}
                 {% for invoke_info in state.invokes | hybrid %}
                 if (child_{{ invoke_info.field_suffix }}_) {
@@ -683,7 +706,11 @@
 {% endif %}
                     child_{{ invoke_info.field_suffix }}_.reset();
                 }
-                activeInvokes_.erase("{{ invoke_info.invoke_id }}");
+                // SCE_MESH.md §16.7 row 5 sub-atomic C — see comment above.
+                {
+                    std::lock_guard<std::mutex> __sce_active_invokes_lk(activeInvokesMutex_);
+                    activeInvokes_.erase("{{ invoke_info.invoke_id }}");
+                }
 {% endfor %}
 {% endif %}
 {% if state.invokes | scxml_remote %}
@@ -694,13 +721,30 @@
                 // earlier this macrostep) — the session is gone on the
                 // worker side, sending a cancel would be a benign no-op but
                 // the transport send is skipped for cleanliness.
+                // SCE_MESH.md §16.7 row 5 sub-atomic C — peer-down may have
+                // erased the entry concurrently; snapshot was-active under
+                // the mutex and erase atomically, then issue wire-19 only
+                // when the local exit observed the entry as live (a peer-
+                // down erase already raised INVOKE_CHILD_LOST in lieu of
+                // done.invoke / error.invoke, so sending a cancel envelope
+                // to an unreachable peer is wasted wire).
                 {% for invoke_info in state.invokes | scxml_remote %}
-                if (activeInvokes_.find("{{ invoke_info.invoke_id }}") != activeInvokes_.end() && !pendingDoneInvoke_{{ invoke_info.invoke_id }}_) {
-                    (void)engine.performScxmlInvokeCancel(
-                        "{{ invoke_info.remote_mesh_target }}",
-                        "{{ invoke_info.invoke_id }}");
+                {
+                    bool __sce_remote_was_active = false;
+                    {
+                        std::lock_guard<std::mutex> __sce_active_invokes_lk(activeInvokesMutex_);
+                        auto __sce_it = activeInvokes_.find("{{ invoke_info.invoke_id }}");
+                        if (__sce_it != activeInvokes_.end()) {
+                            __sce_remote_was_active = true;
+                            activeInvokes_.erase(__sce_it);
+                        }
+                    }
+                    if (__sce_remote_was_active && !pendingDoneInvoke_{{ invoke_info.invoke_id }}_) {
+                        (void)engine.performScxmlInvokeCancel(
+                            "{{ invoke_info.remote_mesh_target }}",
+                            "{{ invoke_info.invoke_id }}");
+                    }
                 }
-                activeInvokes_.erase("{{ invoke_info.invoke_id }}");
                 {% endfor %}
 {% endif %}
 {% if state.invokes | mesh_rpc %}
@@ -742,6 +786,9 @@
                     exitBlocks.push_back([{% if model.needs_nonstatic_method %}this, {% endif %}&engine]() {
                         // Onexit block {{ loop.index }}/{{ state.on_exit_blocks|length }}
 {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "cpp", "                        ") -}}
+{%- endif %}
                         {% set in_entry_exit = true %}
                         {% include 'actions/' + action.type + '.jinja2' %}
 

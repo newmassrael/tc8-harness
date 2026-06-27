@@ -1,0 +1,89 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{#
+    Process Transition (Python Jinja2)
+
+    W3C SCXML 3.13 — emits `select_transition` and `execute_transition_action`.
+    The engine drives ancestor-chain selection: this template only emits the
+    per-state arm with the transitions declared on that state itself.
+    Eventless transitions (no `event` attribute) match against the NULL
+    sentinel; targetless transitions (no `target` attribute) flag
+    `targetless=True` so the engine fires the action without changing state.
+#}
+{%- import '_actions.py.jinja2' as actions %}
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
+
+    # ── Transitions (W3C SCXML 3.13) ───────────────────────────────
+
+    def select_transition(self, state, event, engine):
+{# W3C SCXML 3.13 — event descriptor matching, precomputed by the analyzer
+   into `transition.matching_enum_values` (every declared event whose
+   dot-tokens have `transition.event` as a prefix). The static OR-list
+   keeps the byte-stable fast path the previous template had for exact
+   matches; dynamic descriptors (`*`, glob, space-separated) still go
+   through `_event_name_matches` against the literal descriptor so wire-
+   format names (`done.invoke._invoke_0`, `error.communication`) still
+   match correctly. Mirrors Go's `matching_enum_values` /
+   `needs_string_matching` split. #}
+{% for state_id, state in model.states | dictsort %}
+{% if state.transitions %}
+        if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
+{% for transition in state.transitions %}
+{% if not transition.event %}
+            if event == {{ machine_name }}Event.NULL{% if transition.cond %} and {% if transition.native_payload_guard %}({{ transition.native_payload_guard }}){% else %}self._guard(engine, {{ transition.cond | to_lua_guard | py_string_literal }}){% endif %}{% endif %}:
+{% elif transition.needs_string_matching %}
+            if event != {{ machine_name }}Event.NULL and self._event_name_matches({{ transition.event | py_string_literal }}, str(event)){% if transition.cond %} and {% if transition.native_payload_guard %}({{ transition.native_payload_guard }}){% else %}self._guard(engine, {{ transition.cond | to_lua_guard | py_string_literal }}){% endif %}{% endif %}:
+{% elif transition.matching_enum_values | length == 1 %}
+            if event == {{ machine_name }}Event.{{ transition.matching_enum_values[0] | to_python_const }}{% if transition.cond %} and {% if transition.native_payload_guard %}({{ transition.native_payload_guard }}){% else %}self._guard(engine, {{ transition.cond | to_lua_guard | py_string_literal }}){% endif %}{% endif %}:
+{% elif transition.matching_enum_values %}
+            if ({% for ev in transition.matching_enum_values %}event == {{ machine_name }}Event.{{ ev | to_python_const }}{{ " or " if not loop.last }}{% endfor %}){% if transition.cond %} and {% if transition.native_payload_guard %}({{ transition.native_payload_guard }}){% else %}self._guard(engine, {{ transition.cond | to_lua_guard | py_string_literal }}){% endif %}{% endif %}:
+{% else %}
+            # W3C SCXML 3.13: descriptor "{{ transition.event }}" matches no declared event
+            if False:
+{% endif %}
+                return TransitionResult(
+{% if transition.target %}
+                    target={{ machine_name }}State.{{ transition.target | to_python_const }},
+{% else %}
+                    target=None,
+{% endif %}
+                    transition_index={{ transition.transition_index }},
+                    is_internal={{ 'True' if transition.type == 'internal' else 'False' }},
+                    targetless={{ 'True' if not transition.target else 'False' }},
+                    source={{ machine_name }}State.{{ state_id | to_python_const }},
+{% if transition.history_target %}
+                    history_id={{ transition.history_target | py_string_literal }},
+{% endif %}
+                )
+{% endfor %}
+{% endif %}
+{% endfor %}
+        return None
+
+    # ── Transition actions (W3C SCXML 3.13) ───────────────────────
+
+    def execute_transition_action(self, state, transition_index: int, engine) -> None:
+{# W3C SCXML 3.8 — wrap each transition's action body in
+   `try/except _ActionAbort` so an `<assign>`/`<script>` eval failure
+   inside the block raises `error.execution` and skips subsequent
+   siblings without crashing the engine. One try-wrap per transition
+   so each transition is its own block (matches the spec's "executable
+   content block" granularity). #}
+{% for state_id, state in model.states | dictsort %}
+{% set transitions_with_action_here = state.transitions | selectattr('actions') | list %}
+{% if transitions_with_action_here %}
+        if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
+{% for transition in transitions_with_action_here %}
+            if transition_index == {{ transition.transition_index }}:{{ annot.annotation_comment(transition, "python", "                ") }}
+                try:
+{% for action in transition.actions %}
+{{ annot.annotation_block(action, "python", "                    ") }}{{ actions.emit(action, '                    ', machine_name, model) }}
+{% endfor %}
+                except _ActionAbort:
+                    pass
+                return
+{% endfor %}
+{% endif %}
+{% endfor %}
+        return

@@ -5,7 +5,7 @@
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 
 {% if no_std %}
-// Watching-zenoh RFC §5.J.2: no_std variant of the statechart
+// Watching-zenoh RFC §synth-5-J-2: no_std variant of the statechart
 // emitter. `sce-rust-runtime` ships a `no_std` feature gate, and
 // the generated crate omits `std::*` paths — Duration comes from
 // `core::time`, the microstep dedup set is `heapless::FnvIndexSet`,
@@ -73,7 +73,7 @@
 #![allow(clippy::style)]
 #![allow(clippy::complexity)]
 
-{# Watching-zenoh RFC §5.O Atomic 0b: per-backend SCE-MAP marker
+{# Watching-zenoh RFC §synth-5-O: per-backend SCE-MAP marker
    anchoring the generated module to the `<scxml>` root element's
    post-preprocessor source position. Both forms emitted per spec
    lines 3135-3136 — the `#![doc]` form survives in rustdoc, the
@@ -82,19 +82,20 @@
 
 use core::time::Duration;
 use sce_rust_runtime::{Engine, StatePolicy};
+{% if model.has_parallel_states %}
+// Watching-zenoh RFC §synth-5-J-2: `.push_bounded()` on the microstep conflict-resolution
+// buffers (std `Vec` / no_std capacity-bounded `heapless::Vec`).
+use sce_rust_runtime::BoundedPush;
+{% endif %}
 {% if model.event_queue_capacity %}
 
-// Watching-zenoh RFC §5.J.2 + §5.L (Q-RustNoStd-7 (a), C3 Atomic
-// B-γ1): per-document event-queue capacity declared via
+// Watching-zenoh RFC §synth-5-J-2 + §synth-5-L (item C3): per-document
+// event-queue capacity declared via
 // `<scxml sce:capacity="N">` or sourced from deploy.yaml
 // `machines.<m>.scheduler.default_event_queue_capacity`. Consumed
-// by Atomic B-γ2's `heapless::spsc::Queue<E, EVENT_QUEUE_CAPACITY>`
-// when the runtime port + `#![no_std]` template emission land
-// together; today the const is informational (B-γ1 wires the
-// capacity into generated code so the value is visible at compile
-// time to downstream consumers that scan for it, and so the
-// codegen consumer is present in the same atomic that adds the
-// parser/deploy producers).
+// below by `type EventQueue` as the no_std `heapless::Deque` depth
+// for this machine's W3C Appendix D internal/external queues
+// (the policy-carried SSOT for the per-machine queue size).
 pub const EVENT_QUEUE_CAPACITY: usize = {{ model.event_queue_capacity }};
 {% endif %}
 
@@ -109,6 +110,15 @@ struct TransitionInfo {
     is_internal: bool,
     is_targetless: bool,
 }
+
+// W3C SCXML Appendix D.2: microstep conflict-resolution buffers. The runtime
+// owns the std-vs-heapless collection choice through the profile-resolving
+// `SceTransitionBuf` / `SceIndexBuf` aliases (single source of truth, like
+// `SceString` / `StateChain`), so this one emission compiles on both runtime
+// profiles: unbounded `Vec` under std, capacity-bounded `heapless::Vec` under
+// no_std. State-list buffers reuse the depth-bounded `StateChain` alias.
+type TransitionList = ::sce_rust_runtime::SceTransitionBuf<TransitionInfo>;
+type IndexList = ::sce_rust_runtime::SceIndexBuf;
 {% endif %}
 
 // ======================================================================
@@ -142,11 +152,26 @@ pub enum {{ machine_name }}Event {
 {{ inline_kind_types }}
 
 {% endif %}
+{% if event_payload_defs %}
+// ── NL→IR Item C1 Path A: EventSchema typed `_event.data` payload ──
+{{ event_payload_defs }}
+{{ event_payload_entries }}
+{% endif %}
+{% if has_native_actions %}
+// ── W3C SCXML G.7: <sce:action> host-dispatch trait ──
+{{ native_actions_defs }}
+{% endif %}
 // ======================================================================
 // Policy struct
 // ======================================================================
 
-pub struct {{ machine_name }}Policy {
+pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
+{% if has_native_actions %}
+    // W3C SCXML G.7: host implementation of the `<sce:action>` operations.
+    // The generated machine dispatches each native action through this field
+    // (`self.actions.<op>(…)`) instead of a runtime script engine.
+    actions: A,
+{% endif %}
     // W3C SCXML 3.13: Last transition metadata
     last_transition_is_internal: bool,
     last_transition_is_targetless: bool,
@@ -159,7 +184,7 @@ pub struct {{ machine_name }}Policy {
 {% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 3.4: Active state configuration for parallel states / In() predicate
     //
-    // Watching-zenoh RFC §5.J.2: type is the runtime crate's
+    // Watching-zenoh RFC §synth-5-J-2: type is the runtime crate's
     // [`StateChain`] alias — `Vec<S>` under std, `heapless::Vec<S, MAX_HIERARCHY_DEPTH>`
     // under no_std. The std alias preserves the existing ABI; the no_std alias keeps
     // the generated code allocator-free.
@@ -171,35 +196,51 @@ pub struct {{ machine_name }}Policy {
 {% endif %}
 {% if model.needs_event_name %}
     // W3C SCXML 5.10: Event name for _event.name binding
-    pending_event_name: String,
+    //
+    // Watching-zenoh RFC §synth-5-J-2: typed as the runtime crate's [`SceString`]
+    // alias — `String` under std (unchanged ABI), `heapless::String<MAX_EVENT_STRING_LEN>`
+    // under no_std — so the emitted field is allocator-free on MCU targets.
+    pending_event_name: ::sce_rust_runtime::SceString,
 {% endif %}
-{% if model.needs_event_data %}
-    // W3C SCXML 5.10: Event data for _event.data binding
-    pending_event_data: String,
+{% if model.needs_event_data and model.needs_script_engine %}
+    // W3C SCXML 5.10: Event data for the script `_event.data` baseline (the
+    // typed path reads the Payload sum, not this field — so needs_script_engine).
+    pending_event_data: ::sce_rust_runtime::SceString,
+{% endif %}
+{% if event_payload_type != '()' %}
+    // NL→IR Item C1 Path A: typed `_event.data` payload for the current
+    // event, stored by `populate_event_payload` and read by native
+    // transition guards (`matches!(&self.pending_payload, …)`).
+    pending_payload: {{ event_payload_type }},
 {% endif %}
 {% if model.needs_event_type %}
     // W3C SCXML 5.10.1: Event type for _event.type binding
-    pending_event_type: String,
+    pending_event_type: ::sce_rust_runtime::SceString,
 {% endif %}
 {% if model.needs_event_sendid %}
     // W3C SCXML 5.10.1: Event sendid for _event.sendid binding
-    pending_event_sendid: String,
+    pending_event_sendid: ::sce_rust_runtime::SceString,
 {% endif %}
 {% if model.needs_event_origin %}
     // W3C SCXML 5.10.1: Event origin for _event.origin binding
-    pending_event_origin: String,
+    pending_event_origin: ::sce_rust_runtime::SceString,
 {% endif %}
 {% if model.needs_event_origintype %}
     // W3C SCXML 5.10.1: Event origintype for _event.origintype binding
-    pending_event_origintype: String,
+    pending_event_origintype: ::sce_rust_runtime::SceString,
 {% endif %}
 {% if model.needs_event_invokeid %}
     // W3C SCXML 5.10.1: Event invokeid for _event.invokeid binding
-    pending_event_invokeid: String,
+    pending_event_invokeid: ::sce_rust_runtime::SceString,
 {% endif %}
 {% for history_id, history_info in model.history_states | dictsort %}
     // W3C SCXML 3.11: History state {{ history_id }} ({{ history_info.type }})
-    history_{{ history_id }}: Option<Vec<{{ machine_name }}State>>,
+    //
+    // Watching-zenoh RFC §synth-5-J-2: the recorded configuration is a
+    // [`StateChain`] alias (`Vec<S>` under std, `heapless::Vec<S, MAX_HIERARCHY_DEPTH>`
+    // under no_std), mirroring `active_states`. Recorded history is always a
+    // subset of the active configuration, so it cannot exceed the depth bound.
+    history_{{ history_id }}: Option<::sce_rust_runtime::helpers::hierarchy::StateChain<{{ machine_name }}State>>,
 {% endfor %}
 {% if model.variables %}
     // W3C SCXML 5.3: Datamodel variables
@@ -207,15 +248,26 @@ pub struct {{ machine_name }}Policy {
 {% if var.type == 'int' %}
     {{ var.id | to_snake_case }}: i64,
 {% elif var.type == 'string' %}
-    {{ var.id | to_snake_case }}: String,
+    {{ var.id | to_snake_case }}: ::sce_rust_runtime::SceString,
 {% elif var.type == 'bool' %}
     {{ var.id | to_snake_case }}: bool,
 {% endif %}
 {% endfor %}
 {% endif %}
-    // W3C SCXML 5.10: Session ID (script engine + invoke tracking)
+{% if not no_std %}
+    // W3C SCXML 5.10: Session ID (script engine + invoke tracking).
+    //
+    // Watching-zenoh RFC §synth-5-J-2: gated to !no_std. Under `--no-std` both the
+    // script engine (`codegen/no-std-script-not-supported`) and `<invoke>`
+    // (`codegen/no-std-invoke-not-supported`) are codegen-rejected, so no
+    // session identity is ever tracked and the alloc-coupled `String` is omitted.
     pub session_id: Option<String>,
+{% endif %}
 {% if model.needs_script_engine %}
+    // Engine DI Parity RFC (Path B+): per-instance script engine. The
+    // constructor parameter is mandatory whenever `model.needs_script_engine`
+    // is true, mirroring the Kotlin `StateMachineEngine(scriptEngine)` shape.
+    pub script_engine: std::sync::Arc<dyn sce_rust_runtime::IScriptEngine>,
     script_engine_initialized: bool,
 {% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 5.9.2: Shared active state list for In() predicate callback
@@ -241,21 +293,39 @@ pub struct {{ machine_name }}Policy {
 {% if not no_std %}
     // W3C SCXML 6.4: Parent engine external queue for #_parent send routing
     // Always generated under std — any SM can be invoked as a child. Under
-    // `--no-std` (Watching-zenoh RFC §5.J.2) the SCXML `<invoke>` element
+    // `--no-std` (Watching-zenoh RFC §synth-5-J-2) the SCXML `<invoke>` element
     // is codegen-rejected, so no parent_external_queue handle is ever
     // wired in, and the Arc<Mutex<...>> (alloc-coupled) is omitted.
     pub parent_external_queue: Option<std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>>,
 {% endif %}
-    // W3C SCXML 6.4.1: This child's invoke ID (for _event.invokeid in parent)
+{% if not no_std %}
+    // W3C SCXML 6.4.1: This child's invoke ID (for _event.invokeid in parent).
+    // Watching-zenoh RFC §synth-5-J-2: gated to !no_std — `<invoke>` is codegen-rejected
+    // under no_std, so a machine is never instantiated as a child and this
+    // identity is dead. Mirrors the `parent_external_queue` / `invoke` module gate.
     pub invoke_id: String,
-    // W3C SCXML 6.5: Child session ID for finalize origin matching
+    // W3C SCXML 6.5: Child session ID for finalize origin matching.
     pub child_session_id: String,
+{% endif %}
 }
 
-impl {{ machine_name }}Policy {
-    pub fn new() -> Self {
+impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }} {
+{% if model.needs_script_engine %}
+    pub fn new({% if has_native_actions %}actions: A, {% endif %}script_engine: std::sync::Arc<dyn sce_rust_runtime::IScriptEngine>) -> Self {
         Self {
+{% if has_native_actions %}
+            actions,
+{% endif %}
+            script_engine,
             last_transition_is_internal: false,
+{% else %}
+    pub fn new({% if has_native_actions %}actions: A{% endif %}) -> Self {
+        Self {
+{% if has_native_actions %}
+            actions,
+{% endif %}
+            last_transition_is_internal: false,
+{% endif %}
             last_transition_is_targetless: false,
             last_transition_source_state: {{ machine_name }}State::{{ model.initial_leaf | default(model.initial) | to_state_variant }},
 {% if model.has_transition_actions %}
@@ -269,25 +339,28 @@ impl {{ machine_name }}Policy {
             next_event_is_external: false,
 {% endif %}
 {% if model.needs_event_name %}
-            pending_event_name: String::new(),
+            pending_event_name: ::sce_rust_runtime::SceString::new(),
 {% endif %}
-{% if model.needs_event_data %}
-            pending_event_data: String::new(),
+{% if model.needs_event_data and model.needs_script_engine %}
+            pending_event_data: ::sce_rust_runtime::SceString::new(),
+{% endif %}
+{% if event_payload_type != '()' %}
+            pending_payload: {{ event_payload_type }}::default(),
 {% endif %}
 {% if model.needs_event_type %}
-            pending_event_type: String::new(),
+            pending_event_type: ::sce_rust_runtime::SceString::new(),
 {% endif %}
 {% if model.needs_event_sendid %}
-            pending_event_sendid: String::new(),
+            pending_event_sendid: ::sce_rust_runtime::SceString::new(),
 {% endif %}
 {% if model.needs_event_origin %}
-            pending_event_origin: String::new(),
+            pending_event_origin: ::sce_rust_runtime::SceString::new(),
 {% endif %}
 {% if model.needs_event_origintype %}
-            pending_event_origintype: String::new(),
+            pending_event_origintype: ::sce_rust_runtime::SceString::new(),
 {% endif %}
 {% if model.needs_event_invokeid %}
-            pending_event_invokeid: String::new(),
+            pending_event_invokeid: ::sce_rust_runtime::SceString::new(),
 {% endif %}
 {% for history_id, _ in model.history_states | dictsort %}
             history_{{ history_id }}: None,
@@ -298,16 +371,18 @@ impl {{ machine_name }}Policy {
             {{ var.id | to_snake_case }}: {{ var.expr if var.expr else '0' }},
 {% elif var.type == 'string' %}
 {% if var.expr %}
-            {{ var.id | to_snake_case }}: {{ var.expr | to_rust_string_expr }}.to_string(),
+            {{ var.id | to_snake_case }}: ::sce_rust_runtime::sce_string_from_str({{ var.expr | to_rust_string_expr }}),
 {% else %}
-            {{ var.id | to_snake_case }}: String::new(),
+            {{ var.id | to_snake_case }}: ::sce_rust_runtime::SceString::new(),
 {% endif %}
 {% elif var.type == 'bool' %}
             {{ var.id | to_snake_case }}: {{ 'true' if var.expr and var.expr.lower() == 'true' else 'false' }},
 {% endif %}
 {% endfor %}
 {% endif %}
+{% if not no_std %}
             session_id: None,
+{% endif %}
 {% if model.needs_script_engine %}
             script_engine_initialized: false,
 {% if model.has_parallel_states or model.uses_in_predicate %}
@@ -328,9 +403,9 @@ impl {{ machine_name }}Policy {
 {% endfor %}
 {% if not no_std %}
             parent_external_queue: None,
-{% endif %}
             invoke_id: String::new(),
             child_session_id: String::new(),
+{% endif %}
         }
     }
 
@@ -344,20 +419,63 @@ impl {{ machine_name }}Policy {
 {% include 'invoke_methods.rs.jinja2' %}
 }
 
+{% if not model.needs_script_engine and not has_native_actions %}
 impl Default for {{ machine_name }}Policy {
     fn default() -> Self {
         Self::new()
     }
 }
+{% endif %}
 
 // ======================================================================
 // StatePolicy trait implementation
 // ======================================================================
 
-impl StatePolicy for {{ machine_name }}Policy {
+impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy_generics_use }} {
     type State = {{ machine_name }}State;
     type Event = {{ machine_name }}Event;
+    // EventSchema native lowering: `()` = schemaless (dynamic
+    // `_event.data` baseline); a `<Machine>Payload` sum is emitted when a
+    // transition guard reads a typed `_event.data.<field>` (NL→IR C1 Path A).
+    type Payload = {{ event_payload_type }};
+{% if no_std %}
+    // Watching-zenoh RFC §synth-5-J-2: under no_std the std-backed `StdHal`
+    // (`std::time::Instant` / `OnceLock`) does not implement `Hal`. The
+    // generated machine defaults to `NoOpHal` so the no_std surface compiles
+    // standalone. `NoOpHal` reports zero ticks and panics on `wake`/`irq_save`
+    // (fail-loud per sce-rust-runtime hal docs) — an MCU consumer driving the
+    // engine externally must provide a real `Hal` impl.
+    type Hal = sce_rust_runtime::NoOpHal;
+{% else %}
     type Hal = sce_rust_runtime::StdHal;
+{% endif %}
+
+    // W3C SCXML Appendix D internalQueue / externalQueue. Under no_std the
+    // depth is the per-document `<scxml sce:capacity>` / deploy value (emitted
+    // as the const consumed below); absent a declared capacity the bare form
+    // inherits the runtime default `MAX_EVENT_QUEUE_DEPTH` (the single source of
+    // the default). Inert under std (`VecDeque`), so this one emission compiles
+    // on both runtime profiles.
+{% if model.event_queue_capacity %}
+    type EventQueue = sce_rust_runtime::EventQueueManager<sce_rust_runtime::EventWithMetadata<Self::Event, Self::Payload>, { EVENT_QUEUE_CAPACITY }>;
+{% else %}
+    type EventQueue = sce_rust_runtime::EventQueueManager<sce_rust_runtime::EventWithMetadata<Self::Event, Self::Payload>>;
+{% endif %}
+
+    // W3C SCXML 6.3: the delayed-send scheduler keeps a per-entry `send_id` only
+    // so `<cancel sendid>` can find and drop the matching entry; the timer-fire
+    // drain never reads it. A document with no `<cancel>` therefore emits the
+    // zero-size `ElidedSendId`, shedding the scheduler ring's per-entry
+    // `heapless::String<256>` (~256 B x MAX_SCHEDULED_EVENTS) under no_std --
+    // dead weight with no cancel reader. A cancelling document keeps the
+    // load-bearing `SceString`. Behaviour-preserving under std either way, so
+    // this one emission compiles on both runtime profiles. Mirrors the
+    // EventQueue per-machine sizing lever above.
+{% if model.uses_cancel %}
+    type ScheduledSendId = sce_rust_runtime::SceString;
+{% else %}
+    type ScheduledSendId = sce_rust_runtime::ElidedSendId;
+{% endif %}
 
     // W3C SCXML feature flags
     const HAS_PARALLEL_STATES: bool = {{ 'true' if model.has_parallel_states else 'false' }};
@@ -514,7 +632,7 @@ impl StatePolicy for {{ machine_name }}Policy {
 
     // W3C SCXML 3.6: Get initial children of a compound state
     //
-    // Watching-zenoh RFC §5.J.2: return type is the runtime crate's
+    // Watching-zenoh RFC §synth-5-J-2: return type is the runtime crate's
     // [`StateChain`] alias and the body uses `state_chain_from_slice` instead of
     // `vec![...]` so the emitted code compiles under `--no-std` (`vec!` is a
     // std-only macro; heapless has no equivalent).
@@ -596,7 +714,7 @@ impl StatePolicy for {{ machine_name }}Policy {
     }
 
 {% if model.has_parallel_states or model.uses_in_predicate %}
-    // Watching-zenoh RFC §5.J.2: trait default in `sce-rust-runtime::policy`
+    // Watching-zenoh RFC §synth-5-J-2: trait default in `sce-rust-runtime::policy`
     // returns `StateChain<Self::State>`; this override matches that signature
     // so the std alias-to-`Vec<S>` and no_std alias-to-`heapless::Vec<S, …>`
     // both resolve correctly.
@@ -611,7 +729,24 @@ impl StatePolicy for {{ machine_name }}Policy {
     }
 {% endif %}
 
-{% if model.needs_event_data or model.needs_event_type or model.needs_event_sendid or model.needs_event_origin or model.needs_event_origintype %}
+{% if event_payload_type != '()' %}
+    // NL→IR Item C1 Path A: store the current event's typed `_event.data`
+    // payload so native transition guards can read it without a script
+    // engine. Called by the engine's pop loop for every dequeued event;
+    // events injected without a typed payload carry the `#[default] None`
+    // variant, against which the variant-specific guards simply fail.
+    fn populate_event_payload(&mut self, payload: &Self::Payload) {
+        self.pending_payload = payload.clone();
+    }
+{% endif %}
+{# The pending_event_* fields are the script `_event.*` baseline (read only by
+   the needs_script_engine-gated binding in process_transition). `data` is the
+   one whose `needs_event_data` flag is *also* set by the native typed path
+   (which reads the `Payload` sum, not this metadata) — qualify it with
+   needs_script_engine so no_std (and std pure-static) machines, where
+   `metadata.data` is `#[cfg(not(no_std))]`-elided / unread, don't emit the
+   override. The other flags already imply needs_script_engine. #}
+{% if (model.needs_event_data and model.needs_script_engine) or model.needs_event_type or model.needs_event_sendid or model.needs_event_origin or model.needs_event_origintype %}
     // W3C SCXML 5.10: Populate pending event metadata from EventWithMetadata
     // Ports C++ EventMetadataHelper::populatePolicyFromMetadata
     fn populate_event_metadata(&mut self, metadata: &sce_rust_runtime::EventMetadata) {
@@ -619,7 +754,7 @@ impl StatePolicy for {{ machine_name }}Policy {
         self.pending_event_data = metadata.data.clone();
 {% endif %}
 {% if model.needs_event_type %}
-        self.pending_event_type = metadata.event_type.as_str().to_string();
+        self.pending_event_type = ::sce_rust_runtime::sce_string_from_str(metadata.event_type.as_str());
 {% endif %}
 {% if model.needs_event_sendid %}
         self.pending_event_sendid = metadata.send_id.clone();
@@ -711,7 +846,7 @@ impl StatePolicy for {{ machine_name }}Policy {
 // Helper impl block (try_transition_in_state, conflict resolution, etc.)
 // ======================================================================
 
-impl {{ machine_name }}Policy {
+impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }} {
     // W3C SCXML 3.12: Helper method for hierarchical transition checking
 {% if model.has_parallel_states %}
     fn try_transition_in_state(
@@ -721,7 +856,7 @@ impl {{ machine_name }}Policy {
         current_state: &mut {{ machine_name }}State,
         transition_taken: &mut bool,
         engine: &mut sce_rust_runtime::Engine<Self>,
-        mut collect_mode: Option<&mut Vec<TransitionInfo>>,
+        mut collect_mode: Option<&mut TransitionList>,
     ) -> bool {
 {% else %}
     fn try_transition_in_state(
@@ -758,9 +893,13 @@ impl {{ machine_name }}Policy {
                 if false {
 {% endif %}
 {% if trans.cond %}
+{% set native_guard = trans.native_payload_guard %}
 {% if trans.is_pure_in_predicate %}
                     // W3C SCXML 5.9.2: Pure In() predicate
                     if {{ trans.cond_cpp | replace('this->', '') | replace('isStateActive', 'self.is_state_active') }} {
+{% elif native_guard %}
+                    // NL→IR Item C1 Path A: native typed `_event.data` guard
+                    if {{ native_guard }} {
 {% elif model.needs_script_engine %}
                     // W3C SCXML 5.9: Script engine guard
                     if self.safe_evaluate_guard("{{ trans.cond | to_lua_guard | escape_rust }}", engine) {
@@ -783,7 +922,7 @@ impl {{ machine_name }}Policy {
 {% if trans.history_target is defined and trans.history_target %}
                             // W3C SCXML 3.11: History transition - resolve at runtime
                             let resolved_target = self.resolve_history_target_{{ trans.history_target }}();
-                            collect.push(TransitionInfo {
+                            collect.push_bounded(TransitionInfo {
                                 source: check_state, target: resolved_target,
                                 transition_index: {{ trans.transition_index }},
                                 has_actions: {{ 'true' if trans.actions else 'false' }},
@@ -791,7 +930,7 @@ impl {{ machine_name }}Policy {
                                 is_targetless: false,
                             });
 {% else %}
-                            collect.push(TransitionInfo {
+                            collect.push_bounded(TransitionInfo {
                                 source: check_state, target: {{ machine_name }}State::{{ trans.target | to_state_variant }},
                                 transition_index: {{ trans.transition_index }},
                                 has_actions: {{ 'true' if trans.actions else 'false' }},
@@ -800,7 +939,7 @@ impl {{ machine_name }}Policy {
                             });
 {% endif %}
 {% else %}
-                            collect.push(TransitionInfo {
+                            collect.push_bounded(TransitionInfo {
                                 source: check_state, target: check_state,
                                 transition_index: {{ trans.transition_index }},
                                 has_actions: {{ 'true' if trans.actions else 'false' }},
@@ -840,8 +979,11 @@ impl {{ machine_name }}Policy {
 {# Guarded eventless transitions: use if/else if/else chain #}
 {% for transition in eventless_transitions %}
 {% if transition.cond %}
+{% set native_guard = transition.native_payload_guard %}
 {% if transition.is_pure_in_predicate %}
                     {% if not loop.first %}} else {% endif %}if {{ transition.cond_cpp | replace('this->', '') | replace('isStateActive', 'self.is_state_active') }} {
+{% elif native_guard %}
+                    {% if not loop.first %}} else {% endif %}if {{ native_guard }} {
 {% elif model.needs_script_engine %}
                     {% if not loop.first %}} else {% endif %}if self.safe_evaluate_guard("{{ transition.cond | to_lua_guard | escape_rust }}", engine) {
 {% else %}
@@ -868,7 +1010,7 @@ impl {{ machine_name }}Policy {
 {% if transition.target %}
 {% if transition.history_target is defined and transition.history_target %}
                             let resolved_target = self.resolve_history_target_{{ transition.history_target }}();
-                            collect.push(TransitionInfo {
+                            collect.push_bounded(TransitionInfo {
                                 source: check_state, target: resolved_target,
                                 transition_index: {{ transition.transition_index }},
                                 has_actions: {{ 'true' if transition.actions else 'false' }},
@@ -876,7 +1018,7 @@ impl {{ machine_name }}Policy {
                                 is_targetless: false,
                             });
 {% else %}
-                            collect.push(TransitionInfo {
+                            collect.push_bounded(TransitionInfo {
                                 source: check_state, target: {{ machine_name }}State::{{ transition.target | to_state_variant }},
                                 transition_index: {{ transition.transition_index }},
                                 has_actions: {{ 'true' if transition.actions else 'false' }},
@@ -885,7 +1027,7 @@ impl {{ machine_name }}Policy {
                             });
 {% endif %}
 {% else %}
-                            collect.push(TransitionInfo {
+                            collect.push_bounded(TransitionInfo {
                                 source: check_state, target: check_state,
                                 transition_index: {{ transition.transition_index }},
                                 has_actions: {{ 'true' if transition.actions else 'false' }},
@@ -926,7 +1068,7 @@ impl {{ machine_name }}Policy {
 {% if transition.target %}
 {% if transition.history_target is defined and transition.history_target %}
                         let resolved_target = self.resolve_history_target_{{ transition.history_target }}();
-                        collect.push(TransitionInfo {
+                        collect.push_bounded(TransitionInfo {
                             source: check_state, target: resolved_target,
                             transition_index: {{ transition.transition_index }},
                             has_actions: {{ 'true' if transition.actions else 'false' }},
@@ -934,7 +1076,7 @@ impl {{ machine_name }}Policy {
                             is_targetless: false,
                         });
 {% else %}
-                        collect.push(TransitionInfo {
+                        collect.push_bounded(TransitionInfo {
                             source: check_state, target: {{ machine_name }}State::{{ transition.target | to_state_variant }},
                             transition_index: {{ transition.transition_index }},
                             has_actions: {{ 'true' if transition.actions else 'false' }},
@@ -943,7 +1085,7 @@ impl {{ machine_name }}Policy {
                         });
 {% endif %}
 {% else %}
-                        collect.push(TransitionInfo {
+                        collect.push_bounded(TransitionInfo {
                             source: check_state, target: check_state,
                             transition_index: {{ transition.transition_index }},
                             has_actions: {{ 'true' if transition.actions else 'false' }},
@@ -997,7 +1139,7 @@ impl {{ machine_name }}Policy {
 {% if model.on_sample_links %}
 
 // ======================================================================
-// watching-zenoh RFC §5.E B7-η' codegen wire-up
+// watching-zenoh RFC §synth-5-E sample-callback codegen wire-up
 // ======================================================================
 //
 // Per-link Sample delivery surface. The host's link RX task (e.g. a
@@ -1015,14 +1157,14 @@ impl {{ machine_name }}Policy {
 //      via the embedded `SlotGuard`.
 //
 // Generic over `M: SampleMeta` so the codegen does not need to learn
-// the link's concrete metadata type (Q-Wire-9 lock 2026-05-07). The
+// the link's concrete metadata type. The
 // user's call site instantiates `M` from their link driver's
 // `Sample<'pool, MyMeta>` value; rustc enforces the user-callback
-// signature against the borrow contract per Q-Callback-3 / A2.
+// signature against the borrow contract (spec lines 1513-1519).
 //
-// W1.2 emits the trait + impl skeleton with empty bodies; W1.3
-// (config-filter), W1.4 (callback dispatch), W1.5 (event raise) fill
-// the bodies in successive atomics.
+// The trait declares one delivery method per link; the impl below
+// carries the full pipeline: active-config filter, callback
+// dispatch, then event raise.
 pub trait {{ machine_name }}LinkRx {
 {% for link in model.on_sample_links %}
     /// Deliver a Sample arriving on link `{{ link }}`.
@@ -1035,7 +1177,7 @@ pub trait {{ machine_name }}LinkRx {
 {% endfor %}
 }
 
-impl {{ machine_name }}LinkRx for ::sce_rust_runtime::Engine<{{ machine_name }}Policy> {
+impl{{ policy_generics_decl }} {{ machine_name }}LinkRx for ::sce_rust_runtime::Engine<{{ machine_name }}Policy{{ policy_generics_use }}> {
 {% for link in model.on_sample_links %}
     fn deliver_link_{{ link | to_snake_case }}_sample<M>(
         &mut self,
@@ -1044,13 +1186,12 @@ impl {{ machine_name }}LinkRx for ::sce_rust_runtime::Engine<{{ machine_name }}P
     where
         M: ::sce_link_runtime::SampleMeta,
     {
-        // W1.3 active-state filter: iterate the engine's current
+        // Active-state filter: iterate the engine's current
         // configuration; for every active state that declares
         // `<sce:on-sample link="{{ link }}">`, dispatch into its
-        // per-state arm. Arms are empty in W1.3; W1.4 (callback)
-        // and W1.5 (event raise) fill the bodies. Sample drops
-        // at method exit, returning the slot to its pool via the
-        // embedded `SlotGuard`.
+        // per-state arm (callback dispatch + event raise). Sample
+        // drops at method exit, returning the slot to its pool via
+        // the embedded `SlotGuard`.
         let _ = &sample;
         for active in self.get_active_states() {
             match active {
@@ -1059,17 +1200,17 @@ impl {{ machine_name }}LinkRx for ::sce_rust_runtime::Engine<{{ machine_name }}P
 {% if block.link == link %}
                 {{ machine_name }}State::{{ state_id | to_state_variant }} => {
 {% if block.callback %}
-                    // W1.4 callback dispatch — synchronous extern
+                    // Callback dispatch — synchronous extern
                     // call. rustc enforces the user's callback
-                    // signature against the borrow contract per
-                    // Q-Callback-3 (A2 spec lines 1513-1519).
+                    // signature against the borrow contract
+                    // (spec lines 1513-1519).
                     {{ block.callback | extern_callback_path }}(&sample);
 {% endif %}
-                    // W1.5 event raise — Q-Wire-3 lock: when a
-                    // callback was present it fired synchronously
-                    // above; this raise still happens so SCXML
-                    // transitions react to the sample arrival.
-                    // Q-Wire-4 lock: event_data is the empty string
+                    // Event raise: when a callback was present it
+                    // fired synchronously above; this raise still
+                    // happens so SCXML transitions react to the
+                    // sample arrival.
+                    // event_data is the empty string
                     // (typed payload flows through the callback
                     // path; the event path is purely for state-
                     // machine reaction).

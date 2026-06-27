@@ -1,6 +1,9 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{{ sce_map.source_marker(source_location, "kotlin", module_level=true) }}
+
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="procedure")
 // Runtime: {{ runtime_dep }}
 // Do not edit — regenerate from the source SCXML file.
@@ -158,8 +161,7 @@ class {{ class_name }} : ProcedureStateMachine<State, Event>() {
     }
 
     // Returns null for normal flow; a non-null Event signals that an
-    // assign-time check (RFC `claudedocs/rfc-forge-bytes-bounded.md`
-    // §3 B4 bytes cap violation) raised an internal event that the
+    // assign-time bytes-cap check raised an internal event that the
     // shared runToCompletion loop re-pumps through processTransition.
     override fun executeTransitionActions(source: State, trIndex: Int): Event? {
 {% for s in states_with_assigns %}

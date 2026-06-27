@@ -15,7 +15,14 @@
 
     Uses actions/_render.kt.jinja2 for action dispatch (shared with transition_actions).
 #}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
+
     // Entry Actions (W3C SCXML 3.8)
+    {# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP marker
+       above the `onEntry` / `onExit` overrides. Kotlin's macro form is
+       a plain `// SCE-MAP:` comment — non-syntactic, no compile cost. #}
+    {{ sce_map.source_marker(model.source_location, "kotlin") }}
     override fun onEntry(state: {{ machine_name }}State) {
         when (state) {
 {% for state_id in model.states | sort %}
@@ -37,15 +44,15 @@
 {% set parallel_grandparent_id = parent_state.parent %}
 {% endif %}
 {% endif %}
-            is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> {
+            is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> {  {{- annot.annotation_comment(state, "kotlin", "                ") }}
                 // W3C SCXML 3.8: Track active state, skip duplicate entry
                 if (!activeStateIds.add("{{ state_id }}")) return
 {% if has_late_datamodel %}
                 // W3C SCXML 5.3: Late binding — initialize state-level datamodel on entry
                 run {
                     ensureScriptEngine()
-                    val engine = scriptEngine ?: return@run
-                    val sid = scriptSessionId ?: return@run
+                    val engine = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
+                    val sid = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
 {% for dm_var in state.datamodel %}
 {% if dm_var.expr %}
                     try {
@@ -75,6 +82,9 @@
                 run {
 {% set in_run_block = true %}
 {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "kotlin", "                    ") -}}
+{%- endif %}
     {% include 'actions/_render.kt.jinja2' with context %}
 {% endfor %}
                 }
@@ -82,6 +92,9 @@
 {% elif state.on_entry_blocks %}
 {% set in_run_block = false %}
 {% for action in state.on_entry_blocks[0] %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "kotlin", "                ") -}}
+{%- endif %}
     {% include 'actions/_render.kt.jinja2' with context %}
 {% endfor %}
 {% endif %}
@@ -94,8 +107,8 @@
                     val generatedInvokeId = "{{ inv.state_id }}.${System.identityHashCode(this)}.{{ inv.invoke_id }}"
                     deferInvoke(state, generatedInvokeId) {
                         ensureScriptEngine()
-                        val eng = scriptEngine ?: return@deferInvoke
-                        val sid = scriptSessionId ?: return@deferInvoke
+                        val eng = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
+                        val sid = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
                         try {
 {% if inv.srcexpr %}
                             // W3C SCXML 6.4.3: Evaluate srcexpr → file path → load SCXML → create child
@@ -132,8 +145,8 @@
 {% if (inv.params or inv.namelist) and model.needs_script_engine %}
                     // W3C SCXML 6.4: Evaluate params at defer time (parent context)
                     ensureScriptEngine()
-                    val engineInv = scriptEngine ?: return@run
-                    val sidInv = scriptSessionId ?: return@run
+                    val engineInv = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
+                    val sidInv = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
                     val invokeParams = mutableMapOf<String, Any?>()
 {% for param in inv.params %}
 {% if param.expr %}
@@ -157,7 +170,11 @@
 {% endif %}
 {% endif %}
                     deferInvoke(state, generatedInvokeId) {
-                        val childSM = {{ inv.child_class }}StateMachine(scriptEngine)
+{% if inv.child_needs_script_engine %}
+                        val childSM = {{ inv.child_class }}StateMachine(scriptEngine ?: error("scriptEngine is required for invoke (codegen invariant: parent needs_script_engine == true)"))
+{% else %}
+                        val childSM = {{ inv.child_class }}StateMachine()
+{% endif %}
 {% if (inv.params or inv.namelist) and model.needs_script_engine %}
                         setInvokeParams(childSM, invokeParams)
 {% endif %}
@@ -186,8 +203,8 @@
                 // W3C SCXML 5.5: Evaluate donedata for final state
                 run {
                     ensureScriptEngine()
-                    val engineDD = scriptEngine ?: return@run
-                    val sidDD = scriptSessionId ?: return@run
+                    val engineDD = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
+                    val sidDD = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
                     var doneEventData = ""
 {% if state.donedata.content.kind == "expression" %}
                     // W3C SCXML 5.5: Evaluate <content expr="..."/>
@@ -337,6 +354,7 @@
     }
 
     // Exit Actions (W3C SCXML 3.9)
+    {{ sce_map.source_marker(model.source_location, "kotlin") }}
     override fun onExit(state: {{ machine_name }}State) {
         when (state) {
 {% for state_id in model.states | sort %}
@@ -344,7 +362,7 @@
 {% set is_parallel = state.is_parallel and state_id in model.parallel_regions %}
 {% set exit_has_invokes = state_id in invoke_entries %}
 {% set has_history_children = model.history_states.values() | selectattr('parent', 'equalto', state_id) | list %}
-            is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> {
+            is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> {  {{- annot.annotation_comment(state, "kotlin", "                ") }}
 {% if exit_has_invokes %}
                 // W3C SCXML 6.4: Cancel pending invokes for exited state (deferred but not yet executed)
                 cancelPendingInvokesForState(state)
@@ -397,6 +415,9 @@
                 run {
 {% set in_run_block = true %}
 {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "kotlin", "                    ") -}}
+{%- endif %}
     {% include 'actions/_render.kt.jinja2' with context %}
 {% endfor %}
                 }
@@ -404,6 +425,9 @@
 {% elif state.on_exit_blocks %}
 {% set in_run_block = false %}
 {% for action in state.on_exit_blocks[0] %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "kotlin", "                ") -}}
+{%- endif %}
     {% include 'actions/_render.kt.jinja2' with context %}
 {% endfor %}
 {% endif %}

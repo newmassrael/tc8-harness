@@ -1,0 +1,90 @@
+{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{#
+    Action dispatch macro (Python Jinja2)
+
+    Emits a single SCXML executable-content action as one or more
+    indented Python lines. `indent` is the literal whitespace prefix
+    the caller wants on the emitted line; that lets onentry / onexit /
+    transition contexts (which sit at different Python nesting depths)
+    share the same dispatch table. Unsupported action types fall
+    through to an explicit `raise NotImplementedError` so silent
+    degradation never reaches runtime ([[feedback-silently-broken-hooks]]).
+
+    Author expressions are run through `to_lua_expr` / `to_lua_guard` /
+    `to_lua_script` so the generated module hands Lua text (not Python)
+    to the script engine. The helpers in `scriptengine_helpers.py.jinja2`
+    accept the Lua text and route it through `IScriptEngine` — the same
+    layer every other backend (Rust / Go / Kotlin / C11 / C++) uses.
+
+    Per-action emission bodies for the LEAF actions live in
+    `actions/<type>.py.jinja2`, mirroring
+    `tools/codegen/templates/rust/actions/`. The two RECURSIVE actions
+    (`<if>` / `<foreach>`) stay inline here so their nested-children
+    dispatch can call back into `emit` without a circular Jinja2 import
+    chain (each per-action file is loaded once at the `{% from … import
+    … %}` resolution step, and a recursive action that imports `emit`
+    from this file would deadlock minijinja's macro-resolution).
+#}
+{%- from 'actions/script.py.jinja2' import emit as emit_script -%}
+{%- from 'actions/raise.py.jinja2' import emit as emit_raise -%}
+{%- from 'actions/assign.py.jinja2' import emit as emit_assign -%}
+{%- from 'actions/log.py.jinja2' import emit as emit_log -%}
+{%- from 'actions/cancel.py.jinja2' import emit as emit_cancel -%}
+{%- from 'actions/send.py.jinja2' import emit_send -%}
+
+{%- macro emit(action, indent, machine_name, model) -%}
+{%- if action.type == 'script' -%}{{ emit_script(action, indent, machine_name, model) }}
+{%- elif action.type == 'raise' -%}{{ emit_raise(action, indent, machine_name, model) }}
+{%- elif action.type == 'assign' -%}{{ emit_assign(action, indent, machine_name, model) }}
+{%- elif action.type == 'log' -%}{{ emit_log(action, indent, machine_name, model) }}
+{%- elif action.type == 'cancel' -%}{{ emit_cancel(action, indent, machine_name, model) }}
+{%- elif action.type == 'send' -%}{{ emit_send(action, indent, machine_name, model) }}
+{%- elif action.type == 'if' -%}{{ emit_if(action, indent, machine_name, model) }}
+{%- elif action.type == 'foreach' -%}{{ emit_foreach(action, indent, machine_name, model) }}
+{%- else -%}
+{{ indent }}raise NotImplementedError({{ ('Python codegen: action <' ~ action.type ~ '> not yet supported') | py_string_literal }})
+{% endif -%}
+{%- endmacro -%}
+
+{# W3C SCXML 4.2 — `<if>` / `<elseif>` / `<else>`. Inline here for
+   recursion access to `emit`; nested children route back through the
+   same dispatch table so any future action type is reachable from
+   inside an `<if>` branch with no further wiring. #}
+{%- macro emit_if(action, indent, machine_name, model) -%}
+{{ indent }}if self._guard(engine, {{ action.cond | to_lua_guard | py_string_literal }}):
+{% for sub in action.then_actions %}{{ emit(sub, indent ~ '    ', machine_name, model) }}{% endfor %}
+{% if not action.then_actions %}{{ indent }}    pass
+{% endif %}
+{% for branch in action.elseif_branches %}
+{{ indent }}elif self._guard(engine, {{ branch.cond | to_lua_guard | py_string_literal }}):
+{% for sub in branch.actions %}{{ emit(sub, indent ~ '    ', machine_name, model) }}{% endfor %}
+{% if not branch.actions %}{{ indent }}    pass
+{% endif %}
+{% endfor %}
+{% if action.else_actions %}
+{{ indent }}else:
+{% for sub in action.else_actions %}{{ emit(sub, indent ~ '    ', machine_name, model) }}{% endfor %}
+{% endif %}
+{%- endmacro -%}
+
+{# W3C SCXML 4.6 — `<foreach array item [index]>`. Inline alongside
+   `<if>` so nested children recurse through `emit`. `_foreach` yields
+   `(index, value)` pairs; `_foreach_values` yields values only.
+   `_assign_runtime` stamps the iteration variables onto the
+   datamodel each turn and raises `error.execution` + block-abort for
+   illegal identifiers (test457). #}
+{%- macro emit_foreach(action, indent, machine_name, model) -%}
+{% if action.index %}
+{{ indent }}for {{ action.index }}_idx_, _item_ in self._foreach(engine, {{ action.array | to_lua_expr | py_string_literal }}):
+{{ indent }}    self._assign_runtime(engine, {{ action.item | py_string_literal }}, _item_)
+{{ indent }}    self._assign_runtime(engine, {{ action.index | py_string_literal }}, {{ action.index }}_idx_)
+{% else %}
+{{ indent }}for _item_ in self._foreach_values(engine, {{ action.array | to_lua_expr | py_string_literal }}):
+{{ indent }}    self._assign_runtime(engine, {{ action.item | py_string_literal }}, _item_)
+{% endif %}
+{% for sub in action.actions %}{{ emit(sub, indent ~ '    ', machine_name, model) }}{% endfor %}
+{% if not action.actions %}{{ indent }}    pass
+{% endif %}
+{%- endmacro -%}

@@ -1,11 +1,14 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{{ sce_map.source_marker(source_location, "kotlin", module_level=true) }}
+
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="bounded-collection")
 // Runtime: {{ runtime_dep }}
 // Do not edit — regenerate from the source SCXML file.
 //
-// watching-zenoh RFC §5.L bounded-collection — typed fixed-capacity
+// watching-zenoh RFC §synth-5-L bounded-collection — typed fixed-capacity
 // container whose occupancy varies at runtime. Spec line 2578 emit
 // shape: `Array<T?>(N)` storage + `BooleanArray(N)` occupancy +
 // `IntArray(N)` generation counter + `var len: Int`. The Handle is
@@ -32,18 +35,22 @@ import com.sce.generated.{{ element_snake }}.{{ element_pascal }}
 
 /// Slot capacity (`<sce:capacity>`). For `source="deploy"` the value
 /// is resolved from `machines.<m>.limits.<k>` at codegen time per
-/// RFC §5.L lines 2583-2585; for `const="N"` the value comes from
+/// RFC §synth-5-L lines 2583-2585; for `const="N"` the value comes from
 /// the SCXML.
 const val CAPACITY: Int = {{ capacity }}
 
 /// Slot-index bit width inside the packed `{{ pascal }}Handle.raw`.
-/// Q-γ2-Handle-bits (a) symmetric split — 65536 slots × 65536
+/// 16/16 symmetric split — 65536 slots × 65536
 /// generations, ABI-parity with C11 `uint32_t` / Cpp `std::uint32_t`.
 const val SLOT_BITS: Int = 16
 /// Generation-counter bit width inside the packed `{{ pascal }}Handle.raw`.
 const val GEN_BITS: Int = 16
-const val SLOT_MASK: UInt = ((1u shl SLOT_BITS) - 1u)
-const val GEN_MASK: UInt = ((1u shl GEN_BITS) - 1u)
+{# Kotlin `const val` requires a compile-time-constant initializer; a `shl`
+   derivation (valid in Rust `const` / Cpp `constexpr`) is rejected, so the
+   16-bit mask is emitted as a literal, matching the C11 `((uint32_t)0xFFFFu)`
+   and Go `0xFFFF` form (SLOT_BITS/GEN_BITS are a fixed 16 on every backend). #}
+const val SLOT_MASK: UInt = 0xFFFFu
+const val GEN_MASK: UInt = 0xFFFFu
 
 /// Stable `UInt`-wide handle into `{{ pascal }}` (spec lines
 /// 2621-2622). Inline value class so the type-safe wrapper costs
@@ -80,7 +87,7 @@ sealed class {{ pascal }}InsertResult {
     object Err : {{ pascal }}InsertResult()
 }
 
-/// `{{ pascal }}` — RFC §5.L bounded-collection over element type
+/// `{{ pascal }}` — RFC §synth-5-L bounded-collection over element type
 /// `{{ element_pascal }}`. Capacity `{{ capacity }}`,
 /// `<sce:on-overflow>{{ on_overflow }}</sce:on-overflow>`,
 /// `<sce:ordering>{{ ordering }}</sce:ordering>`,
@@ -162,14 +169,14 @@ class {{ pascal }} : Iterable<{{ element_pascal }}> {
         return slots[slotIdx]
     }
 
-    /// Get-by-slot (RFC §5.L + C7 foundation): slot-indexed read
+    /// Get-by-slot (RFC §synth-5-L + C7 foundation): slot-indexed read
     /// without Handle. Returns `null` when `slot >= CAPACITY` OR
     /// when the slot is unoccupied. No generation check (the use-
     /// after-remove guard is for the Handle-based `get`; slot-based
     /// access is for iteration paths where the caller walks slot
     /// indices directly). Backs the C7 `<sce:foreach in="<bc-alias>">`
-    /// index-loop lowering across all 6 backends (Q-C7-2 (c) lock
-    /// 2026-05-13).
+    /// index-loop lowering across all 6 backends.
+    /// Locked 2026-05-13.
     fun getBySlot(slot: UInt): {{ element_pascal }}? {
         val slotIdx = slot.toInt()
         if (slotIdx >= CAPACITY) return null
@@ -179,7 +186,7 @@ class {{ pascal }} : Iterable<{{ element_pascal }}> {
 {% if has_index_by %}
     /// Find the first occupied slot whose `<sce:index-by field="{{ index_by_field }}"/>`
     /// equals `key` (spec line 2615). Linear scan bounded by
-    /// `CAPACITY` (build-time constant) — satisfies §5.A `max-iter`
+    /// `CAPACITY` (build-time constant) — satisfies §synth-5-A `max-iter`
     /// requirement when this method is called from algorithm
     /// bodies.
     fun findByIndex(key: {{ index_by_kotlin_type }}): {{ pascal }}Handle? {

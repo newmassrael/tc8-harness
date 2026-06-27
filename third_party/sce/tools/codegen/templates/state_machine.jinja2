@@ -3,7 +3,7 @@
 
 {% include 'license_header.jinja2' %}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{# Watching-zenoh RFC §5.O Atomic 0b: per-backend SCE-MAP marker
+{# Watching-zenoh RFC §synth-5-O: per-backend SCE-MAP marker
    anchoring the generated header to the `<scxml>` root element's
    post-preprocessor source position. Module-level form is a comment
    (not `#line`) because `#line` remapping in a header would
@@ -55,6 +55,10 @@
 // (onInvokeStarted / onInvokeDone) reference MeshEnvelope fields.
 #include "mesh/MeshEnvelope.h"
 #include "mesh/PatternKind.h"
+// SCE_MESH.md §16.7 row 5 sub-atomic C — failScxmlRemoteInvokesForPeer
+// raises `error.communication{INVOKE_CHILD_LOST}` events built from
+// `CommunicationError::toJsonBytes()`.
+#include "mesh/CommunicationError.h"
 {% endif %}
 {% if model.needs_send_helper %}
 #include "common/SendHelper.h"
@@ -114,6 +118,13 @@
 #include <vector>
 #include <cstring>
 {% endif %}
+// W3C SCXML B.1: every generated SM exposes setScriptEngine(IScriptEngine&)
+// (no-op when NEEDS_SCRIPT_ENGINE=false) so generic callers — mesh worker
+// hosts, invoke child instantiation, test fixtures — can inject without
+// member-detection traits. The handle must be visible even when this
+// machine itself does not consult a script engine.
+#include "scripting/IScriptEngine.h"
+
 {% if model.needs_script_engine %}
 #include "common/DataModelInitHelper.h"
 #include "common/EventTypeHelper.h"
@@ -121,7 +132,11 @@
 #include <optional>
 {% endif %}
 #include "common/Logger.h"
+{% if model.invokes %}
+// W3C SCXML B.1: invoke child needs the build-configured engine handle
+// for setScriptEngine() before initialize() (see invoke_methods.jinja2).
 #include "scripting/ScriptEngineProvider.h"
+{% endif %}
 #include "scripting/ScriptResultUtils.h"
 #include "common/AssignHelper.h"
 #include "common/AssignmentExecutionHelper.h"
@@ -213,7 +228,12 @@
 {% set _has_tpl = _tpl_params | length > 0 %}
 {% set _has_sm_tpl = _sm_tpl_params | length > 0 %}
 
-namespace SCE::Generated::{{ model.name }} {
+{# SCE_MESH §16.8 arch-debt #4: when --partition is supplied, bake the
+   partition name as an inner namespace so two partition headers of the
+   same machine can be ODR-co-included in one binary (e.g. the §16.8
+   single-runner shape). The non-partition path keeps the flat
+   `SCE::Generated::<machine>` shape used by every existing consumer. #}
+namespace SCE::Generated::{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %} {
 
 {# Forward declaration #}
 {% if _has_sm_tpl %}
@@ -257,14 +277,18 @@ struct TransitionInfo {
 };
 {% endif %}
 
+{% if event_payload_active %}
+// ── NL→IR Item C1 Path A: typed `_event.data` payload channel ─────────
+{{ event_payload_defs }}
+{% endif %}
 {# Policy class #}
 // State policy for {{ model.name }}
 {% if _has_tpl %}
 template <{{ _tpl_params | join(', ') }}>
 {% endif %}
 struct {{ model.name }}Policy {
-    using State = ::SCE::Generated::{{ model.name }}::State;
-    using Event = ::SCE::Generated::{{ model.name }}::Event;
+    using State = ::SCE::Generated::{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %}::State;
+    using Event = ::SCE::Generated::{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %}::Event;
 {% for ctx in model.context_objects %}
     using {{ ctx.id | capitalize }}Type = {{ ctx.cpp_type if ctx.cpp_type else (ctx.id | capitalize + 'T') }};
 {% endfor %}
@@ -371,6 +395,13 @@ struct {{ model.name }}Policy {
     // W3C SCXML 5.10.1: Event invokeid storage for _event.invokeid access (test338)
     mutable ::std::string pendingEventInvokeId_;
     {% endif %}
+    {% if event_payload_active %}
+    // NL→IR Item C1 Path A: the current event's typed `_event.data` payload,
+    // lifted from the dequeued event's std::any carrier by populateTypedPayload
+    // and read by the native transition guards (`pending<Event>Payload_.<field>`).
+    // Mirrors the Rust policy's `pending_payload` / the C11 `sm->pending_payload`.
+{{ event_payload_policy_members }}
+    {% endif %}
     {% if model.needs_external_flag %}
     // W3C SCXML 6.2: Flag to mark next event as external (from send)
     mutable bool nextEventIsExternal_ = false;
@@ -448,6 +479,17 @@ struct {{ model.name }}Policy {
     // match by compile-time invoke_id regardless of whether the child engine
     // lives in-process or on a remote worker).
     mutable std::unordered_map<std::string, ChildSession> activeInvokes_;
+    // SCE_MESH.md §16.7 row 5 sub-atomic C — activeInvokes_ is read and
+    // written from both the engine thread (W3C event-handler context:
+    // entry/exit, autoforward, finalize) and from transport callback
+    // threads (`onInvokeStarted` reached via `MeshDispatch::dispatchEnvelope`
+    // on wire-15 receipt, `failScxmlRemoteInvokesForPeer` reached from
+    // Zenoh liveliness DELETE / SOMEIP availability=false). Both classes
+    // of access must hold this mutex. Emitted for every Policy carrying
+    // any `<invoke>` (local, hybrid, or scxml_remote) so the latent
+    // wire-15 race on `onInvokeStarted` is also covered — cheap when
+    // uncontended, mandatory for correctness when contended.
+    mutable std::mutex activeInvokesMutex_;
     // W3C SCXML 6.4: Pending invokes (deferred until macrostep end)
     mutable std::vector<PendingInvoke> pendingInvokes_;
     {% endif %}
@@ -586,6 +628,13 @@ public:
     using EventWithMetadata =
         typename ::SCE::Static::StaticExecutionEngine<{{ _pol_inst }}>::EventWithMetadata;
 
+{% if event_payload_active %}
+    // ── NL→IR Item C1 Path A: per-event typed `_event.data` inject seams ──
+    // Each binds the event name + payload field values in one call so the
+    // name↔type pairing cannot be constructed inconsistently. The watching-
+    // zenoh MCU consumer is C11/Rust; this is the AP-side C++ parity.
+{{ event_payload_inject_methods }}
+{% endif %}
 {% if model.context_objects or model.needs_parent_template %}
     explicit {{ model.name }}(
         {%- for ctx in model.context_objects %}{% if ctx.cpp_type %}{{ ctx.cpp_type }}{% else %}{{ ctx.id | capitalize }}T{% endif %}& {{ ctx.id }}{{ ', ' if not loop.last or model.needs_parent_template }}{% endfor %}
@@ -655,6 +704,19 @@ public:
     }
 {% endif %}
 
+    // W3C SCXML B.1: forward per-instance script engine injection to the policy
+    // (mirrors Kotlin StateMachineEngine(scriptEngine) constructor parameter).
+    // Always emitted so generic callers (mesh `WorkerSessionHost::onWire14`,
+    // invoke `child_->initialize()` sites, test fixtures) can inject without
+    // member-detection traits. When `NEEDS_SCRIPT_ENGINE=false` the body is a
+    // no-op — the engine is not consulted, so accepting the handle then
+    // discarding it preserves the same observable state.
+    void setScriptEngine([[maybe_unused]] ::std::shared_ptr<::SCE::IScriptEngine> engine) const {
+{% if model.needs_script_engine %}
+        this->policy_.setScriptEngine(::std::move(engine));
+{% endif %}
+    }
+
 {# ── SCE_MESH.md §14 rule 12 / §16.5 per-`<parallel>` role members ── #}
 {% set _role_stats = namespace(has_root=false, has_nonroot=false) %}
 {% if model.partition_parallel_roles %}
@@ -707,7 +769,7 @@ public:
             },
             /* arm */ [this](std::uint64_t timeout_ms, std::vector<std::string> missing_regions) {
                 ::SCE::Mesh::CommunicationError err;
-                err.reason = "PARALLEL_BARRIER_TIMEOUT";
+                err.reason = ::SCE::Mesh::ReasonCode::ParallelBarrierTimeout;
                 err.parallel_id = std::string("{{ _pid }}");
                 err.missing_regions = std::move(missing_regions);
                 err.timeout_ms = timeout_ms;
@@ -849,4 +911,4 @@ static_assert(::SCE::Core::ParallelStatePolicy<{{ model.name }}Policy>,
 #endif
 {% endif %}
 
-} // namespace SCE::Generated::{{ model.name }}
+} // namespace SCE::Generated::{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %}

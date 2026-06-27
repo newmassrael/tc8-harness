@@ -9,9 +9,23 @@
     }
 
 {% if model.needs_script_engine %}
-    // Script engine accessor (pluggable: override for alternative engines like Lua)
-    static ::SCE::IScriptEngine& getScriptEngine() {
-        return ::SCE::ScriptEngineProvider::getScriptEngine();
+    // W3C SCXML B.1: per-instance script engine handle, set before initialize()
+    // via setScriptEngine(). Mirrors the Kotlin StateMachineEngine(scriptEngine)
+    // constructor-injection contract — generated machines never reach back into
+    // a process-global singleton.
+    mutable ::std::shared_ptr<::SCE::IScriptEngine> scriptEngine_;
+
+    void setScriptEngine(::std::shared_ptr<::SCE::IScriptEngine> engine) const {
+        scriptEngine_ = ::std::move(engine);
+    }
+
+    ::SCE::IScriptEngine& getScriptEngine() const {
+        if (!scriptEngine_) {
+            throw ::std::runtime_error(
+                "{{ model.name }}Policy::getScriptEngine: "
+                "setScriptEngine() must be called before initialize()");
+        }
+        return *scriptEngine_;
     }
 
     // Helper: Ensure JSEngine is initialized (lazy initialization)

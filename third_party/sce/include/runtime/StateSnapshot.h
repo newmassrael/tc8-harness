@@ -23,13 +23,13 @@ struct EventSnapshot {
     std::string name;
     std::string data;  // Serialized event data
 
-    // W3C SCXML 5.10.1: Event metadata for _event object restoration
-    std::string sendid;      // W3C SCXML 5.10.1: _event.sendid
-    std::string origintype;  // W3C SCXML 5.10.1: _event.origintype
-    std::string origin;      // W3C SCXML 5.10.1: _event.origin (session ID)
-    std::string invokeid;    // W3C SCXML 5.10.1: _event.invokeid
+    // Event metadata for _event object restoration
+    std::string sendid;      // _event.sendid
+    std::string origintype;  // _event.origintype
+    std::string origin;      // _event.origin (session ID)
+    std::string invokeid;    // _event.invokeid
 
-    // W3C SCXML 3.13: Timestamp for FIFO ordering preservation during snapshot restore
+    // Timestamp for FIFO ordering preservation during snapshot restore
     // Stores nanoseconds since epoch for precise queue order restoration
     int64_t timestampNs;
 
@@ -49,21 +49,21 @@ struct EventSnapshot {
  * Captures scheduled event state for step backward restoration.
  * Contains event metadata without complex C++ objects (IEventTarget).
  *
- * W3C SCXML 6.2: Stores complete send element information for accurate restoration.
+ * Stores complete send element information for accurate restoration.
  */
 struct ScheduledEventSnapshot {
     std::string eventName;
     std::string sendId;
-    int64_t originalDelayMs;  // Original delay in milliseconds (W3C SCXML 6.2.4)
+    int64_t originalDelayMs;  // Original delay in milliseconds
     int64_t remainingTimeMs;  // Remaining time at snapshot capture (for accurate restoration)
     std::string sessionId;
 
-    // W3C SCXML 6.2: Complete EventDescriptor fields for restoration
+    // Complete EventDescriptor fields for restoration
     std::string targetUri;                      // Target URI (empty = external queue, "#_internal" = internal)
     std::string eventType;                      // Event type (scxml, platform, etc.)
     std::string eventData;                      // Event data payload
-    std::string content;                        // HTTP body content (W3C SCXML C.2)
-    std::map<std::string, std::string> params;  // W3C SCXML 6.2: param name-value pairs for _event.data restoration
+    std::string content;                        // HTTP body content
+    std::map<std::string, std::string> params;  // param name-value pairs for _event.data restoration
 
     ScheduledEventSnapshot() = default;
 
@@ -81,7 +81,7 @@ struct StateSnapshot;
 /**
  * @brief Snapshot of active invoke state for time-travel debugging
  *
- * W3C SCXML 3.11: Invocations are part of configuration
+ * Invocations are part of the captured snapshot
  * Zero Duplication: Captures invoke state without duplicating InvokeExecutor logic
  *
  * Contains complete invoke state including child state machine configuration
@@ -93,10 +93,10 @@ struct InvokeSnapshot {
     std::string childSessionId;  // Child state machine session ID
     std::string type;            // Invoke type (e.g., "http://www.w3.org/TR/scxml")
     std::string scxmlContent;    // Child SCXML content (from src/srcexpr evaluation)
-    std::string finalizeScript;  // W3C SCXML 6.4.6: Finalize script for time-travel debugging
-    bool autoForward = false;    // W3C SCXML 6.4: Autoforward flag for event forwarding to child
+    std::string finalizeScript;  // Finalize script for time-travel debugging
+    bool autoForward = false;    // Autoforward flag for event forwarding to child
 
-    // W3C SCXML 3.11: Recursive child state machine configuration
+    // Recursive child state machine configuration
     // Captures complete child state (active states, datamodel, queues, etc.)
     std::shared_ptr<StateSnapshot> childState;
 
@@ -115,32 +115,32 @@ struct InvokeSnapshot {
  * Captures complete state machine state at a specific execution step
  * to enable time-travel debugging in the interactive visualizer.
  *
- * W3C SCXML compliance: Preserves all runtime state per W3C SCXML 3.1
+ * Preserves all captured runtime state for restoration
  */
 struct StateSnapshot {
-    // Active configuration (W3C SCXML 3.11)
-    // W3C SCXML 3.13: Use vector to preserve document order for time-travel debugging (Test 570)
+    // Active configuration
+    // Use vector to preserve document order for time-travel debugging (Test 570)
     std::vector<std::string> activeStates;
 
-    // Data model state (W3C SCXML 5.0)
+    // Data model state
     std::map<std::string, std::string> dataModel;  // Serialized JS values
 
-    // Event queues (W3C SCXML 3.2) - simplified for serialization
+    // Event queues - simplified for serialization
     std::vector<EventSnapshot> internalQueue;
     std::vector<EventSnapshot> externalQueue;
 
     // InteractiveTestRunner UI-added events (separate from engine queues)
     std::vector<EventSnapshot> pendingUIEvents;
 
-    // Scheduled events (W3C SCXML 6.2) - delayed send operations
+    // Scheduled events - delayed send operations
     // Stores complete event info for recreation on step backward
     std::vector<ScheduledEventSnapshot> scheduledEvents;
 
     // Event execution history for accurate state restoration via replay
-    // W3C SCXML 3.13: Store all processed events to enable time-travel debugging
+    // Store all processed events to enable time-travel debugging
     std::vector<EventSnapshot> executedEvents;
 
-    // W3C SCXML 3.11: Active invocations (part of configuration)
+    // Active invocations (part of the captured snapshot)
     // Zero Duplication: Enables complete state restoration without side effects
     std::vector<InvokeSnapshot> activeInvokes;
 
@@ -148,12 +148,12 @@ struct StateSnapshot {
     int stepNumber;
     std::string lastEventName;
 
-    // W3C SCXML 3.13: Scheduler logical time for MANUAL mode deterministic stepping
+    // Scheduler logical time for MANUAL mode deterministic stepping
     // In MANUAL mode, logical time must be saved/restored with snapshots to ensure
     // deterministic event scheduling after snapshot restoration (time-travel debugging)
     int64_t schedulerLogicalTimeMs;
 
-    // W3C SCXML 3.13: Dual transition tracking for time-travel debugging
+    // Dual transition tracking for time-travel debugging
     // Incoming transition: How we arrived at this state (previous step's transition)
     std::string incomingTransitionSource;
     std::string incomingTransitionTarget;
@@ -186,8 +186,8 @@ public:
      * @param internalQueue Current internal event queue
      * @param externalQueue Current external event queue
      * @param pendingUIEvents UI-added events (separate from engine queues)
-     * @param scheduledEvents Scheduled events for step backward restoration (W3C SCXML 6.2)
-     * @param activeInvokes Active invocations (W3C SCXML 3.11)
+     * @param scheduledEvents Scheduled events for step backward restoration
+     * @param activeInvokes Active invocations
      * @param executedEvents Event execution history
      * @param stepNumber Current execution step number
      * @param lastEvent Last processed event name
@@ -253,7 +253,7 @@ public:
     /**
      * @brief Update outgoing transition for a specific snapshot
      *
-     * W3C SCXML 3.13: After executing a transition, update the previous snapshot's
+     * After executing a transition, update the previous snapshot's
      * outgoing transition to enable accurate step backward visualization.
      *
      * This allows UI to display "cancelled transition" when stepping backward.

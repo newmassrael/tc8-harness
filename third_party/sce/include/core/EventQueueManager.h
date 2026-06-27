@@ -15,7 +15,7 @@
 namespace SCE::Core {
 
 /**
- * @brief W3C SCXML 3.12.1: Internal Event Queue Management
+ * @brief §scxml-3.13: Internal Event Queue Management
  *
  * This class implements the W3C SCXML internal event queue semantics.
  * Internal events are placed at the back of the queue and processed
@@ -35,12 +35,12 @@ namespace SCE::Core {
  *
  * W3C SCXML References:
  * - Section 3.12.1: Internal Events
- * - Appendix D.1: Algorithm for SCXML Interpretation
+ * - §scxml-D: Algorithm for SCXML Interpretation
  */
 template <typename EventType = std::string> class EventQueueManager {
 public:
     /**
-     * @brief Raise an internal event (W3C SCXML 3.14.1)
+     * @brief Raise an internal event (§scxml-D-mainEventLoop)
      *
      * Internal events are placed at the back of the internal event queue.
      * They are processed before external events but after currently queued
@@ -118,7 +118,7 @@ public:
     }
 
     /**
-     * @brief Process all internal events with a handler (W3C SCXML D.1)
+     * @brief Process all internal events with a handler (§scxml-D-mainEventLoop)
      *
      * Processes all queued internal events in FIFO order. This implements
      * the macrostep completion logic where all internal events generated
@@ -143,7 +143,7 @@ public:
     }
 
 private:
-    std::deque<EventType> queue_;  // FIFO ordering per W3C SCXML 3.12.1
+    std::deque<EventType> queue_;  // FIFO ordering per §scxml-3.13
 
 #ifdef SCE_THREAD_SAFE
     mutable std::mutex mutex_;  // Mutex for thread-safe operations (mutable for const methods)

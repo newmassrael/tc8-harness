@@ -1,7 +1,7 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
-{# RFC §5.J.1 — C11 script-engine helpers (lua_State* direct, no abstraction).
+{# RFC §synth-5-J-1 — C11 script-engine helpers (lua_State* direct, no abstraction).
 
    The C++/Rust/Go/Kotlin backends route script execution through an
    IScriptEngine interface (ScriptEngineProvider in C++/Rust/Go,
@@ -31,7 +31,7 @@
 
    Every macro takes the Lua state pointer as `sm->L`; the calling
    template owns the surrounding block scope and any per-block error
-   handling. T3 lock-in (jinja2 inline) per c11_design_decisions.md —
+   handling. Decision: jinja2-inline only —
    no helper class, no shared .c file. #}
 
 {% macro lua_init_engine() %}
@@ -60,7 +60,7 @@
            before any cond is evaluated. Mirrors the C++ `LuaEngine.cpp`
            lua_pushcfunction registration; we use a Lua-script definition
            via luaL_dostring instead so the C11 backend stays free of
-           lua_CFunction trampolines (T3 lock-in: jinja2-inline only). */
+           lua_CFunction trampolines (jinja2-inline only). */
         (void)luaL_dostring(sm->L,
             "function _scxml_truthy(v)\n"
             "  if v == nil or v == false then return false end\n"
@@ -75,7 +75,7 @@
            Empty tables return false here; the foreach prologue separately
            treats any table as a (possibly empty) array per cpp
            `ForeachHelper.h:173-191` empty-table fallback. C11 lowers the
-           cfunction to a Lua-script via dostring (T3 lock-in: no
+           cfunction to a Lua-script via dostring (no
            lua_CFunction trampolines). */
         (void)luaL_dostring(sm->L,
             "function _isArray(v)\n"
@@ -90,7 +90,7 @@
            prologue's `_sce_foreach_arr` keeps referencing the original
            array (shallow-copy iteration semantic per W3C 4.6). Mirrors
            cpp `LuaEngine.cpp:519-539` lua_pushcfunction; C11 lowers via
-           Lua-script per T3 lock-in. */
+           Lua-script (jinja2-inline, no lua_CFunction trampolines). */
         (void)luaL_dostring(sm->L,
             "function _concat(...)\n"
             "  local result = {}\n"
@@ -116,7 +116,7 @@
            Mirrors cpp `LuaEngine.cpp:485-517` lua_pushcfunction (string
            branch via `strstr`, array branch via raw-iter equality);
            C11 lowers to `string.find(.., plain=true)` for strings and a
-           1-based ipairs walk for arrays per T3 lock-in (no lua_CFunction
+           1-based ipairs walk for arrays (no lua_CFunction
            trampolines). */
         (void)luaL_dostring(sm->L,
             "function _indexOf(obj, value)\n"
@@ -180,6 +180,102 @@
            swaps the per-event payload for a lua-side stash to avoid widening
            every event_with_meta_t entry with a typed-value union. */
         (void)luaL_dostring(sm->L, "_pending_donedata = nil");
+        /* W3C SCXML 5.5 + 6.3.1 cross-SM donedata carry: serialise a
+           Lua value (the `_pending_donedata` stash populated by the
+           child's `<final><donedata>` entry emit) into a Lua-source
+           expression string that the parent's `process_event_queues`
+           external dequeue (state_machine.c.jinja2:3493-3498) re-loads
+           via `_event.data = (<literal>)`. Cpp ships JSON on
+           `EventWithMetadata::data` because its event type is
+           engine-agnostic across LuaEngine / JSEngine / mock; C11 is
+           AOT-only with Lua 5.4 as its sole script engine, so a Lua-source literal
+           is the round-trip-free equivalent and produces a typed value
+           on the parent side rather than forcing a re-parse.
+
+           Encoding contract:
+             - nil           → '' (empty; receiver skips the override)
+             - string        → string.format('%q', v) (Lua-source escaped)
+             - number/bool   → tostring(v) (Lua-source compatible)
+             - table         → '{k1 = lit1, k2 = lit2, ...}' (identifier
+                               keys plain, non-ident keys bracketed).
+                               Keys sorted to keep the wire form
+                               deterministic so byte-equal output across
+                               equal-content donedata payloads
+                               (committed-tree-sweep §synth-6.2.6 contract).
+           Both parent and child SMs initialise this helper because
+           `lua_init_engine` runs in every SM with `needs_script_engine`;
+           the cross-SM bridge `lua_marshal_child_donedata` calls it on
+           the child's L and the resulting string lands on the
+           `done.invoke.<id>` event's `data[]` field. */
+        (void)luaL_dostring(sm->L,
+            "function _sce_donedata_to_lua_literal(v)\n"
+            "  if v == nil then return '' end\n"
+            "  local t = type(v)\n"
+            "  if t == 'string' then return string.format('%q', v) end\n"
+            "  if t == 'number' or t == 'boolean' then return tostring(v) end\n"
+            "  if t == 'table' then\n"
+            "    local parts = {}\n"
+            "    local keys = {}\n"
+            "    for k in pairs(v) do keys[#keys+1] = k end\n"
+            "    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)\n"
+            "    for _, k in ipairs(keys) do\n"
+            "      local key_str\n"
+            "      if type(k) == 'string' and k:match('^[%a_][%w_]*$') then\n"
+            "        key_str = k\n"
+            "      else\n"
+            "        key_str = '[' .. _sce_donedata_to_lua_literal(k) .. ']'\n"
+            "      end\n"
+            "      parts[#parts+1] = key_str .. ' = ' .. _sce_donedata_to_lua_literal(v[k])\n"
+            "    end\n"
+            "    return '{' .. table.concat(parts, ', ') .. '}'\n"
+            "  end\n"
+            "  return ''\n"
+            "end");
+        /* W3C SCXML 6.2 + 5.10.1 (.raw): ordered (name, value) capture for
+           `<send>`'s `<param>` / `namelist` evaluation. cpp builds
+           `std::map<string, vector<string>>` to preserve duplicate keys
+           (W3C 6.2 mandate) and serialises via
+           `EventDataHelper::buildEventDataJson` for `_event.raw`.
+           `_pending_donedata` (the Lua table) cannot hold dup keys, so a
+           parallel ordered list captures the eval sequence; the
+           `_sce_event_data_json()` builder groups by name and emits the
+           same shape cpp surfaces on `Event::dataStr`. The bounded
+           string then lands on `event_with_meta_t::data[]` and
+           `set_current_event` lifts it onto `_event.raw` for the
+           receiving transition / log.
+           Pairs reset per <send> arm so successive sends in one onentry
+           do not bleed into each other's raw payload. */
+        (void)luaL_dostring(sm->L,
+            "_sce_send_data_pairs = {}\n"
+            "function _sce_event_data_json()\n"
+            "  if not _sce_send_data_pairs or #_sce_send_data_pairs == 0 then\n"
+            "    return ''\n"
+            "  end\n"
+            "  local order, groups = {}, {}\n"
+            "  for _, p in ipairs(_sce_send_data_pairs) do\n"
+            "    local k, v = p[1], p[2]\n"
+            "    if groups[k] == nil then groups[k] = {}; table.insert(order, k) end\n"
+            "    table.insert(groups[k], tostring(v))\n"
+            "  end\n"
+            "  local function _q(s)\n"
+            "    s = s:gsub('\\\\', '\\\\\\\\'):gsub('\"', '\\\\\"')\n"
+            "    return '\"' .. s .. '\"'\n"
+            "  end\n"
+            "  local parts = {}\n"
+            "  for _, k in ipairs(order) do\n"
+            "    local vs = groups[k]\n"
+            "    local val\n"
+            "    if #vs == 1 then\n"
+            "      val = _q(vs[1])\n"
+            "    else\n"
+            "      local arr = {}\n"
+            "      for _, v in ipairs(vs) do table.insert(arr, _q(v)) end\n"
+            "      val = '[' .. table.concat(arr, ',') .. ']'\n"
+            "    end\n"
+            "    table.insert(parts, _q(k) .. ':' .. val)\n"
+            "  end\n"
+            "  return '{' .. table.concat(parts, ',') .. '}'\n"
+            "end");
         {% if model.needs_donedata_helper or model.needs_namelist_helper %}
         /* W3C SCXML 5.7 + C.1 (test343, test553): donedata `<param>` and
            `<send namelist>` evaluation both need to detect ECMAScript
@@ -259,7 +355,7 @@
         {% endif %}
         {% elif var.src %}
         /* W3C SCXML 5.2.2: <data id="{{ var.id }}" src="{{ var.src }}">.
-           C11 codegen-time file read (RFC §5.J.1 R3 zero-deps: no runtime
+           C11 codegen-time file read (RFC §synth-5-J-1 R3 zero-deps: no runtime
            fopen in sce-c-runtime). Mirrors cpp
            `DataModelInitHelper::initializeVariableFromSrc` (sce/src/common/
            DataModelInitHelper.cpp:159-181), which loads the file and
@@ -298,7 +394,7 @@
            (datamodel_macros.jinja2:22-24 lambda → engine.raise). The
            top-level loop above and this state-local loop both lift to the
            rc-checked shape (spec-mirror parity carve-out per
-           feedback_built_but_unconsumed.md — reference backend's branch is
+           feedback_spec_mirror_parity.md — reference backend's branch is
            the contract). No current corpus fixture has a state-local <data>
            with an illegal expr (test277 only forces top-level), but cpp
            emits the same lambda raise for both top-level and state-local
@@ -397,7 +493,7 @@
    Init-failure semantics: rc-checked, mirrors cpp
    `DataModelInitHelper::initializeVariableFromExpr` errorCallback
    (datamodel_macros.jinja2:22-24 lambda → engine.raise(Error_execution)).
-   Spec-mirror parity carve-out per feedback_built_but_unconsumed.md — the
+   Spec-mirror parity carve-out per feedback_spec_mirror_parity.md — the
    reference backend's branch IS the contract, missing it would be silent
    semantic drift / coincidence-match. No current corpus fixture has a
    state-local <data> with an illegal expr that drives binding="late" (only
@@ -917,9 +1013,90 @@
    not need to declare `_scxml_declared`. #}
 {% macro lua_eval_send_param_expr(param_name, expr) %}
     if (luaL_dostring(sm->L,
-        "_pending_donedata.{{ param_name }} = ({{ expr | to_lua_expr | escape_c }})") != 0) {
+        "do local _v = ({{ expr | to_lua_expr | escape_c }}); "
+        "_pending_donedata.{{ param_name }} = _v; "
+        "table.insert(_sce_send_data_pairs, {'{{ param_name }}', _v}) end") != 0) {
         lua_pop(sm->L, 1);
         (void)luaL_dostring(sm->L,
-            "_pending_donedata.{{ param_name }} = ''");
+            "_pending_donedata.{{ param_name }} = ''; "
+            "table.insert(_sce_send_data_pairs, {'{{ param_name }}', ''})");
+    }
+{% endmacro %}
+
+{# W3C SCXML 6.2 + 5.10.1 (.raw): marshal the param/namelist eval pairs
+   captured in `_sce_send_data_pairs` (see `lua_eval_send_param_expr` /
+   `lua_eval_namelist_var`) into the JSON shape cpp surfaces on
+   `Event::dataStr`, then copy the bounded string onto the event's
+   `data[]` buffer. The carry survives `event_queue_push` (struct-copy)
+   and `set_current_event` lifts it onto `_event.raw` on dequeue. The
+   buffer-overflow guard truncates to `SCE_MAX_DATA_LEN - 1`; the W3C
+   manual-test corpus (test178) fits well under that bound. #}
+{% macro lua_marshal_send_event_data(send_evt_var) %}
+    (void)luaL_dostring(sm->L, "_pending_event_data_json = _sce_event_data_json()");
+    {
+        size_t _raw_n = 0;
+        lua_getglobal(sm->L, "_pending_event_data_json");
+        if (lua_isstring(sm->L, -1)) {
+            const char *_raw = lua_tostring(sm->L, -1);
+            _raw_n = strlen(_raw);
+            if (_raw_n >= sizeof(({{ send_evt_var }}).data)) {
+                _raw_n = sizeof(({{ send_evt_var }}).data) - 1;
+            }
+            memcpy(({{ send_evt_var }}).data, _raw, _raw_n);
+        }
+        ({{ send_evt_var }}).data[_raw_n] = '\0';
+        lua_pop(sm->L, 1);
+    }
+{% endmacro %}
+
+{# W3C SCXML 5.5 + 6.3.1 cross-SM donedata carry (parent ← child).
+
+   Called from `invoke_methods.jinja2` immediately before
+   `_raise_external(sm, &_done_evt)` at every site that synthesises a
+   `done.invoke.<id>` event for a finished invoked child. The macro
+   reads the child SM's `_pending_donedata` lua global (the stash
+   populated by the child's `<final><donedata>` entry emit in
+   `state_machine.c.jinja2::execute_entry_actions`), serialises it to a
+   Lua-source expression via `_sce_donedata_to_lua_literal`, and copies
+   the resulting bounded string onto `_done_evt.data[]`.
+
+   The parent's `process_event_queues` external dequeue
+   (state_machine.c.jinja2:3493-3498) sees a non-empty `evt.data` and
+   evaluates `_event.data = (<literal>)` on its own `sm->L`, producing
+   a typed lua value the parent's `done.invoke.<id>` transition cond
+   can dereference (`_event.data.result === 42`, `_event.data ===
+   'hello_content'`, etc.). Empty `_pending_donedata` (child final
+   without `<donedata>`) serialises to '' → `_done_evt.data` zero-init
+   stays → receiver skips the override (`_event.data` remains nil),
+   matching W3C 5.10 "no donedata → undefined" contract for non-
+   donedata invokes (test247-shape children).
+
+   This bridge mirrors cpp `donedataAtFinal()` + `typedDonedataAtFinal()`
+   carried on `EventMetadataHelper::createDoneInvokeEvent`
+   (invoke_methods.jinja2:189-195) — cpp ships JSON because
+   `EventWithMetadata` crosses engine-agnostic boundaries; C11's Lua-
+   source carry is the round-trip-free equivalent under the AOT-only +
+   Lua 5.4-only engine contract.
+
+   Caller must gate on `invoke_info.child_needs_script_engine` so the
+   child has a valid `L` to query — children without a script engine
+   never run donedata-expression evaluation, so their carry would be
+   empty anyway. #}
+{% macro lua_marshal_child_donedata(child_L_var, evt_var) %}
+    {
+        (void)luaL_dostring({{ child_L_var }},
+            "_sce_donedata_literal = _sce_donedata_to_lua_literal(_pending_donedata)");
+        lua_getglobal({{ child_L_var }}, "_sce_donedata_literal");
+        if (lua_isstring({{ child_L_var }}, -1)) {
+            const char *_lit = lua_tostring({{ child_L_var }}, -1);
+            size_t _lit_n = strlen(_lit);
+            if (_lit_n >= sizeof(({{ evt_var }}).data)) {
+                _lit_n = sizeof(({{ evt_var }}).data) - 1;
+            }
+            memcpy(({{ evt_var }}).data, _lit, _lit_n);
+            ({{ evt_var }}).data[_lit_n] = '\0';
+        }
+        lua_pop({{ child_L_var }}, 1);
+        (void)luaL_dostring({{ child_L_var }}, "_sce_donedata_literal = nil");
     }
 {% endmacro %}

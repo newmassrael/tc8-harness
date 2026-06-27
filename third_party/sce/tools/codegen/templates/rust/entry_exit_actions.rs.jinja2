@@ -14,13 +14,19 @@
     Uses datamodel_macros.rs.jinja2 for Zero Duplication in late binding init.
 #}
 {% from 'datamodel_macros.rs.jinja2' import initialize_variable, initialize_state_datamodel %}
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
     // W3C SCXML 3.7: Execute <onentry> actions for a state
+    {# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP marker
+       above `execute_entry_actions`. `#[doc]` attaches to the function
+       item; the `//` comment-form survives stable as a grep target. #}
+    {{ sce_map.source_marker(model.source_location, "rust") }}
     fn execute_entry_actions(&mut self, state: Self::State, engine: &mut sce_rust_runtime::Engine<Self>) {
 {% if model.has_parallel_states or model.uses_in_predicate %}
         // W3C SCXML 3.4/3.12.1: Add state to active configuration for parallel states and In() predicate
         //
-        // Watching-zenoh RFC §5.J.2: `push_chain` is the runtime crate's
+        // Watching-zenoh RFC §synth-5-J-2: `push_chain` is the runtime crate's
         // cfg-branched push wrapper — `Vec::push` under std, `heapless::Vec::push`
         // with the depth-guard `.expect()` under no_std. Lets template-emitted code
         // share the same call shape with `Engine::get_active_states`.
@@ -34,13 +40,14 @@
         match state {
 {% for state_id, state in model.states | dictsort %}
 {% if state.on_entry_blocks or state.initial_transition_actions or state.initial_history_id or (state.is_final and state.parent) or (state.is_final and state.donedata) or (state.datamodel and model.binding == 'late') or state.invokes | scxml or state.invokes | hybrid %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => {
+            {{ machine_name }}State::{{ state_id | to_state_variant }} => {  {{- annot.annotation_comment(state, "rust", "                ") }}
 {% if state.datamodel and model.binding == 'late' %}
                 // W3C SCXML 5.9: Late binding - initialize datamodel on state entry
                 {
                     self.ensure_script_engine();
                     let sid = self.session_id.as_ref().unwrap().clone();
-                    let se = sce_rust_runtime::ScriptEngineProvider::get();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
 {{ initialize_state_datamodel(state, state_id, true, machine_name, model) }}
                 }
 {% endif %}
@@ -49,6 +56,9 @@
                 // Labeled block allows actions to break out on error (W3C 3.8: error stops block)
                 'action_block: {
 {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "rust", "                ") -}}
+{%- endif %}
                 {% with in_entry_exit=true %}{% include 'actions/' ~ action.type ~ '.rs.jinja2' %}{% endwith %}
 
 {% endfor %}
@@ -77,7 +87,7 @@
 {% if state.invokes | scxml or state.invokes | hybrid %}
                 // W3C SCXML 6.4: Defer invoke execution until macrostep end
 {% for invoke_info in state.invokes | scxml %}
-                {
+                {  {{- annot.annotation_comment(invoke_info, "rust", "                    ") }}
                     let generated_invoke_id = format!("{}.{}.{{ invoke_info.invoke_id }}",
                         "{{ state_id }}", self as *const _ as usize);
 {% if invoke_info.idlocation %}
@@ -86,7 +96,8 @@
                     self.ensure_script_engine();
                     {
                         let sid = self.session_id.as_ref().unwrap().clone();
-                        let se = sce_rust_runtime::ScriptEngineProvider::get();
+                        let se = self.script_engine.clone();
+                        let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
                         let _ = se.set_variable(&sid, "{{ invoke_info.idlocation }}",
                             sce_rust_runtime::ScriptValue::String(generated_invoke_id.clone()));
                     }
@@ -102,14 +113,15 @@
 {% endfor %}
 {% for invoke_info in state.invokes | hybrid %}
                 // W3C SCXML 6.4: Defer hybrid invoke '{{ invoke_info.invoke_id }}' (srcexpr/contentexpr evaluated at macrostep end)
-                {
+                {  {{- annot.annotation_comment(invoke_info, "rust", "                    ") }}
                     let generated_invoke_id = format!("{}.{}.{{ invoke_info.invoke_id }}",
                         "{{ state_id }}", self as *const _ as usize);
 {% if invoke_info.idlocation %}
                     self.ensure_script_engine();
                     {
                         let sid = self.session_id.as_ref().unwrap().clone();
-                        let se = sce_rust_runtime::ScriptEngineProvider::get();
+                        let se = self.script_engine.clone();
+                        let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
                         let _ = se.set_variable(&sid, "{{ invoke_info.idlocation }}",
                             sce_rust_runtime::ScriptValue::String(generated_invoke_id.clone()));
                     }
@@ -132,7 +144,8 @@
                 {
                     self.ensure_script_engine();
                     let sid = self.session_id.as_ref().unwrap().clone();
-                    let se = sce_rust_runtime::ScriptEngineProvider::get();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
                     let mut json_parts: Vec<String> = Vec::new();
 {% for param in state.donedata.params %}
 {% set param_expr = param.expr if param.expr else param.location %}
@@ -170,7 +183,8 @@
                     // W3C SCXML 5.5: <content expr="..."/> MUST be evaluated against the datamodel.
                     self.ensure_script_engine();
                     let sid = self.session_id.as_ref().unwrap().clone();
-                    let se = sce_rust_runtime::ScriptEngineProvider::get();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
                     match se.evaluate_expression(&sid, "{{ state.donedata.content.text | to_lua_expr | escape_rust }}") {
                         Ok(val) => { done_event_data = val.to_lua_literal(); }
                         Err(e) => {
@@ -209,7 +223,7 @@
                 // W3C SCXML 5.5: Carry evaluated donedata in done.state event
                 if done_data_ok {
                     let mut done_meta = sce_rust_runtime::EventWithMetadata::new({{ machine_name }}Event::{{ ('done.state.' ~ state.parent) | to_event_variant }});
-                    done_meta.metadata.data = done_event_data;
+                    done_meta.set_event_data(&done_event_data);
                     engine.raise(done_meta);
                 }
 {% else %}
@@ -272,10 +286,10 @@
                 // W3C SCXML 3.6: Enter through hierarchy to reach initial target(s)
                 for &target in &initial_children {
                     // Build entry chain from state to target
-                    let mut chain = Vec::new();
+                    let mut chain = ::sce_rust_runtime::helpers::hierarchy::new_chain();
                     let mut current = target;
                     while current != state {
-                        chain.push(current);
+                        ::sce_rust_runtime::helpers::hierarchy::push_chain(&mut chain, current);
                         match Self::get_parent(current) {
                             Some(parent) => current = parent,
                             None => break,
@@ -298,6 +312,7 @@
     }
 
     // W3C SCXML 3.8: Execute <onexit> actions for a state
+    {{ sce_map.source_marker(model.source_location, "rust") }}
     fn execute_exit_actions(
         &mut self,
         state: Self::State,
@@ -308,13 +323,13 @@
         // W3C SCXML 3.4 + 3.13: Parallel state exit order
         if Self::is_parallel_state(state) {
             // W3C SCXML 3.4: Collect all active descendants of this parallel state
-            let mut descendants_to_exit: Vec<Self::State> = self.active_states.iter()
+            let mut descendants_to_exit: ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> = self.active_states.iter()
                 .filter(|&&s| s != state && Self::is_descendant_of(s, state))
                 .copied()
                 .collect();
 
             // W3C SCXML 3.13: Sort descendants by reverse document order (deepest first)
-            descendants_to_exit.sort_by(|a, b| Self::get_document_order(*b).cmp(&Self::get_document_order(*a)));
+            ::sce_rust_runtime::stable_sort_by(&mut descendants_to_exit, |a, b| Self::get_document_order(*b).cmp(&Self::get_document_order(*a)));
 
             // Exit each active descendant (deepest first)
             for descendant in descendants_to_exit {
@@ -331,15 +346,19 @@
 {% for history_id, history_info in model.history_states | dictsort %}
         if state == {{ machine_name }}State::{{ history_info.parent | to_state_variant }} {
 {% if history_info.type == 'deep' %}
-            // W3C SCXML 3.11: Deep history - record all active descendants
-            let filtered: Vec<Self::State> = pre_transition_active.iter()
+            // W3C SCXML 3.11: Deep history - record all active descendants.
+            // Watching-zenoh RFC §synth-5-J-2: [`StateChain`] alias (heapless under
+            // no_std); recorded history is a subset of the active configuration
+            // so it stays within MAX_HIERARCHY_DEPTH.
+            let filtered: ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> = pre_transition_active.iter()
                 .filter(|&&s| Self::is_descendant_of(s, {{ machine_name }}State::{{ history_info.parent | to_state_variant }})
                     && !Self::is_compound_state(s) && !Self::is_parallel_state(s))
                 .copied()
                 .collect();
 {% else %}
-            // W3C SCXML 3.11: Shallow history - record direct children only
-            let filtered: Vec<Self::State> = pre_transition_active.iter()
+            // W3C SCXML 3.11: Shallow history - record direct children only.
+            // Watching-zenoh RFC §synth-5-J-2: [`StateChain`] alias (heapless under no_std).
+            let filtered: ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> = pre_transition_active.iter()
                 .filter(|&&s| Self::get_parent(s) == Some({{ machine_name }}State::{{ history_info.parent | to_state_variant }}))
                 .copied()
                 .collect();
@@ -392,12 +411,15 @@
         match state {
 {% for state_id, state in model.states | dictsort %}
 {% if state.on_exit_blocks %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => {
+            {{ machine_name }}State::{{ state_id | to_state_variant }} => {  {{- annot.annotation_comment(state, "rust", "                ") }}
 {% for block in state.on_exit_blocks %}
                 // W3C SCXML 3.9: onexit block {{ loop.index }}/{{ state.on_exit_blocks | length }}
                 // Labeled block allows actions to break out on error (W3C 3.9: error stops block)
                 'action_block: {
 {% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "rust", "                ") -}}
+{%- endif %}
                 {% with in_entry_exit=true %}{% include 'actions/' ~ action.type ~ '.rs.jinja2' %}{% endwith %}
 
 {% endfor %}
