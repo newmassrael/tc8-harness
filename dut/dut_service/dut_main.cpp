@@ -61,26 +61,29 @@ int main() {
     std::printf("tc8-dut: %s registered (domain=%s instance=%s)\n",
                 kInterface, kDomain, kInstance);
 
-    // OA TC8 v3.0 trigger-driven emission (Table 1 p413). Each source fires only
-    // after its triggerEventX Method (so must-NOT-send cases hold); the legacy
-    // 250 ms TestEventUINT8 loop further below stays intact for the existing
-    // suite. The controller is stopped before _Exit (which skips dtors).
+    // Single emission engine (one producer per event). 0x8001/TestEventUINT8 is
+    // a CYCLIC source — the DUT's pre-existing unconditional 250 ms cadence the
+    // §5.1.5 suite relies on. The four new events are TRIGGERED — they fire only
+    // after their triggerEventX Method, so must-NOT-send cases hold. start() is
+    // deferred until after the optional SI2 source is added; stop() runs before
+    // _Exit (which skips dtors). The per-source payload counter is owned by the
+    // controller and passed into each closure (no hidden statics).
     tc8::dut::EmissionController emission;
-    emission.addSource(std::string(tc8::dut::ets_event::kUint8),
-                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8Event(v++); });
-    emission.addSource(std::string(tc8::dut::ets_event::kArray),
-                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8ArrayEvent({v, v, v}); ++v; });
-    emission.addSource(std::string(tc8::dut::ets_event::kReliable),
-                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8ReliableEvent(v++); });
-    emission.addSource(std::string(tc8::dut::ets_event::kE2E),
-                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8E2EEvent(v++); });
-    emission.addSource(std::string(tc8::dut::ets_event::kMulticast),
-                       [impl] { static uint8_t v = 0; impl->fireTestEventUINT8MulticastEvent(v++); });
     impl->setEmissionController(&emission);
-    emission.start();
+    emission.addCyclicSource("TestEventUINT8",
+                             [impl](uint8_t v) { impl->fireTestEventUINT8Event(v); },
+                             std::chrono::milliseconds(250));
+    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kArray),
+                                [impl](uint8_t v) { impl->fireTestEventUINT8ArrayEvent({v, v, v}); });
+    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kReliable),
+                                [impl](uint8_t v) { impl->fireTestEventUINT8ReliableEvent(v); });
+    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kE2E),
+                                [impl](uint8_t v) { impl->fireTestEventUINT8E2EEvent(v); });
+    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kMulticast),
+                                [impl](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
 
-    // OEM extend seam (O2): no-op in the public DUT. An OEM TU's strong
-    // createEtsExtension() offers its NDA event surface via raw vsomeip here.
+    // OEM extend seam (O2): no-op in the public DUT. An OEM TU (selected via
+    // TC8_ETS_EXTENSION_SRC) offers its NDA event surface via raw vsomeip here.
     std::unique_ptr<tc8::dut::IEtsExtension> ets_extension = tc8::dut::createEtsExtension();
     ets_extension->onRegister();
 
@@ -179,34 +182,26 @@ int main() {
         std::fprintf(stderr, "tc8-dut: testability endpoint start failed (continuing)\n");
     }
 
-    // §5.1.5.5 BASIC_03 + §5.1.5.4 SD_MESSAGE event-flow cases require
-    // the DUT to emit Notifications post-Subscribe. CommonAPI's stub
-    // queues a notification; vsomeip distributes it only to currently
-    // subscribed clients, so cyclic firing is harmless when no one
-    // listens. 250 ms cadence keeps the post-Subscribe latency under
-    // the SCXML observation deadline without flooding the wire.
-    // SERVICE-ID-2 (impl_si2, when registered) gets a parallel cyclic
-    // event so RPC_02 has a Notification to observe.
-    std::thread event_thread([&impl, &impl_si2]() {
-        uint8_t value = 0;
-        while (!g_stop.load()) {
-            impl->fireTestEventUINT8Event(value);
-            if (impl_si2) {
-                impl_si2->fireTestEventUINT8Event(value);
-            }
-            ++value;
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        }
-    });
+    // §5.1.5.5 BASIC_03 + §5.1.5.4 SD_MESSAGE event-flow cases require the DUT to
+    // emit Notifications post-Subscribe. CommonAPI's stub queues a notification;
+    // vsomeip distributes it only to currently subscribed clients, so the cyclic
+    // TestEventUINT8 is harmless when no one listens, and its 250 ms cadence keeps
+    // post-Subscribe latency under the SCXML observation deadline. SERVICE-ID-2
+    // (impl_si2, when registered) gets its own cyclic TestEventUINT8 so RPC_02 has
+    // a Notification to observe. Both ride the single EmissionController — there
+    // is no separate event thread.
+    if (impl_si2) {
+        emission.addCyclicSource("TestEventUINT8.SI2",
+                                 [impl_si2](uint8_t v) { impl_si2->fireTestEventUINT8Event(v); },
+                                 std::chrono::milliseconds(250));
+    }
+    emission.start();
 
     while (!g_stop.load()) {
         ets_extension->onTick();
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
-    if (event_thread.joinable()) {
-        event_thread.join();
-    }
     emission.stop();
     ets_extension->onStop();
     testability.stop();

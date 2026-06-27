@@ -12,51 +12,52 @@
 #include <unordered_map>
 #include <vector>
 
-// Trigger-driven event emission for the OA TC8 v3.0 ETS (Table 1
-// p413). The four new events (TestEventUINT8Array/E2E/Reliable/Multicast) fire
-// ONLY in response to their triggerEventX Method — never on a free-running
-// timer — which is exactly what lets the "must-NOT-send" negative cases hold.
-// The legacy unconditional cyclic emission of TestEventUINT8 (0x8001) is left
-// untouched in dut_main so the existing conformance suite is unaffected; 0x8001
-// is ALSO registered here so triggerEventUINT8 is spec-faithful (extra fires
-// during a trigger window are harmless atop the legacy cadence).
-//
-// OEM override: install a custom EmissionPolicy (different unit/debounce/keep-
-// alive semantics) before start(). See
-// claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+// Single emission engine for the OA TC8 v3.0 ETS DUT. There is exactly ONE
+// producer per event (no dual-path), fired from one tick thread. Two source
+// kinds:
+//   - cyclic   : free-running at a fixed period from start() — the legacy
+//                unconditional TestEventUINT8 (0x8001) cadence the existing
+//                conformance suite depends on.
+//   - triggered: fires ONLY after onTrigger(), governed by the EmissionPolicy
+//                (TestEventUINT8Array/E2E/Reliable/Multicast). A source that is
+//                never triggered never fires — which is what lets the
+//                "must-NOT-send" negative cases hold.
+// The emit closure receives a per-source monotonically increasing payload byte
+// OWNED by the controller (no hidden function-local statics).
 namespace tc8::dut {
 
-// Canonical source names — the SSOT shared by EtsImpl (which arms a source from
-// its triggerEventX Method) and dut_main (which binds each name to the matching
-// CommonAPI fireTestEventXEvent). One constant per OA TC8 v3.0 Table 2 event.
+// Canonical triggered-source names — the SSOT shared by EtsImpl (which arms a
+// source from its triggerEventX Method) and dut_main (which binds each name to
+// the matching CommonAPI fireTestEventXEvent). One per OA TC8 v3.0 Table 2
+// trigger-driven event.
 namespace ets_event {
-inline constexpr std::string_view kUint8     = "TestEventUINT8";
 inline constexpr std::string_view kArray     = "TestEventUINT8Array";
 inline constexpr std::string_view kReliable  = "TestEventUINT8Reliable";
 inline constexpr std::string_view kE2E       = "TestEventUINT8E2E";
 inline constexpr std::string_view kMulticast = "TestEventUINT8Multicast";
 }  // namespace ets_event
 
-// WHEN each named event source fires. Override point for an OEM that needs
-// different timing semantics than the OA TC8 default (Table 1 p413).
+// WHEN each trigger-gated source fires. The wire args arrive as the strong
+// chrono types below so a caller cannot pass them in the wrong unit; the
+// uint32->chrono conversion (and its unit assumption) lives at the EtsImpl wire
+// boundary, not here. Override point for an OEM whose timing semantics differ.
 class EmissionPolicy {
 public:
     virtual ~EmissionPolicy() = default;
-    // A triggerEventX(start, duration, debounceTime) Method was invoked.
-    virtual void onTrigger(std::string_view source, uint32_t start,
-                           uint32_t duration, uint32_t debounceTime) = 0;
+    virtual void onTrigger(std::string_view source, std::chrono::seconds start,
+                           std::chrono::seconds duration,
+                           std::chrono::milliseconds period) = 0;
     // Names of the sources whose next fire time has arrived at `now`.
     virtual std::vector<std::string> due(std::chrono::steady_clock::time_point now) = 0;
 };
 
-// OA TC8 v3.0 Table 3 (p421-440) semantics: after `start` SECONDS, fire the
-// event periodically every `debounceTime` MILLISECONDS, until `duration`
-// SECONDS have elapsed. A source that was never triggered never fires.
-// (debounceTime == 0 or duration == 0 -> single shot.)
+// Default OA TC8 trigger semantics: after `start`, fire every `period` until
+// `duration` has elapsed; `period <= 0` or `duration == 0` => single shot.
 class DefaultTriggerPolicy : public EmissionPolicy {
 public:
-    void onTrigger(std::string_view source, uint32_t start,
-                   uint32_t duration, uint32_t debounceTime) override;
+    void onTrigger(std::string_view source, std::chrono::seconds start,
+                   std::chrono::seconds duration,
+                   std::chrono::milliseconds period) override;
     std::vector<std::string> due(std::chrono::steady_clock::time_point now) override;
 
 private:
@@ -69,10 +70,6 @@ private:
     std::unordered_map<std::string, Arm> arms_;
 };
 
-// Owns a tick thread; binds each event source name to its emit closure and asks
-// the policy which sources are due. Thread-safe for onTrigger() from the vsomeip
-// dispatcher thread vs the tick thread (the policy guards its own state).
-// installPolicy()/addSource() must be called before start().
 class EmissionController {
 public:
     EmissionController();
@@ -80,19 +77,40 @@ public:
     EmissionController(const EmissionController&) = delete;
     EmissionController& operator=(const EmissionController&) = delete;
 
-    // Bind a source name to the closure that fires the CommonAPI event.
-    void addSource(std::string name, std::function<void()> emit);
-    // Replace the default policy (OEM override). Call before start().
+    // Free-running source: fires every `period` from start(). Add before start().
+    void addCyclicSource(std::string name, std::function<void(uint8_t)> emit,
+                         std::chrono::milliseconds period);
+    // Trigger-gated source: fires only when the policy says so. Add before start().
+    void addTriggeredSource(std::string name, std::function<void(uint8_t)> emit);
+    // OEM override of the trigger policy. Must be called before start() (the
+    // tick thread reads policy_ locklessly; swapping it live would race).
     void installPolicy(std::unique_ptr<EmissionPolicy> policy);
     // Forward a triggerEventX Method call to the policy.
-    void onTrigger(std::string_view source, uint32_t start,
-                   uint32_t duration, uint32_t debounceTime);
+    void onTrigger(std::string_view source, std::chrono::seconds start,
+                   std::chrono::seconds duration, std::chrono::milliseconds period);
     void start();
     void stop();
 
+    // One scheduling pass at logical time `now`. run() calls this every tick;
+    // exposed so unit tests can drive the engine deterministically (no sleeps).
+    void step(std::chrono::steady_clock::time_point now);
+
 private:
     void run();
-    std::unordered_map<std::string, std::function<void()>> sources_;
+    struct Cyclic {
+        std::string name;
+        std::function<void(uint8_t)> emit;
+        std::chrono::milliseconds period;
+        std::chrono::steady_clock::time_point next;
+        bool primed = false;
+        uint8_t counter = 0;
+    };
+    struct Triggered {
+        std::function<void(uint8_t)> emit;
+        uint8_t counter = 0;
+    };
+    std::vector<Cyclic> cyclic_;
+    std::unordered_map<std::string, Triggered> triggered_;
     std::unique_ptr<EmissionPolicy> policy_;
     std::thread thread_;
     std::atomic<bool> stop_{false};

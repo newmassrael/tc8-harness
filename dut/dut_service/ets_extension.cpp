@@ -7,9 +7,9 @@ namespace {
 class NullEtsExtension : public IEtsExtension {};
 }  // namespace
 
-// Weak default — an OEM TU defining a strong createEtsExtension() overrides
-// this at link time (GCC/Clang weak-symbol model).
-__attribute__((weak)) std::unique_ptr<IEtsExtension> createEtsExtension() {
+// Default extension. Selected at configure time via TC8_ETS_EXTENSION_SRC; an
+// OEM builds its own source in this slot to return its extension — see header.
+std::unique_ptr<IEtsExtension> createEtsExtension() {
     return std::make_unique<NullEtsExtension>();
 }
 

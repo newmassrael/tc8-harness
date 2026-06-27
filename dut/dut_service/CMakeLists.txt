@@ -71,18 +71,36 @@ target_include_directories(tc8_upper_tester_server PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# OEM override seams (compile-time source-selection — same idiom as
+# TC8_ETS_FIDL / TC8_CASE_OVERRIDE_DIRS, so the repo has ONE injection
+# philosophy, no link-time weak-symbol tricks). An OEM points these at its own
+# translation units: TC8_ETS_FACTORY_SRC must define createEtsStub() (returning
+# its EtsImpl subclass); TC8_ETS_EXTENSION_SRC must define createEtsExtension().
+# `if(NOT DEFINED)` guards a superproject's plain set() under CMP0126 OLD.
+if(NOT DEFINED TC8_ETS_FACTORY_SRC)
+    set(TC8_ETS_FACTORY_SRC "${CMAKE_CURRENT_SOURCE_DIR}/ets_factory.cpp")
+endif()
+if(NOT DEFINED TC8_ETS_EXTENSION_SRC)
+    set(TC8_ETS_EXTENSION_SRC "${CMAKE_CURRENT_SOURCE_DIR}/ets_extension.cpp")
+endif()
+foreach(_src TC8_ETS_FACTORY_SRC TC8_ETS_EXTENSION_SRC)
+    if(NOT EXISTS "${${_src}}")
+        message(FATAL_ERROR "${_src} points at a missing file: ${${_src}}")
+    endif()
+endforeach()
+
 add_executable(tc8-dut
     client_mode.cpp
     client_mode_proxy.cpp
     dhcpv4_client.cpp
     dut_main.cpp
     ets_emission.cpp
-    ets_extension.cpp
-    ets_factory.cpp
     ets_impl.cpp
     ets_impl_2.cpp
     linklocal_autoconf.cpp
     posix_ut_extensions.cpp
+    ${TC8_ETS_FACTORY_SRC}
+    ${TC8_ETS_EXTENSION_SRC}
 )
 target_include_directories(tc8-dut PRIVATE
     ${PROJECT_SOURCE_DIR}/include

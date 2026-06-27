@@ -399,50 +399,49 @@ void EtsImpl::resetInterface(
     fieldA_ = 0;
 }
 
-// OA TC8 v3.0 Table 1 (p413) trigger methods — each arms the matching source in
-// the EmissionController (set by dut_main). The controller fires the event per
-// the trigger semantics (after `start` s, every `debounceTime` ms, for
-// `duration` s). When no
-// controller is wired (e.g. a host build without an event loop) the call is a
-// no-op, so the event simply never fires.
-void EtsImpl::triggerEventUINT8(
-    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
-    uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
+// Single wire boundary: convert the uint32 trigger args to the policy's strong
+// chrono units (unit assumption documented at the declaration) and arm the
+// source. No controller wired (e.g. a host build) -> a no-op, so the event
+// never fires.
+void EtsImpl::armEvent(std::string_view source, uint32_t start,
+                       uint32_t duration, uint32_t debounceTime) {
     if (emission_) {
-        emission_->onTrigger(ets_event::kUint8, _start, _duration, _debounceTime);
+        emission_->onTrigger(source, std::chrono::seconds(start),
+                             std::chrono::seconds(duration),
+                             std::chrono::milliseconds(debounceTime));
     }
 }
+
+// OA TC8 v3.0 Table 1 (p413) trigger methods. triggerEventUINT8 (0x8001) is a
+// no-op: 0x8001 is the free-running cyclic event (the DUT's pre-existing CI
+// cadence), so the trigger is satisfied by the always-on emission. The other
+// four arm their trigger-gated source via armEvent().
+void EtsImpl::triggerEventUINT8(
+    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
+    uint32_t /*_start*/, uint32_t /*_duration*/, uint32_t /*_debounceTime*/) {}
 
 void EtsImpl::triggerEventUINT8Array(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
-    if (emission_) {
-        emission_->onTrigger(ets_event::kArray, _start, _duration, _debounceTime);
-    }
+    armEvent(ets_event::kArray, _start, _duration, _debounceTime);
 }
 
 void EtsImpl::triggerEventUINT8Reliable(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
-    if (emission_) {
-        emission_->onTrigger(ets_event::kReliable, _start, _duration, _debounceTime);
-    }
+    armEvent(ets_event::kReliable, _start, _duration, _debounceTime);
 }
 
 void EtsImpl::triggerEventUINT8E2E(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
-    if (emission_) {
-        emission_->onTrigger(ets_event::kE2E, _start, _duration, _debounceTime);
-    }
+    armEvent(ets_event::kE2E, _start, _duration, _debounceTime);
 }
 
 void EtsImpl::triggerEventUINT8Multicast(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
     uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
-    if (emission_) {
-        emission_->onTrigger(ets_event::kMulticast, _start, _duration, _debounceTime);
-    }
+    armEvent(ets_event::kMulticast, _start, _duration, _debounceTime);
 }
 
 }  // namespace tc8::dut

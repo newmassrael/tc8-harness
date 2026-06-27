@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <v1/org/tc8/ets/EnhancedTestabilityStubDefault.hpp>
@@ -287,11 +288,12 @@ public:
     void resetInterface(
         const std::shared_ptr<CommonAPI::ClientId> _client) override;
 
-    // OA TC8 v3.0 Table 1 (p413) trigger methods. Each forwards to the
-    // EmissionController, which fires the matching event per the trigger
-    // semantics (after `start` s, every `debounceTime` ms, for `duration` s).
-    // No controller set (default) -> the trigger is a no-op, so a unit/host
-    // build without an event loop stays inert.
+    // OA TC8 v3.0 Table 1 (p413) trigger methods. triggerEventUINT8 (0x8001) is
+    // a documented no-op: 0x8001 is the DUT's free-running cyclic event (the
+    // pre-existing CI cadence the suite relies on), so its trigger is satisfied
+    // by the always-on emission. The other four forward to the EmissionController
+    // via armEvent(). The argument unit conversion (and its assumption) lives in
+    // armEvent, the single wire boundary.
     void triggerEventUINT8(
         const std::shared_ptr<CommonAPI::ClientId> _client,
         uint32_t _start, uint32_t _duration, uint32_t _debounceTime) override;
@@ -319,6 +321,14 @@ public:
     }
 
 private:
+    // Single wire boundary for the trigger args. UNIT ASSUMPTION: OA TC8 p425
+    // states only `start` is in seconds; `duration`/`debounceTime` units are not
+    // defined in the test-spec PDF (the OA service catalog is authoritative and
+    // is not vendored here). We read start/duration as seconds and debounceTime
+    // as the period; an OEM whose units differ installs its own EmissionPolicy.
+    void armEvent(std::string_view source, uint32_t start, uint32_t duration,
+                  uint32_t debounceTime);
+
     uint8_t fieldA_ = 0;
     std::vector<uint8_t> testFieldUint8Array_{};
     uint8_t testFieldUint8Reliable_ = 0;

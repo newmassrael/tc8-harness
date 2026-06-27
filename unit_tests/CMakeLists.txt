@@ -108,6 +108,21 @@ target_link_libraries(demo_module_test PRIVATE tc8_pn tc8_someiptp)
 target_include_directories(demo_module_test PRIVATE
     ${PROJECT_SOURCE_DIR}/examples/demo_middleware_module)
 target_link_libraries(demo_module_test PRIVATE tc8_nm tc8_com tc8_e2e tc8_crypto)
+# ETS DUT emission engine (dut/dut_service/ets_emission.*). It is self-contained
+# (no CommonAPI/vsomeip deps), so it is compiled directly into the test rather
+# than linked from the tc8-dut executable. Covers the trigger-policy timing logic
+# (incl. the zero-duration single-shot regression) and the controller's source
+# dispatch + owned counters, driven deterministically via the step(now) seam.
+find_package(Threads REQUIRED)
+add_executable(ets_emission_test
+    ets_emission_test.cpp
+    ${PROJECT_SOURCE_DIR}/dut/dut_service/ets_emission.cpp)
+target_include_directories(ets_emission_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service)
+target_link_libraries(ets_emission_test PRIVATE
+    GTest::gtest GTest::gtest_main Threads::Threads)
+add_test(NAME ets_emission_test COMMAND ets_emission_test)
+
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 tc8_add_unit_test(arp_builder_test)
