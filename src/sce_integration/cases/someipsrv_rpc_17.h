@@ -40,8 +40,7 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         req.payload = {0x42};
 
         // instance 0x0001 reliable = the configured services[0] TCP endpoint.
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req,
-                                                   ::tc8::stimulus::MethodRequestTiming{},
+        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req, {},
                                                    ::tc8::sce::someipTcpMethodDest(cfg));
 
         ::tc8::stimulus::MethodRequestTarget req2 = req;
@@ -51,7 +50,7 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         // instance 0x0002 reliable — not the base services[0] endpoint, so
         // name the port explicitly.
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req2, late,
-                                                   ::tc8::sce::someipTcpMethodDest(cfg, 30503));
+                                                   ::tc8::sce::someipTcpMethodDest(cfg, ::tc8::sce::someip::kSi1Inst2TcpPort));
     }
 };
 

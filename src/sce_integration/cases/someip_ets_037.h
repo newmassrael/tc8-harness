@@ -76,7 +76,8 @@ struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037
         reset_target.message_type = 0x01;    // RequestNoReturn — no Response expected.
         ::tc8::stimulus::MethodRequestTiming reset_timing{};
         reset_timing.pre_emit_wait = std::chrono::milliseconds(0);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, reset_target, reset_timing, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(iface, reset_target, reset_timing,
+                                                ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Observation window — the spec failure shape is the DUT
         // emitting FIN on the held TCP connection in response to the

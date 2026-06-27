@@ -23,8 +23,8 @@ namespace tc8::sce {
 // vsomeip's routing manager silent-drops at the routing layer;
 // ETS_001-style lenient 4-path verdict — phase 2 cond watches
 // any non-SD service_id with method_id 0x0008. Method Request
-// destination port stays 30502 (tc8-dut's UDP unicast endpoint
-// for the genuine service_id 0xF4E7); vsomeip parses the SOME/IP
+// destination is the configured DUT UDP endpoint (cfg.someip, the
+// genuine service_id 0xF4E7 unicast port); vsomeip parses the SOME/IP
 // header and rejects on service_id mismatch.
 template <>
 struct TestCaseTraits<cases::SomeipEts077SM> : SomeIpAnyBase<cases::SomeipEts077SM> {

@@ -52,14 +52,20 @@ struct MethodRequestTarget {
 // per SOME/IP §4.1.
 std::vector<std::uint8_t> buildMethodRequest(const MethodRequestTarget &t);
 
-// Destination of a Method Request — the DUT's per-method UDP endpoint. For
-// echoUINT8 on tc8-dut this is the unreliable port declared in vsomeip.json
-// (172.16.0.2 : 30502). Real DUTs override via the emitter param.
+// Destination of a Method Request — the DUT's per-method endpoint. A pure
+// value type with no implicit default: the endpoint is always topology-
+// derived, never baked in. The conformance literal (172.16.0.2:30502) has
+// its single source of truth in the `--expect` surface / vsomeip.json, not
+// here. Build it via `tc8::sce::someipUdp/TcpMethodDest`, which sources it
+// from `cfg.someip`; a zero-initialised value (0.0.0.0:0) is an unconfigured
+// sentinel that fails loud on connect rather than silently targeting a
+// hardcoded address.
 struct MethodRequestDestination {
-    // IPv4 in network byte order. 172.16.0.2 → 0xAC100002 → little-endian
-    // host stores it as 0x020010AC (matches `Ipv4Endpoint::ipv4_be`).
-    std::uint32_t ipv4_be = 0x020010AC;
-    std::uint16_t port = 30502;
+    // IPv4 in network byte order (matches `Ipv4Endpoint::ipv4_be` and
+    // cfg.someip.dut_iface_ip, both NBO via inet_pton).
+    std::uint32_t ipv4_be = 0;
+    // Host order; the emitter applies htons.
+    std::uint16_t port = 0;
 };
 
 // Tester-side Method Request emit envelope mirrored on `BootTiming` so
@@ -83,9 +89,9 @@ struct MethodRequestTiming {
 // Blocks the calling thread for `pre_emit_wait + (total_emits - 1) *
 // retry_interval`. Returns 0 on success or the first negative return on
 // any failure; no retry-on-failure (cadence is fixed).
-int emitMethodRequestAfter(std::string_view iface, const MethodRequestTarget &target = {},
-                           const MethodRequestTiming &timing = {},
-                           const MethodRequestDestination &dest = {});
+int emitMethodRequestAfter(std::string_view iface, const MethodRequestTarget &target,
+                           const MethodRequestTiming &timing,
+                           const MethodRequestDestination &dest);
 
 // TCP variant of `emitMethodRequestAfter`. Used by §5.1.5.7 RPC_17 to
 // drive multi-instance Method Request/Response over the reliable TCP
@@ -101,9 +107,9 @@ struct MethodRequestTcpDwell {
     std::chrono::milliseconds linger{300};
 };
 
-int emitMethodRequestTcpAfter(std::string_view iface, const MethodRequestTarget &target = {},
-                              const MethodRequestTiming &timing = {},
-                              const MethodRequestDestination &dest = {},
+int emitMethodRequestTcpAfter(std::string_view iface, const MethodRequestTarget &target,
+                              const MethodRequestTiming &timing,
+                              const MethodRequestDestination &dest,
                               const MethodRequestTcpDwell &dwell = {});
 
 // §5.1.6 SOMEIP_ETS_037 helper. Variant of `emitMethodRequestTcpAfter`
@@ -147,15 +153,13 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const MethodRequestTarge
 
 int emitBundledMethodRequestsUdp(std::string_view iface,
                                  const std::vector<MethodRequestTarget> &targets,
-                                 std::chrono::milliseconds pre_emit_wait =
-                                     std::chrono::milliseconds(500),
-                                 const MethodRequestDestination &dest = {});
+                                 std::chrono::milliseconds pre_emit_wait,
+                                 const MethodRequestDestination &dest);
 
 int emitBundledMethodRequestsTcp(std::string_view iface,
                                  const std::vector<MethodRequestTarget> &targets,
-                                 std::chrono::milliseconds pre_emit_wait =
-                                     std::chrono::milliseconds(500),
-                                 const MethodRequestDestination &dest = {},
+                                 std::chrono::milliseconds pre_emit_wait,
+                                 const MethodRequestDestination &dest,
                                  std::chrono::milliseconds linger =
                                      std::chrono::milliseconds(500));
 

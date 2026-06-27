@@ -42,9 +42,8 @@ struct TestCaseTraits<cases::Rpc01SM> : SomeIpAnyBase<cases::Rpc01SM> {
         // SERVICE-ID-2 unreliable port (vsomeip-multi-service.json) — not the
         // configured services[0] endpoint, so name the port explicitly; the
         // DUT IP still derives from --expect.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target,
-                                                ::tc8::stimulus::MethodRequestTiming{},
-                                                ::tc8::sce::someipUdpMethodDest(cfg, 30506));
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {},
+                                                ::tc8::sce::someipUdpMethodDest(cfg, ::tc8::sce::someip::kSi2UdpPort));
     }
 };
 

@@ -125,6 +125,10 @@ tc8_add_unit_test(udp_emit_test)
 tc8_add_unit_test(someip_tp_emit_test)
 tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
+# Method Request destination helper: derives the DUT endpoint from cfg.someip
+# (the --expect surface) and guards the TCP-port-leak regression. Header-only
+# logic, no DUT — links the shared testable lib for TestConfig.
+tc8_add_unit_test(someip_method_dest_test)
 tc8_add_unit_test(tcp_captured_test)
 tc8_add_unit_test(upper_tester_client_test)
 tc8_add_unit_test(testability_client_test)

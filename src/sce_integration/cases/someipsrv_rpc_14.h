@@ -39,8 +39,7 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
         req.payload = {0x42};
 
         // instance 0x0001 unreliable = the configured services[0] endpoint.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, req,
-                                                ::tc8::stimulus::MethodRequestTiming{},
+        ::tc8::stimulus::emitMethodRequestAfter(iface, req, {},
                                                 ::tc8::sce::someipUdpMethodDest(cfg));
 
         ::tc8::stimulus::MethodRequestTarget req2 = req;
@@ -50,7 +49,7 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
         // instance 0x0002 unreliable (vsomeip-multi-instance.json) — not the
         // base services[0] endpoint, so name the port explicitly.
         ::tc8::stimulus::emitMethodRequestAfter(iface, req2, late,
-                                                ::tc8::sce::someipUdpMethodDest(cfg, 30504));
+                                                ::tc8::sce::someipUdpMethodDest(cfg, ::tc8::sce::someip::kSi1Inst2UdpPort));
     }
 };
 
