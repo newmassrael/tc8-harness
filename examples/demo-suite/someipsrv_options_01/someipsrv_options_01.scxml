@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Demo suite case — NOT a conformance case. It exists only to exercise the
+  suite producer (TC8_EXTRA_CASE_SUITES): this scxml deliberately reuses the
+  in-tree case id `someipsrv_options_01` under suite `demo`, so codegen, the
+  per-suite register stub, and the registry must keep
+  tc8:SOMEIPSRV_OPTIONS_01 and demo:SOMEIPSRV_OPTIONS_01 distinct. The body is
+  a trivial deadline -> inconclusive so it has no template/wire dependency.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="someipsrv_options_01"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::SomeIpCaptured"
+               cpp:include="sce_integration/someip_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::SomeIpExpected"
+               cpp:include="sce_integration/someip_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline" delay="1s"/>
+    </onentry>
+    <!-- SomeIpAnyBase::dispatch raises Event::Someip_notification on every
+         observed SOME/IP frame, so the SM must declare that event. The demo
+         neither inspects nor verdicts on it (it always times out to
+         inconclusive) — it is here only to satisfy the base's contract. -->
+    <transition event="someip_notification" target="listening"/>
+    <transition event="deadline" target="inconclusive"/>
+  </state>
+
+  <final id="inconclusive">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"demo_suite_producer_proof","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+</scxml>
