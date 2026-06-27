@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::Rpc05SM> : SomeIpAnyBase<cases::Rpc05SM> {
         ::tc8::stimulus::MethodRequestTarget target{};
         target.message_type = 0x01;     // REQUEST_NO_RETURN
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

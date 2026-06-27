@@ -30,7 +30,7 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         "Multi-instance Method Responses sourced from distinct per-instance TCP ports";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& /*cfg*/,
+                         const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
 
@@ -39,18 +39,19 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         req.method_id = 0x000A;  // METHOD-ID-1-SI-1 (echoUINT8RELIABLE — TCP)
         req.payload = {0x42};
 
-        ::tc8::stimulus::MethodRequestDestination dest1{};
-        dest1.port = 30501;  // SERVICE-ID-1 instance 0x0001 reliable
+        // instance 0x0001 reliable = the configured services[0] TCP endpoint.
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req,
-                                                   ::tc8::stimulus::MethodRequestTiming{}, dest1);
+                                                   ::tc8::stimulus::MethodRequestTiming{},
+                                                   ::tc8::sce::someipTcpMethodDest(cfg));
 
         ::tc8::stimulus::MethodRequestTarget req2 = req;
         req2.session_id = 0x0002;
-        ::tc8::stimulus::MethodRequestDestination dest2{};
-        dest2.port = 30503;  // SERVICE-ID-1 instance 0x0002 reliable
         ::tc8::stimulus::MethodRequestTiming late{};
         late.pre_emit_wait = std::chrono::milliseconds{500};
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req2, late, dest2);
+        // instance 0x0002 reliable — not the base services[0] endpoint, so
+        // name the port explicitly.
+        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req2, late,
+                                                   ::tc8::sce::someipTcpMethodDest(cfg, 30503));
     }
 };
 

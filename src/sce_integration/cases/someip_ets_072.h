@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::SomeipEts072SM> : SomeIpAnyBase<cases::SomeipEts072
             // tells the decoder no value bytes follow the type tag)
             0x42,
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

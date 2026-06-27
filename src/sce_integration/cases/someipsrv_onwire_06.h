@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::Onwire06SM> : SomeIpAnyBase<cases::Onwire06SM> {
                                              cfg.stimulus_timing);
         ::tc8::stimulus::MethodRequestTarget target{};
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

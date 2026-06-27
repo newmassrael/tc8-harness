@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::SomeipEts008SM> : SomeIpAnyBase<cases::SomeipEts008
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x3F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoCommonDatatypes response: the nine-tuple echoed in

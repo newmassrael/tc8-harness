@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::SomeipEts022SM> : SomeIpAnyBase<cases::SomeipEts022
         target.method_id = 0x0036;
         // 5 raw UInt8 bytes, no length prefix. payload_len = 5.
         target.payload = {0x10, 0x11, 0x12, 0x13, 0x14};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

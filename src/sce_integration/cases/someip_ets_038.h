@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::SomeipEts038SM> : SomeIpAnyBase<cases::SomeipEts038
             // value = 0x42 (uint8)
             0x42,
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

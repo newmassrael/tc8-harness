@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::SomeipEts106SM> : SomeIpAnyBase<cases::SomeipEts106
         activate.method_id    = 0x002F;
         activate.message_type = 0x01;  // RequestNoReturn (Fire&Forget).
         activate.payload      = {0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
         // 2. clientServiceSubscribeEventgroup (Method 0x32 Fire&Forget) —
@@ -66,7 +66,7 @@ struct TestCaseTraits<cases::SomeipEts106SM> : SomeIpAnyBase<cases::SomeipEts106
         subscribe.method_id    = 0x0032;
         subscribe.message_type = 0x01;
         subscribe.payload      = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, subscribe);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, subscribe, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. emitOfferServiceMulticastWithEndpoint — advertise tester's

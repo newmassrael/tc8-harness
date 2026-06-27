@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
         ::tc8::stimulus::MethodRequestTarget set{};
         set.method_id = 0x0042;
         set.payload   = {0x77};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, set);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         // 2. suspendInterface(start=0, duration=2000) — Method 0x02
@@ -69,7 +69,7 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
         suspend.message_type = 0x01;  // RequestNoReturn (Fire&Forget).
         suspend.payload      = {0x00, 0x00, 0x00, 0x00,   // start = 0
                                 0x00, 0x00, 0x07, 0xD0};  // duration = 2000 ms
-        ::tc8::stimulus::emitMethodRequestAfter(iface, suspend);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, suspend, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Wait through the 2 s suspend window + 1 s resume settle.
         std::this_thread::sleep_for(std::chrono::milliseconds(3500));
@@ -78,7 +78,7 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
         // Response (any payload).
         ::tc8::stimulus::MethodRequestTarget get{};
         get.method_id = 0x0040;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, get, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

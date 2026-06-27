@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::SomeipEts047SM> : SomeIpAnyBase<cases::SomeipEts047
         // [6..7]   = 00 00 (UTF-16 null terminator)
         // [8..63]  = 0     (zero padding to 64 B fixed frame)
         target.payload[64] = 0xFF;  // 65th byte — past the fixed frame
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoUTF16FIXED response: the DUT discards the 65th odd byte

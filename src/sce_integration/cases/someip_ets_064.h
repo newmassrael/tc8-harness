@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::SomeipEts064SM> : SomeIpAnyBase<cases::SomeipEts064
         target.payload[4]  = 0x00;  // 'i' hi
         target.payload[5]  = 0x69;  // 'i' lo
         // [6..7] = 00 00 (UTF-16 null terminator), [8..62] = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

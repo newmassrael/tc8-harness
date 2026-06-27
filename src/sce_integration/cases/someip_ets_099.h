@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::SomeipEts099SM> : SomeIpAnyBase<cases::SomeipEts099
         target.method_id    = 0x002F;        // clientServiceActivate per TC8 §5.1.4 Table 1.
         target.message_type = 0x01;          // RequestNoReturn (Fire&Forget) per ets.fidl.
         target.payload      = {0x00};        // delay byte = 0 — start immediately.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

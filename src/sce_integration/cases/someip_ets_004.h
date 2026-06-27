@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts004SM> : SomeIpAnyBase<cases::SomeipEts004
         // chain readable.
         timing.total_emits = 3;
         timing.retry_interval = std::chrono::milliseconds(50);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, timing);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

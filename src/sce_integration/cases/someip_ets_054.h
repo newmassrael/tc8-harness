@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts054SM> : SomeIpAnyBase<cases::SomeipEts054
         // SOME/IP Length is at least 8 (Request ID alone is 8 bytes), so
         // Length 0 is a malformed-frame axis.
         target.length_override = 0x00000000u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

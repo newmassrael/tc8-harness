@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts030SM> : SomeIpAnyBase<cases::SomeipEts030
             0x00, 0x00, 0x00, 0x01,  // inner #2 byte length
             0x43,                    // inner #2 data
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

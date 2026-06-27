@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::Rpc08SM> : SomeIpAnyBase<cases::Rpc08SM> {
         t1.return_code = 0x01;
         t1.session_id = 0x0001;
         t1.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, t1);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, t1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         // Second Request — return_code = 0x1F (top end of the
         // already-error range). Distinct session_id keeps the two
         // streams independent on the wire.
@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::Rpc08SM> : SomeIpAnyBase<cases::Rpc08SM> {
         t2.payload = {0x42};
         ::tc8::stimulus::MethodRequestTiming timing{};
         timing.pre_emit_wait = std::chrono::milliseconds{200};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, t2, timing);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, t2, timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

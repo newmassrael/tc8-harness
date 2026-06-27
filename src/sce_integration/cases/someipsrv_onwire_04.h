@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::Onwire04SM> : SomeIpAnyBase<cases::Onwire04SM> {
         target.client_id = 0xCAFE;
         target.session_id = 0x1234;
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Second Request reuses the same Request ID. 800 ms gap lets the
         // first Response arrive and gives the SCXML phase 2 transition
@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::Onwire04SM> : SomeIpAnyBase<cases::Onwire04SM> {
         // under varying tester load.
         ::tc8::stimulus::MethodRequestTiming retx_timing{};
         retx_timing.pre_emit_wait = std::chrono::milliseconds(800);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, retx_timing);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, retx_timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

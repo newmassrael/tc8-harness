@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts027SM> : SomeIpAnyBase<cases::SomeipEts027
         ::tc8::stimulus::MethodRequestTarget target{};
         target.method_id = 0x0008;
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts048SM> : SomeIpAnyBase<cases::SomeipEts048
             0x69,                    // 'i'
             0x00,                    // trailing null terminator
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoUTF8DYNAMIC response: the canonical 10-byte echo —

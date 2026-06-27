@@ -8,6 +8,7 @@
 
 #include "sce_integration/dut_capabilities.h"
 #include "sce_integration/someip_captured.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_case_traits.h"
 
 // Shared §5.1.5 SOMEIPSRV trait base. The 48 cases under FORMAT (27)

@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::SomeipEts075SM> : SomeIpAnyBase<cases::SomeipEts075
         target.method_id = 0x0008;
         target.payload = {0x42};
         target.message_type = 0x07;  // Reserved per SOME/IP §4.7.4
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

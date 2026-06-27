@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::SomeipEts021SM> : SomeIpAnyBase<cases::SomeipEts021
         ::tc8::stimulus::MethodRequestTarget target{};
         target.method_id = 0x000E;
         target.payload = {0xD6};  // -42 as Int8 two's complement.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

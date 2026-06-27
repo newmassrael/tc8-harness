@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
         activate.method_id    = 0x002F;       // clientServiceActivate
         activate.message_type = 0x01;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Proxy buildProxy() registration delay — same gap as ETS_097.
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
@@ -67,7 +67,7 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
         // UInt32 delay (0) + UInt32 duration (0).
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Open a tester-side TCP listener BEFORE emitting the offer.
         // For TCP-reliable eventgroups vsomeip on the DUT delays the wire
@@ -127,14 +127,16 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
         // i.e. immediately after the harness observes DUT's Subscribe
         // (Type 0x06, ttl > 0). Timing tracks SCXML, not wall clock.
         std::string iface_copy(iface);
+        const auto deactivate_dest = ::tc8::sce::someipUdpMethodDest(cfg);
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_stop_seen),
-            [iface_copy]() {
+            [iface_copy, deactivate_dest]() {
                 ::tc8::stimulus::MethodRequestTarget deactivate{};
                 deactivate.method_id    = 0x0030;     // clientServiceDeactivate
                 deactivate.message_type = 0x01;       // Fire&Forget
                 deactivate.payload      = {0x00};     // delay = 0
-                ::tc8::stimulus::emitMethodRequestAfter(iface_copy, deactivate);
+                ::tc8::stimulus::emitMethodRequestAfter(iface_copy, deactivate, {},
+                                                        deactivate_dest);
             });
     }
 };

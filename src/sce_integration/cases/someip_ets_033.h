@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::SomeipEts033SM> : SomeIpAnyBase<cases::SomeipEts033
         // observe; CommonAPI's MinSize axis is unenforced on this stack).
         target.payload = {0x00, 0x00, 0x00, 0x02, 0x10, 0x11};
         target.length_override = 0x100u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

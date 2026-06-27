@@ -29,7 +29,7 @@ struct TestCaseTraits<cases::Rpc01SM> : SomeIpAnyBase<cases::Rpc01SM> {
         "Single UDP/TCP transport for all methods of SERVICE-ID-2";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& /*cfg*/,
+                         const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::stimulus::FindServiceTarget find{};
         find.service_id = ::tc8::someipsrv_si2::kServiceId;
@@ -39,11 +39,12 @@ struct TestCaseTraits<cases::Rpc01SM> : SomeIpAnyBase<cases::Rpc01SM> {
         target.service_id = ::tc8::someipsrv_si2::kServiceId;
         target.method_id = ::tc8::someipsrv_si2::kMethodIdEcho;
         target.payload = {0x42};
-        ::tc8::stimulus::MethodRequestDestination dest{};
-        dest.port = 30506;  // SERVICE-ID-2 unreliable port (vsomeip-multi-service.json)
+        // SERVICE-ID-2 unreliable port (vsomeip-multi-service.json) — not the
+        // configured services[0] endpoint, so name the port explicitly; the
+        // DUT IP still derives from --expect.
         ::tc8::stimulus::emitMethodRequestAfter(iface, target,
                                                 ::tc8::stimulus::MethodRequestTiming{},
-                                                dest);
+                                                ::tc8::sce::someipUdpMethodDest(cfg, 30506));
     }
 };
 

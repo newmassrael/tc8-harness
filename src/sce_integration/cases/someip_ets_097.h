@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         activate.method_id    = 0x002F;       // clientServiceActivate
         activate.message_type = 0x01;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Give the DUT proxy buildProxy() time to register before triggering
         // the subscribe — without this gap vsomeip rejects the subscribe
@@ -95,7 +95,7 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         // ignores duration; delay is consumed by std::this_thread::sleep_for.
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // OfferService #1 — TCP endpoint advertised but tester listener not
         // up yet. Kernel sends RST to any DUT SYN → vsomeip ECONNREFUSED.

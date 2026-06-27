@@ -62,7 +62,7 @@ struct TestCaseTraits<cases::SomeipEts050SM> : SomeIpAnyBase<cases::SomeipEts050
         step1.payload[1] = 0x00;
         step1.payload[2] = 0x00;
         step1.payload[3] = 0x80;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, step1);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, step1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Step 3: malformed string-length 0x02, session_id 0x0002.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -77,7 +77,7 @@ struct TestCaseTraits<cases::SomeipEts050SM> : SomeIpAnyBase<cases::SomeipEts050
         step3.payload[3] = 0x02;
         ::tc8::stimulus::MethodRequestTiming step3_timing{};
         step3_timing.pre_emit_wait = std::chrono::milliseconds(0);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, step3, step3_timing);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, step3, step3_timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

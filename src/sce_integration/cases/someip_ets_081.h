@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081
         activate.method_id    = 0x002F;       // clientServiceActivate
         activate.message_type = 0x01;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Proxy buildProxy() registration delay — same gap as ETS_084/_097.
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
@@ -72,7 +72,7 @@ struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081
         // UInt32 delay (0) + UInt32 duration (0).
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Open the tester-side TCP listener BEFORE emitting the offer.
         // For TCP-reliable eventgroups vsomeip on the DUT delays the wire

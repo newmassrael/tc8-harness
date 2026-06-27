@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::Rpc19SM> : SomeIpAnyBase<cases::Rpc19SM> {
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
         target.client_id = 0xCAFE;
         target.session_id = 0x1234;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

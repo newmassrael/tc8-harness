@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::Rpc04SM> : SomeIpAnyBase<cases::Rpc04SM> {
         ::tc8::stimulus::MethodRequestTarget target{};
         target.message_type = 0x01;     // REQUEST_NO_RETURN
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

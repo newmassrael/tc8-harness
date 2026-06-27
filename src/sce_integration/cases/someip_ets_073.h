@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::SomeipEts073SM> : SomeIpAnyBase<cases::SomeipEts073
             // value = 0x42 (uint8)
             0x42,
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

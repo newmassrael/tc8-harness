@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts067SM> : SomeIpAnyBase<cases::SomeipEts067
         // 32-bit BE array length = 0 (no elements follow). Wire payload =
         // 4 bytes; SOME/IP Length = 8 + 4 = 12 (default formula).
         target.payload = {0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

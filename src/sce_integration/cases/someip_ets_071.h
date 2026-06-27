@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts071SM> : SomeIpAnyBase<cases::SomeipEts071
             // value = 0x42 (only 1 byte, not 128 as unionLength claims)
             0x42,
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

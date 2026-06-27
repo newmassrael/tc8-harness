@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::SomeipEts082SM> : SomeIpAnyBase<cases::SomeipEts082
         activate.method_id    = 0x002F;       // clientServiceActivate
         activate.message_type = 0x01;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Proxy buildProxy() registration delay — same gap as ETS_081/_084/_097.
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
@@ -62,7 +62,7 @@ struct TestCaseTraits<cases::SomeipEts082SM> : SomeIpAnyBase<cases::SomeipEts082
         sub_trigger.message_type = 0x01;      // Fire&Forget
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Tester-side OfferService #1 for ets3 with UDP endpoint at
         // port 30510. session_id = 0x000A high enough that the

@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts043SM> : SomeIpAnyBase<cases::SomeipEts043
             0x00, 0x69,              // 'i' UTF-16 BE
             0x00, 0x00,              // UTF-16 null terminator (last 2 bytes)
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

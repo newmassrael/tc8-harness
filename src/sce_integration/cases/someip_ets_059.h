@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::SomeipEts059SM> : SomeIpAnyBase<cases::SomeipEts059
         target.method_id         = 0x0001;  // resetInterface (METHOD-ID-FIRE-FORGET-SI-1).
         target.message_type      = 0x01;    // RequestNoReturn (Fire&Forget) per SOME/IP §4.7.4.
         target.interface_version = 0xFF;    // Wrong version — DUT declares 0x01.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts070SM> : SomeIpAnyBase<cases::SomeipEts070
         // SOME/IP Length lies: claims 256 bytes follow Request ID while
         // UDP only carries 17 (8 Request-ID-tail + 9 union payload).
         target.length_override = 0x100u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

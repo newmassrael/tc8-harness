@@ -49,20 +49,20 @@ struct TestCaseTraits<cases::SomeipEts166SM> : SomeIpAnyBase<cases::SomeipEts166
         // 1. getFieldA — Method 0x40, no payload.
         ::tc8::stimulus::MethodRequestTarget get1{};
         get1.method_id = 0x0040;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get1);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setFieldA(0x55) — Method 0x42, payload [0x55].
         ::tc8::stimulus::MethodRequestTarget set{};
         set.method_id = 0x0042;
         set.payload   = {0x55};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, set);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. getFieldA again — should now return 0x55.
         ::tc8::stimulus::MethodRequestTarget get2{};
         get2.method_id = 0x0040;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get2);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

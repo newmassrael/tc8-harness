@@ -74,7 +74,7 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
         step1.payload[1] = 0x00;
         step1.payload[2] = 0x00;
         step1.payload[3] = 0x80;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, step1);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, step1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Step 3: same wire bytes but string-length prefix corrupted
         // to 0x02 (claims 2 bytes follow), session_id 0x0002 -> DUT
@@ -93,7 +93,7 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
         step3.payload[3] = 0x02;
         ::tc8::stimulus::MethodRequestTiming step3_timing{};
         step3_timing.pre_emit_wait = std::chrono::milliseconds(0);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, step3, step3_timing);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, step3, step3_timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

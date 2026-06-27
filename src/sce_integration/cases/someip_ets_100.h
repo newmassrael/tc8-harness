@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts100SM> : SomeIpAnyBase<cases::SomeipEts100
         target.method_id    = 0x002F;        // clientServiceActivate
         target.message_type = 0x01;          // Fire&Forget
         target.payload      = {0x00};        // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

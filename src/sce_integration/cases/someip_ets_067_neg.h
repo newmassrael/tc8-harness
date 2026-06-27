@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts067NegSM>
         ::tc8::stimulus::MethodRequestTarget target{};
         target.method_id = 0x0009;
         target.payload   = {0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

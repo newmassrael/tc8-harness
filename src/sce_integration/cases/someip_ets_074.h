@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts074SM> : SomeIpAnyBase<cases::SomeipEts074
         target.method_id = 0x0008;
         target.payload = {0x42};
         target.interface_version = 0xFF;  // ets.fidl version.major == 1
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts049SM> : SomeIpAnyBase<cases::SomeipEts049
             0x00,                    // trailing null terminator
         };
         target.length_override = 0x100u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

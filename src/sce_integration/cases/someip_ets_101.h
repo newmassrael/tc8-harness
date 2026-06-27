@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::SomeipEts101SM> : SomeIpAnyBase<cases::SomeipEts101
         target.method_id    = 0x002F;
         target.message_type = 0x01;
         target.payload      = {0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         ::tc8::stimulus::OfferServiceTarget stop{};
         stop.ttl        = 0;            // ttl == 0 -> StopOfferService.
         stop.session_id = 0x0001;

@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts003SM> : SomeIpAnyBase<cases::SomeipEts003
         // Empty payload — Length self-computes to 0x08 (header-only,
         // no UInt8 body). CommonAPI deserializer hits EOF.
         target.payload = {};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

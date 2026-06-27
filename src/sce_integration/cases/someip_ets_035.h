@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::SomeipEts035SM> : SomeIpAnyBase<cases::SomeipEts035
         "echoUINT8RELIABLE — DUT echoes UInt8 over the SOME/IP TCP reliable transport";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& /*cfg*/,
+                         const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
 
@@ -40,12 +40,11 @@ struct TestCaseTraits<cases::SomeipEts035SM> : SomeIpAnyBase<cases::SomeipEts035
         req.method_id = 0x000A;  // METHOD-ID echoUINT8RELIABLE (TCP)
         req.payload = {0x42};
 
-        // tc8-dut SERVICE-ID-1 instance 0x0001 reliable endpoint
-        // (vsomeip.json reliable.port = 30501).
-        ::tc8::stimulus::MethodRequestDestination dest{};
-        dest.port = 30501;
+        // tc8-dut SERVICE-ID-1 instance 0x0001 reliable endpoint — the
+        // configured services[0] TCP port (vsomeip.json reliable.port).
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req,
-                                                    ::tc8::stimulus::MethodRequestTiming{}, dest);
+                                                    ::tc8::stimulus::MethodRequestTiming{},
+                                                    ::tc8::sce::someipTcpMethodDest(cfg));
     }
 };
 

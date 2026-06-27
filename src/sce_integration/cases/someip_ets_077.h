@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::SomeipEts077SM> : SomeIpAnyBase<cases::SomeipEts077
         target.service_id = 0x9999;  // Unknown service
         target.method_id = 0x0008;
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

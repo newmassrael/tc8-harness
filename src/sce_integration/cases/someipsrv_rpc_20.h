@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::Rpc20SM> : SomeIpAnyBase<cases::Rpc20SM> {
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
         // interface_version default 0x01 already matches expected.major_
         // version configured by smoke-test.sh (--expect major_version=1).
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

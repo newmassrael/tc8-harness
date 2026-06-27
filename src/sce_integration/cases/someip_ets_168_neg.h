@@ -52,8 +52,9 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
-        ::tc8::stimulus::MethodRequestDestination tcp_dest{};
-        tcp_dest.port = 30501U;  // SomeIpReliableUnicastPort per ets.fdepl
+        // SomeIpReliableUnicastPort per ets.fdepl = the configured services[0]
+        // TCP endpoint.
+        const auto tcp_dest = ::tc8::sce::someipTcpMethodDest(cfg);
 
         // 1. getTestFieldUint8Reliable (Method 0x2A) over TCP.
         ::tc8::stimulus::MethodRequestTarget get1{};

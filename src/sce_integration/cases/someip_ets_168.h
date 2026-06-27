@@ -46,8 +46,9 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
         // 1. getTestFieldUint8Reliable (Method 0x2A) over TCP.
         ::tc8::stimulus::MethodRequestTarget get1{};
         get1.method_id = 0x002A;
-        ::tc8::stimulus::MethodRequestDestination tcp_dest{};
-        tcp_dest.port = 30501U;  // SomeIpReliableUnicastPort per ets.fdepl
+        // SomeIpReliableUnicastPort per ets.fdepl = the configured services[0]
+        // TCP endpoint.
+        const auto tcp_dest = ::tc8::sce::someipTcpMethodDest(cfg);
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get1,
                                                    ::tc8::stimulus::MethodRequestTiming{},
                                                    tcp_dest);

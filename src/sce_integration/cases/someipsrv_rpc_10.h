@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::Rpc10SM> : SomeIpAnyBase<cases::Rpc10SM> {
         // fireAndForget in ets.fidl. Tester drives it with msg_type =
         // 0x00 (Request) — the wrong shape per the spec note.
         target.method_id = 0x0001;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

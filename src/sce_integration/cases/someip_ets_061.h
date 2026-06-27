@@ -60,7 +60,8 @@ struct TestCaseTraits<cases::SomeipEts061SM> : SomeIpAnyBase<cases::SomeipEts061
         bundle.push_back(m2);
 
         ::tc8::stimulus::emitBundledMethodRequestsUdp(iface, bundle,
-                                                     std::chrono::milliseconds(500));
+                                                     std::chrono::milliseconds(500),
+                                                     ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

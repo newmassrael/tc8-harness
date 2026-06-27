@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::SomeipEts034SM> : SomeIpAnyBase<cases::SomeipEts034
             // value = 0x42
             0x42,
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoUINT8E2E response: the 17-byte E2E payload echoed

@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::Rpc11SM> : SomeIpAnyBase<cases::Rpc11SM> {
         ::tc8::stimulus::MethodRequestTarget target{};
         target.method_id = 0x0042;
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

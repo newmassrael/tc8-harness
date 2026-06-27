@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::SomeipEts042SM> : SomeIpAnyBase<cases::SomeipEts042
             0x00, 0x00,              // UTF-16 null terminator
         };
         target.length_override = 0x0Au;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

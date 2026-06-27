@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::SomeipEts078SM> : SomeIpAnyBase<cases::SomeipEts078
         target.method_id = 0x0008;
         target.payload = {0x42};
         target.protocol_version = 0xFF;  // SOME/IP V1.1 fixed at 0x01
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

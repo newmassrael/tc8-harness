@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::Onwire03SM> : SomeIpAnyBase<cases::Onwire03SM> {
         target.client_id = 0xCAFE;
         target.session_id = 0x1234;
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

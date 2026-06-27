@@ -65,13 +65,11 @@ struct TestCaseTraits<cases::SomeipEts068SM> : SomeIpAnyBase<cases::SomeipEts068
         m3.payload    = {0x44};
         bundle.push_back(m3);
 
-        // tc8-dut SERVICE-ID-1 instance 0x0001 reliable endpoint
-        // (vsomeip.json reliable.port = 30501).
-        ::tc8::stimulus::MethodRequestDestination dest{};
-        dest.port = 30501;
+        // tc8-dut SERVICE-ID-1 instance 0x0001 reliable endpoint — the
+        // configured services[0] TCP port (vsomeip.json reliable.port).
         ::tc8::stimulus::emitBundledMethodRequestsTcp(iface, bundle,
                                                      std::chrono::milliseconds(500),
-                                                     dest,
+                                                     ::tc8::sce::someipTcpMethodDest(cfg),
                                                      std::chrono::milliseconds(800));
     }
 };

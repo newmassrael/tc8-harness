@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts031SM> : SomeIpAnyBase<cases::SomeipEts031
         // CommonAPI UInt8[] with 8-bit length prefix:
         // [len = 0x03] [0x42 0x43 0x44]. payload_len = 4.
         target.payload = {0x03, 0x42, 0x43, 0x44};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

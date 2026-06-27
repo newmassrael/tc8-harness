@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::SomeipEts002SM> : SomeIpAnyBase<cases::SomeipEts002
         target.method_id = 0x0008;
         target.payload = {0x42};
         target.length_override = 0x20u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::Rpc03SM> : SomeIpAnyBase<cases::Rpc03SM> {
                                              cfg.stimulus_timing);
         ::tc8::stimulus::MethodRequestTarget target{};
         target.method_id = 0x0040;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

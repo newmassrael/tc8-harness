@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::SomeipEts058SM> : SomeIpAnyBase<cases::SomeipEts058
         // carries. Larger-magnitude variant of ETS_001 (0x100) /
         // ETS_002 (0x20); both lenient-verdict 4-path.
         target.length_override = 0x00010000u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

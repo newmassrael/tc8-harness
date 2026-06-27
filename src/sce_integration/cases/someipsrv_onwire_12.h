@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::Onwire12SM> : SomeIpAnyBase<cases::Onwire12SM> {
         ::tc8::stimulus::MethodRequestTarget target{};
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

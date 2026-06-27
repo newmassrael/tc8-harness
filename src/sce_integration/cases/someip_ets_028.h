@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::SomeipEts028SM> : SomeIpAnyBase<cases::SomeipEts028
         // [len_BE = 3] [0x42 0x43 0x44]. Length self-computed to
         // 8 + 7 = 15 in the SOME/IP header.
         target.payload = {0x00, 0x00, 0x00, 0x03, 0x42, 0x43, 0x44};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

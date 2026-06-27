@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::SomeipEts052SM> : SomeIpAnyBase<cases::SomeipEts052
             0x69,                    // 'i'
             0x00,                    // trailing null terminator
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

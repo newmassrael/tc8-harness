@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::SomeipEts063SM> : SomeIpAnyBase<cases::SomeipEts063
         target.payload[5]  = 0x69;  // 'i' lo
         // [6..7] = 00 00 (UTF-16 null terminator), [8..63] = 0
         target.payload[64] = 0xFF;  // extra byte past the fixed frame
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

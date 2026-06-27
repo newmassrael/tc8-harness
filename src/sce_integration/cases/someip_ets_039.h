@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts039SM> : SomeIpAnyBase<cases::SomeipEts039
             0x00, 0x69,              // 'i' UTF-16 BE
             0x00, 0x00,              // UTF-16 null terminator
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoUTF16DYNAMIC response: the canonical 12-byte echo —

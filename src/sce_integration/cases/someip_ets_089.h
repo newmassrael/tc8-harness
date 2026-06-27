@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::SomeipEts089SM> : SomeIpAnyBase<cases::SomeipEts089
         // Two big-endian UInt32 args: start_ms = 0, duration_ms = 2000.
         suspend.payload      = {0x00, 0x00, 0x00, 0x00,
                                 0x00, 0x00, 0x07, 0xD0};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, suspend);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, suspend, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

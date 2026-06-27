@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::SomeipEts001SM> : SomeIpAnyBase<cases::SomeipEts001
         // udp_server_endpoint matches Length against UDP receive size
         // and rejects the frame.
         target.length_override = 0x100u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

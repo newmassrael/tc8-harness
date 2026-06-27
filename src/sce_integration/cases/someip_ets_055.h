@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::SomeipEts055SM> : SomeIpAnyBase<cases::SomeipEts055
         // than the 8-byte minimum (Request ID itself is 8 bytes). Per
         // SOME/IP §4.1.5 Length must be at least 8.
         target.length_override = 0x00000004u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target);
+        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 
