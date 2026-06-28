@@ -214,6 +214,17 @@ if(TARGET tc8_testability_server)
             $<TARGET_FILE:link_control_test>
             --gtest_filter=SetLinkState.*)
     set_tests_properties(link_state_privileged PROPERTIES SKIP_RETURN_CODE 77)
+    # Live ArpResponder over a veth pair (CAP_NET_RAW + CAP_NET_ADMIN). Links
+    # tc8_testability_server for the netns_test_util veth/CAP_NET_ADMIN scaffolding
+    # (PosixSocketBackend + the dut include path). The plain run self-skips without
+    # privilege; the netns re-run exercises the success path with no sudo.
+    tc8_add_unit_test(arp_responder_privileged_test)
+    target_link_libraries(arp_responder_privileged_test PRIVATE tc8_testability_server)
+    add_test(NAME arp_responder_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:arp_responder_privileged_test>
+            --gtest_filter=ArpResponderLive.*)
+    set_tests_properties(arp_responder_privileged PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 # Server-side integration: drives the real DUT-side Upper Tester server core
 # (tc8::ut::UpperTesterServer) over loopback with injected POSIX adapters,
