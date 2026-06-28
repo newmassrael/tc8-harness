@@ -62,6 +62,17 @@ std::string portRange(std::uint16_t lo, std::uint16_t hi) {
     return "udp portrange " + range + " or tcp portrange " + range;
 }
 
+std::string udpPorts(const std::uint16_t *ports, std::size_t count) {
+    std::string expr;
+    for (std::size_t i = 0; i < count; ++i) {
+        if (!expr.empty()) {
+            expr += " or ";
+        }
+        expr += "udp port " + std::to_string(ports[i]);
+    }
+    return expr;
+}
+
 std::string someip() {
     return portRange(tc8::dut::kCapturePortLow, tc8::dut::kCapturePortHigh);
 }
@@ -108,14 +119,24 @@ std::string vlanAware(const std::string &expr) {
 
 std::string resolveCaptureFilter(const std::optional<std::string> &cli_override,
                                  std::string_view per_case_expression,
-                                 ::tc8::BpfGroup group) {
+                                 ::tc8::BpfGroup group,
+                                 const std::uint16_t *extra_udp_ports,
+                                 std::size_t extra_udp_port_count) {
     if (cli_override.has_value()) {
         return *cli_override;
     }
     if (!per_case_expression.empty()) {
         return std::string(per_case_expression);
     }
-    return expressionFor(group);
+    const std::string base = expressionFor(group);
+    const std::string extra = udpPorts(extra_udp_ports, extra_udp_port_count);
+    if (extra.empty()) {
+        return base;
+    }
+    // OR the case's extra UDP ports (made VLAN-aware too) into the group
+    // filter so verdict traffic on ports outside the group's default range
+    // is captured. `base` is already VLAN-aware (expressionFor wraps it).
+    return "(" + base + ") or (" + vlanAware(extra) + ")";
 }
 
 std::string expressionFor(::tc8::BpfGroup group) {

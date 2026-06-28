@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 #include <type_traits>
@@ -39,6 +40,8 @@ class IDutControl;
 //
 //   Optional capture-filter override (out-of-tree escape hatch):
 //     static constexpr std::string_view kBpfExpression;
+//   Optional extra capture ports unioned into the kBpfGroup default:
+//     static constexpr std::array<std::uint16_t, N> kExtraCaptureUdpPorts;
 //   A literal libpcap filter used VERBATIM instead of the
 //   kBpfGroup-derived expression, for a case whose capture needs fall
 //   outside the closed BpfGroup enum (e.g. an OEM protocol on a
@@ -292,6 +295,42 @@ constexpr std::string_view bpfExpressionOf() {
         return Traits::kBpfExpression;
     } else {
         return std::string_view{};
+    }
+}
+
+// Detects whether TestCaseTraits<SM> declares the optional
+// `static constexpr std::array<std::uint16_t, N> kExtraCaptureUdpPorts` — extra
+// UDP ports the case's verdict needs captured beyond its kBpfGroup default
+// range (e.g. an OEM protocol on non-standard ports). The harness ORs them,
+// VLAN-aware, into the kBpfGroup-derived filter (capture::bpf::
+// resolveCaptureFilter); it does NOT touch a verbatim kBpfExpression / `-f`.
+// `extraCaptureUdpPortsData/Count<T>()` return a non-owning view onto the
+// case's static array (nullptr / 0 when the member is absent) so the registrar
+// carries it into CaseEntry uniformly — a case without the member compiles
+// unchanged. The port VALUES stay with the case (so an OEM case references its
+// own port constants directly); the harness owns the BPF assembly.
+template <typename Traits, typename = void>
+struct has_extra_capture_udp_ports : std::false_type {};
+
+template <typename Traits>
+struct has_extra_capture_udp_ports<Traits, std::void_t<decltype(Traits::kExtraCaptureUdpPorts)>>
+    : std::true_type {};
+
+template <typename Traits>
+constexpr const std::uint16_t *extraCaptureUdpPortsData() {
+    if constexpr (has_extra_capture_udp_ports<Traits>::value) {
+        return Traits::kExtraCaptureUdpPorts.data();
+    } else {
+        return nullptr;
+    }
+}
+
+template <typename Traits>
+constexpr std::size_t extraCaptureUdpPortsCount() {
+    if constexpr (has_extra_capture_udp_ports<Traits>::value) {
+        return Traits::kExtraCaptureUdpPorts.size();
+    } else {
+        return 0U;
     }
 }
 

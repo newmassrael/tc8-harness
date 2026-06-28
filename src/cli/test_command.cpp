@@ -462,7 +462,8 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
 
     const std::string bpf = capture::bpf::resolveCaptureFilter(
-        bpf_override, entry->bpf_expression, entry->bpf_group);
+        bpf_override, entry->bpf_expression, entry->bpf_group,
+        entry->extra_capture_udp_ports, entry->extra_capture_udp_port_count);
 
     // Spec section is derived from the inventory (the SSOT), not stored on
     // the case — see runListCases() / case_registry.h. Best-effort here: a

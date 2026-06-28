@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -53,6 +54,14 @@ std::string udpAndDhcpv4();
 // Primitive: "udp portrange lo-hi or tcp portrange lo-hi".
 std::string portRange(std::uint16_t lo, std::uint16_t hi);
 
+// Primitive: "udp port A [or udp port B ...]" for the `count` UDP ports (host
+// order) at `ports`. Empty string when `count == 0`. Bare (not VLAN-wrapped) —
+// the caller applies vlanAware() if the capture path needs tag transparency.
+// Used to union a case's extra capture ports into the default filter (see
+// resolveCaptureFilter); the port VALUES stay with the case (e.g. an OEM
+// protocol on non-standard ports), the harness owns the BPF assembly.
+std::string udpPorts(const std::uint16_t *ports, std::size_t count);
+
 // Make a filter match its target frames whether or not they carry a
 // single IEEE 802.1Q tag: returns `(<expr>) or (vlan and (<expr>))`.
 //
@@ -79,12 +88,19 @@ std::string expressionFor(::tc8::BpfGroup group);
 //   1. `cli_override` — the top-level `-f/--bpf` flag, used verbatim.
 //   2. `per_case_expression` — a case's own `kBpfExpression`, verbatim;
 //      lets an out-of-tree case ship a filter outside the BpfGroup enum.
-//   3. `expressionFor(group)` — the kBpfGroup-derived, VLAN-aware filter.
+//   3. `expressionFor(group)` — the kBpfGroup-derived, VLAN-aware filter,
+//      with `extra_udp_ports` (a case's `kExtraCaptureUdpPorts`) OR'd in,
+//      VLAN-aware, so a case whose verdict traffic leaves the group's
+//      default port range is still captured.
 // (1) and (2) are passed to the kernel as-is (the caller owns any
 // VLAN-awareness), exactly as a hand-written `-f` is; only (3) is wrapped.
-// This is the single place the three filter sources are ranked.
+// The extra ports apply to (3) ONLY — a verbatim `-f` / kBpfExpression already
+// owns its full scope, so they are never appended to it. This is the single
+// place the filter sources are ranked.
 std::string resolveCaptureFilter(const std::optional<std::string> &cli_override,
                                  std::string_view per_case_expression,
-                                 ::tc8::BpfGroup group);
+                                 ::tc8::BpfGroup group,
+                                 const std::uint16_t *extra_udp_ports = nullptr,
+                                 std::size_t extra_udp_port_count = 0);
 
 }  // namespace tc8::capture::bpf

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -63,6 +64,15 @@ struct CaseEntry {
     // string literal so the view outlives the registry. See
     // `capture::bpf::resolveCaptureFilter`.
     std::string_view bpf_expression = {};
+    // Optional extra UDP capture ports (from TestCaseTraits<>::
+    // kExtraCaptureUdpPorts), OR'd VLAN-aware into the kBpfGroup-derived filter
+    // by `capture::bpf::resolveCaptureFilter` so a case whose verdict traffic
+    // uses ports outside the group's default range is still captured. A
+    // non-owning view onto the case's static array (nullptr / 0 = none); the
+    // array has static storage so the pointer outlives the registry, exactly as
+    // `bpf_expression` points at a static string literal.
+    const std::uint16_t *extra_capture_udp_ports = nullptr;
+    std::size_t extra_capture_udp_port_count = 0;
     // Optional DUT-control capability requirement (from TestCaseTraits<>::
     // kRequiredCapabilities; bitmask of DutCapability). 0 = no requirement.
     // The CLI capability-skip gate skips a case whose bits are not all present
@@ -128,7 +138,9 @@ template <typename StateMachine> struct CaseRegistrar {
                                                       "e.g. 'SOMEIPSRV_FORMAT_01' or 'SOMEIP_ETS_025'");
         CaseRegistry::instance().add(
             CaseEntry{T::kCaseId, deriveCategory(T::kCaseId), T::kDescription, T::kDeprecated,
-                      T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(), requiredCapabilitiesOf<T>(),
+                      T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(),
+                      extraCaptureUdpPortsData<T>(), extraCaptureUdpPortsCount<T>(),
+                      requiredCapabilitiesOf<T>(),
                       [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
                       },

@@ -52,6 +52,16 @@ TEST(BpfFilter, PortRangeLiteral) {
     EXPECT_EQ(portRange(100, 200), "udp portrange 100-200 or tcp portrange 100-200");
 }
 
+TEST(BpfFilter, UdpPortsLiteral) {
+    const std::uint16_t one[] = {51712};
+    EXPECT_EQ(udpPorts(one, 1), "udp port 51712");
+    // The CAN dedicated ports 0xCA00 / 0xCACC / 0xCACD as a worked example.
+    const std::uint16_t three[] = {0xCA00, 0xCACC, 0xCACD};
+    EXPECT_EQ(udpPorts(three, 3),
+              "udp port 51712 or udp port 51916 or udp port 51917");
+    EXPECT_EQ(udpPorts(nullptr, 0), "");
+}
+
 TEST(BpfFilter, SomeIpUsesMockCaptureWindow) {
     const std::string expr = someip();
     const std::string lo = std::to_string(::tc8::dut::kCapturePortLow);
@@ -100,6 +110,44 @@ TEST(BpfFilter, ResolveCaptureFilterPrecedence) {
     //    kBpfGroup filter (the normal path for every in-tree case).
     EXPECT_EQ(resolveCaptureFilter(std::nullopt, "", BpfGroup::Arp),
               vlanAware(arp()));
+}
+
+TEST(BpfFilter, ResolveCaptureFilterUnionsExtraUdpPorts) {
+    using ::tc8::BpfGroup;
+    const std::uint16_t can_ports[] = {0xCA00, 0xCACC, 0xCACD};
+    // No override + extra ports → group filter OR (VLAN-aware extra ports), so
+    // a case whose verdict traffic leaves the group's default range is captured.
+    EXPECT_EQ(resolveCaptureFilter(std::nullopt, "", BpfGroup::SomeIp, can_ports, 3),
+              "(" + expressionFor(BpfGroup::SomeIp) + ") or (" +
+                  vlanAware(udpPorts(can_ports, 3)) + ")");
+    // Extra ports apply ONLY to the group-derived path: a verbatim `-f`
+    // override owns the whole filter, so they are NOT appended.
+    EXPECT_EQ(resolveCaptureFilter(std::optional<std::string>("ether host 1:2:3:4:5:6"),
+                                   "", BpfGroup::SomeIp, can_ports, 3),
+              "ether host 1:2:3:4:5:6");
+    // Same for a verbatim per-case kBpfExpression.
+    EXPECT_EQ(resolveCaptureFilter(std::nullopt, "udp port 5000", BpfGroup::SomeIp, can_ports, 3),
+              "udp port 5000");
+    // Empty extra-port list → identical to the plain group filter.
+    EXPECT_EQ(resolveCaptureFilter(std::nullopt, "", BpfGroup::SomeIp, nullptr, 0),
+              expressionFor(BpfGroup::SomeIp));
+}
+
+TEST(BpfFilter, ExtraPortsUnionCompilesUnderLibpcap) {
+    // The string-compare tests above do not catch a syntactically-invalid
+    // union; compile it against a dead handle so a malformed OR is caught here.
+    pcap_t *dead = pcap_open_dead(DLT_EN10MB, 65535);
+    ASSERT_NE(dead, nullptr);
+    const std::uint16_t can_ports[] = {0xCA00, 0xCACC, 0xCACD};
+    const std::string expr =
+        resolveCaptureFilter(std::nullopt, "", ::tc8::BpfGroup::SomeIp, can_ports, 3);
+    bpf_program prog{};
+    const int rc = pcap_compile(dead, &prog, expr.c_str(), 1, PCAP_NETMASK_UNKNOWN);
+    EXPECT_EQ(rc, 0) << "pcap_compile rejected union: " << expr << " — " << pcap_geterr(dead);
+    if (rc == 0) {
+        pcap_freecode(&prog);
+    }
+    pcap_close(dead);
 }
 
 TEST(BpfFilter, EveryExpressionCompilesUnderLibpcap) {
