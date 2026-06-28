@@ -1,6 +1,7 @@
 #include "client_mode.h"
 
 #include "client_mode_wire.h"
+#include "someip/wire.h"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -15,6 +16,12 @@
 #include <vector>
 
 namespace tc8::dut {
+
+// Big-endian appenders + the 16-byte SOME/IP header layout are the shared wire
+// SSOT (someip/wire.h, header-only — no link edge into the firmware).
+using someip::putBe16;
+using someip::putBe24;
+using someip::putBe32;
 
 namespace {
 
@@ -41,42 +48,24 @@ constexpr std::chrono::milliseconds kRepetitionBaseDelay{200};
 // for ETS_099 is 4 s, so a 50 ms initial gives plenty of margin.
 constexpr std::chrono::milliseconds kInitialWait{50};
 
-void putBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-void putBe24(std::vector<std::uint8_t> &b, std::uint32_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-void putBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 24) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
 // 44-byte SOME/IP-SD FindService datagram (16 B SOME/IP + 28 B SD payload
-// with one entry, no options). Mirrors `tc8::stimulus::buildFindService`
-// at src/stimulus/someip_sd_builder.cpp; duplicated here so tc8-dut
-// firmware does not link the harness/tester library (reverse-direction
-// dependency that would taint the cross-build path for real ECUs).
+// with one entry, no options). The 16-byte header routes through the shared
+// someip/wire.h SSOT (header-only, no link edge); the SD-payload shape mirrors
+// `tc8::stimulus::buildFindService` and stays firmware-local so tc8-dut does not
+// link the harness/tester library (reverse dependency that would taint the
+// cross-build path for real ECUs).
 std::vector<std::uint8_t> buildFindServiceWire(std::uint16_t session_id) {
     std::vector<std::uint8_t> b;
     b.reserve(44);
 
-    // SOME/IP header.
-    putBe16(b, 0xFFFF);    // service_id (SD)
-    putBe16(b, 0x8100);    // method_id (SD)
-    putBe32(b, 36);        // length: 8 (request_id + proto/iface/msgtype/retcode)
-                           //       + 28 (SD payload) = 36, counted from request_id.
-    putBe16(b, 0);         // client_id
-    putBe16(b, session_id);
-    b.push_back(0x01);     // proto_ver
-    b.push_back(0x01);     // iface_ver
-    b.push_back(0x02);     // msg_type = NOTIFICATION
-    b.push_back(0x00);     // return_code
+    // SOME/IP header via the shared wire SSOT.
+    someip::Header h;
+    h.service_id = 0xFFFF;  // SD
+    h.method_id = 0x8100;   // SD
+    h.length = 36;          // 8 (request id..return code) + 28 (SD payload).
+    h.session_id = session_id;
+    h.message_type = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    someip::appendHeader(b, h);
 
     // SD header.
     b.push_back(0xC0);     // Reboot=1 Unicast=1 Reserved=0
@@ -173,22 +162,18 @@ int sendFindServiceOnce(const std::vector<std::uint8_t> &wire) {
 
 }  // namespace
 
-std::vector<std::uint8_t> buildMethodRequestWire(std::uint16_t service_id, std::uint16_t method_id,
-                                                 std::uint16_t client_id, std::uint16_t session_id,
-                                                 std::uint8_t message_type,
-                                                 const std::vector<std::uint8_t> &payload) {
+std::vector<std::uint8_t> buildMethodRequestWire(const MethodCall &call) {
     std::vector<std::uint8_t> b;
-    b.reserve(16 + payload.size());
-    putBe16(b, service_id);
-    putBe16(b, method_id);
-    putBe32(b, static_cast<std::uint32_t>(8 + payload.size()));  // length from Request ID.
-    putBe16(b, client_id);
-    putBe16(b, session_id);
-    b.push_back(0x01);  // protocol_version
-    b.push_back(0x01);  // interface_version
-    b.push_back(message_type);
-    b.push_back(0x00);  // return_code E_OK (a request carries E_OK).
-    b.insert(b.end(), payload.begin(), payload.end());
+    b.reserve(16 + call.payload.size());
+    someip::Header h;
+    h.service_id = call.service_id;
+    h.method_id = call.method_id;
+    h.length = static_cast<std::uint32_t>(8 + call.payload.size());  // from Request ID.
+    h.client_id = call.client_id;
+    h.session_id = call.session_id;
+    h.message_type = static_cast<std::uint8_t>(call.message_type);
+    someip::appendHeader(b, h);  // proto/iface = 0x01, return_code = E_OK by default.
+    b.insert(b.end(), call.payload.begin(), call.payload.end());
     return b;
 }
 

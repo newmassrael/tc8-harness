@@ -3,22 +3,30 @@
 #include <cstdint>
 #include <vector>
 
+#include "someip/protocol.h"
+
 namespace tc8::dut {
 
-// DUT-side (client-role) SOME/IP Method Request datagram for the SOMEIPCLT
-// scenarios — the wire the DUT sends when it calls a method on the tester's
-// offered service. Hand-built (mirrors tc8::stimulus::buildMethodRequest at
-// src/stimulus/someip_rpc_builder.cpp) and kept in the firmware module so
-// tc8-dut does not link the harness/tester library — the same reverse-direction
-// dependency avoidance documented on buildFindServiceWire (client_mode.cpp).
-//
-// Length field = 8 + payload.size() (bytes from Request ID through the end);
-// return_code is E_OK (0x00) and protocol/interface version are 0x01 per the
-// SOME/IP header layout. `message_type` is explicit so the caller drives
-// Request (0x00) or RequestNoReturn (0x01).
-std::vector<std::uint8_t> buildMethodRequestWire(std::uint16_t service_id, std::uint16_t method_id,
-                                                 std::uint16_t client_id, std::uint16_t session_id,
-                                                 std::uint8_t message_type,
-                                                 const std::vector<std::uint8_t> &payload);
+// Fields of a DUT-side (client-role) SOME/IP Method Request. Firmware-local
+// (mirrors the tester's tc8::stimulus::SomeIpRpcMessage) so tc8-dut carries
+// named-field safety without linking the harness/tester library. `message_type`
+// is the typed enum — someip/protocol.h is a header-only leaf the firmware may
+// include (no link edge) — so the caller drives Request / RequestNoReturn
+// without a raw magic byte.
+struct MethodCall {
+    std::uint16_t service_id = 0;
+    std::uint16_t method_id = 0;
+    std::uint16_t client_id = 0;
+    std::uint16_t session_id = 0;
+    someip::MessageType message_type = someip::MessageType::REQUEST;
+    std::vector<std::uint8_t> payload{};
+};
+
+// The datagram the DUT sends when it calls a method on the tester's offered
+// service (SOMEIPCLT). Builds the 16-byte SOME/IP header via someip::appendHeader
+// — the shared wire SSOT, so the firmware and the tester's buildMethodRequest
+// cannot drift — plus the payload. Length field = 8 + payload.size() (Request ID
+// through the end); return_code is E_OK and protocol/interface version are 0x01.
+std::vector<std::uint8_t> buildMethodRequestWire(const MethodCall &call);
 
 }  // namespace tc8::dut

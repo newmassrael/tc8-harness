@@ -13,8 +13,14 @@ namespace {
 // byte-offset regression here means tc8-dut would emit a malformed call the
 // tester (or a real ECU's peer) could not dispatch.
 TEST(ClientModeWire, MethodRequestHeaderLayout) {
-    const std::vector<std::uint8_t> payload = {0x42};
-    const auto b = buildMethodRequestWire(0xF4E8, 0x0008, 0x1234, 0x0007, 0x00, payload);
+    MethodCall call{};
+    call.service_id = 0xF4E8;
+    call.method_id = 0x0008;
+    call.client_id = 0x1234;
+    call.session_id = 0x0007;
+    call.message_type = someip::MessageType::REQUEST;
+    call.payload = {0x42};
+    const auto b = buildMethodRequestWire(call);
     ASSERT_EQ(b.size(), 17u);  // 16-byte header + 1 payload byte.
     EXPECT_EQ(b[0], 0xF4u);  // service_id 0xF4E8
     EXPECT_EQ(b[1], 0xE8u);
@@ -36,7 +42,12 @@ TEST(ClientModeWire, MethodRequestHeaderLayout) {
 }
 
 TEST(ClientModeWire, FireAndForgetNoPayload) {
-    const auto b = buildMethodRequestWire(0xF4E8, 0x0008, 0, 1, 0x01, {});
+    MethodCall call{};
+    call.service_id = 0xF4E8;
+    call.method_id = 0x0008;
+    call.session_id = 1;
+    call.message_type = someip::MessageType::REQUEST_NO_RETURN;
+    const auto b = buildMethodRequestWire(call);
     ASSERT_EQ(b.size(), 16u);
     EXPECT_EQ(b[7], 0x08u);   // length = 8 (no payload)
     EXPECT_EQ(b[14], 0x01u);  // RequestNoReturn

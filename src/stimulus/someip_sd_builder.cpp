@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <thread>
 
-#include "someip/protocol.h"
+#include "someip/wire.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/udp_emit.h"
 #include "tc8/dut_config.h"
@@ -15,28 +15,10 @@ namespace tc8::stimulus {
 // the literal (tc8::dut::kSdPort warns that divergence silently breaks cases).
 using tc8::dut::kSdPort;
 
-namespace {
-
-// Big-endian helpers — SOME/IP wire order is network byte order.
-void putBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
-void putBe24(std::vector<std::uint8_t> &b, std::uint32_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
-void putBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 24) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
-}  // namespace
+// Big-endian appenders are the shared SOME/IP wire SSOT (someip/wire.h).
+using someip::putBe16;
+using someip::putBe24;
+using someip::putBe32;
 
 std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     // SOME/IP-SD TR_SOMEIP §7.3 wire layout:

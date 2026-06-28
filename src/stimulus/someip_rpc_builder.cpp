@@ -11,51 +11,29 @@
 #include <thread>
 #include <unistd.h>
 
-#include "someip/protocol.h"
+#include "someip/wire.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/udp_emit.h"
 
 namespace tc8::stimulus {
 
-namespace {
-
-// Big-endian helpers — SOME/IP wire order is network byte order. Mirrors
-// the helpers in `someip_sd_builder.cpp`; kept private to each TU so neither
-// becomes a load-bearing dependency for the other.
-void putBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
-void putBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
-    b.push_back(static_cast<std::uint8_t>((v >> 24) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
-}
-
-}  // namespace
-
 std::vector<std::uint8_t> buildMethodRequest(const SomeIpRpcMessage &t) {
     std::vector<std::uint8_t> b;
     b.reserve(16 + t.payload.size());
-    putBe16(b, t.service_id);
-    putBe16(b, t.method_id);
-    // Length covers everything from Request ID through end of payload, i.e.
-    // 4 (Request ID) + 4 (proto/iface/msg_type/return_code) + payload. The
-    // optional override lets cases drive deliberate header/payload
-    // mismatches (§5.1.6 ETS_001/_002 PRS_SOMEIP_00099 axis).
-    const std::uint32_t length =
-        t.length_override.has_value()
-            ? *t.length_override
-            : static_cast<std::uint32_t>(8 + t.payload.size());
-    putBe32(b, length);
-    putBe16(b, t.client_id);
-    putBe16(b, t.session_id);
-    b.push_back(t.protocol_version);
-    b.push_back(t.interface_version);
-    b.push_back(t.message_type_override.value_or(static_cast<std::uint8_t>(t.message_type)));
-    b.push_back(t.return_code_override.value_or(static_cast<std::uint8_t>(t.return_code)));
+    someip::Header h;
+    h.service_id = t.service_id;
+    h.method_id = t.method_id;
+    // Length covers everything from Request ID through end of payload. The
+    // optional override lets cases drive deliberate header/payload mismatches
+    // (§5.1.6 ETS_001/_002 PRS_SOMEIP_00099 axis).
+    h.length = t.length_override.value_or(static_cast<std::uint32_t>(8 + t.payload.size()));
+    h.client_id = t.client_id;
+    h.session_id = t.session_id;
+    h.protocol_version = t.protocol_version;
+    h.interface_version = t.interface_version;
+    h.message_type = t.message_type_override.value_or(static_cast<std::uint8_t>(t.message_type));
+    h.return_code = t.return_code_override.value_or(static_cast<std::uint8_t>(t.return_code));
+    someip::appendHeader(b, h);
     b.insert(b.end(), t.payload.begin(), t.payload.end());
     return b;
 }

@@ -131,7 +131,8 @@ add_executable(client_mode_wire_test
     client_mode_wire_test.cpp
     ${PROJECT_SOURCE_DIR}/dut/dut_service/client_mode.cpp)
 target_include_directories(client_mode_wire_test PRIVATE
-    ${PROJECT_SOURCE_DIR}/dut/dut_service)
+    ${PROJECT_SOURCE_DIR}/dut/dut_service
+    ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(client_mode_wire_test PRIVATE
     GTest::gtest GTest::gtest_main Threads::Threads)
 add_test(NAME client_mode_wire_test COMMAND client_mode_wire_test)
