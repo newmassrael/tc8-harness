@@ -97,11 +97,23 @@ TEST(ApplyExpectToken, AllRecognisedKeys) {
 TEST(ApplyExpectToken, TesterEndpointKeys) {
     ::tc8::SomeIpExpectations e{};
     EXPECT_TRUE(applyExpectToken("tester_ipv4=172.16.0.2", e));
+    EXPECT_TRUE(applyExpectToken("tester_ipv4_2=172.16.0.3", e));
     EXPECT_TRUE(applyExpectToken("tester_udp_port=40000", e));
     // NBO: wire bytes AC 10 00 02 read as a little-endian uint32 (same
     // convention as dut_iface_ip / SomeIpCaptured::dst_ip).
     EXPECT_EQ(e.tester_ipv4, 0x020010ACu);
+    EXPECT_EQ(e.tester_ipv4_2, 0x030010ACu);
     EXPECT_EQ(e.tester_udp_port, 40000u);
+
+    // The second source IP must survive the --expect -> cfg.someip ->
+    // SomeIpExpected copy in applyTestConfig (a missing copy line would leave
+    // the SCXML context's tester_ipv4_2 at 0 — the bug the copy guards against).
+    ::tc8::TestConfig cfg{};
+    cfg.someip = e;
+    ::tc8::SomeIpExpected exp{};
+    applyTestConfig(exp, cfg);
+    EXPECT_EQ(exp.tester_ipv4, 0x020010ACu);
+    EXPECT_EQ(exp.tester_ipv4_2, 0x030010ACu);
 }
 
 TEST(ApplyExpectToken, TimingThresholdKeys) {

@@ -66,6 +66,12 @@ struct SomeIpExpected {
     std::uint32_t tester_ipv4 = 0;
     std::uint16_t tester_udp_port = 0;
 
+    // Second tester/ECU source IP (IP_ADDRESS_2, NBO). Mirrors the
+    // `SomeIpExpectations` field of the same name — see that struct's doc for
+    // semantics; lets a two-client Sender-IP case assert the DUT discriminated
+    // the second ECU. 0 = unset.
+    std::uint32_t tester_ipv4_2 = 0;
+
     // Configured DUT timing thresholds (ms) an absolute-timing case asserts the
     // captured `frame_delta_us()` against. Mirrors the `SomeIpExpectations`
     // fields of the same name — see that struct's doc for semantics; 0 = unset.
@@ -115,6 +121,7 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     e.mcast_ipv4 = cfg.someip.mcast_ipv4;
     e.mcast_port = cfg.someip.mcast_port;
     e.tester_ipv4 = cfg.someip.tester_ipv4;
+    e.tester_ipv4_2 = cfg.someip.tester_ipv4_2;
     e.tester_udp_port = cfg.someip.tester_udp_port;
     e.sd_initial_delay_min_ms = cfg.someip.sd_initial_delay_min_ms;
     e.sd_initial_delay_max_ms = cfg.someip.sd_initial_delay_max_ms;

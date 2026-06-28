@@ -70,6 +70,17 @@ struct SomeIpExpectations {
     std::uint32_t tester_ipv4 = 0;
     std::uint16_t tester_udp_port = 0;
 
+    // Second tester/ECU source IP (IP_ADDRESS_2) — the spec's other deployment
+    // "test variable" ("arbitrary IPv4 unicast address, different from
+    // IP_ADDRESS_1"), used by two-client Sender-IP cases that drive the DUT from
+    // two distinct source IPs it must discriminate by Sender IP. Sibling of
+    // `tester_ipv4`: network byte order to match `SomeIpCaptured::dst_ip` /
+    // `src_ip`, supplied via `--expect tester_ipv4_2=<dotted>`. 0 stays the unset
+    // sentinel. A deployment configures it — rather than the harness deriving
+    // `tester_ipv4 + 1` — so IP_ADDRESS_2 is a guaranteed-free neighbour and can
+    // never silently collide with the DUT's own address.
+    std::uint32_t tester_ipv4_2 = 0;
+
     // Configured DUT timing thresholds — what an absolute-timing case compares
     // the captured inter-frame delta (`SomeIpCaptured::frame_delta_us()`)
     // against, so an SCXML cond reads e.g. `frame_delta_us() within

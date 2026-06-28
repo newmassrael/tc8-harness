@@ -133,6 +133,14 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
         e.tester_ipv4 = ip;
         return true;
     }
+    if (key == "tester_ipv4_2") {
+        std::uint32_t ip = 0;
+        if (!parseIpv4Dotted(val, ip)) {
+            return false;
+        }
+        e.tester_ipv4_2 = ip;
+        return true;
+    }
     if (key == "payload") {
         // Colon-separated hex byte list (e.g. payload=00:00:34:68) — the
         // expected L7 echo asserted by ETS Method-Response conds. Empty or
