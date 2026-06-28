@@ -141,6 +141,37 @@ TEST(BuildArpReply, IgnoresNonArpEtherType) {
     EXPECT_FALSE(buildArpReplyForRequest(request.data(), request.size(), bindings).has_value());
 }
 
+TEST(BuildArpReply, IgnoresNonEthernetIpv4Arp) {
+    // ARP header field offsets within the frame: hw_type@14, proto_type@16,
+    // hw_addr_len@18, proto_addr_len@19. Each guard must reject independently.
+    const std::vector<ArpBinding> bindings{{ipBe(172, 16, 0, 9), kTesterMac}};
+    const std::uint32_t dut_ip = ipBe(172, 16, 0, 2);
+    const std::uint32_t tgt_ip = ipBe(172, 16, 0, 9);
+
+    auto bad_hw_type = tc8::stimulus::buildArpRequest(kDutMac, dut_ip, tgt_ip);
+    bad_hw_type[15] = 0x06;  // hw_type 0x0006 instead of 0x0001 (Ethernet)
+    EXPECT_FALSE(buildArpReplyForRequest(bad_hw_type.data(), bad_hw_type.size(), bindings));
+
+    auto bad_proto = tc8::stimulus::buildArpRequest(kDutMac, dut_ip, tgt_ip);
+    bad_proto[16] = 0x86;  // proto_type 0x86DD (IPv6) instead of 0x0800 (IPv4)
+    bad_proto[17] = 0xDD;
+    EXPECT_FALSE(buildArpReplyForRequest(bad_proto.data(), bad_proto.size(), bindings));
+
+    auto bad_hlen = tc8::stimulus::buildArpRequest(kDutMac, dut_ip, tgt_ip);
+    bad_hlen[18] = 8;  // hw_addr_len 8 instead of 6
+    EXPECT_FALSE(buildArpReplyForRequest(bad_hlen.data(), bad_hlen.size(), bindings));
+}
+
+TEST(BuildArpReply, IgnoresTruncatedArpBody) {
+    // A valid Ethernet header but an ARP body cut short of the 42-byte minimum
+    // (target_ip ends at byte 41) must be rejected without an out-of-bounds read.
+    const std::vector<ArpBinding> bindings{{ipBe(172, 16, 0, 9), kTesterMac}};
+    auto request =
+        tc8::stimulus::buildArpRequest(kDutMac, ipBe(172, 16, 0, 2), ipBe(172, 16, 0, 9));
+    request.resize(30);  // 14 B Ethernet + only 16 B of the 28 B ARP body
+    EXPECT_FALSE(buildArpReplyForRequest(request.data(), request.size(), bindings).has_value());
+}
+
 TEST(BuildArpReply, EmptyBindingsNeverAnswers) {
     const auto request =
         tc8::stimulus::buildArpRequest(kDutMac, ipBe(172, 16, 0, 2), ipBe(172, 16, 0, 9));

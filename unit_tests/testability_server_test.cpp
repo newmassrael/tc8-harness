@@ -40,7 +40,7 @@ namespace tc8 {
 namespace {
 
 namespace tp = ::tc8::testability;
-using namespace testutil;  // createDummyIface / deleteDummyIface / hasNetAdmin / ScopeExit
+using namespace testutil;  // createDummyIface / deleteIface / hasNetAdmin / ScopeExit
 
 // A high, uncommon port so the hermetic server bind does not collide with a
 // canonical-port (30700) tc8-dut a developer may have running.
@@ -1907,7 +1907,7 @@ TEST(PosixBackendNeighbor, PrivilegedAddStaticNeighborOnDummy) {
     // Delete the dummy at scope exit unconditionally — even if an assertion below
     // early-returns — so a direct real-root run never leaks tc8dummy0 (which would
     // also make the next run's NLM_F_EXCL create self-mask as a skip).
-    ScopeExit cleanup([&] { deleteDummyIface(kIf); });
+    ScopeExit cleanup([&] { deleteIface(kIf); });
 
     dut::PosixSocketBackend be;
     const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2

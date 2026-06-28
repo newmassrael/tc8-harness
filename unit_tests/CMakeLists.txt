@@ -119,7 +119,7 @@ target_link_libraries(demo_module_test PRIVATE tc8_nm tc8_com tc8_e2e tc8_crypto
 # than linked from the tc8-dut executable. Covers the trigger-policy timing logic
 # (incl. the zero-duration single-shot regression) and the controller's source
 # dispatch + owned counters, driven deterministically via the step(now) seam.
-find_package(Threads REQUIRED)
+# (Threads::Threads is already imported above for tc8_harness_testable.)
 add_executable(ets_emission_test
     ets_emission_test.cpp
     ${PROJECT_SOURCE_DIR}/dut/dut_service/ets_emission.cpp)

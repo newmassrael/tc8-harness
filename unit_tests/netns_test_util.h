@@ -63,10 +63,6 @@ inline void deleteIface(const char *name) {
     ::tc8::net::rtnl::sendRequestCheckAck(&req, sizeof(req), /*enoent_ok=*/true);
 }
 
-// Back-compat name for the dummy-iface call sites — `deleteIface` is the
-// generic primitive (delete a link by name), shared with the veth fixture.
-inline void deleteDummyIface(const char *name) { deleteIface(name); }
-
 // Bring interface `name` administratively up (RTM_NEWLINK with IFF_UP). false on
 // missing interface or a privilege/ACK failure.
 inline bool setIfaceUp(const char *name) {
@@ -128,7 +124,13 @@ inline bool createVethPair(const char *name_a, const char *name_b) {
     if (!::tc8::net::rtnl::sendRequestCheckAck(buf, nlh->nlmsg_len, /*enoent_ok=*/false)) {
         return false;
     }
-    return setIfaceUp(name_a) && setIfaceUp(name_b);
+    if (setIfaceUp(name_a) && setIfaceUp(name_b)) {
+        return true;
+    }
+    // Pair was created but could not be brought up — delete it (removes both
+    // ends) so the function does not leak its own partial work.
+    deleteIface(name_a);
+    return false;
 }
 
 // True iff this process holds CAP_NET_ADMIN — probes the ACTUAL capability, not

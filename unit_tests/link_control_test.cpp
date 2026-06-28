@@ -50,7 +50,7 @@ TEST(SetLinkState, PrivilegedTogglesDummyIface) {
         GTEST_SKIP() << "could not create a dummy interface (no dummy driver?)";
     }
     // Remove the dummy at scope exit even if an assertion below early-returns.
-    ScopeExit cleanup([&] { deleteDummyIface(kIf); });
+    ScopeExit cleanup([&] { deleteIface(kIf); });
 
     // createDummyIface brings it up; take it administratively down, then back up.
     ASSERT_TRUE(setLinkState(kIf, false));
