@@ -15,6 +15,19 @@
 
 namespace tc8::stimulus {
 
+// The network-byte-order IPv4 address in the 4 wire bytes at `p` — a raw memcpy
+// that preserves the byte sequence, so the result compares equal to
+// `ipv4OfInterface` / `inet_pton` output (the project's NBO uint32 convention)
+// with no host-endianness swap. Shared by the tester-side responders that read an
+// address out of a captured frame (arp_responder / method_responder), so that
+// 4-byte read has one definition rather than a per-file copy. `p` must point at
+// >= 4 readable bytes — callers bounds-check first.
+inline std::uint32_t ipv4FromWire(const std::uint8_t *p) {
+    std::uint32_t v = 0;
+    std::memcpy(&v, p, 4);
+    return v;
+}
+
 // The IPv4 address (network byte order) assigned to `iface_name`, or 0 if the
 // interface has no IPv4 address (or does not exist). Shared by the UDP emit
 // helpers and the SD/RPC builders so a stimulus binds to the intended leg of a

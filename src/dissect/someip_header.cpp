@@ -1,29 +1,23 @@
 #include "someip_header.h"
 
+#include "someip/wire.h"
+
 namespace tc8::dissect {
 
 // The wire-constant enums now live in the neutral someip/protocol.h leaf;
-// pull them into this TU so the parser code reads unqualified.
+// pull them into this TU so the parser code reads unqualified. The big-endian
+// readers are the shared someip/wire.h SSOT (the inverse of its putBeNN writers),
+// not a per-file copy.
+using someip::getBe16;
+using someip::getBe32;
 using someip::MessageType;
 using someip::ReturnCode;
-
-namespace {
-
-std::uint16_t readBe16(const std::uint8_t *p) {
-    return static_cast<std::uint16_t>((std::uint16_t(p[0]) << 8) | p[1]);
-}
-
-std::uint32_t readBe32(const std::uint8_t *p) {
-    return (std::uint32_t(p[0]) << 24) | (std::uint32_t(p[1]) << 16) | (std::uint32_t(p[2]) << 8) | std::uint32_t(p[3]);
-}
-
-}  // namespace
 
 std::optional<ParseResult> parseSomeIpHeader(const std::uint8_t *data, std::size_t len) {
     if (len < 8) {
         return std::nullopt;
     }
-    const std::uint32_t length_field = readBe32(data + 4);
+    const std::uint32_t length_field = getBe32(data + 4);
     // length 는 message_id + length 이후 필드 크기 — 최소 8 (request_id + 4바이트).
     if (length_field < 8) {
         return std::nullopt;
@@ -34,11 +28,11 @@ std::optional<ParseResult> parseSomeIpHeader(const std::uint8_t *data, std::size
     }
 
     ParseResult r{};
-    r.header.service_id = readBe16(data + 0);
-    r.header.method_id = readBe16(data + 2);
+    r.header.service_id = getBe16(data + 0);
+    r.header.method_id = getBe16(data + 2);
     r.header.length = length_field;
-    r.header.client_id = readBe16(data + 8);
-    r.header.session_id = readBe16(data + 10);
+    r.header.client_id = getBe16(data + 8);
+    r.header.session_id = getBe16(data + 10);
     r.header.protocol_version = data[12];
     r.header.interface_version = data[13];
     r.header.message_type = static_cast<MessageType>(data[14]);

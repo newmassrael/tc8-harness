@@ -11,7 +11,9 @@
 #include <unistd.h>
 #include <utility>
 
+#include "someip/wire.h"           // getBe16 (shared big-endian reader SSOT)
 #include "stimulus/arp_builder.h"  // ArpFrameSpec / buildArpFrame / sendRawEthernet
+#include "stimulus/iface_addr.h"   // ipv4FromWire (shared NBO-IPv4 reader SSOT)
 
 namespace tc8::stimulus {
 
@@ -34,19 +36,6 @@ constexpr std::size_t kArpIpv4FrameLen = 42;
 // padded/oversized frame is read whole and bounds-checked, never truncated.
 constexpr std::size_t kRxBufLen = 256;
 
-std::uint16_t readBe16(const std::uint8_t *p) {
-    return static_cast<std::uint16_t>((static_cast<std::uint16_t>(p[0]) << 8) | p[1]);
-}
-
-// Read 4 wire bytes (network order) into a uint32 in the same network-byte-order
-// convention `ArpBinding::ip_be` / `inet_pton` use, so equality holds without a
-// host-endianness conversion (memcpy preserves the byte sequence exactly).
-std::uint32_t readIpv4Be(const std::uint8_t *p) {
-    std::uint32_t v = 0;
-    std::memcpy(&v, p, 4);
-    return v;
-}
-
 }  // namespace
 
 std::optional<std::vector<std::uint8_t>>
@@ -55,20 +44,20 @@ buildArpReplyForRequest(const std::uint8_t *frame, std::size_t len,
     if (frame == nullptr || len < kArpIpv4FrameLen) {
         return std::nullopt;
     }
-    if (readBe16(frame + 12) != kEtherTypeArp) {
+    if (someip::getBe16(frame + 12) != kEtherTypeArp) {
         return std::nullopt;
     }
     const std::uint8_t *arp = frame + kEthHdrLen;
     // Only RFC 826 Ethernet/IPv4 Requests with 6/4 address lengths are answered.
-    if (readBe16(arp + 0) != kHwTypeEthernet || readBe16(arp + 2) != kProtoTypeIpv4 ||
-        arp[4] != 6 || arp[5] != 4 || readBe16(arp + 6) != kArpOpRequest) {
+    if (someip::getBe16(arp + 0) != kHwTypeEthernet || someip::getBe16(arp + 2) != kProtoTypeIpv4 ||
+        arp[4] != 6 || arp[5] != 4 || someip::getBe16(arp + 6) != kArpOpRequest) {
         return std::nullopt;
     }
     // ARP body offsets within `arp`: sender_hw[6]@8, sender_ip[4]@14,
     // target_hw[6]@18, target_ip[4]@24.
     const std::uint8_t *requester_hw = arp + 8;
-    const std::uint32_t requester_ip_be = readIpv4Be(arp + 14);
-    const std::uint32_t target_ip_be = readIpv4Be(arp + 24);
+    const std::uint32_t requester_ip_be = ipv4FromWire(arp + 14);
+    const std::uint32_t target_ip_be = ipv4FromWire(arp + 24);
 
     for (const auto &b : bindings) {
         if (b.ip_be != target_ip_be) {
