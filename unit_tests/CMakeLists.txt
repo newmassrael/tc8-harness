@@ -124,6 +124,18 @@ target_link_libraries(ets_emission_test PRIVATE
     GTest::gtest GTest::gtest_main Threads::Threads)
 add_test(NAME ets_emission_test COMMAND ets_emission_test)
 
+# DUT client-role Method Request wire builder (dut/dut_service/client_mode.*).
+# Self-contained raw-UDP firmware (no CommonAPI/vsomeip), compiled directly like
+# ets_emission_test. Pins the SOMEIPCLT outbound call wire layout.
+add_executable(client_mode_wire_test
+    client_mode_wire_test.cpp
+    ${PROJECT_SOURCE_DIR}/dut/dut_service/client_mode.cpp)
+target_include_directories(client_mode_wire_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service)
+target_link_libraries(client_mode_wire_test PRIVATE
+    GTest::gtest GTest::gtest_main Threads::Threads)
+add_test(NAME client_mode_wire_test COMMAND client_mode_wire_test)
+
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(subscribe_builder_test)
 # Tester server-role RPC reply builders (buildMethodResponse/buildMethodError):

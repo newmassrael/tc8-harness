@@ -1,5 +1,7 @@
 #include "client_mode.h"
 
+#include "client_mode_wire.h"
+
 #include <arpa/inet.h>
 #include <cerrno>
 #include <chrono>
@@ -170,6 +172,25 @@ int sendFindServiceOnce(const std::vector<std::uint8_t> &wire) {
 }
 
 }  // namespace
+
+std::vector<std::uint8_t> buildMethodRequestWire(std::uint16_t service_id, std::uint16_t method_id,
+                                                 std::uint16_t client_id, std::uint16_t session_id,
+                                                 std::uint8_t message_type,
+                                                 const std::vector<std::uint8_t> &payload) {
+    std::vector<std::uint8_t> b;
+    b.reserve(16 + payload.size());
+    putBe16(b, service_id);
+    putBe16(b, method_id);
+    putBe32(b, static_cast<std::uint32_t>(8 + payload.size()));  // length from Request ID.
+    putBe16(b, client_id);
+    putBe16(b, session_id);
+    b.push_back(0x01);  // protocol_version
+    b.push_back(0x01);  // interface_version
+    b.push_back(message_type);
+    b.push_back(0x00);  // return_code E_OK (a request carries E_OK).
+    b.insert(b.end(), payload.begin(), payload.end());
+    return b;
+}
 
 ClientModeRunner::ClientModeRunner() = default;
 
