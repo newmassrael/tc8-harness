@@ -141,6 +141,21 @@ TEST(BuildSubscribeEventgroup, CounterLandsInLowNibbleOfByte13) {
     EXPECT_EQ(b[37], 0x05u);
 }
 
+TEST(BuildSubscribeEventgroup, EntryReservedOverrideSetsReservedBits) {
+    // A case can set the 12-bit entry Reserved field (byte 12 + high nibble of
+    // byte 13) to drive an implementation-defined entry flag, keeping the 4-bit
+    // counter in the low nibble of byte 13.
+    SubscribeEventgroupParams p = makeRef();
+    p.target.entry_reserved = 0x801;  // reserved = 1000 0000 0001
+    p.target.counter = 0x5;
+    const auto b = buildSubscribeEventgroup(p);
+    // (0x801 << 4) | 0x5 = 0x8015, big-endian.
+    EXPECT_EQ(b[36], 0x80u);  // high 8 reserved bits
+    EXPECT_EQ(b[37], 0x15u);  // low 4 reserved bits (0x1) | counter (0x5)
+    EXPECT_EQ(b[38], 0x00u);  // eventgroup ID unshifted
+    EXPECT_EQ(b[39], 0x42u);
+}
+
 TEST(BuildSubscribeEventgroup, SessionIdIsBigEndian) {
     SubscribeEventgroupParams p = makeRef();
     p.session_id = 0x1234;

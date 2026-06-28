@@ -452,10 +452,12 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     putBe16(b, p.target.instance_id);
     b.push_back(p.target.major_version);
     putBe24(b, p.target.ttl);
-    // Reserved (12b) | Counter (4b) — counter lives in the low nibble of
-    // byte 13; reserved bits stay zero.
-    b.push_back(0);
-    b.push_back(static_cast<std::uint8_t>(p.target.counter & 0x0F));
+    // Reserved (12b) | Counter (4b) — counter is the low nibble of byte 13; the
+    // 12 reserved bits (byte 12 + high nibble of byte 13) stay zero unless a case
+    // overrides them to set an implementation-defined entry flag.
+    const std::uint16_t entry_reserved = p.target.entry_reserved.value_or(0) & 0x0FFF;
+    putBe16(b, static_cast<std::uint16_t>((entry_reserved << 4) |
+                                          (p.target.counter & 0x0F)));
     putBe16(b, p.target.eventgroup_id);
 
     // Length of Options Array. Canonical 12 (one IPv4 Endpoint option);
@@ -592,8 +594,9 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
         putBe16(b, t.instance_id);
         b.push_back(t.major_version);
         putBe24(b, t.ttl);
-        b.push_back(0);
-        b.push_back(static_cast<std::uint8_t>(t.counter & 0x0F));
+        // Reserved (12b) | Counter (4b), same layout as the single builder.
+        const std::uint16_t entry_reserved = t.entry_reserved.value_or(0) & 0x0FFF;
+        putBe16(b, static_cast<std::uint16_t>((entry_reserved << 4) | (t.counter & 0x0F)));
         putBe16(b, t.eventgroup_id);
     }
 

@@ -117,6 +117,12 @@ struct SubscribeEventgroupTarget {
     std::uint8_t major_version = 1;
     std::uint32_t ttl = 3;        // seconds
     std::uint8_t counter = 0;     // 4-bit subscribe counter (TR_SOMEIP §7.1.3)
+    // 12-bit Reserved field of the SubscribeEventgroup entry (bytes 12-13,
+    // sharing the 16-bit word with the 4-bit counter above). Default unset →
+    // spec-canonical 0. A case sets specific reserved bits to drive an
+    // implementation-defined entry flag (e.g. an Initial-Data-Requested bit a
+    // DUT's deployment locates here); the harness stays neutral on the meaning.
+    std::optional<std::uint16_t> entry_reserved;
 };
 
 // Full parameters for one SubscribeEventgroup datagram — target identity
