@@ -36,6 +36,13 @@ inline constexpr std::uint16_t kSdPort  = 30490;  // SOME/IP-SD
 inline constexpr std::uint16_t kTcpPort = 30501;  // reliable unicast
 inline constexpr std::uint16_t kUdpPort = 30502;  // unreliable unicast
 
+// SOME/IP-SD multicast group the DUT and tester exchange Find/Offer on — matches
+// vsomeip.json `service-discovery.multicast`. The single C++ source for this value
+// (the tester SD emitters default to it); same hand-sync contract as the identity
+// above. A `const char*` (not std::string_view) to keep this widely-included
+// config header free of <string_view>, mirroring kApplicationName.
+inline constexpr const char* kSdMcastGroup = "224.244.224.245";
+
 // BPF capture window covering the ports above with headroom for extra
 // service instances added on adjacent ports. Widened from the historical
 // 30490-30500 window, which silently excluded kTcpPort and kUdpPort.

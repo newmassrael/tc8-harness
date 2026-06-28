@@ -1,6 +1,10 @@
 #include "stimulus/someip_sd_builder.h"
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
 #include <cstdio>
+#include <string>
 #include <thread>
 
 #include "someip/wire.h"
@@ -294,6 +298,24 @@ int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view 
     // port`), so the source port is the SD port (= mcast_port). The generic
     // bind / IP_MULTICAST_IF / sendto mechanics live in sendUdpMulticast.
     return sendUdpMulticast(datagram, iface_name, /*src_port=*/mcast_port, mcast_group, mcast_port);
+}
+
+int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::string_view iface,
+                                std::uint32_t src_ip_be, const std::array<std::uint8_t, 6> &src_mac,
+                                std::string_view mcast_group, std::uint16_t mcast_port) {
+    in_addr group_addr{};
+    if (::inet_pton(AF_INET, std::string(mcast_group).c_str(), &group_addr) != 1) {
+        std::fprintf(stderr, "stimulus: sendSdMulticastFromSourceIp inet_pton('%.*s') failed\n",
+                     static_cast<int>(mcast_group.size()), mcast_group.data());
+        return -5;  // mirror sendUdpMulticast's malformed-group sentinel
+    }
+    const std::uint32_t group_be = group_addr.s_addr;
+    // Ethernet dst = the RFC 1112 multicast MAC for the group (sendUdpFromSourceIp
+    // defaults dst_mac to broadcast, which is wrong for a multicast Find). Source
+    // port = SD port (= mcast_port) so vsomeip accepts the spoofed-source Find,
+    // exactly as sendSdMulticast does.
+    return sendUdpFromSourceIp(datagram, iface, src_ip_be, /*src_port=*/mcast_port, group_be,
+                               mcast_port, ipv4MulticastMac(group_be), src_mac);
 }
 
 int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,

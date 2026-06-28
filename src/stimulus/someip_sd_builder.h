@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include "stimulus/boot_timing.h"
+#include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT.
 
 namespace tc8::stimulus {
 
@@ -59,7 +61,32 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p);
 // stderr). The socket is opened, used once, and closed — stimulus is a
 // one-shot action in the current harness.
 int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
-                    std::string_view mcast_group = "224.244.224.245", std::uint16_t mcast_port = 30490);
+                    std::string_view mcast_group = tc8::dut::kSdMcastGroup,
+                    std::uint16_t mcast_port = tc8::dut::kSdPort);
+
+// Raw-L2 sibling of sendSdMulticast for cases that must drive an SD multicast
+// (FindService / OfferService) FROM a spoofed source IP — e.g. two ECUs that the
+// DUT must discriminate by Sender IP. sendSdMulticast
+// is kernel-sourced (a socket bound to the iface IP), so it cannot spoof the
+// source; this builds the full Ethernet+IPv4+UDP frame with `src_ip_be` as the
+// IPv4 source and the RFC 1112 IPv4-multicast destination MAC for `mcast_group`
+// (`ipv4MulticastMac`, 01:00:5e | low 23 bits) and injects it via
+// `sendUdpFromSourceIp` (AF_PACKET, CAP_NET_RAW). The source port is the SD port
+// (= `mcast_port`) so vsomeip's "SD source port must equal SD port" check accepts
+// the Find, exactly as sendSdMulticast does.
+//
+// `src_mac` is the Ethernet source advertised on the frame; it MUST equal the
+// `mac` of the `ArpResponder` binding armed for `src_ip_be` so the DUT's unicast
+// Offer to the spoofed IP returns to a MAC the tester is on — source both from
+// `macOfInterface(iface)`. The default `{}` (zero) is valid only for veth/netns
+// capture, where pcap sees the Offer regardless of its L2 destination; a real DUT
+// needs the real tester MAC. Returns 0 on success, -5 if `mcast_group` is
+// malformed, or the negative `sendUdpFromSourceIp` / `sendRawEthernet` sentinel.
+int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::string_view iface,
+                                std::uint32_t src_ip_be,
+                                const std::array<std::uint8_t, 6> &src_mac = {},
+                                std::string_view mcast_group = tc8::dut::kSdMcastGroup,
+                                std::uint16_t mcast_port = tc8::dut::kSdPort);
 
 // Transmits `datagram` as a UDP unicast to `dst_ip_be`:`dst_port` over
 // `iface_name`. Source port is bound to the SD port (30490) so vsomeip's
@@ -73,7 +100,7 @@ int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view 
 // `SubscribeDestination::ipv4_be` semantics). Returns 0 on success or a
 // negative errno-derived sentinel on failure.
 int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
-                  std::uint32_t dst_ip_be, std::uint16_t dst_port = 30490);
+                  std::uint32_t dst_ip_be, std::uint16_t dst_port = tc8::dut::kSdPort);
 
 // High-level TESTER boot-time FindService emit sequence used by §5.1
 // stimulus-driven cases (FORMAT_12/13). Waits for the DUT to come up,
@@ -224,7 +251,7 @@ struct SubscribeDestination {
     // stored as 0x020010AC on little-endian Linux (byte-order semantics
     // match `Ipv4Endpoint::ipv4_be`).
     std::uint32_t ipv4_be = 0x020010AC;
-    std::uint16_t port = 30490;
+    std::uint16_t port = tc8::dut::kSdPort;
 };
 
 // High-level TESTER boot-time SubscribeEventgroup emit sequence used by

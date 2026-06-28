@@ -2,12 +2,34 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <string_view>
 #include <vector>
 
 #include "stimulus/arp_builder.h"  // kEthBroadcast / sendRawEthernet
 
 namespace tc8::stimulus {
+
+// RFC 1112 §6.4 IPv4-multicast-to-Ethernet mapping: the destination MAC for an
+// IPv4 multicast group is 01:00:5e followed by the LOW 23 bits of the group
+// address — the top bit of the group's second octet is deliberately NOT copied,
+// so e.g. 224.x and 225.x (which differ only in the masked-off first octet) can
+// map to the same MAC. `group_be` is the group address in network byte order
+// (as `inet_pton` / `ipv4OfInterface` produce). Pure (no I/O), so it is exposed
+// for callers that must inject a multicast frame at L2 — e.g. an SD multicast
+// Find from a spoofed source IP — and hand a correct Ethernet destination to
+// `buildUdpFromSourceIpFrame` / `sendUdpFromSourceIp`, which cannot derive it
+// from the destination IP themselves.
+inline std::array<std::uint8_t, 6> ipv4MulticastMac(std::uint32_t group_be) {
+    // memcpy the NBO word into wire-order octets (octets[0] = first dotted
+    // octet), endianness-independent — the same idiom the ARP responder uses to
+    // read an on-wire IPv4 address. The MAC carries the low 23 bits, so the
+    // second octet is masked with 0x7f.
+    std::array<std::uint8_t, 4> octets{};
+    std::memcpy(octets.data(), &group_be, octets.size());
+    return {0x01, 0x00, 0x5e,
+            static_cast<std::uint8_t>(octets[1] & 0x7f), octets[2], octets[3]};
+}
 
 // Transmit `datagram` (the UDP payload) as an IPv4 unicast from source port
 // `src_port` to `dst_ip_be`:`dst_port`, bound to the IPv4 address of

@@ -10,10 +10,40 @@
 
 #include <gtest/gtest.h>
 
+#include "stimulus/someip_sd_builder.h"
 #include "stimulus/udp_emit.h"
 
 namespace tc8::stimulus {
 namespace {
+
+// RFC 1112 §6.4: an IPv4 multicast group maps to 01:00:5e | low 23 bits of the
+// group. The default SOME/IP-SD group 224.244.224.245 -> 01:00:5e:74:e0:f5
+// (0xF4 second octet masked to 0x74 — the high bit is dropped).
+TEST(Ipv4MulticastMac, Rfc1112Mapping) {
+    const std::array<std::uint8_t, 6> kSdGroupMac = {0x01, 0x00, 0x5e, 0x74, 0xe0, 0xf5};
+    EXPECT_EQ(ipv4MulticastMac(::inet_addr("224.244.224.245")), kSdGroupMac);
+
+    // 224.0.0.1 (all-hosts) -> 01:00:5e:00:00:01.
+    const std::array<std::uint8_t, 6> kAllHostsMac = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x01};
+    EXPECT_EQ(ipv4MulticastMac(::inet_addr("224.0.0.1")), kAllHostsMac);
+
+    // 239.255.255.255 -> second octet 0xFF masked to 0x7F.
+    const std::array<std::uint8_t, 6> kTopMac = {0x01, 0x00, 0x5e, 0x7f, 0xff, 0xff};
+    EXPECT_EQ(ipv4MulticastMac(::inet_addr("239.255.255.255")), kTopMac);
+
+    // The masked-off first-octet bit means 224.x and 225.x with the same low 23
+    // bits collide onto one MAC (the RFC's documented ambiguity).
+    EXPECT_EQ(ipv4MulticastMac(::inet_addr("225.244.224.245")), kSdGroupMac);
+}
+
+// A malformed group surfaces as the documented -5 before any socket work, so the
+// new spoofed-source SD emitter validates deterministically (no CAP_NET_RAW).
+TEST(SendSdMulticastFromSourceIp, RejectsMalformedGroup) {
+    const std::vector<std::uint8_t> datagram = {0x01};
+    const int rc = sendSdMulticastFromSourceIp(datagram, "lo", ::inet_addr("172.16.0.5"), {},
+                                               "not.an.ip.address", 30490);
+    EXPECT_EQ(rc, -5);
+}
 
 // The defining property of the emitter: the datagram leaves from the
 // caller-chosen source port. Send over loopback to an ephemeral receiver and
