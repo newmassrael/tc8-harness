@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Idempotent vsomeip setup: apply tc8-harness patch series, build, install.
+# Idempotent vsomeip setup: apply the tc8-harness patch series (plus any OEM
+# extension layers via TC8_EXTRA_VSOMEIP_PATCHES), build, install.
 # Run after `git submodule update --init --recursive` on a fresh clone, and
-# whenever patches/vsomeip/series changes. Requires quilt (apt install quilt).
+# whenever patches/vsomeip/series (or an extra layer) changes. Requires quilt
+# (apt install quilt).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -34,9 +36,56 @@ cd "$VSOMEIP_DIR"
 # `set -e`). Nuking `.pc/` forces a clean reapply every time.
 rm -rf .pc
 
-# Apply series. Empty series file is a no-op (no patches yet).
-if [[ -s "$PATCHES_DIR/series" ]]; then
-    QUILT_PATCHES="$PATCHES_DIR" quilt push -a
+# Apply the tc8-harness base patch series, then any OEM extension layers stacked
+# on top, as ONE quilt stack. TC8_EXTRA_VSOMEIP_PATCHES is a ':'-separated list
+# of patch dirs (each with its own `series`), mirroring CMake's TC8_EXTRA_CASE_DIRS
+# for case discovery: an OEM stacks private patches from its own repo without ever
+# editing this base series. ':' (shell PATH-style) is the separator here, vs ';'
+# for the CMake list seams. Unset => base only => public behaviour byte-identical.
+#
+# quilt assumes a single series per tree, so the base + extra series are merged into
+# one staging dir (base first, each extra under its own oemN/ subdir so identical
+# patch filenames across layers cannot collide) and `quilt push -a` runs once.
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+: > "$STAGE/series"
+
+stage_series() {  # $1 = source patches dir (with a `series`); $2 = stage subdir tag
+    local src="$1" tag="$2" line patch rest
+    [[ -s "$src/series" ]] || return 0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"               # drop comments
+        read -r patch rest <<< "$line"   # first token = patch path, rest = quilt opts
+        [[ -n "$patch" ]] || continue    # skip blank / comment-only lines
+        if [[ ! -f "$src/$patch" ]]; then
+            echo "error: patch '$patch' listed in $src/series not found under $src" >&2
+            exit 1
+        fi
+        mkdir -p "$STAGE/$tag/$(dirname "$patch")"
+        cp "$src/$patch" "$STAGE/$tag/$patch"
+        printf '%s%s\n' "$tag/$patch" "${rest:+ $rest}" >> "$STAGE/series"
+    done < "$src/series"
+}
+
+stage_series "$PATCHES_DIR" base
+
+if [[ -n "${TC8_EXTRA_VSOMEIP_PATCHES:-}" ]]; then
+    extra_idx=0
+    IFS=':' read -ra extra_patch_dirs <<< "$TC8_EXTRA_VSOMEIP_PATCHES"
+    for extra_dir in "${extra_patch_dirs[@]}"; do
+        [[ -n "$extra_dir" ]] || continue
+        if [[ ! -d "$extra_dir" ]]; then
+            echo "error: TC8_EXTRA_VSOMEIP_PATCHES entry is not a directory: $extra_dir" >&2
+            exit 1
+        fi
+        stage_series "$extra_dir" "oem$extra_idx"
+        extra_idx=$((extra_idx + 1))
+    done
+fi
+
+# Empty merged series is a no-op (no patches in the base or any extra layer).
+if [[ -s "$STAGE/series" ]]; then
+    QUILT_PATCHES="$STAGE" quilt push -a
 fi
 
 # Build + install. Cap parallelism per repo policy.
