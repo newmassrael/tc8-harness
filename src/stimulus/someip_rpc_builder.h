@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include "someip/protocol.h"             // MessageType / ReturnCode (shared wire constants).
+#include "stimulus/arp_builder.h"        // kEthBroadcast (Ethernet dst default, SSOT).
 #include "stimulus/someip_sd_builder.h"  // BootTiming for shared envelope.
 
 namespace tc8::stimulus {
@@ -145,6 +147,28 @@ struct MethodRequestTiming {
 int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &target,
                            const MethodRequestTiming &timing,
                            const MethodEndpoint &dest);
+
+// Raw-injection variant of `emitMethodRequestAfter` for cases that must control
+// the SOURCE IP of the Request, not just the source port — e.g. driving the DUT
+// from a tester-spoofed sender IP so it discriminates clients by Sender IP and
+// returns its Response to that IP. Builds the SOME/IP Method Request from
+// `target` (`buildMethodRequest`) and injects it as a full Ethernet+IPv4+UDP
+// frame from `src_ip_be`:`src_port` to `dest` via `sendUdpFromSourceIp` (raw L2,
+// CAP_NET_RAW) — the SOME/IP-typed sibling of that primitive.
+//
+// `dut_mac` is the DUT's MAC, so the frame is unicast for PACKET_HOST dispatch
+// on a real DUT (defaults to broadcast, which Linux still dispatches by dst_ip
+// on a veth/netns pair). `src_mac` is the tester MAC advertised as the Ethernet
+// source: pair it with an `ArpResponder` (arp_responder.h) armed for
+// `src_ip_be` -> `src_mac` so the DUT can ARP-resolve the spoofed source and the
+// Response is addressed back to a MAC the tester receives on. One-shot (no retry
+// envelope). Returns 0 on success or the negative `sendUdpFromSourceIp` /
+// `sendRawEthernet` sentinel.
+int emitMethodRequestFromSourceIp(std::string_view iface, const SomeIpRpcMessage &target,
+                                  std::uint32_t src_ip_be, std::uint16_t src_port,
+                                  const MethodEndpoint &dest,
+                                  const std::array<std::uint8_t, 6> &dut_mac = kEthBroadcast,
+                                  const std::array<std::uint8_t, 6> &src_mac = {});
 
 // TCP variant of `emitMethodRequestAfter`. Used by §5.1.5.7 RPC_17 to
 // drive multi-instance Method Request/Response over the reliable TCP

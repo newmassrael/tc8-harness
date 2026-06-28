@@ -131,6 +131,16 @@ int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &targe
     return 0;
 }
 
+int emitMethodRequestFromSourceIp(std::string_view iface, const SomeIpRpcMessage &target,
+                                  std::uint32_t src_ip_be, std::uint16_t src_port,
+                                  const MethodEndpoint &dest,
+                                  const std::array<std::uint8_t, 6> &dut_mac,
+                                  const std::array<std::uint8_t, 6> &src_mac) {
+    const std::vector<std::uint8_t> payload = buildMethodRequest(target);
+    return sendUdpFromSourceIp(payload, iface, src_ip_be, src_port, dest.ipv4_be, dest.port,
+                               dut_mac, src_mac);
+}
+
 namespace {
 
 int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
