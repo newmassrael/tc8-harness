@@ -1,7 +1,6 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -19,6 +18,7 @@
 #include "posix_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "posix_ut_extensions.h"
+#include "tc8/dut_config.h"
 #include "testability/protocol_server.h"
 #include "upper_tester/ut_server.h"
 
@@ -32,12 +32,6 @@ constexpr const char* kDomain    = "local";
 constexpr const char* kInstance  = "ETS";
 constexpr const char* kInstance2 = "ETS2";
 constexpr const char* kInterface = "org.tc8.ets.EnhancedTestability:v1_0";
-
-// SERVICE-ID-1 numeric identity (public ETS service) for the OEM event sink —
-// matches vsomeip.json ("service":"0xF4E7","instance":"0x0001"). The OEM
-// extension offers its NDA events on this same service/instance.
-constexpr std::uint16_t kEtsServiceId  = 0xF4E7;
-constexpr std::uint16_t kEtsInstanceId = 0x0001;
 
 // SERVICE-ID-2 (multi-service axis) — separate fdepl with its own
 // SomeIpServiceID (0xF4E8). Lives on the same domain as ETS but routes
@@ -81,11 +75,15 @@ int main() {
     // OEM event sink (O2): the CommonAPI service's OWN vsomeip application,
     // retrieved by name so the extension shares one routing client (no second
     // app). The name matches VSOMEIP_APPLICATION_NAME (the topology sets it to
-    // the single vsomeip.json application); "tc8-dut" is the bare-run fallback.
-    // Declared before the extension so it outlives it (onRegister/onTick use it).
+    // the single vsomeip.json application); tc8::dut::kApplicationName is the
+    // bare-run fallback. Declared before the extension so it outlives it; the
+    // sink also unregisters its vsomeip handlers on destruction, so a captured
+    // reference cannot dangle on a graceful shutdown (today the DUT std::_Exit()s
+    // at the end of main, which skips both dtors — see the exit comment below).
     const char* app_name = std::getenv("VSOMEIP_APPLICATION_NAME");
     std::unique_ptr<tc8::dut::IEtsEventSink> ets_sink = tc8::dut::makeEtsEventSink(
-        app_name != nullptr ? app_name : "tc8-dut", kEtsServiceId, kEtsInstanceId);
+        app_name != nullptr ? app_name : tc8::dut::kApplicationName,
+        tc8::dut::kServiceId, tc8::dut::kInstanceId);
 
     // OEM extend seam (O2): no-op in the public DUT. An OEM TU (selected via
     // TC8_ETS_EXTENSION_SRC) offers its NDA event surface on the sink above and

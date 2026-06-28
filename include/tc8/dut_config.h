@@ -9,14 +9,23 @@
 // (see §5.1.2.3). These are deployment parameters the tester chooses per DUT.
 // The constants below are this project's chosen DUT identity and MUST match:
 //
-//   - dut/dut_service/vsomeip.json
+//   - dut/dut_service/vsomeip.json (the `applications` name and the service /
+//     instance / port deployment)
 //   - dut/ets/ets.fdepl
+//   - the VSOMEIP_APPLICATION_NAME the DUT is launched with (must equal
+//     kApplicationName)
 //
 // Divergence will silently break every case that depends on the DUT being
 // reachable under the advertised identity. There is no runtime cross-check
 // yet; keep these in sync by hand until a codegen pass subsumes both sides.
 
 namespace tc8::dut {
+
+// vsomeip application name — the single name CommonAPI registers the DUT's
+// vsomeip application under, used to retrieve that same application by name (no
+// second routing client). Matches vsomeip.json `applications[].name` and the
+// VSOMEIP_APPLICATION_NAME launch env.
+inline constexpr const char* kApplicationName = "tc8-dut";
 
 // SOME/IP service identity.
 inline constexpr std::uint16_t kServiceId  = 0xF4E7;
