@@ -93,6 +93,18 @@ std::vector<std::uint8_t> buildMethodResponse(SomeIpRpcMessage t);
 // of E_OK, so a negative case can drive the spec-forbidden Error+E_OK shape.
 std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t);
 
+// Tester server-role reply EMIT (SOMEIPCLT). Transmits a Response/Error
+// datagram (from buildMethodResponse/Error) back to the DUT client that issued
+// the request. Unlike emitMethodRequestAfter (client role, ephemeral source
+// port), a server reply originates from the tester's offered service port
+// `service_src_port` (the port the DUT addressed) and targets the DUT's client
+// source endpoint `client_ip_be`:`client_port` (captured from the DUT's
+// Request). Routes through sendUdpUnicast — the one UDP emit SSOT. Returns 0 on
+// success or the negative sendUdpUnicast sentinel.
+int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
+                    std::uint16_t service_src_port, std::uint32_t client_ip_be,
+                    std::uint16_t client_port);
+
 // Destination of a Method Request — the DUT's per-method endpoint. A pure
 // value type with no implicit default: the endpoint is always topology-
 // derived, never baked in. The conformance literal (172.16.0.2:30502) has

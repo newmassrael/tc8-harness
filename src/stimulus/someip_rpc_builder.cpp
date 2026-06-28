@@ -13,6 +13,7 @@
 
 #include "someip/protocol.h"
 #include "stimulus/iface_addr.h"
+#include "stimulus/udp_emit.h"
 
 namespace tc8::stimulus {
 
@@ -71,6 +72,14 @@ std::vector<std::uint8_t> buildMethodResponse(SomeIpRpcMessage t) {
 std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t) {
     t.message_type = someip::MessageType::ERROR;
     return buildMethodRequest(t);
+}
+
+int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
+                    std::uint16_t service_src_port, std::uint32_t client_ip_be,
+                    std::uint16_t client_port) {
+    // Server reply: source = the tester's service port (not ephemeral), dest =
+    // the DUT client endpoint. Generic UDP mechanics live in sendUdpUnicast.
+    return sendUdpUnicast(reply, iface, service_src_port, client_ip_be, client_port);
 }
 
 namespace {

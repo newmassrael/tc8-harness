@@ -1,3 +1,9 @@
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
+
 #include <cstdint>
 #include <vector>
 
@@ -136,6 +142,40 @@ TEST(BuildMethodRequest, OverrideBeatsTypedField) {
     const auto b = buildMethodRequest(t);
     ASSERT_GE(b.size(), 16u);
     EXPECT_EQ(b[14], 0x99u);
+}
+
+// emitMethodReply's defining property: the reply is delivered intact and
+// originates from the tester's SERVICE port (not an ephemeral one), the way a
+// server answers a client. Loopback round-trip, no DUT required.
+TEST(EmitMethodReply, DeliversReplyFromServicePort) {
+    // Stand in for the DUT client: a loopback UDP socket the reply lands on.
+    const int rx = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(rx, 0);
+    sockaddr_in ra{};
+    ra.sin_family = AF_INET;
+    ra.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ra.sin_port = 0;  // kernel picks the client port.
+    ASSERT_EQ(::bind(rx, reinterpret_cast<sockaddr *>(&ra), sizeof(ra)), 0);
+    sockaddr_in bound{};
+    socklen_t bl = sizeof(bound);
+    ASSERT_EQ(::getsockname(rx, reinterpret_cast<sockaddr *>(&bound), &bl), 0);
+    const std::uint16_t client_port = ntohs(bound.sin_port);
+    timeval tv{1, 0};  // bounded recv so a drop fails instead of hanging.
+    ::setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const auto reply = buildMethodResponse(makeCapturedRequest());
+    const std::uint16_t kServicePort = 30509;  // tester's offered service port.
+    const int rc = emitMethodReply("lo", reply, kServicePort, htonl(INADDR_LOOPBACK), client_port);
+    ASSERT_EQ(rc, 0);
+
+    std::uint8_t buf[64] = {};
+    sockaddr_in from{};
+    socklen_t fl = sizeof(from);
+    const ssize_t n = ::recvfrom(rx, buf, sizeof(buf), 0, reinterpret_cast<sockaddr *>(&from), &fl);
+    ::close(rx);
+    ASSERT_EQ(n, static_cast<ssize_t>(reply.size()));
+    EXPECT_EQ(std::vector<std::uint8_t>(buf, buf + n), reply);
+    EXPECT_EQ(ntohs(from.sin_port), kServicePort);
 }
 
 }  // namespace
