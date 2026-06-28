@@ -21,15 +21,21 @@
 namespace tc8::net::rtnl {
 
 // Append a netlink rtattr (type + payload) at byte offset *off within `buf`,
-// advancing *off past the RTA-aligned attribute. The caller sizes `buf` for the
-// fixed, small messages built on top.
-inline void appendAttr(char *buf, std::size_t *off, std::uint16_t type, const void *payload,
-                       std::size_t plen) {
+// advancing *off past the RTA-aligned attribute and returning the written
+// attribute so a caller building a nested container can fix up its rta_len after
+// appending the children. The caller sizes `buf` for the fixed, small messages
+// built on top. A zero `plen` writes a header-only attribute (a nested-container
+// open), copying nothing.
+inline ::rtattr *appendAttr(char *buf, std::size_t *off, std::uint16_t type, const void *payload,
+                            std::size_t plen) {
     auto *rta = reinterpret_cast<::rtattr *>(buf + *off);
     rta->rta_type = type;
     rta->rta_len = static_cast<unsigned short>(RTA_LENGTH(plen));
-    std::memcpy(RTA_DATA(rta), payload, plen);
+    if (plen != 0) {
+        std::memcpy(RTA_DATA(rta), payload, plen);
+    }
     *off += RTA_ALIGN(rta->rta_len);
+    return rta;
 }
 
 // Send one already-built request `msg` of `len` bytes (with NLM_F_REQUEST |
