@@ -25,6 +25,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/dissect/someip_header.cpp
     ${PROJECT_SOURCE_DIR}/src/dissect/someip_dispatcher.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/arp_responder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/dot1q.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
@@ -42,8 +43,11 @@ target_include_directories(tc8_harness_testable PUBLIC
     ${PROJECT_SOURCE_DIR}/include
 )
 # Shared wire math (checksum + ICMP echo body); PUBLIC so every test executable
-# linking tc8_harness_testable inherits the one tc8_wire archive.
-target_link_libraries(tc8_harness_testable PUBLIC tc8_wire tc8_someiptp)
+# linking tc8_harness_testable inherits the one tc8_wire archive. Threads is
+# PUBLIC because the ArpResponder worker thread in arp_responder.cpp pulls in
+# pthread, and consumers link this archive directly.
+find_package(Threads REQUIRED)
+target_link_libraries(tc8_harness_testable PUBLIC tc8_wire tc8_someiptp Threads::Threads)
 tc8_enable_strict_warnings(tc8_harness_testable)
 
 function(tc8_add_unit_test name)
@@ -145,6 +149,10 @@ tc8_add_unit_test(subscribe_builder_test)
 # the Request-ID echo the DUT client correlates on.
 tc8_add_unit_test(someip_rpc_reply_test)
 tc8_add_unit_test(arp_builder_test)
+# Tester-side ARP responder: the pure buildArpReplyForRequest match/reply layout
+# and macOfInterface, with no privilege. The live socket/thread plumbing is
+# proven separately in arp_responder_privileged_test (needs a veth pair).
+tc8_add_unit_test(arp_responder_test)
 tc8_add_unit_test(ipv4_frame_builder_test)
 tc8_add_unit_test(icmp_echo_test)
 tc8_add_unit_test(icmpv4_builder_test)

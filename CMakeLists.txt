@@ -221,6 +221,9 @@ endif()
 find_package(vsomeip3 REQUIRED)
 find_package(CommonAPI REQUIRED)
 find_package(CommonAPI-SomeIP REQUIRED)
+# The tester-side ArpResponder owns a std::thread worker; link Threads
+# explicitly rather than relying on a transitive vsomeip pull-in.
+find_package(Threads REQUIRED)
 
 find_path(PCAP_INCLUDE_DIR NAMES pcap/pcap.h pcap.h)
 find_library(PCAP_LIBRARY NAMES pcap)
@@ -253,6 +256,7 @@ add_executable(tc8-harness
     src/sce_integration/dut_control_factory.cpp
     src/sce_integration/spec_inventory.cpp
     src/stimulus/arp_builder.cpp
+    src/stimulus/arp_responder.cpp
     src/stimulus/dot1q.cpp
     src/stimulus/dhcpv4_frame_builder.cpp
     src/stimulus/ipv4_frame_builder.cpp
@@ -688,6 +692,7 @@ target_link_libraries(tc8-harness PRIVATE
     CommonAPI-SomeIP
     sce_base
     tc8_wire
+    Threads::Threads
     ${PCAP_LIBRARY}
     ${LIBTINS_LIBRARY}
 )
