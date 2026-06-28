@@ -171,6 +171,17 @@ if(TARGET tc8_testability_server)
     # PosixSocketBackend (the IoMultiplexer) and the server header include path.
     tc8_add_unit_test(reactor_test)
     target_link_libraries(reactor_test PRIVATE tc8_testability_server)
+    # Tester-side interface link-state fault injector (net::setLinkState, rtnetlink
+    # RTM_NEWLINK). Links tc8_testability_server for the PosixSocketBackend the
+    # CAP_NET_ADMIN probe (netns_test_util hasNetAdmin) uses. The privileged toggle
+    # self-skips without CAP_NET_ADMIN; re-run it in a no-sudo user+net namespace.
+    tc8_add_unit_test(link_control_test)
+    target_link_libraries(link_control_test PRIVATE tc8_testability_server)
+    add_test(NAME link_state_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:link_control_test>
+            --gtest_filter=SetLinkState.*)
+    set_tests_properties(link_state_privileged PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 # Server-side integration: drives the real DUT-side Upper Tester server core
 # (tc8::ut::UpperTesterServer) over loopback with injected POSIX adapters,
