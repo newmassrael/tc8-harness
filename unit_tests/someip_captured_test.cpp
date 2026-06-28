@@ -420,3 +420,59 @@ TEST(SomeIpCapturedTp, StaleStateClearedOnNonTpFrame) {
     EXPECT_FALSE(c.tp_more_segments);
     EXPECT_EQ(c.tp_segment_len, 0u);
 }
+
+// SOMEIPCLT: the DUT acts as client and capture must surface its Method Request
+// as a DUT-as-source frame — full header + the src_ip/src_port reply target that
+// feeds emitMethodReply. Capture is direction-agnostic, so the same
+// fillSomeIpCapturedFromFrame path that records DUT responses records DUT
+// requests; is_method_request_for is the canonical client-role recognizer.
+TEST(SomeIpCapturedClientRequest, SurfacesHeaderAndReplyTarget) {
+    const std::uint8_t payload[] = {0x42};
+    tc8::SomeIpFrame f{};
+    f.src_ip = 0xAC100002u;  // DUT client endpoint — the reply target.
+    f.src_port = 0xC123u;
+    f.dst_ip = 0xAC100001u;  // tester (server).
+    f.dst_port = 30509u;     // tester's offered service port.
+    f.service_id = 0xF4E7u;
+    f.method_id = 0x0008u;
+    f.client_id = 0x1234u;
+    f.session_id = 0x0007u;
+    f.message_type = static_cast<std::uint8_t>(tc8::someip::MessageType::REQUEST);
+    f.payload_data = payload;
+    f.payload_len = sizeof(payload);
+
+    tc8::SomeIpCaptured c{};
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+
+    // The reply target is the captured request's source endpoint.
+    EXPECT_EQ(c.src_ip, 0xAC100002u);
+    EXPECT_EQ(c.src_port, 0xC123u);
+    // Full request identity is available for verdicts.
+    EXPECT_EQ(c.service_id, 0xF4E7u);
+    EXPECT_EQ(c.method_id, 0x0008u);
+    EXPECT_EQ(c.client_id, 0x1234u);
+    EXPECT_EQ(c.session_id, 0x0007u);
+    // Recognized as the DUT's client-role request.
+    EXPECT_TRUE(c.is_method_request_for(0xF4E7, 0x0008));
+    EXPECT_FALSE(c.is_method_request_for(0xF4E7, 0x0009));  // wrong method
+}
+
+TEST(SomeIpCapturedClientRequest, FireAndForgetIsAClientRequest) {
+    tc8::SomeIpFrame f{};
+    f.service_id = 0xF4E7u;
+    f.method_id = 0x0008u;
+    f.message_type = static_cast<std::uint8_t>(tc8::someip::MessageType::REQUEST_NO_RETURN);
+    tc8::SomeIpCaptured c{};
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+    EXPECT_TRUE(c.is_method_request_for(0xF4E7, 0x0008));
+}
+
+TEST(SomeIpCapturedClientRequest, ResponseIsNotAClientRequest) {
+    tc8::SomeIpFrame f{};
+    f.service_id = 0xF4E7u;
+    f.method_id = 0x0008u;
+    f.message_type = static_cast<std::uint8_t>(tc8::someip::MessageType::RESPONSE);
+    tc8::SomeIpCaptured c{};
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+    EXPECT_FALSE(c.is_method_request_for(0xF4E7, 0x0008));
+}

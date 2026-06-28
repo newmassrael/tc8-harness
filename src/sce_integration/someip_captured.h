@@ -10,6 +10,7 @@
 #include "tc8/protocol_frames/someip_frame.h"
 
 #include "autosar/someiptp.h"
+#include "someip/protocol.h"
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
@@ -362,6 +363,19 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
         return service_id == 0xFFFF && sd_entry_count >= 1 &&
                sd_entries[0].type == 0x01 &&
                sd_entries[0].service_id == want_service_id;
+    }
+
+    // Returns true when this frame is the DUT's client-role Method Request to
+    // `want_service_id` / `want_method_id`: a Request (0x00) or RequestNoReturn
+    // (0x01) carrying that service+method. In the SOMEIPCLT topology the DUT is
+    // the client, so this is the canonical recognizer for "the DUT called our
+    // offered service" — the client-role mirror of is_offer_service_for. The
+    // reply target is this frame's src_ip / src_port (feed emitMethodReply).
+    // Single source of truth so CLT_RPC cases do not re-spell the type check.
+    bool is_method_request_for(std::uint16_t want_service_id, std::uint16_t want_method_id) const {
+        return service_id == want_service_id && method_id == want_method_id &&
+               (message_type == static_cast<std::uint8_t>(someip::MessageType::REQUEST) ||
+                message_type == static_cast<std::uint8_t>(someip::MessageType::REQUEST_NO_RETURN));
     }
 
     // Returns true when at least one parsed option matches `(type, l4)`.
