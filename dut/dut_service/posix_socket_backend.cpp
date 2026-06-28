@@ -25,6 +25,7 @@
 #include <optional>
 #include <vector>
 
+#include "net/rtnetlink.h"
 #include "tc8/testability_protocol.h"
 #include "wire/ip_checksum.h"
 
@@ -119,26 +120,12 @@ struct in6_rtmsg {
     int ifindex;
 };
 
-// Append a netlink rtattr (type + payload) at byte offset *off within `buf`,
-// advancing *off past the RTA-aligned attribute. The caller sizes `buf` for the
-// fixed, small neighbor messages built below.
-void nlAppendAttr(char *buf, std::size_t *off, std::uint16_t type, const void *payload,
-                  std::size_t plen) {
-    auto *rta = reinterpret_cast<::rtattr *>(buf + *off);
-    rta->rta_type = type;
-    rta->rta_len = static_cast<unsigned short>(RTA_LENGTH(plen));
-    std::memcpy(RTA_DATA(rta), payload, plen);
-    *off += RTA_ALIGN(rta->rta_len);
-}
-
-// Build and send a single RTM_NEWNEIGH / RTM_DELNEIGH over a transient
-// NETLINK_ROUTE socket and check the kernel ACK — the request+ACK sibling of
-// flushDynamicArp's dump, the same "speak netlink, never shell out to `ip neigh`"
-// stance (fork+exec is slow and unsafe in this multi-threaded server). A non-null
-// `mac` adds an NDA_LLADDR (an add carries it, a delete does not). Returns true on
-// a zero-error ACK; `enoent_ok` additionally treats -ENOENT ("entry already
-// absent") as success, making a delete idempotent. The write needs CAP_NET_ADMIN,
-// so a privilege-less host gets false (surfaced, not silently accepted).
+// Build and send a single RTM_NEWNEIGH / RTM_DELNEIGH via the shared rtnetlink
+// request primitive (tc8::net::rtnl) — the request+ACK sibling of
+// flushDynamicArp's dump. A non-null `mac` adds an NDA_LLADDR (an add carries it,
+// a delete does not). Returns true on a zero-error ACK; `enoent_ok` additionally
+// treats -ENOENT ("entry already absent") as success, making a delete idempotent.
+// The write needs CAP_NET_ADMIN, so a privilege-less host gets false.
 bool sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type, std::uint16_t extra_flags,
                     std::uint16_t ndm_state, std::uint32_t dst_be, const std::uint8_t *mac,
                     bool enoent_ok) {
@@ -152,30 +139,12 @@ bool sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type, std::uint16_t ex
     nd->ndm_ifindex = static_cast<int>(ifindex);
     nd->ndm_state = ndm_state;
     std::size_t off = NLMSG_ALIGN(nlh->nlmsg_len);
-    nlAppendAttr(buf, &off, NDA_DST, &dst_be, sizeof(dst_be));
+    ::tc8::net::rtnl::appendAttr(buf, &off, NDA_DST, &dst_be, sizeof(dst_be));
     if (mac != nullptr) {
-        nlAppendAttr(buf, &off, NDA_LLADDR, mac, 6);
+        ::tc8::net::rtnl::appendAttr(buf, &off, NDA_LLADDR, mac, 6);
     }
     nlh->nlmsg_len = static_cast<std::uint32_t>(off);
-
-    const int nl = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
-    if (nl < 0) {
-        return false;
-    }
-    bool ok = false;
-    if (::send(nl, buf, nlh->nlmsg_len, 0) >= 0) {
-        char rbuf[512];
-        const ssize_t r = ::recv(nl, rbuf, sizeof(rbuf), 0);
-        if (r >= static_cast<ssize_t>(NLMSG_LENGTH(sizeof(::nlmsgerr)))) {
-            const auto *rh = reinterpret_cast<const ::nlmsghdr *>(rbuf);
-            if (rh->nlmsg_type == NLMSG_ERROR) {
-                const auto *e = static_cast<const ::nlmsgerr *>(NLMSG_DATA(rh));
-                ok = e->error == 0 || (enoent_ok && e->error == -ENOENT);
-            }
-        }
-    }
-    ::close(nl);
-    return ok;
+    return ::tc8::net::rtnl::sendRequestCheckAck(buf, nlh->nlmsg_len, enoent_ok);
 }
 
 }  // namespace
@@ -324,9 +293,9 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
     }
 
     for (const std::uint32_t dst_be : targets) {
-        // Build the RTM_DELNEIGH via nlAppendAttr — the one NDA_DST constructor,
-        // shared with sendNeighborOp — but send it on the SAME socket as the dump
-        // (the shared-socket reason this loop cannot call sendNeighborOp itself).
+        // Build the RTM_DELNEIGH via the shared rtnl::appendAttr — but send it on
+        // the SAME socket as the dump (the shared-socket reason this loop keeps its
+        // own lenient ACK check rather than the strict sendRequestCheckAck).
         char del[256] = {};
         auto *nlh = reinterpret_cast<::nlmsghdr *>(del);
         nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ndmsg));
@@ -336,7 +305,7 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
         nd->ndm_family = AF_INET;
         nd->ndm_ifindex = static_cast<int>(ifindex);
         std::size_t off = NLMSG_ALIGN(nlh->nlmsg_len);
-        nlAppendAttr(del, &off, NDA_DST, &dst_be, sizeof(dst_be));
+        ::tc8::net::rtnl::appendAttr(del, &off, NDA_DST, &dst_be, sizeof(dst_be));
         nlh->nlmsg_len = static_cast<std::uint32_t>(off);
         if (::send(nl, del, nlh->nlmsg_len, 0) < 0) {
             ok = false;
