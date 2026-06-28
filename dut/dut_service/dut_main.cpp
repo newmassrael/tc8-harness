@@ -1,6 +1,7 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -9,6 +10,7 @@
 #include <CommonAPI/CommonAPI.hpp>
 
 #include "ets_emission.h"
+#include "ets_event_sink.h"
 #include "ets_extension.h"
 #include "ets_factory.h"
 #include "ets_fault.h"
@@ -30,6 +32,12 @@ constexpr const char* kDomain    = "local";
 constexpr const char* kInstance  = "ETS";
 constexpr const char* kInstance2 = "ETS2";
 constexpr const char* kInterface = "org.tc8.ets.EnhancedTestability:v1_0";
+
+// SERVICE-ID-1 numeric identity (public ETS service) for the OEM event sink —
+// matches vsomeip.json ("service":"0xF4E7","instance":"0x0001"). The OEM
+// extension offers its NDA events on this same service/instance.
+constexpr std::uint16_t kEtsServiceId  = 0xF4E7;
+constexpr std::uint16_t kEtsInstanceId = 0x0001;
 
 // SERVICE-ID-2 (multi-service axis) — separate fdepl with its own
 // SomeIpServiceID (0xF4E8). Lives on the same domain as ETS but routes
@@ -70,10 +78,19 @@ int main() {
     // changes from its default-constructed 0.
     impl->setTestFieldUINT8Attribute(static_cast<uint8_t>(0x42));
 
+    // OEM event sink (O2): the CommonAPI service's OWN vsomeip application,
+    // retrieved by name so the extension shares one routing client (no second
+    // app). The name matches VSOMEIP_APPLICATION_NAME (the topology sets it to
+    // the single vsomeip.json application); "tc8-dut" is the bare-run fallback.
+    // Declared before the extension so it outlives it (onRegister/onTick use it).
+    const char* app_name = std::getenv("VSOMEIP_APPLICATION_NAME");
+    std::unique_ptr<tc8::dut::IEtsEventSink> ets_sink = tc8::dut::makeEtsEventSink(
+        app_name != nullptr ? app_name : "tc8-dut", kEtsServiceId, kEtsInstanceId);
+
     // OEM extend seam (O2): no-op in the public DUT. An OEM TU (selected via
-    // TC8_ETS_EXTENSION_SRC) offers its NDA event surface via raw vsomeip and may
-    // opt 0x8001 into trigger-driven emission. Created before the emission engine
-    // because the 0x8001 source kind is chosen from ets8001TriggerDriven().
+    // TC8_ETS_EXTENSION_SRC) offers its NDA event surface on the sink above and
+    // may opt 0x8001 into trigger-driven emission. Created before the emission
+    // engine because the 0x8001 source kind is chosen from ets8001TriggerDriven().
     std::unique_ptr<tc8::dut::IEtsExtension> ets_extension = tc8::dut::createEtsExtension();
 
     // Single emission engine (one producer per event). 0x8001/TestEventUINT8 is
@@ -103,10 +120,10 @@ int main() {
     emission.addTriggeredSource(std::string(tc8::dut::ets_event::kMulticast),
                                 [impl](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
 
-    // Now that the service is offered, let the OEM extension (O2) emit its NDA
-    // event surface via raw vsomeip. Created above (its ets8001TriggerDriven()
+    // Now that the service is offered, let the OEM extension (O2) offer its NDA
+    // event surface on the sink. Created above (its ets8001TriggerDriven()
     // already chose the 0x8001 source kind).
-    ets_extension->onRegister();
+    ets_extension->onRegister(*ets_sink);
 
     // §5.1.6 SOMEIP_ETS_089 — bind suspendInterface override to a
     // detached unregister/re-register cycle. CommonAPI's
@@ -219,7 +236,7 @@ int main() {
     emission.start();
 
     while (!g_stop.load()) {
-        ets_extension->onTick();
+        ets_extension->onTick(*ets_sink);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 

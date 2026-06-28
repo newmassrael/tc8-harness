@@ -95,6 +95,7 @@ add_executable(tc8-dut
     dhcpv4_client.cpp
     dut_main.cpp
     ets_emission.cpp
+    ets_event_sink.cpp
     ets_impl.cpp
     ets_impl_2.cpp
     linklocal_autoconf.cpp
