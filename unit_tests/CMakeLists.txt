@@ -23,6 +23,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_inventory.cpp
     ${PROJECT_SOURCE_DIR}/src/dissect/someip_header.cpp
+    ${PROJECT_SOURCE_DIR}/src/dissect/someip_dispatcher.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/dot1q.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
@@ -158,6 +159,11 @@ tc8_add_unit_test(udp_emit_test)
 tc8_add_unit_test(someip_tp_emit_test)
 tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
+# SOME/IP dispatcher datagram grouping: synthetic UDP datagrams carrying N
+# concatenated SOME/IP messages drive deliver(), asserting each emitted event
+# is stamped with its 0-based index and the datagram's message count; the TCP
+# feed() path leaves the count-0 sentinel (no datagram boundary).
+tc8_add_unit_test(someip_dispatcher_test)
 # Method Request destination helper: derives the DUT endpoint from cfg.someip
 # (the --expect surface) and guards the TCP-port-leak regression. Header-only
 # logic, no DUT — links the shared testable lib for TestConfig.

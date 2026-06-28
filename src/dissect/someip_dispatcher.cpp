@@ -34,20 +34,40 @@ std::uint64_t SomeIpDispatcher::flowKey(const Transport &t) {
 
 void SomeIpDispatcher::deliver(const Transport &t, const std::uint8_t *data, std::size_t len,
                                const Listener &listener) {
+    // A single UDP datagram MAY carry several concatenated SOME/IP messages
+    // (PRS_SOMEIP), so walk the whole datagram first to learn how many parse,
+    // then emit each one stamped with its 0-based index and that total count.
+    // The collected frames hold pointers into `data`, which outlives this
+    // call, so deferring the listener calls to a second pass is safe.
+    std::vector<::tc8::SomeIpFrame> frames;
     std::size_t off = 0;
     while (off < len) {
         auto r = parseSomeIpHeader(data + off, len - off);
         if (!r) {
-            return;
+            break;
         }
         const std::uint8_t *payload = data + off + SomeIpHeader::kHeaderSize;
         const std::size_t payload_len = r->total_size - SomeIpHeader::kHeaderSize;
-        listener(::tc8::CapturedEvent{makeFrame(t, r->header, payload, payload_len)});
+        frames.push_back(makeFrame(t, r->header, payload, payload_len));
         off += r->total_size;
+    }
+
+    // frames.size() <= UDP payload (<= 65507 B) / min SOME/IP message (16 B)
+    // = ~4094, so the count always fits a uint16 — the cast cannot truncate.
+    const auto count = static_cast<std::uint16_t>(frames.size());
+    for (std::uint16_t i = 0; i < count; ++i) {
+        frames[i].datagram_msg_index = i;
+        frames[i].datagram_msg_count = count;
+        listener(::tc8::CapturedEvent{frames[i]});
     }
 }
 
 void SomeIpDispatcher::feed(const Transport &t, const std::uint8_t *data, std::size_t len, const Listener &listener) {
+    // TCP path: a reassembled byte stream has no datagram boundary, so the
+    // emitted frames intentionally keep SomeIpFrame's default
+    // `datagram_msg_count == 0` sentinel. Do NOT stamp grouping here — setting
+    // it to 1 would falsely claim each message was the sole member of a
+    // datagram. The UDP-only convention is documented on SomeIpFrame.
     auto &buf = residuals_[flowKey(t)];
     buf.insert(buf.end(), data, data + len);
 

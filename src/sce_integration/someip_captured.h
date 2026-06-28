@@ -150,6 +150,23 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     std::uint8_t return_code = 0;
     std::uint32_t payload_len = 0;
 
+    // Datagram grouping (UDP only), surfaced from `SomeIpFrame`. For a
+    // message parsed out of a UDP datagram, `datagram_msg_index` is its
+    // 0-based position within that datagram and `datagram_msg_count` the
+    // total number of SOME/IP messages the datagram carried (1 = sole
+    // message). Lets a case assert the DUT concatenated N messages into one
+    // UDP payload (PRS_SOMEIP permits it; e.g. CAN-encapsulated SOME/IP
+    // batching, DS_CN_0011). `datagram_msg_count` stays 0 for SOME/IP-over-
+    // TCP (a reassembled byte stream has no datagram boundary), so gate any
+    // datagram-packing assertion on a UDP case — on TCP it reads 0, never a
+    // spurious 1. Because the dispatcher delivers a datagram's messages in
+    // wire order, an SCXML can reconstruct datagram boundaries from the
+    // index sequence (index resetting to 0 marks the next datagram) to bind
+    // a specific group of messages together rather than trusting one event's
+    // count in isolation.
+    std::uint16_t datagram_msg_index = 0;
+    std::uint16_t datagram_msg_count = 0;
+
     // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
     // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
     // `observed_ts_us` is surfaced from `SomeIpFrame::observed_ts_us` on
@@ -475,6 +492,8 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
     c.message_type = f.message_type;
     c.return_code = f.return_code;
     c.payload_len = f.payload_len;
+    c.datagram_msg_index = f.datagram_msg_index;
+    c.datagram_msg_count = f.datagram_msg_count;
     // Shared bounded copy of the leading payload bytes from the base;
     // `payload_snapshot[0]` subsumes the former `payload_byte0` slot.
     c.fillPayloadSnapshot(f.payload_data, f.payload_len);
