@@ -132,15 +132,20 @@ inline void appendI64Json(std::string &out, const char *key, std::int64_t v) {
 }
 
 // Append the universal inter-frame timing observation
-// ``,"observed_ts_us":N,"frame_delta_us":N`` shared by every Named Context
-// that derives from `CapturedFrameTiming`. Surfacing `frame_delta_us()` is
-// what makes a timing-window verdict (e.g. `dut_*_interval_out_of_range`)
-// self-diagnosing: the witnessing inter-frame delta rides the trace, so a
-// failure no longer needs a pcap re-run to read the measured value. Leading
-// comma — callers append it after the family's own fields.
+// ``,"observed_ts_us":N,"frame_delta_us":N,"delta_from_capture_start_us":N``
+// shared by every Named Context that derives from `CapturedFrameTiming`.
+// Surfacing the deltas is what makes a timing-window verdict (e.g.
+// `dut_*_interval_out_of_range`) self-diagnosing: the witnessing inter-frame
+// delta AND the capture-window-relative delta ride the trace, so a failure no
+// longer needs a pcap re-run to read the measured value. `frame_delta_us` is
+// the frame-to-frame gap (offer-to-offer cases); `delta_from_capture_start_us`
+// is the gap from the capture-window-open instant (boot/stimulus-relative
+// cases). Leading comma — callers append it after the family's own fields.
 inline void appendTimingJson(std::string &out, const ::tc8::CapturedFrameTiming &t) {
     appendI64Json(out, ",\"observed_ts_us\":", t.observed_ts_us);
     appendI64Json(out, ",\"frame_delta_us\":", t.frame_delta_us());
+    appendI64Json(out, ",\"delta_from_capture_start_us\":",
+                  t.delta_from_capture_start_us());
 }
 
 // Append the L3 endpoint pair as ``"src_ip":<ip>,"dst_ip":<ip>`` — no

@@ -477,3 +477,56 @@ TEST(SomeIpCapturedClientRequest, ResponseIsNotAClientRequest) {
     tc8::fillSomeIpCapturedFromFrame(c, f);
     EXPECT_FALSE(c.is_method_request_for(0xF4E7, 0x0008));
 }
+
+// CapturedFrameTiming::delta_from_capture_start_us — the boot/stimulus-relative
+// measurement reference. Exercised through SomeIpCaptured (which derives from
+// CapturedFrameTiming) since the SD_BEHAVIOR initial-delay cases that consume it
+// use that context. The accessor is pure logic over the two timestamps; the
+// runner stamps `capture_start_ts_us` once at window-open.
+TEST(CapturedFrameTimingCaptureStart, UnsetReferenceReturnsZero) {
+    tc8::SomeIpCaptured c{};
+    // capture_start_ts_us == 0 (not stamped): unmeasurable -> 0, even with a
+    // frame observed, so a `>= MIN` guard fails closed rather than passing.
+    c.observed_ts_us = 1'700'000'000'000'000LL;
+    EXPECT_EQ(c.delta_from_capture_start_us(), 0);
+
+    // Window opened but no frame observed yet (observed_ts_us == 0) -> 0.
+    tc8::SomeIpCaptured d{};
+    d.capture_start_ts_us = 1'700'000'000'000'000LL;
+    EXPECT_EQ(d.delta_from_capture_start_us(), 0);
+}
+
+TEST(CapturedFrameTimingCaptureStart, PositiveGapMeasuredFromWindowOpen) {
+    tc8::SomeIpCaptured c{};
+    c.capture_start_ts_us = 1'700'000'000'000'000LL;
+    c.observed_ts_us = c.capture_start_ts_us + 123'456LL;  // 123.456 ms later
+    EXPECT_EQ(c.delta_from_capture_start_us(), 123'456LL);
+}
+
+TEST(CapturedFrameTimingCaptureStart, FrameBeforeWindowOpenClampsToZero) {
+    // A frame buffered in the kernel ring before the window opened would yield
+    // a negative raw difference; the accessor clamps it to 0 so a nonsensical
+    // negative window never reaches a guard or the trace.
+    tc8::SomeIpCaptured c{};
+    c.capture_start_ts_us = 1'700'000'000'000'000LL;
+    c.observed_ts_us = c.capture_start_ts_us - 5'000LL;
+    EXPECT_EQ(c.delta_from_capture_start_us(), 0);
+}
+
+TEST(CapturedFrameTimingCaptureStart, IndependentOfFrameDeltaContract) {
+    // The capture-start delta must not perturb frame_delta_us()'s
+    // first-transition-returns-0 contract that the offer-to-offer guards rely
+    // on: with no prior fired transition (prev_observed_ts_us == 0),
+    // frame_delta_us() stays 0 even though the capture-start delta is non-zero.
+    tc8::SomeIpCaptured c{};
+    c.capture_start_ts_us = 1'700'000'000'000'000LL;
+    c.observed_ts_us = c.capture_start_ts_us + 400'000LL;
+    EXPECT_EQ(c.frame_delta_us(), 0);
+    EXPECT_EQ(c.delta_from_capture_start_us(), 400'000LL);
+
+    // Once a transition has fired (prev set), frame_delta_us() measures
+    // frame-to-frame and the two accessors are independent.
+    c.prev_observed_ts_us = c.capture_start_ts_us + 150'000LL;
+    EXPECT_EQ(c.frame_delta_us(), 250'000LL);
+    EXPECT_EQ(c.delta_from_capture_start_us(), 400'000LL);
+}

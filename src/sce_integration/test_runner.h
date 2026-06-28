@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -12,6 +13,7 @@
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
+#include "captured_frame_timing.h"
 #include "captured_trace.h"
 #include "test_case_traits.h"
 #include "test_config.h"
@@ -304,6 +306,23 @@ public:
 
     void start() override {
         sm_.initialize();
+        // Stamp the capture-window-open instant — the measurement reference
+        // for boot/stimulus-relative timing cases (see
+        // `CapturedFrameTiming::delta_from_capture_start_us`). `start()` runs
+        // exactly once, after `kickStimulus` returns and before the poll loop
+        // dispatches any frame, so this IS the window-open time. Sampled from
+        // `system_clock` (CLOCK_REALTIME / Unix epoch on this platform) to
+        // match the pcap `gettimeofday` domain of `observed_ts_us` — NOT
+        // `steady_clock`, which the CLI deadline uses and which would make the
+        // `observed_ts_us - capture_start_ts_us` subtraction meaningless.
+        // Guarded so a Captured context that does not observe wire timing
+        // (no `CapturedFrameTiming` base) still compiles.
+        if constexpr (std::is_base_of_v<::tc8::CapturedFrameTiming, Captured>) {
+            captured_.capture_start_ts_us =
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count();
+        }
         // Anchor the state-entry observer baseline. A transition is
         // detected when `getCurrentState()` differs from this value,
         // so registering for the initial state is intentionally a
