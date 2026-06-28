@@ -47,9 +47,9 @@ struct TestCaseTraits<cases::SomeipEts148SM> : SomeIpAnyBase<cases::SomeipEts148
         // 3x UInt32 big-endian (SOME/IP network byte order). Fire&Forget
         // (message_type 0x01). Lands ~500 ms after the Subscribe Ack, so the
         // DUT's subscription endpoint is already recorded when it fires 0x8002.
-        ::tc8::stimulus::MethodRequestTarget trigger{};
+        ::tc8::stimulus::SomeIpRpcMessage trigger{};
         trigger.method_id = 0x04;
-        trigger.message_type = 0x01;
+        trigger.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         trigger.payload = {0x00, 0x00, 0x00, 0x00,   // start = 0 s
                            0x00, 0x00, 0x00, 0x03,   // duration = 3 s
                            0x00, 0x00, 0x00, 0xC8};  // debounceTime = 200 ms

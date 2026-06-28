@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::SomeipEts019SM> : SomeIpAnyBase<cases::SomeipEts019
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0012;
         // CommonAPI Double wire shape: 8 bytes BE. 1.5 IEEE-754 = sign 0,
         // exponent 0x3FF, mantissa 0x8000000000000 -> 0x3FF8000000000000.

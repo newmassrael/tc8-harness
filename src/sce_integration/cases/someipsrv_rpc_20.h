@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::Rpc20SM> : SomeIpAnyBase<cases::Rpc20SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
         // interface_version default 0x01 already matches expected.major_
         // version configured by smoke-test.sh (--expect major_version=1).

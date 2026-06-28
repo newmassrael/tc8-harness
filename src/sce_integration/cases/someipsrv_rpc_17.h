@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
 
-        ::tc8::stimulus::MethodRequestTarget req{};
+        ::tc8::stimulus::SomeIpRpcMessage req{};
         req.service_id = 0xF4E7;
         req.method_id = 0x000A;  // METHOD-ID-1-SI-1 (echoUINT8RELIABLE — TCP)
         req.payload = {0x42};
@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req, {},
                                                    ::tc8::sce::someipTcpMethodDest(cfg));
 
-        ::tc8::stimulus::MethodRequestTarget req2 = req;
+        ::tc8::stimulus::SomeIpRpcMessage req2 = req;
         req2.session_id = 0x0002;
         ::tc8::stimulus::MethodRequestTiming late{};
         late.pre_emit_wait = std::chrono::milliseconds{500};

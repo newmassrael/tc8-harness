@@ -44,22 +44,22 @@ struct TestCaseTraits<cases::SomeipEts068SM> : SomeIpAnyBase<cases::SomeipEts068
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        std::vector<::tc8::stimulus::MethodRequestTarget> bundle;
+        std::vector<::tc8::stimulus::SomeIpRpcMessage> bundle;
         bundle.reserve(3);
 
-        ::tc8::stimulus::MethodRequestTarget m1{};
+        ::tc8::stimulus::SomeIpRpcMessage m1{};
         m1.method_id  = 0x000A;
         m1.session_id = 0x0001;
         m1.payload    = {0x42};
         bundle.push_back(m1);
 
-        ::tc8::stimulus::MethodRequestTarget m2{};
+        ::tc8::stimulus::SomeIpRpcMessage m2{};
         m2.method_id  = 0x000A;
         m2.session_id = 0x0002;
         m2.payload    = {0x43};
         bundle.push_back(m2);
 
-        ::tc8::stimulus::MethodRequestTarget m3{};
+        ::tc8::stimulus::SomeIpRpcMessage m3{};
         m3.method_id  = 0x000A;
         m3.session_id = 0x0003;
         m3.payload    = {0x44};

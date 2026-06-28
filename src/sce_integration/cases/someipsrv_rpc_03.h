@@ -22,7 +22,7 @@ namespace tc8::sce {
 // empty request payload and the field value in the response payload.
 // Targets the fieldA getter (METHOD-ID-GET-SI-1 = 0x40, declared in
 // dut/ets/ets.fdepl). Empty request payload is the natural default of
-// MethodRequestTarget; CommonAPI's StubDefault stores the field's
+// SomeIpRpcMessage; CommonAPI's StubDefault stores the field's
 // initial value (0) and serves the getter from there until a setter
 // overwrites it.
 template <>
@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::Rpc03SM> : SomeIpAnyBase<cases::Rpc03SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0040;
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }

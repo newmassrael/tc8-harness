@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::SomeipEts067SM> : SomeIpAnyBase<cases::SomeipEts067
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0009;
         // 32-bit BE array length = 0 (no elements follow). Wire payload =
         // 4 bytes; SOME/IP Length = 8 + 4 = 12 (default formula).

@@ -48,24 +48,24 @@ struct TestCaseTraits<cases::SomeipEts103SM> : SomeIpAnyBase<cases::SomeipEts103
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
         // 1. clientServiceActivate.
-        ::tc8::stimulus::MethodRequestTarget activate{};
+        ::tc8::stimulus::SomeIpRpcMessage activate{};
         activate.method_id    = 0x002F;
-        activate.message_type = 0x01;  // Fire&Forget
+        activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // Fire&Forget
         activate.payload      = {0x00};
         ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
         // 2. clientServiceSubscribeEventgroup.
-        ::tc8::stimulus::MethodRequestTarget subscribe{};
+        ::tc8::stimulus::SomeIpRpcMessage subscribe{};
         subscribe.method_id    = 0x0032;
-        subscribe.message_type = 0x01;
+        subscribe.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         subscribe.payload      = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
         ::tc8::stimulus::emitMethodRequestAfter(iface, subscribe, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         // 3. clientServiceGetLastValueOfEventTCP — Method 0x3B Request /
         // Response (no payload on Request; Response carries UInt8).
-        ::tc8::stimulus::MethodRequestTarget get_last{};
+        ::tc8::stimulus::SomeIpRpcMessage get_last{};
         get_last.method_id = 0x003B;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get_last, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }

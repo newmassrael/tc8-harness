@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::Rpc19SM> : SomeIpAnyBase<cases::Rpc19SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
         target.client_id = 0xCAFE;
         target.session_id = 0x1234;

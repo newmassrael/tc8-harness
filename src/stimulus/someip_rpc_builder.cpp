@@ -11,6 +11,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include "someip/protocol.h"
 #include "stimulus/iface_addr.h"
 
 namespace tc8::stimulus {
@@ -34,7 +35,7 @@ void putBe32(std::vector<std::uint8_t> &b, std::uint32_t v) {
 
 }  // namespace
 
-std::vector<std::uint8_t> buildMethodRequest(const MethodRequestTarget &t) {
+std::vector<std::uint8_t> buildMethodRequest(const SomeIpRpcMessage &t) {
     std::vector<std::uint8_t> b;
     b.reserve(16 + t.payload.size());
     putBe16(b, t.service_id);
@@ -52,15 +53,29 @@ std::vector<std::uint8_t> buildMethodRequest(const MethodRequestTarget &t) {
     putBe16(b, t.session_id);
     b.push_back(t.protocol_version);
     b.push_back(t.interface_version);
-    b.push_back(t.message_type);
-    b.push_back(t.return_code);
+    b.push_back(t.message_type_override.value_or(static_cast<std::uint8_t>(t.message_type)));
+    b.push_back(t.return_code_override.value_or(static_cast<std::uint8_t>(t.return_code)));
     b.insert(b.end(), t.payload.begin(), t.payload.end());
     return b;
 }
 
+// Tester server-role replies reuse the request header core; only the
+// message_type differs (PRS_SOMEIP_00701). Taken by value so the forced
+// message_type does not mutate the caller's target. return_code is left as
+// the caller set it (PRS_SOMEIP_00757 governs the allowed values per type).
+std::vector<std::uint8_t> buildMethodResponse(SomeIpRpcMessage t) {
+    t.message_type = someip::MessageType::RESPONSE;
+    return buildMethodRequest(t);
+}
+
+std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t) {
+    t.message_type = someip::MessageType::ERROR;
+    return buildMethodRequest(t);
+}
+
 namespace {
 
-int requestOnce(const MethodRequestTarget &target, std::uint16_t session_id, std::string_view iface,
+int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
                 const MethodRequestDestination &dest) {
     const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
@@ -90,7 +105,7 @@ int requestOnce(const MethodRequestTarget &target, std::uint16_t session_id, std
         return -3;
     }
 
-    MethodRequestTarget t = target;
+    SomeIpRpcMessage t = target;
     t.session_id = session_id;
     const auto datagram = buildMethodRequest(t);
 
@@ -113,7 +128,7 @@ int requestOnce(const MethodRequestTarget &target, std::uint16_t session_id, std
 
 }  // namespace
 
-int emitMethodRequestAfter(std::string_view iface, const MethodRequestTarget &target,
+int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &target,
                            const MethodRequestTiming &timing, const MethodRequestDestination &dest) {
     std::this_thread::sleep_for(timing.pre_emit_wait);
 
@@ -132,7 +147,7 @@ int emitMethodRequestAfter(std::string_view iface, const MethodRequestTarget &ta
 
 namespace {
 
-int requestOnceTcp(const MethodRequestTarget &target, std::uint16_t session_id, std::string_view iface,
+int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
                    const MethodRequestDestination &dest, std::chrono::milliseconds linger) {
     const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -171,7 +186,7 @@ int requestOnceTcp(const MethodRequestTarget &target, std::uint16_t session_id, 
         return -4;
     }
 
-    MethodRequestTarget t = target;
+    SomeIpRpcMessage t = target;
     t.session_id = session_id;
     const auto datagram = buildMethodRequest(t);
 
@@ -196,7 +211,7 @@ int requestOnceTcp(const MethodRequestTarget &target, std::uint16_t session_id, 
 
 }  // namespace
 
-int emitMethodRequestTcpAfter(std::string_view iface, const MethodRequestTarget &target,
+int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &target,
                               const MethodRequestTiming &timing, const MethodRequestDestination &dest,
                               const MethodRequestTcpDwell &dwell) {
     std::this_thread::sleep_for(timing.pre_emit_wait);
@@ -214,7 +229,7 @@ int emitMethodRequestTcpAfter(std::string_view iface, const MethodRequestTarget 
     return 0;
 }
 
-int emitMethodRequestTcpAndHold(std::string_view iface, const MethodRequestTarget &target,
+int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &target,
                                 const MethodRequestDestination &dest,
                                 std::chrono::milliseconds pre_emit_wait,
                                 std::chrono::milliseconds dwell_after_send) {
@@ -283,7 +298,7 @@ namespace {
 // consistent (or honour each target's own length_override) so the
 // receiving side can walk the buffer one message at a time.
 std::vector<std::uint8_t> buildBundledMethodRequests(
-    const std::vector<MethodRequestTarget> &targets) {
+    const std::vector<SomeIpRpcMessage> &targets) {
     std::vector<std::uint8_t> bundle;
     for (const auto &t : targets) {
         const auto one = buildMethodRequest(t);
@@ -295,7 +310,7 @@ std::vector<std::uint8_t> buildBundledMethodRequests(
 }  // namespace
 
 int emitBundledMethodRequestsUdp(std::string_view iface,
-                                 const std::vector<MethodRequestTarget> &targets,
+                                 const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const MethodRequestDestination &dest) {
     std::this_thread::sleep_for(pre_emit_wait);
@@ -350,7 +365,7 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
 }
 
 int emitBundledMethodRequestsTcp(std::string_view iface,
-                                 const std::vector<MethodRequestTarget> &targets,
+                                 const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const MethodRequestDestination &dest,
                                  std::chrono::milliseconds linger) {

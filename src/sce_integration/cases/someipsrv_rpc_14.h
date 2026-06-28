@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
 
-        ::tc8::stimulus::MethodRequestTarget req{};
+        ::tc8::stimulus::SomeIpRpcMessage req{};
         req.service_id = 0xF4E7;
         req.method_id = 0x0008;  // METHOD-ID-1-SI-1 (echoUINT8 — UDP)
         req.payload = {0x42};
@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
         ::tc8::stimulus::emitMethodRequestAfter(iface, req, {},
                                                 ::tc8::sce::someipUdpMethodDest(cfg));
 
-        ::tc8::stimulus::MethodRequestTarget req2 = req;
+        ::tc8::stimulus::SomeIpRpcMessage req2 = req;
         req2.session_id = 0x0002;
         ::tc8::stimulus::MethodRequestTiming late{};
         late.pre_emit_wait = std::chrono::milliseconds{800};

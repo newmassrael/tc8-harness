@@ -44,9 +44,9 @@ struct TestCaseTraits<cases::SomeipEts150SM> : SomeIpAnyBase<cases::SomeipEts150
         ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
         // triggerEventUINT8Multicast(start=0 s, duration=3 s, debounceTime=200 ms):
         // 3x UInt32 big-endian, Fire&Forget (message_type 0x01).
-        ::tc8::stimulus::MethodRequestTarget trigger{};
+        ::tc8::stimulus::SomeIpRpcMessage trigger{};
         trigger.method_id = 0x3A;
-        trigger.message_type = 0x01;
+        trigger.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         trigger.payload = {0x00, 0x00, 0x00, 0x00,
                            0x00, 0x00, 0x00, 0x03,
                            0x00, 0x00, 0x00, 0xC8};

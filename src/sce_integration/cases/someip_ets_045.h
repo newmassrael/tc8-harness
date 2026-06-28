@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts045SM> : SomeIpAnyBase<cases::SomeipEts045
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0016;
         // ETS_039 baseline with the UTF-16 BOM (FE FF) mutated to DE AD —
         // CommonAPI's InputStream::checkBom rejects the request and the

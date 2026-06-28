@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
         const auto tcp_dest = ::tc8::sce::someipTcpMethodDest(cfg);
 
         // 1. getTestFieldUint8Reliable (Method 0x2A) over TCP.
-        ::tc8::stimulus::MethodRequestTarget get1{};
+        ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x002A;
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get1,
                                                    ::tc8::stimulus::MethodRequestTiming{},
@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setTestFieldUint8Reliable(0x99) (Method 0x2B) over TCP. The setter echoes 0x99.
-        ::tc8::stimulus::MethodRequestTarget set{};
+        ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x002B;
         set.payload   = {0x99};
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, set,
@@ -74,7 +74,7 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. getTestFieldUint8Reliable again — the armed getter returns 0x99 ^ 0xFF = 0x66.
-        ::tc8::stimulus::MethodRequestTarget get2{};
+        ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x002A;
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get2,
                                                    ::tc8::stimulus::MethodRequestTiming{},

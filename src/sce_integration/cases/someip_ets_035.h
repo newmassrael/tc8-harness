@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::SomeipEts035SM> : SomeIpAnyBase<cases::SomeipEts035
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
 
-        ::tc8::stimulus::MethodRequestTarget req{};
+        ::tc8::stimulus::SomeIpRpcMessage req{};
         req.method_id = 0x000A;  // METHOD-ID echoUINT8RELIABLE (TCP)
         req.payload = {0x42};
 

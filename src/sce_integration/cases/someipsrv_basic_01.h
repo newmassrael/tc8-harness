@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::Basic01SM> : SomeIpAnyBase<cases::Basic01SM> {
         // value 0x42 is purely diagnostic — pass criterion checks the
         // SOME/IP header (message_type, return_code, service_id,
         // method_id), not payload bytes.
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.payload = {0x42};
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }

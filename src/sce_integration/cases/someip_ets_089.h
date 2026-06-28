@@ -46,9 +46,9 @@ struct TestCaseTraits<cases::SomeipEts089SM> : SomeIpAnyBase<cases::SomeipEts089
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
-        ::tc8::stimulus::MethodRequestTarget suspend{};
+        ::tc8::stimulus::SomeIpRpcMessage suspend{};
         suspend.method_id    = 0x0002;       // suspendInterface (ets.fdepl)
-        suspend.message_type = 0x01;         // Fire&Forget
+        suspend.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;         // Fire&Forget
         // Two big-endian UInt32 args: start_ms = 0, duration_ms = 2000.
         suspend.payload      = {0x00, 0x00, 0x00, 0x00,
                                 0x00, 0x00, 0x07, 0xD0};

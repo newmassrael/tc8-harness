@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::SomeipEts066SM> : SomeIpAnyBase<cases::SomeipEts066
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0013;
         // 63 raw bytes — ETS_053 baseline 64 B - 1.
         target.payload = std::vector<uint8_t>(63, 0x00);

@@ -53,20 +53,20 @@ struct TestCaseTraits<cases::SomeipEts166NegSM>
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
         // 1. getFieldA — Method 0x40, no payload.
-        ::tc8::stimulus::MethodRequestTarget get1{};
+        ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x0040;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setFieldA(0x55) — Method 0x42, payload [0x55]. The setter echoes 0x55 verbatim.
-        ::tc8::stimulus::MethodRequestTarget set{};
+        ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x0042;
         set.payload   = {0x55};
         ::tc8::stimulus::emitMethodRequestAfter(iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. getFieldA again — the armed getter returns 0x55 ^ 0xFF = 0xAA (!= 0x55).
-        ::tc8::stimulus::MethodRequestTarget get2{};
+        ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x0040;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }

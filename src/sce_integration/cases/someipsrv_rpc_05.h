@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::Rpc05SM> : SomeIpAnyBase<cases::Rpc05SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
-        target.message_type = 0x01;     // REQUEST_NO_RETURN
+        ::tc8::stimulus::SomeIpRpcMessage target{};
+        target.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;     // REQUEST_NO_RETURN
         target.method_id = ::tc8::sd_test_unknown::kMethodId;
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }

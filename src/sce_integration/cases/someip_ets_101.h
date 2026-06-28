@@ -46,9 +46,9 @@ struct TestCaseTraits<cases::SomeipEts101SM> : SomeIpAnyBase<cases::SomeipEts101
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id    = 0x002F;
-        target.message_type = 0x01;
+        target.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         target.payload      = {0x00};
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         ::tc8::stimulus::OfferServiceTarget stop{};

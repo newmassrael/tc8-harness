@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts070SM> : SomeIpAnyBase<cases::SomeipEts070
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0019;
         target.payload = {
             // unionLength_BE = 0x00000001 (sizeof(uint8) = 1 byte)

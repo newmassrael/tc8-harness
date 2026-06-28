@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::SomeipEts044SM> : SomeIpAnyBase<cases::SomeipEts044
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0016;
         // Inner string length prefix declares 9 bytes; those 9 bytes are
         // BOM + 'h' + 'i' + null + 1 trailing odd byte. Walk-back strips

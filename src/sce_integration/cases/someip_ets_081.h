@@ -57,18 +57,18 @@ struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
-        ::tc8::stimulus::MethodRequestTarget activate{};
+        ::tc8::stimulus::SomeIpRpcMessage activate{};
         activate.method_id    = 0x002F;       // clientServiceActivate
-        activate.message_type = 0x01;         // Fire&Forget
+        activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
         ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Proxy buildProxy() registration delay — same gap as ETS_084/_097.
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
-        ::tc8::stimulus::MethodRequestTarget sub_trigger{};
+        ::tc8::stimulus::SomeIpRpcMessage sub_trigger{};
         sub_trigger.method_id    = 0x0032;    // clientServiceSubscribeEventgroup
-        sub_trigger.message_type = 0x01;      // Fire&Forget
+        sub_trigger.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;      // Fire&Forget
         // UInt32 delay (0) + UInt32 duration (0).
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};

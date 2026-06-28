@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::Onwire03SM> : SomeIpAnyBase<cases::Onwire03SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.client_id = 0xCAFE;
         target.session_id = 0x1234;
         target.payload = {0x42};

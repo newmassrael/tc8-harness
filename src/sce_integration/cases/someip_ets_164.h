@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
 
         // 1. setFieldA(0x77) — Method 0x42, payload [0x77]. Phase 2
         // observes the Response.
-        ::tc8::stimulus::MethodRequestTarget set{};
+        ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x0042;
         set.payload   = {0x77};
         ::tc8::stimulus::emitMethodRequestAfter(iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
@@ -64,9 +64,9 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
 
         // 2. suspendInterface(start=0, duration=2000) — Method 0x02
         // Fire&Forget. Args 4-byte start + 4-byte duration BE.
-        ::tc8::stimulus::MethodRequestTarget suspend{};
+        ::tc8::stimulus::SomeIpRpcMessage suspend{};
         suspend.method_id    = 0x0002;
-        suspend.message_type = 0x01;  // RequestNoReturn (Fire&Forget).
+        suspend.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // RequestNoReturn (Fire&Forget).
         suspend.payload      = {0x00, 0x00, 0x00, 0x00,   // start = 0
                                 0x00, 0x00, 0x07, 0xD0};  // duration = 2000 ms
         ::tc8::stimulus::emitMethodRequestAfter(iface, suspend, {}, ::tc8::sce::someipUdpMethodDest(cfg));
@@ -76,7 +76,7 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
 
         // 3. getFieldA again — Method 0x40. Phase 4 observes the
         // Response (any payload).
-        ::tc8::stimulus::MethodRequestTarget get{};
+        ::tc8::stimulus::SomeIpRpcMessage get{};
         get.method_id = 0x0040;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }

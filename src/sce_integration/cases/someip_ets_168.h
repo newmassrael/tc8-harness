@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
         // 1. getTestFieldUint8Reliable (Method 0x2A) over TCP.
-        ::tc8::stimulus::MethodRequestTarget get1{};
+        ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x002A;
         // SomeIpReliableUnicastPort per ets.fdepl = the configured services[0]
         // TCP endpoint.
@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setTestFieldUint8Reliable(0x99) (Method 0x2B) over TCP.
-        ::tc8::stimulus::MethodRequestTarget set{};
+        ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x002B;
         set.payload   = {0x99};
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, set,
@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. getTestFieldUint8Reliable again — Response should echo 0x99.
-        ::tc8::stimulus::MethodRequestTarget get2{};
+        ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x002A;
         ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get2,
                                                    ::tc8::stimulus::MethodRequestTiming{},

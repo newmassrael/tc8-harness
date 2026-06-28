@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::SomeipEts003SM> : SomeIpAnyBase<cases::SomeipEts003
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0008;
         // Empty payload — Length self-computes to 0x08 (header-only,
         // no UInt8 body). CommonAPI deserializer hits EOF.

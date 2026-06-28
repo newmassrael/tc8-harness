@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::SomeipEts050SM> : SomeIpAnyBase<cases::SomeipEts050
         wire[131] = 0x00;  // single trailing null
 
         // Step 1: valid string-length 0x80, session_id 0x0001.
-        ::tc8::stimulus::MethodRequestTarget step1{};
+        ::tc8::stimulus::SomeIpRpcMessage step1{};
         step1.method_id  = 0x0015;
         step1.session_id = 0x0001;
         step1.payload    = wire;
@@ -67,7 +67,7 @@ struct TestCaseTraits<cases::SomeipEts050SM> : SomeIpAnyBase<cases::SomeipEts050
         // Step 3: malformed string-length 0x02, session_id 0x0002.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        ::tc8::stimulus::MethodRequestTarget step3{};
+        ::tc8::stimulus::SomeIpRpcMessage step3{};
         step3.method_id  = 0x0015;
         step3.session_id = 0x0002;
         step3.payload    = wire;

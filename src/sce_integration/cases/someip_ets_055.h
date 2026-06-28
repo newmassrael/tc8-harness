@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::SomeipEts055SM> : SomeIpAnyBase<cases::SomeipEts055
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0008;
         target.payload = {0x42};
         // Length = 4 — header claims 4 bytes follow Request ID, smaller

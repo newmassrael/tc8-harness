@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::SomeipEts043SM> : SomeIpAnyBase<cases::SomeipEts043
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0016;
         target.payload = {
             0x00, 0x00, 0x00, 0x09,  // length prefix (BE) — 9 bytes follow

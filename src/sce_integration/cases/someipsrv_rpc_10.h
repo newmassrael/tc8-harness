@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::Rpc10SM> : SomeIpAnyBase<cases::Rpc10SM> {
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         // METHOD-ID-FIRE-FORGET-SI-1: resetInterface (0x01) — declared
         // fireAndForget in ets.fidl. Tester drives it with msg_type =
         // 0x00 (Request) — the wrong shape per the spec note.

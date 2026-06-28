@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::SomeipEts076SM> : SomeIpAnyBase<cases::SomeipEts076
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x00FF;  // Unassigned per TC8 §5.1.4 Table 1
         target.payload = {0x42};
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));

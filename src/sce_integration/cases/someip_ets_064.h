@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::SomeipEts064SM> : SomeIpAnyBase<cases::SomeipEts064
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0014;
         // 63 raw bytes — ETS_046 baseline 64 B - 1. SOME/IP Length
         // self-consistent at 8 + 63 = 71 so the frame reaches CommonAPI.

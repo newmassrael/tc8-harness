@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <thread>
 
+#include "someip/protocol.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/udp_emit.h"
 #include "tc8/dut_config.h"
@@ -51,8 +52,8 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     constexpr std::uint16_t kClientId = 0x0000;
     constexpr std::uint8_t kProtoVer = 0x01;
     constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = 0x02;  // NOTIFICATION
-    constexpr std::uint8_t kReturnCode = 0x00;
+    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField = 36;
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint32_t kOptionsLen = 0;
@@ -106,8 +107,8 @@ std::vector<std::uint8_t> buildFindServiceWithOption(const FindServiceParams &p,
     constexpr std::uint16_t kClientId = 0x0000;
     constexpr std::uint8_t kProtoVer = 0x01;
     constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = 0x02;
-    constexpr std::uint8_t kReturnCode = 0x00;
+    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField = 48;
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint32_t kOptionsLen = 12;
@@ -169,8 +170,8 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
     constexpr std::uint16_t kClientId     = 0x0000;
     constexpr std::uint8_t  kProtoVer     = 0x01;
     constexpr std::uint8_t  kIfaceVer     = 0x01;
-    constexpr std::uint8_t  kMsgTypeNotif = 0x02;
-    constexpr std::uint8_t  kReturnCode   = 0x00;
+    constexpr std::uint8_t  kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    constexpr std::uint8_t  kReturnCode   = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField  = 36;
     constexpr std::uint32_t kEntriesLen   = 16;
     constexpr std::uint32_t kOptionsLen   = 0;
@@ -227,8 +228,8 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     constexpr std::uint16_t kClientId        = 0x0000;
     constexpr std::uint8_t  kProtoVer        = 0x01;
     constexpr std::uint8_t  kIfaceVer        = 0x01;
-    constexpr std::uint8_t  kMsgTypeNotif    = 0x02;
-    constexpr std::uint8_t  kReturnCode      = 0x00;
+    constexpr std::uint8_t  kMsgTypeNotif    = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    constexpr std::uint8_t  kReturnCode      = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField     = 48;
     constexpr std::uint32_t kEntriesLen      = 16;
     constexpr std::uint32_t kOptionsLen      = 12;
@@ -372,8 +373,8 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     constexpr std::uint16_t kClientId = 0x0000;
     constexpr std::uint8_t kProtoVer = 0x01;
     constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = 0x02;  // NOTIFICATION
-    constexpr std::uint8_t kReturnCode = 0x00;
+    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthFieldCanonical = 48;
     constexpr std::uint32_t kEntriesLenCanonical = 16;
     constexpr std::uint32_t kOptionsLenCanonical = 12;
@@ -547,8 +548,8 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     constexpr std::uint16_t kClientId = 0x0000;
     constexpr std::uint8_t kProtoVer = 0x01;
     constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = 0x02;
-    constexpr std::uint8_t kReturnCode = 0x00;
+    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint8_t kEntryTypeSubscribe = 0x06;
     constexpr std::uint16_t kOptionBodyLen = 9;
     constexpr std::uint8_t kOptionTypeIpv4 = 0x04;

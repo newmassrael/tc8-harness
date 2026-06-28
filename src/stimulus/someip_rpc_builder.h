@@ -7,32 +7,39 @@
 #include <string_view>
 #include <vector>
 
+#include "someip/protocol.h"             // MessageType / ReturnCode (shared wire constants).
 #include "stimulus/someip_sd_builder.h"  // BootTiming for shared envelope.
 
 namespace tc8::stimulus {
 
-// Identity of one SOME/IP Method Request — covers every header field the
-// tester sets on the wire. Defaults match tc8-dut's echoUINT8 (METHOD-ID-1-
-// SI-1, msg_type=Request, return_code=E_OK, ifVer=1) so cases that only
-// override a subset stay terse.
+// Descriptor for one SOME/IP RPC message — every header field the tester
+// sets on the wire, plus the payload. The RPC family (Request 0x00,
+// RequestNoReturn 0x01, Response 0x80, Error 0x81) shares one 16-byte header
+// layout, so this single type backs all of build{MethodRequest,
+// MethodResponse, MethodError}; `message_type` discriminates. Defaults match
+// tc8-dut's echoUINT8 Request (METHOD-ID-1-SI-1, msg_type=Request,
+// return_code=E_OK, ifVer=1) so request cases that override only a subset
+// stay terse; the reply builders set `message_type` themselves.
 //
 // `client_id` and `session_id` together form the SOME/IP §4.7.1 Request ID
-// pair the DUT echoes back in the Response/Error. Cases that assert on
-// Request-ID echo (e.g. RPC_19) override these to non-default sentinels;
-// other cases leave them at the tester defaults (0x0000 / 0x0001).
+// pair: on a request the tester sets it and the DUT echoes it back in the
+// Response/Error; on a tester-built reply, set them to echo the captured
+// request so the peer correlates it. Cases asserting Request-ID echo (e.g.
+// RPC_19) override these to non-default sentinels; others leave the tester
+// defaults (0x0000 / 0x0001).
 //
 // `message_type` and `return_code` are explicit so cases that exercise
 // non-Request shapes (Fire&Forget = 0x01, deliberately-bad return_code =
 // 0xC0) can drive them without re-implementing the builder.
-struct MethodRequestTarget {
+struct SomeIpRpcMessage {
     std::uint16_t service_id = 0xF4E7;          // SERVICE-ID-1 (tc8-dut default).
     std::uint16_t method_id = 0x0008;           // METHOD-ID-1-SI-1 (echoUINT8 — tc8-dut UDP method).
     std::uint16_t client_id = 0x0000;           // §5.1.5.1 FORMAT_01: tester defaults to 0x0000.
     std::uint16_t session_id = 0x0001;          // SOME/IP §4.7.2: starts at 0x0001 per request stream.
     std::uint8_t protocol_version = 0x01;       // SOME/IP V1.1 fixed.
     std::uint8_t interface_version = 0x01;      // ets.fidl version.major.
-    std::uint8_t message_type = 0x00;           // 0x00 Request / 0x01 RequestNoReturn (Fire&Forget).
-    std::uint8_t return_code = 0x00;            // E_OK on the wire; DUT must ignore top 2 bits.
+    someip::MessageType message_type = someip::MessageType::REQUEST;  // RPC message kind discriminator.
+    someip::ReturnCode return_code = someip::ReturnCode::E_OK;        // E_OK for request/response; non-E_OK for error.
     std::vector<std::uint8_t> payload{};        // CommonAPI-serialised method args.
 
     // Override for the SOME/IP Length field (4 bytes from Request ID
@@ -44,13 +51,47 @@ struct MethodRequestTarget {
     // smaller mismatch via the same axis. Default `std::nullopt` keeps the
     // self-consistent length for happy-path cases.
     std::optional<std::uint32_t> length_override{};
+
+    // Raw-byte overrides for negative cases that must emit an off-enum value
+    // (same idiom as length_override): when set, the builder emits the raw
+    // byte instead of the typed field — e.g. message_type 0x07 (reserved),
+    // return_code 0xC0 (top bits set) or 0x1F.
+    std::optional<std::uint8_t> message_type_override{};
+    std::optional<std::uint8_t> return_code_override{};
 };
 
 // Builds a 16-byte SOME/IP header plus the caller-supplied payload as the
 // UDP payload of a SOME/IP Method Request. Length field = 8 + payload.size()
 // (bytes from Request ID through the end). Wire byte order is network (BE)
 // per SOME/IP §4.1.
-std::vector<std::uint8_t> buildMethodRequest(const MethodRequestTarget &t);
+std::vector<std::uint8_t> buildMethodRequest(const SomeIpRpcMessage &t);
+
+// --- Tester server-role reply builders (SOMEIPCLT topology) ---
+//
+// In the SOMEIPCLT cases the tester offers the service and the DUT is the
+// client: the DUT issues a Method Request and the tester answers. Per
+// PRS_SOMEIP_00701 a Request (message type 0x00) is answered by a Response
+// (0x80) when no error occurred, or an Error (0x81) when one did. The reply
+// echoes the request's Message ID (service_id + method_id) and Request ID
+// (client_id + session_id) so the DUT correlates it to its outstanding call
+// (SOME/IP §4.7.1 Request ID); build each reply from the captured request's
+// identity.
+//
+// Both reuse the `buildMethodRequest` header core (one SOME/IP framing SSOT)
+// and honour `length_override`, so the CLT_RPC negative cases drive
+// deliberately-malformed replies through the same axis as the request side.
+
+// Method Response (PRS_SOMEIP_00701 message type 0x80). Forces message_type
+// to RESPONSE; `t.return_code` is emitted as-is and may carry any code from
+// PRS_SOMEIP_00191 (defaults to E_OK 0x00).
+std::vector<std::uint8_t> buildMethodResponse(SomeIpRpcMessage t);
+
+// Method Error (PRS_SOMEIP_00701 message type 0x81). Forces message_type to
+// ERROR; `t.return_code` is emitted as-is. PRS_SOMEIP_00757 requires it not
+// be E_OK, so a happy-path Error sets `t.return_code` to a non-zero code
+// (e.g. E_NOT_OK 0x01). The wrapper does NOT auto-correct the struct default
+// of E_OK, so a negative case can drive the spec-forbidden Error+E_OK shape.
+std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t);
 
 // Destination of a Method Request — the DUT's per-method endpoint. A pure
 // value type with no implicit default: the endpoint is always topology-
@@ -89,7 +130,7 @@ struct MethodRequestTiming {
 // Blocks the calling thread for `pre_emit_wait + (total_emits - 1) *
 // retry_interval`. Returns 0 on success or the first negative return on
 // any failure; no retry-on-failure (cadence is fixed).
-int emitMethodRequestAfter(std::string_view iface, const MethodRequestTarget &target,
+int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &target,
                            const MethodRequestTiming &timing,
                            const MethodRequestDestination &dest);
 
@@ -107,7 +148,7 @@ struct MethodRequestTcpDwell {
     std::chrono::milliseconds linger{300};
 };
 
-int emitMethodRequestTcpAfter(std::string_view iface, const MethodRequestTarget &target,
+int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &target,
                               const MethodRequestTiming &timing,
                               const MethodRequestDestination &dest,
                               const MethodRequestTcpDwell &dwell = {});
@@ -127,7 +168,7 @@ int emitMethodRequestTcpAfter(std::string_view iface, const MethodRequestTarget 
 // whether the DUT honored the reset by emitting FIN
 // (= TCP_CLOSE_WAIT on the tester's socket) or ignored it per spec
 // (= TCP_ESTABLISHED).
-int emitMethodRequestTcpAndHold(std::string_view iface, const MethodRequestTarget &target,
+int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &target,
                                 const MethodRequestDestination &dest,
                                 std::chrono::milliseconds pre_emit_wait =
                                     std::chrono::milliseconds(500),
@@ -152,12 +193,12 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const MethodRequestTarge
 // SCXML).
 
 int emitBundledMethodRequestsUdp(std::string_view iface,
-                                 const std::vector<MethodRequestTarget> &targets,
+                                 const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const MethodRequestDestination &dest);
 
 int emitBundledMethodRequestsTcp(std::string_view iface,
-                                 const std::vector<MethodRequestTarget> &targets,
+                                 const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const MethodRequestDestination &dest,
                                  std::chrono::milliseconds linger =

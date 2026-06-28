@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
-        ::tc8::stimulus::MethodRequestTarget tcp_target{};
+        ::tc8::stimulus::SomeIpRpcMessage tcp_target{};
         tcp_target.method_id = 0x000A;  // echoUINT8RELIABLE
         tcp_target.payload = {0x42};
         const auto tcp_dest = ::tc8::sce::someipTcpMethodDest(cfg);
@@ -71,9 +71,9 @@ struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037
             return;
         }
 
-        ::tc8::stimulus::MethodRequestTarget reset_target{};
+        ::tc8::stimulus::SomeIpRpcMessage reset_target{};
         reset_target.method_id = 0x0001;     // resetInterface (fire&forget).
-        reset_target.message_type = 0x01;    // RequestNoReturn — no Response expected.
+        reset_target.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;    // RequestNoReturn — no Response expected.
         ::tc8::stimulus::MethodRequestTiming reset_timing{};
         reset_timing.pre_emit_wait = std::chrono::milliseconds(0);
         ::tc8::stimulus::emitMethodRequestAfter(iface, reset_target, reset_timing,

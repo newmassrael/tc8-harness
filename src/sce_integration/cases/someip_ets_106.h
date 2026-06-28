@@ -53,18 +53,18 @@ struct TestCaseTraits<cases::SomeipEts106SM> : SomeIpAnyBase<cases::SomeipEts106
 
         // 1. clientServiceActivate (Method 0x2F Fire&Forget) — payload
         // delay byte = 0 means "no extra defer beyond the Proxy spawn".
-        ::tc8::stimulus::MethodRequestTarget activate{};
+        ::tc8::stimulus::SomeIpRpcMessage activate{};
         activate.method_id    = 0x002F;
-        activate.message_type = 0x01;  // RequestNoReturn (Fire&Forget).
+        activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // RequestNoReturn (Fire&Forget).
         activate.payload      = {0x00};
         ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
         // 2. clientServiceSubscribeEventgroup (Method 0x32 Fire&Forget) —
         // 4-byte delay + 4-byte duration both zero.
-        ::tc8::stimulus::MethodRequestTarget subscribe{};
+        ::tc8::stimulus::SomeIpRpcMessage subscribe{};
         subscribe.method_id    = 0x0032;
-        subscribe.message_type = 0x01;
+        subscribe.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         subscribe.payload      = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
         ::tc8::stimulus::emitMethodRequestAfter(iface, subscribe, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));

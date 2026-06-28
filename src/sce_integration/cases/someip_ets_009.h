@@ -36,7 +36,7 @@ struct TestCaseTraits<cases::SomeipEts009SM> : SomeIpAnyBase<cases::SomeipEts009
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0017;
         // 1-byte enum payload (SomeIpEnumWidth=1, BitWidth=8).
         target.payload = {0x02};

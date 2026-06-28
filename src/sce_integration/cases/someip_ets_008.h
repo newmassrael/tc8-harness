@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts008SM> : SomeIpAnyBase<cases::SomeipEts008
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0023;
         // 27-byte CommonAPI payload, no alignment padding:
         //   Bool/UInt8 1B each, UInt16 2B BE, UInt32 4B BE, Int8 1B,

@@ -2,6 +2,11 @@
 
 namespace tc8::dissect {
 
+// The wire-constant enums now live in the neutral someip/protocol.h leaf;
+// pull them into this TU so the parser code reads unqualified.
+using someip::MessageType;
+using someip::ReturnCode;
+
 namespace {
 
 std::uint16_t readBe16(const std::uint8_t *p) {

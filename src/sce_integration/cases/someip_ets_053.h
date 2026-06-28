@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::SomeipEts053SM> : SomeIpAnyBase<cases::SomeipEts053
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0013;
         // 64 raw bytes, no length prefix. BOM + 'h' + 'i' + null +
         // 58 B zero padding.

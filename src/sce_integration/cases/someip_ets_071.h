@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::SomeipEts071SM> : SomeIpAnyBase<cases::SomeipEts071
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0019;
         target.payload = {
             // unionLength_BE = 0x00000080 (lies — claims 128 B of value

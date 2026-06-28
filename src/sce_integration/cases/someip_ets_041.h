@@ -66,7 +66,7 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
 
         // Step 1: valid string-length prefix 0x80 (128 bytes follow),
         // session_id 0x0001 -> DUT echoes the canonical 132-byte payload.
-        ::tc8::stimulus::MethodRequestTarget step1{};
+        ::tc8::stimulus::SomeIpRpcMessage step1{};
         step1.method_id  = 0x0016;
         step1.session_id = 0x0001;
         step1.payload    = wire;
@@ -83,7 +83,7 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
         // vsomeip's session-id state.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        ::tc8::stimulus::MethodRequestTarget step3{};
+        ::tc8::stimulus::SomeIpRpcMessage step3{};
         step3.method_id  = 0x0016;
         step3.session_id = 0x0002;
         step3.payload    = wire;

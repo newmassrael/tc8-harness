@@ -55,14 +55,14 @@ struct TestCaseTraits<cases::SomeipEts167NegSM>
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
         // 1. getTestFieldUint8Array (Method 0x28) — empty Request payload.
-        ::tc8::stimulus::MethodRequestTarget get1{};
+        ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x0028;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setTestFieldUint8Array (Method 0x29) — payload = 32-bit BE length (4) + 4 bytes
         // [0x11, 0x22, 0x33, 0x44]. The setter echoes the array verbatim.
-        ::tc8::stimulus::MethodRequestTarget set{};
+        ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x0029;
         set.payload   = {0x00, 0x00, 0x00, 0x04,         // length 4 (BE)
                          0x11, 0x22, 0x33, 0x44};
@@ -71,7 +71,7 @@ struct TestCaseTraits<cases::SomeipEts167NegSM>
 
         // 3. getTestFieldUint8Array again — the armed getter returns each byte ^ 0xFF, so the
         // first array byte is 0x11 ^ 0xFF = 0xEE (!= 0x11).
-        ::tc8::stimulus::MethodRequestTarget get2{};
+        ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x0028;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }

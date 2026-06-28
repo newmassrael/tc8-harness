@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::SomeipEts028SM> : SomeIpAnyBase<cases::SomeipEts028
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0009;
         // CommonAPI UInt8[] wire shape with 32-bit BE length prefix:
         // [len_BE = 3] [0x42 0x43 0x44]. Length self-computed to

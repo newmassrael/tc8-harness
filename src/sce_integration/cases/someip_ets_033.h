@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts033SM> : SomeIpAnyBase<cases::SomeipEts033
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0037;
         // 32-bit BE length prefix = 2 + 2 array bytes — array shorter
         // than the spec-defined minimum (3). Length_override drives a

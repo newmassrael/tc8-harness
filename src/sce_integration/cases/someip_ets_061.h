@@ -44,16 +44,16 @@ struct TestCaseTraits<cases::SomeipEts061SM> : SomeIpAnyBase<cases::SomeipEts061
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        std::vector<::tc8::stimulus::MethodRequestTarget> bundle;
+        std::vector<::tc8::stimulus::SomeIpRpcMessage> bundle;
         bundle.reserve(2);
 
-        ::tc8::stimulus::MethodRequestTarget m1{};
+        ::tc8::stimulus::SomeIpRpcMessage m1{};
         m1.method_id  = 0x0008;            // echoUINT8 (METHOD-ID-1-SI-1).
         m1.session_id = 0x0001;
         m1.payload    = {0x42};            // 1-byte UInt8.
         bundle.push_back(m1);
 
-        ::tc8::stimulus::MethodRequestTarget m2{};
+        ::tc8::stimulus::SomeIpRpcMessage m2{};
         m2.method_id  = 0x0017;            // echoENUM (per spec p401-420 table).
         m2.session_id = 0x0002;
         m2.payload    = {0x01};            // 1-byte EtsEnum (VALUE_B = 1).

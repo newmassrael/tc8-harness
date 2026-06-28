@@ -84,8 +84,8 @@ TEST(TestabilityProtocol, BuildMessageIsValidSomeIp) {
     EXPECT_EQ(parsed->header.length, 8u + sizeof(dat));
     EXPECT_EQ(parsed->header.protocol_version, 0x01u);
     EXPECT_EQ(parsed->header.interface_version, 0x01u);
-    EXPECT_EQ(parsed->header.message_type, dissect::MessageType::REQUEST);
-    EXPECT_EQ(parsed->header.return_code, dissect::ReturnCode::E_OK);
+    EXPECT_EQ(parsed->header.message_type, someip::MessageType::REQUEST);
+    EXPECT_EQ(parsed->header.return_code, someip::ReturnCode::E_OK);
 }
 
 TEST(TestabilityProtocol, BuildParseRoundTrip) {

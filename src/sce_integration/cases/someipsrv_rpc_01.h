@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::Rpc01SM> : SomeIpAnyBase<cases::Rpc01SM> {
         find.service_id = ::tc8::someipsrv_si2::kServiceId;
         ::tc8::stimulus::emitFindServiceBoot(iface, find);
 
-        ::tc8::stimulus::MethodRequestTarget target{};
+        ::tc8::stimulus::SomeIpRpcMessage target{};
         target.service_id = ::tc8::someipsrv_si2::kServiceId;
         target.method_id = ::tc8::someipsrv_si2::kMethodIdEcho;
         target.payload = {0x42};

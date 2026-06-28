@@ -77,9 +77,9 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
-        ::tc8::stimulus::MethodRequestTarget activate{};
+        ::tc8::stimulus::SomeIpRpcMessage activate{};
         activate.method_id    = 0x002F;       // clientServiceActivate
-        activate.message_type = 0x01;         // Fire&Forget
+        activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
         ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
@@ -88,9 +88,9 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         // call as "service not yet known".
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
-        ::tc8::stimulus::MethodRequestTarget sub_trigger{};
+        ::tc8::stimulus::SomeIpRpcMessage sub_trigger{};
         sub_trigger.method_id    = 0x0032;    // clientServiceSubscribeEventgroup
-        sub_trigger.message_type = 0x01;      // Fire&Forget
+        sub_trigger.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;      // Fire&Forget
         // Args: UInt32 delay (0) + UInt32 duration (0). DUT-side override
         // ignores duration; delay is consumed by std::this_thread::sleep_for.
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,

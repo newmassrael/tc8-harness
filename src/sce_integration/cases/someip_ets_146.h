@@ -41,29 +41,29 @@ struct TestCaseTraits<cases::SomeipEts146SM> : SomeIpAnyBase<cases::SomeipEts146
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
         // 1. getFieldA — Method 0x40, no payload.
-        ::tc8::stimulus::MethodRequestTarget get1{};
+        ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x0040;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setFieldA(0xAA) — Method 0x42, payload [0xAA].
-        ::tc8::stimulus::MethodRequestTarget set{};
+        ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x0042;
         set.payload   = {0xAA};
         ::tc8::stimulus::emitMethodRequestAfter(iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. resetInterface — Method 0x01 Fire&Forget, no payload.
-        ::tc8::stimulus::MethodRequestTarget reset{};
+        ::tc8::stimulus::SomeIpRpcMessage reset{};
         reset.method_id    = 0x0001;
-        reset.message_type = 0x01;  // RequestNoReturn (Fire&Forget).
+        reset.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // RequestNoReturn (Fire&Forget).
         ::tc8::stimulus::emitMethodRequestAfter(iface, reset, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Spec wait: 3 s for reset to complete before re-querying.
         std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
         // 4. getFieldA again.
-        ::tc8::stimulus::MethodRequestTarget get2{};
+        ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x0040;
         ::tc8::stimulus::emitMethodRequestAfter(iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
