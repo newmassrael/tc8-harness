@@ -106,6 +106,12 @@ add_executable(tc8-dut
 target_include_directories(tc8-dut PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/src
+    # The DUT's own dir, so an out-of-directory TC8_ETS_EXTENSION_SRC /
+    # TC8_ETS_FACTORY_SRC slot file (e.g. examples/demo_ets_extension) can
+    # #include "ets_extension.h" / "ets_event_sink.h" / "ets_factory.h". The
+    # in-tree default sources resolve these via the same-directory rule; an
+    # out-of-dir OEM slot file needs this path on -I.
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 # tc8-dut is excluded from the full strict-warning set (its vsomeip /
 # CommonAPI generated sources trip -Wall noise), but the firmware

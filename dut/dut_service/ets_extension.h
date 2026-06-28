@@ -1,42 +1,14 @@
 #pragma once
 
-#include <cstdint>
-#include <functional>
 #include <memory>
-#include <vector>
 
 namespace tc8::dut {
 
-// Narrow registration facade over the DUT's SINGLE vsomeip application, handed to
-// the OEM extension via onRegister/onTick. It lets the extension add an NDA event
-// surface — offer additional events, notify subscribers, handle trigger methods —
-// on the SAME application the CommonAPI ETS service already uses, so there is NO
-// second vsomeip application (no coexisting routing client) and NO copy of the
-// public fidl. Kept vsomeip-free so an OEM TU implementing IEtsExtension includes
-// only this header; the concrete sink (ets_event_sink.h) wraps the real
-// vsomeip::application, obtained by name. The public default extension never uses
-// it. See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
-class IEtsEventSink {
-public:
-    virtual ~IEtsEventSink() = default;
-
-    // Offer `event_id` on the ETS service for `eventgroups` (vsomeip offer_event,
-    // ET_EVENT). Call once per event before notify(); the events the OEM owns are
-    // NOT in the public fidl, so CommonAPI does not offer them.
-    virtual void offerEvent(std::uint16_t event_id,
-                            const std::vector<std::uint16_t>& eventgroups) = 0;
-
-    // Notify current subscribers of `event_id` with `payload` (vsomeip notify).
-    // offerEvent(event_id, ...) must have been called first.
-    virtual void notify(std::uint16_t event_id,
-                        const std::vector<std::uint8_t>& payload) = 0;
-
-    // Register `handler` for incoming requests to `method_id`; the handler
-    // receives the request payload bytes. For the OEM fireAndForget trigger
-    // methods (no response is sent).
-    virtual void onMethod(std::uint16_t method_id,
-                          std::function<void(const std::vector<std::uint8_t>&)> handler) = 0;
-};
+// The event-emission facade an extension offers/notifies through. Defined in
+// ets_event_sink.h; forward-declared here because the lifecycle hooks below only
+// take it by reference. An OEM extension that USES the sink includes
+// ets_event_sink.h for the full definition.
+class IEtsEventSink;
 
 // Extend seam (O2 path) for events/methods the OEM owns but that are NOT in the
 // public fidl — e.g. the OEM's NDA event surface. The OEM offers them through the
