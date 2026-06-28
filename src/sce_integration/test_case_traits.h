@@ -17,6 +17,11 @@ namespace tc8::sce {
 // inside its SFINAE probe without pulling the runner include.
 class IStimulusScheduler;
 
+// Forward declaration — full definition in `test_runner.h`. Declared here so
+// `has_service_owning_stimulus` (below) can probe the service-owning overload
+// without pulling the runner include.
+class IBackgroundServiceOwner;
+
 // Forward declaration — full definition in `dut_control.h`. Declared here so
 // `has_dut_stimulus` (below) can probe the Tier-2 seam overload without pulling
 // the concrete backends (and their testability/upper-tester client includes)
@@ -192,6 +197,29 @@ struct has_scheduled_stimulus<
 template <typename Traits>
 inline constexpr bool has_scheduled_stimulus_v =
     has_scheduled_stimulus<Traits>::value;
+
+// Detects the 4-arg service-owning overload `static void stimulus(Captured&,
+// const TestConfig&, string_view, IBackgroundServiceOwner&)`. A case picks this
+// when it arms a run-scoped `tc8::IPollableService` (e.g. an ArpResponder) and
+// must hand it to the runner to own across the capture window. Distinct from the
+// other 4-arg overloads purely by the 4th parameter type; a case declares exactly
+// one stimulus signature.
+template <typename Traits, typename = void>
+struct has_service_owning_stimulus : std::false_type {};
+
+template <typename Traits>
+struct has_service_owning_stimulus<
+    Traits,
+    std::void_t<decltype(Traits::stimulus(
+        std::declval<typename Traits::Captured &>(),
+        std::declval<const ::tc8::TestConfig &>(),
+        std::declval<std::string_view>(),
+        std::declval<IBackgroundServiceOwner &>()))>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_service_owning_stimulus_v =
+    has_service_owning_stimulus<Traits>::value;
 
 // Detects whether TestCaseTraits<SM> specializes the 4-arg Tier-2 seam
 // overload `static void stimulus(Captured&, const TestConfig&, string_view,

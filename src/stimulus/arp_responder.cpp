@@ -7,10 +7,7 @@
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <netinet/in.h>
-#include <poll.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
-#include <system_error>
 #include <unistd.h>
 #include <utility>
 
@@ -97,8 +94,9 @@ ArpResponder::ArpResponder(std::string_view iface, std::vector<ArpBinding> bindi
     : iface_(iface), bindings_(std::move(bindings)) {
     // SOCK_CLOEXEC so this long-lived, CAP_NET_RAW capture socket is not leaked
     // into a child of any concurrent std::system() the harness may fork (mirrors
-    // the eventfd's EFD_CLOEXEC below and rtnetlink's SOCK_CLOEXEC).
-    sock_ = ::socket(AF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(kEtherTypeArp));
+    // rtnetlink's SOCK_CLOEXEC). SOCK_NONBLOCK so onReadable() can drain the queue
+    // and return rather than block the single capture thread.
+    sock_ = ::socket(AF_PACKET, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, htons(kEtherTypeArp));
     if (sock_ < 0) {
         std::fprintf(stderr, "stimulus: ArpResponder socket(AF_PACKET) failed: %s\n",
                      std::strerror(errno));
@@ -127,90 +125,27 @@ ArpResponder::ArpResponder(std::string_view iface, std::vector<ArpBinding> bindi
         sock_ = -1;
         return;
     }
-
-    // eventfd waker: the destructor writes to it to break the worker's poll().
-    wake_fd_ = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    if (wake_fd_ < 0) {
-        std::fprintf(stderr, "stimulus: ArpResponder eventfd failed: %s\n", std::strerror(errno));
-        ::close(sock_);
-        sock_ = -1;
-        return;
-    }
-
-    // Spawn last, and only flip ok_ once the worker exists. std::thread reports
-    // creation failure by throwing (no error return), so on the rare spawn
-    // failure close the fds here — the destructor does NOT run for a constructor
-    // that leaves ok_ false, so it cannot clean them up — and stay ok()==false,
-    // consistent with the socket/bind failure paths above.
-    try {
-        worker_ = std::thread([this] { run(); });
-    } catch (const std::system_error &e) {
-        std::fprintf(stderr, "stimulus: ArpResponder thread spawn failed: %s\n", e.what());
-        ::close(wake_fd_);
-        wake_fd_ = -1;
-        ::close(sock_);
-        sock_ = -1;
-        return;
-    }
     ok_ = true;
 }
 
 ArpResponder::~ArpResponder() {
-    if (ok_) {
-        // The worker blocks in poll() with no timeout, so the wake MUST land for
-        // it to observe the stop and return — retry across EINTR. An eventfd
-        // write of a non-overflowing counter does not otherwise fail.
-        const std::uint64_t one = 1;
-        while (::write(wake_fd_, &one, sizeof(one)) < 0 && errno == EINTR) {
-        }
-        if (worker_.joinable()) {
-            worker_.join();
-        }
-    }
-    if (wake_fd_ >= 0) {
-        ::close(wake_fd_);
-    }
     if (sock_ >= 0) {
         ::close(sock_);
     }
 }
 
-void ArpResponder::run() {
-    pollfd fds[2];
-    fds[0].fd = sock_;
-    fds[0].events = POLLIN;
-    fds[1].fd = wake_fd_;
-    fds[1].events = POLLIN;
-
+void ArpResponder::onReadable() {
+    // Drain every ARP frame the kernel has queued on this non-blocking socket,
+    // answering each matching Request, then return once it would block. Runs on
+    // the capture-loop thread, so there is no concurrency with frame dispatch.
     for (;;) {
-        const int rc = ::poll(fds, 2, -1);
-        if (rc < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            break;  // unexpected poll error — stop rather than spin
-        }
-        if (fds[1].revents & POLLIN) {
-            break;  // destructor signalled stop
-        }
-        // POLLERR/POLLHUP/POLLNVAL on either fd (e.g. the bound interface was
-        // removed mid-run) is unrecoverable — stop rather than spin re-polling an
-        // errored fd at 100% CPU. Same "stop rather than spin" intent as the
-        // poll() error branch above.
-        if ((fds[0].revents | fds[1].revents) & (POLLERR | POLLHUP | POLLNVAL)) {
-            break;
-        }
-        if (!(fds[0].revents & POLLIN)) {
-            continue;
-        }
-
         std::uint8_t buf[kRxBufLen];
         sockaddr_ll from{};
         socklen_t fromlen = sizeof(from);
         const ssize_t n =
             ::recvfrom(sock_, buf, sizeof(buf), 0, reinterpret_cast<sockaddr *>(&from), &fromlen);
         if (n <= 0) {
-            continue;
+            break;  // drained (EAGAIN/EWOULDBLOCK) or error — stop this round
         }
         // An AF_PACKET RX socket also sees this interface's egress, including
         // our own Replies (sent via sendRawEthernet on the same iface). Skip
@@ -218,13 +153,12 @@ void ArpResponder::run() {
         if (from.sll_pkttype == PACKET_OUTGOING) {
             continue;
         }
-
         const auto reply = buildArpReplyForRequest(buf, static_cast<std::size_t>(n), bindings_);
         if (!reply) {
             continue;
         }
         if (sendRawEthernet(*reply, iface_) == 0) {
-            replies_sent_.fetch_add(1, std::memory_order_relaxed);
+            ++replies_sent_;
         }
     }
 }

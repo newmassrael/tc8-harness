@@ -16,6 +16,7 @@
 #include <pcap/pcap.h>
 
 #include "tc8/captured_event.h"
+#include "tc8/pollable_service.h"
 
 #include "capture/bpf_filter.h"
 #include "capture/pcap_source.h"
@@ -630,6 +631,14 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // time would count against the listen window.
     runner->start();
 
+    // Run-scoped background services (e.g. an ArpResponder answering the DUT's
+    // ARP for a tester-spoofed source IP) the case adopted during kickStimulus.
+    // Drained inline in the capture loops below on this single thread — no worker
+    // thread, no capture/emit concurrency. Empty for every case that adopts none
+    // (the vast majority), so the drains are then no-ops. Pointers borrowed; the
+    // runner owns the objects for the run.
+    const std::vector<::tc8::IPollableService *> services = runner->pollableServices();
+
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_s_);
 
     // Evidence Export (Option 3) — every frame appended to the saved pcap
@@ -688,6 +697,12 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                 return 1;
             }
         }
+        // Answer any pending ARP (and future background-service input) inline on
+        // this thread before stepping the SM — a tester-spoofed source IP the DUT
+        // is resolving gets its Reply within this iteration's ~20 ms cadence.
+        for (::tc8::IPollableService *svc : services) {
+            svc->onReadable();
+        }
         runner->tick();
         // Non-blocking pcap_dispatch (set in PcapSource::openLive) returns
         // immediately when no frames match — without this sleep we would
@@ -716,6 +731,12 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         const auto drain_deadline = std::chrono::steady_clock::now() +
                                     std::chrono::milliseconds(kPostVerdictDrainMs);
         while (std::chrono::steady_clock::now() < drain_deadline) {
+            // Keep answering the DUT's ARP during the drain so its final Response
+            // (which may need the spoofed source IP resolved) is emitted and lands
+            // in the saved pcap.
+            for (::tc8::IPollableService *svc : services) {
+                svc->onReadable();
+            }
             const int dn = src->dispatch(
                 /*max_frames=*/-1,
                 [&](const pcap_pkthdr &hdr, const u_char *data) {

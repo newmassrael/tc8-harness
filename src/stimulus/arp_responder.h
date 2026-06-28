@@ -1,14 +1,14 @@
 #pragma once
 
 #include <array>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
+
+#include "tc8/pollable_service.h"
 
 namespace tc8::stimulus {
 
@@ -57,34 +57,25 @@ buildArpReplyForRequest(const std::uint8_t *request_frame, std::size_t len,
 // reception that populates the cache on any conformant host, so this works
 // independent of the DUT's `arp_accept` setting.
 //
-// Lifetime is RAII. The constructor opens an AF_PACKET RX socket bound to
-// `iface` (ETH_P_ARP, so the kernel pre-filters to ARP frames), arms an
-// eventfd waker, and spawns a worker thread that `poll()`s {socket, waker} and
-// replies to matching Requests until the destructor signals the waker and
-// joins the thread. Requires CAP_NET_RAW (granted to the harness binary via
-// the POST_BUILD setcap, same as `sendRawEthernet`).
-//
-// This is a deliberately joinable, stop-signalled worker — NOT the detached-
-// thread stimulus anti-pattern the scheduler replaced. A detached thread could
-// be SIGKILLed mid-emit and leak across the poll-loop boundary; this thread is
-// owned, woken deterministically, and joined in the destructor, so teardown is
-// race-free.
+// Lifetime is RAII. The constructor opens a non-blocking AF_PACKET RX socket
+// bound to `iface` (ETH_P_ARP, so the kernel pre-filters to ARP frames); the
+// destructor closes it. There is NO worker thread: the responder is driven by
+// the capture loop, which folds pollFd() into its drain set and calls
+// onReadable() to answer pending Requests on the SAME thread as frame dispatch
+// (no capture/emit concurrency). Requires CAP_NET_RAW (granted to the harness
+// binary via the POST_BUILD setcap, same as `sendRawEthernet`).
 //
 // OWNERSHIP: the responder must stay alive for the whole post-stimulus capture
 // window — the DUT ARP-resolves the source IP only when it goes to send its
-// Response, which is AFTER `kickStimulus` returns and the poll loop is running
-// (see test_runner.h). It therefore needs an owner that outlives `kickStimulus`:
-// a `Traits::stimulus` local will NOT do (it is destroyed before the poll loop
-// starts), and `IStimulusScheduler` has no object-holding API to repurpose for
-// this. The in-tree owner seam — a runner-held background-service list, or
-// folding the responder's pollable fd into the CLI poll loop so no separate
-// thread is needed at all — is intentionally deferred until the first in-tree
-// consumer lands (the sole consumer today is an out-of-tree OEM case). Until
-// then the class is exercised standalone: the privileged netns test owns it by
-// value for the duration of its own capture loop.
+// Response, which is AFTER `kickStimulus` returns. A `Traits::stimulus` local is
+// destroyed before that window opens, so the case hands the responder to the
+// runner via `IBackgroundServiceOwner::adoptService`; `ArpResponder` models
+// `tc8::IPollableService` for exactly this. See `tc8/pollable_service.h` for the
+// seam rationale. (It is also exercised standalone: the privileged netns test
+// owns it by value and drives onReadable() itself.)
 //
-// Non-copyable and non-movable: it owns a running thread and live fds.
-class ArpResponder {
+// Non-copyable: it owns a live socket fd.
+class ArpResponder : public ::tc8::IPollableService {
 public:
     ArpResponder(std::string_view iface, std::vector<ArpBinding> bindings);
     ~ArpResponder();
@@ -92,28 +83,30 @@ public:
     ArpResponder(const ArpResponder &) = delete;
     ArpResponder &operator=(const ArpResponder &) = delete;
 
-    // False if the AF_PACKET socket / eventfd could not be set up (the worker
-    // never started). The caller then has no responder and should surface the
-    // failure rather than assume the DUT's ARP will be answered.
+    // False if the AF_PACKET socket could not be set up. The case checks this
+    // before adopting the responder and should surface the failure (inconclusive)
+    // rather than assume the DUT's ARP will be answered. A !ok() responder reports
+    // pollFd() == -1, so the capture loop simply skips it if adopted anyway.
     bool ok() const { return ok_; }
 
-    // Count of ARP Replies the worker has sent so far. Lets a test assert the
-    // responder actually answered, not merely that it stayed alive. Relaxed
-    // ordering: a monotonic counter with no other state to synchronise.
-    std::uint64_t repliesSent() const {
-        return replies_sent_.load(std::memory_order_relaxed);
-    }
+    // tc8::IPollableService — folded into the capture loop's drain set.
+    int pollFd() const override { return sock_; }
+
+    // Drain every ARP frame queued on the socket, answering each matching
+    // Request. Runs on the capture-loop thread; non-blocking, returns once drained.
+    void onReadable() override;
+
+    // Count of ARP Replies sent so far. Lets a test assert the responder actually
+    // answered. Written only in onReadable() (the capture thread), so it needs no
+    // synchronisation.
+    std::uint64_t repliesSent() const { return replies_sent_; }
 
 private:
-    void run();
-
     std::string iface_;
     std::vector<ArpBinding> bindings_;
     int sock_ = -1;
-    int wake_fd_ = -1;
     bool ok_ = false;
-    std::atomic<std::uint64_t> replies_sent_{0};
-    std::thread worker_;
+    std::uint64_t replies_sent_ = 0;
 };
 
 }  // namespace tc8::stimulus

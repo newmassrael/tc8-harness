@@ -1,8 +1,9 @@
-// Live coverage for the ArpResponder socket/thread plumbing (the part the pure
+// Live coverage for the ArpResponder socket plumbing (the part the pure
 // arp_responder_test.cpp cannot reach). Runs the responder on one end of a veth
-// pair, injects a DUT-style ARP Request on the peer end, and verifies a correct
-// unicast Reply comes back — proving the AF_PACKET RX bind, the poll/eventfd
-// worker loop, and the egress reply path all work end to end.
+// pair, injects a DUT-style ARP Request on the peer end, drives onReadable() (as
+// the capture loop does — there is no worker thread), and verifies a correct
+// unicast Reply comes back, proving the AF_PACKET RX bind, the non-blocking
+// drain, and the egress reply path all work end to end.
 //
 // Needs CAP_NET_RAW (the responder socket) and CAP_NET_ADMIN (veth creation), so
 // it self-skips without privilege and is also registered under run-netns-test.sh
@@ -83,23 +84,34 @@ TEST(ArpResponderLive, AnswersRequestOnVethPeer) {
     ScopeExit cap_cleanup([&] { ::close(cap); });
 
     // Socket is bound in the constructor, so frames are queued the moment the
-    // responder exists — no need to wait for the worker thread to reach poll().
+    // responder exists. There is no worker thread — the test drives onReadable()
+    // on the responder's fd exactly as the CLI capture loop does.
     tc8::stimulus::ArpResponder responder(kA, {{spoofed_ip, tester_mac}});
     ASSERT_TRUE(responder.ok());
+    ASSERT_GE(responder.pollFd(), 0);
 
     // DUT asks "who has the spoofed source IP?" on the peer end; the frame
     // crosses the veth to the responder.
     const auto request = tc8::stimulus::buildArpRequest(dut_mac, dut_ip, spoofed_ip);
     ASSERT_EQ(tc8::stimulus::sendRawEthernet(request, kB), 0);
 
-    // Read the peer end until the Reply lands or the budget elapses. Skip our
-    // own injected Request (PACKET_OUTGOING) and any non-matching ARP traffic.
+    // Poll BOTH the responder fd (to drive onReadable, which answers) and the
+    // peer capture (to observe the Reply), within a bounded budget. Skip our own
+    // injected Request (PACKET_OUTGOING) and any non-matching ARP traffic.
     bool got_reply = false;
     for (int waited_ms = 0; waited_ms < 2000 && !got_reply;) {
-        pollfd p{cap, POLLIN, 0};
-        const int rc = ::poll(&p, 1, 100);
+        pollfd p[2];
+        p[0] = pollfd{responder.pollFd(), POLLIN, 0};
+        p[1] = pollfd{cap, POLLIN, 0};
+        const int rc = ::poll(p, 2, 100);
         if (rc <= 0) {
             waited_ms += 100;
+            continue;
+        }
+        if (p[0].revents & POLLIN) {
+            responder.onReadable();  // read the Request(s) and send the Reply
+        }
+        if (!(p[1].revents & POLLIN)) {
             continue;
         }
         std::uint8_t buf[256];
@@ -133,13 +145,8 @@ TEST(ArpResponderLive, AnswersRequestOnVethPeer) {
 
     EXPECT_TRUE(got_reply) << "ArpResponder did not answer the Request";
 
-    // The worker bumps repliesSent() only after sendRawEthernet returns, but the
-    // Reply is already on the wire once its sendto() has queued the frame — so
-    // observing the Reply above can legitimately precede the counter increment.
-    // Wait (bounded) for the counter to converge rather than reading it racily.
-    for (int waited_ms = 0; waited_ms < 1000 && responder.repliesSent() == 0; waited_ms += 5) {
-        ::poll(nullptr, 0, 5);  // 5 ms tick, no fd — bounded convergence wait
-    }
+    // onReadable() increments repliesSent() synchronously before returning, so by
+    // the time the Reply was observed the counter is already set — no race.
     EXPECT_GE(responder.repliesSent(), 1U);
 }
 

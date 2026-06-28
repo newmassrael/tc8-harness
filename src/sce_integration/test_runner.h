@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -9,6 +10,7 @@
 #include <vector>
 
 #include "tc8/captured_event.h"
+#include "tc8/pollable_service.h"
 
 #include "captured_trace.h"
 #include "test_case_traits.h"
@@ -85,6 +87,24 @@ public:
     // post-initial state instead.
     virtual void scheduleAfterStateEntry(int state_id,
                                          std::function<void()> action) = 0;
+};
+
+// A run-scoped service owner: a case hands the runner a `tc8::IPollableService`
+// via `adoptService` during `stimulus()`, and the runner owns it across the
+// capture window (destroying it at teardown) and surfaces it to the CLI capture
+// loop via `ITestRunner::pollableServices()`. Segregated from `IStimulusScheduler`
+// (which only schedules fire-and-forget actions) so a case depends only on the
+// seam it uses. See `tc8/pollable_service.h` for the lifetime rationale.
+class IBackgroundServiceOwner {
+public:
+    virtual ~IBackgroundServiceOwner() = default;
+
+    // Transfer ownership of a pollable service to the runner. Owned for the whole
+    // run and destroyed (RAII) at teardown regardless of whether it armed — a
+    // service whose `pollFd()` is -1 is simply skipped by the capture loop. A case
+    // checks the concrete object's own status before adopting if it needs to
+    // surface a failed arm (e.g. as an inconclusive verdict).
+    virtual void adoptService(std::unique_ptr<::tc8::IPollableService> service) = 0;
 };
 
 // Type-erased handle the CLI uses to drive whichever state machine was
@@ -193,6 +213,14 @@ public:
     // ``{"schema_version":1,"steps":[]}`` for a case that fired no
     // transitions before its deadline.
     virtual std::string dumpTraceJson() const = 0;
+
+    // The run-scoped pollable services a case adopted during kickStimulus (via
+    // IBackgroundServiceOwner). The CLI capture loop folds each one's pollFd()
+    // into its drain set and calls onReadable() each iteration — so a background
+    // tester service runs inline on the capture thread, no worker thread. Empty
+    // for the vast majority of cases (none adopt a service); the pointers are
+    // borrowed and stay valid for the run (the runner retains ownership).
+    virtual std::vector<::tc8::IPollableService *> pollableServices() = 0;
 };
 
 // Drives an AOT-compiled SCXML state machine for a single TC8 test case.
@@ -209,7 +237,9 @@ public:
 //     event(s). Single-protocol cases dispatch on one alternative;
 //     cross-protocol cases handle several.
 template <typename StateMachine>
-class TestRunner final : public ITestRunner, public IStimulusScheduler {
+class TestRunner final : public ITestRunner,
+                         public IStimulusScheduler,
+                         public IBackgroundServiceOwner {
 public:
     using Traits = TestCaseTraits<StateMachine>;
     using Captured = typename Traits::Captured;
@@ -261,6 +291,12 @@ public:
         } else if constexpr (has_scheduled_stimulus_v<Traits>) {
             Traits::stimulus(captured_, cfg_, iface,
                              static_cast<IStimulusScheduler &>(*this));
+        } else if constexpr (has_service_owning_stimulus_v<Traits>) {
+            // The case arms a run-scoped tc8::IPollableService (e.g. an
+            // ArpResponder) and hands it to the runner to own across the capture
+            // window. Distinct from the scheduler/dut overloads by the 4th param.
+            Traits::stimulus(captured_, cfg_, iface,
+                             static_cast<IBackgroundServiceOwner &>(*this));
         } else if constexpr (has_stimulus_v<Traits>) {
             Traits::stimulus(captured_, cfg_, iface);
         }
@@ -418,6 +454,23 @@ public:
         });
     }
 
+    // IBackgroundServiceOwner — take ownership of a case-armed pollable service.
+    void adoptService(std::unique_ptr<::tc8::IPollableService> service) override {
+        if (service) {
+            services_.push_back(std::move(service));
+        }
+    }
+
+    // ITestRunner — borrow the owned services for the CLI capture loop to poll.
+    std::vector<::tc8::IPollableService *> pollableServices() override {
+        std::vector<::tc8::IPollableService *> out;
+        out.reserve(services_.size());
+        for (const auto &s : services_) {
+            out.push_back(s.get());
+        }
+        return out;
+    }
+
 private:
     struct ScheduledStimulus {
         std::chrono::steady_clock::time_point fire_at;
@@ -556,6 +609,14 @@ private:
     // always hardcode ``-1`` (synthetic / timer-driven). ``onCaptured``
     // only reads it; never resets it.
     int                                next_pcap_frame_idx_ = -1;
+    // Run-scoped pollable services (e.g. stimulus::ArpResponder) a case adopted
+    // via adoptService; borrowed by the CLI capture loop through pollableServices()
+    // and destroyed (RAII) here at TestRunner teardown, after the capture loop has
+    // returned. Declared last so it is destroyed first; the services are self-
+    // contained (they hold no reference to sm_/captured_), so teardown order is
+    // not load-bearing — last-declared is a conservative default that closes a
+    // service's fd before the rest of the runner.
+    std::vector<std::unique_ptr<::tc8::IPollableService>> services_;
 };
 
 }  // namespace tc8::sce

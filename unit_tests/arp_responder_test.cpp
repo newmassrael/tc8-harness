@@ -16,12 +16,15 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
+#include <type_traits>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "stimulus/arp_builder.h"
 #include "stimulus/iface_addr.h"
+#include "tc8/pollable_service.h"
 
 namespace {
 
@@ -189,6 +192,56 @@ TEST(MacResolver, ResolvesLoopback) {
 TEST(MacResolver, NulloptForMissingInterface) {
     EXPECT_FALSE(tc8::stimulus::macOfInterface("tc8_no_such_if0").has_value());
     EXPECT_FALSE(tc8::stimulus::macOfInterface("").has_value());
+}
+
+// --- IPollableService ownership seam (IBackgroundServiceOwner::adoptService) ---
+
+// ArpResponder must model tc8::IPollableService so a case can adopt it onto the
+// runner and the capture loop can poll/drain it.
+static_assert(
+    std::is_base_of_v<::tc8::IPollableService, tc8::stimulus::ArpResponder>,
+    "ArpResponder must model tc8::IPollableService");
+
+// Records its own destruction and counts onReadable() calls, standing in for
+// ArpResponder without AF_PACKET / CAP_NET_RAW.
+class FakePollableService : public ::tc8::IPollableService {
+public:
+    FakePollableService(int fd, bool& destroyed_flag) : fd_(fd), destroyed_(destroyed_flag) {}
+    ~FakePollableService() override { destroyed_ = true; }
+    int  pollFd() const override { return fd_; }
+    void onReadable() override { ++reads_; }
+    int  reads() const { return reads_; }
+
+private:
+    int   fd_;
+    int   reads_ = 0;
+    bool& destroyed_;
+};
+
+// The runner owns adopted services in a vector<unique_ptr<IPollableService>> and
+// destroys them through the base pointer at teardown. Proves the destructor is
+// virtual — a non-virtual one would leak the live socket fd past the run.
+TEST(PollableServiceSeam, OwnedServiceDestroyedThroughBasePointer) {
+    bool destroyed = false;
+    {
+        std::vector<std::unique_ptr<::tc8::IPollableService>> owned;
+        owned.push_back(std::make_unique<FakePollableService>(/*fd=*/-1, destroyed));
+        EXPECT_FALSE(destroyed);  // still owned while the capture window is open
+    }
+    EXPECT_TRUE(destroyed);  // vector teardown ran the RAII destructor
+}
+
+// The capture loop drives a service through the base interface — pollFd() to add
+// it to the drain set, onReadable() to answer; verify both dispatch to the
+// concrete service polymorphically.
+TEST(PollableServiceSeam, PollFdAndOnReadableDispatchPolymorphically) {
+    bool destroyed = false;
+    FakePollableService svc(/*fd=*/7, destroyed);
+    ::tc8::IPollableService& base = svc;
+    EXPECT_EQ(base.pollFd(), 7);
+    base.onReadable();
+    base.onReadable();
+    EXPECT_EQ(svc.reads(), 2);
 }
 
 }  // namespace
