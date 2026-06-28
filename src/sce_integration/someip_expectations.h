@@ -84,7 +84,7 @@ struct SomeIpExpectations {
     std::uint32_t sd_initial_delay_min_ms = 0;
     std::uint32_t sd_initial_delay_max_ms = 0;
     std::uint32_t sd_repetition_base_delay_ms = 0;
-    std::uint32_t sd_repetitions_max = 0;
+    std::uint32_t sd_repetitions_max = 0;  // a run-count cap (REPETITIONS_MAX), not ms
     std::uint32_t sd_cyclic_offer_delay_ms = 0;
     std::uint32_t sd_request_response_delay_ms = 0;
     std::uint32_t sd_timing_tolerance_ms = 0;
