@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -70,6 +71,45 @@ TEST(UdpEmit, MulticastRejectsMalformedGroup) {
     const std::vector<std::uint8_t> payload = {0x01};
     const int rc = sendUdpMulticast(payload, "lo", 23458, "not.an.ip.address", 9999);
     EXPECT_EQ(rc, -5);
+}
+
+// The source-IP emit's wire layout: the built frame must carry the chosen
+// IPv4 source address (so the DUT discriminates clients by Sender IP) and the
+// chosen MACs, ports, and payload. Pure builder, so this is hermetic.
+TEST(UdpEmit, BuildUdpFromSourceIpFrameLayout) {
+    const std::vector<std::uint8_t> payload = {0xDE, 0xAD, 0xBE, 0xEF};
+    const std::uint32_t src_ip = ::inet_addr("172.16.0.5");  // network byte order
+    const std::uint32_t dst_ip = ::inet_addr("172.16.0.1");
+    const std::array<std::uint8_t, 6> dut_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    const std::array<std::uint8_t, 6> tester_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x02};
+
+    const std::vector<std::uint8_t> f =
+        buildUdpFromSourceIpFrame(payload, src_ip, 40000, dst_ip, 30509, dut_mac, tester_mac);
+
+    // Ethernet(14) + IPv4(20) + UDP(8) + payload(4).
+    ASSERT_EQ(f.size(), 14u + 20u + 8u + payload.size());
+    for (int i = 0; i < 6; ++i) {
+        EXPECT_EQ(f[static_cast<std::size_t>(i)], dut_mac[static_cast<std::size_t>(i)]) << "eth dst " << i;
+        EXPECT_EQ(f[static_cast<std::size_t>(6 + i)], tester_mac[static_cast<std::size_t>(i)]) << "eth src " << i;
+    }
+    EXPECT_EQ(f[12], 0x08);  // EtherType IPv4 0x0800
+    EXPECT_EQ(f[13], 0x00);
+    EXPECT_EQ(f[23], 0x11);  // IP protocol = UDP
+    // IPv4 source = 172.16.0.5, destination = 172.16.0.1 (on the wire).
+    EXPECT_EQ(f[26], 0xAC);
+    EXPECT_EQ(f[27], 0x10);
+    EXPECT_EQ(f[28], 0x00);
+    EXPECT_EQ(f[29], 0x05);
+    EXPECT_EQ(f[30], 0xAC);
+    EXPECT_EQ(f[33], 0x01);
+    // UDP source 40000 (0x9C40) / destination 30509 (0x772D), big-endian.
+    EXPECT_EQ(f[34], 0x9C);
+    EXPECT_EQ(f[35], 0x40);
+    EXPECT_EQ(f[36], 0x77);
+    EXPECT_EQ(f[37], 0x2D);
+    // L7 payload follows the 8-byte UDP header.
+    EXPECT_EQ(f[42], 0xDE);
+    EXPECT_EQ(f[45], 0xEF);
 }
 
 }  // namespace

@@ -11,6 +11,8 @@
 #include <unistd.h>
 
 #include "stimulus/iface_addr.h"
+#include "stimulus/ipv4_frame_builder.h"
+#include "stimulus/udp_datagram_builder.h"
 
 namespace tc8::stimulus {
 
@@ -137,6 +139,30 @@ int sendUdpMulticast(const std::vector<std::uint8_t> &datagram, std::string_view
         return -6;
     }
     return 0;
+}
+
+std::vector<std::uint8_t> buildUdpFromSourceIpFrame(
+    const std::vector<std::uint8_t> &payload, std::uint32_t src_ip_be, std::uint16_t src_port,
+    std::uint32_t dst_ip_be, std::uint16_t dst_port, const std::array<std::uint8_t, 6> &dst_mac,
+    const std::array<std::uint8_t, 6> &src_mac) {
+    const std::vector<std::uint8_t> udp =
+        buildUdpDatagram(src_ip_be, dst_ip_be, src_port, dst_port, payload.data(), payload.size());
+    Ipv4FrameSpec spec{};
+    spec.src_mac = src_mac;
+    spec.dst_mac = dst_mac;
+    spec.src_ip = src_ip_be;
+    spec.dst_ip = dst_ip_be;
+    spec.ip_protocol = kIpProtoUdp;
+    return buildIpv4Frame(spec, udp);
+}
+
+int sendUdpFromSourceIp(const std::vector<std::uint8_t> &payload, std::string_view iface,
+                        std::uint32_t src_ip_be, std::uint16_t src_port, std::uint32_t dst_ip_be,
+                        std::uint16_t dst_port, const std::array<std::uint8_t, 6> &dst_mac,
+                        const std::array<std::uint8_t, 6> &src_mac) {
+    const std::vector<std::uint8_t> frame = buildUdpFromSourceIpFrame(
+        payload, src_ip_be, src_port, dst_ip_be, dst_port, dst_mac, src_mac);
+    return sendRawEthernet(frame, iface);
 }
 
 }  // namespace tc8::stimulus
