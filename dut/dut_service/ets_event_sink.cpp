@@ -88,10 +88,29 @@ public:
 std::unique_ptr<IEtsEventSink> makeEtsEventSink(const std::string& app_name,
                                                 std::uint16_t service,
                                                 std::uint16_t instance) {
-    auto app = vsomeip::runtime::get()->get_application(app_name);
+    auto rt = vsomeip::runtime::get();
+
+    // CommonAPI's default connection — the one registerService(domain, instance,
+    // stub) uses — creates its vsomeip application via create_application("")
+    // because CommonAPI's DEFAULT_CONNECTION_ID is the empty string. vsomeip keys
+    // its application map by the name PASSED to create_application, so the app
+    // lives under "" even though its DISPLAY name resolves from
+    // VSOMEIP_APPLICATION_NAME (e.g. "tc8-dut"). Retrieve it by the connection id,
+    // NOT the display name: get_application("tc8-dut") never matches that key, so
+    // the previous name-based lookup always missed and the event surface was
+    // silently disabled.
+    auto app = rt->get_application(std::string());
+
+    // Fallback for a non-default CommonAPI connection, which keys the map by its
+    // own connection id; if that id equals the application name, this recovers it.
+    if (!app && !app_name.empty()) {
+        app = rt->get_application(app_name);
+    }
+
     if (!app) {
         std::fprintf(stderr,
-                     "tc8-dut: ETS event sink - vsomeip application '%s' not found; "
+                     "tc8-dut: ETS event sink - CommonAPI vsomeip application "
+                     "(default connection \"\", fallback '%s') not found; "
                      "OEM event surface disabled\n",
                      app_name.c_str());
         return std::make_unique<NullEtsEventSink>();

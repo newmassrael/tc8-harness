@@ -43,16 +43,20 @@ public:
                           std::function<void(const std::vector<std::uint8_t>&)> handler) = 0;
 };
 
-// Build a vsomeip-backed IEtsEventSink over the application named `app_name` —
-// the CommonAPI ETS service's OWN vsomeip application, retrieved by name so the
-// extension shares the one routing client (no second vsomeip application). Events
-// and method handlers are scoped to `service`/`instance`. Call only AFTER the
-// CommonAPI service is registered (that is what creates the named application).
+// Build a vsomeip-backed IEtsEventSink over the CommonAPI ETS service's OWN
+// vsomeip application, so the extension shares the one routing client (no second
+// vsomeip application). The application is retrieved from the runtime by the
+// CommonAPI connection id, NOT by display name: registerService uses CommonAPI's
+// default connection, whose id is the empty string, so vsomeip keys the app under
+// "" (its display name resolving from VSOMEIP_APPLICATION_NAME is a separate
+// concern that never keys the map). `app_name` is only a fallback for a
+// non-default named connection. Events and method handlers are scoped to
+// `service`/`instance`. Call only AFTER the CommonAPI service is registered (that
+// synchronously creates the application).
 //
-// If the application is not found (e.g. VSOMEIP_APPLICATION_NAME unset, or called
-// too early), returns a no-op sink and logs to stderr — the public DUT, whose
-// default extension never uses the sink, is unaffected. Never returns null, so
-// callers pass `*sink` to the extension hooks unconditionally.
+// If the application is not found, returns a no-op sink and logs to stderr — the
+// public DUT, whose default extension never uses the sink, is unaffected. Never
+// returns null, so callers pass `*sink` to the extension hooks unconditionally.
 //
 // This header stays vsomeip-free; the wrapping of vsomeip::application lives in
 // ets_event_sink.cpp.

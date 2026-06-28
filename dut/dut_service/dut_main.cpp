@@ -72,11 +72,12 @@ int main() {
     // changes from its default-constructed 0.
     impl->setTestFieldUINT8Attribute(static_cast<uint8_t>(0x42));
 
-    // OEM event sink (O2): the CommonAPI service's OWN vsomeip application,
-    // retrieved by name so the extension shares one routing client (no second
-    // app). The name matches VSOMEIP_APPLICATION_NAME (the topology sets it to
-    // the single vsomeip.json application); tc8::dut::kApplicationName is the
-    // bare-run fallback. Declared before the extension so it outlives it; the
+    // OEM event sink (O2): the CommonAPI service's OWN vsomeip application, so the
+    // extension shares one routing client (no second app). makeEtsEventSink
+    // retrieves it by CommonAPI's default connection id (empty string) — see its
+    // header; the name below is only the non-default-connection fallback, sourced
+    // from VSOMEIP_APPLICATION_NAME with tc8::dut::kApplicationName as the bare-run
+    // default. Declared before the extension so it outlives it; the
     // sink also unregisters its vsomeip handlers on destruction, so a captured
     // reference cannot dangle on a graceful shutdown (today the DUT std::_Exit()s
     // at the end of main, which skips both dtors — see the exit comment below).
