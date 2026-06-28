@@ -1,11 +1,14 @@
-// Hermetic runtime proof of the IEtsExtension / IEtsEventSink seam: a fake sink
-// records the facade calls so the demo extension can be driven WITHOUT a vsomeip
-// application or a running DUT. This proves the seam CONTRACT end-to-end (an
-// extension offers an event, registers a trigger method, and the trigger
-// notifies — all through IEtsEventSink). The vsomeip-backed sink
-// (makeEtsEventSink) and on-the-wire delivery are exercised separately by the
-// tc8-dut build + the tester<->DUT topology run.
+// Unit test of the DEMO extension's use of the IEtsEventSink seam, against a
+// FAKE sink that records the facade calls — no vsomeip application, no running
+// DUT. SCOPE (honest): this verifies the demo extension drives the interface
+// correctly (offers an event, registers a trigger method, the trigger notifies).
+// It does NOT verify the production VsomeipEtsEventSink's vsomeip mapping
+// (offer_event / create_payload / register_message_handler); that adapter is
+// covered only by compilation (the tc8-dut build) plus the tester<->DUT topology
+// run — EXCEPT its one fallible inbound-marshaling step, payloadBytes(), which is
+// extracted and unit-tested directly below.
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -14,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include "demo_ets_extension.h"
+#include "ets_event_sink.h"
 #include "ets_extension.h"
 
 namespace {
@@ -96,4 +100,20 @@ TEST(DemoEtsExtension, DefaultHooksAreNoOps) {
 
     // The demo opts 0x8001 cyclic-vs-triggered to the public default (cyclic).
     EXPECT_FALSE(ext.ets8001TriggerDriven());
+}
+
+// payloadBytes() — the extracted inbound-marshaling step from
+// VsomeipEtsEventSink::onMethod (the production adapter's one fallible piece).
+// Covers the null/zero guards and the byte copy without a live vsomeip message.
+TEST(EtsEventSinkPayloadBytes, NullOrEmptyYieldsEmpty) {
+    EXPECT_TRUE(tc8::dut::payloadBytes(nullptr, 0).empty());
+    EXPECT_TRUE(tc8::dut::payloadBytes(nullptr, 4).empty());  // null data, nonzero len
+    const std::uint8_t data[] = {0x01};
+    EXPECT_TRUE(tc8::dut::payloadBytes(data, 0).empty());  // zero len, valid ptr
+}
+
+TEST(EtsEventSinkPayloadBytes, CopiesAllBytes) {
+    const std::uint8_t data[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    EXPECT_EQ(tc8::dut::payloadBytes(data, sizeof(data)),
+              (std::vector<std::uint8_t>{0xDE, 0xAD, 0xBE, 0xEF}));
 }
