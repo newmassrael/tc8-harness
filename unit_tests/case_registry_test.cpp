@@ -39,6 +39,10 @@ public:
     std::string dumpTraceJson() const override {
         return "{\"schema_version\":1,\"steps\":[]}";
     }
+
+    std::vector<::tc8::IPollableService *> pollableServices() override {
+        return {};
+    }
 };
 
 CaseEntry makeEntry(std::string_view id, bool deprecated = false) {
