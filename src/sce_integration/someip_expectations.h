@@ -70,6 +70,35 @@ struct SomeIpExpectations {
     std::uint32_t tester_ipv4 = 0;
     std::uint16_t tester_udp_port = 0;
 
+    // Configured DUT timing thresholds — what an absolute-timing case compares
+    // the captured inter-frame delta (`SomeIpCaptured::frame_delta_us()`)
+    // against, so an SCXML cond reads e.g. `frame_delta_us() within
+    // [sd_cyclic_offer_delay_ms ± sd_timing_tolerance_ms]` instead of a
+    // hard-coded magic literal. Operator/config-derived (like dut_iface_ip),
+    // supplied via `--expect <key>=<ms>`; 0 stays the unset sentinel. Generic
+    // test infrastructure ("what timers the IUT was configured with"), not
+    // protocol payload — so it belongs here, not in any OEM case.
+    //
+    // SOME/IP-SD start-up state-machine timers (Initial Wait / Repetition /
+    // Main phase), per the SOMEIPSD service-discovery behaviour.
+    std::uint32_t sd_initial_delay_min_ms = 0;
+    std::uint32_t sd_initial_delay_max_ms = 0;
+    std::uint32_t sd_repetition_base_delay_ms = 0;
+    std::uint32_t sd_repetitions_max = 0;
+    std::uint32_t sd_cyclic_offer_delay_ms = 0;
+    std::uint32_t sd_request_response_delay_ms = 0;
+    std::uint32_t sd_timing_tolerance_ms = 0;
+
+    // CAN-encapsulated SOME/IP cadence / delay timers (periodic cycle,
+    // delay time after a message, start offset). The CAN Message IDs and
+    // payload encoding stay OEM-side; only the configured timer values live
+    // here, exactly as the SD timers above do.
+    std::uint32_t can_ets_cycle_0_ms = 0;
+    std::uint32_t can_ets_cycle_1_ms = 0;
+    std::uint32_t can_delay_time_ms = 0;
+    std::uint32_t can_start_offset_ms = 0;
+    std::uint32_t can_timing_tolerance_ms = 0;
+
     // Expected L7 payload bytes for a Method-Response echo assertion,
     // supplied via `--expect payload=HH:HH:..`. `payload_len` is the count
     // of valid leading bytes (0 = unset). ETS echo conds compare it via

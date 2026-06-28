@@ -104,6 +104,47 @@ TEST(ApplyExpectToken, TesterEndpointKeys) {
     EXPECT_EQ(e.tester_udp_port, 40000u);
 }
 
+TEST(ApplyExpectToken, TimingThresholdKeys) {
+    ::tc8::SomeIpExpectations e{};
+    EXPECT_TRUE(applyExpectToken("sd_initial_delay_min_ms=10", e));
+    EXPECT_TRUE(applyExpectToken("sd_initial_delay_max_ms=50", e));
+    EXPECT_TRUE(applyExpectToken("sd_repetition_base_delay_ms=30", e));
+    EXPECT_TRUE(applyExpectToken("sd_repetitions_max=3", e));
+    EXPECT_TRUE(applyExpectToken("sd_cyclic_offer_delay_ms=2000", e));
+    EXPECT_TRUE(applyExpectToken("sd_request_response_delay_ms=15", e));
+    EXPECT_TRUE(applyExpectToken("sd_timing_tolerance_ms=5", e));
+    EXPECT_TRUE(applyExpectToken("can_ets_cycle_0_ms=200", e));
+    EXPECT_TRUE(applyExpectToken("can_ets_cycle_1_ms=500", e));
+    EXPECT_TRUE(applyExpectToken("can_delay_time_ms=20", e));
+    EXPECT_TRUE(applyExpectToken("can_start_offset_ms=100", e));
+    EXPECT_TRUE(applyExpectToken("can_timing_tolerance_ms=2", e));
+    EXPECT_EQ(e.sd_initial_delay_min_ms, 10u);
+    EXPECT_EQ(e.sd_cyclic_offer_delay_ms, 2000u);
+    EXPECT_EQ(e.sd_repetitions_max, 3u);
+    EXPECT_EQ(e.can_ets_cycle_0_ms, 200u);
+    EXPECT_EQ(e.can_start_offset_ms, 100u);
+    EXPECT_EQ(e.can_timing_tolerance_ms, 2u);
+
+    // The full 3-layer flow: --expect token -> cfg.someip -> SomeIpExpected
+    // context the SCXML cond reads. applyTestConfig copies them unconditionally.
+    ::tc8::TestConfig cfg{};
+    cfg.someip = e;
+    ::tc8::SomeIpExpected exp{};
+    applyTestConfig(exp, cfg);
+    EXPECT_EQ(exp.sd_cyclic_offer_delay_ms, 2000u);
+    EXPECT_EQ(exp.sd_timing_tolerance_ms, 5u);
+    EXPECT_EQ(exp.can_ets_cycle_0_ms, 200u);
+}
+
+TEST(ApplyExpectToken, RejectsOverflowTimingThreshold) {
+    // Timing values are uint32 ms — 0x100000000 overflows and must be rejected.
+    ::tc8::SomeIpExpectations e{};
+    EXPECT_FALSE(applyExpectToken("sd_cyclic_offer_delay_ms=0x100000000", e));
+    EXPECT_EQ(e.sd_cyclic_offer_delay_ms, 0u);
+    EXPECT_TRUE(applyExpectToken("sd_cyclic_offer_delay_ms=0xFFFFFFFF", e));
+    EXPECT_EQ(e.sd_cyclic_offer_delay_ms, 0xFFFFFFFFu);
+}
+
 TEST(ApplyExpectToken, RejectsOverflowTesterUdpPort) {
     ::tc8::SomeIpExpectations e{};
     EXPECT_FALSE(applyExpectToken("tester_udp_port=0x10000", e));

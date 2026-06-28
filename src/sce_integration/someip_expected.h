@@ -66,6 +66,22 @@ struct SomeIpExpected {
     std::uint32_t tester_ipv4 = 0;
     std::uint16_t tester_udp_port = 0;
 
+    // Configured DUT timing thresholds (ms) an absolute-timing case asserts the
+    // captured `frame_delta_us()` against. Mirrors the `SomeIpExpectations`
+    // fields of the same name — see that struct's doc for semantics; 0 = unset.
+    std::uint32_t sd_initial_delay_min_ms = 0;
+    std::uint32_t sd_initial_delay_max_ms = 0;
+    std::uint32_t sd_repetition_base_delay_ms = 0;
+    std::uint32_t sd_repetitions_max = 0;
+    std::uint32_t sd_cyclic_offer_delay_ms = 0;
+    std::uint32_t sd_request_response_delay_ms = 0;
+    std::uint32_t sd_timing_tolerance_ms = 0;
+    std::uint32_t can_ets_cycle_0_ms = 0;
+    std::uint32_t can_ets_cycle_1_ms = 0;
+    std::uint32_t can_delay_time_ms = 0;
+    std::uint32_t can_start_offset_ms = 0;
+    std::uint32_t can_timing_tolerance_ms = 0;
+
     // Expected L7 payload for a Method-Response echo assertion (see
     // `SomeIpExpectations`). `payload_view()` exposes the valid prefix as a
     // string_view so an ETS cond reads
@@ -100,6 +116,18 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     e.mcast_port = cfg.someip.mcast_port;
     e.tester_ipv4 = cfg.someip.tester_ipv4;
     e.tester_udp_port = cfg.someip.tester_udp_port;
+    e.sd_initial_delay_min_ms = cfg.someip.sd_initial_delay_min_ms;
+    e.sd_initial_delay_max_ms = cfg.someip.sd_initial_delay_max_ms;
+    e.sd_repetition_base_delay_ms = cfg.someip.sd_repetition_base_delay_ms;
+    e.sd_repetitions_max = cfg.someip.sd_repetitions_max;
+    e.sd_cyclic_offer_delay_ms = cfg.someip.sd_cyclic_offer_delay_ms;
+    e.sd_request_response_delay_ms = cfg.someip.sd_request_response_delay_ms;
+    e.sd_timing_tolerance_ms = cfg.someip.sd_timing_tolerance_ms;
+    e.can_ets_cycle_0_ms = cfg.someip.can_ets_cycle_0_ms;
+    e.can_ets_cycle_1_ms = cfg.someip.can_ets_cycle_1_ms;
+    e.can_delay_time_ms = cfg.someip.can_delay_time_ms;
+    e.can_start_offset_ms = cfg.someip.can_start_offset_ms;
+    e.can_timing_tolerance_ms = cfg.someip.can_timing_tolerance_ms;
     // payload is a per-case default (setExpectedPayload via the traits'
     // applyExpectedDefaults hook); `--expect payload=` overrides it ONLY when
     // explicitly set, so the conformant default survives a positive run and the

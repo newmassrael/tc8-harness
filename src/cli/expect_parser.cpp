@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace tc8::cli {
 
@@ -164,6 +165,33 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
     std::uint64_t n = 0;
     if (!parseNumeric(val, n)) {
         return false;
+    }
+
+    // Timing thresholds all share one uniform uint32 ms shape (unlike the
+    // identity/port keys below, each with its own narrower range), so a
+    // (key, member) table handles them without a dozen identical branches.
+    static constexpr std::pair<std::string_view, std::uint32_t SomeIpExpectations::*> kTimingKeys[] = {
+        {"sd_initial_delay_min_ms", &SomeIpExpectations::sd_initial_delay_min_ms},
+        {"sd_initial_delay_max_ms", &SomeIpExpectations::sd_initial_delay_max_ms},
+        {"sd_repetition_base_delay_ms", &SomeIpExpectations::sd_repetition_base_delay_ms},
+        {"sd_repetitions_max", &SomeIpExpectations::sd_repetitions_max},
+        {"sd_cyclic_offer_delay_ms", &SomeIpExpectations::sd_cyclic_offer_delay_ms},
+        {"sd_request_response_delay_ms", &SomeIpExpectations::sd_request_response_delay_ms},
+        {"sd_timing_tolerance_ms", &SomeIpExpectations::sd_timing_tolerance_ms},
+        {"can_ets_cycle_0_ms", &SomeIpExpectations::can_ets_cycle_0_ms},
+        {"can_ets_cycle_1_ms", &SomeIpExpectations::can_ets_cycle_1_ms},
+        {"can_delay_time_ms", &SomeIpExpectations::can_delay_time_ms},
+        {"can_start_offset_ms", &SomeIpExpectations::can_start_offset_ms},
+        {"can_timing_tolerance_ms", &SomeIpExpectations::can_timing_tolerance_ms},
+    };
+    for (const auto &tk : kTimingKeys) {
+        if (key == tk.first) {
+            if (n > 0xFFFFFFFFu) {
+                return false;
+            }
+            e.*(tk.second) = static_cast<std::uint32_t>(n);
+            return true;
+        }
     }
 
     if (key == "service_id") {
