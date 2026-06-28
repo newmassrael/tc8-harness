@@ -107,6 +107,31 @@ TEST(SomeipTpSegmenter, RejectsNullPayloadWithLen) {
     EXPECT_THROW(seg.segment(hdr(), nullptr, 8), std::invalid_argument);
 }
 
+// SOMEIPGEN_TP_11: a tester sets the TP Reserved field non-zero and the receiver MUST
+// ignore it. The reserved override writes bits 3..1 of the TP word; Offset (bits 31..4)
+// and More (bit 0) are untouched, and parseTpHeader (the receiver's decode) masks it off.
+TEST(SomeipTpSegmenter, ReservedOverrideSetsBitsYetParsesIgnored) {
+    const Segmenter seg{16};
+    const auto payload = ramp(40);  // -> 3 segments at offsets 0/16/32, More 1/1/0
+    const auto plain = seg.segment(hdr(), payload.data(), payload.size());
+    const auto resvd = seg.segment(hdr(), payload.data(), payload.size(), /*reserved=*/0x5);
+    ASSERT_EQ(plain.size(), resvd.size());
+    for (std::size_t i = 0; i < resvd.size(); ++i) {
+        const std::uint32_t tp = be32(resvd[i], kSomeipHeaderLen);
+        EXPECT_EQ((tp >> 1) & 0x7u, 0x5u);                    // reserved bits carried
+        EXPECT_EQ(tp & ~0xEu, be32(plain[i], kSomeipHeaderLen));  // Offset+More unchanged
+        TpSegmentHeader rh{};
+        TpSegmentHeader ph{};
+        ASSERT_TRUE(parseTpHeader(resvd[i].data() + kSomeipHeaderLen, kTpHeaderLen, rh));
+        ASSERT_TRUE(parseTpHeader(plain[i].data() + kSomeipHeaderLen, kTpHeaderLen, ph));
+        EXPECT_EQ(rh.offset, ph.offset);                      // receiver ignores reserved
+        EXPECT_EQ(rh.more_segments, ph.more_segments);
+    }
+    // Only the low 3 bits are used (0xFF -> 0x7).
+    const auto masked = seg.segment(hdr(), payload.data(), payload.size(), /*reserved=*/0xFF);
+    EXPECT_EQ((be32(masked[0], kSomeipHeaderLen) >> 1) & 0x7u, 0x7u);
+}
+
 // ── Reassembler: round trips ────────────────────────────────────────────────
 
 TEST(SomeipTpRoundTrip, MultiSegmentReassembles) {

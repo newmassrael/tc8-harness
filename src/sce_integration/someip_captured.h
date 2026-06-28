@@ -184,6 +184,18 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     bool          tp_more_segments = false;
     std::uint32_t tp_segment_len = 0;   // segment payload bytes (frame payload minus the 4-byte TP header)
 
+    // Snapshot of `tp_more_segments` from the previous fired TP-segment frame,
+    // managed by the same dispatch hook that updates `prev_sd_session_id`, so a
+    // SOMEIPGEN_TP case can compare consecutive segments. TP_07 (More-Segments
+    // flag sequence — the final segment clears the flag a predecessor set) reads
+    // `prev_tp_more_segments` (sentinel false on the first fired transition).
+    // TP_05 (all segments share one Session ID) needs NO TP-specific field: the
+    // unconditional `prev_sd_session_id` snapshot already holds the previous
+    // fired frame's session_id, so the case asserts `session_id ==
+    // prev_sd_session_id`. A dedicated prev_tp_session_id would be a
+    // byte-identical duplicate of it (same value, same snapshot point).
+    bool          prev_tp_more_segments = false;
+
     // Transport 4-tuple (`src_ip` / `dst_ip` / `src_port` / `dst_port`)
     // from the encapsulating UDP datagram or TCP segment is inherited
     // from `CapturedL3Endpoints` + `CapturedL4Ports`. §5.1.5.6 ONWIRE_01

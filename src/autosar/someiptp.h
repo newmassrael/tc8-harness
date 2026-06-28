@@ -74,9 +74,15 @@ public:
     // segment with More-Segments = 0. Throws std::invalid_argument if payload is null
     // while len != 0, or std::length_error if `len` exceeds the 28-bit Offset field
     // (kMaxByteOffset).
+    //
+    // `reserved` sets the TP header's 3 Reserved bits (PRS_SOMEIP Table 4.8) on every
+    // segment — only its low 3 bits are used; 0 (the default) is the spec-conformant
+    // wire. A non-zero value drives a negative test that the receiver IGNORES Reserved
+    // (the Reassembler / parseTpHeader mask it off), e.g. SOMEIPGEN_TP_11.
     std::vector<std::vector<std::uint8_t>> segment(const MessageHeader& hdr,
                                                    const std::uint8_t* payload,
-                                                   std::size_t len) const;
+                                                   std::size_t len,
+                                                   std::uint8_t reserved = 0) const;
 
     std::size_t maxSegmentPayload() const { return max_segment_payload_; }
 

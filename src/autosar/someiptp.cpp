@@ -52,7 +52,8 @@ Segmenter::Segmenter(std::size_t max_segment_payload) : max_segment_payload_(max
 
 std::vector<std::vector<std::uint8_t>> Segmenter::segment(const MessageHeader& hdr,
                                                           const std::uint8_t* payload,
-                                                          std::size_t len) const {
+                                                          std::size_t len,
+                                                          std::uint8_t reserved) const {
     if (payload == nullptr && len != 0) {
         throw std::invalid_argument("tc8::someiptp::Segmenter::segment: null payload with len != 0");
     }
@@ -86,8 +87,11 @@ std::vector<std::vector<std::uint8_t>> Segmenter::segment(const MessageHeader& h
         frame.push_back(hdr.return_code);
         // TP header (PRS_SOMEIP_00723 / Table 4.8): the byte offset is 16-aligned, so its
         // low 4 bits are zero and it already occupies the upper-28-bit Offset field
-        // directly; Reserved bits stay 0; bit 0 is the More-Segments flag.
-        put32be(frame, static_cast<std::uint32_t>(offset) | (more ? 1u : 0u));
+        // directly; bits 3..1 are Reserved (0 on the conformant wire; `reserved` lets a
+        // negative test set them); bit 0 is the More-Segments flag.
+        put32be(frame, static_cast<std::uint32_t>(offset) |
+                           (static_cast<std::uint32_t>(reserved & 0x7u) << 1) |
+                           (more ? 1u : 0u));
         if (seg_len != 0) {
             frame.insert(frame.end(), payload + offset, payload + offset + seg_len);
         }

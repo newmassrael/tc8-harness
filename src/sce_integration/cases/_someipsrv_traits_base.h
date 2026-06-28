@@ -68,6 +68,7 @@ struct SomeIpAnyBase {
         if (sm.getCurrentState() != state_before) {
             c.prev_observed_ts_us = c.observed_ts_us;
             c.prev_sd_session_id = c.session_id;
+            c.prev_tp_more_segments = c.tp_more_segments;
         }
     }
 };
@@ -99,6 +100,7 @@ struct SomeIpSdOnlyBase : SomeIpAnyBase<StateMachine> {
         if (sm.getCurrentState() != state_before) {
             c.prev_observed_ts_us = c.observed_ts_us;
             c.prev_sd_session_id = c.session_id;
+            c.prev_tp_more_segments = c.tp_more_segments;
         }
     }
 };
