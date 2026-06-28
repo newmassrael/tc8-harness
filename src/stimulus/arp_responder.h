@@ -21,6 +21,12 @@ namespace tc8::stimulus {
 struct ArpBinding {
     std::uint32_t ip_be;              // target IPv4 the responder claims
     std::array<std::uint8_t, 6> mac;  // sender hardware address advertised in the Reply
+    // `mac` MUST equal the Ethernet source MAC the tester puts on the frames it
+    // sends FROM `ip_be` (e.g. emitMethodRequestFromSourceIp's `src_mac`): the
+    // DUT resolves `ip_be` -> this `mac`, then a stack that snoops the request's
+    // `eth_src` and one that uses the resolved entry must agree, else the
+    // Response is addressed to a MAC the tester is not on and the case goes
+    // silently inconclusive. Source BOTH from `macOfInterface(iface)`.
 };
 
 // Build the Ethernet-II + ARP Reply that answers `request_frame` (a raw,
@@ -62,11 +68,20 @@ buildArpReplyForRequest(const std::uint8_t *request_frame, std::size_t len,
 // thread stimulus anti-pattern the scheduler replaced. A detached thread could
 // be SIGKILLed mid-emit and leak across the poll-loop boundary; this thread is
 // owned, woken deterministically, and joined in the destructor, so teardown is
-// race-free. The responder must outlive the post-stimulus capture window (the
-// DUT resolves the source IP only when it goes to send its Response), so a case
-// holds it for the duration of the run — by value where the stimulus is
-// synchronous, or heap-allocated (e.g. via a scheduler-kept `shared_ptr`) to
-// keep it alive past a `kickStimulus` return.
+// race-free.
+//
+// OWNERSHIP: the responder must stay alive for the whole post-stimulus capture
+// window — the DUT ARP-resolves the source IP only when it goes to send its
+// Response, which is AFTER `kickStimulus` returns and the poll loop is running
+// (see test_runner.h). It therefore needs an owner that outlives `kickStimulus`:
+// a `Traits::stimulus` local will NOT do (it is destroyed before the poll loop
+// starts), and `IStimulusScheduler` has no object-holding API to repurpose for
+// this. The in-tree owner seam — a runner-held background-service list, or
+// folding the responder's pollable fd into the CLI poll loop so no separate
+// thread is needed at all — is intentionally deferred until the first in-tree
+// consumer lands (the sole consumer today is an out-of-tree OEM case). Until
+// then the class is exercised standalone: the privileged netns test owns it by
+// value for the duration of its own capture loop.
 //
 // Non-copyable and non-movable: it owns a running thread and live fds.
 class ArpResponder {

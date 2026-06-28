@@ -58,7 +58,7 @@ inline std::optional<std::array<std::uint8_t, 6>> macOfInterface(std::string_vie
     if (iface_name.empty() || iface_name.size() >= IFNAMSIZ) {
         return std::nullopt;
     }
-    const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
+    const int sock = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (sock < 0) {
         return std::nullopt;
     }

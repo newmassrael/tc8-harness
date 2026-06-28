@@ -10,6 +10,7 @@
 #include <poll.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
+#include <system_error>
 #include <unistd.h>
 #include <utility>
 
@@ -31,6 +32,10 @@ constexpr std::uint16_t kArpOpReply = 0x0002;
 // padding to the 60-byte Ethernet minimum; only the first 42 are read.
 constexpr std::size_t kEthHdrLen = 14;
 constexpr std::size_t kArpIpv4FrameLen = 42;
+
+// RX scratch for one ARP frame — generous past the 42..60-byte ARP range so a
+// padded/oversized frame is read whole and bounds-checked, never truncated.
+constexpr std::size_t kRxBufLen = 256;
 
 std::uint16_t readBe16(const std::uint8_t *p) {
     return static_cast<std::uint16_t>((static_cast<std::uint16_t>(p[0]) << 8) | p[1]);
@@ -90,7 +95,10 @@ buildArpReplyForRequest(const std::uint8_t *frame, std::size_t len,
 
 ArpResponder::ArpResponder(std::string_view iface, std::vector<ArpBinding> bindings)
     : iface_(iface), bindings_(std::move(bindings)) {
-    sock_ = ::socket(AF_PACKET, SOCK_RAW, htons(kEtherTypeArp));
+    // SOCK_CLOEXEC so this long-lived, CAP_NET_RAW capture socket is not leaked
+    // into a child of any concurrent std::system() the harness may fork (mirrors
+    // the eventfd's EFD_CLOEXEC below and rtnetlink's SOCK_CLOEXEC).
+    sock_ = ::socket(AF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(kEtherTypeArp));
     if (sock_ < 0) {
         std::fprintf(stderr, "stimulus: ArpResponder socket(AF_PACKET) failed: %s\n",
                      std::strerror(errno));
@@ -129,8 +137,22 @@ ArpResponder::ArpResponder(std::string_view iface, std::vector<ArpBinding> bindi
         return;
     }
 
+    // Spawn last, and only flip ok_ once the worker exists. std::thread reports
+    // creation failure by throwing (no error return), so on the rare spawn
+    // failure close the fds here — the destructor does NOT run for a constructor
+    // that leaves ok_ false, so it cannot clean them up — and stay ok()==false,
+    // consistent with the socket/bind failure paths above.
+    try {
+        worker_ = std::thread([this] { run(); });
+    } catch (const std::system_error &e) {
+        std::fprintf(stderr, "stimulus: ArpResponder thread spawn failed: %s\n", e.what());
+        ::close(wake_fd_);
+        wake_fd_ = -1;
+        ::close(sock_);
+        sock_ = -1;
+        return;
+    }
     ok_ = true;
-    worker_ = std::thread([this] { run(); });
 }
 
 ArpResponder::~ArpResponder() {
@@ -171,11 +193,18 @@ void ArpResponder::run() {
         if (fds[1].revents & POLLIN) {
             break;  // destructor signalled stop
         }
+        // POLLERR/POLLHUP/POLLNVAL on either fd (e.g. the bound interface was
+        // removed mid-run) is unrecoverable — stop rather than spin re-polling an
+        // errored fd at 100% CPU. Same "stop rather than spin" intent as the
+        // poll() error branch above.
+        if ((fds[0].revents | fds[1].revents) & (POLLERR | POLLHUP | POLLNVAL)) {
+            break;
+        }
         if (!(fds[0].revents & POLLIN)) {
             continue;
         }
 
-        std::uint8_t buf[256];
+        std::uint8_t buf[kRxBufLen];
         sockaddr_ll from{};
         socklen_t fromlen = sizeof(from);
         const ssize_t n =

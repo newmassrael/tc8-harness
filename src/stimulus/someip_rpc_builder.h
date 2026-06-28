@@ -159,11 +159,13 @@ int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &targe
 // `dut_mac` is the DUT's MAC, so the frame is unicast for PACKET_HOST dispatch
 // on a real DUT (defaults to broadcast, which Linux still dispatches by dst_ip
 // on a veth/netns pair). `src_mac` is the tester MAC advertised as the Ethernet
-// source: pair it with an `ArpResponder` (arp_responder.h) armed for
-// `src_ip_be` -> `src_mac` so the DUT can ARP-resolve the spoofed source and the
-// Response is addressed back to a MAC the tester receives on. One-shot (no retry
-// envelope). Returns 0 on success or the negative `sendUdpFromSourceIp` /
-// `sendRawEthernet` sentinel.
+// source; it MUST equal the `mac` of the `ArpResponder` (arp_responder.h)
+// binding armed for `src_ip_be`, so the source the DUT snoops here and the entry
+// it ARP-resolves agree — source both from `macOfInterface(iface)`. The default
+// `{}` (zero) is valid only for veth/netns capture, where pcap sees the Response
+// regardless of its L2 destination; a real DUT needs the real tester MAC here.
+// One-shot (no retry envelope). Returns 0 on success or the negative
+// `sendUdpFromSourceIp` / `sendRawEthernet` sentinel.
 int emitMethodRequestFromSourceIp(std::string_view iface, const SomeIpRpcMessage &target,
                                   std::uint32_t src_ip_be, std::uint16_t src_port,
                                   const MethodEndpoint &dest,
