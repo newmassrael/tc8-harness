@@ -306,19 +306,22 @@ public:
 
     void start() override {
         sm_.initialize();
-        // Stamp the capture-window-open instant — the measurement reference
-        // for boot/stimulus-relative timing cases (see
-        // `CapturedFrameTiming::delta_from_capture_start_us`). `start()` runs
-        // exactly once, after `kickStimulus` returns and before the poll loop
-        // dispatches any frame, so this IS the window-open time. Sampled from
-        // `system_clock` (CLOCK_REALTIME / Unix epoch on this platform) to
-        // match the pcap `gettimeofday` domain of `observed_ts_us` — NOT
-        // `steady_clock`, which the CLI deadline uses and which would make the
-        // `observed_ts_us - capture_start_ts_us` subtraction meaningless.
-        // Guarded so a Captured context that does not observe wire timing
-        // (no `CapturedFrameTiming` base) still compiles.
+        // Stamp the listen-window-open instant — the measurement reference for
+        // boot/stimulus-relative timing cases (see
+        // `CapturedFrameTiming::delta_from_listen_window_us`). `start()` runs
+        // exactly once, after `kickStimulus` returns and before the SM is driven,
+        // so this is the listen-window-open time (the kernel BPF capture was
+        // armed earlier, before `kickStimulus`). Sampled from `system_clock`
+        // (CLOCK_REALTIME / Unix epoch on this platform) to match the pcap
+        // `gettimeofday` domain of `observed_ts_us` — NOT `steady_clock`, which
+        // the CLI deadline uses and which would make the subtraction meaningless.
+        // (A CLOCK_REALTIME step inside the listen window would corrupt the delta;
+        // accepted because pcap offers no monotonic stamp and the window is
+        // seconds-scale — the same exposure `frame_delta_us()` already carries.)
+        // Guarded so a Captured context that does not observe wire timing (no
+        // `CapturedFrameTiming` base) still compiles.
         if constexpr (std::is_base_of_v<::tc8::CapturedFrameTiming, Captured>) {
-            captured_.capture_start_ts_us =
+            captured_.listen_window_open_ts_us =
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now().time_since_epoch())
                     .count();

@@ -478,55 +478,78 @@ TEST(SomeIpCapturedClientRequest, ResponseIsNotAClientRequest) {
     EXPECT_FALSE(c.is_method_request_for(0xF4E7, 0x0008));
 }
 
-// CapturedFrameTiming::delta_from_capture_start_us — the boot/stimulus-relative
+// CapturedFrameTiming::delta_from_listen_window_us — the boot/stimulus-relative
 // measurement reference. Exercised through SomeIpCaptured (which derives from
 // CapturedFrameTiming) since the SD_BEHAVIOR initial-delay cases that consume it
 // use that context. The accessor is pure logic over the two timestamps; the
-// runner stamps `capture_start_ts_us` once at window-open.
-TEST(CapturedFrameTimingCaptureStart, UnsetReferenceReturnsZero) {
+// runner stamps `listen_window_open_ts_us` once at listen-window-open.
+TEST(CapturedFrameTimingListenWindow, UnsetReferenceReturnsZero) {
     tc8::SomeIpCaptured c{};
-    // capture_start_ts_us == 0 (not stamped): unmeasurable -> 0, even with a
+    // listen_window_open_ts_us == 0 (not stamped): unmeasurable -> 0, even with a
     // frame observed, so a `>= MIN` guard fails closed rather than passing.
     c.observed_ts_us = 1'700'000'000'000'000LL;
-    EXPECT_EQ(c.delta_from_capture_start_us(), 0);
+    EXPECT_EQ(c.delta_from_listen_window_us(), 0);
 
     // Window opened but no frame observed yet (observed_ts_us == 0) -> 0.
     tc8::SomeIpCaptured d{};
-    d.capture_start_ts_us = 1'700'000'000'000'000LL;
-    EXPECT_EQ(d.delta_from_capture_start_us(), 0);
+    d.listen_window_open_ts_us = 1'700'000'000'000'000LL;
+    EXPECT_EQ(d.delta_from_listen_window_us(), 0);
 }
 
-TEST(CapturedFrameTimingCaptureStart, PositiveGapMeasuredFromWindowOpen) {
+TEST(CapturedFrameTimingListenWindow, PositiveGapMeasuredFromWindowOpen) {
     tc8::SomeIpCaptured c{};
-    c.capture_start_ts_us = 1'700'000'000'000'000LL;
-    c.observed_ts_us = c.capture_start_ts_us + 123'456LL;  // 123.456 ms later
-    EXPECT_EQ(c.delta_from_capture_start_us(), 123'456LL);
+    c.listen_window_open_ts_us = 1'700'000'000'000'000LL;
+    c.observed_ts_us = c.listen_window_open_ts_us + 123'456LL;  // 123.456 ms later
+    EXPECT_EQ(c.delta_from_listen_window_us(), 123'456LL);
 }
 
-TEST(CapturedFrameTimingCaptureStart, FrameBeforeWindowOpenClampsToZero) {
-    // A frame buffered in the kernel ring before the window opened would yield
-    // a negative raw difference; the accessor clamps it to 0 so a nonsensical
-    // negative window never reaches a guard or the trace.
+TEST(CapturedFrameTimingListenWindow, FrameBeforeWindowOpenClampsToZero) {
+    // A frame already in the capture ring before the listen window opened (the
+    // DUT responded during stimulus) yields a negative raw difference; the
+    // accessor clamps it to 0 so a nonsensical negative window never reaches a
+    // guard or the trace.
     tc8::SomeIpCaptured c{};
-    c.capture_start_ts_us = 1'700'000'000'000'000LL;
-    c.observed_ts_us = c.capture_start_ts_us - 5'000LL;
-    EXPECT_EQ(c.delta_from_capture_start_us(), 0);
+    c.listen_window_open_ts_us = 1'700'000'000'000'000LL;
+    c.observed_ts_us = c.listen_window_open_ts_us - 5'000LL;
+    EXPECT_EQ(c.delta_from_listen_window_us(), 0);
 }
 
-TEST(CapturedFrameTimingCaptureStart, IndependentOfFrameDeltaContract) {
-    // The capture-start delta must not perturb frame_delta_us()'s
+TEST(CapturedFrameTimingListenWindow, IndependentOfFrameDeltaContract) {
+    // The listen-window delta must not perturb frame_delta_us()'s
     // first-transition-returns-0 contract that the offer-to-offer guards rely
     // on: with no prior fired transition (prev_observed_ts_us == 0),
-    // frame_delta_us() stays 0 even though the capture-start delta is non-zero.
+    // frame_delta_us() stays 0 even though the listen-window delta is non-zero.
     tc8::SomeIpCaptured c{};
-    c.capture_start_ts_us = 1'700'000'000'000'000LL;
-    c.observed_ts_us = c.capture_start_ts_us + 400'000LL;
+    c.listen_window_open_ts_us = 1'700'000'000'000'000LL;
+    c.observed_ts_us = c.listen_window_open_ts_us + 400'000LL;
     EXPECT_EQ(c.frame_delta_us(), 0);
-    EXPECT_EQ(c.delta_from_capture_start_us(), 400'000LL);
+    EXPECT_EQ(c.delta_from_listen_window_us(), 400'000LL);
 
     // Once a transition has fired (prev set), frame_delta_us() measures
     // frame-to-frame and the two accessors are independent.
-    c.prev_observed_ts_us = c.capture_start_ts_us + 150'000LL;
+    c.prev_observed_ts_us = c.listen_window_open_ts_us + 150'000LL;
     EXPECT_EQ(c.frame_delta_us(), 250'000LL);
-    EXPECT_EQ(c.delta_from_capture_start_us(), 400'000LL);
+    EXPECT_EQ(c.delta_from_listen_window_us(), 400'000LL);
+}
+
+// The runner stamps listen_window_open_ts_us ONCE in TestRunner::start(); a
+// per-frame fill must NOT clobber it (the "stamped once, survives fills"
+// invariant start() relies on). Drive the real fill path the dispatcher uses
+// and assert the stamp survives while observed_ts_us IS updated from the frame.
+TEST(CapturedFrameTimingListenWindow, SurvivesPerFrameFill) {
+    tc8::SomeIpCaptured c{};
+    c.listen_window_open_ts_us = 1'700'000'000'000'000LL;
+
+    std::vector<std::uint8_t> payload(8, 0x00);
+    tc8::SomeIpFrame f{};
+    f.service_id = 0x1234;
+    f.message_type = 0x80;
+    f.observed_ts_us = c.listen_window_open_ts_us + 250'000LL;
+    f.payload_data = payload.data();
+    f.payload_len = static_cast<std::uint32_t>(payload.size());
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+
+    EXPECT_EQ(c.listen_window_open_ts_us, 1'700'000'000'000'000LL);  // untouched
+    EXPECT_EQ(c.observed_ts_us, c.listen_window_open_ts_us + 250'000LL);
+    EXPECT_EQ(c.delta_from_listen_window_us(), 250'000LL);
 }

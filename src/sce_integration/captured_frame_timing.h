@@ -53,14 +53,17 @@ struct CapturedFrameTiming {
     std::int64_t prev_observed_ts_us = 0;
 
     // Wall-clock (CLOCK_REALTIME epoch microseconds — the SAME domain as
-    // `observed_ts_us`, which is the pcap `gettimeofday` arrival stamp)
-    // instant the capture+poll window opened, stamped ONCE by
-    // `TestRunner::start()` right after `kickStimulus` returns and before the
-    // first frame is dispatched. 0 means "not stamped" (a context whose runner
-    // never opened a window, or a non-timing context). Unlike `observed_ts_us`
-    // it is NOT a per-frame value: every per-frame fill leaves it untouched,
-    // so it stays the run's single window-open reference.
-    std::int64_t capture_start_ts_us = 0;
+    // `observed_ts_us`, which is the pcap `gettimeofday` arrival stamp) instant
+    // the LISTEN WINDOW opened: stamped ONCE by `TestRunner::start()` right after
+    // `kickStimulus` returns and before the SM is driven. This is NOT when the
+    // kernel BPF capture began — that is armed earlier, before `kickStimulus`
+    // (see test_command.cpp) — so a frame the DUT sent during stimulus may
+    // already sit in the capture ring with an `observed_ts_us` BEFORE this stamp
+    // (a negative raw delta, clamped to 0 below). 0 means "not stamped" (a
+    // non-timing context, or a runner that never opened a window). Unlike
+    // `observed_ts_us` it is NOT a per-frame value: every per-frame fill leaves
+    // it untouched, so it stays the run's single listen-window reference.
+    std::int64_t listen_window_open_ts_us = 0;
 
     std::int64_t frame_delta_us() const noexcept {
         if (prev_observed_ts_us == 0) {
@@ -69,32 +72,30 @@ struct CapturedFrameTiming {
         return observed_ts_us - prev_observed_ts_us;
     }
 
-    // Microsecond gap from the capture-window-open instant to the current
-    // frame — the measurement reference for "delay from the DUT's boot /
-    // re-activation, or a tester-emitted stimulus, to its FIRST captured
-    // response", which `frame_delta_us()` (frame-to-frame, 0 on the first
-    // transition) cannot express. A case orders the reference event (an
-    // interface resume, a FindService emit) as the last thing its `stimulus()`
-    // does, so window-open approximates that event within microseconds, and an
-    // SCXML cond reads `cpp:captured.delta_from_capture_start_us()` against an
-    // `expected.*` threshold (e.g. an initial-delay window).
+    // Microsecond gap from the listen-window-open instant to the current frame —
+    // the measurement reference for "delay from the DUT's boot / re-activation,
+    // or a tester-emitted stimulus, to its FIRST captured response", which
+    // `frame_delta_us()` (frame-to-frame, 0 on the first transition) cannot
+    // express. A case orders the reference event (an interface resume, a
+    // FindService emit) as the last thing its `stimulus()` does, so window-open
+    // approximates that event, and an SCXML cond reads
+    // `cpp:captured.delta_from_listen_window_us()` against an `expected.*`
+    // threshold (e.g. an initial-delay window).
     //
     // Returns 0 — the same "unmeasurable" sentinel `frame_delta_us()` uses for
     // the first transition — when either timestamp is unset, so a guard with a
-    // non-zero lower bound fails closed on a missing reference rather than
-    // passing. A negative raw difference (possible only if a frame was buffered
-    // in the kernel capture ring between BPF-arm and window-open) is clamped to
-    // 0; at the millisecond-scale thresholds these cases assert it cannot
-    // arise, but the clamp keeps a nonsensical negative window out of the
-    // trace. This is a SEPARATE accessor: `frame_delta_us()`'s
+    // non-zero lower bound fails closed on a missing reference. A negative raw
+    // difference (a frame that reached the capture ring before the window opened,
+    // i.e. the DUT responded during stimulus) is clamped to 0 — also fail-closed
+    // for a `>= MIN` guard. This is a SEPARATE accessor: `frame_delta_us()`'s
     // first-transition-returns-0 contract — relied on by TCP RETRANSMISSION_TO,
     // DHCPv4 REACQUISITION, and the SD_BEHAVIOR offer-to-offer guards — is
     // deliberately left unchanged.
-    std::int64_t delta_from_capture_start_us() const noexcept {
-        if (capture_start_ts_us == 0 || observed_ts_us == 0) {
+    std::int64_t delta_from_listen_window_us() const noexcept {
+        if (listen_window_open_ts_us == 0 || observed_ts_us == 0) {
             return 0;
         }
-        const std::int64_t d = observed_ts_us - capture_start_ts_us;
+        const std::int64_t d = observed_ts_us - listen_window_open_ts_us;
         return d > 0 ? d : 0;
     }
 };
