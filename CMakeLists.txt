@@ -257,6 +257,7 @@ add_executable(tc8-harness
     src/sce_integration/spec_inventory.cpp
     src/stimulus/arp_builder.cpp
     src/stimulus/arp_responder.cpp
+    src/stimulus/method_responder.cpp
     src/stimulus/dot1q.cpp
     src/stimulus/dhcpv4_frame_builder.cpp
     src/stimulus/ipv4_frame_builder.cpp

@@ -26,6 +26,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/dissect/someip_dispatcher.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_responder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/method_responder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/dot1q.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
@@ -44,8 +45,9 @@ target_include_directories(tc8_harness_testable PUBLIC
 )
 # Shared wire math (checksum + ICMP echo body); PUBLIC so every test executable
 # linking tc8_harness_testable inherits the one tc8_wire archive. Threads is
-# PUBLIC because the ArpResponder worker thread in arp_responder.cpp pulls in
-# pthread, and consumers link this archive directly.
+# PUBLIC because someip_sd_builder.cpp / upper_tester_client.cpp use
+# std::this_thread::sleep_for (the responders are threadless — driven by the
+# capture loop), and consumers link this archive directly.
 find_package(Threads REQUIRED)
 target_link_libraries(tc8_harness_testable PUBLIC tc8_wire tc8_someiptp Threads::Threads)
 tc8_enable_strict_warnings(tc8_harness_testable)
@@ -153,6 +155,10 @@ tc8_add_unit_test(arp_builder_test)
 # and macOfInterface, with no privilege. The live socket/thread plumbing is
 # proven separately in arp_responder_privileged_test (needs a veth pair).
 tc8_add_unit_test(arp_responder_test)
+# Tester-side method responder: the pure parseMethodRequest match/extract over a
+# built Eth+IPv4+UDP+SOME/IP Request frame, with no privilege. The live AF_PACKET
+# socket plumbing shares the ArpResponder pattern (privileged path covered there).
+tc8_add_unit_test(method_responder_test)
 tc8_add_unit_test(ipv4_frame_builder_test)
 tc8_add_unit_test(icmp_echo_test)
 tc8_add_unit_test(icmpv4_builder_test)
@@ -225,6 +231,17 @@ if(TARGET tc8_testability_server)
             $<TARGET_FILE:arp_responder_privileged_test>
             --gtest_filter=ArpResponderLive.*)
     set_tests_properties(arp_responder_privileged PROPERTIES SKIP_RETURN_CODE 77)
+    # Live MethodResponder over a veth pair (CAP_NET_RAW + CAP_NET_ADMIN): the
+    # AF_PACKET RX bind, drain, PACKET_OUTGOING self-skip, reply build, and
+    # emitMethodReply egress the pure parseMethodRequest test cannot reach. Same
+    # gating + scaffolding as arp_responder_privileged_test.
+    tc8_add_unit_test(method_responder_privileged_test)
+    target_link_libraries(method_responder_privileged_test PRIVATE tc8_testability_server)
+    add_test(NAME method_responder_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:method_responder_privileged_test>
+            --gtest_filter=MethodResponderLive.*)
+    set_tests_properties(method_responder_privileged PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 # Server-side integration: drives the real DUT-side Upper Tester server core
 # (tc8::ut::UpperTesterServer) over loopback with injected POSIX adapters,

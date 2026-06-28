@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arpa/inet.h>
+#include <linux/rtnetlink.h>
 #include <linux/veth.h>
 #include <net/if.h>
 
@@ -39,6 +40,42 @@ inline bool createDummyIface(const char *name) {
     auto *linkinfo = ::tc8::net::rtnl::appendAttr(buf, &off, IFLA_LINKINFO, nullptr, 0);  // nested
     ::tc8::net::rtnl::appendAttr(buf, &off, IFLA_INFO_KIND, "dummy", 5);  // strlen("dummy"), no NUL
     linkinfo->rta_len = static_cast<unsigned short>(off - li_start);
+    nlh->nlmsg_len = static_cast<std::uint32_t>(off);
+    return ::tc8::net::rtnl::sendRequestCheckAck(buf, nlh->nlmsg_len, /*enoent_ok=*/false);
+}
+
+// Assign `dotted`/`prefix` as an IPv4 address on `name` (RTM_NEWADDR). Test-only —
+// the production code never assigns addresses; this lets a test whose
+// device-under-test EMITS through a bound UDP socket (e.g. the method responder's
+// emitMethodReply, which binds to the iface IPv4) run on a veth end that carries
+// an address. false on a missing interface, a malformed address, or a
+// privilege/ACK failure. Goes through the same tc8::net::rtnl send+ACK path as the
+// link helpers above.
+inline bool assignIpv4(const char *name, const char *dotted, std::uint8_t prefix) {
+    const unsigned idx = ::if_nametoindex(name);
+    if (idx == 0) {
+        return false;
+    }
+    ::in_addr addr{};
+    if (::inet_pton(AF_INET, dotted, &addr) != 1) {
+        return false;
+    }
+    char buf[256] = {};
+    auto *nlh = reinterpret_cast<::nlmsghdr *>(buf);
+    nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ifaddrmsg));
+    nlh->nlmsg_type = RTM_NEWADDR;
+    nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_REPLACE;
+    auto *ifa = static_cast<::ifaddrmsg *>(NLMSG_DATA(nlh));
+    ifa->ifa_family = AF_INET;
+    ifa->ifa_prefixlen = prefix;
+    ifa->ifa_scope = RT_SCOPE_UNIVERSE;
+    ifa->ifa_index = idx;
+
+    std::size_t off = NLMSG_ALIGN(nlh->nlmsg_len);
+    // IFA_LOCAL is the host's own address; IFA_ADDRESS matches it for a non-
+    // point-to-point link (the veth case). Both are the 4-byte s_addr.
+    ::tc8::net::rtnl::appendAttr(buf, &off, IFA_LOCAL, &addr.s_addr, sizeof(addr.s_addr));
+    ::tc8::net::rtnl::appendAttr(buf, &off, IFA_ADDRESS, &addr.s_addr, sizeof(addr.s_addr));
     nlh->nlmsg_len = static_cast<std::uint32_t>(off);
     return ::tc8::net::rtnl::sendRequestCheckAck(buf, nlh->nlmsg_len, /*enoent_ok=*/false);
 }
