@@ -94,6 +94,22 @@ TEST(ApplyExpectToken, AllRecognisedKeys) {
     EXPECT_EQ(e.payload[3], 0x68);
 }
 
+TEST(ApplyExpectToken, TesterEndpointKeys) {
+    ::tc8::SomeIpExpectations e{};
+    EXPECT_TRUE(applyExpectToken("tester_ipv4=172.16.0.2", e));
+    EXPECT_TRUE(applyExpectToken("tester_udp_port=40000", e));
+    // NBO: wire bytes AC 10 00 02 read as a little-endian uint32 (same
+    // convention as dut_iface_ip / SomeIpCaptured::dst_ip).
+    EXPECT_EQ(e.tester_ipv4, 0x020010ACu);
+    EXPECT_EQ(e.tester_udp_port, 40000u);
+}
+
+TEST(ApplyExpectToken, RejectsOverflowTesterUdpPort) {
+    ::tc8::SomeIpExpectations e{};
+    EXPECT_FALSE(applyExpectToken("tester_udp_port=0x10000", e));
+    EXPECT_EQ(e.tester_udp_port, 0);
+}
+
 TEST(ApplyExpectToken, RejectsOverflowServiceId) {
     ::tc8::SomeIpExpectations e{};
     EXPECT_FALSE(applyExpectToken("service_id=0x10000", e));

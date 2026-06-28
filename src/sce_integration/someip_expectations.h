@@ -60,6 +60,16 @@ struct SomeIpExpectations {
     std::uint32_t mcast_ipv4 = 0;
     std::uint16_t mcast_port = 0;
 
+    // Tester's OWN subscribe endpoint — the address/port the DUT must send a
+    // unicast SubscribeAck/Nack or event Notification back to. Lets a case assert
+    // `captured.dst_ip == expected.tester_ipv4` (and dst_port) for the
+    // destination half, which the DUT-side fields above cannot express. Network
+    // byte order (tester_ipv4) to match `SomeIpCaptured::dst_ip`; host order
+    // (tester_udp_port). Supplied via `--expect tester_ipv4=`/`tester_udp_port=`
+    // (the tester iface IP the runner already knows). 0 stays the unset sentinel.
+    std::uint32_t tester_ipv4 = 0;
+    std::uint16_t tester_udp_port = 0;
+
     // Expected L7 payload bytes for a Method-Response echo assertion,
     // supplied via `--expect payload=HH:HH:..`. `payload_len` is the count
     // of valid leading bytes (0 = unset). ETS echo conds compare it via

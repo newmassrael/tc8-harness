@@ -59,6 +59,13 @@ struct SomeIpExpected {
     std::uint32_t mcast_ipv4 = 0;
     std::uint16_t mcast_port = 0;
 
+    // Tester's own subscribe endpoint (NBO ip, host-order port). Lets a unicast
+    // SubscribeAck/Nack or Notification case assert the reply DESTINATION equals
+    // the tester (`captured.dst_ip == expected.tester_ipv4`) — the DUT-side
+    // endpoints above only cover the source half. See `SomeIpExpectations`.
+    std::uint32_t tester_ipv4 = 0;
+    std::uint16_t tester_udp_port = 0;
+
     // Expected L7 payload for a Method-Response echo assertion (see
     // `SomeIpExpectations`). `payload_view()` exposes the valid prefix as a
     // string_view so an ETS cond reads
@@ -91,6 +98,8 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     e.sd_multicast_ip = cfg.someip.sd_multicast_ip;
     e.mcast_ipv4 = cfg.someip.mcast_ipv4;
     e.mcast_port = cfg.someip.mcast_port;
+    e.tester_ipv4 = cfg.someip.tester_ipv4;
+    e.tester_udp_port = cfg.someip.tester_udp_port;
     // payload is a per-case default (setExpectedPayload via the traits'
     // applyExpectedDefaults hook); `--expect payload=` overrides it ONLY when
     // explicitly set, so the conformant default survives a positive run and the

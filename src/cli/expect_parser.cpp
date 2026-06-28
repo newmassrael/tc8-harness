@@ -124,6 +124,14 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
         e.mcast_ipv4 = ip;
         return true;
     }
+    if (key == "tester_ipv4") {
+        std::uint32_t ip = 0;
+        if (!parseIpv4Dotted(val, ip)) {
+            return false;
+        }
+        e.tester_ipv4 = ip;
+        return true;
+    }
     if (key == "payload") {
         // Colon-separated hex byte list (e.g. payload=00:00:34:68) — the
         // expected L7 echo asserted by ETS Method-Response conds. Empty or
@@ -203,6 +211,11 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
             return false;
         }
         e.mcast_port = static_cast<std::uint16_t>(n);
+    } else if (key == "tester_udp_port") {
+        if (n > 0xFFFF) {
+            return false;
+        }
+        e.tester_udp_port = static_cast<std::uint16_t>(n);
     } else {
         return false;
     }
