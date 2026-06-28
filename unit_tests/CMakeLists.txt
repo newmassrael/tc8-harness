@@ -255,3 +255,15 @@ target_link_libraries(verdict_donedata_test PRIVATE sce_base)
 tc8_add_unit_test(dot1q_test)
 target_include_directories(dot1q_test PRIVATE ${LIBTINS_INCLUDE_DIR})
 target_link_libraries(dot1q_test PRIVATE ${LIBTINS_LIBRARY})
+
+# IEtsExtension / IEtsEventSink seam: a fake sink drives the in-tree demo
+# extension hermetically (no vsomeip, no DUT), proving the offer/notify/onMethod
+# contract. Compiles the demo's TC8_ETS_EXTENSION_SRC slot file too, so the OEM
+# starter template is build-verified. The seam header is vsomeip-free, so this
+# stays a pure-logic unit test.
+tc8_add_unit_test(demo_ets_extension_test)
+target_sources(demo_ets_extension_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/demo_ets_extension/demo_ets_extension.cpp)
+target_include_directories(demo_ets_extension_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service
+    ${PROJECT_SOURCE_DIR}/examples/demo_ets_extension)
