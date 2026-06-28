@@ -110,6 +110,25 @@ TEST(UdpEmit, BuildUdpFromSourceIpFrameLayout) {
     // L7 payload follows the 8-byte UDP header.
     EXPECT_EQ(f[42], 0xDE);
     EXPECT_EQ(f[45], 0xEF);
+
+    // The on-wire UDP checksum must be valid for THIS frame's IPs — proves the
+    // builder fed the same src/dst IP to the UDP pseudo-header and the IP
+    // header. Sum the pseudo-header + UDP segment as 16-bit words; a valid
+    // checksum folds to 0.
+    const auto word = [&](std::size_t i) {
+        return static_cast<std::uint32_t>((f[i] << 8) | f[i + 1]);
+    };
+    std::uint32_t sum = word(26) + word(28)                       // source IP
+                        + word(30) + word(32)                     // destination IP
+                        + 0x0011u                                 // zero byte + protocol 17 (UDP)
+                        + static_cast<std::uint32_t>(f.size() - 34);  // UDP length
+    for (std::size_t i = 34; i + 1 < f.size(); i += 2) {
+        sum += word(i);  // UDP header (incl. checksum field) + payload
+    }
+    while (sum >> 16) {
+        sum = (sum & 0xFFFFu) + (sum >> 16);
+    }
+    EXPECT_EQ(static_cast<std::uint16_t>(~sum & 0xFFFFu), 0u) << "UDP checksum invalid for the frame IPs";
 }
 
 }  // namespace
