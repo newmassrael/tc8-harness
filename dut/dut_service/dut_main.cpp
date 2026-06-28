@@ -9,13 +9,13 @@
 
 #include <CommonAPI/CommonAPI.hpp>
 
+#include "ets2_impl.h"
 #include "ets_emission.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
 #include "ets_factory.h"
 #include "ets_fault.h"
 #include "ets_impl.h"
-#include "ets_impl_2.h"
 #include "posix_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "posix_ut_extensions.h"
@@ -165,9 +165,9 @@ int main() {
     // §5.1.5.7 RPC_01/_02/_13 require a second distinct service
     // (SERVICE-ID-2 = 0xF4E8). Gated on TC8_DUT_SERVICE_2 so the
     // baseline single-service deployment is unaffected.
-    std::shared_ptr<tc8::dut::EtsImpl2> impl_si2;
+    std::shared_ptr<tc8::dut::Ets2Impl> impl_si2;
     if (envFlagOn("TC8_DUT_SERVICE_2")) {
-        impl_si2 = std::make_shared<tc8::dut::EtsImpl2>();
+        impl_si2 = std::make_shared<tc8::dut::Ets2Impl>();
         if (!runtime->registerService(kDomain, kInstanceSi2, impl_si2)) {
             std::fprintf(stderr, "tc8-dut: registerService(%s) failed\n", kInstanceSi2);
             std::_Exit(1);

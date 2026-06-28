@@ -94,10 +94,10 @@ add_executable(tc8-dut
     client_mode_proxy.cpp
     dhcpv4_client.cpp
     dut_main.cpp
+    ets2_impl.cpp
     ets_emission.cpp
     ets_event_sink.cpp
     ets_impl.cpp
-    ets_impl_2.cpp
     linklocal_autoconf.cpp
     posix_ut_extensions.cpp
     ${TC8_ETS_FACTORY_SRC}

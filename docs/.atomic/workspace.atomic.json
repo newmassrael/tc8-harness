@@ -5658,10 +5658,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/dut_service/ets_impl_2.h",
-          "kind": "implements"
-        },
-        {
           "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
@@ -5687,6 +5683,10 @@
         },
         {
           "file": "tests/someipsrv_format_27/someipsrv_format_27.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/ets2_impl.h",
           "kind": "implements"
         }
       ]
